@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "module": "esnext",
+    "target": "es2019",
+    "moduleResolution": "node",
+    "strict": true,
+    "noEmit": true,
+    "jsx": "preserve",
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@core": ["./src/core"],
+      "@core/*": ["./src/core/*"],
+      "@history": ["./src/history"],
+      "@history/*": ["./src/history/*"],
+      "@navigate": ["./src/navigate"],
+      "@navigate/*": ["./src/navigate/*"],
+      "@renderer": ["./src/renderer"],
+      "@renderer/*": ["./src/renderer/*"],
+      "@screen": ["./src/screen"],
+      "@screen/*": ["./src/screen/*"],
+      "@transition": ["./src/transition"],
+      "@transition/*": ["./src/transition/*"],
+      "@utils": ["./src/utils"],
+      "@utils/*": ["./src/utils/*"],
+      "@Route": ["./src/Route"],
+      "@Route/*": ["./src/Route/*"],
+      "@Router": ["./src/Router"],
+      "@Router/*": ["./src/Router/*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "**/*.d.ts"],
+  "exclude": ["node_modules", "dist"]
+}

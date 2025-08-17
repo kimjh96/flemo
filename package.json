@@ -1,0 +1,77 @@
+{
+  "name": "react-motion-router",
+  "version": "1.0.0",
+  "description": "",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "keywords": [
+    "react",
+    "react-router",
+    "react-motion-router",
+    "motion",
+    "transition",
+    "react-page-transition"
+  ],
+  "author": {
+    "name": "kimjh96",
+    "email": "kimjhs@kakao.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kimjh96/react-motion-router.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kimjh96/react-motion-router/issues",
+    "email": "kimjhs@kakao.com"
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "vite build",
+    "watch": "vite build --watch",
+    "prettier": "prettier --write --config ./.prettierrc \"**/*.{js,mjs,ts,jsx,tsx,mts,json}\"",
+    "convention": "pnpm prettier && eslint --fix \"**/*.{js,mjs,ts,jsx,tsx,mts,html}\"",
+    "prepare": "husky",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "path-to-regexp": "^8.2.0",
+    "zustand": "^5.0.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.33.0",
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react-swc": "^4.0.0",
+    "eslint": "^9.33.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.3.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.5",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.39.1",
+    "vite": "^7.1.2",
+    "vite-plugin-dts": "^4.5.4"
+  },
+  "peerDependencies": {
+    "motion": "^12.23.12",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "lint-staged": {
+    "*.{js,mjs,ts,jsx,tsx,mts,json}": "prettier --write",
+    "*.{js,mjs,ts,jsx,tsx,mts,html}": "eslint --fix"
+  }
+}
