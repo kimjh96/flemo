@@ -1,5 +1,5 @@
 <div align="center">
-<img width="32" height="32" alt="Logo" src="https://github.com/user-attachments/assets/ac7a2cb5-78e6-4366-8156-7ba304ca17a9" />
+<img width="64" height="64" alt="logo_gradient_all_blue_hd" src="https://github.com/user-attachments/assets/131c0626-2730-440e-a802-9fe02e9cf37d" />
 
 <h1>react-motion-router</h1>
 
