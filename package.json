@@ -1,7 +1,7 @@
 {
   "name": "react-motion-router",
   "version": "1.0.0",
-  "description": "",
+  "description": "A modern React router with smooth motion transitions",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -30,6 +30,7 @@
     "url": "https://github.com/kimjh96/react-motion-router/issues",
     "email": "kimjhs@kakao.com"
   },
+  "homepage": "https://react-motion-router-web.vercel.app",
   "license": "MIT",
   "scripts": {
     "build": "vite build",
