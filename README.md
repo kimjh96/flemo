@@ -1,30 +1,30 @@
 <div align="center">
 <img width="64" height="64" alt="logo_gradient_all_blue_hd" src="https://github.com/user-attachments/assets/131c0626-2730-440e-a802-9fe02e9cf37d" />
 
-<h1>react-motion-router</h1>
+<h1>Flemo</h1>
 
 **Bring native app-like screen transitions to the web**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[Documentation](https://react-motion-router-web.vercel.app/docs) • [Examples](https://react-motion-router-web.vercel.app/docs/examples) • [API Reference](https://react-motion-router-web.vercel.app/docs/api)
+[Documentation](https://flemo-web.vercel.app/docs) • [Examples](https://https://flemo-web.vercel.app/docs/examples) • [API Reference](https://flemo-web.vercel.app/docs/api)
 
 </div>
 
 ## ✨ Features
 
-- 🎬 **Motion-Powered** - Built on Framer Motion for smooth, native-like transitions
+- 🎬 **Motion-Powered** - Built on Motion for smooth, native-like transitions
 - 🔒 **Type Safe** - Full TypeScript support with automatic route and parameter inference
 - 🎨 **Custom Transitions** - Create your own transitions with simple or advanced APIs
 
 ## 📚 Documentation
 
-Visit our [comprehensive documentation](https://react-motion-router-web.vercel.app) to learn more:
+Visit our [comprehensive documentation](https://flemo-web.vercel.app/) to learn more:
 
-- [**Getting Started**](https://react-motion-router-web.vercel.app/docs/getting-started) - Installation and basic setup
-- [**Core Concepts**](https://react-motion-router-web.vercel.app/docs/concepts) - Understanding transitions, decorators, and screens
-- [**API Reference**](https://react-motion-router-web.vercel.app/docs/api) - Complete API documentation
-- [**Examples**](https://react-motion-router-web.vercel.app/docs/examples) - Real-world examples and patterns
+- [**Getting Started**](https://flemo-web.vercel.app/docs/getting-started) - Installation and basic setup
+- [**Core Concepts**](https://flemo-web.vercel.app/docs/concepts) - Understanding transitions, decorators, and screens
+- [**API Reference**](https://flemo-web.vercel.app/docs/api) - Complete API documentation
+- [**Examples**](https://flemo-web.vercel.app/docs/examples) - Real-world examples and patterns
 
 ## 🛣️ Roadmap
 

@@ -1,7 +1,7 @@
 {
-  "name": "react-motion-router",
+  "name": "flemo",
   "version": "1.0.0",
-  "description": "A modern React router with smooth motion transitions",
+  "description": "A modern React router with smooth motion transitions and a seamless flow between screens",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -11,11 +11,12 @@
   ],
   "sideEffects": false,
   "keywords": [
+    "flemo",
     "react",
     "react-router",
-    "react-motion-router",
     "motion",
     "transition",
+    "page-transition",
     "react-page-transition"
   ],
   "author": {
@@ -24,13 +25,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kimjh96/react-motion-router.git"
+    "url": "git+https://github.com/kimjh96/flemo.git"
   },
   "bugs": {
-    "url": "https://github.com/kimjh96/react-motion-router/issues",
+    "url": "https://github.com/kimjh96/flemo/issues",
     "email": "kimjhs@kakao.com"
   },
-  "homepage": "https://react-motion-router-web.vercel.app",
+  "homepage": "https://flemo-web.vercel.app",
   "license": "MIT",
   "scripts": {
     "build": "vite build",
@@ -67,7 +68,7 @@
     "vite-plugin-dts": "^4.5.4"
   },
   "peerDependencies": {
-    "motion": "^12.23.12",
+    "motion": "^12.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
