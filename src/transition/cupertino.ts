@@ -95,26 +95,28 @@ const cupertino = createTransition({
 
       onStart?.(isTriggered);
 
-      animate(
-        currentScreen,
-        {
-          x: isTriggered ? "100%" : 0
-        },
-        {
-          duration: 0.3,
-          ease: [0.32, 0.72, 0, 1]
-        }
-      );
-      animate(
-        prevScreen,
-        {
-          x: isTriggered ? 0 : -100
-        },
-        {
-          duration: 0.3,
-          ease: [0.32, 0.72, 0, 1]
-        }
-      );
+      await Promise.all([
+        animate(
+          currentScreen,
+          {
+            x: isTriggered ? "100%" : 0
+          },
+          {
+            duration: 0.3,
+            ease: [0.32, 0.72, 0, 1]
+          }
+        ),
+        animate(
+          prevScreen,
+          {
+            x: isTriggered ? 0 : -100
+          },
+          {
+            duration: 0.3,
+            ease: [0.32, 0.72, 0, 1]
+          }
+        )
+      ]);
 
       return isTriggered;
     }
