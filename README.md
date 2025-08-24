@@ -7,7 +7,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[Documentation](https://flemo-web.vercel.app/docs) • [Examples](https://https://flemo-web.vercel.app/docs/examples) • [API Reference](https://flemo-web.vercel.app/docs/api)
+[Documentation](https://flemo-web.vercel.app/docs) • [Examples](https://flemo-web.vercel.app/docs/examples) • [API Reference](https://flemo-web.vercel.app/docs/api)
 
 </div>
 

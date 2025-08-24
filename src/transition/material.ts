@@ -62,25 +62,10 @@ const material = createTransition({
   },
   options: {
     swipeDirection: "y",
-    onSwipeStart: async (_, info, { currentScreen, dragControls }) => {
-      const { offset } = info;
-      const dragY = offset.y;
-
-      if (dragY < 0) {
-        dragControls.stop();
-        animate(
-          currentScreen,
-          {
-            y: 0,
-            opacity: 1
-          },
-          {
-            duration: 0.24
-          }
-        );
-      }
+    onSwipeStart: async () => {
+      return true;
     },
-    onSwipe: (_, info, { currentScreen, prevScreen }) => {
+    onSwipe: (_, info, { currentScreen, prevScreen, onProgress }) => {
       const { offset } = info;
       const dragY = offset.y;
       const clamped = Math.max(0, Math.min(56, dragY));
@@ -90,6 +75,8 @@ const material = createTransition({
       const resistedExtra = Math.sqrt(extraRatio) * 12;
       const finalY = Math.max(0, clamped + resistedExtra);
       const progress = Math.min(56, finalY);
+
+      onProgress?.(true, progress);
 
       animate(
         currentScreen,
@@ -112,10 +99,12 @@ const material = createTransition({
 
       return progress;
     },
-    onSwipeEnd: async (_, info, { currentScreen, prevScreen }): Promise<boolean> => {
+    onSwipeEnd: async (_, info, { currentScreen, prevScreen, onStart }): Promise<boolean> => {
       const { offset, velocity } = info;
       const dragY = offset.y;
       const isTriggered = dragY > 56 || velocity.y > 20;
+
+      onStart?.(isTriggered);
 
       await Promise.all([
         animate(

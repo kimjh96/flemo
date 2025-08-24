@@ -57,27 +57,15 @@ const cupertino = createTransition({
   options: {
     decoratorName: "overlay",
     swipeDirection: "x",
-    onSwipeStart: async (_, info, { currentScreen, dragControls }) => {
-      const { offset } = info;
-      const dragX = offset.x;
-
-      if (dragX < 0) {
-        dragControls.stop();
-        animate(
-          currentScreen,
-          {
-            x: 0
-          },
-          {
-            duration: 0.3
-          }
-        );
-      }
+    onSwipeStart: async () => {
+      return true;
     },
-    onSwipe: (_, info, { currentScreen, prevScreen }) => {
+    onSwipe: (_, info, { currentScreen, prevScreen, onProgress }) => {
       const { offset } = info;
       const dragX = offset.x;
       const progress = transform(dragX, [0, window.innerWidth], [0, 100]);
+
+      onProgress?.(true, progress);
 
       animate(
         currentScreen,
@@ -100,10 +88,12 @@ const cupertino = createTransition({
 
       return progress;
     },
-    onSwipeEnd: async (_, info, { currentScreen, prevScreen }) => {
+    onSwipeEnd: async (_, info, { currentScreen, prevScreen, onStart }) => {
       const { offset, velocity } = info;
       const dragX = offset.x;
       const isTriggered = dragX > 50 || velocity.x > 20;
+
+      onStart?.(isTriggered);
 
       animate(
         currentScreen,

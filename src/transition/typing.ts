@@ -36,8 +36,9 @@ export type TransitionOptions =
           currentScreen: HTMLDivElement;
           prevScreen: HTMLDivElement;
           dragControls: DragControls;
+          onStart?: (triggered: boolean) => void;
         }
-      ) => Promise<void>;
+      ) => Promise<boolean>;
       onSwipe: (
         event: MouseEvent | TouchEvent | PointerEvent,
         info: PanInfo,
@@ -45,6 +46,7 @@ export type TransitionOptions =
           currentScreen: HTMLDivElement;
           prevScreen: HTMLDivElement;
           dragControls: DragControls;
+          onProgress?: (triggered: boolean, progress: number) => void;
         }
       ) => number;
       onSwipeEnd: (
@@ -53,6 +55,7 @@ export type TransitionOptions =
         options: {
           currentScreen: HTMLDivElement;
           prevScreen: HTMLDivElement;
+          onStart?: (triggered: boolean) => void;
         }
       ) => Promise<boolean>;
     }

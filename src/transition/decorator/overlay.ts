@@ -30,7 +30,17 @@ const overlay = createDecorator({
     }
   },
   options: {
-    onSwipe: (progress, { prevDecorator }) =>
+    onSwipeStart: (triggered, { prevDecorator }) =>
+      animate(
+        prevDecorator,
+        {
+          opacity: triggered ? 1 : 0
+        },
+        {
+          duration: 0.3
+        }
+      ),
+    onSwipe: (_, progress, { prevDecorator }) =>
       animate(
         prevDecorator,
         {
@@ -38,6 +48,16 @@ const overlay = createDecorator({
         },
         {
           duration: 0
+        }
+      ),
+    onSwipeEnd: (triggered, { prevDecorator }) =>
+      animate(
+        prevDecorator,
+        {
+          opacity: triggered ? 0 : 1
+        },
+        {
+          duration: 0.3
         }
       )
   }
