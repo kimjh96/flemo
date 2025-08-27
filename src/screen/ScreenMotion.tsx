@@ -197,7 +197,7 @@ function ScreenMotion({
         swipeDirection === "y" &&
         (isTopAtEdge || !!scrollableXRef.current.element) &&
         y > 0 &&
-        x < 2
+        Math.abs(x) < 4
       ) {
         shouldStartDragRef.current = false;
         isTouchPreventedRef.current = true;
@@ -206,7 +206,7 @@ function ScreenMotion({
         swipeDirection === "x" &&
         (isLeftAtEdge || !!scrollableYRef.current.element) &&
         x > 0 &&
-        y < 2
+        Math.abs(y) < 4
       ) {
         shouldStartDragRef.current = false;
         isTouchPreventedRef.current = true;
