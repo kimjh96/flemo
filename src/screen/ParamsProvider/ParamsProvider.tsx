@@ -1,5 +1,7 @@
 import { type PropsWithChildren, useEffect, useReducer } from "react";
 
+import TaskManager from "@core/TaskManger";
+
 import ParamsContext from "@screen/ParamsProvider/ParamsContext";
 import ParamsDispatchContext from "@screen/ParamsProvider/ParamsDispatchContext";
 import ParamsReducer from "@screen/ParamsProvider/ParamsReducer";
@@ -15,9 +17,11 @@ function ParamsProvider({
   const [value, dispatch] = useReducer(ParamsReducer, params);
 
   useEffect(() => {
-    const handlePopState = (e: PopStateEvent) => {
+    const handlePopState = async (e: PopStateEvent) => {
       if (e.state?.step) {
-        dispatch({ type: "SET", params: e.state?.params || {} });
+        await TaskManager.addTask(async () => {
+          dispatch({ type: "SET", params: e.state?.params || {} });
+        });
       }
     };
 

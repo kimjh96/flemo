@@ -30,10 +30,13 @@ function Screen({
   const { isActive, isPrev } = useScreen();
 
   const status = useNavigationStore((state) => state.status);
-  const transitionStatus = useScreenStore((state) => state.transitionStatus);
+  const dragStatus = useScreenStore((state) => state.dragStatus);
+  const replaceTransitionStatus = useScreenStore((state) => state.replaceTransitionStatus);
 
-  const isTransitionCompleted = status === "COMPLETED" && transitionStatus === "IDLE";
-  const isFrozen = !isActive && (isTransitionCompleted || isPrev);
+  const isTransitionCompleted =
+    status === "COMPLETED" && dragStatus === "IDLE" && replaceTransitionStatus === "IDLE";
+  const isFrozen =
+    !isActive && (isTransitionCompleted || (isPrev && replaceTransitionStatus === "IDLE"));
 
   return (
     <ScreenFreeze freeze={isFrozen}>

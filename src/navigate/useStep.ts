@@ -1,6 +1,8 @@
 import { useContext } from "react";
 
-import taskManager from "@core/TaskManger";
+import TaskManager from "@core/TaskManger";
+
+import useNavigationStore from "@navigate/store";
 
 import ScreenParamsDispatchContext from "@screen/ParamsProvider/ParamsDispatchContext";
 
@@ -10,12 +12,14 @@ export default function useStep<T extends keyof RegisterRoute>() {
   const dispatch = useContext(ScreenParamsDispatchContext);
 
   const pushStep = async (params: RegisterRoute[T]) => {
-    if (taskManager.getManualPendingTasks().length) {
+    const status = useNavigationStore.getState().status;
+
+    if (status !== "COMPLETED" && status !== "IDLE") {
       return;
     }
 
     (
-      await taskManager.addTask(async () => {
+      await TaskManager.addTask(async () => {
         const search = new URLSearchParams(params as Record<string, string>).toString();
         const pathname = `${window.location.pathname}${search ? `?${search}` : ""}`;
 
@@ -46,12 +50,14 @@ export default function useStep<T extends keyof RegisterRoute>() {
   };
 
   const replaceStep = async (params: RegisterRoute[T]) => {
-    if (taskManager.getManualPendingTasks().length) {
+    const status = useNavigationStore.getState().status;
+
+    if (status !== "COMPLETED" && status !== "IDLE") {
       return;
     }
 
     (
-      await taskManager.addTask(async () => {
+      await TaskManager.addTask(async () => {
         const search = new URLSearchParams(params as Record<string, string>).toString();
         const pathname = `${window.location.pathname}${search ? `?${search}` : ""}`;
 
@@ -71,7 +77,9 @@ export default function useStep<T extends keyof RegisterRoute>() {
   };
 
   const popStep = () => {
-    if (taskManager.getManualPendingTasks().length) {
+    const status = useNavigationStore.getState().status;
+
+    if (status !== "COMPLETED" && status !== "IDLE") {
       return;
     }
 

@@ -10,6 +10,7 @@ interface TaskResult<T> {
 type TaskStatus =
   | "PENDING"
   | "MANUAL_PENDING"
+  | "SIGNAL_PENDING"
   | "PROCESSING"
   | "COMPLETED"
   | "FAILED"
@@ -46,7 +47,9 @@ class TaskManager {
   private isLocked: boolean = false;
   private currentTaskId: string | null = null;
   private taskQueue: Promise<void> = Promise.resolve();
-  private signalListeners: Map<string, Set<string>> = new Map(); // 신호 리스너
+  private signalListeners: Map<string, Set<string>> = new Map();
+  private pendingTaskQueue: Task<unknown>[] = [];
+  private isProcessingPending: boolean = false;
 
   private async acquireLock(taskId: string) {
     const maxRetries = 10;
@@ -84,10 +87,78 @@ class TaskManager {
     }
   }
 
+  // 대기 중인 태스크들을 처리하는 메서드
+  private async processPendingTasks() {
+    if (this.isProcessingPending || this.pendingTaskQueue.length === 0) {
+      return;
+    }
+
+    this.isProcessingPending = true;
+
+    try {
+      while (this.pendingTaskQueue.length > 0) {
+        const task = this.pendingTaskQueue[0]; // 첫 번째 태스크만 확인 (FIFO)
+
+        // 태스크가 완료되었는지 확인
+        if (
+          task.status === "COMPLETED" ||
+          task.status === "FAILED" ||
+          task.status === "ROLLEDBACK"
+        ) {
+          this.pendingTaskQueue.shift(); // 완료된 태스크 제거
+          continue;
+        }
+
+        // 태스크가 아직 대기 중인 상태라면 더 이상 진행하지 않음
+        if (task.status === "MANUAL_PENDING" || task.status === "SIGNAL_PENDING") {
+          break;
+        }
+
+        // 태스크가 처리 중이거나 완료 대기 중이라면 다음 태스크로
+        if (task.status === "PROCESSING" || task.status === "PENDING") {
+          break;
+        }
+      }
+    } finally {
+      this.isProcessingPending = false;
+    }
+  }
+
+  // 모든 대기 중인 태스크가 완료될 때까지 대기
+  private async waitForPendingTasks(): Promise<void> {
+    return new Promise((resolve) => {
+      const checkPendingTasks = () => {
+        const pendingTasks = this.pendingTaskQueue.filter(
+          (task) => task.status === "MANUAL_PENDING" || task.status === "SIGNAL_PENDING"
+        );
+
+        if (pendingTasks.length === 0) {
+          resolve();
+        } else {
+          setTimeout(checkPendingTasks, 100);
+        }
+      };
+
+      checkPendingTasks();
+    });
+  }
+
+  // 태스크 상태 변경 시 대기 큐 처리
+  private async onTaskStatusChange(taskId: string, newStatus: TaskStatus) {
+    if (newStatus === "COMPLETED" || newStatus === "FAILED" || newStatus === "ROLLEDBACK") {
+      // 완료된 태스크가 대기 큐에 있다면 제거
+      this.pendingTaskQueue = this.pendingTaskQueue.filter((task) => task.id !== taskId);
+
+      // 대기 큐 처리 재시작
+      await this.processPendingTasks();
+    }
+  }
+
   public async addTask<T>(
     execute: () => Promise<T>,
     options: {
       id?: string;
+      delay?: number;
       validate?: () => Promise<boolean>;
       rollback?: () => Promise<void>;
       dependencies?: string[];
@@ -100,7 +171,7 @@ class TaskManager {
       this.taskQueue = this.taskQueue
         .then(async () => {
           try {
-            const { control, validate, rollback, dependencies = [] } = options;
+            const { control, validate, rollback, dependencies = [], delay } = options;
 
             const task: Task<T> = {
               id,
@@ -117,33 +188,49 @@ class TaskManager {
 
             this.tasks.set(task.id, task as Task<unknown>);
 
+            // 대기 중인 태스크가 있는지 확인하고 대기
+            const hasPendingTasks = this.pendingTaskQueue.length > 0;
+
+            if (hasPendingTasks) {
+              // 대기 큐에 추가하고 모든 대기 중인 태스크가 완료될 때까지 대기
+              this.pendingTaskQueue.push(task as Task<unknown>);
+              await this.waitForPendingTasks();
+
+              // 대기 큐에서 제거
+              this.pendingTaskQueue = this.pendingTaskQueue.filter((t) => t.id !== task.id);
+            }
+
             try {
               const lockAcquired = await this.acquireLock(task.id);
               if (!lockAcquired) {
                 task.status = "FAILED";
-                // TODO: 작업 락 획득 실패 시 처리
                 throw new Error(`FAILED`);
               }
 
               try {
                 task.status = "PROCESSING";
 
+                // 의존성 확인
                 for (const depId of task.dependencies) {
                   const depTask = this.tasks.get(depId);
                   if (!depTask || depTask.status !== "COMPLETED") {
                     task.status = "FAILED";
-                    // TODO: 의존성 작업 실패 시 처리
                     throw new Error(`FAILED`);
                   }
                 }
 
+                // 검증
                 if (task.validate) {
                   const isValid = await task.validate();
                   if (!isValid) {
                     task.status = "FAILED";
-                    // TODO: 검증 실패 시 처리
-                    throw new Error("FAILED");
+                    throw new Error(`FAILED`);
                   }
+                }
+
+                // 지연 시간
+                if (delay && delay > 0) {
+                  await new Promise((resolve) => setTimeout(resolve, delay));
                 }
 
                 const result = await task.execute();
@@ -152,7 +239,6 @@ class TaskManager {
                 if (options.control) {
                   const control = options.control;
 
-                  // 지연 시간이 있는 경우
                   if (control.delay && control.delay > 0) {
                     await new Promise((resolve) => setTimeout(resolve, control.delay));
                   }
@@ -161,12 +247,16 @@ class TaskManager {
                   if (control.manual) {
                     task.status = "MANUAL_PENDING";
                     task.manualResolver = { resolve, reject, result };
-                    return; // 여기서 함수 종료, resolve는 나중에 수동으로 호출
+
+                    // 대기 큐에 추가하고 상태 변경 알림
+                    this.pendingTaskQueue.push(task as Task<unknown>);
+                    await this.onTaskStatusChange(task.id, "MANUAL_PENDING");
+                    return;
                   }
 
                   // 신호 대기
                   if (control.signal) {
-                    task.status = "MANUAL_PENDING";
+                    task.status = "SIGNAL_PENDING";
                     task.manualResolver = { resolve, reject, result };
 
                     // 신호 리스너 등록
@@ -174,6 +264,10 @@ class TaskManager {
                       this.signalListeners.set(control.signal, new Set());
                     }
                     this.signalListeners.get(control.signal)!.add(task.id);
+
+                    // 대기 큐에 추가하고 상태 변경 알림
+                    this.pendingTaskQueue.push(task as Task<unknown>);
+                    await this.onTaskStatusChange(task.id, "SIGNAL_PENDING");
                     return;
                   }
 
@@ -183,12 +277,19 @@ class TaskManager {
                     if (!conditionMet) {
                       task.status = "MANUAL_PENDING";
                       task.manualResolver = { resolve, reject, result };
+
+                      // 대기 큐에 추가하고 상태 변경 알림
+                      this.pendingTaskQueue.push(task as Task<unknown>);
+                      await this.onTaskStatusChange(task.id, "MANUAL_PENDING");
                       return;
                     }
                   }
                 }
 
                 task.status = "COMPLETED";
+
+                // 상태 변경 알림
+                await this.onTaskStatusChange(task.id, "COMPLETED");
 
                 resolve({
                   success: true,
@@ -205,9 +306,12 @@ class TaskManager {
                     await task.rollback();
                     task.status = "ROLLEDBACK";
                   } catch {
-                    // TODO: 롤백 실패 시 처리
+                    // TODO: 롤백 실패 처리
                   }
                 }
+
+                // 상태 변경 알림
+                await this.onTaskStatusChange(task.id, task.status);
                 throw error;
               } finally {
                 this.releaseLock(task.id);
@@ -264,14 +368,10 @@ class TaskManager {
 
   public async resolveAllPending() {
     const pendingTasks = Array.from(this.tasks.values()).filter((task) =>
-      ["PENDING", "MANUAL_PENDING"].includes(task.status)
+      ["PENDING", "MANUAL_PENDING", "SIGNAL_PENDING"].includes(task.status)
     );
 
     await Promise.all(pendingTasks.map((task) => this.resolveTask(task.id)));
-  }
-
-  public getManualPendingTasks() {
-    return Array.from(this.tasks.values()).filter((task) => task.status === "MANUAL_PENDING");
   }
 }
 

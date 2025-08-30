@@ -1,6 +1,6 @@
 import { compile, parse } from "path-to-regexp";
 
-import taskManager from "@core/TaskManger";
+import TaskManager from "@core/TaskManger";
 
 import useHistoryStore from "@history/store";
 
@@ -18,20 +18,22 @@ export default function useNavigate() {
       transitionName?: TransitionName;
     } = {}
   ) => {
-    if (taskManager.getManualPendingTasks().length) {
+    const { status, setStatus } = useNavigationStore.getState();
+
+    if (status !== "COMPLETED" && status !== "IDLE") {
       return;
     }
 
     const { index, addHistory } = useHistoryStore.getState();
-    const setStatus = useNavigationStore.getState().setStatus;
+
     const defaultTransitionName = useTransitionStore.getState().defaultTransitionName;
 
     const { transitionName = defaultTransitionName } = options;
 
-    const id = taskManager.generateTaskId();
+    const id = TaskManager.generateTaskId();
 
     (
-      await taskManager.addTask(
+      await TaskManager.addTask(
         async () => {
           setStatus("PUSHING");
 
@@ -79,9 +81,7 @@ export default function useNavigate() {
           });
 
           return () => {
-            if (!taskManager.getManualPendingTasks().length) {
-              setStatus("COMPLETED");
-            }
+            setStatus("COMPLETED");
           };
         },
         {
@@ -101,21 +101,22 @@ export default function useNavigate() {
       transitionName?: TransitionName;
     } = {}
   ) => {
-    if (taskManager.getManualPendingTasks().length) {
+    const { status, setStatus } = useNavigationStore.getState();
+
+    if (status !== "COMPLETED" && status !== "IDLE") {
       return;
     }
 
     const { index, addHistory } = useHistoryStore.getState();
     const replaceHistory = useHistoryStore.getState().replaceHistory;
-    const setStatus = useNavigationStore.getState().setStatus;
     const defaultTransitionName = useTransitionStore.getState().defaultTransitionName;
 
     const { transitionName = defaultTransitionName } = options;
 
-    const id = taskManager.generateTaskId();
+    const id = TaskManager.generateTaskId();
 
     (
-      await taskManager.addTask(
+      await TaskManager.addTask(
         async () => {
           setStatus("REPLACING");
 
@@ -149,11 +150,9 @@ export default function useNavigate() {
           });
 
           return async () => {
-            await taskManager.addTask(async () => replaceHistory(index));
+            replaceHistory(index);
 
-            if (!taskManager.getManualPendingTasks().length) {
-              setStatus("COMPLETED");
-            }
+            setStatus("COMPLETED");
           };
         },
         {
@@ -167,7 +166,9 @@ export default function useNavigate() {
   };
 
   const pop = () => {
-    if (taskManager.getManualPendingTasks().length) {
+    const status = useNavigationStore.getState().status;
+
+    if (status !== "COMPLETED" && status !== "IDLE") {
       return;
     }
 

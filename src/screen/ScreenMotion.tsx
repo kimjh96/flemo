@@ -45,8 +45,9 @@ function ScreenMotion({
   const dragControls = useDragControls();
 
   const status = useNavigationStore((state) => state.status);
-  const transitionStatus = useScreenStore((state) => state.transitionStatus);
-  const setTransitionStatus = useScreenStore.getState().setTransitionStatus;
+  const dragStatus = useScreenStore((state) => state.dragStatus);
+  const setDragStatus = useScreenStore.getState().setDragStatus;
+  const setReplaceTransitionStatus = useScreenStore.getState().setReplaceTransitionStatus;
 
   const currentTransition = transitionMap.get(transitionName)!;
   const { variants, initial, swipeDirection, decoratorName } = currentTransition;
@@ -94,14 +95,14 @@ function ScreenMotion({
     });
 
     if (isTriggered) {
-      setTransitionStatus("PENDING");
+      setDragStatus("PENDING");
     } else {
-      setTransitionStatus("IDLE");
+      setDragStatus("IDLE");
     }
   };
 
   const handleDrag = (event: MouseEvent | TouchEvent | globalThis.PointerEvent, info: PanInfo) => {
-    if (!swipeDirection || transitionStatus !== "PENDING") {
+    if (!swipeDirection || dragStatus !== "PENDING") {
       return;
     }
 
@@ -121,7 +122,7 @@ function ScreenMotion({
     event: MouseEvent | TouchEvent | globalThis.PointerEvent,
     info: PanInfo
   ) => {
-    if (!swipeDirection || transitionStatus !== "PENDING") {
+    if (!swipeDirection || dragStatus !== "PENDING") {
       return;
     }
 
@@ -138,17 +139,13 @@ function ScreenMotion({
     if (isTriggered) {
       window.history.back();
     } else {
-      setTransitionStatus("IDLE");
+      setDragStatus("IDLE");
     }
   };
 
   const handlePointerDown = (event: PointerEvent) => {
     const isReadyForDrag =
-      !isRoot &&
-      isActive &&
-      status === "COMPLETED" &&
-      transitionStatus === "IDLE" &&
-      !!swipeDirection;
+      !isRoot && isActive && status === "COMPLETED" && dragStatus === "IDLE" && !!swipeDirection;
 
     if (!isReadyForDrag) {
       return;
@@ -250,13 +247,12 @@ function ScreenMotion({
     (async () => {
       const { value, options } = variants[`${status}-${isActive}`];
 
-      const isTransitionDiffOnReplace =
-        status === "REPLACING" && prevTransitionName !== transitionName;
+      const isTransitionDiffOnReplace = prevTransitionName !== transitionName;
 
-      if (!isActive && isTransitionDiffOnReplace) {
-        setTransitionStatus("PENDING");
+      if (!isActive && status === "REPLACING" && isTransitionDiffOnReplace) {
+        setReplaceTransitionStatus("PENDING");
         await animate(scope.current, transitionInitialValue, {
-          duration: 0.01
+          duration: 0.1
         });
       }
 
@@ -264,8 +260,12 @@ function ScreenMotion({
 
       await TaskManger.resolveTask(id);
 
-      if (!isActive && !isTransitionDiffOnReplace) {
-        setTransitionStatus("IDLE");
+      if (!isActive && isTransitionDiffOnReplace) {
+        setReplaceTransitionStatus("IDLE");
+      }
+
+      if (isActive && status === "COMPLETED") {
+        setDragStatus("IDLE");
       }
     })();
   }, [
@@ -276,8 +276,9 @@ function ScreenMotion({
     transitionName,
     animate,
     scope,
-    setTransitionStatus,
-    variants
+    variants,
+    setDragStatus,
+    setReplaceTransitionStatus
   ]);
 
   return (
@@ -307,6 +308,7 @@ function ScreenMotion({
         touchAction: "none",
         isolation: "isolate",
         contain: "strict",
+        overscrollBehavior: "contain",
         ...props.style
       }}
     >

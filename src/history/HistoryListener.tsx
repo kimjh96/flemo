@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-import taskManager from "@core/TaskManger";
+import TaskManager from "@core/TaskManger";
 
 import useHistoryStore from "@history/store";
 
@@ -12,97 +12,63 @@ import type { TransitionName } from "@transition/typing";
 function HistoryListener() {
   useEffect(() => {
     const handlePopState = async (e: PopStateEvent) => {
-      await taskManager.resolveAllPending();
-
-      const { index, addHistory, popHistory } = useHistoryStore.getState();
-      const setStatus = useNavigationStore.getState().setStatus;
       const nextId = e.state?.id;
       const nextIndex = e.state?.index;
       const nextStatus = e.state?.status as NavigateStatus;
       const nextParams = e.state?.params;
       const nextTransitionName = e.state?.transitionName as TransitionName;
-
+      const setStatus = useNavigationStore.getState().setStatus;
+      const { index, addHistory, popHistory } = useHistoryStore.getState();
       const isPop = nextIndex < index;
       const isPush = nextStatus === "PUSHING" && nextIndex > index;
       const isReplace = nextStatus === "REPLACING" && nextIndex > index;
+      const pathname = window.location.pathname;
 
-      if (isPop) {
-        (
-          await taskManager.addTask(
-            async () => {
+      if (!isPop && !isPush && !isReplace) {
+        return;
+      }
+
+      (
+        await TaskManager.addTask(
+          async () => {
+            if (isPop) {
               setStatus("POPPING");
-
-              return async () => {
-                popHistory(nextIndex + 1);
-
-                if (!taskManager.getManualPendingTasks().length) {
-                  setStatus("COMPLETED");
-                }
-              };
-            },
-            {
-              id: nextId,
-              control: {
-                manual: true
-              }
-            }
-          )
-        )?.result?.();
-      } else if (isPush) {
-        (
-          await taskManager.addTask(
-            async () => {
+            } else if (isPush) {
               setStatus("PUSHING");
 
               addHistory({
                 id: nextId,
-                pathname: window.location.pathname,
+                pathname,
                 params: nextParams,
                 transitionName: nextTransitionName
               });
-
-              return async () => {
-                if (!taskManager.getManualPendingTasks().length) {
-                  setStatus("COMPLETED");
-                }
-              };
-            },
-            {
-              id: nextId,
-              control: {
-                manual: true
-              }
-            }
-          )
-        )?.result?.();
-      } else if (isReplace) {
-        (
-          await taskManager.addTask(
-            async () => {
+            } else if (isReplace) {
               setStatus("REPLACING");
 
               addHistory({
                 id: nextId,
-                pathname: window.location.pathname,
+                pathname,
                 params: nextParams,
                 transitionName: nextTransitionName
               });
-
-              return async () => {
-                if (!taskManager.getManualPendingTasks().length) {
-                  setStatus("COMPLETED");
-                }
-              };
-            },
-            {
-              id: nextId,
-              control: {
-                manual: true
-              }
             }
-          )
-        )?.result?.();
-      }
+
+            return async () => {
+              if (isPop) {
+                popHistory(nextIndex + 1);
+              }
+
+              setStatus("COMPLETED");
+            };
+          },
+          {
+            id: nextId,
+            control: {
+              manual: true
+            }
+          }
+        )
+      ).result?.();
     };
 
     window.addEventListener("popstate", handlePopState);
