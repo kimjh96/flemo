@@ -25,7 +25,7 @@ interface Control {
 
 interface Task<T> {
   id: string;
-  execute: () => Promise<T>;
+  execute: (abortController: AbortController) => Promise<T>;
   validate?: () => Promise<boolean>;
   rollback?: () => Promise<void>;
   control?: Control;
@@ -34,6 +34,7 @@ interface Task<T> {
   status: TaskStatus;
   dependencies: string[];
   instanceId: string;
+  abortController?: AbortController;
   manualResolver?: {
     resolve: (value: TaskResult<T>) => void;
     reject: (error: Error) => void;
@@ -155,7 +156,7 @@ class TaskManager {
   }
 
   public async addTask<T>(
-    execute: () => Promise<T>,
+    execute: Task<T>["execute"],
     options: {
       id?: string;
       delay?: number;
@@ -172,6 +173,7 @@ class TaskManager {
         .then(async () => {
           try {
             const { control, validate, rollback, dependencies = [], delay } = options;
+            const abortController = new AbortController();
 
             const task: Task<T> = {
               id,
@@ -183,7 +185,8 @@ class TaskManager {
               instanceId: this.instanceId,
               validate,
               rollback,
-              control
+              control,
+              abortController
             };
 
             this.tasks.set(task.id, task as Task<unknown>);
@@ -233,7 +236,21 @@ class TaskManager {
                   await new Promise((resolve) => setTimeout(resolve, delay));
                 }
 
-                const result = await task.execute();
+                const result = await task.execute(task.abortController!);
+
+                if (task.abortController!.signal.aborted) {
+                  task.status = "COMPLETED";
+                  await this.onTaskStatusChange(task.id, "COMPLETED");
+
+                  resolve({
+                    success: true,
+                    result: undefined,
+                    taskId: task.id,
+                    timestamp: Date.now(),
+                    instanceId: this.instanceId
+                  });
+                  return;
+                }
 
                 // resolve 제어 로직
                 if (options.control) {
@@ -359,6 +376,9 @@ class TaskManager {
       });
 
       delete task.manualResolver;
+
+      // 상태 변경 알림
+      await this.onTaskStatusChange(taskId, "COMPLETED");
 
       return true;
     }

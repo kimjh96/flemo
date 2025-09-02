@@ -13,24 +13,26 @@ function HistoryListener() {
   useEffect(() => {
     const handlePopState = async (e: PopStateEvent) => {
       const nextId = e.state?.id;
-      const nextIndex = e.state?.index;
-      const nextStatus = e.state?.status as NavigateStatus;
-      const nextParams = e.state?.params;
-      const nextTransitionName = e.state?.transitionName as TransitionName;
-      const setStatus = useNavigationStore.getState().setStatus;
-      const { index, addHistory, popHistory } = useHistoryStore.getState();
-      const isPop = nextIndex < index;
-      const isPush = nextStatus === "PUSHING" && nextIndex > index;
-      const isReplace = nextStatus === "REPLACING" && nextIndex > index;
-      const pathname = window.location.pathname;
-
-      if (!isPop && !isPush && !isReplace) {
-        return;
-      }
 
       (
         await TaskManager.addTask(
-          async () => {
+          async (abortController) => {
+            const nextIndex = e.state?.index;
+            const nextStatus = e.state?.status as NavigateStatus;
+            const nextParams = e.state?.params;
+            const nextTransitionName = e.state?.transitionName as TransitionName;
+            const setStatus = useNavigationStore.getState().setStatus;
+            const { index, addHistory, popHistory } = useHistoryStore.getState();
+            const isPop = nextIndex < index;
+            const isPush = nextStatus === "PUSHING" && nextIndex > index;
+            const isReplace = nextStatus === "REPLACING" && nextIndex > index;
+            const pathname = window.location.pathname;
+
+            if (!isPop && !isPush && !isReplace) {
+              abortController.abort();
+              return;
+            }
+
             if (isPop) {
               setStatus("POPPING");
             } else if (isPush) {
