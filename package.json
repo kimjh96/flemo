@@ -31,7 +31,7 @@
     "url": "https://github.com/kimjh96/flemo/issues",
     "email": "kimjhs@kakao.com"
   },
-  "homepage": "https://flemo-web.vercel.app",
+  "homepage": "https://flemo-dev.lovable.app",
   "license": "MIT",
   "scripts": {
     "build": "vite build",

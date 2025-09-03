@@ -7,7 +7,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[Documentation](https://flemo-web.vercel.app/docs) • [Examples](https://flemo-web.vercel.app/docs/examples) • [API Reference](https://flemo-web.vercel.app/docs/api)
+[Documentation](https://flemo-dev.lovable.app/docs/introduction) • [API Reference](https://flemo-dev.lovable.app/docs/api/components)
 
 </div>
 
@@ -19,12 +19,10 @@
 
 ## 📚 Documentation
 
-Visit our [comprehensive documentation](https://flemo-web.vercel.app/) to learn more:
+Visit our [comprehensive documentation](https://flemo-dev.lovable.app) to learn more:
 
-- [**Getting Started**](https://flemo-web.vercel.app/docs/getting-started) - Installation and basic setup
-- [**Core Concepts**](https://flemo-web.vercel.app/docs/concepts) - Understanding transitions, decorators, and screens
-- [**API Reference**](https://flemo-web.vercel.app/docs/api) - Complete API documentation
-- [**Examples**](https://flemo-web.vercel.app/docs/examples) - Real-world examples and patterns
+- [**Getting Started**](https://flemo-dev.lovable.app/docs/getting-started) - Installation and basic setup
+- [**API Reference**](https://flemo-dev.lovable.app/docs/api/components) - Complete API documentation
 
 ## 🛣️ Roadmap
 
