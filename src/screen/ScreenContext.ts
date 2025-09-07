@@ -21,7 +21,8 @@ const ScreenContext = createContext<ScreenContextProps>({
   pathname: "",
   params: {},
   transitionName: "none",
-  prevTransitionName: "none"
+  prevTransitionName: "none",
+  layoutId: null
 });
 
 export default ScreenContext;

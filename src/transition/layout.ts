@@ -2,67 +2,58 @@ import { transform } from "motion/react";
 
 import createTransition from "@transition/createTransition";
 
-const material = createTransition({
-  name: "material",
+const layout = createTransition({
+  name: "layout",
   initial: {
-    y: "100%",
-    opacity: 0.96
+    opacity: 0.97
   },
   idle: {
     value: {
-      y: 0,
       opacity: 1
     },
     options: {
-      duration: 0
+      duration: 0.3
     }
   },
   enter: {
     value: {
-      y: 0,
       opacity: 1
     },
     options: {
-      duration: 0.24,
-      ease: [0.0, 0.0, 0.2, 1]
+      duration: 0.3
     }
   },
   enterBack: {
     value: {
-      y: "100%",
-      opacity: 0.96
+      opacity: 0.97
     },
     options: {
-      duration: 0.22,
-      ease: [0.4, 0.0, 1, 1]
+      duration: 0.3
     }
   },
   exit: {
     value: {
-      y: -56,
-      opacity: 0.96
+      opacity: 0.97
     },
     options: {
-      duration: 0.22,
-      ease: [0.4, 0.0, 1, 1]
+      duration: 0.3
     }
   },
   exitBack: {
     value: {
-      y: 0,
       opacity: 1
     },
     options: {
-      duration: 0.24,
-      ease: [0.0, 0.0, 0.2, 1]
+      duration: 0.3
     }
   },
   options: {
+    decoratorName: "overlay",
     swipeDirection: "y",
     onSwipeStart: async () => {
       return true;
     },
-    onSwipe: (_, info, { animate, currentScreen, prevScreen, onProgress }) => {
+    onSwipe: (_, info, { animate, currentScreen, onProgress }) => {
       const { offset } = info;
       const dragY = offset.y;
       const clamped = Math.max(0, Math.min(56, dragY));
@@ -73,7 +64,7 @@ const material = createTransition({
       const finalY = Math.max(0, clamped + resistedExtra);
       const progress = Math.min(56, finalY);
 
-      onProgress?.(true, progress);
+      onProgress?.(true, 100);
 
       animate(
         currentScreen,
@@ -85,22 +76,10 @@ const material = createTransition({
           duration: 0
         }
       );
-      animate(
-        prevScreen,
-        {
-          y: -56 + progress,
-          opacity: progress / 56
-        },
-        { duration: 0 }
-      );
 
       return progress;
     },
-    onSwipeEnd: async (
-      _,
-      info,
-      { animate, currentScreen, prevScreen, onStart }
-    ): Promise<boolean> => {
+    onSwipeEnd: async (_, info, { animate, currentScreen, prevScreen, onStart }) => {
       const { offset, velocity } = info;
       const dragY = offset.y;
       const isTriggered = dragY > 56 || velocity.y > 20;
@@ -115,19 +94,17 @@ const material = createTransition({
             opacity: isTriggered ? 0.96 : 1
           },
           {
-            duration: isTriggered ? 0.22 : 0.24,
-            ease: isTriggered ? [0.4, 0.0, 1, 1] : [0.0, 0.0, 0.2, 1]
+            duration: 0.3
           }
         ),
         animate(
           prevScreen,
           {
-            y: isTriggered ? 0 : -56,
-            opacity: isTriggered ? 1 : 0.96
+            y: 0,
+            opacity: isTriggered ? 1 : 0.97
           },
           {
-            duration: isTriggered ? 0.22 : 0.24,
-            ease: isTriggered ? [0.0, 0.0, 0.2, 1] : [0.4, 0.0, 1, 1]
+            duration: 0.3
           }
         )
       ]);
@@ -137,4 +114,4 @@ const material = createTransition({
   }
 });
 
-export default material;
+export default layout;

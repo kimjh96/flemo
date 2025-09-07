@@ -15,6 +15,7 @@ export default function useNavigate() {
     path: T,
     params: RegisterRoute[T],
     options: {
+      layoutId?: string | number;
       transitionName?: TransitionName;
     } = {}
   ) => {
@@ -28,7 +29,7 @@ export default function useNavigate() {
 
     const defaultTransitionName = useTransitionStore.getState().defaultTransitionName;
 
-    const { transitionName = defaultTransitionName } = options;
+    const { transitionName = defaultTransitionName, layoutId = null } = options;
 
     const id = TaskManager.generateTaskId();
 
@@ -54,7 +55,8 @@ export default function useNavigate() {
                 index: 0,
                 status: "IDLE",
                 params: {},
-                transitionName
+                transitionName,
+                layoutId
               },
               "",
               window.location.pathname
@@ -67,7 +69,8 @@ export default function useNavigate() {
               index: index + 1,
               status: "PUSHING",
               params,
-              transitionName
+              transitionName,
+              layoutId
             },
             "",
             pathname
@@ -77,7 +80,8 @@ export default function useNavigate() {
             id,
             pathname: toPathname,
             params,
-            transitionName
+            transitionName,
+            layoutId
           });
 
           return () => {
@@ -98,6 +102,7 @@ export default function useNavigate() {
     path: T,
     params: RegisterRoute[T],
     options: {
+      layoutId?: string | number;
       transitionName?: TransitionName;
     } = {}
   ) => {
@@ -111,7 +116,7 @@ export default function useNavigate() {
     const replaceHistory = useHistoryStore.getState().replaceHistory;
     const defaultTransitionName = useTransitionStore.getState().defaultTransitionName;
 
-    const { transitionName = defaultTransitionName } = options;
+    const { transitionName = defaultTransitionName, layoutId = null } = options;
 
     const id = TaskManager.generateTaskId();
 
@@ -136,7 +141,8 @@ export default function useNavigate() {
               index,
               status: "REPLACING",
               params,
-              transitionName
+              transitionName,
+              layoutId
             },
             "",
             pathname
@@ -146,7 +152,8 @@ export default function useNavigate() {
             id,
             pathname: toPathname,
             params,
-            transitionName
+            transitionName,
+            layoutId
           });
 
           return async () => {

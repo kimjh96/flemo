@@ -6,10 +6,7 @@ const overlay = createDecorator({
   name: "overlay",
   initial: {
     opacity: 0,
-    backgroundColor: "rgba(0, 0, 0, 0)",
-    transition: {
-      duration: 0
-    }
+    backgroundColor: "rgba(0, 0, 0, 0)"
   },
   enter: {
     value: {

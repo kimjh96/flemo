@@ -2,11 +2,7 @@ import createTransition from "@transition/createTransition";
 
 const none = createTransition({
   name: "none",
-  initial: {
-    transition: {
-      duration: 0
-    }
-  },
+  initial: {},
   idle: {
     value: {},
     options: {

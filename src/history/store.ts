@@ -7,6 +7,7 @@ export interface History {
   pathname: string;
   params: object;
   transitionName: TransitionName;
+  layoutId: string | number | null;
 }
 
 interface HistoryStore {

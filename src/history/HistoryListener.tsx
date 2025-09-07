@@ -21,6 +21,7 @@ function HistoryListener() {
             const nextStatus = e.state?.status as NavigateStatus;
             const nextParams = e.state?.params;
             const nextTransitionName = e.state?.transitionName as TransitionName;
+            const nextLayoutId = e.state?.layoutId as string | number | null;
             const setStatus = useNavigationStore.getState().setStatus;
             const { index, addHistory, popHistory } = useHistoryStore.getState();
             const isPop = nextIndex < index;
@@ -42,7 +43,8 @@ function HistoryListener() {
                 id: nextId,
                 pathname,
                 params: nextParams,
-                transitionName: nextTransitionName
+                transitionName: nextTransitionName,
+                layoutId: nextLayoutId
               });
             } else if (isReplace) {
               setStatus("REPLACING");
@@ -51,7 +53,8 @@ function HistoryListener() {
                 id: nextId,
                 pathname,
                 params: nextParams,
-                transitionName: nextTransitionName
+                transitionName: nextTransitionName,
+                layoutId: nextLayoutId
               });
             }
 

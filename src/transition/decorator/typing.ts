@@ -1,4 +1,5 @@
 import type { BaseTransition } from "@transition/typing";
+import type { AnimationOptions, Target } from "motion/react";
 
 // eslint-disable-next-line
 export interface RegisterDecorator {}
@@ -9,6 +10,7 @@ export type DecoratorOptions = {
   onSwipeStart?: (
     triggered: boolean,
     options: {
+      animate: (target: object, objectTarget: Target, options: AnimationOptions) => void;
       currentDecorator: HTMLDivElement;
       prevDecorator: HTMLDivElement;
     }
@@ -17,6 +19,7 @@ export type DecoratorOptions = {
     triggered: boolean,
     progress: number,
     options: {
+      animate: (target: object, objectTarget: Target, options: AnimationOptions) => void;
       currentDecorator: HTMLDivElement;
       prevDecorator: HTMLDivElement;
     }
@@ -24,6 +27,7 @@ export type DecoratorOptions = {
   onSwipeEnd?: (
     triggered: boolean,
     options: {
+      animate: (target: object, objectTarget: Target, options: AnimationOptions) => void;
       currentDecorator: HTMLDivElement;
       prevDecorator: HTMLDivElement;
     }

@@ -33,7 +33,8 @@ function Renderer({ children }: PropsWithChildren) {
           pathname: histories[zIndex].pathname,
           params: histories[zIndex].params,
           transitionName: histories[index].transitionName,
-          prevTransitionName: histories[index - 1]?.transitionName
+          prevTransitionName: histories[index - 1]?.transitionName,
+          layoutId: histories[zIndex].layoutId
         }}
       >
         <ParamsProvider active={zIndex === index} params={histories[zIndex].params}>

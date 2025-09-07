@@ -1,13 +1,12 @@
-import {
-  type PanInfo,
-  type TargetAndTransition,
-  type Target,
-  type AnimationOptions,
-  DragControls
-} from "motion/react";
-
 import type { NavigateStatus } from "@navigate/store";
 import type { DecoratorName } from "@transition/decorator/typing";
+import type {
+  PanInfo,
+  TargetAndTransition,
+  Target,
+  AnimationOptions,
+  DragControls
+} from "motion/react";
 
 // eslint-disable-next-line
 export interface RegisterTransition {}
@@ -16,7 +15,8 @@ export type TransitionName =
   | RegisterTransition[keyof RegisterTransition]
   | "none"
   | "cupertino"
-  | "material";
+  | "material"
+  | "layout";
 
 export type TransitionVariant = `${NavigateStatus}-${boolean}`;
 
@@ -33,6 +33,7 @@ export type TransitionOptions =
         event: MouseEvent | TouchEvent | PointerEvent,
         info: PanInfo,
         options: {
+          animate: (target: object, objectTarget: Target, options: AnimationOptions) => void;
           currentScreen: HTMLDivElement;
           prevScreen: HTMLDivElement;
           dragControls: DragControls;
@@ -43,6 +44,7 @@ export type TransitionOptions =
         event: MouseEvent | TouchEvent | PointerEvent,
         info: PanInfo,
         options: {
+          animate: (target: object, objectTarget: Target, options: AnimationOptions) => void;
           currentScreen: HTMLDivElement;
           prevScreen: HTMLDivElement;
           dragControls: DragControls;
@@ -53,6 +55,7 @@ export type TransitionOptions =
         event: MouseEvent | TouchEvent | PointerEvent,
         info: PanInfo,
         options: {
+          animate: (target: object, objectTarget: Target, options: AnimationOptions) => void;
           currentScreen: HTMLDivElement;
           prevScreen: HTMLDivElement;
           onStart?: (triggered: boolean) => void;

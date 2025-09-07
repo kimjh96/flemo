@@ -49,7 +49,8 @@ function Router({
           pathname,
           search
         ),
-        transitionName: defaultTransitionName
+        transitionName: defaultTransitionName,
+        layoutId: null
       }
     ]
   });

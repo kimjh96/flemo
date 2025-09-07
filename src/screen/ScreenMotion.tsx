@@ -84,11 +84,13 @@ function ScreenMotion({
     prevDecoratorRef.current = scope.current?.previousSibling?.querySelector("[data-decorator]");
 
     const isTriggered = await currentTransition?.onSwipeStart(event, info, {
+      animate,
       currentScreen: scope.current!,
       prevScreen: prevScreenRef.current!,
       dragControls,
       onStart: (triggered) =>
         decorator?.onSwipeStart?.(triggered, {
+          animate,
           currentDecorator: decoratorRef.current!,
           prevDecorator: prevDecoratorRef.current!
         })
@@ -107,11 +109,13 @@ function ScreenMotion({
     }
 
     currentTransition?.onSwipe(event, info, {
+      animate,
       currentScreen: scope.current!,
       prevScreen: prevScreenRef.current!,
       dragControls,
       onProgress: (triggered, progress) =>
         decorator?.onSwipe?.(triggered, progress, {
+          animate,
           currentDecorator: decoratorRef.current!,
           prevDecorator: prevDecoratorRef.current!
         })
@@ -127,10 +131,12 @@ function ScreenMotion({
     }
 
     const isTriggered = await currentTransition?.onSwipeEnd(event, info, {
+      animate,
       currentScreen: scope.current!,
       prevScreen: prevScreenRef.current!,
       onStart: (triggered) =>
         decorator?.onSwipeEnd?.(triggered, {
+          animate,
           currentDecorator: decoratorRef.current!,
           prevDecorator: prevDecoratorRef.current!
         })
@@ -152,10 +158,12 @@ function ScreenMotion({
     }
 
     scrollableXRef.current = findScrollable(event.target, {
-      direction: "x"
+      direction: "x",
+      verifyByScroll: true
     });
     scrollableYRef.current = findScrollable(event.target, {
-      direction: "y"
+      direction: "y",
+      verifyByScroll: true
     });
 
     startXRef.current = event.clientX;
