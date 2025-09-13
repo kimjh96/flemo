@@ -95,6 +95,13 @@ export default [
           varsIgnorePattern: "^_",
           ignoreRestSiblings: true
         }
+      ],
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        {
+          prefer: "type-imports",
+          disallowTypeAnnotations: false
+        }
       ]
     },
     settings: {

@@ -21,8 +21,18 @@ export type TransitionName =
 export type TransitionVariant = `${NavigateStatus}-${boolean}`;
 
 export type TransitionVariantValue = {
-  value: Target;
-  options: AnimationOptions;
+  value: Omit<
+    Target,
+    | "transitionDuration"
+    | "transitionDelay"
+    | "transitionTimingFunction"
+    | "transitionBehavior"
+    | "transitionEnd"
+    | "transitionProperty"
+  >;
+  options: Omit<AnimationOptions, "delay"> & {
+    delay?: number;
+  };
 };
 
 export type TransitionOptions =

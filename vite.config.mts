@@ -1,4 +1,3 @@
-import path from "node:path";
 import { resolve } from "path";
 
 import react from "@vitejs/plugin-react-swc";
@@ -8,29 +7,12 @@ import dts from "vite-plugin-dts";
 export default defineConfig({
   build: {
     lib: {
-      entry: "src/index.ts"
+      entry: "./src/index.ts",
+      formats: ["es"],
+      fileName: (format) => (format === "es" ? "index.mjs" : "index.js")
     },
     rollupOptions: {
-      external: (id) => {
-        if (id.startsWith(".") || path.isAbsolute(id)) return false;
-
-        return /^(react|react-dom|motion)(\/|$)/.test(id);
-      },
-      output: [
-        {
-          interop: "auto",
-          format: "es",
-          banner: (_) => "",
-          manualChunks: (id) => {
-            if (id.indexOf("node_modules") !== -1) {
-              return "vendor";
-            }
-
-            return null;
-          },
-          entryFileNames: "[name].mjs"
-        }
-      ]
+      external: /^(react|react-dom|motion)(\/|$)/
     }
   },
   plugins: [react(), dts()],
