@@ -1,5 +1,6 @@
 import { type PropsWithChildren } from "react";
 
+import useHistoryStore from "@history/store";
 import useNavigationStore from "@navigate/store";
 
 import ScreenFreeze from "@screen/ScreenFreeze";
@@ -27,16 +28,18 @@ function Screen({
     | "onPointerUp"
   >
 >) {
-  const { isActive, isPrev } = useScreen();
+  const { isActive, isPrev, zIndex } = useScreen();
 
+  const index = useHistoryStore((state) => state.index);
   const status = useNavigationStore((state) => state.status);
   const dragStatus = useScreenStore((state) => state.dragStatus);
   const replaceTransitionStatus = useScreenStore((state) => state.replaceTransitionStatus);
 
-  const isTransitionCompleted =
-    status === "COMPLETED" && dragStatus === "IDLE" && replaceTransitionStatus === "IDLE";
+  const isTransitionCompleted = status === "COMPLETED" && dragStatus === "IDLE";
   const isFrozen =
-    !isActive && (isTransitionCompleted || (isPrev && replaceTransitionStatus === "IDLE"));
+    (!isActive && isTransitionCompleted) ||
+    (isPrev && index - 2 <= zIndex && replaceTransitionStatus === "IDLE") ||
+    (isPrev && index - 2 > zIndex);
 
   return (
     <ScreenFreeze freeze={isFrozen}>

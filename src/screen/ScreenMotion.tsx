@@ -14,7 +14,7 @@ import findScrollable from "@utils/findScrollable";
 
 import useNavigationStore from "@navigate/store";
 
-import ScreenMotionDecorator from "@screen/ScreenMotionDecorator";
+import ScreenDecorator from "@screen/ScreenDecorator";
 import useScreenStore from "@screen/store";
 import useScreen from "@screen/useScreen";
 
@@ -264,17 +264,14 @@ function ScreenMotion({
         });
       }
 
-      await animate(scope.current, value, options);
-
-      await TaskManger.resolveTask(id);
-
-      if (!isActive && isTransitionDiffOnReplace) {
+      if (isActive && status === "COMPLETED") {
+        setDragStatus("IDLE");
         setReplaceTransitionStatus("IDLE");
       }
 
-      if (isActive && status === "COMPLETED") {
-        setDragStatus("IDLE");
-      }
+      await animate(scope.current, value, options);
+
+      await TaskManger.resolveTask(id);
     })();
   }, [
     status,
@@ -342,7 +339,7 @@ function ScreenMotion({
       >
         {children}
       </div>
-      {decorator && <ScreenMotionDecorator ref={decoratorRef} />}
+      {decorator && <ScreenDecorator ref={decoratorRef} />}
       <div
         data-swipe-at-edge-bar
         style={{

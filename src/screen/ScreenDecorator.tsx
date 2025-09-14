@@ -9,7 +9,7 @@ import useScreen from "@screen/useScreen";
 import { decoratorMap } from "@transition/decorator/decorator";
 import { transitionMap } from "@transition/transition";
 
-function ScreenMotionDecorator({ children, ref, ...props }: ComponentPropsWithRef<"div">) {
+function ScreenDecorator({ children, ref, ...props }: ComponentPropsWithRef<"div">) {
   const { isActive, transitionName } = useScreen();
 
   const [scope, animate] = useAnimate();
@@ -48,4 +48,4 @@ function ScreenMotionDecorator({ children, ref, ...props }: ComponentPropsWithRe
   );
 }
 
-export default ScreenMotionDecorator;
+export default ScreenDecorator;

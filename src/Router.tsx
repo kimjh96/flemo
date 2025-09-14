@@ -56,6 +56,23 @@ function Router({
   });
 
   useEffect(() => {
+    if (window.history.state?.index) return;
+
+    window.history.replaceState(
+      {
+        id: "root",
+        index: 0,
+        status: "IDLE",
+        params: {},
+        transitionName: defaultTransitionName,
+        layoutId: null
+      },
+      "",
+      window.location.pathname
+    );
+  }, [defaultTransitionName]);
+
+  useEffect(() => {
     transitions.forEach((transition) => transitionMap.set(transition.name, transition));
   }, [transitions]);
 

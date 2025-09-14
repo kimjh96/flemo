@@ -1,5 +1,3 @@
-import { animate } from "motion";
-
 import createDecorator from "@transition/decorator/createDecorator";
 
 const overlay = createDecorator({
@@ -27,7 +25,7 @@ const overlay = createDecorator({
     }
   },
   options: {
-    onSwipeStart: (triggered, { prevDecorator }) =>
+    onSwipeStart: (triggered, { animate, prevDecorator }) =>
       animate(
         prevDecorator,
         {
@@ -37,7 +35,7 @@ const overlay = createDecorator({
           duration: 0.3
         }
       ),
-    onSwipe: (_, progress, { prevDecorator }) =>
+    onSwipe: (_, progress, { animate, prevDecorator }) =>
       animate(
         prevDecorator,
         {
@@ -47,7 +45,7 @@ const overlay = createDecorator({
           duration: 0
         }
       ),
-    onSwipeEnd: (triggered, { prevDecorator }) =>
+    onSwipeEnd: (triggered, { animate, prevDecorator }) =>
       animate(
         prevDecorator,
         {

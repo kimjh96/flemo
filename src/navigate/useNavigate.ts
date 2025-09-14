@@ -48,21 +48,6 @@ export default function useNavigate() {
           const search = new URLSearchParams(remainingParams as Record<string, string>).toString();
           const pathname = `${toPathname}${search ? `?${search}` : ""}`;
 
-          if (!window.history.state?.id) {
-            window.history.replaceState(
-              {
-                id: "root",
-                index: 0,
-                status: "IDLE",
-                params: {},
-                transitionName,
-                layoutId
-              },
-              "",
-              window.location.pathname
-            );
-          }
-
           window.history.pushState(
             {
               id,
