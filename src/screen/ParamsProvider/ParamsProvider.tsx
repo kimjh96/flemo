@@ -6,14 +6,10 @@ import ParamsContext from "@screen/ParamsProvider/ParamsContext";
 import ParamsDispatchContext from "@screen/ParamsProvider/ParamsDispatchContext";
 import ParamsReducer from "@screen/ParamsProvider/ParamsReducer";
 
-function ParamsProvider({
-  children,
-  active,
-  params
-}: PropsWithChildren<{
-  active: boolean;
-  params: object;
-}>) {
+import useScreen from "@screen/useScreen";
+
+function ParamsProvider({ children }: PropsWithChildren) {
+  const { isActive, params } = useScreen();
   const [value, dispatch] = useReducer(ParamsReducer, params);
 
   useEffect(() => {
@@ -25,14 +21,14 @@ function ParamsProvider({
       }
     };
 
-    if (active) {
+    if (isActive) {
       window.addEventListener("popstate", handlePopState);
     }
 
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [active, dispatch]);
+  }, [isActive, dispatch]);
 
   return (
     <ParamsDispatchContext.Provider value={dispatch}>

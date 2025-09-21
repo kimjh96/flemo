@@ -1,4 +1,4 @@
-import { type PropsWithChildren } from "react";
+import type { ReactNode, PropsWithChildren } from "react";
 
 import { AnimatePresence, type HTMLMotionProps } from "motion/react";
 
@@ -10,24 +10,27 @@ import useScreenStore from "@screen/store";
 
 import useScreen from "@screen/useScreen";
 
-function ScreenLayout({
-  children,
-  ...props
-}: PropsWithChildren<
-  Omit<
-    HTMLMotionProps<"div">,
-    | "initial"
-    | "drag"
-    | "dragControls"
-    | "dragListener"
-    | "onDragStart"
-    | "onDrag"
-    | "onDragEnd"
-    | "onPointerDown"
-    | "onPointerMove"
-    | "onPointerUp"
-  >
->) {
+export interface LayoutScreenProps
+  extends PropsWithChildren<
+    Omit<
+      HTMLMotionProps<"div">,
+      | "initial"
+      | "drag"
+      | "dragControls"
+      | "dragListener"
+      | "onDragStart"
+      | "onDrag"
+      | "onDragEnd"
+      | "onPointerDown"
+      | "onPointerMove"
+      | "onPointerUp"
+    >
+  > {
+  appBar?: ReactNode;
+  navigationBar?: ReactNode;
+}
+
+function LayoutScreen({ children, ...props }: LayoutScreenProps) {
   const { isActive, isPrev, zIndex } = useScreen();
 
   const index = useHistoryStore((state) => state.index);
@@ -56,4 +59,4 @@ function ScreenLayout({
   );
 }
 
-export default ScreenLayout;
+export default LayoutScreen;

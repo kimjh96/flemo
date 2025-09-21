@@ -1,4 +1,4 @@
-import { type PropsWithChildren } from "react";
+import { type PropsWithChildren, type ReactNode } from "react";
 
 import useHistoryStore from "@history/store";
 import useNavigationStore from "@navigate/store";
@@ -10,24 +10,27 @@ import useScreen from "@screen/useScreen";
 
 import type { HTMLMotionProps } from "motion/react";
 
-function Screen({
-  children,
-  ...props
-}: PropsWithChildren<
-  Omit<
-    HTMLMotionProps<"div">,
-    | "initial"
-    | "drag"
-    | "dragControls"
-    | "dragListener"
-    | "onDragStart"
-    | "onDrag"
-    | "onDragEnd"
-    | "onPointerDown"
-    | "onPointerMove"
-    | "onPointerUp"
-  >
->) {
+export interface ScreenProps
+  extends PropsWithChildren<
+    Omit<
+      HTMLMotionProps<"div">,
+      | "initial"
+      | "drag"
+      | "dragControls"
+      | "dragListener"
+      | "onDragStart"
+      | "onDrag"
+      | "onDragEnd"
+      | "onPointerDown"
+      | "onPointerMove"
+      | "onPointerUp"
+    >
+  > {
+  appBar?: ReactNode;
+  navigationBar?: ReactNode;
+}
+
+function Screen({ children, ...props }: ScreenProps) {
   const { isActive, isPrev, zIndex } = useScreen();
 
   const index = useHistoryStore((state) => state.index);

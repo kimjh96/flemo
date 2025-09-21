@@ -37,9 +37,7 @@ function Renderer({ children }: PropsWithChildren) {
           layoutId: histories[zIndex].layoutId
         }}
       >
-        <ParamsProvider active={zIndex === index} params={histories[zIndex].params}>
-          {child}
-        </ParamsProvider>
+        <ParamsProvider>{child}</ParamsProvider>
       </ScreenContext.Provider>
     ));
 }

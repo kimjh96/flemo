@@ -1,12 +1,6 @@
-import { useEffect, useRef, type PropsWithChildren, type PointerEvent } from "react";
+import { useEffect, useRef, type PointerEvent } from "react";
 
-import {
-  motion,
-  useAnimate,
-  useDragControls,
-  type PanInfo,
-  type HTMLMotionProps
-} from "motion/react";
+import { motion, useAnimate, useDragControls, type PanInfo } from "motion/react";
 
 import TaskManger from "@core/TaskManger";
 
@@ -21,24 +15,9 @@ import useScreen from "@screen/useScreen";
 import { decoratorMap } from "@transition/decorator/decorator";
 import { transitionMap, transitionInitialValue } from "@transition/transition";
 
-function ScreenMotion({
-  children,
-  ...props
-}: PropsWithChildren<
-  Omit<
-    HTMLMotionProps<"div">,
-    | "initial"
-    | "drag"
-    | "dragControls"
-    | "dragListener"
-    | "onDragStart"
-    | "onDrag"
-    | "onDragEnd"
-    | "onPointerDown"
-    | "onPointerMove"
-    | "onPointerUp"
-  >
->) {
+import type { ScreenProps } from "@screen/Screen";
+
+function ScreenMotion({ children, appBar, navigationBar, ...props }: ScreenProps) {
   const [scope, animate] = useAnimate();
 
   const { id, isActive, isRoot, transitionName, prevTransitionName } = useScreen();
@@ -53,6 +32,7 @@ function ScreenMotion({
   const { variants, initial, swipeDirection, decoratorName } = currentTransition;
   const decorator = decoratorMap.get(decoratorName!);
 
+  const screenRef = useRef<HTMLDivElement | null>(null);
   const prevScreenRef = useRef<HTMLDivElement | null>(null);
   const decoratorRef = useRef<HTMLDivElement | null>(null);
   const prevDecoratorRef = useRef<HTMLDivElement | null>(null);
@@ -80,8 +60,9 @@ function ScreenMotion({
       return;
     }
 
-    prevScreenRef.current = scope.current?.previousSibling as HTMLDivElement;
-    prevDecoratorRef.current = scope.current?.previousSibling?.querySelector("[data-decorator]");
+    const prevScreen = screenRef.current?.previousSibling as HTMLDivElement;
+    prevScreenRef.current = prevScreen?.querySelector("[data-screen]");
+    prevDecoratorRef.current = prevScreen?.querySelector("[data-decorator]");
 
     const isTriggered = await currentTransition?.onSwipeStart(event, info, {
       animate,
@@ -288,18 +269,7 @@ function ScreenMotion({
 
   return (
     <motion.div
-      ref={scope}
-      {...props}
-      initial={initial}
-      drag={swipeDirection}
-      dragListener={false}
-      dragControls={dragControls}
-      onDragStart={handleDragStart}
-      onDrag={handleDrag}
-      onDragEnd={handleDragEnd}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
+      ref={screenRef}
       style={{
         position: "absolute",
         top: 0,
@@ -307,14 +277,7 @@ function ScreenMotion({
         width: "100%",
         height: "100%",
         display: "flex",
-        flexDirection: "column",
-        backgroundColor: "white",
-        boxSizing: "border-box",
-        touchAction: "none",
-        isolation: "isolate",
-        contain: "strict",
-        overscrollBehavior: "contain",
-        ...props.style
+        flexDirection: "column"
       }}
     >
       <div
@@ -328,17 +291,36 @@ function ScreenMotion({
           zIndex: 1
         }}
       />
-      <div
+      {appBar && <motion.div>{appBar}</motion.div>}
+      <motion.div
+        ref={scope}
+        {...props}
+        initial={initial}
+        drag={swipeDirection}
+        dragListener={false}
+        dragControls={dragControls}
+        onDragStart={handleDragStart}
+        onDrag={handleDrag}
+        onDragEnd={handleDragEnd}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        data-screen
         style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%"
+          flexGrow: 1,
+          backgroundColor: "white",
+          boxSizing: "border-box",
+          isolation: "isolate",
+          contain: "strict",
+          overscrollBehavior: "contain",
+          overflowY: "auto",
+          touchAction: "none",
+          ...props.style
         }}
       >
         {children}
-      </div>
+      </motion.div>
+      {navigationBar && <motion.div>{navigationBar}</motion.div>}
       {decorator && <ScreenDecorator ref={decoratorRef} />}
       <div
         data-swipe-at-edge-bar
