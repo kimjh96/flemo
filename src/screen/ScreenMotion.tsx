@@ -17,7 +17,18 @@ import { transitionMap, transitionInitialValue } from "@transition/transition";
 
 import type { ScreenProps } from "@screen/Screen";
 
-function ScreenMotion({ children, appBar, navigationBar, ...props }: ScreenProps) {
+function ScreenMotion({
+  children,
+  statusBarHeight,
+  statusBarColor,
+  systemNavigationBarHeight,
+  systemNavigationBarColor,
+  appBar,
+  navigationBar,
+  hideStatusBar,
+  hideSystemNavigationBar,
+  ...props
+}: ScreenProps) {
   const [scope, animate] = useAnimate();
 
   const { id, isActive, isRoot, transitionName, prevTransitionName } = useScreen();
@@ -291,6 +302,17 @@ function ScreenMotion({ children, appBar, navigationBar, ...props }: ScreenProps
           zIndex: 1
         }}
       />
+      {!hideStatusBar && statusBarHeight && (
+        <motion.div
+          animate={{
+            backgroundColor: statusBarColor
+          }}
+          style={{
+            width: "100%",
+            minHeight: statusBarHeight
+          }}
+        />
+      )}
       {appBar && <motion.div>{appBar}</motion.div>}
       <motion.div
         ref={scope}
@@ -321,6 +343,17 @@ function ScreenMotion({ children, appBar, navigationBar, ...props }: ScreenProps
         {children}
       </motion.div>
       {navigationBar && <motion.div>{navigationBar}</motion.div>}
+      {!hideSystemNavigationBar && systemNavigationBarHeight && (
+        <motion.div
+          animate={{
+            backgroundColor: systemNavigationBarColor
+          }}
+          style={{
+            width: "100%",
+            minHeight: systemNavigationBarHeight
+          }}
+        />
+      )}
       {decorator && <ScreenDecorator ref={decoratorRef} />}
       <div
         data-swipe-at-edge-bar

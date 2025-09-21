@@ -8,7 +8,7 @@ export { default as createTransition } from "@transition/createTransition";
 export { default as createRawTransition } from "@transition/createRawTransition";
 export { default as createDecorator } from "@transition/decorator/createDecorator";
 export { default as createRawDecorator } from "@transition/decorator/createRawDecorator";
-export { default as Screen } from "@screen/Screen";
+export { default as Screen, type ScreenProps } from "@screen/Screen";
 export { default as LayoutScreen } from "@screen/LayoutScreen";
 export { default as LayoutConfig } from "@screen/LayoutConfig";
 

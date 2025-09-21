@@ -26,8 +26,14 @@ export interface ScreenProps
       | "onPointerUp"
     >
   > {
+  statusBarHeight?: string;
+  statusBarColor?: string;
+  systemNavigationBarHeight?: string;
+  systemNavigationBarColor?: string;
   appBar?: ReactNode;
   navigationBar?: ReactNode;
+  hideStatusBar?: boolean;
+  hideSystemNavigationBar?: boolean;
 }
 
 function Screen({ children, ...props }: ScreenProps) {
