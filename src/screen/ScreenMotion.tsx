@@ -1,4 +1,4 @@
-import { useEffect, useRef, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
 
 import { motion, useAnimate, useDragControls, type PanInfo } from "motion/react";
 
@@ -20,9 +20,9 @@ import type { ScreenProps } from "@screen/Screen";
 function ScreenMotion({
   children,
   statusBarHeight,
-  statusBarColor,
+  statusBarColor = "transparent",
   systemNavigationBarHeight,
-  systemNavigationBarColor,
+  systemNavigationBarColor = "transparent",
   appBar,
   navigationBar,
   hideStatusBar,
@@ -43,6 +43,9 @@ function ScreenMotion({
   const { variants, initial, swipeDirection, decoratorName } = currentTransition;
   const decorator = decoratorMap.get(decoratorName!);
 
+  const [appBarHeight, setAppBarHeight] = useState(0);
+  const [navigationBarHeight, setNavigationBarHeight] = useState(0);
+
   const screenRef = useRef<HTMLDivElement | null>(null);
   const prevScreenRef = useRef<HTMLDivElement | null>(null);
   const decoratorRef = useRef<HTMLDivElement | null>(null);
@@ -62,6 +65,8 @@ function ScreenMotion({
   }>({ element: null, hasMarker: false });
   const startXRef = useRef(0);
   const startYRef = useRef(0);
+  const appBarRef = useRef<HTMLDivElement | null>(null);
+  const navigationBarRef = useRef<HTMLDivElement | null>(null);
 
   const handleDragStart = async (
     event: MouseEvent | TouchEvent | globalThis.PointerEvent,
@@ -278,6 +283,18 @@ function ScreenMotion({
     setReplaceTransitionStatus
   ]);
 
+  useLayoutEffect(() => {
+    if (appBarRef.current) {
+      setAppBarHeight(appBarRef.current.offsetHeight);
+    }
+  }, [appBar]);
+
+  useLayoutEffect(() => {
+    if (navigationBarRef.current) {
+      setNavigationBarHeight(navigationBarRef.current.offsetHeight);
+    }
+  }, [navigationBar]);
+
   return (
     <motion.div
       ref={screenRef}
@@ -288,7 +305,11 @@ function ScreenMotion({
         width: "100%",
         height: "100%",
         display: "flex",
-        flexDirection: "column"
+        flexDirection: "column",
+        boxSizing: "border-box",
+        isolation: "isolate",
+        contain: "strict",
+        overscrollBehavior: "contain"
       }}
     >
       <div
@@ -302,18 +323,19 @@ function ScreenMotion({
           zIndex: 1
         }}
       />
-      {!hideStatusBar && statusBarHeight && (
+      {appBar && (
         <motion.div
-          animate={{
-            backgroundColor: statusBarColor
-          }}
+          ref={appBarRef}
           style={{
-            width: "100%",
-            minHeight: statusBarHeight
+            position: "absolute",
+            top: !hideStatusBar ? statusBarHeight : 0,
+            left: 0,
+            width: "100%"
           }}
-        />
+        >
+          {appBar}
+        </motion.div>
       )}
-      {appBar && <motion.div>{appBar}</motion.div>}
       <motion.div
         ref={scope}
         {...props}
@@ -329,30 +351,68 @@ function ScreenMotion({
         onPointerUp={handlePointerUp}
         data-screen
         style={{
-          flexGrow: 1,
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
           backgroundColor: "white",
-          boxSizing: "border-box",
-          isolation: "isolate",
-          contain: "strict",
-          overscrollBehavior: "contain",
-          overflowY: "auto",
           touchAction: "none",
           ...props.style
         }}
       >
-        {children}
+        {!hideStatusBar && statusBarHeight && (
+          <motion.div
+            animate={{
+              backgroundColor: statusBarColor
+            }}
+            style={{
+              width: "100%",
+              minHeight: statusBarHeight
+            }}
+          />
+        )}
+        {appBar && (
+          <div
+            style={{
+              width: "100%",
+              minHeight: appBarHeight
+            }}
+          />
+        )}
+        <div style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflowY: "auto" }}>
+          {children}
+        </div>
+        {navigationBar && (
+          <div
+            style={{
+              width: "100%",
+              minHeight: navigationBarHeight
+            }}
+          />
+        )}
+        {!hideSystemNavigationBar && systemNavigationBarHeight && (
+          <motion.div
+            animate={{
+              backgroundColor: systemNavigationBarColor
+            }}
+            style={{
+              width: "100%",
+              minHeight: systemNavigationBarHeight
+            }}
+          />
+        )}
       </motion.div>
-      {navigationBar && <motion.div>{navigationBar}</motion.div>}
-      {!hideSystemNavigationBar && systemNavigationBarHeight && (
+      {navigationBar && (
         <motion.div
-          animate={{
-            backgroundColor: systemNavigationBarColor
-          }}
+          ref={navigationBarRef}
           style={{
-            width: "100%",
-            minHeight: systemNavigationBarHeight
+            position: "absolute",
+            bottom: !hideSystemNavigationBar ? systemNavigationBarHeight : 0,
+            left: 0,
+            width: "100%"
           }}
-        />
+        >
+          {navigationBar}
+        </motion.div>
       )}
       {decorator && <ScreenDecorator ref={decoratorRef} />}
       <div
