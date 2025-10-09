@@ -20,9 +20,9 @@ import type { ScreenProps } from "@screen/Screen";
 function ScreenMotion({
   children,
   statusBarHeight,
-  statusBarColor = "transparent",
+  statusBarColor,
   systemNavigationBarHeight,
-  systemNavigationBarColor = "transparent",
+  systemNavigationBarColor,
   appBar,
   navigationBar,
   hideStatusBar,
@@ -356,6 +356,7 @@ function ScreenMotion({
           height: "100%",
           backgroundColor: "white",
           touchAction: "none",
+          overflowY: "auto",
           ...props.style
         }}
       >
@@ -378,9 +379,7 @@ function ScreenMotion({
             }}
           />
         )}
-        <div style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflowY: "auto" }}>
-          {children}
-        </div>
+        <div style={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>{children}</div>
         {navigationBar && (
           <div
             style={{
