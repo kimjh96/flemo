@@ -36,8 +36,8 @@ function ScreenMotion({
 
   const status = useNavigationStore((state) => state.status);
   const dragStatus = useScreenStore((state) => state.dragStatus);
-  const setDragStatus = useScreenStore.getState().setDragStatus;
-  const setReplaceTransitionStatus = useScreenStore.getState().setReplaceTransitionStatus;
+  const setDragStatus = useScreenStore((state) => state.setDragStatus);
+  const setReplaceTransitionStatus = useScreenStore((state) => state.setReplaceTransitionStatus);
 
   const currentTransition = transitionMap.get(transitionName)!;
   const { variants, initial, swipeDirection, decoratorName } = currentTransition;
