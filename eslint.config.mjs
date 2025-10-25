@@ -3,7 +3,6 @@ import eslintConfigPrettier from "eslint-config-prettier";
 import pluginImport from "eslint-plugin-import";
 import pluginPrettierRecommended from "eslint-plugin-prettier/recommended";
 import pluginReact from "eslint-plugin-react";
-import pluginReactCompiler from "eslint-plugin-react-compiler";
 import pluginReactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 import tseslint from "typescript-eslint";
@@ -20,7 +19,6 @@ export default [
   eslintConfigPrettier,
   pluginImport.flatConfigs.recommended,
   pluginReact.configs.flat.recommended,
-  pluginReactCompiler.configs.recommended,
   pluginPrettierRecommended,
   {
     languageOptions: {

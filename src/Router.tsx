@@ -33,10 +33,10 @@ function Router({
   const pathname = isServer() ? initPath || "/" : window.location.pathname;
   const search = isServer() ? pathname.split("?")[1] || "" : window.location.search;
 
-  getTransitionStore().setState({
+  useTransitionStore.setState({
     defaultTransitionName
   });
-  getHistoryStore().setState({
+  useHistoryStore.setState({
     index: 0,
     histories: [
       {
@@ -97,11 +97,3 @@ function Router({
 }
 
 export default Router;
-
-function getTransitionStore() {
-  return useTransitionStore;
-}
-
-function getHistoryStore() {
-  return useHistoryStore;
-}

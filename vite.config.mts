@@ -1,6 +1,6 @@
 import { resolve } from "path";
 
-import react from "@vitejs/plugin-react";
+import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 
@@ -15,14 +15,7 @@ export default defineConfig({
       external: /^(react|react-dom|motion)(\/|$)/
     }
   },
-  plugins: [
-    react({
-      babel: {
-        plugins: ["babel-plugin-react-compiler"]
-      }
-    }),
-    dts()
-  ],
+  plugins: [react(), dts()],
   resolve: {
     alias: [
       "core",
