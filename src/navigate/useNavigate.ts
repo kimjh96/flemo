@@ -38,7 +38,11 @@ export default function useNavigate() {
         async () => {
           setStatus("PUSHING");
 
-          const toPathname = compile(path)(params as object);
+          const toPath = compile(path);
+          const toPathParams = Object.fromEntries(
+            Object.entries(params).map(([key, value]) => [key, String(value)])
+          );
+          const toPathname = toPath(toPathParams);
           const usedParamKeys = parse(path)
             .tokens.filter((token) => token.type === "param")
             .map((token) => token.name);
@@ -110,7 +114,11 @@ export default function useNavigate() {
         async () => {
           setStatus("REPLACING");
 
-          const toPathname = compile(path)(params as object);
+          const toPath = compile(path);
+          const toPathParams = Object.fromEntries(
+            Object.entries(params).map(([key, value]) => [key, String(value)])
+          );
+          const toPathname = toPath(toPathParams);
           const usedParamKeys = parse(path)
             .tokens.filter((token) => token.type === "param")
             .map((token) => token.name);
