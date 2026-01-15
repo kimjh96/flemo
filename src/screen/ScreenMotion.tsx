@@ -356,7 +356,6 @@ function ScreenMotion({
           height: "100%",
           backgroundColor: "white",
           touchAction: "none",
-          overflowY: "auto",
           ...props.style
         }}
       >
@@ -379,7 +378,9 @@ function ScreenMotion({
             }}
           />
         )}
-        <div style={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>{children}</div>
+        <div style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflowY: "auto" }}>
+          {children}
+        </div>
         {navigationBar && (
           <div
             style={{
