@@ -1,17 +1,13 @@
-import { transform } from "motion/react";
-
 import createTransition from "@transition/createTransition";
 
 const material = createTransition({
   name: "material",
   initial: {
-    y: "100%",
-    opacity: 0.96
+    y: "100%"
   },
   idle: {
     value: {
-      y: 0,
-      opacity: 1
+      y: 0
     },
     options: {
       duration: 0
@@ -19,8 +15,7 @@ const material = createTransition({
   },
   enter: {
     value: {
-      y: 0,
-      opacity: 1
+      y: 0
     },
     options: {
       duration: 0.24,
@@ -29,8 +24,7 @@ const material = createTransition({
   },
   enterBack: {
     value: {
-      y: "100%",
-      opacity: 0.96
+      y: "100%"
     },
     options: {
       duration: 0.22,
@@ -39,8 +33,7 @@ const material = createTransition({
   },
   exit: {
     value: {
-      y: -56,
-      opacity: 0.96
+      y: -56
     },
     options: {
       duration: 0.22,
@@ -49,8 +42,7 @@ const material = createTransition({
   },
   exitBack: {
     value: {
-      y: 0,
-      opacity: 1
+      y: 0
     },
     options: {
       duration: 0.24,
@@ -66,7 +58,6 @@ const material = createTransition({
       const { offset } = info;
       const dragY = offset.y;
       const clamped = Math.max(0, Math.min(56, dragY));
-      const opacity = transform(clamped, [0, 56], [1, 0.96]);
       const extra = Math.max(0, dragY - 56);
       const extraRatio = Math.min(1, extra / 160);
       const resistedExtra = Math.sqrt(extraRatio) * 12;
@@ -78,8 +69,7 @@ const material = createTransition({
       animate(
         currentScreen,
         {
-          y: finalY,
-          opacity
+          y: finalY
         },
         {
           duration: 0
@@ -88,8 +78,7 @@ const material = createTransition({
       animate(
         prevScreen,
         {
-          y: -56 + progress,
-          opacity: progress / 56
+          y: -56 + progress
         },
         { duration: 0 }
       );
@@ -111,8 +100,7 @@ const material = createTransition({
         animate(
           currentScreen,
           {
-            y: isTriggered ? "100%" : 0,
-            opacity: isTriggered ? 0.96 : 1
+            y: isTriggered ? "100%" : 0
           },
           {
             duration: isTriggered ? 0.22 : 0.24,
@@ -122,8 +110,7 @@ const material = createTransition({
         animate(
           prevScreen,
           {
-            y: isTriggered ? 0 : -56,
-            opacity: isTriggered ? 1 : 0.96
+            y: isTriggered ? 0 : -56
           },
           {
             duration: isTriggered ? 0.22 : 0.24,
