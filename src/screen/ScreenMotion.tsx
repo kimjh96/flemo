@@ -12,6 +12,7 @@ import ScreenDecorator from "@screen/ScreenDecorator";
 import useScreenStore from "@screen/store";
 import useScreen from "@screen/useScreen";
 
+import useViewportScrollHeight from "@screen/useViewportScrollHeight";
 import { decoratorMap } from "@transition/decorator/decorator";
 import { transitionMap, transitionInitialValue } from "@transition/transition";
 
@@ -43,6 +44,8 @@ function ScreenMotion({
   const { variants, initial, swipeDirection, decoratorName } = currentTransition;
   const decorator = decoratorMap.get(decoratorName!);
 
+  const { viewportScrollHeight } = useViewportScrollHeight();
+
   const [appBarHeight, setAppBarHeight] = useState(0);
   const [navigationBarHeight, setNavigationBarHeight] = useState(0);
 
@@ -72,7 +75,7 @@ function ScreenMotion({
     event: MouseEvent | TouchEvent | globalThis.PointerEvent,
     info: PanInfo
   ) => {
-    if (!swipeDirection) {
+    if (!swipeDirection || viewportScrollHeight > 10) {
       return;
     }
 
@@ -101,7 +104,7 @@ function ScreenMotion({
   };
 
   const handleDrag = (event: MouseEvent | TouchEvent | globalThis.PointerEvent, info: PanInfo) => {
-    if (!swipeDirection || dragStatus !== "PENDING") {
+    if (!swipeDirection || dragStatus !== "PENDING" || viewportScrollHeight > 10) {
       return;
     }
 
@@ -123,7 +126,7 @@ function ScreenMotion({
     event: MouseEvent | TouchEvent | globalThis.PointerEvent,
     info: PanInfo
   ) => {
-    if (!swipeDirection || dragStatus !== "PENDING") {
+    if (!swipeDirection || dragStatus !== "PENDING" || viewportScrollHeight > 10) {
       return;
     }
 
@@ -148,7 +151,12 @@ function ScreenMotion({
 
   const handlePointerDown = (event: PointerEvent) => {
     const isReadyForDrag =
-      !isRoot && isActive && status === "COMPLETED" && dragStatus === "IDLE" && !!swipeDirection;
+      !isRoot &&
+      isActive &&
+      status === "COMPLETED" &&
+      dragStatus === "IDLE" &&
+      !!swipeDirection &&
+      viewportScrollHeight < 10;
 
     if (!isReadyForDrag) {
       return;
@@ -176,18 +184,22 @@ function ScreenMotion({
   };
 
   const handlePointerMove = (event: PointerEvent) => {
+    if (viewportScrollHeight > 10) {
+      return;
+    }
+
     const hasNoScrollable = !scrollableXRef.current.element && !scrollableYRef.current.element;
 
     if (shouldStartDragRef.current && hasNoScrollable) {
       shouldStartDragRef.current = false;
       isTouchPreventedRef.current = true;
 
-      const x = event.clientX - startXRef.current;
       const y = event.clientY - startYRef.current;
+      const x = event.clientX - startXRef.current;
 
-      if (swipeDirection === "y" && y > 0 && Math.abs(x) < 0.1) {
+      if (swipeDirection === "y" && y > 0) {
         dragControls.start(event);
-      } else if (swipeDirection === "x" && x > 0 && Math.abs(y) < 2) {
+      } else if (swipeDirection === "x" && x > 0) {
         dragControls.start(event);
       }
     } else if (shouldStartDragRef.current && !hasNoScrollable) {
@@ -207,7 +219,7 @@ function ScreenMotion({
         swipeDirection === "y" &&
         (isTopAtEdge || !!scrollableXRef.current.element) &&
         y > 0 &&
-        Math.abs(x) < 0.1
+        Math.abs(x) < 2
       ) {
         shouldStartDragRef.current = false;
         isTouchPreventedRef.current = true;
