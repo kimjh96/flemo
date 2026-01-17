@@ -296,7 +296,7 @@ function ScreenMotion({
   }, [navigationBar]);
 
   return (
-    <motion.div
+    <div
       ref={screenRef}
       style={{
         position: "absolute",
@@ -324,7 +324,7 @@ function ScreenMotion({
         }}
       />
       {appBar && (
-        <motion.div
+        <div
           ref={appBarRef}
           style={{
             position: "absolute",
@@ -334,7 +334,7 @@ function ScreenMotion({
           }}
         >
           {appBar}
-        </motion.div>
+        </div>
       )}
       <motion.div
         ref={scope}
@@ -360,13 +360,11 @@ function ScreenMotion({
         }}
       >
         {!hideStatusBar && statusBarHeight && (
-          <motion.div
-            animate={{
-              backgroundColor: statusBarColor
-            }}
+          <div
             style={{
               width: "100%",
-              minHeight: statusBarHeight
+              minHeight: statusBarHeight,
+              backgroundColor: statusBarColor
             }}
           />
         )}
@@ -390,19 +388,17 @@ function ScreenMotion({
           />
         )}
         {!hideSystemNavigationBar && systemNavigationBarHeight && (
-          <motion.div
-            animate={{
-              backgroundColor: systemNavigationBarColor
-            }}
+          <div
             style={{
               width: "100%",
-              minHeight: systemNavigationBarHeight
+              minHeight: systemNavigationBarHeight,
+              backgroundColor: systemNavigationBarColor
             }}
           />
         )}
       </motion.div>
       {navigationBar && (
-        <motion.div
+        <div
           ref={navigationBarRef}
           style={{
             position: "absolute",
@@ -412,7 +408,7 @@ function ScreenMotion({
           }}
         >
           {navigationBar}
-        </motion.div>
+        </div>
       )}
       {decorator && <ScreenDecorator ref={decoratorRef} />}
       <div
@@ -426,7 +422,7 @@ function ScreenMotion({
           zIndex: 1
         }}
       />
-    </motion.div>
+    </div>
   );
 }
 
