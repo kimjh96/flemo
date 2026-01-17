@@ -181,7 +181,15 @@ function ScreenMotion({
     if (shouldStartDragRef.current && hasNoScrollable) {
       shouldStartDragRef.current = false;
       isTouchPreventedRef.current = true;
-      dragControls.start(event);
+
+      const x = event.clientX - startXRef.current;
+      const y = event.clientY - startYRef.current;
+
+      if (swipeDirection === "y" && y > 0 && Math.abs(x) < 0.1) {
+        dragControls.start(event);
+      } else if (swipeDirection === "x" && x > 0 && Math.abs(y) < 2) {
+        dragControls.start(event);
+      }
     } else if (shouldStartDragRef.current && !hasNoScrollable) {
       const x = event.clientX - startXRef.current;
       const y = event.clientY - startYRef.current;
@@ -199,19 +207,21 @@ function ScreenMotion({
         swipeDirection === "y" &&
         (isTopAtEdge || !!scrollableXRef.current.element) &&
         y > 0 &&
-        Math.abs(x) < 4
+        Math.abs(x) < 0.1
       ) {
         shouldStartDragRef.current = false;
         isTouchPreventedRef.current = true;
+
         dragControls.start(event);
       } else if (
         swipeDirection === "x" &&
         (isLeftAtEdge || !!scrollableYRef.current.element) &&
         x > 0 &&
-        Math.abs(y) < 4
+        Math.abs(y) < 2
       ) {
         shouldStartDragRef.current = false;
         isTouchPreventedRef.current = true;
+
         dragControls.start(event);
       }
     }
