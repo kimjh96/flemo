@@ -28,6 +28,7 @@ function ScreenMotion({
   navigationBar,
   hideStatusBar,
   hideSystemNavigationBar,
+  backgroundColor = "white",
   ...props
 }: ScreenProps) {
   const [scope, animate] = useAnimate();
@@ -207,9 +208,7 @@ function ScreenMotion({
       const y = event.clientY - startYRef.current;
 
       const isTopAtEdge =
-        scrollableYRef.current.element &&
-        scrollableYRef.current.element.scrollTop <= 0 &&
-        scrollableYRef.current.hasMarker;
+        scrollableYRef.current.element && scrollableYRef.current.element.scrollTop <= 0;
       const isLeftAtEdge =
         scrollableXRef.current.element &&
         scrollableXRef.current.element.scrollLeft <= 0 &&
@@ -376,14 +375,16 @@ function ScreenMotion({
           display: "flex",
           flexDirection: "column",
           height: "100%",
-          backgroundColor: "white",
-          touchAction: "none",
+          backgroundColor,
+          overflowY: "auto",
           ...props.style
         }}
       >
         {!hideStatusBar && statusBarHeight && (
           <div
             style={{
+              position: "sticky",
+              top: 0,
               width: "100%",
               minHeight: statusBarHeight,
               backgroundColor: statusBarColor
@@ -398,9 +399,7 @@ function ScreenMotion({
             }}
           />
         )}
-        <div style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflowY: "auto" }}>
-          {children}
-        </div>
+        <div style={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>{children}</div>
         {navigationBar && (
           <div
             style={{
@@ -412,6 +411,8 @@ function ScreenMotion({
         {!hideSystemNavigationBar && systemNavigationBarHeight && (
           <div
             style={{
+              position: "sticky",
+              bottom: 0,
               width: "100%",
               minHeight: systemNavigationBarHeight,
               backgroundColor: systemNavigationBarColor

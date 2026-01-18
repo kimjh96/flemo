@@ -30,6 +30,7 @@ export interface ScreenProps
   statusBarColor?: string;
   systemNavigationBarHeight?: string;
   systemNavigationBarColor?: string;
+  backgroundColor?: string;
   appBar?: ReactNode;
   navigationBar?: ReactNode;
   hideStatusBar?: boolean;
