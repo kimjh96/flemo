@@ -24,11 +24,14 @@ function ScreenMotion({
   statusBarColor,
   systemNavigationBarHeight,
   systemNavigationBarColor,
+  sharedAppBar,
+  sharedNavigationBar,
   appBar,
   navigationBar,
   hideStatusBar,
   hideSystemNavigationBar,
   backgroundColor = "white",
+  contentScrollable = true,
   ...props
 }: ScreenProps) {
   const [scope, animate] = useAnimate();
@@ -47,8 +50,8 @@ function ScreenMotion({
 
   const { viewportScrollHeight } = useViewportScrollHeight();
 
-  const [appBarHeight, setAppBarHeight] = useState(0);
-  const [navigationBarHeight, setNavigationBarHeight] = useState(0);
+  const [sharedAppBarHeight, setSharedAppBarHeight] = useState(0);
+  const [sharedNavigationBarHeight, setSharedNavigationBarHeight] = useState(0);
 
   const screenRef = useRef<HTMLDivElement | null>(null);
   const prevScreenRef = useRef<HTMLDivElement | null>(null);
@@ -69,8 +72,8 @@ function ScreenMotion({
   }>({ element: null, hasMarker: false });
   const startXRef = useRef(0);
   const startYRef = useRef(0);
-  const appBarRef = useRef<HTMLDivElement | null>(null);
-  const navigationBarRef = useRef<HTMLDivElement | null>(null);
+  const sharedAppBarRef = useRef<HTMLDivElement | null>(null);
+  const sharedNavigationBarRef = useRef<HTMLDivElement | null>(null);
 
   const handleDragStart = async (
     event: MouseEvent | TouchEvent | globalThis.PointerEvent,
@@ -305,16 +308,16 @@ function ScreenMotion({
   ]);
 
   useLayoutEffect(() => {
-    if (appBarRef.current) {
-      setAppBarHeight(appBarRef.current.offsetHeight);
+    if (sharedAppBarRef.current) {
+      setSharedAppBarHeight(sharedAppBarRef.current.offsetHeight);
     }
-  }, [appBar]);
+  }, [sharedAppBar]);
 
   useLayoutEffect(() => {
-    if (navigationBarRef.current) {
-      setNavigationBarHeight(navigationBarRef.current.offsetHeight);
+    if (sharedNavigationBarRef.current) {
+      setSharedNavigationBarHeight(sharedNavigationBarRef.current.offsetHeight);
     }
-  }, [navigationBar]);
+  }, [sharedNavigationBar]);
 
   return (
     <div
@@ -344,9 +347,9 @@ function ScreenMotion({
           zIndex: 1
         }}
       />
-      {appBar && (
+      {sharedAppBar && (
         <div
-          ref={appBarRef}
+          ref={sharedAppBarRef}
           style={{
             position: "absolute",
             top: !hideStatusBar ? statusBarHeight : 0,
@@ -354,7 +357,7 @@ function ScreenMotion({
             width: "100%"
           }}
         >
-          {appBar}
+          {sharedAppBar}
         </div>
       )}
       <motion.div
@@ -376,53 +379,68 @@ function ScreenMotion({
           flexDirection: "column",
           height: "100%",
           backgroundColor,
-          overflowY: "auto",
+          overflowY: contentScrollable ? undefined : "auto",
           ...props.style
         }}
       >
         {!hideStatusBar && statusBarHeight && (
+          <div style={{ minHeight: statusBarHeight }}>
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                width: "100%",
+                minHeight: statusBarHeight,
+                backgroundColor: statusBarColor
+              }}
+            />
+          </div>
+        )}
+        {sharedAppBar && (
           <div
             style={{
-              position: "sticky",
-              top: 0,
               width: "100%",
-              minHeight: statusBarHeight,
-              backgroundColor: statusBarColor
+              minHeight: sharedAppBarHeight
             }}
           />
         )}
-        {appBar && (
+        {appBar}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            flexGrow: 1,
+            overflowY: contentScrollable ? "auto" : undefined
+          }}
+        >
+          {children}
+        </div>
+        {navigationBar}
+        {sharedNavigationBar && (
           <div
             style={{
               width: "100%",
-              minHeight: appBarHeight
-            }}
-          />
-        )}
-        <div style={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>{children}</div>
-        {navigationBar && (
-          <div
-            style={{
-              width: "100%",
-              minHeight: navigationBarHeight
+              minHeight: sharedNavigationBarHeight
             }}
           />
         )}
         {!hideSystemNavigationBar && systemNavigationBarHeight && (
-          <div
-            style={{
-              position: "sticky",
-              bottom: 0,
-              width: "100%",
-              minHeight: systemNavigationBarHeight,
-              backgroundColor: systemNavigationBarColor
-            }}
-          />
+          <div style={{ minHeight: systemNavigationBarHeight }}>
+            <div
+              style={{
+                position: "fixed",
+                bottom: 0,
+                width: "100%",
+                minHeight: systemNavigationBarHeight,
+                backgroundColor: systemNavigationBarColor
+              }}
+            />
+          </div>
         )}
       </motion.div>
-      {navigationBar && (
+      {sharedNavigationBar && (
         <div
-          ref={navigationBarRef}
+          ref={sharedNavigationBarRef}
           style={{
             position: "absolute",
             bottom: !hideSystemNavigationBar ? systemNavigationBarHeight : 0,
@@ -430,7 +448,7 @@ function ScreenMotion({
             width: "100%"
           }}
         >
-          {navigationBar}
+          {sharedNavigationBar}
         </div>
       )}
       {decorator && <ScreenDecorator ref={decoratorRef} />}

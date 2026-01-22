@@ -31,10 +31,13 @@ export interface ScreenProps
   systemNavigationBarHeight?: string;
   systemNavigationBarColor?: string;
   backgroundColor?: string;
+  sharedAppBar?: ReactNode;
+  sharedNavigationBar?: ReactNode;
   appBar?: ReactNode;
   navigationBar?: ReactNode;
   hideStatusBar?: boolean;
   hideSystemNavigationBar?: boolean;
+  contentScrollable?: boolean;
 }
 
 function Screen({ children, ...props }: ScreenProps) {
