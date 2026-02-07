@@ -11,6 +11,7 @@ export { default as createRawDecorator } from "@transition/decorator/createRawDe
 export { default as Screen, type ScreenProps } from "@screen/Screen";
 export { default as LayoutScreen } from "@screen/LayoutScreen";
 export { default as LayoutConfig } from "@screen/LayoutConfig";
+export { default as useViewportScrollHeight } from "@screen/useViewportScrollHeight";
 
 export type { TransitionName, RegisterTransition } from "@transition/typing";
 export type { DecoratorName, RegisterDecorator } from "@transition/decorator/typing";
