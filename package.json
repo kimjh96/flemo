@@ -1,6 +1,6 @@
 {
   "name": "flemo",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "description": "A modern React router library with built-in motion animations and smooth transitions",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
