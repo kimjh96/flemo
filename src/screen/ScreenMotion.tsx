@@ -50,6 +50,8 @@ function ScreenMotion({
 
   const { viewportScrollHeight } = useViewportScrollHeight();
 
+  const isKeyboardVisible = viewportScrollHeight > 0;
+
   const [sharedAppBarHeight, setSharedAppBarHeight] = useState(0);
   const [sharedNavigationBarHeight, setSharedNavigationBarHeight] = useState(0);
 
@@ -423,13 +425,19 @@ function ScreenMotion({
         {sharedNavigationBar && (
           <div
             style={{
+              display: isKeyboardVisible ? "none" : undefined,
               width: "100%",
               minHeight: sharedNavigationBarHeight
             }}
           />
         )}
         {!hideSystemNavigationBar && systemNavigationBarHeight && (
-          <div style={{ minHeight: systemNavigationBarHeight }}>
+          <div
+            style={{
+              display: isKeyboardVisible ? "none" : undefined,
+              minHeight: systemNavigationBarHeight
+            }}
+          >
             <div
               style={{
                 position: "fixed",
