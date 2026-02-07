@@ -373,6 +373,10 @@ function ScreenMotion({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        transition={{
+          inherit: true,
+          ...props.transition
+        }}
         data-screen
         style={{
           display: "flex",
