@@ -1,31 +1,29 @@
-import { type PropsWithChildren, type ReactNode } from "react";
+import { Activity, type PropsWithChildren, type ReactNode } from "react";
 
 import useHistoryStore from "@history/store";
 import useNavigationStore from "@navigate/store";
 
-import ScreenFreeze from "@screen/ScreenFreeze";
 import ScreenMotion from "@screen/ScreenMotion";
 import useScreenStore from "@screen/store";
 import useScreen from "@screen/useScreen";
 
 import type { HTMLMotionProps } from "motion/react";
 
-export interface ScreenProps
-  extends PropsWithChildren<
-    Omit<
-      HTMLMotionProps<"div">,
-      | "initial"
-      | "drag"
-      | "dragControls"
-      | "dragListener"
-      | "onDragStart"
-      | "onDrag"
-      | "onDragEnd"
-      | "onPointerDown"
-      | "onPointerMove"
-      | "onPointerUp"
-    >
-  > {
+export interface ScreenProps extends PropsWithChildren<
+  Omit<
+    HTMLMotionProps<"div">,
+    | "initial"
+    | "drag"
+    | "dragControls"
+    | "dragListener"
+    | "onDragStart"
+    | "onDrag"
+    | "onDragEnd"
+    | "onPointerDown"
+    | "onPointerMove"
+    | "onPointerUp"
+  >
+> {
   statusBarHeight?: string;
   statusBarColor?: string;
   systemNavigationBarHeight?: string;
@@ -49,15 +47,15 @@ function Screen({ children, ...props }: ScreenProps) {
   const replaceTransitionStatus = useScreenStore((state) => state.replaceTransitionStatus);
 
   const isTransitionCompleted = status === "COMPLETED" && dragStatus === "IDLE";
-  const isFrozen =
+  const isHidden =
     (!isActive && isTransitionCompleted) ||
     (isPrev && index - 2 <= zIndex && replaceTransitionStatus === "IDLE") ||
     (isPrev && index - 2 > zIndex);
 
   return (
-    <ScreenFreeze freeze={isFrozen}>
-      <ScreenMotion {...props}>{children}</ScreenMotion>
-    </ScreenFreeze>
+    <ScreenMotion {...props}>
+      <Activity mode={isHidden ? "hidden" : "visible"}>{children}</Activity>
+    </ScreenMotion>
   );
 }
 
