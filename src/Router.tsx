@@ -58,8 +58,6 @@ function Router({
   useEffect(() => {
     if (window.history.state?.index) return;
 
-    const { pathname, search } = window.location;
-
     window.history.replaceState(
       {
         id: "root",
@@ -70,7 +68,7 @@ function Router({
         layoutId: null
       },
       "",
-      `${pathname}${search}`
+      window.location.href
     );
   }, [defaultTransitionName]);
 
