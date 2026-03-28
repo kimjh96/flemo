@@ -18,7 +18,7 @@ const material = createTransition({
       y: 0
     },
     options: {
-      duration: 0.24,
+      duration: 0.35,
       ease: [0.0, 0.0, 0.2, 1]
     }
   },
@@ -27,7 +27,7 @@ const material = createTransition({
       y: "100%"
     },
     options: {
-      duration: 0.22,
+      duration: 0.25,
       ease: [0.4, 0.0, 1, 1]
     }
   },
@@ -36,7 +36,7 @@ const material = createTransition({
       y: -56
     },
     options: {
-      duration: 0.22,
+      duration: 0.35,
       ease: [0.4, 0.0, 1, 1]
     }
   },
@@ -45,7 +45,7 @@ const material = createTransition({
       y: 0
     },
     options: {
-      duration: 0.24,
+      duration: 0.25,
       ease: [0.0, 0.0, 0.2, 1]
     }
   },

@@ -325,7 +325,7 @@ function ScreenMotion({
     <div
       ref={screenRef}
       style={{
-        position: "absolute",
+        position: "fixed",
         top: 0,
         left: 0,
         width: "100%",
@@ -340,7 +340,7 @@ function ScreenMotion({
       <div
         data-swipe-at-edge-bar
         style={{
-          position: "absolute",
+          position: "fixed",
           top: 0,
           left: 0,
           width: 8,
@@ -352,7 +352,7 @@ function ScreenMotion({
         <div
           ref={sharedAppBarRef}
           style={{
-            position: "absolute",
+            position: "fixed",
             top: !hideStatusBar ? statusBarHeight : 0,
             left: 0,
             width: "100%"
@@ -388,7 +388,7 @@ function ScreenMotion({
           <div style={{ minHeight: statusBarHeight }}>
             <div
               style={{
-                position: "absolute",
+                position: "fixed",
                 top: 0,
                 width: "100%",
                 minHeight: statusBarHeight,
@@ -435,7 +435,7 @@ function ScreenMotion({
           >
             <div
               style={{
-                position: "absolute",
+                position: "fixed",
                 bottom: 0,
                 width: "100%",
                 minHeight: systemNavigationBarHeight,
@@ -449,7 +449,7 @@ function ScreenMotion({
         <div
           ref={sharedNavigationBarRef}
           style={{
-            position: "absolute",
+            position: "fixed",
             bottom: !hideSystemNavigationBar ? systemNavigationBarHeight : 0,
             left: 0,
             width: "100%"
@@ -462,7 +462,7 @@ function ScreenMotion({
       <div
         data-swipe-at-edge-bar
         style={{
-          position: "absolute",
+          position: "fixed",
           top: 0,
           right: 0,
           width: 8,

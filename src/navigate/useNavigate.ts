@@ -1,6 +1,6 @@
-import { compile, parse } from "path-to-regexp";
-
 import TaskManager from "@core/TaskManger";
+
+import buildRoutePath from "@utils/buildRoutePath";
 
 import useHistoryStore from "@history/store";
 
@@ -38,19 +38,7 @@ export default function useNavigate() {
         async () => {
           setStatus("PUSHING");
 
-          const toPath = compile(path);
-          const toPathParams = Object.fromEntries(
-            Object.entries(params).map(([key, value]) => [key, String(value)])
-          );
-          const toPathname = toPath(toPathParams);
-          const usedParamKeys = parse(path)
-            .tokens.filter((token) => token.type === "param")
-            .map((token) => token.name);
-          const remainingParams = Object.fromEntries(
-            Object.entries(params).filter(([key]) => !usedParamKeys.includes(key))
-          );
-          const search = new URLSearchParams(remainingParams as Record<string, string>).toString();
-          const pathname = `${toPathname}${search ? `?${search}` : ""}`;
+          const { pathname, toPathname } = buildRoutePath(path, params);
 
           window.history.pushState(
             {
@@ -114,19 +102,7 @@ export default function useNavigate() {
         async () => {
           setStatus("REPLACING");
 
-          const toPath = compile(path);
-          const toPathParams = Object.fromEntries(
-            Object.entries(params).map(([key, value]) => [key, String(value)])
-          );
-          const toPathname = toPath(toPathParams);
-          const usedParamKeys = parse(path)
-            .tokens.filter((token) => token.type === "param")
-            .map((token) => token.name);
-          const remainingParams = Object.fromEntries(
-            Object.entries(params).filter(([key]) => !usedParamKeys.includes(key))
-          );
-          const search = new URLSearchParams(remainingParams as Record<string, string>).toString();
-          const pathname = `${toPathname}${search ? `?${search}` : ""}`;
+          const { pathname, toPathname } = buildRoutePath(path, params);
 
           window.history.replaceState(
             {

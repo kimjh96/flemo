@@ -2,6 +2,7 @@ import { createContext } from "react";
 
 import type { History } from "@history/store";
 import type { TransitionName } from "@transition/typing";
+import type { Path } from "path-to-regexp";
 
 export interface ScreenContextProps extends History {
   id: string;
@@ -10,6 +11,7 @@ export interface ScreenContextProps extends History {
   isPrev: boolean;
   zIndex: number;
   prevTransitionName: TransitionName;
+  routePath: Path;
 }
 
 const ScreenContext = createContext<ScreenContextProps>({
@@ -22,7 +24,8 @@ const ScreenContext = createContext<ScreenContextProps>({
   params: {},
   transitionName: "none",
   prevTransitionName: "none",
-  layoutId: null
+  layoutId: null,
+  routePath: ""
 });
 
 export default ScreenContext;

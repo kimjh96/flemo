@@ -2,6 +2,8 @@ import { Children, type PropsWithChildren, type ReactElement } from "react";
 
 import { pathToRegexp } from "path-to-regexp";
 
+import getMatchedPathPattern from "@utils/getMatchedPathPattern";
+
 import useHistoryStore from "@history/store";
 
 import ParamsProvider from "@screen/ParamsProvider/ParamsProvider";
@@ -34,7 +36,11 @@ function Renderer({ children }: PropsWithChildren) {
           params: histories[zIndex].params,
           transitionName: histories[index].transitionName,
           prevTransitionName: histories[index - 1]?.transitionName,
-          layoutId: histories[zIndex].layoutId
+          layoutId: histories[zIndex].layoutId,
+          routePath: getMatchedPathPattern(
+            (child as ReactElement<RouteProps>).props.path,
+            histories[zIndex].pathname
+          )
         }}
       >
         <ParamsProvider>{child}</ParamsProvider>

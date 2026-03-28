@@ -2,13 +2,19 @@ import { useContext } from "react";
 
 import TaskManager from "@core/TaskManger";
 
+import buildRoutePath from "@utils/buildRoutePath";
+
 import useNavigationStore from "@navigate/store";
 
 import ScreenParamsDispatchContext from "@screen/ParamsProvider/ParamsDispatchContext";
 
+import useScreen from "@screen/useScreen";
+
 import type { RegisterRoute } from "@Route";
 
 export default function useStep<T extends keyof RegisterRoute>() {
+  const { routePath } = useScreen();
+
   const dispatch = useContext(ScreenParamsDispatchContext);
 
   const pushStep = async (params: RegisterRoute[T]) => {
@@ -20,8 +26,7 @@ export default function useStep<T extends keyof RegisterRoute>() {
 
     (
       await TaskManager.addTask(async () => {
-        const search = new URLSearchParams(params as Record<string, string>).toString();
-        const pathname = `${window.location.pathname}${search ? `?${search}` : ""}`;
+        const { pathname } = buildRoutePath(routePath, params);
 
         if (!window.history.state?.step) {
           window.history.replaceState(
@@ -58,8 +63,7 @@ export default function useStep<T extends keyof RegisterRoute>() {
 
     (
       await TaskManager.addTask(async () => {
-        const search = new URLSearchParams(params as Record<string, string>).toString();
-        const pathname = `${window.location.pathname}${search ? `?${search}` : ""}`;
+        const { pathname } = buildRoutePath(routePath, params);
 
         window.history.replaceState(
           {

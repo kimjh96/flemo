@@ -20,7 +20,7 @@ const cupertino = createTransition({
       x: 0
     },
     options: {
-      duration: 0.3,
+      duration: 0.7,
       ease: [0.32, 0.72, 0, 1]
     }
   },
@@ -29,7 +29,7 @@ const cupertino = createTransition({
       x: "100%"
     },
     options: {
-      duration: 0.3,
+      duration: 0.6,
       ease: [0.32, 0.72, 0, 1]
     }
   },
@@ -38,7 +38,7 @@ const cupertino = createTransition({
       x: -100
     },
     options: {
-      duration: 0.3,
+      duration: 0.7,
       ease: [0.32, 0.72, 0, 1]
     }
   },
@@ -47,7 +47,7 @@ const cupertino = createTransition({
       x: 0
     },
     options: {
-      duration: 0.3,
+      duration: 0.6,
       ease: [0.32, 0.72, 0, 1]
     }
   },
