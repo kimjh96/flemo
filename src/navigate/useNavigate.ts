@@ -13,11 +13,11 @@ import type { TransitionName } from "@transition/typing";
 export default function useNavigate() {
   const push = async <T extends keyof RegisterRoute>(
     path: T,
-    params: RegisterRoute[T],
-    options: {
+    params?: RegisterRoute[T],
+    options?: {
       layoutId?: string | number;
       transitionName?: TransitionName;
-    } = {}
+    }
   ) => {
     const { status, setStatus } = useNavigationStore.getState();
 
@@ -29,7 +29,7 @@ export default function useNavigate() {
 
     const defaultTransitionName = useTransitionStore.getState().defaultTransitionName;
 
-    const { transitionName = defaultTransitionName, layoutId = null } = options;
+    const { transitionName = defaultTransitionName, layoutId = null } = options ?? {};
 
     const id = TaskManager.generateTaskId();
 
@@ -38,7 +38,7 @@ export default function useNavigate() {
         async () => {
           setStatus("PUSHING");
 
-          const { pathname, toPathname } = buildRoutePath(path, params);
+          const { pathname, toPathname } = buildRoutePath(path, (params ?? {}) as RegisterRoute[T]);
 
           window.history.pushState(
             {
@@ -56,7 +56,7 @@ export default function useNavigate() {
           addHistory({
             id,
             pathname: toPathname,
-            params,
+            params: params ?? {},
             transitionName,
             layoutId
           });
@@ -77,11 +77,11 @@ export default function useNavigate() {
 
   const replace = async <T extends keyof RegisterRoute>(
     path: T,
-    params: RegisterRoute[T],
-    options: {
+    params?: RegisterRoute[T],
+    options?: {
       layoutId?: string | number;
       transitionName?: TransitionName;
-    } = {}
+    }
   ) => {
     const { status, setStatus } = useNavigationStore.getState();
 
@@ -93,7 +93,7 @@ export default function useNavigate() {
     const replaceHistory = useHistoryStore.getState().replaceHistory;
     const defaultTransitionName = useTransitionStore.getState().defaultTransitionName;
 
-    const { transitionName = defaultTransitionName, layoutId = null } = options;
+    const { transitionName = defaultTransitionName, layoutId = null } = options ?? {};
 
     const id = TaskManager.generateTaskId();
 
@@ -102,7 +102,7 @@ export default function useNavigate() {
         async () => {
           setStatus("REPLACING");
 
-          const { pathname, toPathname } = buildRoutePath(path, params);
+          const { pathname, toPathname } = buildRoutePath(path, (params ?? {}) as RegisterRoute[T]);
 
           window.history.replaceState(
             {
@@ -120,7 +120,7 @@ export default function useNavigate() {
           addHistory({
             id,
             pathname: toPathname,
-            params,
+            params: params ?? {},
             transitionName,
             layoutId
           });
