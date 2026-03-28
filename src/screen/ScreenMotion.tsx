@@ -85,7 +85,7 @@ function ScreenMotion({
       return;
     }
 
-    const prevScreen = screenRef.current?.previousSibling as HTMLDivElement;
+    const prevScreen = screenRef.current?.parentElement?.previousElementSibling as HTMLDivElement;
     prevScreenRef.current = prevScreen?.querySelector("[data-screen]");
     prevDecoratorRef.current = prevScreen?.querySelector("[data-decorator]");
 
@@ -331,10 +331,9 @@ function ScreenMotion({
         width: "100%",
         height: "100%",
         display: "flex",
+        contain: "strict",
         flexDirection: "column",
         boxSizing: "border-box",
-        isolation: "isolate",
-        contain: "strict",
         overscrollBehavior: "contain"
       }}
     >
@@ -375,10 +374,6 @@ function ScreenMotion({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        transition={{
-          inherit: true,
-          ...props.transition
-        }}
         data-screen
         style={{
           display: "flex",
@@ -393,7 +388,7 @@ function ScreenMotion({
           <div style={{ minHeight: statusBarHeight }}>
             <div
               style={{
-                position: "fixed",
+                position: "absolute",
                 top: 0,
                 width: "100%",
                 minHeight: statusBarHeight,
@@ -440,7 +435,7 @@ function ScreenMotion({
           >
             <div
               style={{
-                position: "fixed",
+                position: "absolute",
                 bottom: 0,
                 width: "100%",
                 minHeight: systemNavigationBarHeight,

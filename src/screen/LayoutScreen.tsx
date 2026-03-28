@@ -1,9 +1,8 @@
-import { Activity } from "react";
-
 import { AnimatePresence } from "motion/react";
 
 import useHistoryStore from "@history/store";
 import useNavigationStore from "@navigate/store";
+import ScreenFreeze from "@screen/ScreenFreeze";
 import ScreenMotion from "@screen/ScreenMotion";
 import useScreenStore from "@screen/store";
 
@@ -20,23 +19,23 @@ function LayoutScreen({ children, ...props }: ScreenProps) {
   const replaceTransitionStatus = useScreenStore((state) => state.replaceTransitionStatus);
 
   const isTransitionCompleted = status === "COMPLETED" && dragStatus === "IDLE";
-  const isHidden =
+  const isFrozen =
     (!isActive && isTransitionCompleted) ||
     (isPrev && index - 2 <= zIndex && replaceTransitionStatus === "IDLE") ||
     (isPrev && index - 2 > zIndex);
 
   return (
-    <ScreenMotion
-      {...props}
-      style={{
-        backgroundColor: "transparent",
-        ...props.style
-      }}
-    >
-      <AnimatePresence>
-        <Activity mode={isHidden ? "hidden" : "visible"}>{children}</Activity>
-      </AnimatePresence>
-    </ScreenMotion>
+    <ScreenFreeze freeze={isFrozen}>
+      <ScreenMotion
+        {...props}
+        style={{
+          backgroundColor: "transparent",
+          ...props.style
+        }}
+      >
+        <AnimatePresence>{children}</AnimatePresence>
+      </ScreenMotion>
+    </ScreenFreeze>
   );
 }
 

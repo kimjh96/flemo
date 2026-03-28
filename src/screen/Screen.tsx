@@ -1,8 +1,9 @@
-import { Activity, type PropsWithChildren, type ReactNode } from "react";
+import { type PropsWithChildren, type ReactNode } from "react";
 
 import useHistoryStore from "@history/store";
 import useNavigationStore from "@navigate/store";
 
+import ScreenFreeze from "@screen/ScreenFreeze";
 import ScreenMotion from "@screen/ScreenMotion";
 import useScreenStore from "@screen/store";
 import useScreen from "@screen/useScreen";
@@ -47,15 +48,15 @@ function Screen({ children, ...props }: ScreenProps) {
   const replaceTransitionStatus = useScreenStore((state) => state.replaceTransitionStatus);
 
   const isTransitionCompleted = status === "COMPLETED" && dragStatus === "IDLE";
-  const isHidden =
+  const isFrozen =
     (!isActive && isTransitionCompleted) ||
     (isPrev && index - 2 <= zIndex && replaceTransitionStatus === "IDLE") ||
     (isPrev && index - 2 > zIndex);
 
   return (
-    <ScreenMotion {...props}>
-      <Activity mode={isHidden ? "hidden" : "visible"}>{children}</Activity>
-    </ScreenMotion>
+    <ScreenFreeze freeze={isFrozen}>
+      <ScreenMotion {...props}>{children}</ScreenMotion>
+    </ScreenFreeze>
   );
 }
 
