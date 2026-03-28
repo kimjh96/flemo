@@ -18,7 +18,7 @@ function ScreenDecorator({ children, ref, ...props }: ComponentPropsWithRef<"div
 
   const status = useNavigationStore((state) => state.status);
 
-  const currentTransition = transitionMap.get(transitionName)!;
+  const currentTransition = (transitionMap.get(transitionName) ?? transitionMap.get("none"))!;
   const { decoratorName } = currentTransition;
   const { initial, variants } = decoratorMap.get(decoratorName!)!;
 

@@ -44,7 +44,7 @@ function ScreenMotion({
   const setDragStatus = useScreenStore.getState().setDragStatus;
   const setReplaceTransitionStatus = useScreenStore.getState().setReplaceTransitionStatus;
 
-  const currentTransition = transitionMap.get(transitionName)!;
+  const currentTransition = (transitionMap.get(transitionName) ?? transitionMap.get("none"))!;
   const { variants, initial, swipeDirection, decoratorName } = currentTransition;
   const decorator = decoratorMap.get(decoratorName!);
 
@@ -114,7 +114,7 @@ function ScreenMotion({
       return;
     }
 
-    currentTransition?.onSwipe(event, info, {
+    currentTransition.onSwipe(event, info, {
       animate,
       currentScreen: scope.current!,
       prevScreen: prevScreenRef.current!,
