@@ -310,15 +310,45 @@ function ScreenMotion({
   ]);
 
   useLayoutEffect(() => {
-    if (sharedAppBarRef.current) {
-      setSharedAppBarHeight(sharedAppBarRef.current.offsetHeight);
+    const element = sharedAppBarRef.current;
+
+    if (!element) {
+      setSharedAppBarHeight(0);
+      return;
     }
+
+    setSharedAppBarHeight(element.offsetHeight);
+
+    const observer = new ResizeObserver(([entry]) => {
+      setSharedAppBarHeight(entry.contentRect.height);
+    });
+
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
   }, [sharedAppBar]);
 
   useLayoutEffect(() => {
-    if (sharedNavigationBarRef.current) {
-      setSharedNavigationBarHeight(sharedNavigationBarRef.current.offsetHeight);
+    const element = sharedNavigationBarRef.current;
+
+    if (!element) {
+      setSharedNavigationBarHeight(0);
+      return;
     }
+
+    setSharedNavigationBarHeight(element.offsetHeight);
+
+    const observer = new ResizeObserver(([entry]) => {
+      setSharedNavigationBarHeight(entry.contentRect.height);
+    });
+
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
   }, [sharedNavigationBar]);
 
   return (
