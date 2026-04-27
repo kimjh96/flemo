@@ -385,7 +385,8 @@ function ScreenMotion({
             position: "fixed",
             top: !hideStatusBar ? statusBarHeight : 0,
             left: 0,
-            width: "100%"
+            width: "100%",
+            zIndex: 1
           }}
         >
           {sharedAppBar}
@@ -482,7 +483,8 @@ function ScreenMotion({
             position: "fixed",
             bottom: !hideSystemNavigationBar ? systemNavigationBarHeight : 0,
             left: 0,
-            width: "100%"
+            width: "100%",
+            zIndex: 1
           }}
         >
           {sharedNavigationBar}
