@@ -41,6 +41,7 @@ function ScreenDecorator({ children, ref, ...props }: ComponentPropsWithRef<"div
         width: "100%",
         height: "100%",
         pointerEvents: "none",
+        zIndex: 1,
         ...props.style
       }}
       data-decorator
