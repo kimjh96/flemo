@@ -1,0 +1,169 @@
+---
+title: Transitions
+description: Built-in presets, switching them, and writing your own — including swipe gestures
+---
+
+A transition is the animation between screens. **flemo** ships four presets and lets you build
+your own with the same primitives.
+
+## Built-in presets
+
+<Cards>
+  <Card
+    title="cupertino"
+    description="iOS-style horizontal slide — edge swipe back included, default"
+  />
+  <Card
+    title="material"
+    description="Slides up from below — drag-down to dismiss with rubber-band"
+  />
+  <Card title="layout" description="Light fade tuned for layoutId morphs" />
+  <Card title="none" description="Instant cut — no animation" />
+</Cards>
+
+Set the global default on `<Router>`.
+
+```tsx
+<Router defaultTransitionName="material">…</Router>
+```
+
+Override per navigation.
+
+```tsx
+navigate.push("/photos/:id", { id }, { transitionName: "layout" });
+```
+
+## Writing your own
+
+Use `createTransition` for the common shape (six phases), or `createRawTransition` when you want
+full control over every navigate state.
+
+### createTransition
+
+```ts title="myFade.ts"
+import { createTransition } from "flemo";
+
+export const myFade = createTransition({
+  name: "myFade",
+  initial: { opacity: 0 },
+  idle: { value: { opacity: 1 }, options: { duration: 0 } },
+  enter: { value: { opacity: 1 }, options: { duration: 0.3 } },
+  enterBack: { value: { opacity: 0 }, options: { duration: 0.3 } },
+  exit: { value: { opacity: 0 }, options: { duration: 0.3 } },
+  exitBack: { value: { opacity: 1 }, options: { duration: 0.3 } }
+});
+```
+
+| Phase       | When it plays                                   |
+| ----------- | ----------------------------------------------- |
+| `initial`   | The screen's initial style before any animation |
+| `idle`      | At rest, when no transition is happening        |
+| `enter`     | The active screen during a push or replace      |
+| `exit`      | The previous screen during a push or replace    |
+| `enterBack` | The active screen during a pop                  |
+| `exitBack`  | The previous screen during a pop                |
+
+Register it on the `<Router>`.
+
+```tsx
+<Router transitions={[myFade]} defaultTransitionName="myFade">
+  …
+</Router>
+```
+
+…and add it to the type registry so `defaultTransitionName` and `transitionName` autocomplete.
+Most projects drop this at the bottom of the file where `<Router>` is mounted.
+
+```ts title="App.tsx"
+declare module "flemo" {
+  interface RegisterTransition {
+    myFade: "myFade";
+  }
+}
+```
+
+### createRawTransition
+
+If you need different animations for push vs replace vs pop on each side, use the raw factory.
+
+```ts
+createRawTransition({
+  name: "advanced",
+  initial: { x: "100%" },
+  idle: { value: { x: 0 }, options: { duration: 0 } },
+  pushOnEnter: { value: { x: 0 }, options: { duration: 0.4 } },
+  pushOnExit: { value: { x: -50 }, options: { duration: 0.4 } },
+  replaceOnEnter: { value: { x: 0 }, options: { duration: 0.2 } },
+  replaceOnExit: { value: { x: 0 }, options: { duration: 0.2 } },
+  popOnEnter: { value: { x: 0 }, options: { duration: 0.3 } },
+  popOnExit: { value: { x: "100%" }, options: { duration: 0.3 } },
+  completedOnEnter: { value: { x: 0 }, options: { duration: 0 } },
+  completedOnExit: { value: { x: -50 }, options: { duration: 0 } }
+});
+```
+
+## Swipe gestures
+
+A transition can be driven by a drag gesture by setting `swipeDirection` and providing three
+handlers in `options`.
+
+```ts
+createTransition({
+  name: "myFade",
+  // …phases…
+  options: {
+    swipeDirection: "x", // "x" or "y"
+    onSwipeStart: async () => true, // return true to begin the swipe
+    onSwipe: (event, info, ctx) => {
+      const progress = Math.max(0, Math.min(100, (info.offset.x / 200) * 100));
+      ctx.onProgress?.(true, progress);
+      return progress;
+    },
+    onSwipeEnd: async (event, info, ctx) => {
+      const triggered = info.offset.x > 100;
+      ctx.onStart?.(triggered);
+      // animate the screens to their final position
+      return triggered;
+    }
+  }
+});
+```
+
+The handlers receive `currentScreen`, `prevScreen`, an `animate(target, value, options)`
+function, and the `dragControls`. You're in charge of moving the elements during the gesture.
+
+## Decorators
+
+Decorators sit between the previous screen and the current screen. The built-in `overlay`
+decorator is what creates the dim during a cupertino swipe.
+
+```ts
+import { createDecorator } from "flemo";
+
+const dim = createDecorator({
+  name: "dim",
+  initial: { opacity: 0 },
+  enter: { value: { opacity: 0.4 }, options: { duration: 0.3 } },
+  exit: { value: { opacity: 0 }, options: { duration: 0.3 } }
+});
+```
+
+Attach a decorator to a transition by name.
+
+```ts
+createTransition({
+  name: "myFade",
+  // …phases…
+  options: { decoratorName: "dim", swipeDirection: "x" /* … */ }
+});
+```
+
+…then register the decorator on `<Router>`.
+
+```tsx
+<Router decorators={[dim]} transitions={[myFade]}>
+  …
+</Router>
+```
+
+For full per-state control, `createRawDecorator` mirrors `createRawTransition`.

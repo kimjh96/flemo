@@ -1,0 +1,270 @@
+---
+title: Screen
+description: 화면 한 장의 구조 — 앱 바, 네비게이션 바, 안전 영역
+---
+
+`<Screen>`은 라우트 element를 감싸는 컨테이너예요. fixed 레이아웃에 앱 바·네비게이션 바·상태 바
+같은 모바일 화면 영역의 슬롯을 함께 가지고 있어요.
+
+## 구조
+
+<div className="not-prose my-8 grid grid-cols-1 items-center gap-10 sm:grid-cols-[280px_1fr]">
+  <div className="relative mx-auto h-[540px] w-[280px] sm:mx-0">
+    <div className="absolute inset-0 rounded-[40px] bg-fd-foreground/90 shadow-[0_25px_60px_-25px_rgba(0,0,0,0.35)]" />
+    <div className="absolute inset-[4px] flex flex-col overflow-hidden rounded-[36px] bg-fd-background">
+      <div className="flex h-[34px] items-center justify-center bg-fd-muted/60 text-[10px] tracking-wide text-fd-muted-foreground">
+        Status Bar
+      </div>
+      <div className="flex h-[52px] items-center justify-center text-[13px] font-semibold text-fd-foreground" style={{ background: "var(--color-primary-tint, var(--color-fd-secondary))" }}>
+        App Bar
+      </div>
+      <div className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[12px] text-fd-muted-foreground">
+        <span>Children</span>
+        <span className="text-[11px]">스크롤 영역</span>
+      </div>
+      <div className="flex h-[60px] items-center justify-center text-[13px] font-semibold text-fd-foreground" style={{ background: "var(--color-primary-tint, var(--color-fd-secondary))" }}>
+        Navigation Bar
+      </div>
+      <div className="flex h-[28px] items-center justify-center bg-fd-muted/60 text-[10px] tracking-wide text-fd-muted-foreground">
+        System Navigation Bar
+      </div>
+    </div>
+  </div>
+
+  <dl className="flex flex-col gap-7 text-[14px]">
+    <div>
+      <dt className="text-[15px] font-semibold text-fd-foreground">Status Bar</dt>
+      <dd className="mt-1.5 text-fd-muted-foreground">
+        상단 안전 영역. 노치·다이내믹 아일랜드를 차지해요.
+      </dd>
+      <dd className="mt-2 flex flex-wrap gap-1.5">
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">statusBarHeight</code>
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">statusBarColor</code>
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">hideStatusBar</code>
+      </dd>
+    </div>
+
+    <div>
+      <dt className="text-[15px] font-semibold text-fd-foreground">App Bar</dt>
+      <dd className="mt-1.5 text-fd-muted-foreground">
+        화면 상단의 헤더 영역. <strong className="text-fd-foreground">화면별</strong>로 두거나
+        화면 사이에서 그대로 유지되는 <strong className="text-fd-foreground">공유</strong>로
+        둘 수 있어요.
+      </dd>
+      <dd className="mt-2 flex flex-wrap gap-1.5">
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">appBar</code>
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">sharedAppBar</code>
+      </dd>
+    </div>
+
+    <div>
+      <dt className="text-[15px] font-semibold text-fd-foreground">Children</dt>
+      <dd className="mt-1.5 text-fd-muted-foreground">
+        화면의 본문 영역. 기본으로 스크롤되며, 자체 스크롤 컨테이너를 쓸 때만 꺼요.
+      </dd>
+      <dd className="mt-2 flex flex-wrap gap-1.5">
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">contentScrollable</code>
+      </dd>
+    </div>
+
+    <div>
+      <dt className="text-[15px] font-semibold text-fd-foreground">Navigation Bar</dt>
+      <dd className="mt-1.5 text-fd-muted-foreground">
+        화면 하단의 바. App Bar와 마찬가지로 화면별·공유 둘 다 가능해요.
+      </dd>
+      <dd className="mt-2 flex flex-wrap gap-1.5">
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">navigationBar</code>
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">sharedNavigationBar</code>
+      </dd>
+    </div>
+
+    <div>
+      <dt className="text-[15px] font-semibold text-fd-foreground">System Navigation Bar</dt>
+      <dd className="mt-1.5 text-fd-muted-foreground">
+        하단 안전 영역. 안드로이드 시스템 네비게이션 자리를 차지해요.
+      </dd>
+      <dd className="mt-2 flex flex-wrap gap-1.5">
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">systemNavigationBarHeight</code>
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">systemNavigationBarColor</code>
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">hideSystemNavigationBar</code>
+      </dd>
+    </div>
+
+  </dl>
+</div>
+
+### 화면별 vs 공유 (shared)
+
+App bar와 navigation bar는 두 가지 방식으로 둘 수 있어요. 각각 다른 시점에 마운트되고, 전환할
+때 다르게 보여요.
+
+- **`appBar` / `navigationBar`** — 그 화면에만 속한 바예요. 화면이 바뀌면 함께 마운트됐다가
+  같이 사라져요. 헤더 타이틀이나 상세 화면의 액션 버튼처럼 화면마다 다른 UI에 어울려요.
+- **`sharedAppBar` / `sharedNavigationBar`** — 화면이 바뀌어도 같은 자리에 그대로 머물러요.
+  push/pop 전환 동안 깜빡이지 않고, 모든 화면에 같이 보여야 하는 하단 탭 바·고정 헤더 같은
+  UI에 어울려요. 같은 노드를 다음 화면에서도 같은 prop으로 넘기면 flemo가 두 화면 사이를
+  이어 그려요.
+
+## 가장 작은 사용
+
+```tsx
+<Screen>
+  <h1>Home</h1>
+</Screen>
+```
+
+기본적으로 컨텐츠 영역은 스크롤돼요. 배경색은 따로 지정하지 않으면 흰색이에요.
+
+## 앱 바와 네비게이션 바
+
+각 슬롯은 두 가지가 있어요. **화면별**(`appBar`, `navigationBar`)과 **공유**(`sharedAppBar`,
+`sharedNavigationBar`).
+
+공유 버전은 화면이 바뀌어도 그대로 유지되기 때문에, 모든 화면에서 보여야 하는 하단 탭 바 같은
+UI에 어울려요.
+
+```tsx
+<Screen
+  appBar={<TopBar title="받은편지함" />}
+  navigationBar={<BottomActions />}
+  sharedNavigationBar={<TabBar />}
+>
+  <MailList />
+</Screen>
+```
+
+## 안전 영역
+
+```tsx
+<Screen
+  statusBarHeight="env(safe-area-inset-top)"
+  statusBarColor="#000"
+  systemNavigationBarHeight="env(safe-area-inset-bottom)"
+  systemNavigationBarColor="#000"
+>
+  …
+</Screen>
+```
+
+해당 영역을 차지하지 않게 하려면 `hideStatusBar` 또는 `hideSystemNavigationBar`를 켜요.
+
+## 배경색
+
+```tsx
+<Screen backgroundColor="#0b0b0c">…</Screen>
+```
+
+기본값은 `"white"`예요. CSS 색이면 무엇이든 사용할 수 있어요.
+
+## 컨텐츠 스크롤 끄기
+
+자체 스크롤 컨테이너를 쓴다면 내장 스크롤을 꺼요.
+
+```tsx
+<Screen contentScrollable={false}>
+  <CustomScrollArea />
+</Screen>
+```
+
+## Screen 전체 prop
+
+| Prop                        | 타입        | 기본값    | 설명                                         |
+| --------------------------- | ----------- | --------- | -------------------------------------------- |
+| `appBar`                    | `ReactNode` | —         | 화면별 상단 바                               |
+| `navigationBar`             | `ReactNode` | —         | 화면별 하단 바                               |
+| `sharedAppBar`              | `ReactNode` | —         | 전환에서도 유지되는 상단 바                  |
+| `sharedNavigationBar`       | `ReactNode` | —         | 전환에서도 유지되는 하단 바                  |
+| `backgroundColor`           | `string`    | `"white"` | CSS 색                                       |
+| `statusBarHeight`           | `string`    | —         | CSS 길이, 보통 `env(safe-area-inset-top)`    |
+| `statusBarColor`            | `string`    | —         | CSS 색                                       |
+| `hideStatusBar`             | `boolean`   | `false`   | 상단 안전 영역을 차지하지 않음               |
+| `systemNavigationBarHeight` | `string`    | —         | CSS 길이, 보통 `env(safe-area-inset-bottom)` |
+| `systemNavigationBarColor`  | `string`    | —         | CSS 색                                       |
+| `hideSystemNavigationBar`   | `boolean`   | `false`   | 하단 안전 영역을 차지하지 않음               |
+| `contentScrollable`         | `boolean`   | `true`    | 컨텐츠 영역의 스크롤 여부                    |
+
+## LayoutScreen — 화면 사이를 잇는 모핑
+
+목록의 작은 썸네일이 상세 화면의 큰 이미지로 자연스럽게 **펼쳐지듯** 이어지는 패턴 —
+flemo에서는 네 가지가 한 세트로 맞물려 동작해요.
+
+| 역할                       | 어디에                                       |
+| -------------------------- | -------------------------------------------- |
+| `<LayoutScreen>`           | 모프 후 도착하는 화면(상세)                  |
+| `<LayoutConfig>`           | 모프되는 컨테이너의 가장 바깥                |
+| `transitionName: "layout"` | `navigate.push` 옵션                         |
+| `layoutId`                 | navigate 옵션 + 두 화면의 `motion` 요소 prop |
+
+### 각 조각이 하는 일
+
+- **`<LayoutScreen>`** — 도착 화면에서 `<Screen>` 대신 사용해요. 화면이 unmount될 때도
+  layoutId 짝짓기가 깨지지 않도록 해줍니다. 출발 화면(목록)은 평소대로 `<Screen>` 그대로
+  둬도 동작합니다.
+
+- **`<LayoutConfig>`** — 안쪽 motion 자식들의 모프 타이밍(duration·ease)을 **현재 트랜지션
+  프리셋과 맞춰 줘요**. 빠지면 모프가 화면 전환과 어긋나는 기본 spring으로 따로 움직입니다.
+  모프되는 컨테이너의 가장 바깥에 둡니다.
+
+- **`transitionName: "layout"`** — push 시점에 어떤 프리셋으로 화면 자체를 전환할지
+  정해요. `layout` 프리셋은 모프가 잘 보이도록 화면을 살짝만 페이드해 줍니다 (cupertino를
+  쓰면 슬라이드가 모프를 가려요).
+
+- **`layoutId`** — 두 화면의 같은 요소를 짝짓는 키. push 옵션의 `layoutId`는 도착 화면에서
+  `useScreen()`의 `layoutId`로 받을 수 있어요. 컨테이너·이미지·제목·가격까지 같은 체계로
+  묶으면 **한 덩어리처럼** 함께 모프합니다.
+
+### 예시 — 갤러리 → 상세
+
+```tsx title="Gallery.tsx"
+import { Screen, useNavigate } from "flemo";
+import { motion } from "motion/react";
+
+function Gallery() {
+  const navigate = useNavigate();
+  return (
+    <Screen>
+      {photos.map((p) => (
+        <motion.div
+          key={p.id}
+          layoutId={`photo-card-${p.id}`}
+          onClick={() =>
+            navigate.push("/photos/:id", { id: p.id }, { transitionName: "layout", layoutId: p.id })
+          }
+        >
+          <motion.img layoutId={`photo-image-${p.id}`} src={p.thumb} />
+          <motion.span layoutId={`photo-title-${p.id}`}>{p.title}</motion.span>
+        </motion.div>
+      ))}
+    </Screen>
+  );
+}
+```
+
+```tsx title="Photo.tsx"
+import { LayoutConfig, LayoutScreen, useScreen } from "flemo";
+import { motion } from "motion/react";
+
+function Photo() {
+  const { layoutId } = useScreen();
+  return (
+    <LayoutScreen>
+      <LayoutConfig>
+        <motion.div layoutId={`photo-card-${layoutId}`} className="fixed inset-0">
+          <motion.img layoutId={`photo-image-${layoutId}`} src={photo.full} />
+          <motion.h1 layoutId={`photo-title-${layoutId}`}>{photo.title}</motion.h1>
+        </motion.div>
+      </LayoutConfig>
+    </LayoutScreen>
+  );
+}
+```
+
+### 자주 만나는 함정
+
+- **`<LayoutConfig>`를 빼먹음** → 모프가 화면 전환과 어긋난 spring으로 따로 움직여요.
+- **`transitionName: "layout"` 누락** → 기본 cupertino 슬라이드가 모프를 가려서 그냥
+  새 화면이 들어오는 것처럼 보입니다.
+- **두 화면의 `layoutId`가 다름** → 짝짓기에 실패해 모프가 일어나지 않아요. 출발 화면이
+  찍어 두는 키와 도착 화면이 만들어 내는 키가 **완전히 같은 문자열**이 되도록 맞춰 주세요.
+- **부모 컨테이너만 묶음** → 안쪽 이미지·텍스트가 따로 페이드인되며 어색해요. 함께 움직여야
+  하는 요소는 모두 같은 prefix로 layoutId를 붙입니다.

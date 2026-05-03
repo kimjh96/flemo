@@ -1,2 +1,7 @@
 dist
+.next
+.turbo
 node_modules
+coverage
+pnpm-lock.yaml
+*.md.snap

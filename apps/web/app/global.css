@@ -1,0 +1,278 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+@source "../node_modules/fumadocs-ui/dist/**/*.js";
+@source "../content/**/*.{md,mdx}";
+
+@font-face {
+  font-family: "Pretendard Variable";
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+  src: url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/PretendardVariable.woff2")
+    format("woff2-variations");
+}
+
+@theme {
+  --font-sans:
+    "Pretendard Variable", "Pretendard", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, sans-serif;
+  --font-mono:
+    "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Monaco, monospace;
+
+  /* shiflo · light palette */
+  --color-primary: #0066cc;
+  --color-primary-light: #3b8ef0;
+  --color-primary-dark: #0052a3;
+  --color-primary-hover: #1f78db;
+  --color-primary-glow: #3b8ef0;
+
+  --color-accent: #3182f6;
+  --color-accent-light: #6aa4fa;
+  --color-accent-hover: #4d92f7;
+
+  --color-neutral-100: #f9fafb;
+  --color-neutral-200: #f2f4f6;
+  --color-neutral-300: #e5e8eb;
+  --color-neutral-400: #d1d6db;
+  --color-neutral-500: #b0b8c1;
+  --color-neutral-600: #8b95a1;
+  --color-neutral-700: #6b7684;
+  --color-neutral-800: #4e5968;
+  --color-neutral-900: #191f28;
+
+  --color-text-primary: #191f28;
+  --color-text-secondary: #4e5968;
+  --color-text-disabled: #b0b8c1;
+
+  --color-border-light: #f2f4f6;
+  --color-border: #e5e8eb;
+  --color-border-dark: #d1d6db;
+
+  --color-bg: #ffffff;
+  --color-surface: #ffffff;
+  --color-layer: #f7f8fa;
+  --color-card: #ffffff;
+  --color-overlay: rgba(15, 19, 27, 0.48);
+
+  --color-success: #00bf9d;
+  --color-warning: #ffab00;
+  --color-error: #f04452;
+  --color-info: #3182f6;
+
+  --gradient-primary-accent: linear-gradient(180deg, #1f78db 0%, #0066cc 100%);
+
+  /* Stable always-dark color (phone bezels, decorative surfaces that should not flip in dark) */
+  --color-ink: #191f28;
+
+  /* Playground aliases (used by /playground phone-app, light-only) */
+  --color-ink-soft: #4e5968;
+  --color-ink-mute: #8b95a1;
+  --color-line: #e5e8eb;
+  --color-brand: #0066cc;
+  --color-brand-hover: #1f78db;
+
+  /* Fumadocs base — white/shiflo overrides (light) */
+  --color-fd-background: #ffffff;
+  --color-fd-foreground: #191f28;
+  --color-fd-muted: #f9fafb;
+  --color-fd-muted-foreground: #6b7684;
+  --color-fd-popover: #ffffff;
+  --color-fd-popover-foreground: #191f28;
+  --color-fd-card: #ffffff;
+  --color-fd-card-foreground: #191f28;
+  --color-fd-border: #e5e8eb;
+  --color-fd-primary: #0066cc;
+  --color-fd-primary-foreground: #ffffff;
+  --color-fd-secondary: #f7f8fa;
+  --color-fd-secondary-foreground: #191f28;
+  --color-fd-accent: #f2f4f6;
+  --color-fd-accent-foreground: #191f28;
+  --color-fd-ring: #3182f6;
+}
+
+.dark {
+  /* shiflo dark palette */
+  --color-primary: #3b82f6;
+  --color-primary-light: #7baafb;
+  --color-primary-dark: #1f6fe5;
+  --color-primary-hover: #5696f8;
+  --color-primary-glow: #7baafb;
+
+  --color-accent: #60a5fa;
+  --color-accent-light: #93bffc;
+  --color-accent-hover: #7baafb;
+
+  --color-neutral-100: #1a1f26;
+  --color-neutral-200: #242a32;
+  --color-neutral-300: #2d343e;
+  --color-neutral-400: #3a424d;
+  --color-neutral-500: #55606e;
+  --color-neutral-600: #7b8494;
+  --color-neutral-700: #a5adb8;
+  --color-neutral-800: #d1d6db;
+  --color-neutral-900: #edeff1;
+
+  --color-text-primary: #edeff1;
+  --color-text-secondary: #a5adb8;
+  --color-text-disabled: #55606e;
+
+  --color-border-light: #242a32;
+  --color-border: #2d343e;
+  --color-border-dark: #3a424d;
+
+  --color-bg: #12161c;
+  --color-surface: #1a1f26;
+  --color-layer: #181d24;
+  --color-card: #1e242c;
+  --color-overlay: rgba(0, 0, 0, 0.6);
+
+  --color-success: #2ecea9;
+  --color-warning: #ffc248;
+  --color-error: #ff6675;
+  --color-info: #60a5fa;
+
+  --gradient-primary-accent: linear-gradient(180deg, #5696f8 0%, #1f6fe5 100%);
+
+  /* Fumadocs base — shiflo dark */
+  --color-fd-background: #12161c;
+  --color-fd-foreground: #edeff1;
+  --color-fd-muted: #181d24;
+  --color-fd-muted-foreground: #a5adb8;
+  --color-fd-popover: #1a1f26;
+  --color-fd-popover-foreground: #edeff1;
+  --color-fd-card: #1e242c;
+  --color-fd-card-foreground: #edeff1;
+  --color-fd-border: #2d343e;
+  --color-fd-primary: #3b82f6;
+  --color-fd-primary-foreground: #ffffff;
+  --color-fd-secondary: #242a32;
+  --color-fd-secondary-foreground: #edeff1;
+  --color-fd-accent: #2d343e;
+  --color-fd-accent-foreground: #edeff1;
+  --color-fd-ring: #60a5fa;
+}
+
+@layer base {
+  :root {
+    --display-tracking: -0.03em;
+    /* Fumadocs DocsLayout: fill the full viewport instead of capping at 97rem. */
+    --fd-layout-width: 100vw;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "ss02", "cv01", "cv11";
+    letter-spacing: -0.011em;
+  }
+
+  ::selection {
+    background: var(--color-primary);
+    color: white;
+  }
+}
+
+@utility display {
+  font-weight: 800;
+  letter-spacing: var(--display-tracking);
+  line-height: 1;
+}
+
+@utility kicker {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-neutral-600);
+}
+
+@utility chip {
+  display: inline-flex;
+  align-items: center;
+  height: 2rem;
+  padding: 0 0.875rem;
+  border-radius: 999px;
+  background: var(--color-neutral-100);
+  border: 1px solid var(--color-border);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+@utility cta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 3.5rem;
+  padding: 0 1.625rem;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition:
+    transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    background 200ms ease;
+}
+@utility cta-pill {
+  &:hover {
+    background: var(--color-primary-hover);
+    transform: translateY(-1px);
+  }
+  &:active {
+    background: var(--color-primary-dark);
+    transform: translateY(0) scale(0.98);
+  }
+}
+
+@utility cta-pill-invert {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 3.5rem;
+  padding: 0 1.625rem;
+  border-radius: 999px;
+  background: white;
+  color: var(--color-text-primary);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition:
+    transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    background 200ms ease;
+}
+@utility cta-pill-invert {
+  &:hover {
+    transform: translateY(-1px);
+  }
+  &:active {
+    transform: translateY(0) scale(0.98);
+  }
+}
+
+@utility cta-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 3.5rem;
+  padding: 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  transition: color 200ms ease;
+}
+@utility cta-ghost {
+  &:hover {
+    color: var(--color-text-primary);
+  }
+}

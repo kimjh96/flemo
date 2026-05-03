@@ -1,0 +1,117 @@
+---
+title: Getting Started
+description: From zero to a working push/pop in a few minutes
+---
+
+import { Step, Steps } from "fumadocs-ui/components/steps";
+
+## Install
+
+```bash
+pnpm add flemo motion
+```
+
+## Build your first screen
+
+<Steps>
+
+<Step>
+
+### Register your routes
+
+flemo uses TypeScript module augmentation to make paths and params type-safe. The simplest
+setup is to declare every route at the bottom of the file where `<Router>` is mounted.
+
+```ts title="App.tsx"
+declare module "flemo" {
+  interface RegisterRoute {
+    "/": undefined;
+    "/posts/:slug": { slug: string };
+  }
+}
+```
+
+TypeScript merges declarations across files, so you can also colocate each route with the
+page that owns it — same behavior, more local.
+
+```tsx title="Post.tsx"
+export default function Post() {
+  /* … */
+}
+
+declare module "flemo" {
+  interface RegisterRoute {
+    "/posts/:slug": { slug: string };
+  }
+}
+```
+
+</Step>
+
+<Step>
+
+### Mount the Router
+
+Render `<Router>` with a list of `<Route>`s. Whatever matches the URL becomes the active screen.
+
+```tsx title="App.tsx"
+import { Route, Router } from "flemo";
+
+import Home from "./Home";
+import Post from "./Post";
+
+export default function App() {
+  return (
+    <Router>
+      <Route path="/" element={<Home />} />
+      <Route path="/posts/:slug" element={<Post />} />
+    </Router>
+  );
+}
+```
+
+</Step>
+
+<Step>
+
+### Build screens and navigate
+
+Wrap each route's element in `<Screen>`. Use `useNavigate()` to move between them.
+
+```tsx title="Home.tsx"
+import { Screen, useNavigate } from "flemo";
+
+export default function Home() {
+  const navigate = useNavigate();
+
+  return (
+    <Screen>
+      <h1>Home</h1>
+      <button onClick={() => navigate.push("/posts/:slug", { slug: "hello" })}>Open hello</button>
+    </Screen>
+  );
+}
+```
+
+```tsx title="Post.tsx"
+import { Screen, useNavigate, useParams } from "flemo";
+
+export default function Post() {
+  const navigate = useNavigate();
+  const { slug } = useParams<"/posts/:slug">();
+
+  return (
+    <Screen>
+      <h1>{slug}</h1>
+      <button onClick={() => navigate.pop()}>Back</button>
+    </Screen>
+  );
+}
+```
+
+</Step>
+
+</Steps>
+
+That's the whole loop. Tap **Open hello** and the post screen slides in (cupertino is the
+default). Drag from the left edge — or tap **Back** — and it slides out.

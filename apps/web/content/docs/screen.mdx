@@ -1,0 +1,274 @@
+---
+title: Screen
+description: The unit of routing — and the place where mobile-app primitives live
+---
+
+`<Screen>` is what each route renders. It's a fixed-position container with slots for app bars,
+navigation bars, and safe-area aware status bars — the same vocabulary you'd use building a
+native app.
+
+## Anatomy
+
+<div className="not-prose my-8 grid grid-cols-1 items-center gap-10 sm:grid-cols-[280px_1fr]">
+  <div className="relative mx-auto h-[540px] w-[280px] sm:mx-0">
+    <div className="absolute inset-0 rounded-[40px] bg-fd-foreground/90 shadow-[0_25px_60px_-25px_rgba(0,0,0,0.35)]" />
+    <div className="absolute inset-[4px] flex flex-col overflow-hidden rounded-[36px] bg-fd-background">
+      <div data-band="status" className="flex h-[34px] items-center justify-center bg-fd-muted/60 text-[10px] tracking-wide text-fd-muted-foreground">
+        Status Bar
+      </div>
+      <div data-band="app" className="flex h-[52px] items-center justify-center text-[13px] font-semibold text-fd-foreground" style={{ background: "var(--color-primary-tint, var(--color-fd-secondary))" }}>
+        App Bar
+      </div>
+      <div data-band="content" className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[12px] text-fd-muted-foreground">
+        <span>Children</span>
+        <span className="text-[11px]">scrollable</span>
+      </div>
+      <div data-band="nav" className="flex h-[60px] items-center justify-center text-[13px] font-semibold text-fd-foreground" style={{ background: "var(--color-primary-tint, var(--color-fd-secondary))" }}>
+        Navigation Bar
+      </div>
+      <div data-band="system" className="flex h-[28px] items-center justify-center bg-fd-muted/60 text-[10px] tracking-wide text-fd-muted-foreground">
+        System Navigation Bar
+      </div>
+    </div>
+  </div>
+
+  <dl className="flex flex-col gap-7 text-[14px]">
+    <div>
+      <dt className="text-[15px] font-semibold text-fd-foreground">Status Bar</dt>
+      <dd className="mt-1.5 text-fd-muted-foreground">
+        Top safe area. Reserves space for the notch and dynamic island.
+      </dd>
+      <dd className="mt-2 flex flex-wrap gap-1.5">
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">statusBarHeight</code>
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">statusBarColor</code>
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">hideStatusBar</code>
+      </dd>
+    </div>
+
+    <div>
+      <dt className="text-[15px] font-semibold text-fd-foreground">App Bar</dt>
+      <dd className="mt-1.5 text-fd-muted-foreground">
+        Top bar — set <strong className="text-fd-foreground">per-screen</strong>, or as a{" "}
+        <strong className="text-fd-foreground">shared</strong> bar that stays mounted across
+        transitions.
+      </dd>
+      <dd className="mt-2 flex flex-wrap gap-1.5">
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">appBar</code>
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">sharedAppBar</code>
+      </dd>
+    </div>
+
+    <div>
+      <dt className="text-[15px] font-semibold text-fd-foreground">Children</dt>
+      <dd className="mt-1.5 text-fd-muted-foreground">
+        The screen body. Scrolls by default — disable it only when you bring your own scroll
+        container.
+      </dd>
+      <dd className="mt-2 flex flex-wrap gap-1.5">
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">contentScrollable</code>
+      </dd>
+    </div>
+
+    <div>
+      <dt className="text-[15px] font-semibold text-fd-foreground">Navigation Bar</dt>
+      <dd className="mt-1.5 text-fd-muted-foreground">
+        Bottom bar. Same per-screen and shared options as App Bar.
+      </dd>
+      <dd className="mt-2 flex flex-wrap gap-1.5">
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">navigationBar</code>
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">sharedNavigationBar</code>
+      </dd>
+    </div>
+
+    <div>
+      <dt className="text-[15px] font-semibold text-fd-foreground">System Navigation Bar</dt>
+      <dd className="mt-1.5 text-fd-muted-foreground">
+        Bottom safe area. Reserves space for Android's system navigation bar.
+      </dd>
+      <dd className="mt-2 flex flex-wrap gap-1.5">
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">systemNavigationBarHeight</code>
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">systemNavigationBarColor</code>
+        <code className="rounded bg-fd-muted px-1.5 py-0.5 text-[12px]">hideSystemNavigationBar</code>
+      </dd>
+    </div>
+
+  </dl>
+</div>
+
+### Per-screen vs shared
+
+App bar and navigation bar can be set in two ways. They mount at different times and behave
+differently across transitions.
+
+- **`appBar` / `navigationBar`** — the bar belongs to that one screen. It mounts and unmounts
+  with the screen. Use this for headers and actions that change page-by-page.
+- **`sharedAppBar` / `sharedNavigationBar`** — the bar persists across screens. It stays put
+  during push and pop transitions, so it never re-animates. Use this for global UI like a bottom
+  tab bar or a fixed header. Pass the same node from each screen and flemo bridges it through
+  the transition.
+
+## Minimum
+
+```tsx
+<Screen>
+  <h1>Hello</h1>
+</Screen>
+```
+
+The content area scrolls by default. Background is white unless you change it.
+
+## App bar and navigation bar
+
+Two slots, two flavors each: **per-screen** (`appBar`, `navigationBar`) and **shared**
+(`sharedAppBar`, `sharedNavigationBar`).
+
+The shared variants stay mounted across screen transitions, so the bar doesn't re-animate every
+push. Use them for global UI like a bottom tab bar.
+
+```tsx
+<Screen
+  appBar={<TopBar title="Inbox" />}
+  navigationBar={<BottomActions />}
+  sharedNavigationBar={<TabBar />}
+>
+  <MailList />
+</Screen>
+```
+
+## Safe areas
+
+```tsx
+<Screen
+  statusBarHeight="env(safe-area-inset-top)"
+  statusBarColor="#000"
+  systemNavigationBarHeight="env(safe-area-inset-bottom)"
+  systemNavigationBarColor="#000"
+>
+  …
+</Screen>
+```
+
+Pass `hideStatusBar` or `hideSystemNavigationBar` to collapse the area when you don't want it
+reserved (e.g., a full-bleed media screen).
+
+## Background
+
+```tsx
+<Screen backgroundColor="#0b0b0c">…</Screen>
+```
+
+Defaults to `"white"`. Any CSS color value works.
+
+## Disabling content scroll
+
+If you're rendering your own scroll container, opt out of the built-in one:
+
+```tsx
+<Screen contentScrollable={false}>
+  <CustomScrollArea />
+</Screen>
+```
+
+## All Screen props
+
+| Prop                        | Type        | Default   | Notes                                             |
+| --------------------------- | ----------- | --------- | ------------------------------------------------- |
+| `appBar`                    | `ReactNode` | —         | Per-screen top bar                                |
+| `navigationBar`             | `ReactNode` | —         | Per-screen bottom bar                             |
+| `sharedAppBar`              | `ReactNode` | —         | Top bar that survives transitions                 |
+| `sharedNavigationBar`       | `ReactNode` | —         | Bottom bar that survives transitions              |
+| `backgroundColor`           | `string`    | `"white"` | CSS color                                         |
+| `statusBarHeight`           | `string`    | —         | CSS length, usually `env(safe-area-inset-top)`    |
+| `statusBarColor`            | `string`    | —         | CSS color                                         |
+| `hideStatusBar`             | `boolean`   | `false`   | Don't reserve the top safe area                   |
+| `systemNavigationBarHeight` | `string`    | —         | CSS length, usually `env(safe-area-inset-bottom)` |
+| `systemNavigationBarColor`  | `string`    | —         | CSS color                                         |
+| `hideSystemNavigationBar`   | `boolean`   | `false`   | Don't reserve the bottom safe area                |
+| `contentScrollable`         | `boolean`   | `true`    | Whether the children area scrolls                 |
+
+## LayoutScreen — morph between screens
+
+A list thumbnail that **unfolds** into the full image on the next screen. In flemo, four pieces
+work as one:
+
+| Piece                      | Goes where                                                        |
+| -------------------------- | ----------------------------------------------------------------- |
+| `<LayoutScreen>`           | The destination screen                                            |
+| `<LayoutConfig>`           | The outermost wrapper of the morphing container                   |
+| `transitionName: "layout"` | The `navigate.push` option                                        |
+| `layoutId`                 | The push option **and** the `motion` element prop on both screens |
+
+### What each piece does
+
+- **`<LayoutScreen>`** — drop-in replacement for `<Screen>` on the destination. Keeps layoutId
+  pairing alive across the unmount when you navigate back. The source (list) screen can stay a
+  plain `<Screen>`.
+
+- **`<LayoutConfig>`** — keeps the morph's timing (duration, ease) in sync with the **current
+  transition preset**. Without it, the morph runs on a default spring that falls out of step with
+  the screen transition. Put it as the outermost wrapper of whatever should morph.
+
+- **`transitionName: "layout"`** — picks a screen transition that fades just enough to keep the
+  morph readable. Cupertino's slide would cover it up.
+
+- **`layoutId`** — the key that pairs the same element across two screens. The `layoutId` you
+  pass to `navigate.push` arrives on the destination as `useScreen().layoutId`. Tag the container,
+  image, title, and price with a shared prefix and they morph as **one unit**.
+
+### Example — gallery → detail
+
+```tsx title="Gallery.tsx"
+import { Screen, useNavigate } from "flemo";
+import { motion } from "motion/react";
+
+function Gallery() {
+  const navigate = useNavigate();
+  return (
+    <Screen>
+      {photos.map((p) => (
+        <motion.div
+          key={p.id}
+          layoutId={`photo-card-${p.id}`}
+          onClick={() =>
+            navigate.push("/photos/:id", { id: p.id }, { transitionName: "layout", layoutId: p.id })
+          }
+        >
+          <motion.img layoutId={`photo-image-${p.id}`} src={p.thumb} />
+          <motion.span layoutId={`photo-title-${p.id}`}>{p.title}</motion.span>
+        </motion.div>
+      ))}
+    </Screen>
+  );
+}
+```
+
+```tsx title="Photo.tsx"
+import { LayoutConfig, LayoutScreen, useScreen } from "flemo";
+import { motion } from "motion/react";
+
+function Photo() {
+  const { layoutId } = useScreen();
+  return (
+    <LayoutScreen>
+      <LayoutConfig>
+        <motion.div layoutId={`photo-card-${layoutId}`} className="fixed inset-0">
+          <motion.img layoutId={`photo-image-${layoutId}`} src={photo.full} />
+          <motion.h1 layoutId={`photo-title-${layoutId}`}>{photo.title}</motion.h1>
+        </motion.div>
+      </LayoutConfig>
+    </LayoutScreen>
+  );
+}
+```
+
+### Common pitfalls
+
+- **Forgot `<LayoutConfig>`** — the morph runs on Motion's default spring, out of sync with the
+  screen transition.
+- **Missed `transitionName: "layout"`** — the default cupertino slide covers the morph; it just
+  looks like a normal push.
+- **Mismatched `layoutId`s** — pairing fails and nothing morphs. The string the source builds
+  must be **byte-for-byte identical** to the one the destination builds from
+  `useScreen().layoutId`.
+- **Only the parent has a `layoutId`** — the inner image and text fade in separately and look
+  off. Tag every element that should travel together with the same prefix.

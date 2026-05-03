@@ -1,0 +1,39 @@
+{
+  "name": "@flemo/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "fumadocs-mdx && next dev -p 3000",
+    "build": "fumadocs-mdx && next build",
+    "start": "next start",
+    "lint": "eslint \"**/*.{js,mjs,ts,jsx,tsx,mts}\"",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .next .turbo"
+  },
+  "dependencies": {
+    "flemo": "workspace:*",
+    "fumadocs-core": "^16.8.5",
+    "fumadocs-mdx": "^14.3.2",
+    "fumadocs-ui": "^16.8.5",
+    "motion": "^12.0.0",
+    "next": "^16.2.4",
+    "next-themes": "^0.4.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@flemo/eslint-config": "workspace:*",
+    "@flemo/tsconfig": "workspace:*",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/mdx": "^2.0.13",
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "^9.33.0",
+    "eslint-config-next": "^16.2.4",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.9.2"
+  }
+}

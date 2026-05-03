@@ -1,0 +1,164 @@
+---
+title: Transitions
+description: 내장 프리셋, 직접 만들기, 스와이프 제스처
+---
+
+전환은 화면 사이의 애니메이션이에요. **flemo**는 4개의 프리셋을 기본 포함하고, 같은 도구로
+직접 만들 수도 있어요.
+
+## 내장 프리셋
+
+<Cards>
+  <Card title="cupertino" description="iOS 스타일 가로 슬라이드 — 엣지 드래그 백 포함, 기본값" />
+  <Card title="material" description="아래에서 위로 슬라이드 — 드래그 dismiss + 러버밴드 저항" />
+  <Card title="layout" description="layoutId 모핑에 어울리는 가벼운 페이드" />
+  <Card title="none" description="즉시 컷, 애니메이션 없음" />
+</Cards>
+
+`<Router>`에서 전역 기본값을 바꿔요.
+
+```tsx
+<Router defaultTransitionName="material">…</Router>
+```
+
+navigation 단위로 한 번만 바꾸려면 옵션으로 넘겨요.
+
+```tsx
+navigate.push("/photos/:id", { id }, { transitionName: "layout" });
+```
+
+## 직접 만들기
+
+흔한 형태는 `createTransition`(여섯 단계), 모든 navigate 상태를 분리해서 정의하고 싶다면
+`createRawTransition`을 써요.
+
+### createTransition
+
+```ts title="myFade.ts"
+import { createTransition } from "flemo";
+
+export const myFade = createTransition({
+  name: "myFade",
+  initial: { opacity: 0 },
+  idle: { value: { opacity: 1 }, options: { duration: 0 } },
+  enter: { value: { opacity: 1 }, options: { duration: 0.3 } },
+  enterBack: { value: { opacity: 0 }, options: { duration: 0.3 } },
+  exit: { value: { opacity: 0 }, options: { duration: 0.3 } },
+  exitBack: { value: { opacity: 1 }, options: { duration: 0.3 } }
+});
+```
+
+| 단계        | 재생 시점                                   |
+| ----------- | ------------------------------------------- |
+| `initial`   | 어떤 애니메이션도 시작되기 전의 초기 스타일 |
+| `idle`      | 전환이 없을 때의 정지 상태                  |
+| `enter`     | push / replace 동안 들어오는 화면           |
+| `exit`      | push / replace 동안 나가는 화면             |
+| `enterBack` | pop 동안 들어오는 (이전) 화면               |
+| `exitBack`  | pop 동안 나가는 (현재) 화면                 |
+
+`<Router>`에 등록해요.
+
+```tsx
+<Router transitions={[myFade]} defaultTransitionName="myFade">
+  …
+</Router>
+```
+
+타입 레지스트리에도 등록하면 `defaultTransitionName`, `transitionName`이 자동완성돼요. 보통
+`<Router>`를 마운트하는 파일 하단에 같이 두면 편해요.
+
+```ts title="App.tsx"
+declare module "flemo" {
+  interface RegisterTransition {
+    myFade: "myFade";
+  }
+}
+```
+
+### createRawTransition
+
+push와 replace, pop을 양쪽 모두 다른 애니메이션으로 분리하고 싶다면 raw 팩토리를 써요.
+
+```ts
+createRawTransition({
+  name: "advanced",
+  initial: { x: "100%" },
+  idle: { value: { x: 0 }, options: { duration: 0 } },
+  pushOnEnter: { value: { x: 0 }, options: { duration: 0.4 } },
+  pushOnExit: { value: { x: -50 }, options: { duration: 0.4 } },
+  replaceOnEnter: { value: { x: 0 }, options: { duration: 0.2 } },
+  replaceOnExit: { value: { x: 0 }, options: { duration: 0.2 } },
+  popOnEnter: { value: { x: 0 }, options: { duration: 0.3 } },
+  popOnExit: { value: { x: "100%" }, options: { duration: 0.3 } },
+  completedOnEnter: { value: { x: 0 }, options: { duration: 0 } },
+  completedOnExit: { value: { x: -50 }, options: { duration: 0 } }
+});
+```
+
+## 스와이프 제스처
+
+`swipeDirection`을 지정하고 `options`에 세 개의 핸들러를 넣으면 전환을 드래그로 구동할 수
+있어요.
+
+```ts
+createTransition({
+  name: "myFade",
+  // …단계들…
+  options: {
+    swipeDirection: "x", // "x" 또는 "y"
+    onSwipeStart: async () => true, // true 반환하면 스와이프 시작
+    onSwipe: (event, info, ctx) => {
+      const progress = Math.max(0, Math.min(100, (info.offset.x / 200) * 100));
+      ctx.onProgress?.(true, progress);
+      return progress;
+    },
+    onSwipeEnd: async (event, info, ctx) => {
+      const triggered = info.offset.x > 100;
+      ctx.onStart?.(triggered);
+      // 화면을 최종 위치로 애니메이션
+      return triggered;
+    }
+  }
+});
+```
+
+핸들러는 `currentScreen`, `prevScreen`, `animate(target, value, options)` 함수, `dragControls`를
+받아요. 제스처 도중에 요소를 움직이는 책임이 핸들러에 있어요.
+
+## 데코레이터
+
+데코레이터는 이전 화면과 현재 화면 사이에 끼는 레이어예요. 내장 `overlay` 데코레이터가
+cupertino 스와이프 동안 보이는 dim 효과를 만들어요.
+
+```ts
+import { createDecorator } from "flemo";
+
+const dim = createDecorator({
+  name: "dim",
+  initial: { opacity: 0 },
+  enter: { value: { opacity: 0.4 }, options: { duration: 0.3 } },
+  exit: { value: { opacity: 0 }, options: { duration: 0.3 } }
+});
+```
+
+전환에 데코레이터를 이름으로 연결해요.
+
+```ts
+createTransition({
+  name: "myFade",
+  // …단계들…
+  options: { decoratorName: "dim", swipeDirection: "x" /* … */ }
+});
+```
+
+`<Router>`에 데코레이터를 등록해요.
+
+```tsx
+<Router decorators={[dim]} transitions={[myFade]}>
+  …
+</Router>
+```
+
+상태별 완전 제어가 필요하면 `createRawDecorator`가 `createRawTransition`과 같은 형태로
+제공돼요.

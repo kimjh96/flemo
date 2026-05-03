@@ -1,0 +1,100 @@
+---
+title: Router & Route
+description: How routes match, how to register them, and how to set defaults
+---
+
+`<Router>` is the root container. It picks which `<Route>` to render based on the URL.
+
+## The pieces
+
+```tsx
+<Router>
+  <Route path="/" element={<Home />} />
+  <Route path="/posts/:slug" element={<Post />} />
+</Router>
+```
+
+| Element    | Job                                          |
+| ---------- | -------------------------------------------- |
+| `<Router>` | Sets up history, transitions, and decorators |
+| `<Route>`  | Maps a `path` (or paths) to an `element`     |
+
+## Path patterns
+
+flemo uses [path-to-regexp](https://github.com/pillarjs/path-to-regexp) v8 for matching.
+
+```ts
+"/"; // exact
+"/posts/:slug"; // a single param
+"/users/:id/posts/:p"; // multiple params
+"/files/*splat"; // wildcard (note the `*` prefix on the param)
+```
+
+You can also pass an array to share one component across paths:
+
+```tsx
+<Route path={["/", "/home"]} element={<Home />} />
+```
+
+## Type-safe routes
+
+Augment `RegisterRoute` and `navigate.push`, `useParams`, etc. all type-check against it. You can
+declare every route in one central file, or split the declaration across page files — TypeScript
+merges all the augmentations, so either approach works. Most projects keep it at the bottom of
+the file where `<Router>` is mounted.
+
+```ts title="App.tsx"
+declare module "flemo" {
+  interface RegisterRoute {
+    "/": undefined;
+    "/posts/:slug": { slug: string };
+    "/users/:id": { id: string };
+  }
+}
+```
+
+Routes without params map to `undefined`. Routes with params use the inferred shape.
+
+```tsx
+navigate.push("/posts/:slug", { slug: "hello" }); // ✅
+navigate.push("/posts/:slug", { id: "1" }); // ❌ TS error
+navigate.push("/unknown"); // ❌ TS error
+```
+
+## Router options
+
+```tsx
+<Router initPath="/" defaultTransitionName="cupertino" transitions={[]} decorators={[]}>
+  {/* routes */}
+</Router>
+```
+
+| Prop                    | Default       | What it does                                                      |
+| ----------------------- | ------------- | ----------------------------------------------------------------- |
+| `initPath`              | `"/"`         | Path used during SSR before `window.location` is available        |
+| `defaultTransitionName` | `"cupertino"` | Transition used when a `navigate.push` doesn't specify one        |
+| `transitions`           | `[]`          | Custom transitions to register (see [Transitions](./transitions)) |
+| `decorators`            | `[]`          | Custom decorators (e.g., overlays) to register                    |
+
+## Server-side rendering
+
+`<Router>` renders on the server too. But the server has no `window.location`, so you have to
+tell it which route to render first. That's what `initPath` is for.
+
+- **Server**: renders the screen matching `initPath`. Defaults to `"/"`.
+- **Client**: on mount, reads `window.location.pathname` and takes over from there.
+
+Pass the server's request path through `initPath` and the first paint matches the URL — no
+hydration mismatch. In Next.js App Router:
+
+```tsx title="app/[[...slug]]/page.tsx"
+export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
+  const { slug = [] } = await params;
+  const initPath = "/" + slug.join("/");
+
+  return <Router initPath={initPath}>{/* routes */}</Router>;
+}
+```
+
+Pure-SPA setups (Vite, CRA) don't need `initPath` — the client reads `window.location.pathname`
+on its own.

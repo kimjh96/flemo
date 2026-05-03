@@ -1,0 +1,109 @@
+---
+title: Navigation
+description: useNavigate, useParams, useStep
+---
+
+**flemo**는 세 가지 navigation 훅을 제공해요. 각각이 다른 종류의 이동을 담당해요.
+
+<Cards>
+  <Card
+    title="useNavigate"
+    description="라우트 사이의 이동 — push / replace / pop"
+    href="#usenavigate"
+  />
+  <Card title="useParams" description="현재 라우트의 파라미터 읽기" href="#useparams" />
+  <Card title="useStep" description="라우트는 그대로, 화면 안에서 파라미터 전환" href="#usestep" />
+</Cards>
+
+## useNavigate
+
+```ts
+const navigate = useNavigate();
+
+navigate.push("/posts/:slug", { slug: "hello" });
+navigate.replace("/login");
+navigate.pop();
+```
+
+`push`와 `replace`는 비동기예요. 전환이 시작되고 라우트가 반영될 때까지 기다려요. `pop`은
+`window.history.back()`을 호출하기만 해요.
+
+### 옵션
+
+```ts
+navigate.push(
+  "/posts/:slug",
+  { slug: "hello" },
+  {
+    transitionName: "material",
+    layoutId: "photo-hello"
+  }
+);
+```
+
+| 옵션             | 동작                                                                             |
+| ---------------- | -------------------------------------------------------------------------------- |
+| `transitionName` | 이번 push 한 번만 다른 전환 사용                                                 |
+| `layoutId`       | layoutId 모핑 태그 — `transitionName: "layout"`과 함께 push 또는 replace 시 사용 |
+
+## useParams
+
+`useParams<T>()`는 현재 라우트의 파라미터를 반환해요. 타입은 `RegisterRoute` augmentation에서
+가져와요.
+
+```tsx
+function Post() {
+  const { slug } = useParams<"/posts/:slug">();
+  return <h1>{slug}</h1>;
+}
+```
+
+경로 파라미터와 쿼리 파라미터를 하나의 객체로 합쳐서 돌려줘요.
+
+```
+URL: /posts/hello?ref=home
+useParams<"/posts/:slug">() → { slug: "hello", ref: "home" }
+```
+
+## useStep
+
+`useStep()`은 현재 화면 안에서 sub-state를 바꿀 때 사용해요. 새 history 엔트리를 push 하기
+때문에 브라우저 뒤로가기 버튼도 그대로 동작해요. 다만 라우트 자체는 바뀌지 않아서, 같은
+`<Screen>`이 그대로 유지되고 파라미터만 갱신돼요.
+
+전형적인 사용처는 한 화면 안의 다단계 폼이에요.
+
+```tsx
+function Onboarding() {
+  const { step = "name" } = useParams<"/onboarding">();
+  const stepper = useStep<"/onboarding">();
+
+  if (step === "name") {
+    return <button onClick={() => stepper.pushStep({ step: "email" })}>다음</button>;
+  }
+
+  if (step === "email") {
+    return <button onClick={() => stepper.popStep()}>뒤로</button>;
+  }
+}
+```
+
+| 메서드                | 동작                                                  |
+| --------------------- | ----------------------------------------------------- |
+| `pushStep(params)`    | 같은 라우트에 새 파라미터로 history 엔트리를 추가해요 |
+| `replaceStep(params)` | 현재 엔트리를 새 파라미터로 교체해요                  |
+| `popStep()`           | 한 단계 뒤로 가요 (`window.history.back()`)           |
+
+## push와 step 중 무엇을 쓸까
+
+| 하고 싶은 동작                                     | 사용                 |
+| -------------------------------------------------- | -------------------- |
+| 다른 화면을 띄우기                                 | `navigate.push`      |
+| 현재 화면을 다른 화면으로 갈아끼우기 (로그인 → 홈) | `navigate.replace`   |
+| 현재 화면을 닫기                                   | `navigate.pop`       |
+| 같은 화면을 유지한 채 UI만 바꾸기                  | `useStep().pushStep` |
+
+<Callout type="info">
+  `useStep`은 화면 트리 안에서 모든 게 유지돼요 — 같은 Screen 인스턴스, 같은 Provider, 스크롤
+  위치까지 그대로예요. `useNavigate`는 진짜 전환과 함께 새 Screen을 마운트해요.
+</Callout>

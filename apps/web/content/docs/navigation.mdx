@@ -1,0 +1,109 @@
+---
+title: Navigation
+description: useNavigate, useParams, useStep — and how each one moves you around
+---
+
+**flemo** gives you three navigation hooks. They cover different shapes of movement.
+
+<Cards>
+  <Card
+    title="useNavigate"
+    description="Move between routes — push / replace / pop"
+    href="#usenavigate"
+  />
+  <Card title="useParams" description="Read the current route's params" href="#useparams" />
+  <Card title="useStep" description="Change params inside the current route" href="#usestep" />
+</Cards>
+
+## useNavigate
+
+```ts
+const navigate = useNavigate();
+
+navigate.push("/posts/:slug", { slug: "hello" });
+navigate.replace("/login");
+navigate.pop();
+```
+
+`push` and `replace` are async — they wait for the transition to start and the route to take
+effect. `pop` is fire-and-forget; it just calls `window.history.back()`.
+
+### Options
+
+```ts
+navigate.push(
+  "/posts/:slug",
+  { slug: "hello" },
+  {
+    transitionName: "material",
+    layoutId: "photo-hello"
+  }
+);
+```
+
+| Option           | What it does                                                                            |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| `transitionName` | Override the default transition for this push only                                      |
+| `layoutId`       | Pair with `transitionName: "layout"` on push or replace to enable shared-element morphs |
+
+## useParams
+
+`useParams<T>()` returns the params for the current route, typed against your `RegisterRoute`
+augmentation.
+
+```tsx
+function Post() {
+  const { slug } = useParams<"/posts/:slug">();
+  return <h1>{slug}</h1>;
+}
+```
+
+flemo merges path params and query params into one object.
+
+```
+URL: /posts/hello?ref=home
+useParams<"/posts/:slug">() → { slug: "hello", ref: "home" }
+```
+
+## useStep
+
+`useStep()` is for sub-states within the current screen. It pushes a new history entry — so the
+browser back button still goes back — but **doesn't change the route**. The same `<Screen>` stays
+mounted; only its params update.
+
+A common case: a multi-step form on one screen.
+
+```tsx
+function Onboarding() {
+  const { step = "name" } = useParams<"/onboarding">();
+  const stepper = useStep<"/onboarding">();
+
+  if (step === "name") {
+    return <button onClick={() => stepper.pushStep({ step: "email" })}>Next</button>;
+  }
+
+  if (step === "email") {
+    return <button onClick={() => stepper.popStep()}>Back</button>;
+  }
+}
+```
+
+| Method                | What it does                                           |
+| --------------------- | ------------------------------------------------------ |
+| `pushStep(params)`    | Push a new history entry with these params, same route |
+| `replaceStep(params)` | Replace current history entry with these params        |
+| `popStep()`           | Go back one step (same as `window.history.back()`)     |
+
+## Choosing between push and step
+
+| You want to…                                    | Use                  |
+| ----------------------------------------------- | -------------------- |
+| Show a different screen                         | `navigate.push`      |
+| Replace the current screen (e.g., login → home) | `navigate.replace`   |
+| Close the current screen                        | `navigate.pop`       |
+| Stay on the same screen but change UI           | `useStep().pushStep` |
+
+<Callout type="info">
+  **`useStep`** keeps everything in the screen tree — same Screen instance, same Provider, same
+  scroll position. **`useNavigate`** mounts a new Screen with a real transition.
+</Callout>

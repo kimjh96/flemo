@@ -1,0 +1,78 @@
+{
+  "name": "flemo",
+  "version": "1.5.7",
+  "description": "A modern React router library with built-in motion animations and smooth transitions",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "keywords": [
+    "flemo",
+    "react",
+    "react-router",
+    "motion",
+    "transition",
+    "page-transition",
+    "react-page-transition"
+  ],
+  "author": {
+    "name": "kimjh96",
+    "email": "kimjhs@kakao.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kimjh96/flemo.git",
+    "directory": "packages/flemo"
+  },
+  "bugs": {
+    "url": "https://github.com/kimjh96/flemo/issues",
+    "email": "kimjhs@kakao.com"
+  },
+  "homepage": "https://flemo.dev",
+  "license": "MIT",
+  "scripts": {
+    "build": "vite build",
+    "watch": "vite build --watch",
+    "dev": "vite build --watch",
+    "lint": "eslint \"**/*.{js,mjs,ts,jsx,tsx,mts}\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "path-to-regexp": "^8.2.0",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@flemo/eslint-config": "workspace:*",
+    "@flemo/tsconfig": "workspace:*",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react-swc": "^4.0.1",
+    "eslint": "^9.33.0",
+    "jsdom": "^25.0.1",
+    "motion": "^12.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^2.1.8"
+  },
+  "peerDependencies": {
+    "motion": "^12.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

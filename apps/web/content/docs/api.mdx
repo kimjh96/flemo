@@ -1,0 +1,73 @@
+---
+title: API Reference
+description: Every export from `flemo`, with the page that explains it
+---
+
+## Components
+
+| Export         | Summary                                                            | More                            |
+| -------------- | ------------------------------------------------------------------ | ------------------------------- |
+| `Router`       | Root container. Renders the active screen.                         | [Router](./router)              |
+| `Route`        | Maps a path (or paths) to an element.                              | [Router](./router)              |
+| `Screen`       | Per-route screen container with app/nav/safe-area slots.           | [Screen](./screen)              |
+| `LayoutScreen` | Screen variant for shared `layoutId` morphs across screens.        | [Screen](./screen#layoutscreen) |
+| `LayoutConfig` | Wraps motion children with the current screen's transition timing. | —                               |
+
+## Hooks
+
+| Export                      | Returns                                                     | More                                 |
+| --------------------------- | ----------------------------------------------------------- | ------------------------------------ |
+| `useNavigate()`             | `{ push, replace, pop }`                                    | [Navigation](./navigation)           |
+| `useParams<T>()`            | The current route's params (path + query merged)            | [Navigation](./navigation#useparams) |
+| `useStep<T>()`              | `{ pushStep, replaceStep, popStep }` for sub-states         | [Navigation](./navigation#usestep)   |
+| `useScreen()`               | Current screen meta (`id`, `isActive`, `zIndex`, …)         | —                                    |
+| `useViewportScrollHeight()` | Visual-viewport scroll metrics, useful for mobile keyboards | —                                    |
+
+## Transition factories
+
+| Export                | When to use                                                        |
+| --------------------- | ------------------------------------------------------------------ |
+| `createTransition`    | Six-phase transitions (idle / enter / exit / enterBack / exitBack) |
+| `createRawTransition` | Full control over every navigate state                             |
+| `createDecorator`     | Six-phase decorator (e.g., overlays between screens)               |
+| `createRawDecorator`  | Decorator with full per-state control                              |
+
+See [Transitions](./transitions) for examples.
+
+## Built-in transition names
+
+`"cupertino"` · `"material"` · `"layout"` · `"none"`
+
+## Built-in decorator names
+
+`"overlay"`
+
+## Type registries
+
+| Interface            | Purpose                                                            |
+| -------------------- | ------------------------------------------------------------------ |
+| `RegisterRoute`      | Register your routes for type-safe `navigate.push` and `useParams` |
+| `RegisterTransition` | Register custom transition names                                   |
+| `RegisterDecorator`  | Register custom decorator names                                    |
+
+```ts
+declare module "flemo" {
+  interface RegisterRoute {
+    /* … */
+  }
+  interface RegisterTransition {
+    /* … */
+  }
+  interface RegisterDecorator {
+    /* … */
+  }
+}
+```
+
+## Type exports
+
+`ScreenProps` · `TransitionName` · `RegisterTransition` · `DecoratorName` · `RegisterDecorator`
+
+## Peer dependencies
+
+`react ^19` · `react-dom ^19` · `motion ^12`
