@@ -32,7 +32,7 @@
     "url": "https://github.com/kimjh96/flemo/issues",
     "email": "kimjhs@kakao.com"
   },
-  "homepage": "https://flemo.dev",
+  "homepage": "https://flemo-web.vercel.app",
   "license": "MIT",
   "scripts": {
     "build": "vite build",
