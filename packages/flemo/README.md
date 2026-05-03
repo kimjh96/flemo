@@ -3,7 +3,7 @@
 
 <h1>flemo</h1>
 
-**Native-like screen transitions for React.**
+**Native-like screen transitions for React**
 
 [![npm](https://img.shields.io/npm/v/flemo.svg)](https://www.npmjs.com/package/flemo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
