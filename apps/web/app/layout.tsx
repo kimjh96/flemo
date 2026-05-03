@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import "./global.css";
 
 export const metadata = {
-  metadataBase: new URL("https://flemo.dev"),
+  metadataBase: new URL("https://flemo-web.vercel.app"),
   title: {
     default: "flemo · Native-like screen transitions for React",
     template: "%s · flemo"
