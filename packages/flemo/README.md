@@ -24,7 +24,7 @@ pnpm add flemo motion
 
 ## Documentation
 
-See [**flemo-web.vercel.app**](https://flemo-web.vercel.app) for the full guide — getting started,
+See [flemo-web.vercel.app](https://flemo-web.vercel.app) for the full guide — getting started,
 transitions, shared-element morphs, gestures, and the complete API reference. A live playground is
 at [flemo-web.vercel.app/playground](https://flemo-web.vercel.app/playground).
 
