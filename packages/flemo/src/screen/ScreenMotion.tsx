@@ -1,8 +1,17 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
 
-import { motion, useAnimate, useDragControls, type PanInfo } from "motion/react";
+import {
+  cancelFrame,
+  frame,
+  motion,
+  useAnimate,
+  useDragControls,
+  type PanInfo
+} from "motion/react";
 
 import TaskManger from "@core/TaskManger";
+
+import useHistoryStore from "@history/store";
 
 import useNavigationStore from "@navigate/store";
 
@@ -38,13 +47,16 @@ function ScreenMotion({
 }: ScreenProps) {
   const [scope, animate] = useAnimate();
 
-  const { id, isActive, isRoot, transitionName, prevTransitionName } = useScreen();
+  const { id, isActive, isRoot, zIndex, transitionName, prevTransitionName } = useScreen();
   const dragControls = useDragControls();
 
   const status = useNavigationStore((state) => state.status);
   const dragStatus = useScreenStore((state) => state.dragStatus);
+  const sharedBars = useScreenStore((state) => state.sharedBars);
   const setDragStatus = useScreenStore.getState().setDragStatus;
   const setReplaceTransitionStatus = useScreenStore.getState().setReplaceTransitionStatus;
+  const index = useHistoryStore((state) => state.index);
+  const histories = useHistoryStore((state) => state.histories);
 
   const currentTransition = (transitionMap.get(transitionName) ?? transitionMap.get("none"))!;
   const { variants, initial, swipeDirection, decoratorName } = currentTransition;
@@ -296,7 +308,16 @@ function ScreenMotion({
 
       await animate(scope.current, value, options);
 
-      await TaskManger.resolveTask(id);
+      // The active screen is the genuine animation participant for every
+      // transition (push/replace/pop), so it resolves the current navigation
+      // task once its animation settles.
+      if (isActive) {
+        const transitionTaskId = useNavigationStore.getState().transitionTaskId;
+
+        if (transitionTaskId) {
+          await TaskManger.resolveTask(transitionTaskId);
+        }
+      }
     })();
   }, [
     status,
@@ -313,20 +334,15 @@ function ScreenMotion({
 
   useLayoutEffect(() => {
     const element = sharedAppBarRef.current;
-
     if (!element) {
       setSharedAppBarHeight(0);
       return;
     }
-
     setSharedAppBarHeight(element.offsetHeight);
-
     const observer = new ResizeObserver(([entry]) => {
       setSharedAppBarHeight(entry.contentRect.height);
     });
-
     observer.observe(element);
-
     return () => {
       observer.disconnect();
     };
@@ -334,24 +350,86 @@ function ScreenMotion({
 
   useLayoutEffect(() => {
     const element = sharedNavigationBarRef.current;
-
     if (!element) {
       setSharedNavigationBarHeight(0);
       return;
     }
-
     setSharedNavigationBarHeight(element.offsetHeight);
-
     const observer = new ResizeObserver(([entry]) => {
       setSharedNavigationBarHeight(entry.contentRect.height);
     });
-
     observer.observe(element);
-
     return () => {
       observer.disconnect();
     };
   }, [sharedNavigationBar]);
+
+  // Register this screen's shared-bar presence so other screens can read it.
+  useLayoutEffect(() => {
+    const { registerSharedBars, unregisterSharedBars } = useScreenStore.getState();
+    registerSharedBars(id, {
+      appBar: !!sharedAppBar,
+      navigationBar: !!sharedNavigationBar
+    });
+    return () => unregisterSharedBars(id);
+  }, [id, sharedAppBar, sharedNavigationBar]);
+
+  // Shared bars are always rendered outside motion.div as position:fixed so
+  // they stay pinned during transitions between screens that share the same
+  // bar. When transitioning to/from a screen that lacks a bar this screen
+  // has, the bar must ride along with this screen's transform/opacity. We
+  // achieve that by mirroring the scope motion.div's computed transform and
+  // opacity onto the bar's DOM each frame for the duration of the transition —
+  // no mode switch, no layout shift.
+  const isTransitioning =
+    status === "PUSHING" ||
+    status === "POPPING" ||
+    status === "REPLACING" ||
+    dragStatus === "PENDING";
+  const isTopOrTopPrev = isActive || zIndex === index - 1;
+  const partnerScreenId = isActive ? histories[index - 1]?.id : histories[index]?.id;
+  const partnerSharedBars = partnerScreenId ? sharedBars[partnerScreenId] : undefined;
+  const shouldRideSharedAppBar =
+    isTransitioning && isTopOrTopPrev && !!sharedAppBar && !partnerSharedBars?.appBar;
+  const shouldRideSharedNavigationBar =
+    isTransitioning && isTopOrTopPrev && !!sharedNavigationBar && !partnerSharedBars?.navigationBar;
+
+  useEffect(() => {
+    const scopeEl = scope.current;
+    const appBarEl = sharedAppBarRef.current;
+    const navBarEl = sharedNavigationBarRef.current;
+
+    if (appBarEl && !shouldRideSharedAppBar) {
+      appBarEl.style.transform = "";
+      appBarEl.style.opacity = "";
+    }
+    if (navBarEl && !shouldRideSharedNavigationBar) {
+      navBarEl.style.transform = "";
+      navBarEl.style.opacity = "";
+    }
+
+    const ridingEls = [
+      shouldRideSharedAppBar ? appBarEl : null,
+      shouldRideSharedNavigationBar ? navBarEl : null
+    ].filter((el): el is HTMLDivElement => el !== null);
+
+    if (!scopeEl || ridingEls.length === 0) return;
+
+    const sync = () => {
+      const { transform, opacity } = getComputedStyle(scopeEl);
+      for (const el of ridingEls) {
+        el.style.transform = transform;
+        el.style.opacity = opacity;
+      }
+    };
+
+    sync();
+    frame.postRender(sync, true);
+
+    return () => {
+      cancelFrame(sync);
+    };
+  }, [scope, shouldRideSharedAppBar, shouldRideSharedNavigationBar]);
 
   return (
     <div
@@ -380,20 +458,6 @@ function ScreenMotion({
           zIndex: 1
         }}
       />
-      {sharedAppBar && (
-        <div
-          ref={sharedAppBarRef}
-          style={{
-            position: "fixed",
-            top: !hideStatusBar ? statusBarHeight : 0,
-            left: 0,
-            width: "100%",
-            zIndex: 1
-          }}
-        >
-          {sharedAppBar}
-        </div>
-      )}
       <motion.div
         ref={scope}
         {...props}
@@ -478,10 +542,25 @@ function ScreenMotion({
           </div>
         )}
       </motion.div>
+      {sharedAppBar && (
+        <div
+          ref={sharedAppBarRef}
+          style={{
+            position: "fixed",
+            top: !hideStatusBar ? statusBarHeight : 0,
+            left: 0,
+            width: "100%",
+            zIndex: 1
+          }}
+        >
+          {sharedAppBar}
+        </div>
+      )}
       {sharedNavigationBar && (
         <div
           ref={sharedNavigationBarRef}
           style={{
+            display: isKeyboardVisible ? "none" : undefined,
             position: "fixed",
             bottom: !hideSystemNavigationBar ? systemNavigationBarHeight : 0,
             left: 0,
