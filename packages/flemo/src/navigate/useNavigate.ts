@@ -2,6 +2,7 @@ import TaskManager from "@core/TaskManger";
 
 import useHistoryStore from "@history/store";
 
+import { markSelfInducedPop } from "@navigate/selfPopGuard";
 import useNavigationStore from "@navigate/store";
 
 import useTransitionStore from "@transition/store";
@@ -21,7 +22,7 @@ export default function useNavigate() {
       transitionName?: TransitionName;
     }
   ) => {
-    const { status, setStatus } = useNavigationStore.getState();
+    const { status } = useNavigationStore.getState();
 
     if (status !== "COMPLETED" && status !== "IDLE") {
       return;
@@ -38,7 +39,10 @@ export default function useNavigate() {
     (
       await TaskManager.addTask(
         async () => {
+          const { setStatus, setTransitionTaskId } = useNavigationStore.getState();
+
           setStatus("PUSHING");
+          setTransitionTaskId(id);
 
           const { pathname, toPathname } = buildRoutePath(path, (params ?? {}) as RegisterRoute[T]);
 
@@ -85,7 +89,7 @@ export default function useNavigate() {
       transitionName?: TransitionName;
     }
   ) => {
-    const { status, setStatus } = useNavigationStore.getState();
+    const { status } = useNavigationStore.getState();
 
     if (status !== "COMPLETED" && status !== "IDLE") {
       return;
@@ -102,7 +106,10 @@ export default function useNavigate() {
     (
       await TaskManager.addTask(
         async () => {
+          const { setStatus, setTransitionTaskId } = useNavigationStore.getState();
+
           setStatus("REPLACING");
+          setTransitionTaskId(id);
 
           const { pathname, toPathname } = buildRoutePath(path, (params ?? {}) as RegisterRoute[T]);
 
@@ -143,14 +150,42 @@ export default function useNavigate() {
     ).result?.();
   };
 
-  const pop = () => {
-    const status = useNavigationStore.getState().status;
+  const pop = async () => {
+    const id = TaskManager.generateTaskId();
 
-    if (status !== "COMPLETED" && status !== "IDLE") {
-      return;
-    }
+    (
+      await TaskManager.addTask(
+        async (abortController) => {
+          const { index, popHistory } = useHistoryStore.getState();
 
-    window.history.back();
+          // Nothing below the root to pop — no-op without touching the browser.
+          if (index <= 0) {
+            abortController.abort();
+            return;
+          }
+
+          const { setStatus, setTransitionTaskId } = useNavigationStore.getState();
+
+          setStatus("POPPING");
+          setTransitionTaskId(id);
+
+          // flemo drives the browser; its own popstate is filtered in HistoryListener.
+          markSelfInducedPop();
+          window.history.back();
+
+          return async () => {
+            popHistory(index);
+            setStatus("COMPLETED");
+          };
+        },
+        {
+          id,
+          control: {
+            manual: true
+          }
+        }
+      )
+    ).result?.();
   };
 
   return {

@@ -4,12 +4,16 @@ export type NavigateStatus = "IDLE" | "PUSHING" | "REPLACING" | "POPPING" | "COM
 
 interface NavigateStore {
   status: NavigateStatus;
+  transitionTaskId: string | null;
   setStatus: (status: NavigateStatus) => void;
+  setTransitionTaskId: (transitionTaskId: string | null) => void;
 }
 
 const useNavigateStore = create<NavigateStore>((set) => ({
   status: "IDLE",
-  setStatus: (status) => set({ status })
+  transitionTaskId: null,
+  setStatus: (status) => set({ status }),
+  setTransitionTaskId: (transitionTaskId) => set({ transitionTaskId })
 }));
 
 export default useNavigateStore;

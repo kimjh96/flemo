@@ -4,6 +4,7 @@ import TaskManager from "@core/TaskManger";
 
 import useHistoryStore from "@history/store";
 
+import { consumeSelfInducedPop } from "@navigate/selfPopGuard";
 import useNavigationStore from "@navigate/store";
 
 import type { NavigateStatus } from "@navigate/store";
@@ -13,7 +14,13 @@ import type { TransitionName } from "@transition/typing";
 function HistoryListener() {
   useEffect(() => {
     const handlePopState = async (e: PopStateEvent) => {
+      // A popstate flemo triggered itself — the navigation queue already owns it.
+      if (consumeSelfInducedPop()) {
+        return;
+      }
+
       const nextId = e.state?.id;
+      const taskId = TaskManager.generateTaskId();
 
       (
         await TaskManager.addTask(
@@ -23,7 +30,7 @@ function HistoryListener() {
             const nextParams = e.state?.params;
             const nextTransitionName = e.state?.transitionName as TransitionName;
             const nextLayoutId = e.state?.layoutId as string | number | null;
-            const setStatus = useNavigationStore.getState().setStatus;
+            const { setStatus, setTransitionTaskId } = useNavigationStore.getState();
             const { index, addHistory, popHistory } = useHistoryStore.getState();
             const isPop = nextIndex < index;
             const isPush = nextStatus === "PUSHING" && nextIndex > index;
@@ -34,6 +41,8 @@ function HistoryListener() {
               abortController.abort();
               return;
             }
+
+            setTransitionTaskId(taskId);
 
             if (isPop) {
               setStatus("POPPING");
@@ -68,7 +77,7 @@ function HistoryListener() {
             };
           },
           {
-            id: nextId,
+            id: taskId,
             control: {
               manual: true
             }
