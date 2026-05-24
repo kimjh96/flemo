@@ -17,8 +17,17 @@ function LayoutConfig({ children, ...props }: PropsWithChildren<MotionConfigProp
   // diverged after the split — cast to bridge.
   const options = currentTransition?.variants[`${status}-${isActive}`]?.options;
 
+  // motion's layout animations only honor `transition.layout` — if we set
+  // only the top-level transition, layout animations silently fall back to
+  // motion's default spring (which has overshoot, causing morphing text and
+  // containers to briefly swell). Mirror the same options into `layout` so
+  // motion's layout engine runs on flemo's timing instead.
+  const transition = options
+    ? ({ ...options, layout: options } as MotionConfigProps["transition"])
+    : (options as MotionConfigProps["transition"]);
+
   return (
-    <MotionConfig transition={options as MotionConfigProps["transition"]} {...props}>
+    <MotionConfig transition={transition} {...props}>
       {children}
     </MotionConfig>
   );

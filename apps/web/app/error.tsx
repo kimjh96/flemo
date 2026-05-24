@@ -4,17 +4,12 @@ import Link from "next/link";
 
 import { useEffect, useState } from "react";
 
+import { readCookie } from "@/lib/cookie";
 import { getDict, i18n } from "@/lib/i18n";
 
 interface ErrorProps {
   error: Error & { digest?: string };
   reset: () => void;
-}
-
-function readCookie(name: string): string | undefined {
-  if (typeof document === "undefined") return undefined;
-  const match = document.cookie.match(new RegExp(`(^|; )${name}=([^;]+)`));
-  return match ? decodeURIComponent(match[2]) : undefined;
 }
 
 export default function Error({ error, reset }: ErrorProps) {

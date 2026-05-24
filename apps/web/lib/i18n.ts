@@ -34,9 +34,8 @@ export const dict = {
     },
     hero: {
       title: "A React router for native-like screen transitions",
-      tag: "Built on Motion · TypeScript first",
       ctaPrimary: "Get started",
-      ctaSecondary: "GitHub"
+      ctaSecondary: "Playground"
     },
     features: [
       {
@@ -109,9 +108,8 @@ export const dict = {
     },
     hero: {
       title: "네이티브 화면 전환을 위한 React 라우터",
-      tag: "Built on Motion · TypeScript first",
       ctaPrimary: "시작하기",
-      ctaSecondary: "GitHub"
+      ctaSecondary: "플레이그라운드"
     },
     features: [
       {

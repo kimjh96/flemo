@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import type { ComponentProps, FC } from "react";
 
+import BetaPill from "@/components/BetaPill";
 import { source } from "@/lib/source";
 
 function makeRelativeAnchor(
@@ -42,7 +43,12 @@ export default async function Page({
       full={page.data.full}
       footer={isIndex ? { enabled: false } : undefined}
     >
-      <DocsTitle>{page.data.title}</DocsTitle>
+      <DocsTitle>
+        <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-2">
+          {page.data.title}
+          {page.data.beta && <BetaPill />}
+        </span>
+      </DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <DocsBody>
         <MDX

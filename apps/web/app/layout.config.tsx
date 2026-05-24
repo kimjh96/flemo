@@ -30,6 +30,11 @@ export function baseOptions(locale: string): BaseLayoutProps {
         active: "nested-url"
       },
       {
+        text: isKo ? "플레이그라운드" : "Playground",
+        url: `/playground?lang=${locale}`,
+        active: "nested-url"
+      },
+      {
         text: "GitHub",
         url: "https://github.com/kimjh96/flemo",
         external: true
