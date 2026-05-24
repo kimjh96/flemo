@@ -38,13 +38,7 @@ function BetaName({ children }: { children: ReactNode }) {
   );
 }
 
-export default async function Layout({
-  params,
-  children
-}: {
-  params: Promise<{ lang: string }>;
-  children: ReactNode;
-}) {
+export default async function Layout({ params, children }: LayoutProps<"/[lang]/docs">) {
   const { lang } = await params;
   const { links: _omitLinks, ...rest } = baseOptions(lang);
   const tree = decorateTree(source.pageTree[lang] ?? source.pageTree.en);

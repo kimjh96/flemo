@@ -6,7 +6,7 @@ import { getDict, i18n } from "@/lib/i18n";
 
 const GITHUB_URL = "https://github.com/kimjh96/flemo";
 
-export default async function HomePage({ params }: { params: Promise<{ lang: string }> }) {
+export default async function HomePage({ params }: PageProps<"/[lang]">) {
   const { lang } = await params;
   const t = getDict(lang);
   const docsHref = lang === i18n.defaultLanguage ? "/docs" : `/${lang}/docs`;

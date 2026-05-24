@@ -25,11 +25,7 @@ function makeRelativeAnchor(
   };
 }
 
-export default async function Page({
-  params
-}: {
-  params: Promise<{ lang: string; slug?: string[] }>;
-}) {
+export default async function Page({ params }: PageProps<"/[lang]/docs/[[...slug]]">) {
   const { lang, slug } = await params;
   const page = source.getPage(slug, lang);
   if (!page) notFound();
@@ -66,11 +62,7 @@ export async function generateStaticParams() {
   return source.generateParams();
 }
 
-export async function generateMetadata({
-  params
-}: {
-  params: Promise<{ lang: string; slug?: string[] }>;
-}) {
+export async function generateMetadata({ params }: PageProps<"/[lang]/docs/[[...slug]]">) {
   const { lang, slug } = await params;
   const page = source.getPage(slug, lang);
   if (!page) return {};

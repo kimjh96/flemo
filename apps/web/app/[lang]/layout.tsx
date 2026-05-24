@@ -1,5 +1,4 @@
 import { RootProvider } from "fumadocs-ui/provider/next";
-import type { ReactNode } from "react";
 
 import { fumadocsTranslations, i18n, localeNames } from "@/lib/i18n";
 
@@ -7,13 +6,7 @@ export function generateStaticParams() {
   return i18n.languages.map((lang) => ({ lang }));
 }
 
-export default async function LangLayout({
-  params,
-  children
-}: {
-  params: Promise<{ lang: string }>;
-  children: ReactNode;
-}) {
+export default async function LangLayout({ params, children }: LayoutProps<"/[lang]">) {
   const { lang } = await params;
 
   return (

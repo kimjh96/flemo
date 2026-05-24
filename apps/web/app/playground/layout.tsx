@@ -1,5 +1,3 @@
-import type { ReactNode } from "react";
-
 export const dynamic = "force-static";
 
 export const metadata = {
@@ -7,6 +5,6 @@ export const metadata = {
   robots: { index: false, follow: false }
 };
 
-export default function PlaygroundLayout({ children }: { children: ReactNode }) {
+export default function PlaygroundLayout({ children }: LayoutProps<"/playground">) {
   return children;
 }
