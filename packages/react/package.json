@@ -1,6 +1,6 @@
 {
   "name": "@flemo/react",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "React bindings for flemo — Router, Route, Screen, and the screen-transition runtime.",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
