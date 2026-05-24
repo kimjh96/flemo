@@ -13,12 +13,7 @@ export function baseOptions(locale: string): BaseLayoutProps {
       title: (
         <span className="flex items-center gap-2 text-base font-bold tracking-tight">
           <Logo size={22} className="rounded-[5px]" />
-          <span>
-            flemo
-            <span className="ml-1.5 align-middle text-[10px] font-medium text-fd-muted-foreground">
-              v1.5.7
-            </span>
-          </span>
+          <span>flemo</span>
         </span>
       ),
       url: locale === i18n.defaultLanguage ? "/" : `/${locale}`

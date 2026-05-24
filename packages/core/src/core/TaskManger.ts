@@ -347,7 +347,12 @@ class TaskManager {
   public async resolveTask(taskId: string) {
     const task = this.tasks.get(taskId);
 
-    if (!task || task.status !== "MANUAL_PENDING") {
+    // Both MANUAL_PENDING (control.manual / control.condition) and
+    // SIGNAL_PENDING (control.signal) park the same `manualResolver` and
+    // wait for an external trigger — resolveTask is the unified entry point
+    // for either. `emitSignal` delegates here, so SIGNAL_PENDING must be
+    // accepted or signal mode is a permanent no-op.
+    if (!task || (task.status !== "MANUAL_PENDING" && task.status !== "SIGNAL_PENDING")) {
       return false;
     }
 

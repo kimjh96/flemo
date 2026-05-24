@@ -493,6 +493,21 @@ function ScreenMotion({
     const properties = collectAnimatedProperties(currentTransition);
     if (properties.length === 0) return;
 
+    // Hint compositor promotion on bars that will receive per-frame inline
+    // updates. The CSS animation rule on the scope already declares its own
+    // `will-change`; mirroring bars are written via JS, so they need the hint
+    // applied directly. Cleared in the effect's teardown so static bars don't
+    // pay layer cost outside the transition window.
+    const willChange = properties.join(", ");
+    const setWillChange = (el: HTMLDivElement | null) => {
+      if (el) el.style.willChange = willChange;
+    };
+    const clearWillChange = (el: HTMLDivElement | null) => {
+      if (el) el.style.removeProperty("will-change");
+    };
+    setWillChange(appBarEl);
+    setWillChange(navBarEl);
+
     const clearStyles = (el: HTMLDivElement | null) => {
       if (!el) return;
       for (const prop of properties) {
@@ -538,6 +553,8 @@ function ScreenMotion({
       cancelAnimationFrame(rafId);
       clearStyles(appBarEl);
       clearStyles(navBarEl);
+      clearWillChange(appBarEl);
+      clearWillChange(navBarEl);
     };
   }, [
     isTransitioning,

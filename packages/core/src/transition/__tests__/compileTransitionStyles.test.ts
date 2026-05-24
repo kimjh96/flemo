@@ -180,6 +180,167 @@ describe("collectAnimatedProperties", () => {
   });
 });
 
+describe("compileTransitionStyles — will-change (compositor promotion)", () => {
+  // The 60fps story is: every variant that actually animates carries a
+  // `will-change` listing exactly what it writes, scoped to the same status
+  // selector as the animation. The browser promotes a compositor layer the
+  // moment the status attribute flips to PUSHING/POPPING/REPLACING, drops it
+  // when status flips back to IDLE/COMPLETED, and never holds it on rest /
+  // zero-duration / "self" variants. These tests pin that contract.
+
+  // Locate the standalone rule block (not the `@keyframes ... { ... }` block)
+  // whose opening line contains `selectorSubstring`. Returns the text from the
+  // opening selector through the matching closing brace.
+  const findRule = (css: string, selectorSubstring: string): string | undefined => {
+    const lines = css.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      if (line.startsWith("@keyframes")) continue;
+      if (!line.includes(selectorSubstring)) continue;
+      if (!line.trimEnd().endsWith("{")) continue;
+      const collected: string[] = [];
+      for (let j = i; j < lines.length; j++) {
+        collected.push(lines[j]!);
+        if (lines[j]!.trim() === "}") return collected.join("\n");
+      }
+      return collected.join("\n");
+    }
+    return undefined;
+  };
+
+  const findAllRules = (css: string): string[] => {
+    const lines = css.split("\n");
+    const blocks: string[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      if (line.startsWith("@keyframes")) continue;
+      if (!line.trimEnd().endsWith("{")) continue;
+      if (!line.includes("[data-flemo-")) continue;
+      const collected: string[] = [];
+      for (let j = i; j < lines.length; j++) {
+        collected.push(lines[j]!);
+        if (lines[j]!.trim() === "}") {
+          blocks.push(collected.join("\n"));
+          break;
+        }
+      }
+    }
+    return blocks;
+  };
+
+  it("emits will-change with the animated property on the active push entrance", () => {
+    const css = compileTransitionStyles([cupertino], []);
+    const pushActive = findRule(css, '[data-flemo-status="PUSHING"][data-flemo-active="true"]');
+
+    expect(pushActive).toBeDefined();
+    expect(pushActive).toContain("animation:");
+    expect(pushActive).toMatch(/will-change:\s*transform;/);
+  });
+
+  it("emits will-change with multiple properties when the transition writes more than one", () => {
+    const css = compileTransitionStyles([layout], []);
+    const pushActive = findRule(
+      css,
+      '[data-flemo-transition="layout"][data-flemo-status="PUSHING"]'
+    );
+
+    expect(pushActive).toBeDefined();
+    expect(pushActive).toMatch(/will-change:\s*opacity;/);
+  });
+
+  it("lists exactly the properties the variant writes (transform + opacity together)", () => {
+    const slideFade = createTransition({
+      name: "custom-slide-fade",
+      initial: { x: "100%", opacity: 0 },
+      idle: { value: { x: 0, opacity: 1 }, options: { duration: 0 } },
+      enter: { value: { x: 0, opacity: 1 }, options: { duration: 0.3 } },
+      enterBack: { value: { x: "100%", opacity: 0 }, options: { duration: 0.3 } },
+      exit: { value: { x: -100, opacity: 0 }, options: { duration: 0.3 } },
+      exitBack: { value: { x: 0, opacity: 1 }, options: { duration: 0.3 } }
+    });
+
+    const css = compileTransitionStyles([slideFade], []);
+    const pushActive = findRule(
+      css,
+      '[data-flemo-transition="custom-slide-fade"][data-flemo-status="PUSHING"]'
+    );
+
+    expect(pushActive).toBeDefined();
+    const match = pushActive!.match(/will-change:\s*([^;]+);/);
+    expect(match).not.toBeNull();
+    const properties = match![1]!.split(",").map((s) => s.trim());
+    expect(properties.sort()).toEqual(["opacity", "transform"]);
+  });
+
+  it("respects author-defined non-transform / non-opacity properties (filter, etc.)", () => {
+    const blur = createTransition({
+      name: "custom-fade-blur",
+      initial: { opacity: 0, filter: "blur(8px)" },
+      idle: { value: { opacity: 1, filter: "blur(0px)" }, options: { duration: 0 } },
+      enter: { value: { opacity: 1, filter: "blur(0px)" }, options: { duration: 0.3 } },
+      enterBack: { value: { opacity: 0, filter: "blur(8px)" }, options: { duration: 0.3 } },
+      exit: { value: { opacity: 0, filter: "blur(8px)" }, options: { duration: 0.3 } },
+      exitBack: { value: { opacity: 1, filter: "blur(0px)" }, options: { duration: 0.3 } }
+    });
+
+    const css = compileTransitionStyles([blur], []);
+    const pushActive = findRule(
+      css,
+      '[data-flemo-transition="custom-fade-blur"][data-flemo-status="PUSHING"]'
+    );
+
+    expect(pushActive).toBeDefined();
+    const match = pushActive!.match(/will-change:\s*([^;]+);/);
+    expect(match).not.toBeNull();
+    const properties = match![1]!.split(",").map((s) => s.trim());
+    expect(properties.sort()).toEqual(["filter", "opacity"]);
+  });
+
+  it("does NOT emit will-change on rest rules (IDLE / COMPLETED 'self' variants)", () => {
+    const css = compileTransitionStyles([cupertino], []);
+    const restBlocks = findAllRules(css).filter(
+      (block) =>
+        block.includes('[data-flemo-status="IDLE"]') ||
+        block.includes('[data-flemo-status="COMPLETED"]')
+    );
+
+    expect(restBlocks.length).toBeGreaterThan(0);
+    for (const block of restBlocks) {
+      expect(block).not.toContain("will-change");
+    }
+  });
+
+  it("does NOT emit will-change for the empty 'none' transition", () => {
+    const css = compileTransitionStyles([none], []);
+    expect(css).not.toContain("will-change");
+  });
+
+  it("scopes will-change to the same status selector as the animation (auto-cleared on status change)", () => {
+    const css = compileTransitionStyles([cupertino], []);
+    // Every will-change should live inside a rule whose selector already
+    // carries a transitioning status (PUSHING / POPPING / REPLACING). Once
+    // ScreenMotion flips the attribute to COMPLETED, the rule stops matching
+    // and the hint is released without any JS cleanup.
+    const rulesWithWillChange = findAllRules(css).filter((block) => block.includes("will-change"));
+    expect(rulesWithWillChange.length).toBeGreaterThan(0);
+    for (const block of rulesWithWillChange) {
+      const selectorLine = block.split("{")[0]!;
+      expect(selectorLine).toMatch(/data-flemo-status="(PUSHING|POPPING|REPLACING)"/);
+    }
+  });
+
+  it("emits will-change on decorator variant rules too", () => {
+    const css = compileTransitionStyles([], [overlay]);
+    const pushActive = findRule(
+      css,
+      '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
+    );
+
+    expect(pushActive).toBeDefined();
+    expect(pushActive).toMatch(/will-change:/);
+  });
+});
+
 describe("variantHasAnimation", () => {
   it("returns true for transitioning variants with non-zero duration", () => {
     expect(variantHasAnimation(cupertino, "PUSHING-true")).toBe(true);

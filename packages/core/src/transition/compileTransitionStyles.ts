@@ -294,7 +294,20 @@ const compileVariantBlock = (
     .filter(Boolean)
     .join(" ");
 
-  const ruleBlock = `${selector} {\n  animation: ${animationProp};\n}`;
+  // `will-change` is scoped to the variant-active rule (PUSHING/POPPING/...)
+  // and lists exactly the properties this variant writes — whatever the
+  // author put in their `initial` / variant `value`. The browser promotes a
+  // compositor layer right before the animation starts and drops it the
+  // moment the status flips to IDLE/COMPLETED. Keeps the animation off the
+  // main-thread style/layout/paint path for sustained 60fps regardless of
+  // which CSS properties the transition actually animates.
+  const animatedProperties = Array.from(
+    new Set([...fromDecls.map((d) => d.property), ...toDecls.map((d) => d.property)])
+  );
+  const willChangeDecl =
+    animatedProperties.length > 0 ? `  will-change: ${animatedProperties.join(", ")};\n` : "";
+
+  const ruleBlock = `${selector} {\n  animation: ${animationProp};\n${willChangeDecl}}`;
 
   return `${keyframeBlock}\n${ruleBlock}`;
 };

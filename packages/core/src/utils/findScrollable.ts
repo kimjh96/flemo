@@ -14,11 +14,11 @@ export default function findScrollable(
     verifyByScroll = false
   } = options ?? {};
 
-  // 시작 노드를 좀 더 안정적으로: composed path 우선
   const start = getStartElement(startTarget);
   if (!start) return { element: null, hasMarker: false };
 
-  // 1) 마커 우선
+  // Marker takes priority — an explicit `[data-swipe-at-edge]` ancestor is
+  // the author's hand-picked scroll container for swipe gating.
   const marked = start.closest?.(markerSelector);
   if (marked instanceof HTMLElement) {
     if (
@@ -29,15 +29,18 @@ export default function findScrollable(
     }
   }
 
-  // 2) 얕은 부모 루프
+  // Walk ancestors. We intentionally do NOT stop at `document.body` —
+  // viewport-level scrolling commonly lives on `<html>` (`documentElement`),
+  // so gating swipe-back on it is the correct behavior. The loop exits
+  // naturally when `parentElement` returns null at the top.
   let element: HTMLElement | null = start;
   let depth = 0;
-  while (element && element !== document.body && depth < depthLimit) {
+  while (element && depth < depthLimit) {
     if (
       overflowsAxis(element, direction) &&
       (!verifyByScroll || canProgrammaticallyScroll(element, direction))
     ) {
-      return { element: element, hasMarker: false };
+      return { element, hasMarker: false };
     }
     element = element.parentElement;
     depth++;
@@ -48,7 +51,10 @@ export default function findScrollable(
 
 function getStartElement(event: EventTarget | null): HTMLElement | null {
   if (!event) return null;
-  // PointerEvent/TouchEvent 모두 대응
+  // Prefer composedPath() to handle slotted / shadow-DOM events. Falls
+  // through to a strict `instanceof HTMLElement` check so non-Element
+  // targets (`document`, `window`, `Text`) safely return null rather than
+  // crashing the ancestor walk on `.parentElement`.
   const anyEvt = event as unknown as Event;
   const path: EventTarget[] | undefined =
     typeof anyEvt.composedPath === "function" ? anyEvt.composedPath() : undefined;
@@ -57,10 +63,11 @@ function getStartElement(event: EventTarget | null): HTMLElement | null {
       if (node instanceof HTMLElement) return node;
     }
   }
-  return event as HTMLElement | null;
+  if (event instanceof HTMLElement) return event;
+  return null;
 }
 
-/** 내용이 넘치는지(서브픽셀 보정) */
+/** Whether the element's content overflows the given axis (sub-pixel safe). */
 export function overflowsAxis(element: HTMLElement, direction: "y" | "x"): boolean {
   if (direction === "y") {
     return element.scrollHeight - element.clientHeight > 1;
@@ -69,33 +76,20 @@ export function overflowsAxis(element: HTMLElement, direction: "y" | "x"): boole
   }
 }
 
-/** 실제 스크롤 가능 여부(선택) */
+/**
+ * Whether the element actually scrolls on the given axis.
+ *
+ * Reads `overflowX` / `overflowY` from computed style — fast, read-only,
+ * and free of side effects. The previous implementation probed by writing
+ * to `scrollTop` / `scrollLeft` and reverting, which fired scroll events
+ * and interfered with `scroll-snap` / `scroll-behavior: smooth` consumers
+ * on every pointerdown that flowed through `findScrollable`.
+ */
 export function canProgrammaticallyScroll(element: HTMLElement, direction: "y" | "x"): boolean {
   if (!overflowsAxis(element, direction)) return false;
+  if (typeof window === "undefined") return false;
 
-  if (direction === "y") {
-    const prev = element.scrollTop;
-    element.scrollTop = prev + 1;
-    const changedPlus = element.scrollTop !== prev;
-    if (changedPlus) {
-      element.scrollTop = prev;
-      return true;
-    }
-    element.scrollTop = prev - 1;
-    const changedMinus = element.scrollTop !== prev;
-    element.scrollTop = prev;
-    return changedMinus;
-  } else {
-    const prev = element.scrollLeft;
-    element.scrollLeft = prev + 1;
-    const changedPlus = element.scrollLeft !== prev;
-    if (changedPlus) {
-      element.scrollLeft = prev;
-      return true;
-    }
-    element.scrollLeft = prev - 1;
-    const changedMinus = element.scrollLeft !== prev;
-    element.scrollLeft = prev;
-    return changedMinus;
-  }
+  const style = window.getComputedStyle(element);
+  const overflow = direction === "y" ? style.overflowY : style.overflowX;
+  return overflow === "auto" || overflow === "scroll" || overflow === "overlay";
 }
