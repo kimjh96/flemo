@@ -1,0 +1,22 @@
+{
+  "extends": "@flemo/tsconfig/base.json",
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@core": ["./src/core"],
+      "@core/*": ["./src/core/*"],
+      "@history": ["./src/history"],
+      "@history/*": ["./src/history/*"],
+      "@navigate": ["./src/navigate"],
+      "@navigate/*": ["./src/navigate/*"],
+      "@transition": ["./src/transition"],
+      "@transition/*": ["./src/transition/*"],
+      "@utils": ["./src/utils"],
+      "@utils/*": ["./src/utils/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
+  "exclude": ["node_modules", "dist"]
+}

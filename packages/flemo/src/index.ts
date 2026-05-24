@@ -1,17 +1,5 @@
-export { default as Router } from "@Router";
-export { default as Route, type RegisterRoute } from "@Route";
-export { default as useNavigate } from "@navigate/useNavigate";
-export { default as useStep } from "@navigate/useStep";
-export { default as useScreen } from "@screen/useScreen";
-export { default as useParams } from "@screen/ParamsProvider/useParams";
-export { default as createTransition } from "@transition/createTransition";
-export { default as createRawTransition } from "@transition/createRawTransition";
-export { default as createDecorator } from "@transition/decorator/createDecorator";
-export { default as createRawDecorator } from "@transition/decorator/createRawDecorator";
-export { default as Screen, type ScreenProps } from "@screen/Screen";
-export { default as LayoutScreen } from "@screen/LayoutScreen";
-export { default as LayoutConfig } from "@screen/LayoutConfig";
-export { default as useViewportScrollHeight } from "@screen/useViewportScrollHeight";
-
-export type { TransitionName, RegisterTransition } from "@transition/typing";
-export type { DecoratorName, RegisterDecorator } from "@transition/decorator/typing";
+// `flemo` is a thin meta package re-exporting `@flemo/react` so existing
+// imports (`import { Router, useNavigate, ... } from "flemo"`) keep working
+// after the workspace split. Tree-shakers see all symbols as
+// re-exports and only retain what the consumer actually uses.
+export * from "@flemo/react";
