@@ -1,7 +1,7 @@
 {
-  "name": "@flemo/react",
+  "name": "@flemo/layout",
   "version": "0.0.0",
-  "description": "React bindings for flemo — Router, Route, Screen, and the screen-transition runtime.",
+  "description": "layoutId / shared-element morphs for flemo. Wraps a Screen with motion's AnimatePresence + MotionConfig so children with matching layoutId animate between screens.",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -13,10 +13,10 @@
   "keywords": [
     "flemo",
     "react",
-    "react-router",
+    "layout",
+    "shared-element",
     "transition",
-    "page-transition",
-    "react-page-transition"
+    "motion"
   ],
   "author": {
     "name": "kimjh96",
@@ -25,7 +25,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kimjh96/flemo.git",
-    "directory": "packages/react"
+    "directory": "packages/layout"
   },
   "bugs": {
     "url": "https://github.com/kimjh96/flemo/issues",
@@ -39,34 +39,29 @@
     "dev": "vite build --watch",
     "lint": "eslint \"**/*.{js,mjs,ts,jsx,tsx,mts}\"",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
     "@flemo/core": "workspace:*",
-    "path-to-regexp": "^8.2.0",
-    "zustand": "^5.0.11"
+    "@flemo/react": "workspace:*"
   },
   "devDependencies": {
     "@flemo/eslint-config": "workspace:*",
     "@flemo/tsconfig": "workspace:*",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.1.0",
     "@types/node": "^24.3.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react-swc": "^4.0.1",
     "eslint": "^9.33.0",
-    "jsdom": "^25.0.1",
+    "motion": "^12.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.5",
-    "vite-plugin-dts": "^4.5.4",
-    "vitest": "^2.1.8"
+    "vite-plugin-dts": "^4.5.4"
   },
   "peerDependencies": {
+    "motion": "^12.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

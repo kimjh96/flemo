@@ -5,13 +5,13 @@ description: "`@flemo/react`의 모든 export"
 
 ## 컴포넌트
 
-| Export         | 요약                                                    | 자세히                          |
-| -------------- | ------------------------------------------------------- | ------------------------------- |
-| `Router`       | 루트 컨테이너. 활성 화면을 렌더해요.                    | [Router](./router)              |
-| `Route`        | 경로(또는 경로 배열)를 element와 연결해요.              | [Router](./router)              |
-| `Screen`       | 라우트별 화면 컨테이너. 앱·네비·안전영역 슬롯을 가져요. | [Screen](./screen)              |
-| `LayoutScreen` | 화면 사이 `layoutId` 모핑을 지원하는 Screen 변형.       | [Screen](./screen#layoutscreen) |
-| `LayoutConfig` | 현재 화면의 전환 타이밍을 motion 자식에 전달해요.       | —                               |
+| Export         | 요약                                                    | 패키지          | 자세히                          |
+| -------------- | ------------------------------------------------------- | --------------- | ------------------------------- |
+| `Router`       | 루트 컨테이너. 활성 화면을 렌더해요.                    | `@flemo/react`  | [Router](./router)              |
+| `Route`        | 경로(또는 경로 배열)를 element와 연결해요.              | `@flemo/react`  | [Router](./router)              |
+| `Screen`       | 라우트별 화면 컨테이너. 앱·네비·안전영역 슬롯을 가져요. | `@flemo/react`  | [Screen](./screen)              |
+| `LayoutScreen` | 화면 사이 `layoutId` 모핑을 지원하는 Screen 변형.       | `@flemo/layout` | [Screen](./screen#layoutscreen) |
+| `LayoutConfig` | 현재 화면의 전환 타이밍을 motion 자식에 전달해요.       | `@flemo/layout` | —                               |
 
 ## 훅
 
@@ -70,4 +70,5 @@ declare module "@flemo/react" {
 
 ## Peer dependencies
 
-`react ^19` · `react-dom ^19` · `motion ^12`
+`@flemo/react`는 `react ^19`, `react-dom ^19`만 peer로 요구해요. `@flemo/layout`은 `motion ^12`을
+추가 peer로 가져요 — `<LayoutScreen>`이나 `<LayoutConfig>`를 쓸 때 같이 설치하세요.

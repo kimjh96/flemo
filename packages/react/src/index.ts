@@ -6,12 +6,15 @@ export { default as useStep } from "@navigate/useStep";
 export { default as useScreen } from "@screen/useScreen";
 export { default as useParams } from "@screen/ParamsProvider/useParams";
 export { default as Screen, type ScreenProps } from "@screen/Screen";
-export { default as LayoutScreen } from "@screen/LayoutScreen";
-export { default as LayoutConfig } from "@screen/LayoutConfig";
+export { default as ScreenMotion } from "@screen/ScreenMotion";
+export { default as ScreenFreeze } from "@screen/ScreenFreeze";
+export { default as ScreenDecorator } from "@screen/ScreenDecorator";
+export { default as ScreenContext, type ScreenContextProps } from "@screen/ScreenContext";
+export { default as useScreenStore, type SharedBarPresence } from "@screen/store";
 export { default as useViewportScrollHeight } from "@screen/useViewportScrollHeight";
 
 // Framework-agnostic primitives re-exported so users importing from
-// "@flemo/react" (or the meta `flemo` package) still get the full API.
+// "@flemo/react" still get the full transition/decorator API in one place.
 export {
   createTransition,
   createRawTransition,

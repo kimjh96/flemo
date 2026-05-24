@@ -5,13 +5,13 @@ description: "Every export from `@flemo/react`, with the page that explains it"
 
 ## Components
 
-| Export         | Summary                                                            | More                            |
-| -------------- | ------------------------------------------------------------------ | ------------------------------- |
-| `Router`       | Root container. Renders the active screen.                         | [Router](./router)              |
-| `Route`        | Maps a path (or paths) to an element.                              | [Router](./router)              |
-| `Screen`       | Per-route screen container with app/nav/safe-area slots.           | [Screen](./screen)              |
-| `LayoutScreen` | Screen variant for shared `layoutId` morphs across screens.        | [Screen](./screen#layoutscreen) |
-| `LayoutConfig` | Wraps motion children with the current screen's transition timing. | —                               |
+| Export         | Summary                                                            | Package         | More                            |
+| -------------- | ------------------------------------------------------------------ | --------------- | ------------------------------- |
+| `Router`       | Root container. Renders the active screen.                         | `@flemo/react`  | [Router](./router)              |
+| `Route`        | Maps a path (or paths) to an element.                              | `@flemo/react`  | [Router](./router)              |
+| `Screen`       | Per-route screen container with app/nav/safe-area slots.           | `@flemo/react`  | [Screen](./screen)              |
+| `LayoutScreen` | Screen variant for shared `layoutId` morphs across screens.        | `@flemo/layout` | [Screen](./screen#layoutscreen) |
+| `LayoutConfig` | Wraps motion children with the current screen's transition timing. | `@flemo/layout` | —                               |
 
 ## Hooks
 
@@ -70,4 +70,5 @@ declare module "@flemo/react" {
 
 ## Peer dependencies
 
-`react ^19` · `react-dom ^19` · `motion ^12`
+`@flemo/react` requires only `react ^19` and `react-dom ^19`. `@flemo/layout` adds `motion ^12`
+as a peer dependency — install it when you use `<LayoutScreen>` or `<LayoutConfig>`.

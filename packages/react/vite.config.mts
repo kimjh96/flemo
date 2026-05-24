@@ -12,7 +12,7 @@ export default defineConfig({
       fileName: (format) => (format === "es" ? "index.mjs" : "index.js")
     },
     rollupOptions: {
-      external: /^(react|react-dom|motion|@flemo\/core)(\/|$)/
+      external: /^(react|react-dom|@flemo\/core)(\/|$)/
     }
   },
   plugins: [react(), dts()],

@@ -2,12 +2,13 @@ import { AnimatePresence } from "motion/react";
 
 import { useHistoryStore, useNavigateStore } from "@flemo/core";
 
-import type { ScreenProps } from "@screen/Screen";
-import ScreenFreeze from "@screen/ScreenFreeze";
-import ScreenMotion from "@screen/ScreenMotion";
-import useScreenStore from "@screen/store";
-
-import useScreen from "@screen/useScreen";
+import {
+  ScreenFreeze,
+  ScreenMotion,
+  useScreen,
+  useScreenStore,
+  type ScreenProps
+} from "@flemo/react";
 
 function LayoutScreen({ children, ...props }: ScreenProps) {
   const { isActive, isPrev, zIndex } = useScreen();
