@@ -1,4 +1,4 @@
-import { createTransition } from "flemo";
+import { createTransition } from "@flemo/react";
 
 const ease = [0.32, 0.72, 0, 1] as const;
 const duration = 0.26;

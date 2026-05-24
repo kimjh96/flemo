@@ -1,4 +1,4 @@
-import { Screen } from "flemo";
+import { Screen } from "@flemo/react";
 
 import AppBar from "../../AppBar";
 import { gradientFor, pick, PRODUCTS } from "../../data";

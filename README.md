@@ -1,1 +1,1 @@
-packages/flemo/README.md
+packages/react/README.md

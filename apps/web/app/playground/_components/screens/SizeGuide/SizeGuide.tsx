@@ -1,4 +1,4 @@
-import { Screen, useNavigate } from "flemo";
+import { Screen, useNavigate } from "@flemo/react";
 
 import AppBar from "../../AppBar";
 import { SIZE_CHART } from "../../data";

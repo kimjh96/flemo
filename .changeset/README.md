@@ -6,7 +6,7 @@ find the full documentation for it [in our repository](https://github.com/change
 
 ## How to add a changeset
 
-When you make a user-visible change to `flemo`, add a changeset:
+When you make a user-visible change to `@flemo/core` or `@flemo/react`, add a changeset:
 
 ```bash
 pnpm changeset
@@ -14,7 +14,7 @@ pnpm changeset
 
 This walks you through:
 
-1. picking which packages changed (only `flemo` is published — internal packages like `@flemo/eslint-config` are ignored)
+1. picking which packages changed (`@flemo/core`, `@flemo/react`, and `@flemo/web` are versioned — `@flemo/eslint-config` and `@flemo/tsconfig` are ignored)
 2. picking the bump type (patch / minor / major)
 3. writing a short summary that ends up in the CHANGELOG
 

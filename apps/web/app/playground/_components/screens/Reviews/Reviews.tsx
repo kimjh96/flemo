@@ -1,4 +1,4 @@
-import { Screen, useNavigate, useParams } from "flemo";
+import { Screen, useNavigate, useParams } from "@flemo/react";
 
 import AppBar from "../../AppBar";
 import { findProduct, pick, REVIEWS, REVIEW_SUMMARY } from "../../data";

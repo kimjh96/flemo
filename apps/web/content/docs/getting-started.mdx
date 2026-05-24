@@ -8,7 +8,7 @@ import { Step, Steps } from "fumadocs-ui/components/steps";
 ## Install
 
 ```bash
-pnpm add flemo motion
+pnpm add @flemo/react motion
 ```
 
 ## Build your first screen
@@ -19,11 +19,11 @@ pnpm add flemo motion
 
 ### Register your routes
 
-flemo uses TypeScript module augmentation to make paths and params type-safe. The simplest
+`@flemo/react` uses TypeScript module augmentation to make paths and params type-safe. The simplest
 setup is to declare every route at the bottom of the file where `<Router>` is mounted.
 
 ```ts title="App.tsx"
-declare module "flemo" {
+declare module "@flemo/react" {
   interface RegisterRoute {
     "/": undefined;
     "/posts/:slug": { slug: string };
@@ -39,7 +39,7 @@ export default function Post() {
   /* … */
 }
 
-declare module "flemo" {
+declare module "@flemo/react" {
   interface RegisterRoute {
     "/posts/:slug": { slug: string };
   }
@@ -55,7 +55,7 @@ declare module "flemo" {
 Render `<Router>` with a list of `<Route>`s. Whatever matches the URL becomes the active screen.
 
 ```tsx title="App.tsx"
-import { Route, Router } from "flemo";
+import { Route, Router } from "@flemo/react";
 
 import Home from "./Home";
 import Post from "./Post";
@@ -79,7 +79,7 @@ export default function App() {
 Wrap each route's element in `<Screen>`. Use `useNavigate()` to move between them.
 
 ```tsx title="Home.tsx"
-import { Screen, useNavigate } from "flemo";
+import { Screen, useNavigate } from "@flemo/react";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -94,7 +94,7 @@ export default function Home() {
 ```
 
 ```tsx title="Post.tsx"
-import { Screen, useNavigate, useParams } from "flemo";
+import { Screen, useNavigate, useParams } from "@flemo/react";
 
 export default function Post() {
   const navigate = useNavigate();

@@ -41,7 +41,7 @@ full control over every navigate state.
 ### createTransition
 
 ```ts title="myFade.ts"
-import { createTransition } from "flemo";
+import { createTransition } from "@flemo/react";
 
 export const myFade = createTransition({
   name: "myFade",
@@ -75,7 +75,7 @@ Register it on the `<Router>`.
 Most projects drop this at the bottom of the file where `<Router>` is mounted.
 
 ```ts title="App.tsx"
-declare module "flemo" {
+declare module "@flemo/react" {
   interface RegisterTransition {
     myFade: "myFade";
   }
@@ -138,7 +138,7 @@ Decorators sit between the previous screen and the current screen. The built-in 
 decorator is what creates the dim during a cupertino swipe.
 
 ```ts
-import { createDecorator } from "flemo";
+import { createDecorator } from "@flemo/react";
 
 const dim = createDecorator({
   name: "dim",

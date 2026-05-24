@@ -1,5 +1,0 @@
-{
-  "extends": "@flemo/tsconfig/react-library.json",
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
-  "exclude": ["node_modules", "dist"]
-}

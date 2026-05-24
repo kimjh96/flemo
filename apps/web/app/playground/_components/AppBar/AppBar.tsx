@@ -1,4 +1,4 @@
-import { useNavigate } from "flemo";
+import { useNavigate } from "@flemo/react";
 import type { ReactNode } from "react";
 
 import Icon from "../Icon";

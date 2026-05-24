@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 
-import { Screen, useNavigate, useParams, useStep } from "flemo";
+import { Screen, useNavigate, useParams, useStep } from "@flemo/react";
 
 import AppBar from "../../AppBar";
 import { findProduct, formatKRW, INITIAL_CART } from "../../data";

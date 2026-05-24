@@ -7,10 +7,10 @@ import { Step, Steps } from "fumadocs-ui/components/steps";
 
 ## 설치하기
 
-React 프로젝트에서 다음 명령어로 **flemo**를 설치해요.
+React 프로젝트에서 다음 명령어로 **@flemo/react**를 설치해요.
 
 ```bash
-pnpm add flemo motion
+pnpm add @flemo/react motion
 ```
 
 ## 첫 화면 만들기
@@ -25,7 +25,7 @@ pnpm add flemo motion
 하단에 모아서 선언하는 거예요.
 
 ```ts title="App.tsx"
-declare module "flemo" {
+declare module "@flemo/react" {
   interface RegisterRoute {
     "/": undefined;
     "/posts/:slug": { slug: string };
@@ -41,7 +41,7 @@ export default function Post() {
   /* … */
 }
 
-declare module "flemo" {
+declare module "@flemo/react" {
   interface RegisterRoute {
     "/posts/:slug": { slug: string };
   }
@@ -57,7 +57,7 @@ declare module "flemo" {
 `<Router>` 안에 `<Route>`를 나열해요. URL과 매칭되는 element가 화면이 돼요.
 
 ```tsx title="App.tsx"
-import { Route, Router } from "flemo";
+import { Route, Router } from "@flemo/react";
 
 import Home from "./Home";
 import Post from "./Post";
@@ -81,7 +81,7 @@ export default function App() {
 각 라우트의 element를 `<Screen>`으로 감싸요. 화면 사이의 이동은 `useNavigate`로 처리해요.
 
 ```tsx title="Home.tsx"
-import { Screen, useNavigate } from "flemo";
+import { Screen, useNavigate } from "@flemo/react";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -96,7 +96,7 @@ export default function Home() {
 ```
 
 ```tsx title="Post.tsx"
-import { Screen, useNavigate, useParams } from "flemo";
+import { Screen, useNavigate, useParams } from "@flemo/react";
 
 export default function Post() {
   const navigate = useNavigate();

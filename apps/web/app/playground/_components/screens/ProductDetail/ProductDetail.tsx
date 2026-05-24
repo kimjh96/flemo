@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { LayoutConfig, LayoutScreen, useNavigate, useParams, useScreen } from "flemo";
+import { LayoutConfig, LayoutScreen, useNavigate, useParams, useScreen } from "@flemo/react";
 import { motion } from "motion/react";
 
 import { findProduct, formatKRW, gradientFor, pick, REVIEW_SUMMARY } from "../../data";

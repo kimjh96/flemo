@@ -1,4 +1,4 @@
-import { useNavigate, useScreen } from "flemo";
+import { useNavigate, useScreen } from "@flemo/react";
 
 import { INITIAL_CART } from "../data";
 import Icon from "../Icon";

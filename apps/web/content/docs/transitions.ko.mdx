@@ -35,7 +35,7 @@ navigate.push("/photos/:id", { id }, { transitionName: "layout" });
 ### createTransition
 
 ```ts title="myFade.ts"
-import { createTransition } from "flemo";
+import { createTransition } from "@flemo/react";
 
 export const myFade = createTransition({
   name: "myFade",
@@ -69,7 +69,7 @@ export const myFade = createTransition({
 `<Router>`를 마운트하는 파일 하단에 같이 두면 편해요.
 
 ```ts title="App.tsx"
-declare module "flemo" {
+declare module "@flemo/react" {
   interface RegisterTransition {
     myFade: "myFade";
   }
@@ -132,7 +132,7 @@ createTransition({
 cupertino 스와이프 동안 보이는 dim 효과를 만들어요.
 
 ```ts
-import { createDecorator } from "flemo";
+import { createDecorator } from "@flemo/react";
 
 const dim = createDecorator({
   name: "dim",

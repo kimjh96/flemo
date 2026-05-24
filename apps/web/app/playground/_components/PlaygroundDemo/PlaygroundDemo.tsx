@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { Route, Router } from "flemo";
+import { Route, Router } from "@flemo/react";
 
 import { playgroundDict, resolvePlaygroundLang, type PlaygroundLang } from "../dict";
 import { LangContext } from "../lang";
@@ -60,7 +60,7 @@ export default function PlaygroundDemo() {
   );
 }
 
-declare module "flemo" {
+declare module "@flemo/react" {
   interface RegisterRoute {
     "/": undefined;
     "/products/:id": { id: string };

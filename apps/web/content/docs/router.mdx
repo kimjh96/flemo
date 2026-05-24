@@ -44,7 +44,7 @@ merges all the augmentations, so either approach works. Most projects keep it at
 the file where `<Router>` is mounted.
 
 ```ts title="App.tsx"
-declare module "flemo" {
+declare module "@flemo/react" {
   interface RegisterRoute {
     "/": undefined;
     "/posts/:slug": { slug: string };

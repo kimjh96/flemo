@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Screen, useNavigate } from "flemo";
+import { Screen, useNavigate } from "@flemo/react";
 
 import AppBar from "../../AppBar";
 import { ACCOUNT_PROFILE, formatKRW, ORDERS, pick } from "../../data";

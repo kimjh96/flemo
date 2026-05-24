@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { Screen, useNavigate } from "flemo";
+import { Screen, useNavigate } from "@flemo/react";
 
 import AppBar from "../../AppBar";
 import { findProduct, formatKRW, gradientFor, INITIAL_CART, pick, type CartItem } from "../../data";

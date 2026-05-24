@@ -5,7 +5,7 @@
 
 **Native-like screen transitions for React**
 
-[![npm](https://img.shields.io/npm/v/flemo.svg)](https://www.npmjs.com/package/flemo)
+[![npm](https://img.shields.io/npm/v/@flemo/react.svg)](https://www.npmjs.com/package/@flemo/react)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 </div>
@@ -19,8 +19,12 @@ router and a motion library together yourself.
 ## Install
 
 ```bash
-pnpm add flemo motion
+pnpm add @flemo/react motion
 ```
+
+`@flemo/react` pulls in `@flemo/core` (the framework-agnostic primitives) as a regular
+dependency. Apps that only need transition compilers or the navigation queue can install
+`@flemo/core` directly.
 
 ## Documentation
 

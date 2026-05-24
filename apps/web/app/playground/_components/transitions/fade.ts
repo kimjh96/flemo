@@ -1,4 +1,4 @@
-import { createTransition } from "flemo";
+import { createTransition } from "@flemo/react";
 
 /**
  * Custom transition example — a soft cross-fade.

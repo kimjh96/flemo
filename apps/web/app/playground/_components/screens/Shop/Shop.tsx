@@ -1,4 +1,4 @@
-import { Screen, useNavigate } from "flemo";
+import { Screen, useNavigate } from "@flemo/react";
 import { motion } from "motion/react";
 
 import AppBar from "../../AppBar";
