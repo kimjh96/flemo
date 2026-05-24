@@ -96,12 +96,12 @@ function Onboarding() {
 
 ## push와 step 중 무엇을 쓸까
 
-| 하고 싶은 동작                                     | 사용                 |
-| -------------------------------------------------- | -------------------- |
-| 다른 화면을 띄우기                                 | `navigate.push`      |
-| 현재 화면을 다른 화면으로 갈아끼우기 (로그인 → 홈) | `navigate.replace`   |
-| 현재 화면을 닫기                                   | `navigate.pop`       |
-| 같은 화면을 유지한 채 UI만 바꾸기                  | `useStep().pushStep` |
+| 하고 싶은 동작                               | 사용                 |
+| -------------------------------------------- | -------------------- |
+| 다른 화면을 띄우기                           | `navigate.push`      |
+| 현재 화면을 다른 화면으로 교체 (로그인 → 홈) | `navigate.replace`   |
+| 현재 화면을 닫기                             | `navigate.pop`       |
+| 같은 화면을 유지한 채 UI만 바꾸기            | `useStep().pushStep` |
 
 <Callout type="info">
   `useStep`은 화면 트리 안에서 모든 게 유지돼요 — 같은 Screen 인스턴스, 같은 Provider, 스크롤

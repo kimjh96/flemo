@@ -186,90 +186,9 @@ If you're rendering your own scroll container, opt out of the built-in one:
 | `hideSystemNavigationBar`   | `boolean`   | `false`   | Don't reserve the bottom safe area                |
 | `contentScrollable`         | `boolean`   | `true`    | Whether the children area scrolls                 |
 
-## LayoutScreen — morph between screens
+## Shared-element morphs
 
-A list thumbnail that **unfolds** into the full image on the next screen. In flemo, four pieces
-work as one:
-
-| Piece                      | Goes where                                                        |
-| -------------------------- | ----------------------------------------------------------------- |
-| `<LayoutScreen>`           | The destination screen                                            |
-| `<LayoutConfig>`           | The outermost wrapper of the morphing container                   |
-| `transitionName: "layout"` | The `navigate.push` option                                        |
-| `layoutId`                 | The push option **and** the `motion` element prop on both screens |
-
-### What each piece does
-
-- **`<LayoutScreen>`** — drop-in replacement for `<Screen>` on the destination. Keeps layoutId
-  pairing alive across the unmount when you navigate back. The source (list) screen can stay a
-  plain `<Screen>`.
-
-- **`<LayoutConfig>`** — keeps the morph's timing (duration, ease) in sync with the **current
-  transition preset**. Without it, the morph runs on a default spring that falls out of step with
-  the screen transition. Put it as the outermost wrapper of whatever should morph.
-
-- **`transitionName: "layout"`** — picks a screen transition that fades just enough to keep the
-  morph readable. Cupertino's slide would cover it up.
-
-- **`layoutId`** — the key that pairs the same element across two screens. The `layoutId` you
-  pass to `navigate.push` arrives on the destination as `useScreen().layoutId`. Tag the container,
-  image, title, and price with a shared prefix and they morph as **one unit**.
-
-### Example — gallery → detail
-
-```tsx title="Gallery.tsx"
-import { Screen, useNavigate } from "@flemo/react";
-import { motion } from "motion/react";
-
-function Gallery() {
-  const navigate = useNavigate();
-  return (
-    <Screen>
-      {photos.map((p) => (
-        <motion.div
-          key={p.id}
-          layoutId={`photo-card-${p.id}`}
-          onClick={() =>
-            navigate.push("/photos/:id", { id: p.id }, { transitionName: "layout", layoutId: p.id })
-          }
-        >
-          <motion.img layoutId={`photo-image-${p.id}`} src={p.thumb} />
-          <motion.span layoutId={`photo-title-${p.id}`}>{p.title}</motion.span>
-        </motion.div>
-      ))}
-    </Screen>
-  );
-}
-```
-
-```tsx title="Photo.tsx"
-import { useScreen } from "@flemo/react";
-import { LayoutConfig, LayoutScreen } from "@flemo/layout";
-import { motion } from "motion/react";
-
-function Photo() {
-  const { layoutId } = useScreen();
-  return (
-    <LayoutScreen>
-      <LayoutConfig>
-        <motion.div layoutId={`photo-card-${layoutId}`} className="fixed inset-0">
-          <motion.img layoutId={`photo-image-${layoutId}`} src={photo.full} />
-          <motion.h1 layoutId={`photo-title-${layoutId}`}>{photo.title}</motion.h1>
-        </motion.div>
-      </LayoutConfig>
-    </LayoutScreen>
-  );
-}
-```
-
-### Common pitfalls
-
-- **Forgot `<LayoutConfig>`** — the morph runs on Motion's default spring, out of sync with the
-  screen transition.
-- **Missed `transitionName: "layout"`** — the default cupertino slide covers the morph; it just
-  looks like a normal push.
-- **Mismatched `layoutId`s** — pairing fails and nothing morphs. The string the source builds
-  must be **byte-for-byte identical** to the one the destination builds from
-  `useScreen().layoutId`.
-- **Only the parent has a `layoutId`** — the inner image and text fade in separately and look
-  off. Tag every element that should travel together with the same prefix.
+When a thumbnail in a list should **visually unfold** into the hero image on the next screen,
+reach for `<LayoutScreen>` — a `<Screen>` replacement from `@flemo/layout` that pairs elements
+across the navigation via motion's layout engine. See the dedicated
+[LayoutScreen page](./layout-screen) for the full walkthrough.
