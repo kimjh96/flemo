@@ -9,7 +9,7 @@ morphing** across navigation. A thumbnail in a list "unfolds" into the hero imag
 screen, then folds back when you go back. It's the same gesture iOS uses for photos and Music,
 and Material 3 calls **container transform**.
 
-It lives in `@flemo/layout` — a separate package from `@flemo/react`. Motion is its peer
+It lives in `@flemo/react-layout` — a separate package from `@flemo/react`. Motion is its peer
 dependency, so apps that don't morph don't pay for it.
 
 ## When to reach for it
@@ -27,7 +27,7 @@ with the default `cupertino` or `material` transition is lighter and simpler.
 ## Install
 
 ```bash
-pnpm add @flemo/layout motion
+pnpm add @flemo/react-layout motion
 ```
 
 `motion` is a peer dependency. If you're already using motion elsewhere in your app, you
@@ -92,7 +92,7 @@ covers the source element." Most useful custom layout transitions tweak only opa
 
 ```tsx title="Gallery.tsx — the source screen"
 import { Screen, useNavigate } from "@flemo/react";
-import { LayoutConfig } from "@flemo/layout";
+import { LayoutConfig } from "@flemo/react-layout";
 import { motion } from "motion/react";
 
 function Gallery() {
@@ -126,7 +126,7 @@ function Gallery() {
 
 ```tsx title="Photo.tsx — the destination screen"
 import { useScreen } from "@flemo/react";
-import { LayoutScreen, LayoutConfig } from "@flemo/layout";
+import { LayoutScreen, LayoutConfig } from "@flemo/react-layout";
 import { motion } from "motion/react";
 
 function Photo() {
@@ -242,7 +242,7 @@ shell, then content streams in.
 - You want a generic "page slide" between two unrelated screens. `cupertino` or `material` is
   the right call.
 - You need to ship the smallest possible bundle and don't morph anywhere. Don't install
-  `@flemo/layout` at all — it pulls in motion.
+  `@flemo/react-layout` at all — it pulls in motion.
 
 ## Props
 

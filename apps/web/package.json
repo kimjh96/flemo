@@ -12,7 +12,7 @@
     "clean": "rm -rf .next .turbo"
   },
   "dependencies": {
-    "@flemo/layout": "workspace:*",
+    "@flemo/react-layout": "workspace:*",
     "@flemo/react": "workspace:*",
     "fumadocs-core": "^16.8.5",
     "fumadocs-mdx": "^14.3.2",

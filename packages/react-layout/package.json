@@ -1,5 +1,5 @@
 {
-  "name": "@flemo/layout",
+  "name": "@flemo/react-layout",
   "version": "0.0.0",
   "description": "layoutId / shared-element morphs for flemo. Wraps a Screen with motion's AnimatePresence + MotionConfig so children with matching layoutId animate between screens.",
   "main": "./dist/index.mjs",
@@ -25,7 +25,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kimjh96/flemo.git",
-    "directory": "packages/layout"
+    "directory": "packages/react-layout"
   },
   "bugs": {
     "url": "https://github.com/kimjh96/flemo/issues",

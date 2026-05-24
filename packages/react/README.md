@@ -19,12 +19,17 @@ router and a motion library together yourself.
 ## Install
 
 ```bash
-pnpm add @flemo/react motion
+pnpm add @flemo/react
 ```
 
 `@flemo/react` pulls in `@flemo/core` (the framework-agnostic primitives) as a regular
 dependency. Apps that only need transition compilers or the navigation queue can install
-`@flemo/core` directly.
+`@flemo/core` directly. For shared-element morphs (`<LayoutScreen>` + `<LayoutConfig>`),
+add `@flemo/react-layout` (which carries `motion` as its peer dependency):
+
+```bash
+pnpm add @flemo/react-layout motion
+```
 
 ## Documentation
 
