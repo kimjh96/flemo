@@ -1,13 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
-
 import {
-  cancelFrame,
-  frame,
-  motion,
-  useAnimate,
-  useDragControls,
-  type PanInfo
-} from "motion/react";
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent
+} from "react";
 
 import TaskManger from "@core/TaskManger";
 
@@ -23,11 +20,18 @@ import useScreen from "@screen/useScreen";
 
 import useViewportScrollHeight from "@screen/useViewportScrollHeight";
 
-import { transitionMap, transitionInitialValue } from "@transition/transition";
+import animateInline, { clearInlineAnimation } from "@transition/animateInline";
+import { animationName, variantHasAnimation } from "@transition/compileTransitionStyles";
+
+import { transitionMap } from "@transition/transition";
+
+import type { SwipeInfo } from "@transition/typing";
 
 import findScrollable from "@utils/findScrollable";
 
 import { decoratorMap } from "@transition/decorator/decorator";
+
+const SKIP_ANIMATION_ATTR = "data-flemo-skip-animation";
 
 function ScreenMotion({
   children,
@@ -45,10 +49,7 @@ function ScreenMotion({
   contentScrollable = true,
   ...props
 }: ScreenProps) {
-  const [scope, animate] = useAnimate();
-
   const { id, isActive, isRoot, zIndex, transitionName, prevTransitionName } = useScreen();
-  const dragControls = useDragControls();
 
   const status = useNavigationStore((state) => state.status);
   const dragStatus = useScreenStore((state) => state.dragStatus);
@@ -59,7 +60,7 @@ function ScreenMotion({
   const histories = useHistoryStore((state) => state.histories);
 
   const currentTransition = (transitionMap.get(transitionName) ?? transitionMap.get("none"))!;
-  const { variants, initial, swipeDirection, decoratorName } = currentTransition;
+  const { initial, swipeDirection, decoratorName } = currentTransition;
   const decorator = decoratorMap.get(decoratorName!);
 
   const { viewportScrollHeight } = useViewportScrollHeight();
@@ -70,11 +71,18 @@ function ScreenMotion({
   const [sharedNavigationBarHeight, setSharedNavigationBarHeight] = useState(0);
 
   const screenRef = useRef<HTMLDivElement | null>(null);
+  const scopeRef = useRef<HTMLDivElement | null>(null);
   const prevScreenRef = useRef<HTMLDivElement | null>(null);
   const decoratorRef = useRef<HTMLDivElement | null>(null);
   const prevDecoratorRef = useRef<HTMLDivElement | null>(null);
   const shouldStartDragRef = useRef(false);
   const isTouchPreventedRef = useRef(false);
+  const swipeActiveRef = useRef(false);
+  const swipeStartTimeRef = useRef(0);
+  const swipeStartPointRef = useRef({ x: 0, y: 0 });
+  const swipeLastPointRef = useRef({ x: 0, y: 0 });
+  const swipeLastTimeRef = useRef(0);
+  const swipeVelocityRef = useRef({ x: 0, y: 0 });
   const scrollableXRef = useRef<{
     element: HTMLElement | null;
     hasMarker: boolean;
@@ -91,26 +99,61 @@ function ScreenMotion({
   const sharedAppBarRef = useRef<HTMLDivElement | null>(null);
   const sharedNavigationBarRef = useRef<HTMLDivElement | null>(null);
 
-  const handleDragStart = async (
-    event: MouseEvent | TouchEvent | globalThis.PointerEvent,
-    info: PanInfo
-  ) => {
-    if (!swipeDirection || viewportScrollHeight > 10) {
-      return;
-    }
+  const buildSwipeInfo = (event: PointerEvent): SwipeInfo => {
+    const last = swipeLastPointRef.current;
+    return {
+      point: { x: event.clientX, y: event.clientY },
+      offset: {
+        x: event.clientX - swipeStartPointRef.current.x,
+        y: event.clientY - swipeStartPointRef.current.y
+      },
+      delta: { x: event.clientX - last.x, y: event.clientY - last.y },
+      velocity: swipeVelocityRef.current
+    };
+  };
 
-    const prevScreen = screenRef.current?.parentElement?.previousElementSibling as HTMLDivElement;
-    prevScreenRef.current = prevScreen?.querySelector("[data-screen]");
-    prevDecoratorRef.current = prevScreen?.querySelector("[data-decorator]");
+  const updateSwipeVelocity = (event: PointerEvent) => {
+    const now = event.timeStamp;
+    const dt = Math.max(1, now - swipeLastTimeRef.current);
+    const last = swipeLastPointRef.current;
+    swipeVelocityRef.current = {
+      x: ((event.clientX - last.x) / dt) * 1000,
+      y: ((event.clientY - last.y) / dt) * 1000
+    };
+    swipeLastPointRef.current = { x: event.clientX, y: event.clientY };
+    swipeLastTimeRef.current = now;
+  };
 
-    const isTriggered = await currentTransition?.onSwipeStart(event, info, {
-      animate,
-      currentScreen: scope.current!,
+  const beginSwipe = async (event: PointerEvent) => {
+    if (!swipeDirection || viewportScrollHeight > 10) return;
+
+    const scope = scopeRef.current;
+    if (!scope) return;
+
+    const prevScreenContainer = screenRef.current?.parentElement
+      ?.previousElementSibling as HTMLDivElement | null;
+    prevScreenRef.current =
+      prevScreenContainer?.querySelector<HTMLDivElement>("[data-flemo-screen]") ?? null;
+    prevDecoratorRef.current =
+      prevScreenContainer?.querySelector<HTMLDivElement>("[data-flemo-decorator]") ?? null;
+
+    if (!prevScreenRef.current) return;
+
+    swipeActiveRef.current = true;
+    swipeStartTimeRef.current = event.timeStamp;
+    swipeStartPointRef.current = { x: event.clientX, y: event.clientY };
+    swipeLastPointRef.current = { x: event.clientX, y: event.clientY };
+    swipeLastTimeRef.current = event.timeStamp;
+    swipeVelocityRef.current = { x: 0, y: 0 };
+    scope.setPointerCapture(event.pointerId);
+
+    const isTriggered = await currentTransition?.onSwipeStart(event, buildSwipeInfo(event), {
+      animate: animateInline,
+      currentScreen: scope,
       prevScreen: prevScreenRef.current!,
-      dragControls,
       onStart: (triggered) =>
         decorator?.onSwipeStart?.(triggered, {
-          animate,
+          animate: animateInline,
           currentDecorator: decoratorRef.current!,
           prevDecorator: prevDecoratorRef.current!
         })
@@ -120,56 +163,71 @@ function ScreenMotion({
       setDragStatus("PENDING");
     } else {
       setDragStatus("IDLE");
+      swipeActiveRef.current = false;
     }
   };
 
-  const handleDrag = (event: MouseEvent | TouchEvent | globalThis.PointerEvent, info: PanInfo) => {
-    if (!swipeDirection || dragStatus !== "PENDING" || viewportScrollHeight > 10) {
-      return;
-    }
+  const continueSwipe = (event: PointerEvent) => {
+    if (!swipeDirection || !swipeActiveRef.current || viewportScrollHeight > 10) return;
 
-    currentTransition.onSwipe(event, info, {
-      animate,
-      currentScreen: scope.current!,
+    updateSwipeVelocity(event);
+
+    currentTransition.onSwipe(event, buildSwipeInfo(event), {
+      animate: animateInline,
+      currentScreen: scopeRef.current!,
       prevScreen: prevScreenRef.current!,
-      dragControls,
       onProgress: (triggered, progress) =>
         decorator?.onSwipe?.(triggered, progress, {
-          animate,
+          animate: animateInline,
           currentDecorator: decoratorRef.current!,
           prevDecorator: prevDecoratorRef.current!
         })
     });
   };
 
-  const handleDragEnd = async (
-    event: MouseEvent | TouchEvent | globalThis.PointerEvent,
-    info: PanInfo
-  ) => {
-    if (!swipeDirection || dragStatus !== "PENDING" || viewportScrollHeight > 10) {
-      return;
+  const endSwipe = async (event: PointerEvent) => {
+    if (!swipeDirection || !swipeActiveRef.current) return;
+
+    swipeActiveRef.current = false;
+    const scope = scopeRef.current;
+    if (scope && scope.hasPointerCapture(event.pointerId)) {
+      scope.releasePointerCapture(event.pointerId);
     }
 
+    const info = buildSwipeInfo(event);
+
     const isTriggered = await currentTransition?.onSwipeEnd(event, info, {
-      animate,
-      currentScreen: scope.current!,
+      animate: animateInline,
+      currentScreen: scopeRef.current!,
       prevScreen: prevScreenRef.current!,
       onStart: (triggered) =>
         decorator?.onSwipeEnd?.(triggered, {
-          animate,
+          animate: animateInline,
           currentDecorator: decoratorRef.current!,
           prevDecorator: prevDecoratorRef.current!
         })
     });
 
     if (isTriggered) {
+      // The swipe already animated the screen all the way out. Mark the
+      // element so the upcoming POPPING keyframe is suppressed — otherwise
+      // the CSS animation would snap the screen back to its `from` value
+      // before animating again.
+      scopeRef.current?.setAttribute(SKIP_ANIMATION_ATTR, "true");
+      decoratorRef.current?.setAttribute(SKIP_ANIMATION_ATTR, "true");
       window.history.back();
     } else {
+      // Cancel: animation already played back to the rest position. Clear
+      // inline styles so the CSS rest rule resumes ownership.
+      clearInlineAnimation(scopeRef.current!);
+      if (prevScreenRef.current) clearInlineAnimation(prevScreenRef.current);
+      if (decoratorRef.current) clearInlineAnimation(decoratorRef.current);
+      if (prevDecoratorRef.current) clearInlineAnimation(prevDecoratorRef.current);
       setDragStatus("IDLE");
     }
   };
 
-  const handlePointerDown = (event: PointerEvent) => {
+  const handlePointerDown = (event: ReactPointerEvent) => {
     const isReadyForDrag =
       !isRoot &&
       isActive &&
@@ -203,8 +261,13 @@ function ScreenMotion({
     }
   };
 
-  const handlePointerMove = (event: PointerEvent) => {
+  const handlePointerMove = (event: ReactPointerEvent) => {
     if (viewportScrollHeight > 10) {
+      return;
+    }
+
+    if (swipeActiveRef.current) {
+      continueSwipe(event.nativeEvent);
       return;
     }
 
@@ -218,9 +281,9 @@ function ScreenMotion({
       const x = event.clientX - startXRef.current;
 
       if (swipeDirection === "y" && y > 0) {
-        dragControls.start(event);
+        void beginSwipe(event.nativeEvent);
       } else if (swipeDirection === "x" && x > 0) {
-        dragControls.start(event);
+        void beginSwipe(event.nativeEvent);
       }
     } else if (shouldStartDragRef.current && !hasNoScrollable) {
       const x = event.clientX - startXRef.current;
@@ -242,7 +305,7 @@ function ScreenMotion({
         shouldStartDragRef.current = false;
         isTouchPreventedRef.current = true;
 
-        dragControls.start(event);
+        void beginSwipe(event.nativeEvent);
       } else if (
         swipeDirection === "x" &&
         (isLeftAtEdge || !!scrollableYRef.current.element) &&
@@ -252,20 +315,23 @@ function ScreenMotion({
         shouldStartDragRef.current = false;
         isTouchPreventedRef.current = true;
 
-        dragControls.start(event);
+        void beginSwipe(event.nativeEvent);
       }
     }
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (event: ReactPointerEvent) => {
     shouldStartDragRef.current = false;
     isTouchPreventedRef.current = false;
+    if (swipeActiveRef.current) {
+      void endSwipe(event.nativeEvent);
+    }
   };
 
   useEffect(() => {
-    const currentScreen = scope.current;
+    const scope = scopeRef.current;
 
-    if (!currentScreen) return;
+    if (!scope) return;
 
     const handleTouchMove = (event: TouchEvent) => {
       if (isTouchPreventedRef.current) {
@@ -277,57 +343,76 @@ function ScreenMotion({
       }
     };
 
-    currentScreen.addEventListener("touchmove", handleTouchMove, {
+    scope.addEventListener("touchmove", handleTouchMove, {
       passive: false
     });
 
     return () => {
-      currentScreen.removeEventListener("touchmove", handleTouchMove);
+      scope.removeEventListener("touchmove", handleTouchMove);
     };
-  }, [scope]);
+  }, []);
 
+  // Drive transition lifecycle. The active screen resolves the current
+  // navigation task once its animation settles (animationend on the primary
+  // keyframe). For variants that compile to no animation we resolve on the
+  // next microtask so the navigation queue still advances.
   useEffect(() => {
-    if (!scope.current) return;
-
-    (async () => {
-      const { value, options } = variants[`${status}-${isActive}`];
-
+    if (!isActive) {
       const isTransitionDiffOnReplace = prevTransitionName !== transitionName;
-
-      if (!isActive && status === "REPLACING" && isTransitionDiffOnReplace) {
+      if (status === "REPLACING" && isTransitionDiffOnReplace) {
         setReplaceTransitionStatus("PENDING");
-        await animate(scope.current, transitionInitialValue, {
-          duration: 0.1
-        });
       }
+      return;
+    }
 
-      if (isActive && status === "COMPLETED") {
-        setDragStatus("IDLE");
-        setReplaceTransitionStatus("IDLE");
+    if (status === "COMPLETED") {
+      setDragStatus("IDLE");
+      setReplaceTransitionStatus("IDLE");
+      return;
+    }
+
+    if (status === "IDLE") return;
+
+    const scope = scopeRef.current;
+    if (!scope) return;
+
+    const resolve = () => {
+      const transitionTaskId = useNavigationStore.getState().transitionTaskId;
+      if (transitionTaskId) {
+        void TaskManger.resolveTask(transitionTaskId);
       }
+    };
 
-      await animate(scope.current, value, options);
+    const variantKey = `${status}-true` as const;
+    const skipAnimation = scope.getAttribute(SKIP_ANIMATION_ATTR) === "true";
+    const hasAnimation = !skipAnimation && variantHasAnimation(currentTransition, variantKey);
 
-      // The active screen is the genuine animation participant for every
-      // transition (push/replace/pop), so it resolves the current navigation
-      // task once its animation settles.
-      if (isActive) {
-        const transitionTaskId = useNavigationStore.getState().transitionTaskId;
+    if (!hasAnimation) {
+      // No CSS animation will fire — resolve in a microtask so React commits
+      // first and the queue keeps advancing.
+      queueMicrotask(resolve);
+      return;
+    }
 
-        if (transitionTaskId) {
-          await TaskManger.resolveTask(transitionTaskId);
-        }
-      }
-    })();
+    const expectedName = animationName("screen", transitionName, variantKey);
+    const onEnd = (event: AnimationEvent) => {
+      if (event.target !== scope) return;
+      if (event.animationName !== expectedName) return;
+      scope.removeEventListener("animationend", onEnd);
+      resolve();
+    };
+
+    scope.addEventListener("animationend", onEnd);
+    return () => {
+      scope.removeEventListener("animationend", onEnd);
+    };
   }, [
     status,
     isActive,
     id,
     prevTransitionName,
     transitionName,
-    animate,
-    scope,
-    variants,
+    currentTransition,
     setDragStatus,
     setReplaceTransitionStatus
   ]);
@@ -374,13 +459,11 @@ function ScreenMotion({
     return () => unregisterSharedBars(id);
   }, [id, sharedAppBar, sharedNavigationBar]);
 
-  // Shared bars are always rendered outside motion.div as position:fixed so
-  // they stay pinned during transitions between screens that share the same
-  // bar. When transitioning to/from a screen that lacks a bar this screen
-  // has, the bar must ride along with this screen's transform/opacity. We
-  // achieve that by mirroring the scope motion.div's computed transform and
-  // opacity onto the bar's DOM each frame for the duration of the transition —
-  // no mode switch, no layout shift.
+  // Shared bars stay pinned via position:fixed during transitions between
+  // screens that share the same bar. When the partner screen lacks the bar
+  // this screen owns, the bar rides along by mirroring the scope's computed
+  // transform/opacity per frame. Raw requestAnimationFrame keeps the loop
+  // independent of motion's scheduler.
   const isTransitioning =
     status === "PUSHING" ||
     status === "POPPING" ||
@@ -395,7 +478,7 @@ function ScreenMotion({
     isTransitioning && isTopOrTopPrev && !!sharedNavigationBar && !partnerSharedBars?.navigationBar;
 
   useEffect(() => {
-    const scopeEl = scope.current;
+    const scope = scopeRef.current;
     const appBarEl = sharedAppBarRef.current;
     const navBarEl = sharedNavigationBarRef.current;
 
@@ -413,23 +496,39 @@ function ScreenMotion({
       shouldRideSharedNavigationBar ? navBarEl : null
     ].filter((el): el is HTMLDivElement => el !== null);
 
-    if (!scopeEl || ridingEls.length === 0) return;
+    if (!scope || ridingEls.length === 0) return;
 
+    let rafId = 0;
     const sync = () => {
-      const { transform, opacity } = getComputedStyle(scopeEl);
+      const { transform, opacity } = getComputedStyle(scope);
       for (const el of ridingEls) {
         el.style.transform = transform;
         el.style.opacity = opacity;
       }
+      rafId = requestAnimationFrame(sync);
     };
-
     sync();
-    frame.postRender(sync, true);
 
     return () => {
-      cancelFrame(sync);
+      cancelAnimationFrame(rafId);
     };
-  }, [scope, shouldRideSharedAppBar, shouldRideSharedNavigationBar]);
+  }, [shouldRideSharedAppBar, shouldRideSharedNavigationBar]);
+
+  const initialStyle: { transform?: string; opacity?: string } = (() => {
+    // Only the actively entering screen needs the initial style; everything
+    // else either has a CSS rest rule applying (IDLE/COMPLETED) or is in the
+    // middle of an animation whose keyframe `from` block already enforces the
+    // entry value.
+    if (!isActive) return {};
+    if (status !== "PUSHING" && status !== "REPLACING") return {};
+    const initialDecls: { transform?: string; opacity?: string } = {};
+    if (typeof initial.x === "number") initialDecls.transform = `translateX(${initial.x}px)`;
+    if (typeof initial.x === "string") initialDecls.transform = `translateX(${initial.x})`;
+    if (typeof initial.y === "number") initialDecls.transform = `translateY(${initial.y}px)`;
+    if (typeof initial.y === "string") initialDecls.transform = `translateY(${initial.y})`;
+    if (typeof initial.opacity === "number") initialDecls.opacity = `${initial.opacity}`;
+    return initialDecls;
+  })();
 
   return (
     <div
@@ -458,26 +557,25 @@ function ScreenMotion({
           zIndex: 1
         }}
       />
-      <motion.div
-        ref={scope}
+      <div
+        ref={scopeRef}
         {...props}
-        initial={initial}
-        drag={swipeDirection}
-        dragListener={false}
-        dragControls={dragControls}
-        onDragStart={handleDragStart}
-        onDrag={handleDrag}
-        onDragEnd={handleDragEnd}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        data-screen
+        onPointerCancel={handlePointerUp}
+        data-flemo-screen
+        data-flemo-transition={transitionName}
+        data-flemo-status={status}
+        data-flemo-active={isActive ? "true" : "false"}
         style={{
           display: "flex",
           flexDirection: "column",
           height: "100%",
           backgroundColor,
           overflowY: contentScrollable ? undefined : "auto",
+          touchAction: swipeDirection === "x" ? "pan-y" : swipeDirection === "y" ? "pan-x" : "auto",
+          ...initialStyle,
           ...props.style
         }}
       >
@@ -541,7 +639,7 @@ function ScreenMotion({
             />
           </div>
         )}
-      </motion.div>
+      </div>
       {sharedAppBar && (
         <div
           ref={sharedAppBarRef}

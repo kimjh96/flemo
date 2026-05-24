@@ -1,6 +1,4 @@
-import { type ComponentPropsWithRef, useEffect, useImperativeHandle } from "react";
-
-import { motion, useAnimate } from "motion/react";
+import { type ComponentPropsWithRef, useImperativeHandle, useRef } from "react";
 
 import useNavigationStore from "@navigate/store";
 
@@ -10,31 +8,28 @@ import { transitionMap } from "@transition/transition";
 
 import { decoratorMap } from "@transition/decorator/decorator";
 
-function ScreenDecorator({ children, ref, ...props }: ComponentPropsWithRef<"div">) {
+function ScreenDecorator({ ref, style, ...props }: ComponentPropsWithRef<"div">) {
   const { isActive, transitionName } = useScreen();
 
-  const [scope, animate] = useAnimate();
+  const scopeRef = useRef<HTMLDivElement | null>(null);
 
-  useImperativeHandle(ref, () => scope.current!);
+  useImperativeHandle(ref, () => scopeRef.current!);
 
   const status = useNavigationStore((state) => state.status);
 
   const currentTransition = (transitionMap.get(transitionName) ?? transitionMap.get("none"))!;
   const { decoratorName } = currentTransition;
-  const { initial, variants } = decoratorMap.get(decoratorName!)!;
+  const decorator = decoratorMap.get(decoratorName!);
 
-  useEffect(() => {
-    if (!scope.current) return;
-
-    const { value, options } = variants[`${status}-${isActive}`];
-
-    animate(scope.current, value, options);
-  }, [status, isActive, animate, variants, scope]);
+  if (!decorator) return null;
 
   return (
-    <motion.div
-      ref={scope}
-      initial={initial}
+    <div
+      ref={scopeRef}
+      data-flemo-decorator
+      data-flemo-decorator-name={decorator.name}
+      data-flemo-status={status}
+      data-flemo-active={isActive ? "true" : "false"}
       style={{
         position: "absolute",
         top: 0,
@@ -43,9 +38,9 @@ function ScreenDecorator({ children, ref, ...props }: ComponentPropsWithRef<"div
         height: "100%",
         pointerEvents: "none",
         zIndex: 1,
-        ...props.style
+        ...style
       }}
-      data-decorator
+      {...props}
     />
   );
 }

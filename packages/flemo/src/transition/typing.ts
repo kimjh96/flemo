@@ -1,13 +1,8 @@
 import type { NavigateStatus } from "@navigate/store";
 
 import type { DecoratorName } from "@transition/decorator/typing";
-import type {
-  PanInfo,
-  TargetAndTransition,
-  Target,
-  AnimationOptions,
-  DragControls
-} from "motion/react";
+
+import type { AnimationOptions, Target, TargetAndTransition } from "motion/react";
 
 // eslint-disable-next-line
 export interface RegisterTransition {}
@@ -36,37 +31,51 @@ export type TransitionVariantValue = {
   };
 };
 
+// Native pointer-driven swipe info. Mirrors the shape of motion's PanInfo for
+// drop-in compatibility with existing custom transitions, but with no motion
+// runtime coupling.
+export interface SwipeInfo {
+  point: { x: number; y: number };
+  offset: { x: number; y: number };
+  velocity: { x: number; y: number };
+  delta: { x: number; y: number };
+}
+
+export type SwipeAnimate = (
+  target: HTMLElement,
+  value: Target,
+  options?: Omit<AnimationOptions, "delay"> & { delay?: number }
+) => Promise<void>;
+
 export type TransitionOptions =
   | {
       decoratorName?: DecoratorName;
       swipeDirection: "x" | "y";
       onSwipeStart: (
-        event: MouseEvent | TouchEvent | PointerEvent,
-        info: PanInfo,
+        event: PointerEvent,
+        info: SwipeInfo,
         options: {
-          animate: (target: object, objectTarget: Target, options: AnimationOptions) => void;
+          animate: SwipeAnimate;
           currentScreen: HTMLDivElement;
           prevScreen: HTMLDivElement;
-          dragControls: DragControls;
           onStart?: (triggered: boolean) => void;
         }
       ) => Promise<boolean>;
       onSwipe: (
-        event: MouseEvent | TouchEvent | PointerEvent,
-        info: PanInfo,
+        event: PointerEvent,
+        info: SwipeInfo,
         options: {
-          animate: (target: object, objectTarget: Target, options: AnimationOptions) => void;
+          animate: SwipeAnimate;
           currentScreen: HTMLDivElement;
           prevScreen: HTMLDivElement;
-          dragControls: DragControls;
           onProgress?: (triggered: boolean, progress: number) => void;
         }
       ) => number;
       onSwipeEnd: (
-        event: MouseEvent | TouchEvent | PointerEvent,
-        info: PanInfo,
+        event: PointerEvent,
+        info: SwipeInfo,
         options: {
-          animate: (target: object, objectTarget: Target, options: AnimationOptions) => void;
+          animate: SwipeAnimate;
           currentScreen: HTMLDivElement;
           prevScreen: HTMLDivElement;
           onStart?: (triggered: boolean) => void;

@@ -1,6 +1,12 @@
-import { transform } from "motion/react";
-
 import createTransition from "@transition/createTransition";
+
+const linear = (value: number, from: [number, number], to: [number, number]) => {
+  const [fromMin, fromMax] = from;
+  const [toMin, toMax] = to;
+  if (fromMax === fromMin) return toMin;
+  const t = (value - fromMin) / (fromMax - fromMin);
+  return toMin + t * (toMax - toMin);
+};
 
 const layout = createTransition({
   name: "layout",
@@ -57,7 +63,7 @@ const layout = createTransition({
       const { offset } = info;
       const dragY = offset.y;
       const clamped = Math.max(0, Math.min(56, dragY));
-      const opacity = transform(clamped, [0, 56], [1, 0.96]);
+      const opacity = linear(clamped, [0, 56], [1, 0.96]);
       const extra = Math.max(0, dragY - 56);
       const extraRatio = Math.min(1, extra / 160);
       const resistedExtra = Math.sqrt(extraRatio) * 12;

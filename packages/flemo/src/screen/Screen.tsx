@@ -1,4 +1,4 @@
-import { type PropsWithChildren, type ReactNode } from "react";
+import { type ComponentPropsWithoutRef, type PropsWithChildren, type ReactNode } from "react";
 
 import useHistoryStore from "@history/store";
 
@@ -9,21 +9,10 @@ import ScreenMotion from "@screen/ScreenMotion";
 import useScreenStore from "@screen/store";
 import useScreen from "@screen/useScreen";
 
-import type { HTMLMotionProps } from "motion/react";
-
 export interface ScreenProps extends PropsWithChildren<
   Omit<
-    HTMLMotionProps<"div">,
-    | "initial"
-    | "drag"
-    | "dragControls"
-    | "dragListener"
-    | "onDragStart"
-    | "onDrag"
-    | "onDragEnd"
-    | "onPointerDown"
-    | "onPointerMove"
-    | "onPointerUp"
+    ComponentPropsWithoutRef<"div">,
+    "onPointerDown" | "onPointerMove" | "onPointerUp" | "onPointerCancel"
   >
 > {
   statusBarHeight?: string;

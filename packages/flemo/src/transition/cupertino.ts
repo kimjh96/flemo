@@ -1,6 +1,12 @@
-import { transform } from "motion/react";
-
 import createTransition from "@transition/createTransition";
+
+const linear = (value: number, from: [number, number], to: [number, number]) => {
+  const [fromMin, fromMax] = from;
+  const [toMin, toMax] = to;
+  if (fromMax === fromMin) return toMin;
+  const t = (value - fromMin) / (fromMax - fromMin);
+  return toMin + t * (toMax - toMin);
+};
 
 const cupertino = createTransition({
   name: "cupertino",
@@ -60,7 +66,7 @@ const cupertino = createTransition({
     onSwipe: (_, info, { animate, currentScreen, prevScreen, onProgress }) => {
       const { offset } = info;
       const dragX = offset.x;
-      const progress = transform(dragX, [0, window.innerWidth], [0, 100]);
+      const progress = linear(dragX, [0, window.innerWidth], [0, 100]);
 
       onProgress?.(true, progress);
 
