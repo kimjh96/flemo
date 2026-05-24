@@ -166,7 +166,6 @@ export default function Shop() {
                   className="relative overflow-hidden"
                 >
                   <motion.div
-                    layoutId={`product-image-${p.id}`}
                     className="aspect-square w-full"
                     style={{ background: gradientFor(p.hue) }}
                   />

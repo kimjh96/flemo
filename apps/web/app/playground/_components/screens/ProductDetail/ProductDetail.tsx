@@ -65,7 +65,6 @@ export default function ProductDetail() {
             className="relative overflow-hidden"
           >
             <motion.div
-              layoutId={`product-image-${layoutId}`}
               className="aspect-square w-full"
               style={{ background: gradientFor(product.hue) }}
             />
@@ -74,7 +73,7 @@ export default function ProductDetail() {
           {/* Info */}
           <motion.div
             layoutId={`product-info-${layoutId}`}
-            className="relative -mt-6 flex flex-col gap-2 rounded-t-3xl bg-[var(--color-surface)] px-5 pb-6 pt-6 shadow-[0_-12px_24px_-12px_rgba(0,0,0,0.08)]"
+            className="relative -mt-6 flex flex-col gap-2 bg-[var(--color-surface)] px-5 pb-6 pt-6 shadow-[0_-12px_24px_-12px_rgba(0,0,0,0.08)]"
           >
             <div className="flex items-center">
               <motion.span
