@@ -458,31 +458,76 @@ function ScreenMotion({
   }, [id, sharedAppBar, sharedNavigationBar]);
 
   // Shared bars render outside the animated scope (siblings inside screenRef),
-  // so any transition the scope runs — transform, opacity, filter, custom
-  // properties — has no inherent effect on the bar. When the partner screen
-  // owns the same bar, this is exactly what we want: the bar appears to hand
-  // over seamlessly while screens animate underneath. When the partner does
-  // NOT own the bar, the bar must ride along with this screen's animation
-  // instead. To stay generic over arbitrary author-defined transitions, we
-  // collect the set of CSS properties the transition writes (from its
-  // `initial` + variant `value`s) and mirror each from scope to the bar every
-  // frame for the duration of the transition.
-  const isTransitioning =
-    status === "PUSHING" ||
-    status === "POPPING" ||
-    status === "REPLACING" ||
-    dragStatus === "PENDING";
+  // so any transition the scope runs has no inherent effect on the bar. When
+  // the partner screen owns the same bar, this is exactly what we want: the
+  // bar appears to hand over seamlessly while screens animate underneath.
+  // When the partner does NOT own the bar, the bar must ride along.
+  //
+  // Two paths handle ride-along:
+  //
+  // 1. CSS-driven transitions (push / pop / replace). The compiled rule emits
+  //    a sibling selector that targets `[data-flemo-bar][...riding="true"]`
+  //    with the same `@keyframes` the screen uses. We set the bar's data-
+  //    attributes here and toggle `data-flemo-bar-riding` based on partner
+  //    ownership. The compositor drives both elements off one keyframe — no
+  //    JS frame in the loop, no main-thread style read/write per frame.
+  // 2. Swipe drag (`dragStatus === "PENDING"`). The transition's swipe handler
+  //    writes inline `transform`/opacity on `currentScreen` via `animateInline`,
+  //    which is JS-driven and main-thread anyway. A small rAF loop mirrors
+  //    those inline values onto the bar for the duration of the swipe — same
+  //    technique as before, kept narrow to where it's needed.
+  const isSwiping = dragStatus === "PENDING";
   const isTopOrTopPrev = isActive || zIndex === index - 1;
   const hasSharedAppBar = !!sharedAppBar;
   const hasSharedNavigationBar = !!sharedNavigationBar;
 
-  // `useLayoutEffect` so the first sync runs before paint — avoids a one-frame
-  // blip where the bar lags scope. Partner-registration is read synchronously
-  // from the store inside the rAF loop (not via React subscription) so a
-  // freshly-mounted partner Screen is picked up on the same frame as the
-  // transition's first paint, regardless of sibling commit-order.
+  // (1) Toggle `data-flemo-bar-riding` on each bar based on partner ownership.
+  // `useLayoutEffect` so the attribute is set before the browser paints the
+  // first frame of the transition. We re-evaluate on store changes too,
+  // because a partner Screen may register its shared bars slightly after this
+  // screen reads them (commit-order races).
   useLayoutEffect(() => {
-    if (!isTransitioning || !isTopOrTopPrev) return;
+    const appBarEl = sharedAppBarRef.current;
+    const navBarEl = sharedNavigationBarRef.current;
+    if (!appBarEl && !navBarEl) return;
+
+    const apply = () => {
+      const transitioningNow =
+        useNavigationStore.getState().status === "PUSHING" ||
+        useNavigationStore.getState().status === "POPPING" ||
+        useNavigationStore.getState().status === "REPLACING";
+      if (!transitioningNow || !isTopOrTopPrev) {
+        appBarEl?.removeAttribute("data-flemo-bar-riding");
+        navBarEl?.removeAttribute("data-flemo-bar-riding");
+        return;
+      }
+      const partnerId = isActive
+        ? useHistoryStore.getState().histories[index - 1]?.id
+        : useHistoryStore.getState().histories[index]?.id;
+      const partnerBars = partnerId ? useScreenStore.getState().sharedBars[partnerId] : undefined;
+      const rideApp = hasSharedAppBar && !partnerBars?.appBar;
+      const rideNav = hasSharedNavigationBar && !partnerBars?.navigationBar;
+      if (appBarEl) appBarEl.setAttribute("data-flemo-bar-riding", rideApp ? "true" : "false");
+      if (navBarEl) navBarEl.setAttribute("data-flemo-bar-riding", rideNav ? "true" : "false");
+    };
+
+    apply();
+    const unsubScreen = useScreenStore.subscribe(apply);
+    const unsubNavigation = useNavigationStore.subscribe(apply);
+    return () => {
+      unsubScreen();
+      unsubNavigation();
+      appBarEl?.removeAttribute("data-flemo-bar-riding");
+      navBarEl?.removeAttribute("data-flemo-bar-riding");
+    };
+  }, [isTopOrTopPrev, isActive, index, hasSharedAppBar, hasSharedNavigationBar]);
+
+  // (2) Swipe-drag mirror — main-thread inline writes follow the pointer,
+  // bars trail by the same JS tick the pointer does, so visual sync is fine
+  // here. Kept narrow to `dragStatus === "PENDING"` so it never runs during
+  // CSS-driven transitions where it would re-introduce the lag we just fixed.
+  useLayoutEffect(() => {
+    if (!isSwiping || !isTopOrTopPrev) return;
     if (!hasSharedAppBar && !hasSharedNavigationBar) return;
 
     const scope = scopeRef.current;
@@ -493,26 +538,13 @@ function ScreenMotion({
     const properties = collectAnimatedProperties(currentTransition);
     if (properties.length === 0) return;
 
-    // Hint compositor promotion on bars that will receive per-frame inline
-    // updates. The CSS animation rule on the scope already declares its own
-    // `will-change`; mirroring bars are written via JS, so they need the hint
-    // applied directly. Cleared in the effect's teardown so static bars don't
-    // pay layer cost outside the transition window.
     const willChange = properties.join(", ");
-    const setWillChange = (el: HTMLDivElement | null) => {
-      if (el) el.style.willChange = willChange;
-    };
-    const clearWillChange = (el: HTMLDivElement | null) => {
-      if (el) el.style.removeProperty("will-change");
-    };
-    setWillChange(appBarEl);
-    setWillChange(navBarEl);
+    if (appBarEl) appBarEl.style.willChange = willChange;
+    if (navBarEl) navBarEl.style.willChange = willChange;
 
     const clearStyles = (el: HTMLDivElement | null) => {
       if (!el) return;
-      for (const prop of properties) {
-        el.style.removeProperty(prop);
-      }
+      for (const prop of properties) el.style.removeProperty(prop);
     };
 
     let rafId = 0;
@@ -523,9 +555,7 @@ function ScreenMotion({
       const partnerBars = partnerId ? useScreenStore.getState().sharedBars[partnerId] : undefined;
       const rideApp = hasSharedAppBar && !partnerBars?.appBar;
       const rideNav = hasSharedNavigationBar && !partnerBars?.navigationBar;
-
       const computed = rideApp || rideNav ? getComputedStyle(scope) : null;
-
       if (appBarEl) {
         if (rideApp && computed) {
           for (const prop of properties) {
@@ -544,7 +574,6 @@ function ScreenMotion({
           clearStyles(navBarEl);
         }
       }
-
       rafId = requestAnimationFrame(sync);
     };
     sync();
@@ -553,11 +582,11 @@ function ScreenMotion({
       cancelAnimationFrame(rafId);
       clearStyles(appBarEl);
       clearStyles(navBarEl);
-      clearWillChange(appBarEl);
-      clearWillChange(navBarEl);
+      if (appBarEl) appBarEl.style.removeProperty("will-change");
+      if (navBarEl) navBarEl.style.removeProperty("will-change");
     };
   }, [
-    isTransitioning,
+    isSwiping,
     isTopOrTopPrev,
     hasSharedAppBar,
     hasSharedNavigationBar,
@@ -699,6 +728,10 @@ function ScreenMotion({
       {sharedAppBar && (
         <div
           ref={sharedAppBarRef}
+          data-flemo-bar="app"
+          data-flemo-bar-transition={transitionName}
+          data-flemo-bar-status={status}
+          data-flemo-bar-active={isActive ? "true" : "false"}
           style={{
             position: "fixed",
             top: !hideStatusBar ? statusBarHeight : 0,
@@ -713,6 +746,10 @@ function ScreenMotion({
       {sharedNavigationBar && (
         <div
           ref={sharedNavigationBarRef}
+          data-flemo-bar="nav"
+          data-flemo-bar-transition={transitionName}
+          data-flemo-bar-status={status}
+          data-flemo-bar-active={isActive ? "true" : "false"}
           style={{
             display: isKeyboardVisible ? "none" : undefined,
             position: "fixed",

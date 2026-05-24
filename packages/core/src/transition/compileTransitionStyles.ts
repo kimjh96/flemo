@@ -238,6 +238,22 @@ const restDecoratorSelector = (decoratorName: string, variant: TransitionVariant
   );
 };
 
+// Shared-bar ride-along selector. When a partner screen doesn't own the bar,
+// the bar's wrapper sets `data-flemo-bar-riding="true"` for the duration of
+// the transition. Pairing it as a sibling selector with the screen rule lets
+// both elements run the same `@keyframes` on the compositor — no JS rAF
+// mirroring, no main-thread style read/write per frame, perfectly synced.
+const barAttrSelector = (transitionName: string, variant: TransitionVariant): string => {
+  const [status, active] = variant.split("-");
+  return (
+    `[data-flemo-bar]` +
+    `[data-flemo-bar-transition="${transitionName}"]` +
+    `[data-flemo-bar-status="${status}"]` +
+    `[data-flemo-bar-active="${active}"]` +
+    `[data-flemo-bar-riding="true"]`
+  );
+};
+
 export const animationName = (
   scope: "screen" | "decorator",
   name: string,
@@ -258,7 +274,12 @@ const compileVariantBlock = (
   const delay = variantDelay(toVariant.options);
   const easing = easingToCss(toVariant.options?.ease);
 
-  const selector = selectorBuilder(name, variant);
+  // For the screen scope, also target a riding shared bar with the same
+  // rule so the compositor drives both elements off one `@keyframes`.
+  // Decorators don't have a bar counterpart — they stay screen-only.
+  const screenSelector = selectorBuilder(name, variant);
+  const selector =
+    scope === "screen" ? `${screenSelector},\n${barAttrSelector(name, variant)}` : screenSelector;
 
   // Variants with no animatable target — emit a rest rule so the element
   // simply holds the target value with no animation.

@@ -189,17 +189,23 @@ describe("compileTransitionStyles — will-change (compositor promotion)", () =>
   // zero-duration / "self" variants. These tests pin that contract.
 
   // Locate the standalone rule block (not the `@keyframes ... { ... }` block)
-  // whose opening line contains `selectorSubstring`. Returns the text from the
-  // opening selector through the matching closing brace.
+  // that contains `selectorSubstring`. Returns the text from the rule's first
+  // selector line through the matching closing brace. Handles multi-line
+  // selectors (comma-separated screen + riding-bar pairs).
   const findRule = (css: string, selectorSubstring: string): string | undefined => {
     const lines = css.split("\n");
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]!;
       if (line.startsWith("@keyframes")) continue;
       if (!line.includes(selectorSubstring)) continue;
-      if (!line.trimEnd().endsWith("{")) continue;
+      // Walk back over preceding lines that end with `,` — they're part of
+      // this same multi-line selector list.
+      let startIdx = i;
+      while (startIdx > 0 && lines[startIdx - 1]!.trimEnd().endsWith(",")) {
+        startIdx -= 1;
+      }
       const collected: string[] = [];
-      for (let j = i; j < lines.length; j++) {
+      for (let j = startIdx; j < lines.length; j++) {
         collected.push(lines[j]!);
         if (lines[j]!.trim() === "}") return collected.join("\n");
       }
@@ -208,22 +214,45 @@ describe("compileTransitionStyles — will-change (compositor promotion)", () =>
     return undefined;
   };
 
+  // Enumerate every non-@keyframes rule block. Tracks brace depth so an
+  // @keyframes block's inner `from`/`to` curlies don't get mistaken for a
+  // top-level rule boundary.
   const findAllRules = (css: string): string[] => {
     const lines = css.split("\n");
     const blocks: string[] = [];
-    for (let i = 0; i < lines.length; i++) {
+    let i = 0;
+    while (i < lines.length) {
       const line = lines[i]!;
-      if (line.startsWith("@keyframes")) continue;
-      if (!line.trimEnd().endsWith("{")) continue;
-      if (!line.includes("[data-flemo-")) continue;
-      const collected: string[] = [];
-      for (let j = i; j < lines.length; j++) {
-        collected.push(lines[j]!);
-        if (lines[j]!.trim() === "}") {
-          blocks.push(collected.join("\n"));
-          break;
+      if (line.startsWith("@keyframes")) {
+        let depth = 0;
+        let braceSeen = false;
+        while (i < lines.length) {
+          for (const ch of lines[i]!) {
+            if (ch === "{") {
+              depth += 1;
+              braceSeen = true;
+            } else if (ch === "}") {
+              depth -= 1;
+            }
+          }
+          i += 1;
+          if (braceSeen && depth === 0) break;
         }
+        continue;
       }
+      if (!line.includes("[data-flemo-")) {
+        i += 1;
+        continue;
+      }
+      const collected: string[] = [];
+      let j = i;
+      while (j < lines.length) {
+        collected.push(lines[j]!);
+        if (lines[j]!.trim() === "}") break;
+        j += 1;
+      }
+      blocks.push(collected.join("\n"));
+      i = j + 1;
     }
     return blocks;
   };
