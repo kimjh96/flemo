@@ -9,11 +9,14 @@
     "start": "next start",
     "lint": "eslint \"**/*.{js,mjs,ts,jsx,tsx,mts}\"",
     "typecheck": "fumadocs-mdx && next typegen && tsc --noEmit",
-    "clean": "rm -rf .next .turbo"
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:install": "playwright install --with-deps chromium",
+    "clean": "rm -rf .next .turbo playwright-report test-results"
   },
   "dependencies": {
-    "@flemo/react-layout": "workspace:*",
     "@flemo/react": "workspace:*",
+    "@flemo/react-layout": "workspace:*",
     "fumadocs-core": "^16.8.5",
     "fumadocs-mdx": "^14.3.2",
     "fumadocs-ui": "^16.8.5",
@@ -27,6 +30,7 @@
   "devDependencies": {
     "@flemo/eslint-config": "workspace:*",
     "@flemo/tsconfig": "workspace:*",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/mdx": "^2.0.13",
     "@types/node": "^24.3.0",
