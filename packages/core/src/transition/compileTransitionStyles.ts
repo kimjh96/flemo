@@ -62,6 +62,32 @@ const TRANSFORM_PROPS = new Set([
   "rotateZ"
 ]);
 
+// Whether a single transform component is at its identity value (0 for
+// translate/rotate, 1 for scale). A `transform` decl made entirely of identity
+// parts produces no visible motion but still establishes a containing block
+// and stacking context, which traps consumer overlays (e.g. position: fixed
+// sheets) inside the screen scope. We collapse such decls to `transform: none`
+// so the scope doesn't trap z-index or fixed positioning at rest.
+const ZERO_LENGTH = /^-?0(\.0+)?(px|%|em|rem|vh|vw|vmin|vmax)?$/;
+const ZERO_ANGLE = /^-?0(\.0+)?(deg|rad|grad|turn)?$/;
+const ONE_SCALAR = /^1(\.0+)?$/;
+const isIdentityTransformValue = (prop: string, raw: unknown): boolean => {
+  if (prop === "scale" || prop === "scaleX" || prop === "scaleY") {
+    if (raw === 1) return true;
+    if (typeof raw === "string") return ONE_SCALAR.test(raw.trim());
+    return false;
+  }
+  if (prop === "rotate" || prop === "rotateX" || prop === "rotateY" || prop === "rotateZ") {
+    if (raw === 0) return true;
+    if (typeof raw === "string") return ZERO_ANGLE.test(raw.trim());
+    return false;
+  }
+  // translate (x, y, z)
+  if (raw === 0) return true;
+  if (typeof raw === "string") return ZERO_LENGTH.test(raw.trim());
+  return false;
+};
+
 const transformPart = (prop: string, value: string): string => {
   switch (prop) {
     case "x":
@@ -88,12 +114,45 @@ const transformPart = (prop: string, value: string): string => {
   }
 };
 
+// Collect the kebab-case CSS property names that a given transition animates
+// (across its `initial` and all variant `value`s). Multiple transform-bucket
+// props (x/y/scale/rotate/...) collapse to a single `transform` entry, matching
+// how targetToDecls emits them. Used by the React layer to mirror exactly the
+// properties a transition can write — so a ride-along shared bar tracks
+// arbitrary author-defined CSS, not just transform/opacity.
+export const collectAnimatedProperties = (transition: Transition): string[] => {
+  const props = new Set<string>();
+  let hasTransform = false;
+
+  const visit = (target: unknown) => {
+    if (!isPlainObject(target)) return;
+    for (const key of Object.keys(target)) {
+      const raw = (target as Record<string, unknown>)[key];
+      if (formatValue(key, raw) === "") continue;
+      if (TRANSFORM_PROPS.has(key)) {
+        hasTransform = true;
+      } else {
+        props.add(camelToKebab(key));
+      }
+    }
+  };
+
+  visit(transition.initial);
+  for (const variant of Object.values(transition.variants)) {
+    visit(variant.value);
+  }
+
+  if (hasTransform) props.add("transform");
+  return Array.from(props);
+};
+
 export const targetToDecls = (
   target: TransitionVariantValue["value"] | InitialTarget
 ): CssDecl[] => {
   if (!isPlainObject(target)) return [];
 
   const transformParts: string[] = [];
+  let allTransformIdentity = true;
   const others: CssDecl[] = [];
 
   for (const prop of Object.keys(target)) {
@@ -103,13 +162,19 @@ export const targetToDecls = (
 
     if (TRANSFORM_PROPS.has(prop)) {
       transformParts.push(transformPart(prop, value));
+      if (!isIdentityTransformValue(prop, raw)) {
+        allTransformIdentity = false;
+      }
     } else {
       others.push({ property: camelToKebab(prop), value });
     }
   }
 
   if (transformParts.length > 0) {
-    others.push({ property: "transform", value: transformParts.join(" ") });
+    others.push({
+      property: "transform",
+      value: allTransformIdentity ? "none" : transformParts.join(" ")
+    });
   }
 
   return others;

@@ -32,6 +32,7 @@ export {
   animationName,
   variantHasAnimation,
   targetToDecls,
+  collectAnimatedProperties,
   easingToCss,
   type CssDecl
 } from "@transition/compileTransitionStyles";

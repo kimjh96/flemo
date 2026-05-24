@@ -8,6 +8,7 @@ import {
 
 import {
   animationName,
+  collectAnimatedProperties,
   decoratorMap,
   findScrollable,
   TaskManger,
@@ -52,11 +53,9 @@ function ScreenMotion({
 
   const status = useNavigationStore((state) => state.status);
   const dragStatus = useScreenStore((state) => state.dragStatus);
-  const sharedBars = useScreenStore((state) => state.sharedBars);
   const setDragStatus = useScreenStore.getState().setDragStatus;
   const setReplaceTransitionStatus = useScreenStore.getState().setReplaceTransitionStatus;
   const index = useHistoryStore((state) => state.index);
-  const histories = useHistoryStore((state) => state.histories);
 
   const currentTransition = (transitionMap.get(transitionName) ?? transitionMap.get("none"))!;
   const { initial, swipeDirection, decoratorName } = currentTransition;
@@ -458,60 +457,97 @@ function ScreenMotion({
     return () => unregisterSharedBars(id);
   }, [id, sharedAppBar, sharedNavigationBar]);
 
-  // Shared bars stay pinned via position:fixed during transitions between
-  // screens that share the same bar. When the partner screen lacks the bar
-  // this screen owns, the bar rides along by mirroring the scope's computed
-  // transform/opacity per frame. Raw requestAnimationFrame keeps the loop
-  // independent of motion's scheduler.
+  // Shared bars render outside the animated scope (siblings inside screenRef),
+  // so any transition the scope runs — transform, opacity, filter, custom
+  // properties — has no inherent effect on the bar. When the partner screen
+  // owns the same bar, this is exactly what we want: the bar appears to hand
+  // over seamlessly while screens animate underneath. When the partner does
+  // NOT own the bar, the bar must ride along with this screen's animation
+  // instead. To stay generic over arbitrary author-defined transitions, we
+  // collect the set of CSS properties the transition writes (from its
+  // `initial` + variant `value`s) and mirror each from scope to the bar every
+  // frame for the duration of the transition.
   const isTransitioning =
     status === "PUSHING" ||
     status === "POPPING" ||
     status === "REPLACING" ||
     dragStatus === "PENDING";
   const isTopOrTopPrev = isActive || zIndex === index - 1;
-  const partnerScreenId = isActive ? histories[index - 1]?.id : histories[index]?.id;
-  const partnerSharedBars = partnerScreenId ? sharedBars[partnerScreenId] : undefined;
-  const shouldRideSharedAppBar =
-    isTransitioning && isTopOrTopPrev && !!sharedAppBar && !partnerSharedBars?.appBar;
-  const shouldRideSharedNavigationBar =
-    isTransitioning && isTopOrTopPrev && !!sharedNavigationBar && !partnerSharedBars?.navigationBar;
+  const hasSharedAppBar = !!sharedAppBar;
+  const hasSharedNavigationBar = !!sharedNavigationBar;
 
-  useEffect(() => {
+  // `useLayoutEffect` so the first sync runs before paint — avoids a one-frame
+  // blip where the bar lags scope. Partner-registration is read synchronously
+  // from the store inside the rAF loop (not via React subscription) so a
+  // freshly-mounted partner Screen is picked up on the same frame as the
+  // transition's first paint, regardless of sibling commit-order.
+  useLayoutEffect(() => {
+    if (!isTransitioning || !isTopOrTopPrev) return;
+    if (!hasSharedAppBar && !hasSharedNavigationBar) return;
+
     const scope = scopeRef.current;
+    if (!scope) return;
     const appBarEl = sharedAppBarRef.current;
     const navBarEl = sharedNavigationBarRef.current;
 
-    if (appBarEl && !shouldRideSharedAppBar) {
-      appBarEl.style.transform = "";
-      appBarEl.style.opacity = "";
-    }
-    if (navBarEl && !shouldRideSharedNavigationBar) {
-      navBarEl.style.transform = "";
-      navBarEl.style.opacity = "";
-    }
+    const properties = collectAnimatedProperties(currentTransition);
+    if (properties.length === 0) return;
 
-    const ridingEls = [
-      shouldRideSharedAppBar ? appBarEl : null,
-      shouldRideSharedNavigationBar ? navBarEl : null
-    ].filter((el): el is HTMLDivElement => el !== null);
-
-    if (!scope || ridingEls.length === 0) return;
+    const clearStyles = (el: HTMLDivElement | null) => {
+      if (!el) return;
+      for (const prop of properties) {
+        el.style.removeProperty(prop);
+      }
+    };
 
     let rafId = 0;
     const sync = () => {
-      const { transform, opacity } = getComputedStyle(scope);
-      for (const el of ridingEls) {
-        el.style.transform = transform;
-        el.style.opacity = opacity;
+      const partnerId = isActive
+        ? useHistoryStore.getState().histories[index - 1]?.id
+        : useHistoryStore.getState().histories[index]?.id;
+      const partnerBars = partnerId ? useScreenStore.getState().sharedBars[partnerId] : undefined;
+      const rideApp = hasSharedAppBar && !partnerBars?.appBar;
+      const rideNav = hasSharedNavigationBar && !partnerBars?.navigationBar;
+
+      const computed = rideApp || rideNav ? getComputedStyle(scope) : null;
+
+      if (appBarEl) {
+        if (rideApp && computed) {
+          for (const prop of properties) {
+            appBarEl.style.setProperty(prop, computed.getPropertyValue(prop));
+          }
+        } else {
+          clearStyles(appBarEl);
+        }
       }
+      if (navBarEl) {
+        if (rideNav && computed) {
+          for (const prop of properties) {
+            navBarEl.style.setProperty(prop, computed.getPropertyValue(prop));
+          }
+        } else {
+          clearStyles(navBarEl);
+        }
+      }
+
       rafId = requestAnimationFrame(sync);
     };
     sync();
 
     return () => {
       cancelAnimationFrame(rafId);
+      clearStyles(appBarEl);
+      clearStyles(navBarEl);
     };
-  }, [shouldRideSharedAppBar, shouldRideSharedNavigationBar]);
+  }, [
+    isTransitioning,
+    isTopOrTopPrev,
+    hasSharedAppBar,
+    hasSharedNavigationBar,
+    isActive,
+    index,
+    currentTransition
+  ]);
 
   const initialStyle: { transform?: string; opacity?: string } = (() => {
     // Only the actively entering screen needs the initial style; everything
@@ -539,7 +575,11 @@ function ScreenMotion({
         width: "100%",
         height: "100%",
         display: "flex",
-        contain: "strict",
+        // `contain: layout style` keeps layout/style scoped without `paint`,
+        // which would make this element the containing block for `position:
+        // fixed` descendants and trap consumer overlays (e.g. bottom sheets)
+        // inside the screen.
+        contain: "layout style",
         flexDirection: "column",
         boxSizing: "border-box",
         overscrollBehavior: "contain"
