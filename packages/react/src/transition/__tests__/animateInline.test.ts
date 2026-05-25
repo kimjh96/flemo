@@ -54,7 +54,38 @@ describe("animateInline", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("clearInlineAnimation strips transform + opacity by default", () => {
+  it("clearInlineAnimation strips exactly the properties animateInline wrote", async () => {
+    // Hand-set styles that animateInline did NOT write should be left alone —
+    // only the properties it actually touched come off.
+    el.style.color = "rgb(255, 0, 0)";
+    await animateInline(el, { x: 50, opacity: 0.5 }, { duration: 0 });
+    expect(el.style.transform).toContain("translateX(50px)");
+    expect(el.style.opacity).toBe("0.5");
+
+    clearInlineAnimation(el);
+    expect(el.style.transform).toBe("");
+    expect(el.style.opacity).toBe("");
+    expect(el.style.transition).toBe("");
+    // Untouched hand-set property survives.
+    expect(el.style.color).toBe("rgb(255, 0, 0)");
+  });
+
+  it("clearInlineAnimation also strips non-transform properties (filter, etc.) when animated", async () => {
+    await animateInline(
+      el,
+      { filter: "blur(12px)", backgroundColor: "rgb(100, 100, 100)" },
+      { duration: 0 }
+    );
+    expect(el.style.filter).toBe("blur(12px)");
+    expect(el.style.backgroundColor).toBe("rgb(100, 100, 100)");
+
+    clearInlineAnimation(el);
+    expect(el.style.filter).toBe("");
+    expect(el.style.backgroundColor).toBe("");
+  });
+
+  it("clearInlineAnimation falls back to transform + opacity for untracked elements", () => {
+    // Element that animateInline never touched — defensive fallback.
     el.style.transform = "translateX(50px)";
     el.style.opacity = "0.5";
     el.style.transition = "transform 0.3s ease";

@@ -73,6 +73,11 @@ function ScreenMotion({
   const prevScreenRef = useRef<HTMLDivElement | null>(null);
   const decoratorRef = useRef<HTMLDivElement | null>(null);
   const prevDecoratorRef = useRef<HTMLDivElement | null>(null);
+  // Bars that should "ride along" with the current screen during this swipe.
+  // Captured at beginSwipe and consumed by the wrapped animate function, so
+  // bar inline writes happen in the same JS tick as the screen write — no
+  // rAF mirror, no one-frame trailing lag.
+  const swipeRidingBarsRef = useRef<HTMLDivElement[]>([]);
   const shouldStartDragRef = useRef(false);
   const isTouchPreventedRef = useRef(false);
   const swipeActiveRef = useRef(false);
@@ -122,6 +127,56 @@ function ScreenMotion({
     swipeLastTimeRef.current = now;
   };
 
+  // Wrap `animateInline` so any write to the current screen is mirrored to
+  // the riding shared bars in the SAME synchronous tick. Without this, the
+  // bars would need a rAF mirror loop that reads `getComputedStyle(scope)`
+  // every frame — and rAF dispatches in its own JS tick separate from the
+  // pointermove handler, so the bar always trailed the screen by one frame
+  // (visible mostly on user-driven swipe drags). Synchronous mirroring puts
+  // both elements in the same paint commit. Mirror only `currentScreen`
+  // writes; `prevScreen` writes are the partner-side state and bars don't
+  // ride them.
+  const animateSwipe: typeof animateInline = (target, value, options) => {
+    const result = animateInline(target, value, options);
+    if (target === scopeRef.current) {
+      for (const bar of swipeRidingBarsRef.current) {
+        animateInline(bar, value, options);
+      }
+    }
+    return result;
+  };
+
+  const captureRidingBars = () => {
+    const appBarEl = sharedAppBarRef.current;
+    const navBarEl = sharedNavigationBarRef.current;
+    if (!appBarEl && !navBarEl) {
+      swipeRidingBarsRef.current = [];
+      return;
+    }
+    const partnerId = isActive
+      ? useHistoryStore.getState().histories[index - 1]?.id
+      : useHistoryStore.getState().histories[index]?.id;
+    const partnerBars = partnerId ? useScreenStore.getState().sharedBars[partnerId] : undefined;
+    const riding: HTMLDivElement[] = [];
+    if (appBarEl && hasSharedAppBar && !partnerBars?.appBar) riding.push(appBarEl);
+    if (navBarEl && hasSharedNavigationBar && !partnerBars?.navigationBar) riding.push(navBarEl);
+    swipeRidingBarsRef.current = riding;
+
+    // Pre-promote the riding bars to their own compositing layer so the
+    // browser doesn't have to do layer creation on the first inline write.
+    const properties = collectAnimatedProperties(currentTransition);
+    const willChange = properties.join(", ");
+    for (const bar of riding) bar.style.willChange = willChange;
+  };
+
+  const releaseRidingBars = () => {
+    for (const bar of swipeRidingBarsRef.current) {
+      clearInlineAnimation(bar);
+      bar.style.removeProperty("will-change");
+    }
+    swipeRidingBarsRef.current = [];
+  };
+
   const beginSwipe = async (event: PointerEvent) => {
     if (!swipeDirection || viewportScrollHeight > 10) return;
 
@@ -144,9 +199,10 @@ function ScreenMotion({
     swipeLastTimeRef.current = event.timeStamp;
     swipeVelocityRef.current = { x: 0, y: 0 };
     scope.setPointerCapture(event.pointerId);
+    captureRidingBars();
 
     const isTriggered = await currentTransition?.onSwipeStart(event, buildSwipeInfo(event), {
-      animate: animateInline,
+      animate: animateSwipe,
       currentScreen: scope,
       prevScreen: prevScreenRef.current!,
       onStart: (triggered) =>
@@ -162,6 +218,7 @@ function ScreenMotion({
     } else {
       setDragStatus("IDLE");
       swipeActiveRef.current = false;
+      releaseRidingBars();
     }
   };
 
@@ -171,7 +228,7 @@ function ScreenMotion({
     updateSwipeVelocity(event);
 
     currentTransition.onSwipe(event, buildSwipeInfo(event), {
-      animate: animateInline,
+      animate: animateSwipe,
       currentScreen: scopeRef.current!,
       prevScreen: prevScreenRef.current!,
       onProgress: (triggered, progress) =>
@@ -195,7 +252,7 @@ function ScreenMotion({
     const info = buildSwipeInfo(event);
 
     const isTriggered = await currentTransition?.onSwipeEnd(event, info, {
-      animate: animateInline,
+      animate: animateSwipe,
       currentScreen: scopeRef.current!,
       prevScreen: prevScreenRef.current!,
       onStart: (triggered) =>
@@ -213,6 +270,14 @@ function ScreenMotion({
       // before animating again.
       scopeRef.current?.setAttribute(SKIP_ANIMATION_ATTR, "true");
       decoratorRef.current?.setAttribute(SKIP_ANIMATION_ATTR, "true");
+      // The riding bars are at the off-screen position and will unmount with
+      // the current screen via history.back(). Drop will-change so the
+      // browser can discard the layer cleanly; inline styles die with the DOM
+      // node on the next React commit.
+      for (const bar of swipeRidingBarsRef.current) {
+        bar.style.removeProperty("will-change");
+      }
+      swipeRidingBarsRef.current = [];
       window.history.back();
     } else {
       // Cancel: animation already played back to the rest position. Clear
@@ -221,6 +286,7 @@ function ScreenMotion({
       if (prevScreenRef.current) clearInlineAnimation(prevScreenRef.current);
       if (decoratorRef.current) clearInlineAnimation(decoratorRef.current);
       if (prevDecoratorRef.current) clearInlineAnimation(prevDecoratorRef.current);
+      releaseRidingBars();
       setDragStatus("IDLE");
     }
   };
@@ -366,6 +432,24 @@ function ScreenMotion({
     if (status === "COMPLETED") {
       setDragStatus("IDLE");
       setReplaceTransitionStatus("IDLE");
+      // Defensive cleanup. Inline `transform`/`opacity`/`transition` may have
+      // been written by a swipe handler — onSwipe writes during drag, and
+      // onSwipeEnd writes the cancel/commit animation. The swipe-cancel
+      // branch clears them on resolve, but the swipe-commit branch and any
+      // mid-flight navigation that interleaves can leave stale inline styles
+      // on this scope. Because ScreenFreeze keeps the DOM mounted via
+      // `display: none`, those styles outlive the original navigation and
+      // resurface when this screen becomes active again — inline > compiled
+      // CSS rest rule. Strip them now that we've settled as the active
+      // screen so the next push/pop runs against a clean slate.
+      if (scopeRef.current) {
+        clearInlineAnimation(scopeRef.current);
+        scopeRef.current.removeAttribute(SKIP_ANIMATION_ATTR);
+      }
+      if (decoratorRef.current) {
+        clearInlineAnimation(decoratorRef.current);
+        decoratorRef.current.removeAttribute(SKIP_ANIMATION_ATTR);
+      }
       return;
     }
 
@@ -471,12 +555,11 @@ function ScreenMotion({
   //    attributes here and toggle `data-flemo-bar-riding` based on partner
   //    ownership. The compositor drives both elements off one keyframe — no
   //    JS frame in the loop, no main-thread style read/write per frame.
-  // 2. Swipe drag (`dragStatus === "PENDING"`). The transition's swipe handler
-  //    writes inline `transform`/opacity on `currentScreen` via `animateInline`,
-  //    which is JS-driven and main-thread anyway. A small rAF loop mirrors
-  //    those inline values onto the bar for the duration of the swipe — same
-  //    technique as before, kept narrow to where it's needed.
-  const isSwiping = dragStatus === "PENDING";
+  // 2. Swipe drag. Handled synchronously inside the swipe lifecycle via
+  //    `animateSwipe` (see beginSwipe / continueSwipe / endSwipe above),
+  //    which mirrors every `animate(currentScreen, ...)` call to the riding
+  //    bars in the SAME JS tick. No rAF loop, no `getComputedStyle` reads —
+  //    the bars and the screen commit in the same paint pass.
   const isTopOrTopPrev = isActive || zIndex === index - 1;
   const hasSharedAppBar = !!sharedAppBar;
   const hasSharedNavigationBar = !!sharedNavigationBar;
@@ -521,79 +604,6 @@ function ScreenMotion({
       navBarEl?.removeAttribute("data-flemo-bar-riding");
     };
   }, [isTopOrTopPrev, isActive, index, hasSharedAppBar, hasSharedNavigationBar]);
-
-  // (2) Swipe-drag mirror — main-thread inline writes follow the pointer,
-  // bars trail by the same JS tick the pointer does, so visual sync is fine
-  // here. Kept narrow to `dragStatus === "PENDING"` so it never runs during
-  // CSS-driven transitions where it would re-introduce the lag we just fixed.
-  useLayoutEffect(() => {
-    if (!isSwiping || !isTopOrTopPrev) return;
-    if (!hasSharedAppBar && !hasSharedNavigationBar) return;
-
-    const scope = scopeRef.current;
-    if (!scope) return;
-    const appBarEl = sharedAppBarRef.current;
-    const navBarEl = sharedNavigationBarRef.current;
-
-    const properties = collectAnimatedProperties(currentTransition);
-    if (properties.length === 0) return;
-
-    const willChange = properties.join(", ");
-    if (appBarEl) appBarEl.style.willChange = willChange;
-    if (navBarEl) navBarEl.style.willChange = willChange;
-
-    const clearStyles = (el: HTMLDivElement | null) => {
-      if (!el) return;
-      for (const prop of properties) el.style.removeProperty(prop);
-    };
-
-    let rafId = 0;
-    const sync = () => {
-      const partnerId = isActive
-        ? useHistoryStore.getState().histories[index - 1]?.id
-        : useHistoryStore.getState().histories[index]?.id;
-      const partnerBars = partnerId ? useScreenStore.getState().sharedBars[partnerId] : undefined;
-      const rideApp = hasSharedAppBar && !partnerBars?.appBar;
-      const rideNav = hasSharedNavigationBar && !partnerBars?.navigationBar;
-      const computed = rideApp || rideNav ? getComputedStyle(scope) : null;
-      if (appBarEl) {
-        if (rideApp && computed) {
-          for (const prop of properties) {
-            appBarEl.style.setProperty(prop, computed.getPropertyValue(prop));
-          }
-        } else {
-          clearStyles(appBarEl);
-        }
-      }
-      if (navBarEl) {
-        if (rideNav && computed) {
-          for (const prop of properties) {
-            navBarEl.style.setProperty(prop, computed.getPropertyValue(prop));
-          }
-        } else {
-          clearStyles(navBarEl);
-        }
-      }
-      rafId = requestAnimationFrame(sync);
-    };
-    sync();
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      clearStyles(appBarEl);
-      clearStyles(navBarEl);
-      if (appBarEl) appBarEl.style.removeProperty("will-change");
-      if (navBarEl) navBarEl.style.removeProperty("will-change");
-    };
-  }, [
-    isSwiping,
-    isTopOrTopPrev,
-    hasSharedAppBar,
-    hasSharedNavigationBar,
-    isActive,
-    index,
-    currentTransition
-  ]);
 
   const initialStyle: { transform?: string; opacity?: string } = (() => {
     // Only the actively entering screen needs the initial style; everything

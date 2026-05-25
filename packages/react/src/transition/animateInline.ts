@@ -5,18 +5,49 @@ import type { SwipeAnimate } from "@flemo/core";
 const isHTMLElement = (target: unknown): target is HTMLElement =>
   typeof HTMLElement !== "undefined" && target instanceof HTMLElement;
 
-// Drop any inline transform/opacity/etc. so the underlying CSS rules can
-// take over (e.g., after a swipe is cancelled, the CSS rest rule resumes).
+// Track every CSS property animateInline has written to a given element, so
+// `clearInlineAnimation` can strip exactly that surface — regardless of which
+// transition (built-in or custom) owns the property. Without this, the
+// default-branch cleanup only stripped transform + opacity, leaking any other
+// animated property (e.g., `filter` on the playground's `blur` transition).
+const inlineWrites = new WeakMap<HTMLElement, Set<string>>();
+
+const trackInlineWrite = (el: HTMLElement, property: string) => {
+  let set = inlineWrites.get(el);
+  if (!set) {
+    set = new Set<string>();
+    inlineWrites.set(el, set);
+  }
+  set.add(property);
+};
+
+// Drop any inline styles animateInline wrote (transform / opacity / filter /
+// backgroundColor / ...) so the underlying CSS rules can take over (e.g.,
+// after a swipe is cancelled, the CSS rest rule resumes). Pass an explicit
+// `properties` list to override.
 export const clearInlineAnimation = (el: HTMLElement, properties?: string[]) => {
   el.style.transition = "";
-  if (!properties) {
-    el.style.removeProperty("transform");
-    el.style.removeProperty("opacity");
+  if (properties) {
+    const tracked = inlineWrites.get(el);
+    for (const property of properties) {
+      el.style.removeProperty(property);
+      tracked?.delete(property);
+    }
     return;
   }
-  for (const property of properties) {
-    el.style.removeProperty(property);
+  const tracked = inlineWrites.get(el);
+  if (tracked && tracked.size > 0) {
+    for (const property of tracked) {
+      el.style.removeProperty(property);
+    }
+    tracked.clear();
+    return;
   }
+  // Untracked element (animateInline never wrote here): fall back to
+  // stripping the two near-universal swipe targets so the contract stays
+  // useful for callers that hand in an arbitrary element.
+  el.style.removeProperty("transform");
+  el.style.removeProperty("opacity");
 };
 
 // Imperative replacement for Motion's `animate()` inside transition swipe
@@ -37,7 +68,10 @@ const animateInline: SwipeAnimate = (target, value, options = {}) => {
 
   if (duration <= 0 && delay <= 0) {
     el.style.transition = "none";
-    for (const d of decls) el.style.setProperty(d.property, d.value);
+    for (const d of decls) {
+      el.style.setProperty(d.property, d.value);
+      trackInlineWrite(el, d.property);
+    }
     return Promise.resolve();
   }
 
@@ -48,7 +82,10 @@ const animateInline: SwipeAnimate = (target, value, options = {}) => {
   // Force a reflow so the new `transition` value is in effect before we set
   // the target values (some browsers otherwise coalesce property mutations).
   void el.offsetWidth;
-  for (const d of decls) el.style.setProperty(d.property, d.value);
+  for (const d of decls) {
+    el.style.setProperty(d.property, d.value);
+    trackInlineWrite(el, d.property);
+  }
 
   return new Promise<void>((resolve) => {
     let settled = false;
