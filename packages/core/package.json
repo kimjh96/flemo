@@ -49,6 +49,7 @@
     "@flemo/eslint-config": "workspace:*",
     "@flemo/tsconfig": "workspace:*",
     "@types/node": "^24.3.0",
+    "csstype": "^3.2.3",
     "eslint": "^9.33.0",
     "jsdom": "^25.0.1",
     "typescript": "^5.9.2",
