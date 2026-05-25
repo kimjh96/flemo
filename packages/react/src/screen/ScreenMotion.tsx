@@ -483,6 +483,13 @@ function ScreenMotion({
       // resurface when this screen becomes active again — inline > compiled
       // CSS rest rule. Strip them now that we've settled as the active
       // screen so the next push/pop runs against a clean slate.
+      //
+      // Same applies to this screen's shared bars: the swipe-mirror writes
+      // inline styles via `animateSwipe`, and if a release path is missed
+      // (interleaved navigation, a partner whose ride-along path didn't
+      // finalize, etc.) the bar would sit at the off-screen position even
+      // after the owning screen settled as active. Clearing here also
+      // re-bases bars to the compiled CSS rest rule.
       if (scopeRef.current) {
         clearInlineAnimation(scopeRef.current);
         scopeRef.current.removeAttribute(SKIP_ANIMATION_ATTR);
@@ -490,6 +497,14 @@ function ScreenMotion({
       if (decoratorRef.current) {
         clearInlineAnimation(decoratorRef.current);
         decoratorRef.current.removeAttribute(SKIP_ANIMATION_ATTR);
+      }
+      if (sharedAppBarRef.current) {
+        clearInlineAnimation(sharedAppBarRef.current);
+        sharedAppBarRef.current.style.removeProperty("will-change");
+      }
+      if (sharedNavigationBarRef.current) {
+        clearInlineAnimation(sharedNavigationBarRef.current);
+        sharedNavigationBarRef.current.style.removeProperty("will-change");
       }
       return;
     }
