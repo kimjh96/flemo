@@ -3,7 +3,7 @@
 import { albums } from "@/app/playground/_data/albums";
 import usePlayerStore from "@/app/playground/_stores/usePlayerStore";
 
-const VISIBLE_TRACK_COUNT = 14;
+const VISIBLE_TRACK_COUNT = 60;
 
 function LibrarySongsList() {
   const setTrack = usePlayerStore((state) => state.setTrack);

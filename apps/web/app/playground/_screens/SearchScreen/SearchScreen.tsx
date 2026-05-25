@@ -12,7 +12,7 @@ import SearchAppBar from "./SearchAppBar";
 import SearchArtistRow from "./SearchArtistRow";
 import SearchSection from "./SearchSection";
 
-const TOP_PICK_LIMIT = 6;
+const TOP_PICK_LIMIT = 24;
 
 function SearchScreen() {
   const [query, setQuery] = useState("");
