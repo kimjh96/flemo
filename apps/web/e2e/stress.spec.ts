@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  activeScreen,
   albumTile,
   allScreens,
   trackConsoleErrors,
@@ -93,6 +94,83 @@ test.describe("playground — stress", () => {
       await waitForTransitionSettled(page);
     }
 
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+
+  test("deep stack 3-level (Library → Album → NowPlaying) then bulk pop, repeated 5×", async ({
+    page
+  }) => {
+    const { errors } = trackConsoleErrors(page);
+    await page.goto("/playground");
+    await waitForTransitionSettled(page);
+
+    for (let i = 0; i < 5; i++) {
+      // push #1: Library → Album
+      await albumTile(page, i % 4).click();
+      await expect(page).toHaveURL(/\/album\/[^/]+$/);
+      await waitForTransitionSettled(page);
+
+      // push #2: Album → NowPlaying via the artwork "Play <album>" button.
+      await activeScreen(page)
+        .getByRole("button", { name: /^Play / })
+        .click();
+      await expect(page).toHaveURL(/\/now-playing$/);
+      await waitForTransitionSettled(page);
+
+      // Mid-stress: 3 screens mounted.
+      expect(await allScreens(page).count()).toBe(3);
+
+      // Bulk pop: NowPlaying → Album → Library, both via browser back.
+      await page.goBack();
+      await waitForTransitionSettled(page);
+      await page.goBack();
+      await waitForTransitionSettled(page);
+
+      // Back at the Library root.
+      await expect(page.getByRole("heading", { name: "Library" })).toBeVisible();
+      expect(await allScreens(page).count()).toBe(1);
+    }
+
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+
+  test("push + replace + pop interleaved 6× (real navigate API mix)", async ({ page }) => {
+    const { errors } = trackConsoleErrors(page);
+    await page.goto("/playground");
+    await waitForTransitionSettled(page);
+
+    const segments = ["Songs", "Artists", "Albums"] as const;
+
+    // Each iteration touches all three navigate verbs in order:
+    //   1. replace — Library segment switch (`navigate.replace("/", {...})`)
+    //   2. replace — Tab nav into Search (`navigate.replace("/search", ...)`)
+    //   3. replace — Tab nav back to Library
+    //   4. push   — Library → Album
+    //   5. pop    — Album → Library
+    // The Library root is shared by replace and push origins, so this is
+    // the closest mix of all three on the same screen flow.
+    for (let i = 0; i < 6; i++) {
+      const segment = segments[i % segments.length]!;
+      await page.getByRole("button", { name: segment }).click();
+      await waitForTransitionSettled(page);
+
+      await page.getByRole("button", { name: "Search" }).click();
+      await waitForTransitionSettled(page);
+
+      await page.getByRole("button", { name: "Library" }).click();
+      await waitForTransitionSettled(page);
+
+      await albumTile(page, i % 4).click();
+      await expect(page).toHaveURL(/\/album\/[^/]+$/);
+      await waitForTransitionSettled(page);
+
+      await page.getByRole("button", { name: "Back" }).click();
+      await waitForTransitionSettled(page);
+    }
+
+    // End on Library — push/replace/pop in any combination must converge.
+    await expect(page.getByRole("heading", { name: "Library" })).toBeVisible();
+    expect(await allScreens(page).count()).toBe(1);
     expect(errors, errors.join("\n")).toEqual([]);
   });
 
