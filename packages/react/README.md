@@ -28,9 +28,9 @@ dependency. Apps that only need transition compilers or the navigation queue can
 
 ## Documentation
 
-See [flemo-web.vercel.app](https://flemo-web.vercel.app) for the full guide — getting started,
+See [flemo.dev](https://flemo.dev) for the full guide — getting started,
 transitions, shared-element morphs, gestures, and the complete API reference. A live playground is
-at [flemo-web.vercel.app/playground](https://flemo-web.vercel.app/playground).
+at [flemo.dev/playground](https://flemo.dev/playground).
 
 ## License
 
