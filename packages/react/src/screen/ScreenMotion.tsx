@@ -73,11 +73,17 @@ function ScreenMotion({
   const prevScreenRef = useRef<HTMLDivElement | null>(null);
   const decoratorRef = useRef<HTMLDivElement | null>(null);
   const prevDecoratorRef = useRef<HTMLDivElement | null>(null);
-  // Bars that should "ride along" with the current screen during this swipe.
-  // Captured at beginSwipe and consumed by the wrapped animate function, so
-  // bar inline writes happen in the same JS tick as the screen write — no
-  // rAF mirror, no one-frame trailing lag.
-  const swipeRidingBarsRef = useRef<HTMLDivElement[]>([]);
+  // Bars that should "ride along" during this swipe — split by which screen
+  // they belong to. `current` are this screen's bars (mirrored when the
+  // swipe handler writes to `currentScreen`); `prev` are the partner
+  // screen's bars (mirrored when the handler writes to `prevScreen`, which
+  // cupertino / material both do). Captured at beginSwipe and consumed by
+  // the wrapped animate function, so bar inline writes happen in the same
+  // JS tick as the screen write — no rAF mirror, no one-frame trailing lag.
+  const swipeRidingBarsRef = useRef<{ current: HTMLDivElement[]; prev: HTMLDivElement[] }>({
+    current: [],
+    prev: []
+  });
   const shouldStartDragRef = useRef(false);
   const isTouchPreventedRef = useRef(false);
   const swipeActiveRef = useRef(false);
@@ -127,54 +133,82 @@ function ScreenMotion({
     swipeLastTimeRef.current = now;
   };
 
-  // Wrap `animateInline` so any write to the current screen is mirrored to
-  // the riding shared bars in the SAME synchronous tick. Without this, the
-  // bars would need a rAF mirror loop that reads `getComputedStyle(scope)`
-  // every frame — and rAF dispatches in its own JS tick separate from the
-  // pointermove handler, so the bar always trailed the screen by one frame
-  // (visible mostly on user-driven swipe drags). Synchronous mirroring puts
-  // both elements in the same paint commit. Mirror only `currentScreen`
-  // writes; `prevScreen` writes are the partner-side state and bars don't
-  // ride them.
+  // Wrap `animateInline` so any write to a screen is mirrored to the bars
+  // that ride along with that screen — in the SAME synchronous tick. Without
+  // this, the bars would need a rAF mirror loop that reads
+  // `getComputedStyle(scope)` every frame — and rAF dispatches in its own JS
+  // tick separate from the pointermove handler, so the bar always trailed
+  // the screen by one frame (visible mostly on user-driven swipe drags).
+  // Synchronous mirroring puts both elements in the same paint commit.
+  //
+  // Why two ride lists (current + prev): cupertino / material both call
+  // `animate(currentScreen, ...)` AND `animate(prevScreen, ...)` per swipe
+  // tick. If the previous screen has a bar that the current screen doesn't
+  // (e.g., a tab bar on the home screen that a detail screen hides), that
+  // bar must ride the previous screen as it slides back in. The previous
+  // ScreenMotion instance is not the swipe-driver, so we cover it from here.
   const animateSwipe: typeof animateInline = (target, value, options) => {
     const result = animateInline(target, value, options);
     if (target === scopeRef.current) {
-      for (const bar of swipeRidingBarsRef.current) {
+      for (const bar of swipeRidingBarsRef.current.current) {
+        animateInline(bar, value, options);
+      }
+    } else if (target === prevScreenRef.current) {
+      for (const bar of swipeRidingBarsRef.current.prev) {
         animateInline(bar, value, options);
       }
     }
     return result;
   };
 
-  const captureRidingBars = () => {
-    const appBarEl = sharedAppBarRef.current;
-    const navBarEl = sharedNavigationBarRef.current;
-    if (!appBarEl && !navBarEl) {
-      swipeRidingBarsRef.current = [];
-      return;
-    }
+  const captureRidingBars = (prevScreenContainer: HTMLDivElement | null) => {
     const partnerId = isActive
       ? useHistoryStore.getState().histories[index - 1]?.id
       : useHistoryStore.getState().histories[index]?.id;
     const partnerBars = partnerId ? useScreenStore.getState().sharedBars[partnerId] : undefined;
-    const riding: HTMLDivElement[] = [];
-    if (appBarEl && hasSharedAppBar && !partnerBars?.appBar) riding.push(appBarEl);
-    if (navBarEl && hasSharedNavigationBar && !partnerBars?.navigationBar) riding.push(navBarEl);
-    swipeRidingBarsRef.current = riding;
+
+    // Current side: this screen's own bars, ride if the partner doesn't have
+    // a matching bar.
+    const current: HTMLDivElement[] = [];
+    const appBarEl = sharedAppBarRef.current;
+    const navBarEl = sharedNavigationBarRef.current;
+    if (appBarEl && hasSharedAppBar && !partnerBars?.appBar) current.push(appBarEl);
+    if (navBarEl && hasSharedNavigationBar && !partnerBars?.navigationBar) current.push(navBarEl);
+
+    // Prev side: the partner screen's bars (rendered in its own subtree),
+    // ride if this screen doesn't have a matching bar. We query the partner
+    // container directly so we don't need to reach into the partner
+    // ScreenMotion instance.
+    const prev: HTMLDivElement[] = [];
+    if (prevScreenContainer) {
+      const prevAppBar =
+        prevScreenContainer.querySelector<HTMLDivElement>('[data-flemo-bar="app"]');
+      const prevNavBar =
+        prevScreenContainer.querySelector<HTMLDivElement>('[data-flemo-bar="nav"]');
+      if (prevAppBar && !hasSharedAppBar) prev.push(prevAppBar);
+      if (prevNavBar && !hasSharedNavigationBar) prev.push(prevNavBar);
+    }
+
+    swipeRidingBarsRef.current = { current, prev };
 
     // Pre-promote the riding bars to their own compositing layer so the
     // browser doesn't have to do layer creation on the first inline write.
     const properties = collectAnimatedProperties(currentTransition);
     const willChange = properties.join(", ");
-    for (const bar of riding) bar.style.willChange = willChange;
+    for (const bar of current) bar.style.willChange = willChange;
+    for (const bar of prev) bar.style.willChange = willChange;
   };
 
   const releaseRidingBars = () => {
-    for (const bar of swipeRidingBarsRef.current) {
+    for (const bar of swipeRidingBarsRef.current.current) {
       clearInlineAnimation(bar);
       bar.style.removeProperty("will-change");
     }
-    swipeRidingBarsRef.current = [];
+    for (const bar of swipeRidingBarsRef.current.prev) {
+      clearInlineAnimation(bar);
+      bar.style.removeProperty("will-change");
+    }
+    swipeRidingBarsRef.current = { current: [], prev: [] };
   };
 
   const beginSwipe = async (event: PointerEvent) => {
@@ -199,7 +233,7 @@ function ScreenMotion({
     swipeLastTimeRef.current = event.timeStamp;
     swipeVelocityRef.current = { x: 0, y: 0 };
     scope.setPointerCapture(event.pointerId);
-    captureRidingBars();
+    captureRidingBars(prevScreenContainer);
 
     const isTriggered = await currentTransition?.onSwipeStart(event, buildSwipeInfo(event), {
       animate: animateSwipe,
@@ -270,14 +304,21 @@ function ScreenMotion({
       // before animating again.
       scopeRef.current?.setAttribute(SKIP_ANIMATION_ATTR, "true");
       decoratorRef.current?.setAttribute(SKIP_ANIMATION_ATTR, "true");
-      // The riding bars are at the off-screen position and will unmount with
-      // the current screen via history.back(). Drop will-change so the
-      // browser can discard the layer cleanly; inline styles die with the DOM
-      // node on the next React commit.
-      for (const bar of swipeRidingBarsRef.current) {
+      // Current-side bars unmount with the current screen via history.back()
+      // — just drop will-change so the layer can be discarded.
+      for (const bar of swipeRidingBarsRef.current.current) {
         bar.style.removeProperty("will-change");
       }
-      swipeRidingBarsRef.current = [];
+      // Prev-side bars belong to the screen that's becoming active and
+      // outlive the navigation. Strip the inline transforms we wrote during
+      // the swipe so they don't interfere with the next compiled rule (which
+      // would otherwise be shadowed by inline styles at fill-mode-forwards
+      // resting).
+      for (const bar of swipeRidingBarsRef.current.prev) {
+        clearInlineAnimation(bar);
+        bar.style.removeProperty("will-change");
+      }
+      swipeRidingBarsRef.current = { current: [], prev: [] };
       window.history.back();
     } else {
       // Cancel: animation already played back to the rest position. Clear
