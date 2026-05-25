@@ -1,6 +1,5 @@
-export type NowPlayingTab = "player" | "queue" | "lyrics";
+export type NowPlayingSheet = "queue" | "lyrics";
 
 export interface NowPlayingStepParams {
-  tab?: NowPlayingTab;
-  expanded?: boolean;
+  sheet?: NowPlayingSheet;
 }

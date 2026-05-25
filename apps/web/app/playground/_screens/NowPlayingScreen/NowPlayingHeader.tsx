@@ -3,8 +3,8 @@
 import { useStep } from "@flemo/react";
 
 function NowPlayingHeader() {
-  // `popStep` first tries to pop a step boundary (e.g., back out of an
-  // expanded panel pushed via pushStep). When there's no step to pop, it
+  // `popStep` first tries to pop a step boundary (e.g., close an open
+  // bottom sheet pushed via pushStep). When there's no step to pop, it
   // falls through to a screen pop — same effect as `navigate.pop` but it
   // also unwinds any in-progress useStep state along the way.
   const { popStep } = useStep<"/now-playing">();

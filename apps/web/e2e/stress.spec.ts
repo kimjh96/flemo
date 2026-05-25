@@ -174,7 +174,7 @@ test.describe("playground — stress", () => {
     expect(errors, errors.join("\n")).toEqual([]);
   });
 
-  test("useStep replaceStep tab cycling 18× on NowPlaying (no remount)", async ({ page }) => {
+  test("useStep replaceStep sheet swap 18× on NowPlaying (no remount)", async ({ page }) => {
     const { errors } = trackConsoleErrors(page);
     await page.goto("/playground");
     await waitForTransitionSettled(page);
@@ -191,26 +191,26 @@ test.describe("playground — stress", () => {
     // proves replaceStep added no new entries.
     expect(await allScreens(page).count()).toBe(3);
 
-    const tabs = ["Up Next", "Lyrics", "Player"] as const;
+    // Open the Up Next sheet — one pushStep — then 18 in-sheet swaps via
+    // the trailing swap chip (replaceStep). The screen count must stay at
+    // 3 the entire time.
+    await activeScreen(page).getByRole("button", { name: "Up Next" }).click();
+    await expect(page.locator('[data-flemo-step-pane="queue"]')).toBeVisible();
+
     for (let i = 0; i < 18; i++) {
-      const target = tabs[i % tabs.length]!;
-      await page.getByRole("tab", { name: target }).click();
-      // replaceStep updates ParamsContext via dispatch; aria-selected on the
-      // new tab flips synchronously after the task settles.
-      await expect(page.getByRole("tab", { name: target })).toHaveAttribute(
-        "aria-selected",
-        "true"
-      );
+      const next = i % 2 === 0 ? "lyrics" : "queue";
+      await page.locator('[data-flemo-step-action="swap-sheet"]').click();
+      await expect(page.locator(`[data-flemo-step-pane="${next}"]`)).toBeVisible();
     }
 
-    // Critical invariant: screen count unchanged. replaceStep doesn't push
-    // a new history entry — only the existing NowPlaying entry's state is
-    // mutated.
+    // Critical invariant: replaceStep adds no entries. The opening pushStep
+    // also keeps the screen count at 3 — step state lives inside the
+    // existing NowPlaying entry.
     expect(await allScreens(page).count()).toBe(3);
     expect(errors, errors.join("\n")).toEqual([]);
   });
 
-  test("useStep pushStep + popStep round-trip 8× (expand + collapse details)", async ({ page }) => {
+  test("useStep pushStep + popStep round-trip 8× (open + close bottom sheet)", async ({ page }) => {
     const { errors } = trackConsoleErrors(page);
     await page.goto("/playground");
     await waitForTransitionSettled(page);
@@ -223,15 +223,13 @@ test.describe("playground — stress", () => {
     await waitForTransitionSettled(page);
 
     for (let i = 0; i < 8; i++) {
-      // pushStep — Player tab "Show album details" button.
-      await page.getByRole("button", { name: "Show album details" }).click();
-      await expect(page.locator('[data-flemo-step-pane-detail="player-expanded"]')).toBeVisible();
+      // pushStep — the Up Next button opens the bottom sheet.
+      await activeScreen(page).getByRole("button", { name: "Up Next" }).click();
+      await expect(page.locator('[data-flemo-bottom-sheet="open"]')).toBeVisible();
 
-      // popStep — the explicit Close button on the detail pane.
-      await page.getByRole("button", { name: "Close details" }).click();
-      await expect(
-        page.locator('[data-flemo-step-pane-detail="player-expanded"]')
-      ).not.toBeVisible();
+      // popStep — the sheet's X button closes it.
+      await page.locator("[data-flemo-bottom-sheet-close]").click();
+      await expect(page.locator('[data-flemo-bottom-sheet="open"]')).toHaveCount(0);
     }
 
     // Stack stays at three screens for the entire round-trip.
@@ -251,9 +249,9 @@ test.describe("playground — stress", () => {
     //   navigate.replace    — Library segment + Tab bar
     //   navigate.push       — Library → Album → NowPlaying
     //   navigate.pop        — back to Album, back to Library
-    //   useStep.replaceStep — switch NowPlaying tab
-    //   useStep.pushStep    — expand album details (Player tab)
-    //   useStep.popStep     — collapse details (pane button + header Close)
+    //   useStep.pushStep    — open the Up Next bottom sheet
+    //   useStep.replaceStep — swap sheet contents in place (queue ↔ lyrics)
+    //   useStep.popStep     — close the sheet, header Close screen-pop
     for (let i = 0; i < 3; i++) {
       // (1) navigate.replace — segment switch
       await page.getByRole("button", { name: "Songs" }).click();
@@ -275,33 +273,20 @@ test.describe("playground — stress", () => {
         .click();
       await waitForTransitionSettled(page);
 
-      // (4) useStep.replaceStep — switch to Up Next
-      await page.getByRole("tab", { name: "Up Next" }).click();
-      await expect(page.getByRole("tab", { name: "Up Next" })).toHaveAttribute(
-        "aria-selected",
-        "true"
-      );
+      // (4) useStep.pushStep — open the Up Next bottom sheet
+      await activeScreen(page).getByRole("button", { name: "Up Next" }).click();
+      await expect(page.locator('[data-flemo-step-pane="queue"]')).toBeVisible();
 
-      // (5) useStep.replaceStep — back to Player (where pushStep target lives)
-      await page.getByRole("tab", { name: "Player" }).click();
-      await expect(page.getByRole("tab", { name: "Player" })).toHaveAttribute(
-        "aria-selected",
-        "true"
-      );
+      // (5) useStep.replaceStep — swap to Lyrics in place
+      await page.locator('[data-flemo-step-action="swap-sheet"]').click();
+      await expect(page.locator('[data-flemo-step-pane="lyrics"]')).toBeVisible();
 
-      // (6) useStep.pushStep — expand details
-      await page.getByRole("button", { name: "Show album details" }).click();
-      await expect(page.locator('[data-flemo-step-pane-detail="player-expanded"]')).toBeVisible();
+      // (6) useStep.popStep — close the sheet via its X button
+      await page.locator("[data-flemo-bottom-sheet-close]").click();
+      await expect(page.locator('[data-flemo-bottom-sheet="open"]')).toHaveCount(0);
 
-      // (7) useStep.popStep — collapse via dedicated Close button
-      await page.getByRole("button", { name: "Close details" }).click();
-      await expect(
-        page.locator('[data-flemo-step-pane-detail="player-expanded"]')
-      ).not.toBeVisible();
-
-      // (8) navigate.pop × 2 — header Close uses popStep but crosses the
-      // step boundary into a screen pop because no steps remain. Then the
-      // Album back button screen-pops to Library.
+      // (7) navigate.pop × 2 — header Close screen-pops (no steps remain),
+      // then the Album back button screen-pops to Library.
       await page.getByRole("button", { name: "Close" }).click();
       await waitForTransitionSettled(page);
       await page.getByRole("button", { name: "Back" }).click();
