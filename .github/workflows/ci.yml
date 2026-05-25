@@ -76,6 +76,9 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm --filter @flemo/web exec playwright install-deps chromium
 
+      - name: Build workspace deps for @flemo/web
+        run: pnpm turbo run build --filter=@flemo/web
+
       - name: Playwright
         run: pnpm --filter @flemo/web exec playwright test --project=chromium
 
