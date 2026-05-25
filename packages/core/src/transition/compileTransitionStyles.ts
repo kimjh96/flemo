@@ -73,6 +73,11 @@ const UNITLESS_PROPS = new Set([
 ]);
 
 const numberToPx = (value: number, prop: string) => {
+  // CSS custom properties are typeless — a number could mean "16 spacing
+  // tokens", a count, a ratio, etc. Emit the raw scalar so authors can
+  // shape the unit themselves at use site (e.g., `calc(var(--space) * 1px)`).
+  // Mirrors React's `name.startsWith("--")` short-circuit.
+  if (prop.startsWith("--")) return `${value}`;
   if (UNITLESS_PROPS.has(prop)) return `${value}`;
   if (prop === "rotate" || prop === "rotateX" || prop === "rotateY" || prop === "rotateZ") {
     return `${value}deg`;

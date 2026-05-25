@@ -22,6 +22,7 @@ declare module "@transition/typing" {
     "custom-rich-css": "custom-rich-css";
     "custom-unitless": "custom-unitless";
     "custom-lengths": "custom-lengths";
+    "custom-css-vars": "custom-css-vars";
   }
 }
 
@@ -206,6 +207,24 @@ describe("compileTransitionStyles", () => {
     expect(css).not.toMatch(/font-weight: 600px/);
     expect(css).not.toMatch(/z-index: 10px/);
     expect(css).not.toMatch(/flex-grow: 1px/);
+  });
+
+  it("does NOT append `px` to CSS custom property values (typeless `--foo`)", () => {
+    const custom = createTransition({
+      name: "custom-css-vars",
+      initial: { "--space": 0, "--ratio": 1 },
+      idle: { value: { "--space": 16, "--ratio": 1.5 }, options: { duration: 0 } },
+      enter: { value: { "--space": 16, "--ratio": 1.5 }, options: { duration: 0.3 } },
+      enterBack: { value: { "--space": 0, "--ratio": 1 }, options: { duration: 0.3 } },
+      exit: { value: { "--space": 0, "--ratio": 1 }, options: { duration: 0.3 } },
+      exitBack: { value: { "--space": 16, "--ratio": 1.5 }, options: { duration: 0.3 } }
+    });
+
+    const css = compileTransitionStyles([custom], []);
+    expect(css).toMatch(/--space: 16;/);
+    expect(css).toMatch(/--ratio: 1\.5;/);
+    expect(css).not.toMatch(/--space: 16px/);
+    expect(css).not.toMatch(/--ratio: 1\.5px/);
   });
 
   it("still appends `px` to length-like number values (width, top, margin)", () => {
