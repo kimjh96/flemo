@@ -29,7 +29,7 @@ test.describe("playground — smoke", () => {
   test("standalone view shows the toggle panel beside the phone frame", async ({ page }) => {
     await page.goto("/playground");
     await waitForTransitionSettled(page);
-    await expect(page.getByRole("heading", { name: "Pick the screen transition" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pick how screens animate in" })).toBeVisible();
     await expect(page.getByText("Mini-player + tab bar")).toBeVisible();
   });
 
