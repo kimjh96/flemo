@@ -691,7 +691,18 @@ function ScreenMotion({
             display: "flex",
             flexDirection: "column",
             flexGrow: 1,
-            overflowY: contentScrollable ? "auto" : undefined
+            overflowY: contentScrollable ? "auto" : undefined,
+            // Hint a dedicated compositor layer for the scroll container so
+            // its `scrollTop` survives the screen scope's layer demotion at
+            // the end of each transition. Without this, iOS Safari resets
+            // scrolled content to 0 when the parent scope's `will-change:
+            // transform` layer is dropped on `animationend` (most visible
+            // on push → pop of a previously-scrolled root screen).
+            // `will-change: scroll-position` is the correct hint for scroll
+            // containers — unlike `transform`-based promotion, it does not
+            // create a containing block for fixed descendants, so consumer
+            // overlays (bottom sheets, dialogs) keep their viewport anchor.
+            willChange: contentScrollable ? "scroll-position" : undefined
           }}
         >
           {children}
