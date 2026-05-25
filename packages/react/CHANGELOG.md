@@ -1,5 +1,15 @@
 # @flemo/react
 
+## 1.0.3
+
+### Patch Changes
+
+- [`5b5eb2f`](https://github.com/kimjh96/flemo/commit/5b5eb2ffb7a940e7b0f4bc38babbbd72234ba937) Migrate the canonical site URL from `flemo-web.vercel.app` to `flemo.dev`. Updates `homepage` in the three published packages' `package.json` (so npm shows the new domain), the docs landing's `metadataBase` (so OG / canonical tags resolve under `flemo.dev`), and the `@flemo/react` README links. The old Vercel preview URL stays accessible but `flemo.dev` is the home from this release onward.
+
+- [`077cf72`](https://github.com/kimjh96/flemo/commit/077cf727bc41db8d6954b4aee331783ea035daba) Extend the active-settle defensive cleanup to this screen's shared bars. The previous patch ([[stale-inline-swipe-styles]]) cleaned `scopeRef` and `decoratorRef` when a screen finished settling as active, but the shared `appBar` / `navigationBar` refs were not in the cleanup set. The swipe-mirror writes inline `transform` / `opacity` / `filter` / etc. to bars in lockstep with the screen, and if any release path is missed (interleaved navigation, a partner whose ride-along path didn't finalize, an unusual transition-driver order) the bar would sit at the swipe-time position even after the owning screen settled as active — same symptom class as the screen bug, just on the bar. Now bars are stripped of their inline styles and `will-change` hint in the same useEffect that handles the screen, so the compiled CSS rest rule cleanly owns the bar at rest.
+- Updated dependencies ([`5b5eb2f`](https://github.com/kimjh96/flemo/commit/5b5eb2ffb7a940e7b0f4bc38babbbd72234ba937)):
+  - @flemo/core@1.0.2
+
 ## 1.0.2
 
 ### Patch Changes
