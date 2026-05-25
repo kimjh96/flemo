@@ -1,5 +1,23 @@
 # @flemo/react
 
+## 1.0.2
+
+### Patch Changes
+
+- [`3e883cc`](https://github.com/kimjh96/flemo/commit/3e883cc9798f30de180ea35efaed4e32523cd350) Two-layer fix for stale inline swipe styles surviving a navigation cycle and resurfacing on a later visit. flemo keeps inactive screens mounted via `display: none` (`ScreenFreeze`), so any inline `transform` / `opacity` / `filter` / `backgroundColor` / etc. that a swipe handler wrote via `animateInline` outlives the original navigation. Because inline styles beat the compiled CSS rest rule (`animation-fill-mode: forwards`), the screen renders at the stale "previous-screen waiting" position when it next becomes active.
+
+  First layer — make `clearInlineAnimation` actually clean what `animateInline` wrote: a per-element WeakMap tracks every property animateInline sets, and the default-branch cleanup now strips exactly that surface. Previously it only removed `transform` + `opacity`, leaking any other animated property (e.g., `filter` on a custom blur transition). Untracked elements still fall back to the transform + opacity pair for defensive behavior.
+
+  Second layer — defensive cleanup in `ScreenMotion`: every time a screen settles as the active topmost screen (`status === "COMPLETED"`), strip leftover inline animation styles and the `data-flemo-skip-animation` marker on the scope and decorator. This catches stale state from any path — the swipe-commit branch (which intentionally leaves the screen at its final inline position), interleaved navigation mid-cancel, custom transitions, decorators, anything — without needing each path to remember to clean up.
+
+- [`3e883cc`](https://github.com/kimjh96/flemo/commit/3e883cc9798f30de180ea35efaed4e32523cd350) Eliminate the one-frame lag between a screen and its riding shared bars during user-driven swipe drag. The previous swipe mirror was a `requestAnimationFrame` loop that read `getComputedStyle(scope)` and wrote the value back to each bar — but rAF runs in its own JS tick separate from the `pointermove` handler that just wrote the screen, so the bar's commit always landed in the next paint pass. On mobile and slower devices this trailed visibly even though push / pop transitions (compositor-driven via the keyframe sibling selector) were already pixel-perfect.
+
+  The mirror is now synchronous. `animateInline` is wrapped at the swipe lifecycle boundary (`beginSwipe` / `continueSwipe` / `endSwipe`) and intercepts every write to `currentScreen` or `prevScreen`, mirroring it to whichever bars ride that screen in the SAME JS tick. There is no rAF, no `getComputedStyle` read, no second pass — the browser composites the screen and the bars in one paint commit.
+
+  Two ride lists are captured at `beginSwipe`: the current screen's bars (mirrored when the swipe handler writes to `currentScreen`), and the previous screen's bars (mirrored when it writes to `prevScreen` — both cupertino and material drive both screens per swipe tick). The previous-side bars are found by querying the partner screen container directly, so the swipe-driver doesn't need to reach into the partner ScreenMotion instance. Without this two-list split, an app whose previous screen owns a shared bar the current screen doesn't (e.g., a tab bar on the home screen, hidden on a detail screen) would see that bar fail to follow the swipe at all.
+
+  The `will-change` hint moves to swipe-start so the riding bars pre-promote to their own compositing layer before the first inline write, and is cleared on swipe-end (or on commit, before `history.back()`, so the layer can be discarded cleanly). On commit, the previous-side bars are also stripped of any inline styles the swipe wrote — those would otherwise shadow the compiled CSS rest rule when the previous screen settles as active.
+
 ## 1.0.1
 
 ### Patch Changes
