@@ -21,14 +21,18 @@
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "turbo run build --filter=\"./packages/*\" && changeset publish",
+    "build:packages": "turbo run build --filter=@flemo/core --filter=@flemo/react --filter=@flemo/react-layout",
+    "size": "size-limit",
     "prepare": "husky"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.6.0",
     "@changesets/cli": "^2.27.10",
+    "@size-limit/preset-small-lib": "^11.1.6",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.5",
     "prettier": "^3.6.2",
+    "size-limit": "^11.1.6",
     "turbo": "^2.3.3"
   },
   "packageManager": "pnpm@10.28.2",
