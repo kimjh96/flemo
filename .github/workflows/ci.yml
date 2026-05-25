@@ -42,6 +42,25 @@ jobs:
       - name: Build
         run: pnpm turbo run build
 
+  e2e:
+    name: E2E
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
       - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@v4
@@ -57,7 +76,7 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm --filter @flemo/web exec playwright install-deps chromium
 
-      - name: E2E (Playwright)
+      - name: Playwright
         run: pnpm --filter @flemo/web exec playwright test --project=chromium
 
       - name: Upload Playwright report
