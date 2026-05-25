@@ -29,14 +29,34 @@ test.describe("playground — stress", () => {
     expect(errors, errors.join("\n")).toEqual([]);
   });
 
-  test("rapid push during in-flight transition is ignored (push-guard)", async ({ page }) => {
+  test("push during in-flight transition is ignored (push-guard)", async ({ page }) => {
     await page.goto("/playground");
     await waitForTransitionSettled(page);
 
-    // Fire two pushes back-to-back without waiting. `useNavigate.push` early-
-    // returns when `status !== COMPLETED && status !== IDLE`, so only the
-    // first push should land on the history stack.
-    await Promise.all([albumTile(page, 0).click(), albumTile(page, 1).click()]);
+    // Land the first push, then — while the transition is still PUSHING —
+    // fire a programmatic click on a Library tile underneath the new Album.
+    // `useNavigate.push` early-returns when status is anything other than
+    // COMPLETED or IDLE, so the second push is dropped on the floor and
+    // we should end with exactly one Album on top of Library.
+    //
+    // We click via page.evaluate because Playwright's auto-waiting .click()
+    // would block on pointer-event accessibility — the new Album screen
+    // already intercepts pointer events on top of Library.
+    await albumTile(page, 0).click();
+
+    // Wait until we're actually in the PUSHING window.
+    await page.waitForFunction(
+      () => !!document.querySelector('[data-flemo-screen][data-flemo-status="PUSHING"]')
+    );
+
+    await page.evaluate(() => {
+      const hiddenLibraryTiles = document.querySelectorAll<HTMLButtonElement>(
+        '[data-flemo-screen][data-flemo-active="false"] button:has(.aspect-square)'
+      );
+      // Click a different tile than the first to make the assertion concrete
+      // — if the guard fails we'd see two distinct Albums stacked.
+      hiddenLibraryTiles[1]?.click();
+    });
 
     await waitForTransitionSettled(page);
     // Library + exactly one Album = 2.
