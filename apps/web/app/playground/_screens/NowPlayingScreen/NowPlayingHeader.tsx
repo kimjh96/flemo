@@ -1,15 +1,19 @@
 "use client";
 
-import { useNavigate } from "@flemo/react";
+import { useStep } from "@flemo/react";
 
 function NowPlayingHeader() {
-  const navigate = useNavigate();
+  // `popStep` first tries to pop a step boundary (e.g., back out of an
+  // expanded panel pushed via pushStep). When there's no step to pop, it
+  // falls through to a screen pop — same effect as `navigate.pop` but it
+  // also unwinds any in-progress useStep state along the way.
+  const { popStep } = useStep<"/now-playing">();
 
   return (
     <header className="flex items-center justify-between pb-4">
       <button
         type="button"
-        onClick={() => navigate.pop()}
+        onClick={() => popStep()}
         aria-label="Close"
         className="grid h-9 w-9 place-items-center rounded-full text-[var(--color-text-primary)] hover:bg-[var(--color-text-primary)]/5"
       >

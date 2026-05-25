@@ -174,6 +174,145 @@ test.describe("playground — stress", () => {
     expect(errors, errors.join("\n")).toEqual([]);
   });
 
+  test("useStep replaceStep tab cycling 18× on NowPlaying (no remount)", async ({ page }) => {
+    const { errors } = trackConsoleErrors(page);
+    await page.goto("/playground");
+    await waitForTransitionSettled(page);
+
+    // Drive to NowPlaying so useStep's routePath resolves to /now-playing.
+    await albumTile(page, 0).click();
+    await waitForTransitionSettled(page);
+    await activeScreen(page)
+      .getByRole("button", { name: /^Play / })
+      .click();
+    await waitForTransitionSettled(page);
+
+    // 3 screens mounted — pin before the burst so the later count assertion
+    // proves replaceStep added no new entries.
+    expect(await allScreens(page).count()).toBe(3);
+
+    const tabs = ["Up Next", "Lyrics", "Player"] as const;
+    for (let i = 0; i < 18; i++) {
+      const target = tabs[i % tabs.length]!;
+      await page.getByRole("tab", { name: target }).click();
+      // replaceStep updates ParamsContext via dispatch; aria-selected on the
+      // new tab flips synchronously after the task settles.
+      await expect(page.getByRole("tab", { name: target })).toHaveAttribute(
+        "aria-selected",
+        "true"
+      );
+    }
+
+    // Critical invariant: screen count unchanged. replaceStep doesn't push
+    // a new history entry — only the existing NowPlaying entry's state is
+    // mutated.
+    expect(await allScreens(page).count()).toBe(3);
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+
+  test("useStep pushStep + popStep round-trip 8× (expand + collapse details)", async ({ page }) => {
+    const { errors } = trackConsoleErrors(page);
+    await page.goto("/playground");
+    await waitForTransitionSettled(page);
+
+    await albumTile(page, 0).click();
+    await waitForTransitionSettled(page);
+    await activeScreen(page)
+      .getByRole("button", { name: /^Play / })
+      .click();
+    await waitForTransitionSettled(page);
+
+    for (let i = 0; i < 8; i++) {
+      // pushStep — Player tab "Show album details" button.
+      await page.getByRole("button", { name: "Show album details" }).click();
+      await expect(page.locator('[data-flemo-step-pane-detail="player-expanded"]')).toBeVisible();
+
+      // popStep — the explicit Close button on the detail pane.
+      await page.getByRole("button", { name: "Close details" }).click();
+      await expect(
+        page.locator('[data-flemo-step-pane-detail="player-expanded"]')
+      ).not.toBeVisible();
+    }
+
+    // Stack stays at three screens for the entire round-trip.
+    expect(await allScreens(page).count()).toBe(3);
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+
+  test("6-API mixed storm: push + replace + pop + pushStep + replaceStep + popStep × 3", async ({
+    page
+  }) => {
+    const { errors } = trackConsoleErrors(page);
+    await page.goto("/playground");
+    await waitForTransitionSettled(page);
+
+    // Each iteration touches every navigate-API verb the playground exposes:
+    //
+    //   navigate.replace    — Library segment + Tab bar
+    //   navigate.push       — Library → Album → NowPlaying
+    //   navigate.pop        — back to Album, back to Library
+    //   useStep.replaceStep — switch NowPlaying tab
+    //   useStep.pushStep    — expand album details (Player tab)
+    //   useStep.popStep     — collapse details (pane button + header Close)
+    for (let i = 0; i < 3; i++) {
+      // (1) navigate.replace — segment switch
+      await page.getByRole("button", { name: "Songs" }).click();
+      await waitForTransitionSettled(page);
+      await page.getByRole("button", { name: "Albums" }).click();
+      await waitForTransitionSettled(page);
+
+      // (2) navigate.replace — tab nav round-trip via TabBar
+      await page.getByRole("button", { name: "Search" }).click();
+      await waitForTransitionSettled(page);
+      await page.getByRole("button", { name: "Library" }).click();
+      await waitForTransitionSettled(page);
+
+      // (3) navigate.push × 2 — Library → Album → NowPlaying
+      await albumTile(page, i % 4).click();
+      await waitForTransitionSettled(page);
+      await activeScreen(page)
+        .getByRole("button", { name: /^Play / })
+        .click();
+      await waitForTransitionSettled(page);
+
+      // (4) useStep.replaceStep — switch to Up Next
+      await page.getByRole("tab", { name: "Up Next" }).click();
+      await expect(page.getByRole("tab", { name: "Up Next" })).toHaveAttribute(
+        "aria-selected",
+        "true"
+      );
+
+      // (5) useStep.replaceStep — back to Player (where pushStep target lives)
+      await page.getByRole("tab", { name: "Player" }).click();
+      await expect(page.getByRole("tab", { name: "Player" })).toHaveAttribute(
+        "aria-selected",
+        "true"
+      );
+
+      // (6) useStep.pushStep — expand details
+      await page.getByRole("button", { name: "Show album details" }).click();
+      await expect(page.locator('[data-flemo-step-pane-detail="player-expanded"]')).toBeVisible();
+
+      // (7) useStep.popStep — collapse via dedicated Close button
+      await page.getByRole("button", { name: "Close details" }).click();
+      await expect(
+        page.locator('[data-flemo-step-pane-detail="player-expanded"]')
+      ).not.toBeVisible();
+
+      // (8) navigate.pop × 2 — header Close uses popStep but crosses the
+      // step boundary into a screen pop because no steps remain. Then the
+      // Album back button screen-pops to Library.
+      await page.getByRole("button", { name: "Close" }).click();
+      await waitForTransitionSettled(page);
+      await page.getByRole("button", { name: "Back" }).click();
+      await waitForTransitionSettled(page);
+    }
+
+    await expect(page.getByRole("heading", { name: "Library" })).toBeVisible();
+    expect(await allScreens(page).count()).toBe(1);
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+
   test("mixed storm: push / pop / tab / segment interleaved 8×", async ({ page }) => {
     const { errors } = trackConsoleErrors(page);
     await page.goto("/playground");
