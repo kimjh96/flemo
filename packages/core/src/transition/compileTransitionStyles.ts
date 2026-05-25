@@ -29,10 +29,51 @@ const cssIdentifier = (raw: string) => raw.replace(/[^a-zA-Z0-9_-]/g, "_");
 const isPlainObject = (input: unknown): input is Record<string, unknown> =>
   typeof input === "object" && input !== null && !Array.isArray(input);
 
+// CSS properties whose `<number>` values must NOT be suffixed with a unit.
+// Mirrors the well-known list React uses for inline-style coercion so that
+// `{ lineHeight: 1.5 }` / `{ fontWeight: 600 }` / `{ zIndex: 3 }` compile to
+// `line-height: 1.5;` etc. instead of an invalid `…px` value.
+const UNITLESS_PROPS = new Set([
+  "opacity",
+  "scale",
+  "scaleX",
+  "scaleY",
+  "scaleZ",
+  "aspectRatio",
+  "columnCount",
+  "columns",
+  "flex",
+  "flexGrow",
+  "flexShrink",
+  "fontWeight",
+  "gridArea",
+  "gridColumn",
+  "gridColumnEnd",
+  "gridColumnStart",
+  "gridRow",
+  "gridRowEnd",
+  "gridRowStart",
+  "lineHeight",
+  "lineClamp",
+  "order",
+  "orphans",
+  "tabSize",
+  "widows",
+  "zIndex",
+  "zoom",
+  // SVG numerics
+  "fillOpacity",
+  "floodOpacity",
+  "stopOpacity",
+  "strokeOpacity",
+  "strokeDasharray",
+  "strokeDashoffset",
+  "strokeMiterlimit",
+  "strokeWidth"
+]);
+
 const numberToPx = (value: number, prop: string) => {
-  if (prop === "opacity" || prop === "scale" || prop === "scaleX" || prop === "scaleY") {
-    return `${value}`;
-  }
+  if (UNITLESS_PROPS.has(prop)) return `${value}`;
   if (prop === "rotate" || prop === "rotateX" || prop === "rotateY" || prop === "rotateZ") {
     return `${value}deg`;
   }

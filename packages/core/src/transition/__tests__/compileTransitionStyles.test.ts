@@ -19,6 +19,9 @@ declare module "@transition/typing" {
   interface RegisterTransition {
     "custom-fade-blur": "custom-fade-blur";
     "custom-slide-fade": "custom-slide-fade";
+    "custom-rich-css": "custom-rich-css";
+    "custom-unitless": "custom-unitless";
+    "custom-lengths": "custom-lengths";
   }
 }
 
@@ -134,6 +137,92 @@ describe("compileTransitionStyles", () => {
 
     expect(css).toContain("background-color: rgba(0, 0, 0, 0.3)");
     expect(css).not.toContain("backgroundColor");
+  });
+
+  it("passes string values through verbatim for arbitrary CSS properties (filter, boxShadow, color)", () => {
+    const custom = createTransition({
+      name: "custom-rich-css",
+      initial: { filter: "blur(8px)", color: "rgb(0,0,0)" },
+      idle: { value: { filter: "blur(0px)", color: "rgb(255,255,255)" }, options: { duration: 0 } },
+      enter: {
+        value: {
+          filter: "blur(0px)",
+          color: "rgb(255,255,255)",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
+        },
+        options: { duration: 0.3 }
+      },
+      enterBack: {
+        value: { filter: "blur(8px)", color: "rgb(0,0,0)" },
+        options: { duration: 0.3 }
+      },
+      exit: { value: { filter: "blur(8px)", color: "rgb(0,0,0)" }, options: { duration: 0.3 } },
+      exitBack: {
+        value: { filter: "blur(0px)", color: "rgb(255,255,255)" },
+        options: { duration: 0.3 }
+      }
+    });
+
+    const css = compileTransitionStyles([custom], []);
+    expect(css).toContain("filter: blur(0px)");
+    expect(css).toContain("filter: blur(8px)");
+    expect(css).toContain("color: rgb(255,255,255)");
+    expect(css).toContain("box-shadow: 0 4px 12px rgba(0,0,0,0.2)");
+  });
+
+  it("does NOT append `px` to unitless CSS properties (lineHeight, fontWeight, zIndex, flexGrow)", () => {
+    const custom = createTransition({
+      name: "custom-unitless",
+      initial: { lineHeight: 1, fontWeight: 400, zIndex: 0, flexGrow: 0 },
+      idle: {
+        value: { lineHeight: 1.5, fontWeight: 600, zIndex: 10, flexGrow: 1 },
+        options: { duration: 0 }
+      },
+      enter: {
+        value: { lineHeight: 1.5, fontWeight: 600, zIndex: 10, flexGrow: 1 },
+        options: { duration: 0.3 }
+      },
+      enterBack: {
+        value: { lineHeight: 1, fontWeight: 400, zIndex: 0, flexGrow: 0 },
+        options: { duration: 0.3 }
+      },
+      exit: {
+        value: { lineHeight: 1, fontWeight: 400, zIndex: 0, flexGrow: 0 },
+        options: { duration: 0.3 }
+      },
+      exitBack: {
+        value: { lineHeight: 1.5, fontWeight: 600, zIndex: 10, flexGrow: 1 },
+        options: { duration: 0.3 }
+      }
+    });
+
+    const css = compileTransitionStyles([custom], []);
+    // Sanity: each numeric-unitless property emits no `px` suffix
+    expect(css).toMatch(/line-height: 1\.5;/);
+    expect(css).toMatch(/font-weight: 600;/);
+    expect(css).toMatch(/z-index: 10;/);
+    expect(css).toMatch(/flex-grow: 1;/);
+    expect(css).not.toMatch(/line-height: 1\.5px/);
+    expect(css).not.toMatch(/font-weight: 600px/);
+    expect(css).not.toMatch(/z-index: 10px/);
+    expect(css).not.toMatch(/flex-grow: 1px/);
+  });
+
+  it("still appends `px` to length-like number values (width, top, margin)", () => {
+    const custom = createTransition({
+      name: "custom-lengths",
+      initial: { width: 0, top: 0, marginLeft: 0 },
+      idle: { value: { width: 100, top: 50, marginLeft: 8 }, options: { duration: 0 } },
+      enter: { value: { width: 100, top: 50, marginLeft: 8 }, options: { duration: 0.3 } },
+      enterBack: { value: { width: 0, top: 0, marginLeft: 0 }, options: { duration: 0.3 } },
+      exit: { value: { width: 0, top: 0, marginLeft: 0 }, options: { duration: 0.3 } },
+      exitBack: { value: { width: 100, top: 50, marginLeft: 8 }, options: { duration: 0.3 } }
+    });
+
+    const css = compileTransitionStyles([custom], []);
+    expect(css).toContain("width: 100px");
+    expect(css).toContain("top: 50px");
+    expect(css).toContain("margin-left: 8px");
   });
 });
 
