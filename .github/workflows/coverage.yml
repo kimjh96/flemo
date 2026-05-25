@@ -33,6 +33,12 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # @flemo/react's tests import from @flemo/core as a workspace package, so
+      # core has to be built first or the resolution fails inside coverage's
+      # transform step. Building only the dep we need keeps the job lean.
+      - name: Build @flemo/core
+        run: pnpm --filter @flemo/core build
+
       - name: Test (with coverage)
         run: pnpm --filter @flemo/core --filter @flemo/react test:coverage
 
