@@ -6,6 +6,7 @@ import { albumById } from "@/app/playground/_data/albums";
 import { gradientFor } from "@/app/playground/_data/gradient";
 import usePlayerStore from "@/app/playground/_stores/usePlayerStore";
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
+import resolvePushTransition from "@/app/playground/_utils/resolvePushTransition";
 
 import PlayPauseIcon from "./PlayPauseIcon";
 
@@ -20,7 +21,9 @@ function MiniPlayer() {
   if (!album) return null;
 
   const handleOpenNowPlaying = () => {
-    navigate.push("/now-playing", undefined, { transitionName: pushTransition });
+    navigate.push("/now-playing", undefined, {
+      transitionName: resolvePushTransition(pushTransition, "/now-playing")
+    });
   };
 
   const handleTogglePlay = (event: React.MouseEvent) => {

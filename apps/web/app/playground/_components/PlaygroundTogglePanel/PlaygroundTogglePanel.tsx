@@ -3,7 +3,7 @@
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
 import PlaygroundCodePeek from "./PlaygroundCodePeek";
-import { transitionOptions } from "./PlaygroundTogglePanel.constants";
+import { transitionGroups, transitionOptions } from "./PlaygroundTogglePanel.constants";
 import PlaygroundToggleCard from "./PlaygroundToggleCard";
 import PlaygroundToggleCardHeader from "./PlaygroundToggleCardHeader";
 import PlaygroundToggleSwitch from "./PlaygroundToggleSwitch";
@@ -22,12 +22,12 @@ function PlaygroundTogglePanel() {
     <section className="mx-auto flex w-full max-w-[560px] flex-col gap-5 text-[var(--color-text-primary)]">
       <PlaygroundToggleCard>
         <PlaygroundToggleCardHeader
-          eyebrow="Library → Album"
-          title="Pick the screen transition"
-          description="Every entry below is a flemo Transition. Built-ins come from @flemo/core; custom ones live wherever you author them — no privileged registration."
+          eyebrow="Screen transition"
+          title="Pick how screens animate in"
+          description="Harmonized is the default — each navigation picks the transition that matches its affordance. Or force one preset across every push, or swap in a custom transition authored right here in the playground."
         />
         <PlaygroundTransitionPicker
-          options={transitionOptions}
+          groups={transitionGroups}
           value={pushTransition}
           onChange={setPushTransition}
         />

@@ -5,6 +5,7 @@ import { useNavigate } from "@flemo/react";
 import type { Album } from "@/app/playground/_data/albums";
 import { gradientFor } from "@/app/playground/_data/gradient";
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
+import resolvePushTransition from "@/app/playground/_utils/resolvePushTransition";
 
 export interface SearchAlbumRowProps {
   album: Album;
@@ -15,7 +16,11 @@ function SearchAlbumRow({ album }: SearchAlbumRowProps) {
   const pushTransition = usePlaygroundSettingsStore((state) => state.pushTransition);
 
   const handleOpen = () => {
-    navigate.push("/album/:id", { id: album.id }, { transitionName: pushTransition });
+    navigate.push(
+      "/album/:id",
+      { id: album.id },
+      { transitionName: resolvePushTransition(pushTransition, "/album/:id") }
+    );
   };
 
   return (

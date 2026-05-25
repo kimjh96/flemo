@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-export type PushTransition = "cupertino" | "material" | "blur" | "none";
+export type PushTransition = "harmonized" | "cupertino" | "material" | "blur" | "none";
 
 interface PlaygroundSettingsState {
   pushTransition: PushTransition;
@@ -12,7 +12,7 @@ interface PlaygroundSettingsState {
 }
 
 const usePlaygroundSettingsStore = create<PlaygroundSettingsState>((set) => ({
-  pushTransition: "cupertino",
+  pushTransition: "harmonized",
   showMiniPlayer: true,
   setPushTransition: (value) => set({ pushTransition: value }),
   setShowMiniPlayer: (value) => set({ showMiniPlayer: value })

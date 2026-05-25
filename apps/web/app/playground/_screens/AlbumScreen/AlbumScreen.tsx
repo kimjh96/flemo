@@ -8,6 +8,7 @@ import { gradientFor } from "@/app/playground/_data/gradient";
 import { PlayerScreen } from "@/app/playground/_screens/PlayerScreen";
 import usePlayerStore from "@/app/playground/_stores/usePlayerStore";
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
+import resolvePushTransition from "@/app/playground/_utils/resolvePushTransition";
 
 import AlbumAppBar from "./AlbumAppBar";
 import TrackRow from "./TrackRow";
@@ -35,7 +36,9 @@ function AlbumScreen() {
     const firstTrack = album.tracks[0];
     if (!firstTrack) return;
     setTrack(firstTrack);
-    navigate.push("/now-playing", undefined, { transitionName: pushTransition });
+    navigate.push("/now-playing", undefined, {
+      transitionName: resolvePushTransition(pushTransition, "/now-playing")
+    });
   };
 
   return (

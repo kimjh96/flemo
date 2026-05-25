@@ -5,6 +5,7 @@ import { useNavigate } from "@flemo/react";
 import type { Track } from "@/app/playground/_data/albums";
 import usePlayerStore from "@/app/playground/_stores/usePlayerStore";
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
+import resolvePushTransition from "@/app/playground/_utils/resolvePushTransition";
 
 export interface TrackRowProps {
   index: number;
@@ -18,7 +19,9 @@ function TrackRow({ index, track }: TrackRowProps) {
 
   const handlePlay = () => {
     setTrack(track);
-    navigate.push("/now-playing", undefined, { transitionName: pushTransition });
+    navigate.push("/now-playing", undefined, {
+      transitionName: resolvePushTransition(pushTransition, "/now-playing")
+    });
   };
 
   return (

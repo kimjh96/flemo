@@ -1,11 +1,17 @@
 import type { PushTransition } from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
-export type TransitionSource = "Built-in" | "Custom";
+export type TransitionGroupKind = "Default" | "Built-in" | "Custom";
 
 export interface TransitionOption {
   value: PushTransition;
   label: string;
-  source: TransitionSource;
+  group: TransitionGroupKind;
   summary: string;
   code: string;
+}
+
+export interface TransitionGroup {
+  kind: TransitionGroupKind;
+  caption: string;
+  options: ReadonlyArray<TransitionOption>;
 }
