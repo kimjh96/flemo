@@ -6,7 +6,6 @@ import { albumById } from "@/app/playground/_data/albums";
 import { gradientFor } from "@/app/playground/_data/gradient";
 import usePlayerStore from "@/app/playground/_stores/usePlayerStore";
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
-import resolvePushTransition from "@/app/playground/_utils/resolvePushTransition";
 
 import PlayPauseIcon from "./PlayPauseIcon";
 
@@ -15,14 +14,17 @@ function MiniPlayer() {
   const currentTrack = usePlayerStore((state) => state.currentTrack);
   const isPlaying = usePlayerStore((state) => state.isPlaying);
   const togglePlay = usePlayerStore((state) => state.togglePlay);
-  const pushTransition = usePlaygroundSettingsStore((state) => state.pushTransition);
+  const pushTransitionOverride = usePlaygroundSettingsStore(
+    (state) => state.pushTransitionOverride
+  );
 
   const album = albumById(currentTrack.albumId);
   if (!album) return null;
 
   const handleOpenNowPlaying = () => {
     navigate.push("/now-playing", undefined, {
-      transitionName: resolvePushTransition(pushTransition, "/now-playing")
+      // Player open — match the close gesture's vertical axis with material.
+      transitionName: pushTransitionOverride ?? "material"
     });
   };
 
@@ -31,18 +33,20 @@ function MiniPlayer() {
     togglePlay();
   };
 
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleOpenNowPlaying();
+    }
+  };
+
   return (
     <div className="flex w-full items-center gap-3 border-b border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-2.5">
       <div
         role="button"
         tabIndex={0}
         onClick={handleOpenNowPlaying}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            handleOpenNowPlaying();
-          }
-        }}
+        onKeyDown={handleKeyDown}
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
       >
         <div

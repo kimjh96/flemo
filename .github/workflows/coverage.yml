@@ -1,0 +1,51 @@
+name: Coverage
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: coverage-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    name: Test coverage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # @flemo/react's tests import from @flemo/core as a workspace package, so
+      # core has to be built first or the resolution fails inside coverage's
+      # transform step. Building only the dep we need keeps the job lean.
+      - name: Build @flemo/core
+        run: pnpm --filter @flemo/core build
+
+      - name: Test (with coverage)
+        run: pnpm --filter @flemo/core --filter @flemo/react test:coverage
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/core/coverage/lcov.info,./packages/react/coverage/lcov.info
+          flags: unittests
+          fail_ci_if_error: false

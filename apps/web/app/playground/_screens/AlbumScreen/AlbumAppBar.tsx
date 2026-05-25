@@ -9,11 +9,13 @@ export interface AlbumAppBarProps {
 function AlbumAppBar({ title }: AlbumAppBarProps) {
   const navigate = useNavigate();
 
+  const handleBack = () => navigate.pop();
+
   return (
     <header className="flex items-center gap-2 bg-[var(--color-surface)] px-2 py-2">
       <button
         type="button"
-        onClick={() => navigate.pop()}
+        onClick={handleBack}
         aria-label="Back"
         className="grid h-9 w-9 place-items-center rounded-full text-[var(--color-brand)] hover:bg-[var(--color-layer)]"
       >

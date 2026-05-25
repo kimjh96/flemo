@@ -1,0 +1,64 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":dependencyDashboard", ":semanticCommits"],
+  "timezone": "Asia/Seoul",
+  "schedule": ["after 10pm on sunday", "before 7am on monday"],
+  "rangeStrategy": "bump",
+  "labels": ["dependencies"],
+  "prHourlyLimit": 4,
+  "prConcurrentLimit": 8,
+  "packageRules": [
+    {
+      "description": "Auto-merge dev-dependency patch/minor bumps after CI passes.",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash"
+    },
+    {
+      "description": "Group all fumadocs packages together — they version in lockstep.",
+      "groupName": "fumadocs",
+      "matchPackagePatterns": ["^fumadocs"]
+    },
+    {
+      "description": "Group Vite + Vitest + plugins.",
+      "groupName": "vite",
+      "matchPackagePatterns": ["^vite$", "^vite-", "^@vitejs/", "^vitest$", "^@vitest/"]
+    },
+    {
+      "description": "Group Next.js + its proxy/lint plugins.",
+      "groupName": "next.js",
+      "matchPackageNames": ["next", "eslint-config-next"]
+    },
+    {
+      "description": "Group React + react-dom + their types.",
+      "groupName": "react",
+      "matchPackageNames": ["react", "react-dom", "@types/react", "@types/react-dom"]
+    },
+    {
+      "description": "Group ESLint + typescript-eslint + related plugins.",
+      "groupName": "eslint",
+      "matchPackagePatterns": ["^eslint", "^@typescript-eslint/", "^@eslint/"]
+    },
+    {
+      "description": "Group Changesets toolchain.",
+      "groupName": "changesets",
+      "matchPackagePatterns": ["^@changesets/"]
+    },
+    {
+      "description": "Pin major bumps for major libraries — surface them but don't auto-merge.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "major"]
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["after 10pm on the first day of the month"]
+  },
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "automerge": false
+  }
+}

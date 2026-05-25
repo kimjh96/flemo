@@ -5,7 +5,6 @@ import { useNavigate } from "@flemo/react";
 import type { Track } from "@/app/playground/_data/albums";
 import usePlayerStore from "@/app/playground/_stores/usePlayerStore";
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
-import resolvePushTransition from "@/app/playground/_utils/resolvePushTransition";
 
 export interface TrackRowProps {
   index: number;
@@ -15,12 +14,15 @@ export interface TrackRowProps {
 function TrackRow({ index, track }: TrackRowProps) {
   const navigate = useNavigate();
   const setTrack = usePlayerStore((state) => state.setTrack);
-  const pushTransition = usePlaygroundSettingsStore((state) => state.pushTransition);
+  const pushTransitionOverride = usePlaygroundSettingsStore(
+    (state) => state.pushTransitionOverride
+  );
 
   const handlePlay = () => {
     setTrack(track);
     navigate.push("/now-playing", undefined, {
-      transitionName: resolvePushTransition(pushTransition, "/now-playing")
+      // Player open — match the close gesture's vertical axis with material.
+      transitionName: pushTransitionOverride ?? "material"
     });
   };
 

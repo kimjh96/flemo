@@ -1,16 +1,16 @@
-import type { PushTransition } from "@/app/playground/_stores/usePlaygroundSettingsStore";
+import type { PushTransitionOverride } from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
 import type { TransitionGroup, TransitionOption } from "./PlaygroundTogglePanel.types";
 
 export interface PlaygroundTransitionPickerProps {
   groups: ReadonlyArray<TransitionGroup>;
-  value: PushTransition;
-  onChange: (next: PushTransition) => void;
+  value: PushTransitionOverride | null;
+  onChange: (next: PushTransitionOverride | null) => void;
 }
 
 function PlaygroundTransitionPicker({ groups, value, onChange }: PlaygroundTransitionPickerProps) {
   return (
-    <div className="flex flex-col gap-4" role="radiogroup" aria-label="Push transition">
+    <div className="flex flex-col gap-4" role="radiogroup" aria-label="Push transition override">
       {groups.map((group) => (
         <div key={group.kind} className="flex flex-col gap-2">
           <div className="flex items-baseline gap-2">
@@ -27,7 +27,7 @@ function PlaygroundTransitionPicker({ groups, value, onChange }: PlaygroundTrans
                 key={option.value}
                 option={option}
                 active={option.value === value}
-                onClick={() => onChange(option.value)}
+                onSelect={onChange}
               />
             ))}
           </div>
@@ -40,16 +40,18 @@ function PlaygroundTransitionPicker({ groups, value, onChange }: PlaygroundTrans
 interface ChipProps {
   option: TransitionOption;
   active: boolean;
-  onClick: () => void;
+  onSelect: (next: PushTransitionOverride | null) => void;
 }
 
-function Chip({ option, active, onClick }: ChipProps) {
+function Chip({ option, active, onSelect }: ChipProps) {
+  const handleClick = () => onSelect(active ? null : option.value);
+
   return (
     <button
       type="button"
       role="radio"
       aria-checked={active}
-      onClick={onClick}
+      onClick={handleClick}
       className="rounded-full border px-4 py-2 text-[13px] font-semibold transition-all"
       style={{
         borderColor: active ? "var(--color-primary)" : "var(--color-border)",

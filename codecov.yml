@@ -1,0 +1,34 @@
+# Codecov configuration — see https://docs.codecov.com/docs/codecov-yaml.
+# `project` is the overall coverage budget; `patch` is the per-PR delta. Both
+# allow a small slip so a refactor that shuffles uncovered lines doesn't trip
+# the gate, but a real regression (>1% drop or >0% new uncovered) still does.
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        if_ci_failed: error
+    patch:
+      default:
+        target: 80%
+        threshold: 0%
+        if_ci_failed: error
+
+# Aggregate coverage from both packages under one flag.
+flag_management:
+  default_rules:
+    carryforward: true
+
+# Don't bother counting type-only files or entry barrels.
+ignore:
+  - "**/index.ts"
+  - "**/__tests__/**"
+  - "**/*.test.{ts,tsx}"
+  - "**/*.spec.{ts,tsx}"
+  - "**/dist/**"
+
+comment:
+  layout: "reach,diff,flags,files"
+  behavior: default
+  require_changes: false
