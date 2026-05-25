@@ -33,18 +33,20 @@ function MiniPlayer() {
     togglePlay();
   };
 
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleOpenNowPlaying();
+    }
+  };
+
   return (
     <div className="flex w-full items-center gap-3 border-b border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-2.5">
       <div
         role="button"
         tabIndex={0}
         onClick={handleOpenNowPlaying}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            handleOpenNowPlaying();
-          }
-        }}
+        onKeyDown={handleKeyDown}
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
       >
         <div

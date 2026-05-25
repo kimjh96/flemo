@@ -22,17 +22,14 @@ function PlaygroundTransitionPicker({ groups, value, onChange }: PlaygroundTrans
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {group.options.map((option) => {
-              const active = option.value === value;
-              return (
-                <Chip
-                  key={option.value}
-                  option={option}
-                  active={active}
-                  onClick={() => onChange(active ? null : option.value)}
-                />
-              );
-            })}
+            {group.options.map((option) => (
+              <Chip
+                key={option.value}
+                option={option}
+                active={option.value === value}
+                onSelect={onChange}
+              />
+            ))}
           </div>
         </div>
       ))}
@@ -43,16 +40,18 @@ function PlaygroundTransitionPicker({ groups, value, onChange }: PlaygroundTrans
 interface ChipProps {
   option: TransitionOption;
   active: boolean;
-  onClick: () => void;
+  onSelect: (next: PushTransitionOverride | null) => void;
 }
 
-function Chip({ option, active, onClick }: ChipProps) {
+function Chip({ option, active, onSelect }: ChipProps) {
+  const handleClick = () => onSelect(active ? null : option.value);
+
   return (
     <button
       type="button"
       role="radio"
       aria-checked={active}
-      onClick={onClick}
+      onClick={handleClick}
       className="rounded-full border px-4 py-2 text-[13px] font-semibold transition-all"
       style={{
         borderColor: active ? "var(--color-primary)" : "var(--color-border)",

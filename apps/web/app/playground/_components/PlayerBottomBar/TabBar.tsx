@@ -63,22 +63,37 @@ function TabBar({ activePath }: TabBarProps) {
 
   return (
     <nav className="flex items-stretch bg-[var(--color-surface)] px-2 pb-2 pt-1.5">
-      {tabs.map((tab) => {
-        const active = activePath === tab.path;
-        return (
-          <button
-            key={tab.path}
-            type="button"
-            onClick={() => handleSelect(tab.path)}
-            className="flex flex-1 flex-col items-center gap-0.5 py-1"
-            style={{ color: active ? "var(--color-brand)" : "var(--color-ink-mute)" }}
-          >
-            {tab.icon(active)}
-            <span className="text-[10px] font-semibold tracking-wide">{tab.label}</span>
-          </button>
-        );
-      })}
+      {tabs.map((tab) => (
+        <TabBarButton
+          key={tab.path}
+          tab={tab}
+          active={activePath === tab.path}
+          onSelect={handleSelect}
+        />
+      ))}
     </nav>
+  );
+}
+
+interface TabBarButtonProps {
+  tab: Tab;
+  active: boolean;
+  onSelect: (path: TabPath) => void;
+}
+
+function TabBarButton({ tab, active, onSelect }: TabBarButtonProps) {
+  const handleClick = () => onSelect(tab.path);
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="flex flex-1 flex-col items-center gap-0.5 py-1"
+      style={{ color: active ? "var(--color-brand)" : "var(--color-ink-mute)" }}
+    >
+      {tab.icon(active)}
+      <span className="text-[10px] font-semibold tracking-wide">{tab.label}</span>
+    </button>
   );
 }
 

@@ -22,6 +22,8 @@ export default function Error({ error, reset }: ErrorProps) {
     console.error(error);
   }, [error]);
 
+  const handleReset = () => reset();
+
   return (
     <main className="flex min-h-[100dvh] items-center justify-center bg-[var(--color-bg)] px-6">
       <div className="flex max-w-[480px] flex-col items-center text-center">
@@ -40,7 +42,7 @@ export default function Error({ error, reset }: ErrorProps) {
           </code>
         )}
         <div className="mt-8 flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => reset()} className="cta-pill">
+          <button type="button" onClick={handleReset} className="cta-pill">
             {t.cta}
           </button>
           <Link href={homeHref} className="cta-ghost">

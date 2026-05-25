@@ -33,6 +33,9 @@ function NowPlayingScreen() {
   const openSheet = (next: NowPlayingSheet) => pushStep({ sheet: next });
   const swapSheet = (next: NowPlayingSheet) => replaceStep({ sheet: next });
   const closeSheet = () => popStep();
+  const handleOpenQueue = () => openSheet("queue");
+  const handleOpenLyrics = () => openSheet("lyrics");
+  const handleSwapSheet = () => swapSheet(sheet === "lyrics" ? "queue" : "lyrics");
 
   return (
     <PlayerScreen>
@@ -54,7 +57,7 @@ function NowPlayingScreen() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => openSheet("queue")}
+              onClick={handleOpenQueue}
               data-flemo-step-action="open-queue"
               className="rounded-full border border-[var(--color-text-primary)]/15 px-3 py-1 text-[12px] font-semibold text-[var(--color-text-primary)]/70"
             >
@@ -62,7 +65,7 @@ function NowPlayingScreen() {
             </button>
             <button
               type="button"
-              onClick={() => openSheet("lyrics")}
+              onClick={handleOpenLyrics}
               data-flemo-step-action="open-lyrics"
               className="rounded-full border border-[var(--color-text-primary)]/15 px-3 py-1 text-[12px] font-semibold text-[var(--color-text-primary)]/70"
             >
@@ -87,7 +90,7 @@ function NowPlayingScreen() {
           trailing={
             <button
               type="button"
-              onClick={() => swapSheet(sheet === "lyrics" ? "queue" : "lyrics")}
+              onClick={handleSwapSheet}
               data-flemo-step-action="swap-sheet"
               className="rounded-full bg-[var(--color-text-primary)]/8 px-3 py-1 text-[12px] font-semibold text-[var(--color-text-primary)]"
             >

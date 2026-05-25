@@ -9,11 +9,13 @@ function NowPlayingHeader() {
   // also unwinds any in-progress useStep state along the way.
   const { popStep } = useStep<"/now-playing">();
 
+  const handleClose = () => popStep();
+
   return (
     <header className="flex items-center justify-between pb-4">
       <button
         type="button"
-        onClick={() => popStep()}
+        onClick={handleClose}
         aria-label="Close"
         className="grid h-9 w-9 place-items-center rounded-full text-[var(--color-text-primary)] hover:bg-[var(--color-text-primary)]/5"
       >

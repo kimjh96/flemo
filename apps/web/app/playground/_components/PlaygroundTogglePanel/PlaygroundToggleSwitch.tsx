@@ -6,12 +6,14 @@ export interface PlaygroundToggleSwitchProps {
 }
 
 function PlaygroundToggleSwitch({ checked, onChange, on, off }: PlaygroundToggleSwitchProps) {
+  const handleToggle = () => onChange(!checked);
+
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
-      onClick={() => onChange(!checked)}
+      onClick={handleToggle}
       className="flex w-full items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-layer)] px-4 py-3 transition-colors hover:border-[var(--color-border-dark)]"
     >
       <span className="text-[13.5px] font-medium text-[var(--color-text-primary)]">
