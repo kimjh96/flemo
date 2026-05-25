@@ -3,15 +3,15 @@ import type { Folder, Item, Node, Root } from "fumadocs-core/page-tree";
 import type { ReactNode } from "react";
 
 import { baseOptions } from "@/app/layout.config";
-import BetaPill from "@/components/BetaPill";
+import ExperimentalPill from "@/components/ExperimentalPill";
 import { source } from "@/lib/source";
 
-const BETA_URLS = new Set(["/docs/layout-screen", "/ko/docs/layout-screen"]);
+const EXPERIMENTAL_URLS = new Set(["/docs/layout-screen", "/ko/docs/layout-screen"]);
 
 function decorateNode(node: Node): Node {
   if (node.type === "page") {
-    if (BETA_URLS.has(node.url)) {
-      return { ...node, name: <BetaName>{node.name}</BetaName> } satisfies Item;
+    if (EXPERIMENTAL_URLS.has(node.url)) {
+      return { ...node, name: <ExperimentalName>{node.name}</ExperimentalName> } satisfies Item;
     }
     return node;
   }
@@ -29,11 +29,11 @@ function decorateTree(tree: Root): Root {
   return { ...tree, children: tree.children.map(decorateNode) };
 }
 
-function BetaName({ children }: { children: ReactNode }) {
+function ExperimentalName({ children }: { children: ReactNode }) {
   return (
     <span className="inline-flex items-center gap-2">
       {children}
-      <BetaPill />
+      <ExperimentalPill />
     </span>
   );
 }

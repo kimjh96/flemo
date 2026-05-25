@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 
 import type { ComponentProps, FC } from "react";
 
-import BetaPill from "@/components/BetaPill";
+import ExperimentalPill from "@/components/ExperimentalPill";
 import { source } from "@/lib/source";
 
 function makeRelativeAnchor(
@@ -42,7 +42,7 @@ export default async function Page({ params }: PageProps<"/[lang]/docs/[[...slug
       <DocsTitle>
         <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-2">
           {page.data.title}
-          {page.data.beta && <BetaPill />}
+          {page.data.experimental && <ExperimentalPill />}
         </span>
       </DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
