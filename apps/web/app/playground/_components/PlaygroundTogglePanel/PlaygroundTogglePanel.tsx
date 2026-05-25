@@ -3,38 +3,47 @@
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
 import PlaygroundCodePeek from "./PlaygroundCodePeek";
-import { transitionGroups, transitionOptions } from "./PlaygroundTogglePanel.constants";
+import {
+  naturalPushCode,
+  transitionGroups,
+  transitionOptions
+} from "./PlaygroundTogglePanel.constants";
 import PlaygroundToggleCard from "./PlaygroundToggleCard";
 import PlaygroundToggleCardHeader from "./PlaygroundToggleCardHeader";
 import PlaygroundToggleSwitch from "./PlaygroundToggleSwitch";
 import PlaygroundTransitionPicker from "./PlaygroundTransitionPicker";
 
 function PlaygroundTogglePanel() {
-  const pushTransition = usePlaygroundSettingsStore((state) => state.pushTransition);
+  const pushTransitionOverride = usePlaygroundSettingsStore(
+    (state) => state.pushTransitionOverride
+  );
   const showMiniPlayer = usePlaygroundSettingsStore((state) => state.showMiniPlayer);
-  const setPushTransition = usePlaygroundSettingsStore((state) => state.setPushTransition);
+  const setPushTransitionOverride = usePlaygroundSettingsStore(
+    (state) => state.setPushTransitionOverride
+  );
   const setShowMiniPlayer = usePlaygroundSettingsStore((state) => state.setShowMiniPlayer);
 
-  const active =
-    transitionOptions.find((option) => option.value === pushTransition) ?? transitionOptions[0]!;
+  const active = transitionOptions.find((option) => option.value === pushTransitionOverride);
 
   return (
     <section className="mx-auto flex w-full max-w-[560px] flex-col gap-5 text-[var(--color-text-primary)]">
       <PlaygroundToggleCard>
         <PlaygroundToggleCardHeader
           eyebrow="Screen transition"
-          title="Pick how screens animate in"
-          description="Harmonized is the default — each navigation picks the transition that matches its affordance. Or force one preset across every push, or swap in a custom transition authored right here in the playground."
+          title="Compose transitions per navigation"
+          description="By default each push uses the transition that fits its affordance — cupertino for browse-deeper hops, material for the player. Pick a chip below to force every push to one transition for comparison; tap it again to drop back to the per-context defaults."
         />
         <PlaygroundTransitionPicker
           groups={transitionGroups}
-          value={pushTransition}
-          onChange={setPushTransition}
+          value={pushTransitionOverride}
+          onChange={setPushTransitionOverride}
         />
         <p className="text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
-          {active.summary}
+          {active
+            ? `Override active — ${active.summary}`
+            : "No override — each push site picks its own transition inline."}
         </p>
-        <PlaygroundCodePeek code={active.code} />
+        <PlaygroundCodePeek code={active ? active.code : naturalPushCode} />
       </PlaygroundToggleCard>
 
       <PlaygroundToggleCard>

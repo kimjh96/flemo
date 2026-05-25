@@ -2,19 +2,23 @@
 
 import { create } from "zustand";
 
-export type PushTransition = "harmonized" | "cupertino" | "material" | "blur" | "none";
+// `null` is the natural state: each push site uses the transition that fits
+// its own navigation context (cupertino for browse-deeper hops, material for
+// the player). Setting a value here overrides every push to use that one
+// transition, exposed as a playground knob to compare behaviors.
+export type PushTransitionOverride = "cupertino" | "material" | "blur" | "none";
 
 interface PlaygroundSettingsState {
-  pushTransition: PushTransition;
+  pushTransitionOverride: PushTransitionOverride | null;
   showMiniPlayer: boolean;
-  setPushTransition: (value: PushTransition) => void;
+  setPushTransitionOverride: (value: PushTransitionOverride | null) => void;
   setShowMiniPlayer: (value: boolean) => void;
 }
 
 const usePlaygroundSettingsStore = create<PlaygroundSettingsState>((set) => ({
-  pushTransition: "harmonized",
+  pushTransitionOverride: null,
   showMiniPlayer: true,
-  setPushTransition: (value) => set({ pushTransition: value }),
+  setPushTransitionOverride: (value) => set({ pushTransitionOverride: value }),
   setShowMiniPlayer: (value) => set({ showMiniPlayer: value })
 }));
 

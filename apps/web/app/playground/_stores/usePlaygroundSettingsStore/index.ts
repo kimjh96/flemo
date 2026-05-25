@@ -1,2 +1,2 @@
 export { default } from "./usePlaygroundSettingsStore";
-export type { PushTransition } from "./usePlaygroundSettingsStore";
+export type { PushTransitionOverride } from "./usePlaygroundSettingsStore";

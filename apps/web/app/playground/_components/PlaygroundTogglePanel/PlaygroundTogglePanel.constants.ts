@@ -1,20 +1,5 @@
 import type { TransitionGroup, TransitionOption } from "./PlaygroundTogglePanel.types";
 
-const harmonized: TransitionOption = {
-  value: "harmonized",
-  label: "harmonized",
-  group: "Default",
-  summary:
-    "Default. Each navigation picks the transition that matches its affordance — cupertino for browse-deeper hops, material for the player (which closes with a down chevron).",
-  code: `function resolvePushTransition(target) {
-  // Player closes with a downward chevron — match it with a
-  // vertical rise so push and dismiss share one axis.
-  if (target === "/now-playing") return "material";
-  // Browse-deeper hops use the iOS horizontal push.
-  return "cupertino";
-}`
-};
-
 const cupertino: TransitionOption = {
   value: "cupertino",
   label: "cupertino",
@@ -75,12 +60,17 @@ const blur: TransitionOption = {
 });`
 };
 
+// The "natural" code snippet — what each push site looks like by default.
+// Shown when no override is active so the reader sees that per-context
+// composition is the baseline, not a meta-option.
+export const naturalPushCode = `// Library / Search → Album — browse deeper.
+navigate.push("/album/:id", { id }, { transitionName: "cupertino" });
+
+// Album / MiniPlayer → NowPlaying — the player dismisses with a
+// downward chevron, so material's vertical rise matches the axis.
+navigate.push("/now-playing", undefined, { transitionName: "material" });`;
+
 export const transitionGroups: ReadonlyArray<TransitionGroup> = [
-  {
-    kind: "Default",
-    caption: "Per-destination resolution.",
-    options: [harmonized]
-  },
   {
     kind: "Built-in",
     caption: "Force one preset for every push.",

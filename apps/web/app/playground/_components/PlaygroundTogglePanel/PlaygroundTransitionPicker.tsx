@@ -1,16 +1,16 @@
-import type { PushTransition } from "@/app/playground/_stores/usePlaygroundSettingsStore";
+import type { PushTransitionOverride } from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
 import type { TransitionGroup, TransitionOption } from "./PlaygroundTogglePanel.types";
 
 export interface PlaygroundTransitionPickerProps {
   groups: ReadonlyArray<TransitionGroup>;
-  value: PushTransition;
-  onChange: (next: PushTransition) => void;
+  value: PushTransitionOverride | null;
+  onChange: (next: PushTransitionOverride | null) => void;
 }
 
 function PlaygroundTransitionPicker({ groups, value, onChange }: PlaygroundTransitionPickerProps) {
   return (
-    <div className="flex flex-col gap-4" role="radiogroup" aria-label="Push transition">
+    <div className="flex flex-col gap-4" role="radiogroup" aria-label="Push transition override">
       {groups.map((group) => (
         <div key={group.kind} className="flex flex-col gap-2">
           <div className="flex items-baseline gap-2">
@@ -22,14 +22,17 @@ function PlaygroundTransitionPicker({ groups, value, onChange }: PlaygroundTrans
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {group.options.map((option) => (
-              <Chip
-                key={option.value}
-                option={option}
-                active={option.value === value}
-                onClick={() => onChange(option.value)}
-              />
-            ))}
+            {group.options.map((option) => {
+              const active = option.value === value;
+              return (
+                <Chip
+                  key={option.value}
+                  option={option}
+                  active={active}
+                  onClick={() => onChange(active ? null : option.value)}
+                />
+              );
+            })}
           </div>
         </div>
       ))}

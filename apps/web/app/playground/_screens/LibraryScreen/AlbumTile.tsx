@@ -5,7 +5,6 @@ import { useNavigate } from "@flemo/react";
 import type { Album } from "@/app/playground/_data/albums";
 import { gradientFor } from "@/app/playground/_data/gradient";
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
-import resolvePushTransition from "@/app/playground/_utils/resolvePushTransition";
 
 export interface AlbumTileProps {
   album: Album;
@@ -13,13 +12,17 @@ export interface AlbumTileProps {
 
 function AlbumTile({ album }: AlbumTileProps) {
   const navigate = useNavigate();
-  const pushTransition = usePlaygroundSettingsStore((state) => state.pushTransition);
+  const pushTransitionOverride = usePlaygroundSettingsStore(
+    (state) => state.pushTransitionOverride
+  );
 
   const handleOpen = () => {
     navigate.push(
       "/album/:id",
       { id: album.id },
-      { transitionName: resolvePushTransition(pushTransition, "/album/:id") }
+      // Browse-deeper hop — cupertino fits naturally. The override is for
+      // playground experimentation only.
+      { transitionName: pushTransitionOverride ?? "cupertino" }
     );
   };
 

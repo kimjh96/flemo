@@ -6,7 +6,6 @@ import { albumById } from "@/app/playground/_data/albums";
 import { gradientFor } from "@/app/playground/_data/gradient";
 import usePlayerStore from "@/app/playground/_stores/usePlayerStore";
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
-import resolvePushTransition from "@/app/playground/_utils/resolvePushTransition";
 
 import PlayPauseIcon from "./PlayPauseIcon";
 
@@ -15,14 +14,17 @@ function MiniPlayer() {
   const currentTrack = usePlayerStore((state) => state.currentTrack);
   const isPlaying = usePlayerStore((state) => state.isPlaying);
   const togglePlay = usePlayerStore((state) => state.togglePlay);
-  const pushTransition = usePlaygroundSettingsStore((state) => state.pushTransition);
+  const pushTransitionOverride = usePlaygroundSettingsStore(
+    (state) => state.pushTransitionOverride
+  );
 
   const album = albumById(currentTrack.albumId);
   if (!album) return null;
 
   const handleOpenNowPlaying = () => {
     navigate.push("/now-playing", undefined, {
-      transitionName: resolvePushTransition(pushTransition, "/now-playing")
+      // Player open — match the close gesture's vertical axis with material.
+      transitionName: pushTransitionOverride ?? "material"
     });
   };
 

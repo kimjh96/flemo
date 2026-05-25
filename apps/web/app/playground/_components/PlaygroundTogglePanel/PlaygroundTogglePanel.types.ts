@@ -1,9 +1,9 @@
-import type { PushTransition } from "@/app/playground/_stores/usePlaygroundSettingsStore";
+import type { PushTransitionOverride } from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
-export type TransitionGroupKind = "Default" | "Built-in" | "Custom";
+export type TransitionGroupKind = "Built-in" | "Custom";
 
 export interface TransitionOption {
-  value: PushTransition;
+  value: PushTransitionOverride;
   label: string;
   group: TransitionGroupKind;
   summary: string;

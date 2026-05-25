@@ -8,7 +8,6 @@ import { gradientFor } from "@/app/playground/_data/gradient";
 import { PlayerScreen } from "@/app/playground/_screens/PlayerScreen";
 import usePlayerStore from "@/app/playground/_stores/usePlayerStore";
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
-import resolvePushTransition from "@/app/playground/_utils/resolvePushTransition";
 
 import AlbumAppBar from "./AlbumAppBar";
 import TrackRow from "./TrackRow";
@@ -18,7 +17,9 @@ function AlbumScreen() {
   const navigate = useNavigate();
   const setTrack = usePlayerStore((state) => state.setTrack);
   const showMiniPlayer = usePlaygroundSettingsStore((state) => state.showMiniPlayer);
-  const pushTransition = usePlaygroundSettingsStore((state) => state.pushTransition);
+  const pushTransitionOverride = usePlaygroundSettingsStore(
+    (state) => state.pushTransitionOverride
+  );
 
   const album = params ? albumById(params.id) : undefined;
 
@@ -37,7 +38,9 @@ function AlbumScreen() {
     if (!firstTrack) return;
     setTrack(firstTrack);
     navigate.push("/now-playing", undefined, {
-      transitionName: resolvePushTransition(pushTransition, "/now-playing")
+      // The NowPlaying screen dismisses with a downward chevron, so material's
+      // vertical rise maps the push/dismiss to a single axis.
+      transitionName: pushTransitionOverride ?? "material"
     });
   };
 
