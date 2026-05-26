@@ -1,5 +1,5 @@
 ---
-"@flemo/core": major
+"@flemo/core": minor
 "@flemo/react": patch
 ---
 
