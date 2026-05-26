@@ -142,8 +142,20 @@ import { createDecorator } from "@flemo/react";
 
 const dim = createDecorator({
   name: "dim",
+  // Where the decorator starts when it first mounts.
   initial: { opacity: 0 },
+  // Resting state for the active side AND for the *new* screen during PUSH /
+  // REPLACE. Holds at IDLE-*, COMPLETED-true, POPPING-true, PUSHING-true,
+  // REPLACING-true — none of those are when the dim should be visible.
+  idle: { value: { opacity: 0 }, options: { duration: 0 } },
+  // The "going behind" state. Animates idle → enter on PUSHING-false /
+  // REPLACING-false (the screen becoming the previous one), and the rest rule
+  // holds at enter for COMPLETED-false so it stays dimmed underneath the new
+  // active screen.
   enter: { value: { opacity: 0.4 }, options: { duration: 0.3 } },
+  // POPPING-false target — the previously-behind screen is returning to
+  // active. Animates enter → exit. Match `idle` (here, both `opacity: 0`) so
+  // the screen lands softly on COMPLETED-true's rest rule.
   exit: { value: { opacity: 0 }, options: { duration: 0.3 } }
 });
 ```

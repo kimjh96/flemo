@@ -6,19 +6,33 @@ const overlay = createDecorator({
     opacity: 0,
     backgroundColor: "rgba(0, 0, 0, 0)"
   },
-  enter: {
+  idle: {
     value: {
       opacity: 0,
+      backgroundColor: "rgba(0, 0, 0, 0)"
+    },
+    options: {
+      duration: 0
+    }
+  },
+  // Visible dim — applied when this screen is the one going behind / sitting
+  // behind a new active screen (PUSHING-false / REPLACING-false / COMPLETED-false).
+  enter: {
+    value: {
+      opacity: 1,
       backgroundColor: "rgba(0, 0, 0, 0.3)"
     },
     options: {
       duration: 0.3
     }
   },
+  // POPPING-false target: the previously-behind screen is returning to active.
+  // Fades from `enter` (visible dim) back to invisible so the overlay clears
+  // before the screen lands at COMPLETED-true (= idle).
   exit: {
     value: {
-      opacity: 1,
-      backgroundColor: "rgba(0, 0, 0, 0.3)"
+      opacity: 0,
+      backgroundColor: "rgba(0, 0, 0, 0)"
     },
     options: {
       duration: 0.3

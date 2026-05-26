@@ -136,8 +136,18 @@ import { createDecorator } from "@flemo/react";
 
 const dim = createDecorator({
   name: "dim",
+  // 데코레이터가 처음 마운트될 때 시작 상태.
   initial: { opacity: 0 },
+  // 활성 쪽 + PUSH/REPLACE 중인 *새* 화면의 휴지 상태. IDLE-*,
+  // COMPLETED-true, POPPING-true, PUSHING-true, REPLACING-true 모두 여기에
+  // 머물러요. dim이 보이면 안 되는 슬롯들이라 0으로 잡아요.
+  idle: { value: { opacity: 0 }, options: { duration: 0 } },
+  // "뒤로 들어가는" 상태. PUSHING-false / REPLACING-false에서 idle → enter로
+  // 페이드인되고, COMPLETED-false 정착 룰에서 enter 값을 그대로 들고 있어요.
   enter: { value: { opacity: 0.4 }, options: { duration: 0.3 } },
+  // POPPING-false 종착 — 뒤에 깔려 있던 화면이 활성으로 복귀해요. enter →
+  // exit로 애니메이션. 여기서 `idle`(opacity 0)과 같게 두면 COMPLETED-true
+  // 휴지 룰에 부드럽게 안착해요.
   exit: { value: { opacity: 0 }, options: { duration: 0.3 } }
 });
 ```
