@@ -1,5 +1,11 @@
 # @flemo/web
 
+## 0.2.5
+
+### Patch Changes
+
+- [`541c526`](https://github.com/kimjh96/flemo/commit/541c52604f5a3d2f8c2257f09c1ba731b80a0c54) Update the API reference table so the `createDecorator` row reflects the four-slot signature (`initial / idle / enter / exit`). The previous "six-phase" label was already a copy-paste from `createTransition` and is doubly stale now that `createDecorator` requires `idle`.
+
 ## 0.2.4
 
 ### Patch Changes
