@@ -13,6 +13,7 @@ import layout from "@transition/layout";
 import material from "@transition/material";
 import none from "@transition/none";
 
+import createDecorator from "@transition/decorator/createDecorator";
 import overlay from "@transition/decorator/overlay";
 
 declare module "@transition/typing" {
@@ -23,6 +24,12 @@ declare module "@transition/typing" {
     "custom-unitless": "custom-unitless";
     "custom-lengths": "custom-lengths";
     "custom-css-vars": "custom-css-vars";
+  }
+}
+
+declare module "@transition/decorator/typing" {
+  interface RegisterDecorator {
+    "rich-deco": "rich-deco";
   }
 }
 
@@ -126,11 +133,13 @@ describe("compileTransitionStyles", () => {
   it("compiles decorator rules under the decorator selector", () => {
     const css = compileTransitionStyles([], [overlay]);
 
+    // The visible decorator animation rides on the screen that's moving INTO
+    // the background — `PUSHING-false`, not `PUSHING-true`. The entering
+    // screen's decorator sits at `idle` and emits only a rest rule.
     expect(css).toContain(
-      '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
+      '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
     );
-    // The keyframe's `to` is the variant value (opacity: 0, background... etc.).
-    expect(css).toContain(`@keyframes ${animationName("decorator", "overlay", "PUSHING-true")}`);
+    expect(css).toContain(`@keyframes ${animationName("decorator", "overlay", "PUSHING-false")}`);
   });
 
   it("emits camelCase CSS props as kebab-case", () => {
@@ -138,6 +147,100 @@ describe("compileTransitionStyles", () => {
 
     expect(css).toContain("background-color: rgba(0, 0, 0, 0.3)");
     expect(css).not.toContain("backgroundColor");
+  });
+
+  // Decorators must accept the same CSS surface transitions do — author-defined
+  // `filter`, `backdropFilter`, `boxShadow`, transform shortcuts, and CSS
+  // custom properties all need to land in the keyframe and the `will-change`
+  // hint so a decorator can drive arbitrary effects, not just opacity. We
+  // probe PUSHING-false because that's the variant where `createDecorator`
+  // animates idle → enter (the screen moving into the background), so every
+  // rich property on `enter` shows up in the compiled keyframe.
+  it("compiles arbitrary CSS properties on decorators (filter, boxShadow, transform shortcuts, custom property)", () => {
+    const rich = createDecorator({
+      name: "rich-deco",
+      initial: {
+        opacity: 0,
+        filter: "blur(0px)",
+        backdropFilter: "saturate(1)",
+        boxShadow: "0 0 0 rgba(0,0,0,0)",
+        "--brand": 0
+      },
+      idle: {
+        value: {
+          opacity: 0,
+          filter: "blur(0px)",
+          backdropFilter: "saturate(1)",
+          boxShadow: "0 0 0 rgba(0,0,0,0)",
+          "--brand": 0
+        },
+        options: { duration: 0 }
+      },
+      enter: {
+        value: {
+          opacity: 1,
+          filter: "blur(8px)",
+          backdropFilter: "saturate(1.6)",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+          "--brand": 1,
+          x: -10,
+          scale: 0.98,
+          rotate: 2
+        },
+        options: { duration: 0.4 }
+      },
+      exit: {
+        value: {
+          opacity: 0,
+          filter: "blur(0px)",
+          backdropFilter: "saturate(1)",
+          boxShadow: "0 0 0 rgba(0,0,0,0)",
+          "--brand": 0
+        },
+        options: { duration: 0.4 }
+      }
+    });
+
+    const css = compileTransitionStyles([], [rich]);
+    const keyframe = css
+      .split("\n\n")
+      .find(
+        (block) =>
+          block.includes(animationName("decorator", "rich-deco", "PUSHING-false")) &&
+          block.startsWith("@keyframes")
+      );
+
+    expect(keyframe).toBeDefined();
+    // String CSS values pass through verbatim.
+    expect(keyframe).toContain("filter: blur(0px)");
+    expect(keyframe).toContain("filter: blur(8px)");
+    // camelCase → kebab-case for arbitrary properties.
+    expect(keyframe).toContain("backdrop-filter: saturate(1)");
+    expect(keyframe).toContain("backdrop-filter: saturate(1.6)");
+    expect(keyframe).toContain("box-shadow: 0 0 0 rgba(0,0,0,0)");
+    expect(keyframe).toContain("box-shadow: 0 8px 24px rgba(0,0,0,0.25)");
+    // CSS custom properties: no `px` suffix on numeric scalars.
+    expect(keyframe).toContain("--brand: 0");
+    expect(keyframe).toContain("--brand: 1");
+    expect(keyframe).not.toContain("--brand: 0px");
+    expect(keyframe).not.toContain("--brand: 1px");
+    // Transform shortcuts collapse into a single `transform` decl on `to`.
+    expect(keyframe).toContain("transform: translateX(-10px) scale(0.98) rotate(2deg)");
+
+    // will-change lists exactly the properties the decorator writes. The
+    // compiler emits the keyframe block + the selector rule joined by a single
+    // newline (one entry in the `\n\n`-split list), so we assert against the
+    // same block.
+    expect(keyframe).toContain(
+      '[data-flemo-decorator][data-flemo-decorator-name="rich-deco"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
+    );
+    expect(keyframe).toContain("will-change:");
+    expect(keyframe).toContain("opacity");
+    expect(keyframe).toContain("filter");
+    expect(keyframe).toContain("backdrop-filter");
+    expect(keyframe).toContain("box-shadow");
+    expect(keyframe).toContain("--brand");
+    expect(keyframe).toContain("transform");
   });
 
   it("passes string values through verbatim for arbitrary CSS properties (filter, boxShadow, color)", () => {
@@ -468,13 +571,16 @@ describe("compileTransitionStyles — will-change (compositor promotion)", () =>
 
   it("emits will-change on decorator variant rules too", () => {
     const css = compileTransitionStyles([], [overlay]);
-    const pushActive = findRule(
+    // The animating decorator slot is the screen going behind, not the active
+    // side — that's where `idle → enter` actually runs and the layer needs
+    // promoting.
+    const pushInactive = findRule(
       css,
-      '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
+      '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
     );
 
-    expect(pushActive).toBeDefined();
-    expect(pushActive).toMatch(/will-change:/);
+    expect(pushInactive).toBeDefined();
+    expect(pushInactive).toMatch(/will-change:/);
   });
 });
 
