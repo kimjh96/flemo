@@ -17,10 +17,25 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     steps:
+      # Mint an App-installation token. PRs opened with the default
+      # `secrets.GITHUB_TOKEN` are silently demoted by GitHub — `pull_request`
+      # events on those PRs do NOT trigger other workflows (the
+      # infinite-loop guard). That left required CI checks (Verify / E2E /
+      # Playwright) stuck on "Expected — waiting for status to be reported"
+      # on every Version PR. An App token is a real external identity, so
+      # downstream workflows fire normally.
+      - name: Mint release-bot token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+
       - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
@@ -47,6 +62,6 @@ jobs:
           commit: "chore(release): version packages"
           title: "chore(release): version packages"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
