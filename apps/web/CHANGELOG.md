@@ -1,5 +1,14 @@
 # @flemo/web
 
+## 0.2.7
+
+### Patch Changes
+
+- [`dd05e27`](https://github.com/kimjh96/flemo/commit/dd05e276b7ae2358eb03ac4f2b322725cfb81a79) Fix the white flash on the landing page's HeroDemo while the playground iframe is still loading in dark mode. The phone-frame interior and the loading-dot panel now use `var(--color-surface)` instead of a hardcoded `bg-white`, so they track the active theme and the iframe transitions in over a matching backdrop.
+- Updated dependencies:
+  - @flemo/react@1.0.6
+  - @flemo/react-layout@0.1.6
+
 ## 0.2.6
 
 ### Patch Changes
