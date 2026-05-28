@@ -61,8 +61,8 @@ describe("compileTransitionStyles", () => {
       );
 
     expect(popInactive).toBeDefined();
-    // returning screen comes from the exit position (x: -100px) back to identity
-    expect(popInactive).toContain("transform: translateX(-100px)");
+    // returning screen comes from the exit position (x: -30%) back to identity
+    expect(popInactive).toContain("transform: translateX(-30%)");
     expect(popInactive).toContain("transform: none");
   });
 
