@@ -374,7 +374,28 @@ const compileVariantBlock = (
   const willChangeDecl =
     animatedProperties.length > 0 ? `  will-change: ${animatedProperties.join(", ")};\n` : "";
 
-  const ruleBlock = `${selector} {\n  animation: ${animationProp};\n${willChangeDecl}}`;
+  // `contain: layout` confines layout invalidation inside the transitioning
+  // scope, so a heavy arrival screen's reflow doesn't propagate up through
+  // ancestors and steal time from the in-flight compositor animation.
+  // Active-variant-scoped on purpose: it establishes a new containing block
+  // for absolute/fixed descendants, which we only want during the
+  // transition window (status flips back to IDLE/COMPLETED → rule stops
+  // matching → containing block goes away, fixed bars re-anchor as before).
+  //
+  // `pointer-events: none` skips hit-testing on the moving element. Saves a
+  // compositor hit-test pass per frame and also acts as a correctness gate
+  // — a tap during the transition won't enqueue a second navigation.
+  //
+  // Scoped to PUSHING and REPLACING only. Pop's arrival screen is unhidden
+  // by ScreenFreeze (never re-mounted), so there's no mount work to isolate
+  // — and the e2e harness showed a small but consistent regression (~8ms)
+  // on heavy-DOM exiting screens during pop, attributable to containment
+  // block evaluation cost on a 2k-node tree with no upside to offset it.
+  const status = variant.split("-")[0];
+  const wantsContainment = status === "PUSHING" || status === "REPLACING";
+  const containmentDecl = wantsContainment ? `  contain: layout;\n  pointer-events: none;\n` : "";
+
+  const ruleBlock = `${selector} {\n  animation: ${animationProp};\n${willChangeDecl}${containmentDecl}}`;
 
   return `${keyframeBlock}\n${ruleBlock}`;
 };

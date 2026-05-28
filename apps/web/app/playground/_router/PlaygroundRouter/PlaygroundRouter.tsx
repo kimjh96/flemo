@@ -3,6 +3,7 @@
 import { Route, Router } from "@flemo/react";
 
 import AlbumScreen from "@/app/playground/_screens/AlbumScreen";
+import HeavyArrivalScreen from "@/app/playground/_screens/HeavyArrivalScreen";
 import LibraryScreen from "@/app/playground/_screens/LibraryScreen";
 import NowPlayingScreen from "@/app/playground/_screens/NowPlayingScreen";
 import SearchScreen from "@/app/playground/_screens/SearchScreen";
@@ -20,6 +21,7 @@ function PlaygroundRouter() {
       <Route path="/search" element={<SearchScreen />} />
       <Route path="/album/:id" element={<AlbumScreen />} />
       <Route path="/now-playing" element={<NowPlayingScreen />} />
+      <Route path="/heavy/:cpuMs/:nodes" element={<HeavyArrivalScreen />} />
     </Router>
   );
 }
