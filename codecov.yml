@@ -21,12 +21,18 @@ flag_management:
     carryforward: true
 
 # Don't bother counting type-only files or entry barrels.
+# ScreenMotion drives `animationend`, `setPointerCapture`, and pointer-event
+# choreography that don't behave usefully in jsdom — its lifecycle is
+# verified by the Playwright e2e suite in `apps/web/e2e/` instead. See
+# `packages/react/CLAUDE.md`: "prefer the playground for interactive
+# transitions — these are hard to assert in jsdom".
 ignore:
   - "**/index.ts"
   - "**/__tests__/**"
   - "**/*.test.{ts,tsx}"
   - "**/*.spec.{ts,tsx}"
   - "**/dist/**"
+  - "packages/react/src/screen/ScreenMotion.tsx"
 
 comment:
   layout: "reach,diff,flags,files"

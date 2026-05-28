@@ -584,6 +584,201 @@ describe("compileTransitionStyles — will-change (compositor promotion)", () =>
   });
 });
 
+describe("compileTransitionStyles — shared-bar ride-along selector", () => {
+  // The compositor-sync story (commit 9e0384c): every animating screen rule
+  // also targets a `[data-flemo-bar][data-flemo-bar-riding="true"]` sibling
+  // under the SAME `animation:` + `will-change:` declarations. A bar wrapper
+  // toggled to `riding=true` then runs the screen's @keyframes on the same
+  // compositor pass, so there's no rAF JS mirror in the loop. These tests pin
+  // that contract — if it ever regresses, mobile bars start trailing the
+  // screen by one composited frame.
+
+  // Re-use the helpers from the will-change describe block. They're scoped
+  // there, so duplicate them here rather than refactoring shared state.
+  const findRule = (css: string, selectorSubstring: string): string | undefined => {
+    const lines = css.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      if (line.startsWith("@keyframes")) continue;
+      if (!line.includes(selectorSubstring)) continue;
+      let startIdx = i;
+      while (startIdx > 0 && lines[startIdx - 1]!.trimEnd().endsWith(",")) {
+        startIdx -= 1;
+      }
+      const collected: string[] = [];
+      for (let j = startIdx; j < lines.length; j++) {
+        collected.push(lines[j]!);
+        if (lines[j]!.trim() === "}") return collected.join("\n");
+      }
+      return collected.join("\n");
+    }
+    return undefined;
+  };
+
+  it("pairs the screen rule with a riding-bar sibling under one animation + will-change block", () => {
+    const css = compileTransitionStyles([cupertino], []);
+    const pushActive = findRule(
+      css,
+      '[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
+    );
+
+    expect(pushActive).toBeDefined();
+    // Same block must include the bar sibling — only one `animation:` and one
+    // `will-change:` for the pair, so the screen and bar run the exact same
+    // @keyframes on the same compositor pass.
+    expect(pushActive).toContain(
+      '[data-flemo-bar][data-flemo-bar-transition="cupertino"][data-flemo-bar-status="PUSHING"][data-flemo-bar-active="true"][data-flemo-bar-riding="true"]'
+    );
+    expect((pushActive!.match(/animation:/g) ?? []).length).toBe(1);
+    expect((pushActive!.match(/will-change:/g) ?? []).length).toBe(1);
+  });
+
+  it("mirrors screen status/active onto the bar selector for every transitioning variant", () => {
+    const css = compileTransitionStyles([cupertino], []);
+    const variants: Array<[string, string]> = [
+      ["PUSHING", "true"],
+      ["PUSHING", "false"],
+      ["POPPING", "true"],
+      ["POPPING", "false"],
+      ["REPLACING", "true"],
+      ["REPLACING", "false"]
+    ];
+    for (const [status, active] of variants) {
+      const block = findRule(
+        css,
+        `[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-status="${status}"][data-flemo-active="${active}"]`
+      );
+      // Cupertino doesn't animate every variant (some hold rest), so skip
+      // the ones with no animation rule.
+      if (!block || !block.includes("animation:")) continue;
+      expect(block).toContain(
+        `[data-flemo-bar][data-flemo-bar-transition="cupertino"][data-flemo-bar-status="${status}"][data-flemo-bar-active="${active}"][data-flemo-bar-riding="true"]`
+      );
+    }
+  });
+
+  it("does NOT pair a bar sibling onto decorator rules (decorators stay screen-only)", () => {
+    const css = compileTransitionStyles([], [overlay]);
+    const decoBlock = findRule(
+      css,
+      '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
+    );
+
+    expect(decoBlock).toBeDefined();
+    expect(decoBlock).toContain("animation:");
+    expect(decoBlock).not.toContain("data-flemo-bar");
+  });
+
+  it("does NOT emit a bar selector for the empty 'none' transition", () => {
+    const css = compileTransitionStyles([none], []);
+    expect(css).not.toContain("data-flemo-bar");
+  });
+
+  it("does NOT pair a bar sibling onto rest rules (IDLE / COMPLETED — no animation, no compositor sync needed)", () => {
+    const css = compileTransitionStyles([cupertino], []);
+    const idleActive = findRule(
+      css,
+      '[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-status="IDLE"][data-flemo-active="true"]'
+    );
+
+    expect(idleActive).toBeDefined();
+    expect(idleActive).not.toContain("animation:");
+    expect(idleActive).not.toContain("data-flemo-bar");
+  });
+
+  it("emits `contain: layout` and `pointer-events: none` on PUSHING / REPLACING rules (where new screens mount)", () => {
+    // The hints isolate the transitioning scope from heavy work happening
+    // inside the arriving screen during its initial mount commit. They're
+    // scoped to PUSHING and REPLACING — the verbs that actually trigger a
+    // mount. Pop is intentionally excluded (see below).
+    const cssCupertino = compileTransitionStyles([cupertino], []);
+    const pushActive = findRule(
+      cssCupertino,
+      '[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
+    );
+    expect(pushActive).toBeDefined();
+    expect(pushActive).toMatch(/contain:\s*layout;/);
+    expect(pushActive).toMatch(/pointer-events:\s*none;/);
+
+    const replaceActive = findRule(
+      cssCupertino,
+      '[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-status="REPLACING"][data-flemo-active="true"]'
+    );
+    if (replaceActive) {
+      expect(replaceActive).toMatch(/contain:\s*layout;/);
+      expect(replaceActive).toMatch(/pointer-events:\s*none;/);
+    }
+
+    // Bar sibling rides under the same block, so it inherits both.
+    expect(pushActive).toContain("[data-flemo-bar]");
+
+    // Decorator rules get them too — the overlay needs to be non-clickable
+    // mid-transition and shouldn't propagate layout invalidation.
+    const cssOverlay = compileTransitionStyles([], [overlay]);
+    const decoRule = findRule(
+      cssOverlay,
+      '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
+    );
+    expect(decoRule).toBeDefined();
+    expect(decoRule).toMatch(/contain:\s*layout;/);
+    expect(decoRule).toMatch(/pointer-events:\s*none;/);
+  });
+
+  it("does NOT emit `contain` or `pointer-events` on POPPING rules (no mount work to isolate; avoids containment-block cost on heavy exiting screens)", () => {
+    // ScreenFreeze keeps popped-from screens mounted via display:none, so
+    // pop's destination has no fresh mount work and there's nothing for
+    // containment to isolate. The e2e harness measured ~8ms regression on
+    // 2k-DOM exiting screens during pop with the hints applied — pure cost
+    // with no upside. POPPING-true (the exiting screen) and POPPING-false
+    // (the returning screen) must both stay clean.
+    const css = compileTransitionStyles([cupertino], []);
+    const popActive = findRule(
+      css,
+      '[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-status="POPPING"][data-flemo-active="true"]'
+    );
+    const popInactive = findRule(
+      css,
+      '[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-status="POPPING"][data-flemo-active="false"]'
+    );
+
+    for (const block of [popActive, popInactive]) {
+      if (!block) continue;
+      expect(block).not.toMatch(/contain:/);
+      expect(block).not.toMatch(/pointer-events:/);
+    }
+  });
+
+  it("does NOT emit `contain` or `pointer-events` on rest rules (IDLE / COMPLETED restore interaction + layout)", () => {
+    const css = compileTransitionStyles([cupertino], []);
+    const idleActive = findRule(
+      css,
+      '[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-status="IDLE"][data-flemo-active="true"]'
+    );
+    const completedActive = findRule(
+      css,
+      '[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-status="COMPLETED"][data-flemo-active="true"]'
+    );
+
+    for (const block of [idleActive, completedActive]) {
+      if (!block) continue;
+      expect(block).not.toMatch(/contain:/);
+      expect(block).not.toMatch(/pointer-events:/);
+    }
+  });
+
+  it('requires data-flemo-bar-riding="true" on the bar selector (bars only ride when ScreenMotion opts them in)', () => {
+    // Without the riding attribute the sibling selector wouldn't match, so a
+    // partner-owned bar stays untouched. Pin the attribute literal in the
+    // compiled output so a refactor can't silently drop it.
+    const css = compileTransitionStyles([cupertino], []);
+    const barLines = css.split("\n").filter((line) => line.includes("data-flemo-bar"));
+    expect(barLines.length).toBeGreaterThan(0);
+    for (const line of barLines) {
+      expect(line).toContain('[data-flemo-bar-riding="true"]');
+    }
+  });
+});
+
 describe("variantHasAnimation", () => {
   it("returns true for transitioning variants with non-zero duration", () => {
     expect(variantHasAnimation(cupertino, "PUSHING-true")).toBe(true);

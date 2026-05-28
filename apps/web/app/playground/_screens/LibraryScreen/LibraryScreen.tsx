@@ -10,6 +10,7 @@ import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSe
 import AlbumTile from "./AlbumTile";
 import LibraryArtistsList from "./LibraryArtistsList";
 import LibraryHeader from "./LibraryHeader";
+import LibraryPerfScenarios from "./LibraryPerfScenarios";
 import LibrarySongsList from "./LibrarySongsList";
 import { segmentIndex } from "./LibraryScreen.utils";
 
@@ -48,6 +49,8 @@ function LibraryScreen() {
         {segment === "songs" && <LibrarySongsList />}
 
         {segment === "artists" && <LibraryArtistsList />}
+
+        {segment === "albums" && <LibraryPerfScenarios />}
       </div>
     </PlayerScreen>
   );

@@ -461,7 +461,15 @@ function ScreenMotion({
   // navigation task once its animation settles (animationend on the primary
   // keyframe). For variants that compile to no animation we resolve on the
   // next microtask so the navigation queue still advances.
-  useEffect(() => {
+  //
+  // `useLayoutEffect` (not `useEffect`) so the `animationend` listener is
+  // attached synchronously during commit — before the browser paints the
+  // first animation frame. Closes a tiny race where a very short variant
+  // could finish before a post-commit `useEffect` attaches the listener.
+  // The COMPLETED-branch inline cleanup also runs pre-paint, which means
+  // the browser never paints a transient frame where stale inline styles
+  // overlap the rest CSS rule.
+  useLayoutEffect(() => {
     if (!isActive) {
       const isTransitionDiffOnReplace = prevTransitionName !== transitionName;
       if (status === "REPLACING" && isTransitionDiffOnReplace) {
