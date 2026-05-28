@@ -1,5 +1,13 @@
 # @flemo/core
 
+## 1.1.2
+
+### Patch Changes
+
+- [`dd05e27`](https://github.com/kimjh96/flemo/commit/dd05e276b7ae2358eb03ac4f2b322725cfb81a79) Align the `overlay` decorator's `enter` / `exit` duration and easing to cupertino's push / pop slides (0.7s / 0.6s, cubic-bezier(0.32, 0.72, 0, 1)). The keyframe now reaches its `to` value exactly when the screen status flips to COMPLETED, eliminating the `fill: both` hold sub-window where the rest-rule handoff could race against the compositor. Swipe handler durations stay at 0.3s so the gesture release remains responsive.
+
+- [`dd05e27`](https://github.com/kimjh96/flemo/commit/dd05e276b7ae2358eb03ac4f2b322725cfb81a79) Hold `overlay`'s `backgroundColor` static at the target dim across every variant so only `opacity` is keyframe-animated. Effective dim is now `opacity × 0.3` (linear) instead of the previous `opacity × bg_alpha` product (which produced ≈0.075 at midpoint — barely visible — and jumped to 0.3 only at the very end). The keyframe is also single-property, which avoids iOS Safari's known color-space interpolation quirks for `background-color` under a transformed ancestor and shrinks the `will-change` hint to `opacity` alone.
+
 ## 1.1.1
 
 ### Patch Changes
