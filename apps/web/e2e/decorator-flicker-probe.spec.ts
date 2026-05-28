@@ -3,11 +3,11 @@ import { test, expect, type Page, type TestInfo } from "@playwright/test";
 import { waitForTransitionSettled } from "./helpers/flemo";
 
 // Decorator opacity contract pin. The overlay decorator animates idle→enter
-// over 0.3s, holds at `enter` (opacity 1) via `fill: both` until the screen's
-// 0.7s cupertino animation also settles, then hands off to the COMPLETED-false
-// rest rule (also at `enter`'s values). The contract is: once the rising-edge
-// window is past, opacity must never dip below 1 — no race between the
-// animation handoff and the rest rule taking over.
+// in lockstep with cupertino's push (0.7s, matched easing), so the
+// keyframe `to` arrives exactly when the screen status flips to
+// COMPLETED — no `fill: both` hold-window for a rest-rule handoff to
+// race against. The contract is: once the going-behind screen reaches
+// COMPLETED-false, its overlay opacity must hold at full strength.
 //
 // Born from an investigation into a reported Android / iOS flicker
 // ("opacity animates 0→1, then drops to 0 at the end of the transition").
@@ -132,16 +132,14 @@ async function probeDecorator(page: Page, testInfo: TestInfo) {
     (bucketed[bucket] ??= []).push(s);
   }
 
-  // Detection heuristics — flag any sample where opacity is between 0.01
-  // and 0.99 outside the rising-edge window (t < 350ms allows for the
-  // 0.3s animation + a 50ms tolerance). Also flag any sample where
-  // status="PUSHING" but opacity == 0 after t=50ms (the held window
-  // should be opacity ~1, never back to 0).
+  // Detection: once the transition settles to COMPLETED with the
+  // going-behind screen as the inactive side, the rest rule must hold the
+  // overlay at full opacity. The PUSHING window is itself the rising
+  // edge — overlay's duration is aligned to cupertino's so there's no
+  // hold-by-fill sub-window during PUSHING to check separately — so we
+  // only flag COMPLETED-false samples that aren't at full opacity.
   const suspect: Sample[] = [];
   for (const s of samples) {
-    if (s.status === "PUSHING" && s.t > 350 && s.opacity < 0.95) {
-      suspect.push(s);
-    }
     if (s.status === "COMPLETED" && s.active === "false" && s.opacity < 0.95) {
       suspect.push(s);
     }
@@ -185,12 +183,11 @@ async function probeDecorator(page: Page, testInfo: TestInfo) {
   // eslint-disable-next-line no-console
   console.log(report);
 
-  // Pin the contract: zero frames where the held opacity dips below 0.95
-  // after the rising edge (t > 350ms), and zero frames where COMPLETED-false
-  // shows opacity < 0.95. A future change that breaks the animation→rest
-  // handoff fails here on the local renderer; a regression that only
-  // manifests on a real device still needs hardware to surface.
-  expect(suspect, "decorator opacity dipped below 0.95 inside the hold window").toEqual([]);
+  // Pin the contract: zero COMPLETED-false samples where opacity < 0.95.
+  // A regression that breaks the animation→rest handoff fails here on the
+  // local renderer; a regression that only manifests on a real device
+  // still needs hardware to surface.
+  expect(suspect, "decorator opacity dropped after settling at COMPLETED-false").toEqual([]);
 }
 
 test.describe("playground — decorator opacity probe (diagnostic)", () => {
