@@ -1,5 +1,13 @@
 # @flemo/react
 
+## 1.0.5
+
+### Patch Changes
+
+- [`ac42b4b`](https://github.com/kimjh96/flemo/commit/ac42b4bb7fc7f26d471804a34bafbe80a34d0c93) Move `ScreenMotion`'s transition-lifecycle `animationend` listener (and the COMPLETED-branch inline-style cleanup) from `useEffect` to `useLayoutEffect`. The listener now attaches synchronously during commit, before the browser paints the first animation frame, closing a tiny race where a very short variant could finish before a post-commit `useEffect` attached. The pre-paint cleanup also means the browser never paints a transient frame with stale inline styles overlapping the rest CSS rule. Measurable cost in the production-ship configuration (with the compositor isolation hints active) is zero.
+- Updated dependencies ([`ac42b4b`](https://github.com/kimjh96/flemo/commit/ac42b4bb7fc7f26d471804a34bafbe80a34d0c93)):
+  - @flemo/core@1.1.1
+
 ## 1.0.4
 
 ### Patch Changes

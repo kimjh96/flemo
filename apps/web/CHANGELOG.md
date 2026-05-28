@@ -1,5 +1,14 @@
 # @flemo/web
 
+## 0.2.6
+
+### Patch Changes
+
+- [`ac42b4b`](https://github.com/kimjh96/flemo/commit/ac42b4bb7fc7f26d471804a34bafbe80a34d0c93) Add a "Perf scenarios" section to the playground's Library screen that pushes a synthetic Heavy Arrival screen with adjustable render-body CPU and tree size. Backs the new `heavy-screen.spec.ts` A/B harness measuring flipLatency, rAF cadence, and `long-animation-frame` entries with and without the compositor isolation hints.
+- Updated dependencies ([`ac42b4b`](https://github.com/kimjh96/flemo/commit/ac42b4bb7fc7f26d471804a34bafbe80a34d0c93)):
+  - @flemo/react@1.0.5
+  - @flemo/react-layout@0.1.5
+
 ## 0.2.5
 
 ### Patch Changes
