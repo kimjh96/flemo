@@ -38,6 +38,10 @@ function PlaygroundNavigationCard() {
     navigate.replace("/heavy/:cpuMs/:nodes", heavyParams, { skip: 2, transitionName: "cupertino" });
   const handlePopSkipTwo = () => navigate.pop({ skip: 2 });
   const handlePopToLibrary = () => navigate.pop({ until: "/" });
+  // The seeded screens were pushed with cupertino; popping back with an explicit
+  // `material` proves the back transition can be overridden — and that the
+  // screens' own cupertino never flashes during the collapse.
+  const handlePopToLibraryMaterial = () => navigate.pop({ until: "/", transitionName: "material" });
 
   return (
     <PlaygroundToggleCard>
@@ -118,6 +122,15 @@ function PlaygroundNavigationCard() {
             className={buttonClassName}
           >
             pop {'{ until: "/" }'}
+          </button>
+          <button
+            type="button"
+            data-testid="nav-demo-pop-until-root-material"
+            onClick={handlePopToLibraryMaterial}
+            disabled={!canPopOne}
+            className={buttonClassName}
+          >
+            pop {'{ until: "/", transitionName: "material" }'}
           </button>
         </div>
       </div>

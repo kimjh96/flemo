@@ -315,13 +315,17 @@ export default function useNavigate() {
   // the skipped screens are removed synchronously in the same block that flips
   // to POPPING (before the browser paints), so they never appear; the leaving
   // top stays mounted to drive and resolve the animation.
-  const runPop = async (resolveSteps: (index: number, histories: History[]) => number) => {
+  const runPop = async (
+    resolveSteps: (index: number, histories: History[]) => number,
+    transitionName?: TransitionName
+  ) => {
     const id = TaskManager.generateTaskId();
 
     (
       await TaskManager.addTask(
         async (abortController) => {
-          const { index, histories, popHistory, popHistories } = useHistoryStore.getState();
+          const { index, histories, popHistory, popHistories, setTransitionName } =
+            useHistoryStore.getState();
 
           // Nothing below the root to pop — no-op without touching the browser.
           if (index <= 0) {
@@ -339,6 +343,15 @@ export default function useNavigate() {
           }
 
           const { setStatus, setTransitionTaskId } = useNavigateStore.getState();
+
+          // Relabel the leaving top's transition before the POPPING flip, in the
+          // same synchronous block — so the first painted POPPING frame already
+          // uses it and the screen's original transition never shows. `index` is
+          // the current top (the leaving screen); popHistories keeps that same
+          // entry below, so the override survives the intermediate drop.
+          if (transitionName) {
+            setTransitionName(index, transitionName);
+          }
 
           setStatus("POPPING");
           setTransitionTaskId(id);
@@ -378,8 +391,10 @@ export default function useNavigate() {
 
   // Go back `skip` screens, or back until the nearest screen matching `until`'s
   // route pattern (which stays — pop lands on it). Omitted → one screen. An
-  // unmatched `until` or non-positive `skip` is a no-op.
-  const pop = async (options?: DistanceOptions) => {
+  // unmatched `until` or non-positive `skip` is a no-op. `transitionName`
+  // overrides the back animation — handy when collapsing several screens whose
+  // own (top) transition isn't the one you want to play.
+  const pop = async (options?: DistanceOptions & { transitionName?: TransitionName }) => {
     await runPop((index, histories) => {
       if (options?.until != null) {
         const distance = matchDistance(options.until, index, histories);
@@ -387,7 +402,7 @@ export default function useNavigate() {
       }
       const skip = toSkip(options?.skip, 1);
       return skip <= 0 ? 0 : Math.min(skip, index);
-    });
+    }, options?.transitionName);
   };
 
   return {

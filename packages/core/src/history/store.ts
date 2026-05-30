@@ -17,6 +17,7 @@ interface HistoryStore {
   replaceHistory: (index: number) => void;
   popHistory: (index: number) => void;
   popHistories: (count: number) => void;
+  setTransitionName: (index: number, transitionName: TransitionName) => void;
 }
 
 const useHistoryStore = create<HistoryStore>((set) => ({
@@ -54,7 +55,20 @@ const useHistoryStore = create<HistoryStore>((set) => ({
         histories: state.histories.filter((_, i) => i < top - count || i >= top)
       };
     });
-  }
+  },
+  // Override one entry's transition. Used by pop() to relabel the leaving top
+  // before the POPPING flip so the back animation uses the caller's
+  // `transitionName` from the first frame — its original transition never
+  // paints. Returns a fresh array so the renderer re-reads it.
+  setTransitionName: (index, transitionName) =>
+    set((state) => {
+      const target = state.histories[index];
+      if (!target || target.transitionName === transitionName) return {};
+
+      const histories = state.histories.slice();
+      histories[index] = { ...target, transitionName };
+      return { histories };
+    })
 }));
 
 export default useHistoryStore;

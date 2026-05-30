@@ -25,6 +25,7 @@ navigate.replace("/login");
 navigate.pop(); // 한 화면 뒤로
 navigate.pop({ skip: 2 }); // 두 화면 뒤로, 한 번의 전환으로
 navigate.pop({ until: "/posts/:slug" }); // 가장 가까운 일치 화면까지 뒤로
+navigate.pop({ until: "/", transitionName: "cupertino" }); // 뒤로가기 전환을 직접 지정
 ```
 
 `push`·`replace`·`pop`은 비동기예요. 전환이 시작되고 라우트가 반영될 때까지 기다려요. 얼마나 멀리 가든
@@ -72,14 +73,14 @@ navigate.push(
 );
 ```
 
-| 옵션             | 동작                                                                                                     |
-| ---------------- | -------------------------------------------------------------------------------------------------------- |
-| `transitionName` | 이번 push 한 번만 다른 전환 사용                                                                         |
-| `layoutId`       | layoutId 모핑 태그 — `transitionName: "layout"`과 함께 push 또는 replace 시 사용                         |
-| `skip`           | top에서 `n`칸 아래까지 한 번의 전환으로 도달 — [top 너머로 도달하기](#top-너머로-도달하기) 참고          |
-| `until`          | 라우트 패턴과 일치하는 가장 가까운 아래 화면까지 도달 — [top 너머로 도달하기](#top-너머로-도달하기) 참고 |
+| 옵션             | 동작                                                                                                                                   |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `transitionName` | 이번 내비게이션의 전환을 지정. `pop`에서는 뒤로가기 애니메이션을 지정 — 여러 화면을 접을 때 맨 위 화면의 전환이 원하는 게 아닐 때 유용 |
+| `layoutId`       | layoutId 모핑 태그 — `transitionName: "layout"`과 함께 push 또는 replace 시 사용                                                       |
+| `skip`           | top에서 `n`칸 아래까지 한 번의 전환으로 도달 — [top 너머로 도달하기](#top-너머로-도달하기) 참고                                        |
+| `until`          | 라우트 패턴과 일치하는 가장 가까운 아래 화면까지 도달 — [top 너머로 도달하기](#top-너머로-도달하기) 참고                               |
 
-`skip`·`until`은 `push`·`replace`·`pop` 모두에서 받고, `transitionName`·`layoutId`는
+`skip`·`until`·`transitionName`은 `push`·`replace`·`pop` 모두에서 받고, `layoutId`는
 `push`·`replace`에 적용돼요.
 
 ## useParams

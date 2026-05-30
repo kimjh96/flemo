@@ -145,6 +145,48 @@ describe("useHistoryStore — popHistories", () => {
   });
 });
 
+describe("useHistoryStore — setTransitionName", () => {
+  beforeEach(reset);
+
+  const seed = (...pathnames: string[]) => {
+    const { addHistory } = useHistoryStore.getState();
+    for (const pathname of pathnames) addHistory(makeEntry({ pathname, transitionName: "none" }));
+  };
+
+  it("overrides one entry's transition and leaves the rest untouched", () => {
+    seed("/a", "/b", "/c"); // all "none"
+
+    useHistoryStore.getState().setTransitionName(2, "cupertino");
+
+    const { histories } = useHistoryStore.getState();
+    expect(histories.map((h) => h.transitionName)).toEqual(["none", "none", "cupertino"]);
+  });
+
+  it("returns a fresh array and entry so subscribers re-read (immutable)", () => {
+    seed("/a", "/b");
+    const before = useHistoryStore.getState().histories;
+    const beforeEntry = before[0]!;
+
+    useHistoryStore.getState().setTransitionName(0, "material");
+
+    const after = useHistoryStore.getState().histories;
+    expect(after).not.toBe(before);
+    expect(after[0]).not.toBe(beforeEntry);
+    // The other entry is preserved by reference.
+    expect(after[1]).toBe(before[1]);
+  });
+
+  it("is a no-op for a missing index or an unchanged value", () => {
+    seed("/a");
+    const before = useHistoryStore.getState().histories;
+
+    useHistoryStore.getState().setTransitionName(5, "cupertino"); // out of range
+    useHistoryStore.getState().setTransitionName(0, "none"); // same value
+
+    expect(useHistoryStore.getState().histories).toBe(before);
+  });
+});
+
 describe("useHistoryStore — mixed sequences", () => {
   beforeEach(reset);
 
