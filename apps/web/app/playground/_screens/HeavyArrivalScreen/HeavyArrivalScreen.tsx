@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef } from "react";
 
-import { useNavigate, useParams } from "@flemo/react";
+import { useNavigate, useParams, useScreen } from "@flemo/react";
 
 import { PlayerScreen } from "@/app/playground/_screens/PlayerScreen";
 
@@ -33,6 +33,9 @@ declare global {
 function HeavyArrivalScreen() {
   const params = useParams<"/heavy/:cpuMs/:nodes">();
   const navigate = useNavigate();
+  // `zIndex` is this screen's depth in the stack (Library is 0). The skip /
+  // collapse controls only make sense once there's something below to skip.
+  const { zIndex } = useScreen();
   const cpuMs = params ? Number(params.cpuMs) : 0;
   const nodeCount = params ? Number(params.nodes) : 0;
 
@@ -84,16 +87,43 @@ function HeavyArrivalScreen() {
       { count: 2, transitionName: "cupertino" }
     );
 
-  // pop(n)/replace collapse skip intermediate screens in one transition; with a
-  // heavy tree behind each button this is the clearest place to confirm the
-  // skipped screens never paint and the back/forward buttons stay correct.
+  // Each control skips/collapses screens in one transition; with a heavy tree
+  // behind every push, this is the clearest place to confirm the skipped
+  // screens never paint and back/forward stay correct. The multi-screen
+  // controls only appear once the stack is deep enough for them to do anything
+  // (e.g. "Pop 3 screens" needs three screens below the top).
   const controls = [
-    { testid: "perf-push-next", label: "Push another", onClick: handlePushAnother },
-    { testid: "perf-pop-2", label: "Pop 2", onClick: handlePopTwo },
-    { testid: "perf-pop-3", label: "Pop 3", onClick: handlePopThree },
-    { testid: "perf-popto-root", label: "Pop to Library", onClick: handlePopToLibrary },
-    { testid: "perf-replace-collapse", label: "Replace ×2", onClick: handleReplaceCollapse }
-  ];
+    {
+      testid: "perf-push-next",
+      label: "Push another",
+      onClick: handlePushAnother,
+      show: true
+    },
+    {
+      testid: "perf-pop-2",
+      label: "Pop 2 screens",
+      onClick: handlePopTwo,
+      show: zIndex >= 2
+    },
+    {
+      testid: "perf-pop-3",
+      label: "Pop 3 screens",
+      onClick: handlePopThree,
+      show: zIndex >= 3
+    },
+    {
+      testid: "perf-popto-root",
+      label: "Pop to Library",
+      onClick: handlePopToLibrary,
+      show: zIndex >= 2
+    },
+    {
+      testid: "perf-replace-collapse",
+      label: "Replace 2 screens",
+      onClick: handleReplaceCollapse,
+      show: zIndex >= 2
+    }
+  ].filter((control) => control.show);
 
   return (
     <PlayerScreen appBar={<HeavyArrivalAppBar />}>
@@ -104,7 +134,7 @@ function HeavyArrivalScreen() {
         data-heavy-node-count={nodeCount}
         className="flex min-h-full w-full flex-col bg-[var(--color-surface)]"
       >
-        <div className="flex flex-col gap-2.5 border-b border-[var(--color-line)] px-5 py-3">
+        <div className="flex flex-col gap-2 border-b border-[var(--color-line)] px-5 py-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--color-ink-soft)]">
               Navigation demo
@@ -113,7 +143,11 @@ function HeavyArrivalScreen() {
               cpuMs {cpuMs} · {nodeCount} nodes
             </span>
           </div>
-          {/* Wrap so a fifth button never clips the phone frame. */}
+          <p className="text-[12px] leading-snug text-[var(--color-ink-soft)]">
+            Push to stack heavy screens, then jump several back — or replace them — in one
+            transition. The skipped screens never paint.
+          </p>
+          {/* Wrap so the buttons never clip the phone frame. */}
           <div className="flex flex-wrap gap-1.5">
             {controls.map(({ testid, label, onClick }) => (
               <button
