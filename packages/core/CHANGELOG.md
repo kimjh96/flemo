@@ -1,5 +1,11 @@
 # @flemo/core
 
+## 1.3.0
+
+### Minor Changes
+
+- [`0e7e44b`](https://github.com/kimjh96/flemo/commit/0e7e44b227c8b9eec20309aa416b33beba712d7f) `useNavigate().pop` now accepts a `transitionName` to override the back animation — handy when collapsing several screens with `skip` / `until`, where the leaving top's own transition isn't the one you want. The override is applied in the same commit that starts the pop, so the original transition never paints a frame.
+
 ## 1.2.0
 
 ### Minor Changes
