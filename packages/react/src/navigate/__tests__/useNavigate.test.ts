@@ -169,6 +169,73 @@ describe("useNavigate — pop", () => {
     expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
     expect(useNavigateStore.getState().status).toBe("COMPLETED");
   });
+
+  it("pop(2) skips one screen, landing two entries back in one transition", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/a");
+    await result.current.push("/b");
+    await result.current.push("/c");
+    await result.current.push("/c-prime"); // [a, b, c, c-prime] idx=3
+    await result.current.pop(2);
+
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(1);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b"]);
+    expect(useNavigateStore.getState().status).toBe("COMPLETED");
+  });
+
+  it("pop(3) lands three entries back", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/a");
+    await result.current.push("/b");
+    await result.current.push("/c");
+    await result.current.push("/c-prime"); // [a, b, c, c-prime] idx=3
+    await result.current.pop(3);
+
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(0);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
+  });
+
+  it("clamps to the root when count exceeds the available depth", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/a");
+    await result.current.push("/b");
+    await result.current.push("/c"); // [a, b, c] idx=2
+    await result.current.pop(99);
+
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(0);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
+  });
+
+  it("pop(1) matches the single-step pop", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/a");
+    await result.current.push("/b");
+    await result.current.pop(1);
+
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(0);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
+  });
+
+  it("pop(0) and negative counts are no-ops", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/a");
+    await result.current.push("/b"); // [a, b] idx=1
+    await result.current.pop(0);
+    await result.current.pop(-2);
+
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(1);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b"]);
+  });
 });
 
 describe("useNavigate — mixed flows", () => {

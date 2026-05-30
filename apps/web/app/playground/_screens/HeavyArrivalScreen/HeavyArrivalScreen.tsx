@@ -81,20 +81,41 @@ function HeavyArrivalScreen() {
           <div className="text-sm text-[var(--color-ink-soft)]">
             cpuMs={cpuMs} · nodes={nodeCount}
           </div>
-          <button
-            type="button"
-            data-testid="perf-push-next"
-            onClick={() =>
-              navigate.push(
-                "/heavy/:cpuMs/:nodes",
-                { cpuMs: String(cpuMs), nodes: String(nodeCount) },
-                { transitionName: "cupertino" }
-              )
-            }
-            className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
-          >
-            Push another
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              data-testid="perf-push-next"
+              onClick={() =>
+                navigate.push(
+                  "/heavy/:cpuMs/:nodes",
+                  { cpuMs: String(cpuMs), nodes: String(nodeCount) },
+                  { transitionName: "cupertino" }
+                )
+              }
+              className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
+            >
+              Push another
+            </button>
+            {/* pop(n) skips n-1 screens in one transition; with heavy
+                intermediates this is the clearest place to confirm the skipped
+                screens never paint. */}
+            <button
+              type="button"
+              data-testid="perf-pop-2"
+              onClick={() => navigate.pop(2)}
+              className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
+            >
+              Pop 2
+            </button>
+            <button
+              type="button"
+              data-testid="perf-pop-3"
+              onClick={() => navigate.pop(3)}
+              className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
+            >
+              Pop 3
+            </button>
+          </div>
         </div>
         {items.map((i) => (
           <div
