@@ -46,17 +46,6 @@ target and differ only in what they do there:
 | `replace` | replaces it — the target and everything above become the new screen |
 | `push`    | keeps it — the new screen stacks on top                             |
 
-```text
-                ┌─ skip: 2  ≡  until: "/library"   (the target)
-                ▼
-   /    →    /library    →    /posts/a    →    /posts/b
-  (0)         (1)              (2)              (3) ◀ top
-
-  pop      →  /, /library             land on the target
-  replace  →  /, /x                   replace the target and everything above it
-  push     →  /, /library, /x         keep the target, stack the new screen on top
-```
-
 ```ts
 // stack:  /  →  /library  →  /posts/a  →  /posts/b   (top = /posts/b)
 navigate.pop({ skip: 2 }); //               → /, /library          (lands on /library)
