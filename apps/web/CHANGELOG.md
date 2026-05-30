@@ -1,5 +1,15 @@
 # @flemo/web
 
+## 0.3.0
+
+### Minor Changes
+
+- [`7b182f2`](https://github.com/kimjh96/flemo/commit/7b182f2c535c0b3098a5785e74e348669c54f730) Rebuild the playground dev panel into categorized sections — transitions, shared bars (separate navigation/app bar toggles with a live presence read-out), a navigation-distance demo for `{ skip }` / `{ until }`, performance, and a live inspector showing flemo's history stack, navigation status, and shared-bar registry in real time.
+
+### Patch Changes
+
+- [`dc46626`](https://github.com/kimjh96/flemo/commit/dc46626336d0a42946b7d35905c83461057d5427) Docs: document the `skip` / `until` options in the Navigation options table, add a `useScreen` return-shape reference to the API page, expand the Screen safe-areas guidance for native/hybrid (WebView) apps — let the web own the safe areas via `statusBarHeight` / `systemNavigationBarHeight` while the native shell disables its own — and reframe the server-side rendering section away from Next.js, since flemo owns client-side history and doesn't compose with the Next.js App Router.
+
 ## 0.2.8
 
 ### Patch Changes
