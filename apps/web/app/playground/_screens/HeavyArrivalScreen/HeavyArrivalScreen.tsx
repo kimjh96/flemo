@@ -68,6 +68,16 @@ function HeavyArrivalScreen() {
     void root.getBoundingClientRect().width;
   }, [nodeCount]);
 
+  const handlePushAnother = () =>
+    navigate.push(
+      "/heavy/:cpuMs/:nodes",
+      { cpuMs: String(cpuMs), nodes: String(nodeCount) },
+      { transitionName: "cupertino" }
+    );
+  const handlePopTwo = () => navigate.pop(2);
+  const handlePopThree = () => navigate.pop(3);
+  const handlePopToLibrary = () => navigate.popTo("/");
+
   return (
     <PlayerScreen appBar={<HeavyArrivalAppBar />}>
       <div
@@ -85,13 +95,7 @@ function HeavyArrivalScreen() {
             <button
               type="button"
               data-testid="perf-push-next"
-              onClick={() =>
-                navigate.push(
-                  "/heavy/:cpuMs/:nodes",
-                  { cpuMs: String(cpuMs), nodes: String(nodeCount) },
-                  { transitionName: "cupertino" }
-                )
-              }
+              onClick={handlePushAnother}
               className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
             >
               Push another
@@ -102,7 +106,7 @@ function HeavyArrivalScreen() {
             <button
               type="button"
               data-testid="perf-pop-2"
-              onClick={() => navigate.pop(2)}
+              onClick={handlePopTwo}
               className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
             >
               Pop 2
@@ -110,7 +114,7 @@ function HeavyArrivalScreen() {
             <button
               type="button"
               data-testid="perf-pop-3"
-              onClick={() => navigate.pop(3)}
+              onClick={handlePopThree}
               className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
             >
               Pop 3
@@ -121,7 +125,7 @@ function HeavyArrivalScreen() {
             <button
               type="button"
               data-testid="perf-popto-root"
-              onClick={() => navigate.popTo("/")}
+              onClick={handlePopToLibrary}
               className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
             >
               Pop to Library
