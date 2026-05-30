@@ -25,6 +25,7 @@ navigate.replace("/login");
 navigate.pop(); // back one screen
 navigate.pop({ skip: 2 }); // back two screens, in one transition
 navigate.pop({ until: "/posts/:slug" }); // back to the nearest matching screen
+navigate.pop({ until: "/", transitionName: "cupertino" }); // override the back transition
 ```
 
 `push`, `replace`, and `pop` are async — they wait for the transition to start and the route to
@@ -74,15 +75,15 @@ navigate.push(
 );
 ```
 
-| Option           | What it does                                                                                                    |
-| ---------------- | --------------------------------------------------------------------------------------------------------------- |
-| `transitionName` | Override the default transition for this push only                                                              |
-| `layoutId`       | Pair with `transitionName: "layout"` on push or replace to enable shared-element morphs                         |
-| `skip`           | Reach `n` screens past the top in one transition — see [Reaching past the top](#reaching-past-the-top)          |
-| `until`          | Reach back to the nearest screen matching a route pattern — see [Reaching past the top](#reaching-past-the-top) |
+| Option           | What it does                                                                                                                                                          |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `transitionName` | Override the transition for this navigation. On `pop` it sets the back animation — useful when collapsing several screens whose own transition isn't the one you want |
+| `layoutId`       | Pair with `transitionName: "layout"` on push or replace to enable shared-element morphs                                                                               |
+| `skip`           | Reach `n` screens past the top in one transition — see [Reaching past the top](#reaching-past-the-top)                                                                |
+| `until`          | Reach back to the nearest screen matching a route pattern — see [Reaching past the top](#reaching-past-the-top)                                                       |
 
-`skip` and `until` are accepted by `push`, `replace`, and `pop`; `transitionName` and `layoutId`
-apply to `push` and `replace`.
+`skip`, `until`, and `transitionName` are accepted by `push`, `replace`, and `pop`; `layoutId`
+applies to `push` and `replace`.
 
 ## useParams
 

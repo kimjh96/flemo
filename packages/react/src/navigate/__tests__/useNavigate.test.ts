@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TaskManger, useHistoryStore, useNavigateStore } from "@flemo/core";
 
@@ -306,6 +306,65 @@ describe("useNavigate — pop({ until })", () => {
     const { index, histories } = useHistoryStore.getState();
     expect(index).toBe(1);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b"]);
+  });
+});
+
+describe("useNavigate — pop({ transitionName })", () => {
+  let stopSweeper: () => Promise<void>;
+  beforeEach(() => {
+    resetStores();
+    stopSweeper = startManualGateSweeper();
+  });
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await stopSweeper();
+  });
+
+  it("relabels the leaving top's transition before the pop, then lands correctly", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/a");
+    await result.current.push("/b");
+    await result.current.push("/c");
+    await result.current.push("/c-prime"); // [a, b, c, c-prime] idx=3
+
+    const setSpy = vi.spyOn(useHistoryStore.getState(), "setTransitionName");
+    await result.current.pop({ until: "/a", transitionName: "material" });
+
+    // The override is stamped on the current top (idx 3, the leaving screen)
+    // in the same block that flips to POPPING — so the back animation uses it
+    // from the first frame instead of the leaving screen's own transition.
+    expect(setSpy).toHaveBeenCalledWith(3, "material");
+
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(0);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
+  });
+
+  it("works with skip too", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/a");
+    await result.current.push("/b");
+    await result.current.push("/c"); // [a, b, c] idx=2
+
+    const setSpy = vi.spyOn(useHistoryStore.getState(), "setTransitionName");
+    await result.current.pop({ skip: 2, transitionName: "cupertino" });
+
+    expect(setSpy).toHaveBeenCalledWith(2, "cupertino");
+    expect(useHistoryStore.getState().histories.map((h) => h.pathname)).toEqual(["/a"]);
+  });
+
+  it("a plain pop (no transitionName) never relabels", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/a");
+    await result.current.push("/b");
+
+    const setSpy = vi.spyOn(useHistoryStore.getState(), "setTransitionName");
+    await result.current.pop();
+
+    expect(setSpy).not.toHaveBeenCalled();
   });
 });
 
