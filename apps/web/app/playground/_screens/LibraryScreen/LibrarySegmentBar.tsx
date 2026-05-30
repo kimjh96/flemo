@@ -1,3 +1,5 @@
+"use client";
+
 import { segments } from "./LibraryScreen.constants";
 
 import type { Segment, SegmentDef } from "./LibraryScreen.types";

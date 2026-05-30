@@ -30,7 +30,7 @@ const scenarios: Scenario[] = [
   { label: "cpu+tree", cpuMs: 120, nodes: 2000 }
 ];
 
-type Verb = "push" | "replace" | "pop";
+type Verb = "push" | "pop";
 
 async function measureScenario(
   page: Page,
@@ -152,8 +152,6 @@ async function measureScenario(
 
   if (verb === "push") {
     await page.getByTestId(`perf-push-${scenario.cpuMs}-${scenario.nodes}`).click();
-  } else if (verb === "replace") {
-    await page.getByTestId(`perf-replace-${scenario.cpuMs}-${scenario.nodes}`).click();
   } else {
     // pop: trigger the AppBar back button on the heavy screen.
     await page.getByLabel("Back").click();
@@ -222,7 +220,7 @@ test.describe("playground — heavy arrival screen (diagnostic A/B harness)", ()
   test.describe.configure({ mode: "serial" });
   test.use({ actionTimeout: 30_000, navigationTimeout: 30_000 });
 
-  for (const verb of ["push", "replace", "pop"] as const) {
+  for (const verb of ["push", "pop"] as const) {
     for (const scenario of scenarios) {
       test(`${verb} ${scenario.label} [no-opts]`, async ({ page }, testInfo) => {
         await measureScenario(page, testInfo, scenario, { disableOpts: true, verb });

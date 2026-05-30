@@ -154,4 +154,5 @@ export const albums: Album[] = [
   ])
 ];
 
-export const albumById = (id: string): Album | undefined => albums.find((album) => album.id === id);
+export const albumById = (id: string): Album | null =>
+  albums.find((album) => album.id === id) ?? null;
