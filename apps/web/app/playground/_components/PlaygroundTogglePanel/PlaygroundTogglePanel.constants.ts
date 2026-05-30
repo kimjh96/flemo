@@ -126,25 +126,25 @@ const spring: TransitionOption = {
 });`
 };
 
-const aurora: TransitionOption = {
-  value: "aurora",
-  label: "aurora",
+const focus: TransitionOption = {
+  value: "focus",
+  label: "focus",
   group: "Custom + decorator",
   summary:
-    "The new screen rises while a soft multi-color aurora (indigo → fuchsia → cyan) drifts across the backdrop. Colored, so it reads on light surfaces; the decorator animates backgroundPosition, so the hues slide.",
-  code: `// The decorator drifts: a colored gradient animating backgroundPosition.
-const aurora = createDecorator({
-  name: "aurora",
-  initial: { ...AURORA, backgroundPosition: "0% 50%",   opacity: 0 },
-  enter:   { value: { ...AURORA, backgroundPosition: "100% 50%", opacity: 1 }, options: { duration: 0.6 } },
-  exit:    { value: { ...AURORA, backgroundPosition: "100% 50%", opacity: 0 }, options: { duration: 0.4 } }
+    "The inverse of a bloom: the new screen settles in while a soft cool glow behind it converges from large and diffuse to a concentrated point — the decorator animates scale inward (1.7 → 0.55), light pulling into focus.",
+  code: `// The decorator collapses inward: it animates scale down, not up.
+const focus = createDecorator({
+  name: "focus",
+  initial: { background: FOCUS_GLOW, opacity: 0, scale: 1.7 },
+  enter:   { value: { background: FOCUS_GLOW, opacity: 1, scale: 0.55 }, options: { duration: 0.55 } },
+  exit:    { value: { background: FOCUS_GLOW, opacity: 0, scale: 1.7 },  options: { duration: 0.4 } }
 });
 
 createTransition({
-  name: "aurora",
-  initial: { y: "100%" },
-  enter:   { value: { y: 0 }, options: { duration: 0.55 } },
-  options: { decoratorName: "aurora" }
+  name: "focus",
+  initial: { scale: 1.06, opacity: 0 },
+  enter:   { value: { scale: 1, opacity: 1 }, options: { duration: 0.5 } },
+  options: { decoratorName: "focus" }
 });`
 };
 
@@ -216,7 +216,7 @@ export const transitionGroups: ReadonlyArray<TransitionGroup> = [
   {
     kind: "Custom + decorator",
     caption: "A custom transition paired with a custom createDecorator layer.",
-    options: [ember, aurora, pulse]
+    options: [ember, pulse, focus]
   }
 ];
 

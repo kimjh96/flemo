@@ -14,14 +14,14 @@ declare module "@flemo/react" {
     reveal: "reveal";
     spring: "spring";
     ember: "ember";
-    aurora: "aurora";
     pulse: "pulse";
+    focus: "focus";
   }
 
   interface RegisterDecorator {
     glow: "glow";
-    aurora: "aurora";
     ring: "ring";
+    focus: "focus";
   }
 }
 

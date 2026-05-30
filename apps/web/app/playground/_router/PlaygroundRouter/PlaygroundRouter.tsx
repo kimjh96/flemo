@@ -9,9 +9,9 @@ import NowPlayingScreen from "@/app/playground/_screens/NowPlayingScreen";
 import SearchScreen from "@/app/playground/_screens/SearchScreen";
 import blur from "@/app/playground/_transitions/blur";
 import breathe from "@/app/playground/_transitions/breathe";
-import aurora, { aurora as auroraDecorator } from "@/app/playground/_transitions/aurora";
 import cardStack from "@/app/playground/_transitions/cardStack";
 import ember, { glow } from "@/app/playground/_transitions/ember";
+import focus, { focus as focusDecorator } from "@/app/playground/_transitions/focus";
 import pulse, { ring } from "@/app/playground/_transitions/pulse";
 import reveal from "@/app/playground/_transitions/reveal";
 import slideLeft from "@/app/playground/_transitions/slideLeft";
@@ -35,10 +35,10 @@ function PlaygroundRouter() {
         reveal,
         spring,
         ember,
-        aurora,
-        pulse
+        pulse,
+        focus
       ]}
-      decorators={[glow, auroraDecorator, ring]}
+      decorators={[glow, ring, focusDecorator]}
     >
       <Route path="/" element={<LibraryScreen />} />
       <Route path="/search" element={<SearchScreen />} />

@@ -15,8 +15,8 @@ export type PushTransitionOverride =
   | "reveal"
   | "spring"
   | "ember"
-  | "aurora"
   | "pulse"
+  | "focus"
   | "none";
 
 interface PlaygroundSettingsState {
