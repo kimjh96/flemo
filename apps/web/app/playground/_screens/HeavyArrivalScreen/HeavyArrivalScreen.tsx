@@ -74,9 +74,15 @@ function HeavyArrivalScreen() {
       { cpuMs: String(cpuMs), nodes: String(nodeCount) },
       { transitionName: "cupertino" }
     );
-  const handlePopTwo = () => navigate.pop(2);
-  const handlePopThree = () => navigate.pop(3);
-  const handlePopToLibrary = () => navigate.popTo("/");
+  const handlePopTwo = () => navigate.pop({ count: 2 });
+  const handlePopThree = () => navigate.pop({ count: 3 });
+  const handlePopToLibrary = () => navigate.pop({ until: "/" });
+  const handleReplaceCollapse = () =>
+    navigate.replace(
+      "/heavy/:cpuMs/:nodes",
+      { cpuMs: String(cpuMs), nodes: String(nodeCount) },
+      { count: 2, transitionName: "cupertino" }
+    );
 
   return (
     <PlayerScreen appBar={<HeavyArrivalAppBar />}>
@@ -119,9 +125,9 @@ function HeavyArrivalScreen() {
             >
               Pop 3
             </button>
-            {/* popTo jumps straight back to the nearest screen of a given
-                route — here the Library root — skipping every heavy screen in
-                between in one transition. */}
+            {/* pop({ until }) jumps straight back to the nearest screen of a
+                given route — here the Library root — skipping every heavy
+                screen in between in one transition. */}
             <button
               type="button"
               data-testid="perf-popto-root"
@@ -129,6 +135,17 @@ function HeavyArrivalScreen() {
               className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
             >
               Pop to Library
+            </button>
+            {/* replace({ count }) collapses the top N screens into a new one in
+                a single transition — the skipped screens never paint, same as
+                pop. Here the top 2 heavy screens become a fresh heavy screen. */}
+            <button
+              type="button"
+              data-testid="perf-replace-collapse"
+              onClick={handleReplaceCollapse}
+              className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
+            >
+              Replace ×2
             </button>
           </div>
         </div>
