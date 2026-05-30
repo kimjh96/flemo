@@ -126,48 +126,47 @@ const spring: TransitionOption = {
 });`
 };
 
-const sheet: TransitionOption = {
-  value: "sheet",
-  label: "sheet",
+const shine: TransitionOption = {
+  value: "shine",
+  label: "shine",
   group: "Custom + decorator",
   summary:
-    "A bottom sheet rises over a held-still backdrop that darkens under a dim decorator — an iOS-style modal present.",
-  code: `// A transition + decorator combo, linked by decoratorName.
-const dim = createDecorator({
-  name: "dim",
-  initial: { opacity: 0, backgroundColor: "rgba(0,0,0,0.55)" },
-  enter:   { value: { opacity: 1, backgroundColor: "rgba(0,0,0,0.55)" }, options: { duration: 0.42 } },
-  exit:    { value: { opacity: 0, backgroundColor: "rgba(0,0,0,0.55)" }, options: { duration: 0.34 } }
+    "A soft lift + cross-fade, while a diagonal sheen sweeps across the screen behind — the decorator animates backgroundPosition, so the highlight actually travels.",
+  code: `// The decorator moves: it animates backgroundPosition, not just opacity.
+const sheen = createDecorator({
+  name: "sheen",
+  initial: { ...SHEEN, backgroundPosition: "180% 0%", opacity: 0 },
+  enter:   { value: { ...SHEEN, backgroundPosition: "-80% 0%", opacity: 1 }, options: { duration: 0.55 } },
+  exit:    { value: { ...SHEEN, backgroundPosition: "-80% 0%", opacity: 0 }, options: { duration: 0.4 } }
 });
 
 createTransition({
-  name: "sheet",
-  initial: { y: "100%" },
-  enter:   { value: { y: 0 },  options: { duration: 0.42 } },
-  exit:    { value: {},        options: { duration: 0.42 } }, // backdrop holds; dim reads
-  options: { decoratorName: "dim" }
+  name: "shine",
+  initial: { y: 24, opacity: 0 },
+  enter:   { value: { y: 0, opacity: 1 }, options: { duration: 0.55 } },
+  options: { decoratorName: "sheen" }
 });`
 };
 
-const spotlight: TransitionOption = {
-  value: "spotlight",
-  label: "spotlight",
+const ember: TransitionOption = {
+  value: "ember",
+  label: "ember",
   group: "Custom + decorator",
   summary:
-    "The new screen grows from a small centered card (0.7 → 1) while a radial vignette darkens the backdrop's edges — a focus pull.",
-  code: `const vignette = createDecorator({
-  name: "vignette",
-  initial: { opacity: 0, background: RADIAL_VIGNETTE },
-  enter:   { value: { opacity: 1, background: RADIAL_VIGNETTE }, options: { duration: 0.45 } },
-  exit:    { value: { opacity: 0, background: RADIAL_VIGNETTE }, options: { duration: 0.35 } }
+    "The new screen scales in while a warm radial glow blooms behind it — the decorator animates scale, so the light swells outward.",
+  code: `// The decorator blooms: it animates scale, so the glow swells.
+const glow = createDecorator({
+  name: "glow",
+  initial: { opacity: 0, scale: 0.85, background: WARM_RADIAL },
+  enter:   { value: { opacity: 1, scale: 1.15, background: WARM_RADIAL }, options: { duration: 0.5 } },
+  exit:    { value: { opacity: 0, scale: 0.85, background: WARM_RADIAL }, options: { duration: 0.4 } }
 });
 
 createTransition({
-  name: "spotlight",
-  initial: { scale: 0.7, opacity: 0 },
-  enter:   { value: { scale: 1, opacity: 1 }, options: { duration: 0.45 } },
-  exit:    { value: {},                       options: { duration: 0.45 } }, // backdrop holds
-  options: { decoratorName: "vignette" }
+  name: "ember",
+  initial: { scale: 0.88, opacity: 0 },
+  enter:   { value: { scale: 1, opacity: 1 }, options: { duration: 0.5 } },
+  options: { decoratorName: "glow" }
 });`
 };
 
@@ -217,7 +216,7 @@ export const transitionGroups: ReadonlyArray<TransitionGroup> = [
   {
     kind: "Custom + decorator",
     caption: "A custom transition paired with a custom createDecorator layer.",
-    options: [sheet, spotlight, drawer]
+    options: [drawer, shine, ember]
   }
 ];
 

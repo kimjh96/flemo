@@ -14,9 +14,9 @@ export type PushTransitionOverride =
   | "card-stack"
   | "reveal"
   | "spring"
-  | "spotlight"
-  | "sheet"
   | "drawer"
+  | "shine"
+  | "ember"
   | "none";
 
 interface PlaygroundSettingsState {

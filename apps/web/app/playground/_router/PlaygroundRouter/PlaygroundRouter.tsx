@@ -11,11 +11,11 @@ import blur from "@/app/playground/_transitions/blur";
 import breathe from "@/app/playground/_transitions/breathe";
 import cardStack from "@/app/playground/_transitions/cardStack";
 import drawer, { tint } from "@/app/playground/_transitions/drawer";
+import ember, { glow } from "@/app/playground/_transitions/ember";
 import reveal from "@/app/playground/_transitions/reveal";
-import sheet, { dim } from "@/app/playground/_transitions/sheet";
+import shine, { sheen } from "@/app/playground/_transitions/shine";
 import slideLeft from "@/app/playground/_transitions/slideLeft";
 import slideRight from "@/app/playground/_transitions/slideRight";
-import spotlight, { vignette } from "@/app/playground/_transitions/spotlight";
 import spring from "@/app/playground/_transitions/spring";
 import zoom from "@/app/playground/_transitions/zoom";
 
@@ -34,11 +34,11 @@ function PlaygroundRouter() {
         cardStack,
         reveal,
         spring,
-        spotlight,
-        sheet,
-        drawer
+        drawer,
+        shine,
+        ember
       ]}
-      decorators={[vignette, dim, tint]}
+      decorators={[tint, sheen, glow]}
     >
       <Route path="/" element={<LibraryScreen />} />
       <Route path="/search" element={<SearchScreen />} />
