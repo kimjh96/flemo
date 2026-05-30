@@ -23,29 +23,38 @@ const navigate = useNavigate();
 navigate.push("/posts/:slug", { slug: "hello" });
 navigate.replace("/login");
 navigate.pop(); // back one screen
-navigate.pop(2); // back two screens, in one transition
-navigate.popTo("/posts/:slug"); // back to the nearest matching screen
+navigate.pop({ count: 2 }); // back two screens, in one transition
+navigate.pop({ until: "/posts/:slug" }); // back to the nearest matching screen
 ```
 
 `push` and `replace` are async — they wait for the transition to start and the route to take
-effect. `pop`, `pop(count)`, and `popTo(path)` each drive a single back transition.
+effect. Every `pop`/`replace`, however far it reaches, drives a single transition.
 
-### Going back
+### Going back, and collapsing
 
-`pop(count)` pops `count` screens at once. Only the screen you land on animates — the screens
-skipped over are removed without ever painting, so you never see them flash by. `count` clamps to
-the stack depth (popping past the root lands on the root), and `pop()` is just `pop(1)`.
+`pop` and `replace` take an optional **distance** — `{ count }` (a number of screens) or
+`{ until }` (a route pattern) — to reach past the top in one transition. The screens skipped over
+are removed **without ever painting**, so you never see them flash by; only the screen you land on
+animates.
 
-`popTo(path)` pops back to the nearest screen below the top whose route matches `path` — a
-registered route pattern, e.g. `"/posts/:slug"`. It searches from the current screen toward the
-root and stops at the first match, skipping everything in between in that same single transition.
-If nothing matches, it's a no-op.
+- `pop({ count })` — pop `count` screens. Clamps to the stack depth (popping past the root lands
+  on the root). `pop()` is `pop({ count: 1 })`.
+- `pop({ until })` — pop back to the nearest screen below the top whose route matches the pattern,
+  and **land on it** (it stays). Searches from the current screen toward the root, stops at the
+  first match. No match → no-op.
+- `replace(path, params, { count })` — collapse the top `count` screens into the new screen.
+- `replace(path, params, { until })` — collapse down to and **including** the nearest match (the
+  matched screen is replaced), putting the new screen in its place. No match → no-op.
 
 ```ts
 // stack:  /  →  /library  →  /posts/a  →  /posts/b   (top = /posts/b)
-navigate.pop(2); // → /library
-navigate.popTo("/posts/:slug"); // → /posts/a (nearest /posts/:slug below the top)
+navigate.pop({ count: 2 }); // → /library
+navigate.pop({ until: "/posts/:slug" }); // → /posts/a (lands on the nearest /posts/:slug)
+navigate.replace("/posts/:slug", { slug: "x" }, { count: 2 }); // → /, /library, /posts/x
+navigate.replace("/library", {}, { until: "/library" }); // collapse back onto the library
 ```
+
+`{ count }` and `{ until }` are mutually exclusive; `until` wins if both are passed.
 
 ### Options
 
@@ -115,14 +124,15 @@ function Onboarding() {
 
 ## Choosing between push and step
 
-| You want to…                                    | Use                    |
-| ----------------------------------------------- | ---------------------- |
-| Show a different screen                         | `navigate.push`        |
-| Replace the current screen (e.g., login → home) | `navigate.replace`     |
-| Close the current screen                        | `navigate.pop`         |
-| Go back several screens at once                 | `navigate.pop(count)`  |
-| Go back to a specific earlier screen            | `navigate.popTo(path)` |
-| Stay on the same screen but change UI           | `useStep().pushStep`   |
+| You want to…                                    | Use                             |
+| ----------------------------------------------- | ------------------------------- |
+| Show a different screen                         | `navigate.push`                 |
+| Replace the current screen (e.g., login → home) | `navigate.replace`              |
+| Close the current screen                        | `navigate.pop`                  |
+| Go back several screens at once                 | `navigate.pop({ count })`       |
+| Go back to a specific earlier screen            | `navigate.pop({ until })`       |
+| Replace, collapsing several screens into one    | `navigate.replace(p, q, { … })` |
+| Stay on the same screen but change UI           | `useStep().pushStep`            |
 
 <Callout type="info">
   **`useStep`** keeps everything in the screen tree — same Screen instance, same Provider, same
