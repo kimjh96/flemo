@@ -153,8 +153,9 @@ async function measureScenario(
   if (verb === "push") {
     await page.getByTestId(`perf-push-${scenario.cpuMs}-${scenario.nodes}`).click();
   } else {
-    // pop: trigger the AppBar back button on the heavy screen.
-    await page.getByLabel("Back").click();
+    // pop: trigger the AppBar back button on the heavy screen. `exact` so it
+    // doesn't also match the panel's "backgroundColor" control (substring).
+    await page.getByLabel("Back", { exact: true }).click();
   }
 
   await waitForTransitionSettled(page);

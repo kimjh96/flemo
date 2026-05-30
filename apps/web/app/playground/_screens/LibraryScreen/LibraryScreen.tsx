@@ -19,6 +19,7 @@ function LibraryScreen() {
   const params = useParams<"/">();
   const navigate = useNavigate();
   const showMiniPlayer = usePlaygroundSettingsStore((state) => state.showMiniPlayer);
+  const showSharedAppBar = usePlaygroundSettingsStore((state) => state.showSharedAppBar);
   const segment: Segment = params?.segment ?? "albums";
 
   const handleSegmentChange = (next: Segment) => {
@@ -33,7 +34,11 @@ function LibraryScreen() {
       // Title + segment bar live in `sharedAppBar` so flemo pins them during
       // the slide-left / slide-right segment transitions — only the list
       // content below scrolls past, while the header stays put.
-      sharedAppBar={<LibraryHeader segment={segment} onChange={handleSegmentChange} />}
+      sharedAppBar={
+        showSharedAppBar ? (
+          <LibraryHeader segment={segment} onChange={handleSegmentChange} />
+        ) : undefined
+      }
       sharedNavigationBar={showMiniPlayer ? <PlayerBottomBar activePath="/" /> : undefined}
     >
       <div className="px-5 pb-8 pt-2">

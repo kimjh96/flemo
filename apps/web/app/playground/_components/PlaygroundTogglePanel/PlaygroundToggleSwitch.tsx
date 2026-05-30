@@ -5,9 +5,12 @@ export interface PlaygroundToggleSwitchProps {
   onChange: (next: boolean) => void;
   on: string;
   off: string;
+  // Accessible name so multiple switches on the panel stay addressable
+  // (e.g. `getByRole("switch", { name })` in e2e).
+  name?: string;
 }
 
-function PlaygroundToggleSwitch({ checked, onChange, on, off }: PlaygroundToggleSwitchProps) {
+function PlaygroundToggleSwitch({ checked, onChange, on, off, name }: PlaygroundToggleSwitchProps) {
   const handleToggle = () => onChange(!checked);
 
   return (
@@ -15,6 +18,7 @@ function PlaygroundToggleSwitch({ checked, onChange, on, off }: PlaygroundToggle
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={name}
       onClick={handleToggle}
       className="flex w-full items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-layer)] px-4 py-3 transition-colors hover:border-[var(--color-border-dark)]"
     >

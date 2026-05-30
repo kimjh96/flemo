@@ -65,8 +65,9 @@ async function runDeepStack(page: Page, testInfo: TestInfo) {
   // Pop back through all 10. Each screen's app bar has the Back button.
   // `last()` is irrelevant here because only the active (top) screen is
   // visible/interactive, but using it makes the locator deterministic.
+  // `exact` so it doesn't also match the panel's "backgroundColor" control.
   for (let i = 0; i < STACK_DEPTH; i++) {
-    const m = await clickAndMeasure(page, page.getByLabel("Back").last());
+    const m = await clickAndMeasure(page, page.getByLabel("Back", { exact: true }).last());
     pops.push({ step: STACK_DEPTH - i, ...m });
   }
 

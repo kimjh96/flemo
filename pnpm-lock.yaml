@@ -35,6 +35,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@flemo/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@flemo/react':
         specifier: workspace:*
         version: link:../../packages/react

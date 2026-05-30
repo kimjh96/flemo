@@ -1,3 +1,4 @@
+import type { ColorSwatchOption } from "./PlaygroundColorSwatch";
 import type { TransitionGroup, TransitionOption } from "./PlaygroundTogglePanel.types";
 
 const cupertino: TransitionOption = {
@@ -86,3 +87,23 @@ export const transitionGroups: ReadonlyArray<TransitionGroup> = [
 export const transitionOptions: ReadonlyArray<TransitionOption> = transitionGroups.flatMap(
   (group) => group.options
 );
+
+// --- Screen chrome knobs ---------------------------------------------------
+
+// Common bar heights: none, a thin status strip, an iOS-ish notch inset.
+export const chromeHeightPresets = ["0px", "20px", "44px"] as const;
+
+// Background must be opaque, so no "inherit" — pick from surface tokens.
+export const chromeBackgroundOptions: ReadonlyArray<ColorSwatchOption> = [
+  { label: "surface", value: "var(--color-surface)" },
+  { label: "bg", value: "var(--color-bg)" },
+  { label: "layer", value: "var(--color-layer)" }
+];
+
+// Bar tints may be left to Screen's own default ("" → inherit).
+export const chromeBarColorOptions: ReadonlyArray<ColorSwatchOption> = [
+  { label: "inherit", value: "" },
+  { label: "surface", value: "var(--color-surface)" },
+  { label: "layer", value: "var(--color-layer)" },
+  { label: "primary", value: "var(--color-primary)" }
+];
