@@ -2,4 +2,4 @@
 "@flemo/web": minor
 ---
 
-Add four custom playground transitions authored with `createTransition`, registered on the playground Router and selectable from the transition picker: `zoom` (cross-zoom dive), `card-stack` (iOS-style sheet present where the current screen recedes), `reveal` (iris `clip-path` open over a receding backdrop), and `spring` (scale-up with an overshooting, bouncy ease).
+Add seven custom playground transitions, selectable from the transition picker. Five are pure `createTransition` demos — `zoom` (cross-zoom dive), `card-stack` (iOS sheet present with a receding backdrop), `reveal` (clip-path iris that opens while settling from a slight zoom), and `spring` (overshooting bounce). Three more combine a custom `createDecorator` layer with the transition: `spotlight` (focus zoom + radial vignette), `sheet` (rising sheet + frosted-haze backdrop), and `swoosh` (diagonal corner entry + cinematic bottom scrim).

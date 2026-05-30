@@ -13,6 +13,15 @@ declare module "@flemo/react" {
     "card-stack": "card-stack";
     reveal: "reveal";
     spring: "spring";
+    spotlight: "spotlight";
+    sheet: "sheet";
+    swoosh: "swoosh";
+  }
+
+  interface RegisterDecorator {
+    vignette: "vignette";
+    frost: "frost";
+    scrim: "scrim";
   }
 }
 

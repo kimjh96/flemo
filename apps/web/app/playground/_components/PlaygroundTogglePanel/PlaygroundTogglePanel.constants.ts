@@ -124,6 +124,72 @@ const spring: TransitionOption = {
 });`
 };
 
+const spotlight: TransitionOption = {
+  value: "spotlight",
+  label: "spotlight",
+  group: "Custom + decorator",
+  summary:
+    "Focus zoom paired with a radial vignette decorator that darkens the backgrounding screen's edges.",
+  code: `// A transition + decorator combo, linked by decoratorName.
+const vignette = createDecorator({
+  name: "vignette",
+  initial: { opacity: 0, background: RADIAL_VIGNETTE },
+  enter:   { value: { opacity: 1, background: RADIAL_VIGNETTE }, options: { duration: 0.4 } },
+  exit:    { value: { opacity: 0, background: RADIAL_VIGNETTE }, options: { duration: 0.32 } }
+});
+
+createTransition({
+  name: "spotlight",
+  initial: { scale: 0.92, opacity: 0 },
+  enter:   { value: { scale: 1, opacity: 1 }, options: { duration: 0.4 } },
+  exit:    { value: { scale: 0.96 },          options: { duration: 0.4 } },
+  options: { decoratorName: "vignette" }
+});`
+};
+
+const sheet: TransitionOption = {
+  value: "sheet",
+  label: "sheet",
+  group: "Custom + decorator",
+  summary:
+    "A bottom sheet rises while a frost decorator washes a soft light haze over the backdrop.",
+  code: `const frost = createDecorator({
+  name: "frost",
+  initial: { opacity: 0, backgroundColor: "rgba(247,248,250,0.6)" },
+  enter:   { value: { opacity: 1, backgroundColor: "rgba(247,248,250,0.6)" }, options: { duration: 0.42 } },
+  exit:    { value: { opacity: 0, backgroundColor: "rgba(247,248,250,0.6)" }, options: { duration: 0.34 } }
+});
+
+createTransition({
+  name: "sheet",
+  initial: { y: "100%" },
+  enter:   { value: { y: 0 },  options: { duration: 0.42 } },
+  exit:    { value: {},        options: { duration: 0.42 } }, // backdrop stays; frost reads
+  options: { decoratorName: "frost" }
+});`
+};
+
+const swoosh: TransitionOption = {
+  value: "swoosh",
+  label: "swoosh",
+  group: "Custom + decorator",
+  summary:
+    "Diagonal corner entry over a cinematic scrim decorator — a dark gradient, heavier at the bottom.",
+  code: `const scrim = createDecorator({
+  name: "scrim",
+  initial: { opacity: 0, background: BOTTOM_SCRIM },
+  enter:   { value: { opacity: 1, background: BOTTOM_SCRIM }, options: { duration: 0.4 } },
+  exit:    { value: { opacity: 0, background: BOTTOM_SCRIM }, options: { duration: 0.32 } }
+});
+
+createTransition({
+  name: "swoosh",
+  initial: { x: "40%", y: "40%", opacity: 0.3 },
+  enter:   { value: { x: 0, y: 0, opacity: 1 }, options: { duration: 0.4 } },
+  options: { decoratorName: "scrim" }
+});`
+};
+
 // The "natural" code snippet — what each push site looks like by default.
 // Shown when no override is active so the reader sees that per-context
 // composition is the baseline, not a meta-option.
@@ -144,6 +210,11 @@ export const transitionGroups: ReadonlyArray<TransitionGroup> = [
     kind: "Custom",
     caption: "Defined in this playground, not in @flemo/core.",
     options: [blur, zoom, cardStack, reveal, spring]
+  },
+  {
+    kind: "Custom + decorator",
+    caption: "A custom transition paired with a custom createDecorator layer.",
+    options: [spotlight, sheet, swoosh]
   }
 ];
 

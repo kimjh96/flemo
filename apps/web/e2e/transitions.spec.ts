@@ -89,6 +89,21 @@ test.describe("playground — transitions", () => {
     await expect(activeScreen(page)).toHaveAttribute("data-flemo-transition", "spring");
   });
 
+  for (const name of ["spotlight", "sheet", "swoosh"]) {
+    test(`${name} (custom + decorator): pick from the toggle panel and the next push uses ${name}`, async ({
+      page
+    }) => {
+      await page.goto("/playground");
+      await waitForTransitionSettled(page);
+
+      await page.getByRole("radio", { name: new RegExp(`^${name}`, "i") }).click();
+      await albumTile(page, 0).click();
+      await waitForTransitionSettled(page);
+
+      await expect(activeScreen(page)).toHaveAttribute("data-flemo-transition", name);
+    });
+  }
+
   test("none: instant swap, no keyframe phase visible", async ({ page }) => {
     await page.goto("/playground");
     await waitForTransitionSettled(page);
