@@ -7,13 +7,16 @@ import { createDecorator, createTransition } from "@flemo/react";
 // across the screen behind it, like light glancing off glass. The decorator
 // animates `backgroundPosition` (not just opacity), so the highlight actually
 // travels. The backdrop holds still so the sweep reads clearly.
-// A wide, soft, low-opacity highlight — feathered far out on both sides so it
-// reads as a gentle glance of light, not a hard white bar.
+// A specular glint: a hot, narrow core (0.85) with a soft glow falling off on
+// both sides — not a flat band. `mixBlendMode: "screen"` makes the white *add*
+// light to the content beneath instead of painting over it, so it reads like a
+// real reflection sweeping across the surface rather than a translucent strip.
 const SHEEN_BASE = {
   background:
-    "linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.22) 50%, transparent 70%)",
+    "linear-gradient(100deg, rgba(255,255,255,0) 36%, rgba(255,255,255,0.1) 46%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0.1) 54%, rgba(255,255,255,0) 64%)",
   backgroundSize: "300% 300%",
-  backgroundRepeat: "no-repeat"
+  backgroundRepeat: "no-repeat",
+  mixBlendMode: "screen"
 } as const;
 
 export const sheen = createDecorator({
@@ -26,7 +29,7 @@ export const sheen = createDecorator({
   // Even (near-linear) ease so the light glides across instead of whipping,
   // and the peak opacity stays low so it's a sheen, not a stripe.
   enter: {
-    value: { ...SHEEN_BASE, opacity: 0.9, backgroundPosition: "-50% 50%" },
+    value: { ...SHEEN_BASE, opacity: 1, backgroundPosition: "-50% 50%" },
     options: { duration: 0.62, ease: [0.4, 0, 0.6, 1] }
   },
   exit: {
