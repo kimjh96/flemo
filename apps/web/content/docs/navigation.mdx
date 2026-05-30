@@ -22,11 +22,30 @@ const navigate = useNavigate();
 
 navigate.push("/posts/:slug", { slug: "hello" });
 navigate.replace("/login");
-navigate.pop();
+navigate.pop(); // back one screen
+navigate.pop(2); // back two screens, in one transition
+navigate.popTo("/posts/:slug"); // back to the nearest matching screen
 ```
 
 `push` and `replace` are async — they wait for the transition to start and the route to take
-effect. `pop` is fire-and-forget; it just calls `window.history.back()`.
+effect. `pop`, `pop(count)`, and `popTo(path)` each drive a single back transition.
+
+### Going back
+
+`pop(count)` pops `count` screens at once. Only the screen you land on animates — the screens
+skipped over are removed without ever painting, so you never see them flash by. `count` clamps to
+the stack depth (popping past the root lands on the root), and `pop()` is just `pop(1)`.
+
+`popTo(path)` pops back to the nearest screen below the top whose route matches `path` — a
+registered route pattern, e.g. `"/posts/:slug"`. It searches from the current screen toward the
+root and stops at the first match, skipping everything in between in that same single transition.
+If nothing matches, it's a no-op.
+
+```ts
+// stack:  /  →  /library  →  /posts/a  →  /posts/b   (top = /posts/b)
+navigate.pop(2); // → /library
+navigate.popTo("/posts/:slug"); // → /posts/a (nearest /posts/:slug below the top)
+```
 
 ### Options
 
@@ -96,12 +115,14 @@ function Onboarding() {
 
 ## Choosing between push and step
 
-| You want to…                                    | Use                  |
-| ----------------------------------------------- | -------------------- |
-| Show a different screen                         | `navigate.push`      |
-| Replace the current screen (e.g., login → home) | `navigate.replace`   |
-| Close the current screen                        | `navigate.pop`       |
-| Stay on the same screen but change UI           | `useStep().pushStep` |
+| You want to…                                    | Use                    |
+| ----------------------------------------------- | ---------------------- |
+| Show a different screen                         | `navigate.push`        |
+| Replace the current screen (e.g., login → home) | `navigate.replace`     |
+| Close the current screen                        | `navigate.pop`         |
+| Go back several screens at once                 | `navigate.pop(count)`  |
+| Go back to a specific earlier screen            | `navigate.popTo(path)` |
+| Stay on the same screen but change UI           | `useStep().pushStep`   |
 
 <Callout type="info">
   **`useStep`** keeps everything in the screen tree — same Screen instance, same Provider, same
