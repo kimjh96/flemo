@@ -137,6 +137,10 @@ push. Use them for global UI like a bottom tab bar.
 
 ## Safe areas
 
+`<Screen>` reserves the top and bottom **safe areas** itself — the notch / dynamic island up top,
+Android's gesture or navigation bar at the bottom — through `statusBarHeight` and
+`systemNavigationBarHeight` (with matching `*Color` and `hide*` props).
+
 ```tsx
 <Screen
   statusBarHeight="env(safe-area-inset-top)"
@@ -148,7 +152,21 @@ push. Use them for global UI like a bottom tab bar.
 </Screen>
 ```
 
-Pass `hideStatusBar` or `hideSystemNavigationBar` to collapse the area when you don't want it
+This pays off most when flemo runs inside a **native / hybrid app** (a WebView). The recommended
+setup is to let the **web own the safe areas end-to-end**: turn the native side's top and bottom
+safe-area handling **off**, and reserve them on `<Screen>` instead.
+
+- **Native shell** — disable the top and bottom safe areas.
+- **`<Screen>`** — set `statusBarHeight` / `systemNavigationBarHeight` (and the `*Color` props) to
+  draw them.
+
+That keeps the inset heights and colors under your control in one place, on the web side. They
+animate and recolor with the rest of the screen during transitions, instead of being painted by
+the native shell where your CSS can't reach. In a plain browser you can still pass
+`env(safe-area-inset-*)` so the values track the device — but the native-app case is where
+controlling them from the web really matters.
+
+Pass `hideStatusBar` or `hideSystemNavigationBar` to collapse an area when you don't want it
 reserved (e.g., a full-bleed media screen).
 
 ## Background

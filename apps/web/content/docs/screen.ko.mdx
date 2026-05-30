@@ -135,6 +135,10 @@ UI에 어울려요.
 
 ## 안전 영역
 
+`<Screen>`은 상단·하단 **안전 영역**(상단 노치·다이나믹 아일랜드, 하단 Android 제스처·네비게이션
+바)을 직접 차지해요 — `statusBarHeight`·`systemNavigationBarHeight`(그리고 대응하는 `*Color`·
+`hide*` props)로요.
+
 ```tsx
 <Screen
   statusBarHeight="env(safe-area-inset-top)"
@@ -146,7 +150,19 @@ UI에 어울려요.
 </Screen>
 ```
 
-해당 영역을 차지하지 않게 하려면 `hideStatusBar` 또는 `hideSystemNavigationBar`를 켜요.
+특히 flemo가 **네이티브·하이브리드 앱**(WebView) 안에서 돌아갈 때 유용해요. 권장 구성은
+**안전 영역 제어를 웹이 끝까지 갖는 것**이에요: 네이티브 쪽의 상단·하단 안전 영역 처리를 **끄고**,
+대신 `<Screen>`에서 차지하도록 하세요.
+
+- **네이티브 셸** — 상단·하단 안전 영역을 비활성화.
+- **`<Screen>`** — `statusBarHeight`·`systemNavigationBarHeight`(와 `*Color` props)로 직접 그리기.
+
+이렇게 하면 안전 영역의 높이와 색이 웹 한 곳에서 제어돼요. 전환 중 화면의 나머지와 함께
+애니메이션·리컬러되고, CSS가 닿지 않는 네이티브 셸이 그리는 일이 없어요. 일반 브라우저에서도
+`env(safe-area-inset-*)`을 넘겨 기기 값을 따라가게 할 수 있지만, 웹에서 직접 제어하는 이점이
+큰 건 네이티브 앱 경우예요.
+
+영역을 차지하지 않게 하려면 `hideStatusBar` 또는 `hideSystemNavigationBar`를 켜요.
 
 ## 배경색
 

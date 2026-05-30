@@ -78,23 +78,29 @@ navigate.push("/unknown"); // ❌ TS error
 
 ## Server-side rendering
 
-`<Router>` renders on the server too. But the server has no `window.location`, so you have to
-tell it which route to render first. That's what `initPath` is for.
+flemo is a **client-side SPA router** — it drives `window.history` and takes over navigation once
+it mounts. `<Router>` can still render on the server for the first paint, but the server has no
+`window.location`, so you tell it which route to render first with `initPath`.
 
 - **Server**: renders the screen matching `initPath`. Defaults to `"/"`.
 - **Client**: on mount, reads `window.location.pathname` and takes over from there.
 
-Pass the server's request path through `initPath` and the first paint matches the URL — no
-hydration mismatch. In Next.js App Router:
+Pass the request path through `initPath` and the first paint matches the URL — no hydration
+mismatch. This works with any setup that renders React to a string and lets flemo own routing
+from there:
 
-```tsx title="app/[[...slug]]/page.tsx"
-export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
-  const { slug = [] } = await params;
-  const initPath = "/" + slug.join("/");
-
-  return <Router initPath={initPath}>{/* routes */}</Router>;
-}
+```tsx
+// On the server, hand the incoming request path to initPath.
+<Router initPath={requestPath}>{/* routes */}</Router>
 ```
 
-Pure-SPA setups (Vite, CRA) don't need `initPath` — the client reads `window.location.pathname`
-on its own.
+Pure-SPA setups (Vite, etc.) don't need `initPath` at all — the client reads
+`window.location.pathname` on its own.
+
+<Callout type="warn">
+  Because flemo owns client-side history (it pushes to `window.history` and listens for `popstate`),
+  it **does not compose with a host framework that also owns routing** — notably the **Next.js App
+  Router**. The two routers fight over navigation and the URL, so flemo can't act as the router for
+  a Next.js app's pages. Use flemo in a pure SPA, or mount it as a self-contained, client-only
+  island that doesn't share routing with the host framework.
+</Callout>

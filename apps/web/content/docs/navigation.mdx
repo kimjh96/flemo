@@ -74,10 +74,15 @@ navigate.push(
 );
 ```
 
-| Option           | What it does                                                                            |
-| ---------------- | --------------------------------------------------------------------------------------- |
-| `transitionName` | Override the default transition for this push only                                      |
-| `layoutId`       | Pair with `transitionName: "layout"` on push or replace to enable shared-element morphs |
+| Option           | What it does                                                                                                    |
+| ---------------- | --------------------------------------------------------------------------------------------------------------- |
+| `transitionName` | Override the default transition for this push only                                                              |
+| `layoutId`       | Pair with `transitionName: "layout"` on push or replace to enable shared-element morphs                         |
+| `skip`           | Reach `n` screens past the top in one transition — see [Reaching past the top](#reaching-past-the-top)          |
+| `until`          | Reach back to the nearest screen matching a route pattern — see [Reaching past the top](#reaching-past-the-top) |
+
+`skip` and `until` are accepted by `push`, `replace`, and `pop`; `transitionName` and `layoutId`
+apply to `push` and `replace`.
 
 ## useParams
 

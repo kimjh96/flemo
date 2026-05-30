@@ -20,8 +20,34 @@ description: "`@flemo/react`의 모든 export"
 | `useNavigate()`             | `{ push, replace, pop }`                                        | [Navigation](./navigation)           |
 | `useParams<T>()`            | 현재 라우트의 파라미터 (경로 + 쿼리 병합)                       | [Navigation](./navigation#useparams) |
 | `useStep<T>()`              | sub-state 전환용 `{ pushStep, replaceStep, popStep }`           | [Navigation](./navigation#usestep)   |
-| `useScreen()`               | 현재 화면의 메타 (`id`, `isActive`, `zIndex` …)                 | —                                    |
+| `useScreen()`               | 현재 화면의 메타 (`id`, `isActive`, `zIndex` …)                 | [useScreen](#usescreen)              |
 | `useViewportScrollHeight()` | visualViewport 기반 스크롤 정보. 모바일 키보드 처리에 유용해요. | —                                    |
+
+## useScreen
+
+`useScreen()`은 호출한 컴포넌트가 속한 화면의 메타데이터를 반환해요. context에서 읽으므로
+`<Route>` element의 트리 안(활성 화면, 또는 그 아래에 아직 마운트된 화면)에서 호출하세요.
+
+| 필드                 | 타입                       | 설명                                               |
+| -------------------- | -------------------------- | -------------------------------------------------- |
+| `id`                 | `string`                   | 화면의 history 엔트리 id                           |
+| `isActive`           | `boolean`                  | 현재(top) 화면인지 여부                            |
+| `isRoot`             | `boolean`                  | 루트 화면(`zIndex` 0)인지 여부                     |
+| `isPrev`             | `boolean`                  | 이전 화면보다 아래에 있는지(얼어붙어 화면 밖) 여부 |
+| `zIndex`             | `number`                   | 스택 깊이 — `0`이 루트, 클수록 최신                |
+| `pathname`           | `string`                   | 이 화면의 resolved pathname                        |
+| `params`             | `object`                   | 이 화면의 라우트 파라미터                          |
+| `routePath`          | `string`                   | 매칭된 라우트 패턴 (예: `/album/:id`)              |
+| `transitionName`     | `string`                   | 현재 진행 중인 네비게이션의 전환                   |
+| `prevTransitionName` | `string`                   | top 한 칸 아래 화면의 전환                         |
+| `layoutId`           | `string \| number \| null` | 전달된 `layoutId` (있다면)                         |
+
+```tsx
+function AlbumHeader() {
+  const { isActive, zIndex, params } = useScreen();
+  // 이 화면이 활성일 때 다르게 렌더하거나, 깊이를 읽을 수 있어요.
+}
+```
 
 ## 전환 팩토리
 

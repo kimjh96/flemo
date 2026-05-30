@@ -71,23 +71,28 @@ navigate.push("/unknown"); // ❌ 타입 에러
 
 ## SSR
 
-`<Router>`는 서버에서도 렌더링돼요. 다만 서버에는 `window.location`이 없어서 첫 렌더에 어떤
-경로를 그릴지 직접 알려줘야 해요. 그게 `initPath`예요.
+flemo는 **클라이언트 사이드 SPA 라우터**예요 — `window.history`를 직접 구동하고, 마운트되면
+네비게이션을 넘겨받아요. `<Router>`는 첫 렌더를 서버에서 그릴 수도 있는데, 서버에는
+`window.location`이 없으니 첫 화면 경로를 `initPath`로 알려줘야 해요.
 
 - **서버**: `initPath`에 해당하는 화면을 렌더해요. 지정하지 않으면 `"/"`예요.
 - **클라이언트**: 마운트되면 `window.location.pathname`을 읽어 그대로 이어받아요.
 
-서버가 받은 요청 경로를 그대로 넘기면 hydration mismatch 없이 첫 화면이 맞아요. 예를 들어
-Next.js App Router에서는:
+요청 경로를 `initPath`로 넘기면 hydration mismatch 없이 첫 화면이 맞아요. React를 문자열로
+렌더한 뒤 라우팅을 flemo에 맡기는 어떤 환경에서도 동작해요:
 
-```tsx title="app/[[...slug]]/page.tsx"
-export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
-  const { slug = [] } = await params;
-  const initPath = "/" + slug.join("/");
-
-  return <Router initPath={initPath}>{/* routes */}</Router>;
-}
+```tsx
+// 서버에서 들어온 요청 경로를 initPath로 넘겨요.
+<Router initPath={requestPath}>{/* routes */}</Router>
 ```
 
-서버 렌더가 필요 없는 SPA(Vite, CRA 등)라면 `initPath`는 신경 쓰지 않아도 돼요. 클라이언트에서
-바로 `window.location.pathname`을 읽어요.
+서버 렌더가 필요 없는 SPA(Vite 등)라면 `initPath`는 신경 쓰지 않아도 돼요. 클라이언트에서 바로
+`window.location.pathname`을 읽어요.
+
+<Callout type="warn">
+  flemo는 클라이언트 사이드 history를 직접 소유하기 때문에(`window.history`에 push하고 `popstate`를
+  청취해요), **라우팅을 직접 관리하는 호스트 프레임워크와는 공존하지 못해요** — 특히 **Next.js App
+  Router**가 그래요. 두 라우터가 네비게이션과 URL을 두고 충돌해서, flemo가 Next.js 앱의 페이지
+  라우터 역할을 할 수는 없어요. 순수 SPA에서 쓰거나, 호스트 프레임워크와 라우팅을 공유하지 않는
+  독립적인 클라이언트 전용 섬(island)으로 마운트하세요.
+</Callout>

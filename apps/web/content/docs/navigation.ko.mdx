@@ -72,10 +72,15 @@ navigate.push(
 );
 ```
 
-| 옵션             | 동작                                                                             |
-| ---------------- | -------------------------------------------------------------------------------- |
-| `transitionName` | 이번 push 한 번만 다른 전환 사용                                                 |
-| `layoutId`       | layoutId 모핑 태그 — `transitionName: "layout"`과 함께 push 또는 replace 시 사용 |
+| 옵션             | 동작                                                                                                     |
+| ---------------- | -------------------------------------------------------------------------------------------------------- |
+| `transitionName` | 이번 push 한 번만 다른 전환 사용                                                                         |
+| `layoutId`       | layoutId 모핑 태그 — `transitionName: "layout"`과 함께 push 또는 replace 시 사용                         |
+| `skip`           | top에서 `n`칸 아래까지 한 번의 전환으로 도달 — [top 너머로 도달하기](#top-너머로-도달하기) 참고          |
+| `until`          | 라우트 패턴과 일치하는 가장 가까운 아래 화면까지 도달 — [top 너머로 도달하기](#top-너머로-도달하기) 참고 |
+
+`skip`·`until`은 `push`·`replace`·`pop` 모두에서 받고, `transitionName`·`layoutId`는
+`push`·`replace`에 적용돼요.
 
 ## useParams
 

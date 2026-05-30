@@ -20,8 +20,35 @@ description: "Every export from `@flemo/react`, with the page that explains it"
 | `useNavigate()`             | `{ push, replace, pop }`                                    | [Navigation](./navigation)           |
 | `useParams<T>()`            | The current route's params (path + query merged)            | [Navigation](./navigation#useparams) |
 | `useStep<T>()`              | `{ pushStep, replaceStep, popStep }` for sub-states         | [Navigation](./navigation#usestep)   |
-| `useScreen()`               | Current screen meta (`id`, `isActive`, `zIndex`, …)         | —                                    |
+| `useScreen()`               | Current screen meta (`id`, `isActive`, `zIndex`, …)         | [useScreen](#usescreen)              |
 | `useViewportScrollHeight()` | Visual-viewport scroll metrics, useful for mobile keyboards | —                                    |
+
+## useScreen
+
+`useScreen()` returns metadata about the screen the calling component renders in. It reads from
+context, so call it inside a `<Route>` element's tree (the active screen, or any screen still
+mounted beneath it).
+
+| Field                | Type                       | What it is                                                          |
+| -------------------- | -------------------------- | ------------------------------------------------------------------- |
+| `id`                 | `string`                   | The screen's history-entry id                                       |
+| `isActive`           | `boolean`                  | Whether this is the current (top) screen                            |
+| `isRoot`             | `boolean`                  | Whether this is the root screen (`zIndex` 0)                        |
+| `isPrev`             | `boolean`                  | Whether this screen sits below the previous one (frozen, offscreen) |
+| `zIndex`             | `number`                   | Stacking depth — `0` is the root, higher is newer                   |
+| `pathname`           | `string`                   | The resolved pathname for this screen                               |
+| `params`             | `object`                   | The route params for this screen                                    |
+| `routePath`          | `string`                   | The matched route pattern (e.g. `/album/:id`)                       |
+| `transitionName`     | `string`                   | The transition driving the current navigation                       |
+| `prevTransitionName` | `string`                   | The transition of the screen one below the top                      |
+| `layoutId`           | `string \| number \| null` | The screen's `layoutId`, if one was passed                          |
+
+```tsx
+function AlbumHeader() {
+  const { isActive, zIndex, params } = useScreen();
+  // Render differently when this screen is the active one, or read its depth.
+}
+```
 
 ## Transition factories
 
