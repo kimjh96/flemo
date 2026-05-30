@@ -1,7 +1,6 @@
 import { pathToRegexp } from "path-to-regexp";
 
 import {
-  consumeSelfInducedPop,
   markSelfInducedPop,
   TaskManger as TaskManager,
   useHistoryStore,
@@ -39,32 +38,42 @@ const matchDistance = (path: string, index: number, histories: History[]): numbe
   return -1;
 };
 
-// Sync the browser history for a collapse (replace / push): go back to where
-// the new screen will sit, await flemo's own popstate (HistoryListener filters
-// it), then pushState the new entry. pushState truncates the forward stack so
-// there are no phantom entries — the browser ends matching the in-memory stack
-// exactly (length, index, back/forward targets). On a missing popstate it
-// rebalances the self-pop guard and leaves the browser as-is (the in-memory
-// store stays the source of truth and the visual still resolves).
-const syncCollapsedHistory = async (goBack: number, state: object, pathname: string) => {
-  const popstateFired = new Promise<unknown>((resolve) => {
-    window.addEventListener("popstate", (event: PopStateEvent) => resolve(event.state), {
-      once: true
-    });
+// Coerce a `skip` option to a non-negative integer, falling back when it's
+// missing or not a finite number (the typed API discourages NaN / floats, but
+// guard the store against them anyway).
+const toSkip = (value: number | undefined, fallback: number): number =>
+  typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : fallback;
+
+// Sync the browser history for a collapse (replace / push): go back `goBack` to
+// where the new screen will sit, await flemo's own popstate (HistoryListener
+// filters it), then run `commit` (a push/replaceState) so the browser ends
+// matching the in-memory stack. `commit` distinguishes the two callers — push
+// and below-root replace pushState the new entry (truncating the forward
+// stack); a root-collapsing replace can't go past index 0, so it goes to the
+// root and replaceState's it instead.
+//
+// If no popstate arrives within the window the traversal was either slow or a
+// no-op. We drop our one-shot listener and leave the self-pop mark for
+// HistoryListener to consume (a slow popstate is far likelier than none, now
+// that `goBack` never overshoots), and leave the browser as-is — the in-memory
+// store stays the source of truth and the visual still resolves.
+const syncCollapsedHistory = async (goBack: number, commit: () => void) => {
+  let onPopstate!: () => void;
+  const popstateFired = new Promise<boolean>((resolve) => {
+    onPopstate = () => resolve(true);
+    window.addEventListener("popstate", onPopstate, { once: true });
   });
-  const safetyTimeout = new Promise<undefined>((resolve) =>
-    setTimeout(() => resolve(undefined), 200)
-  );
+  const safetyTimeout = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 200));
 
   markSelfInducedPop();
   window.history.go(-goBack);
-  const settled = await Promise.race([popstateFired, safetyTimeout]);
+  const fired = await Promise.race([popstateFired, safetyTimeout]);
 
-  if (settled === undefined) {
-    consumeSelfInducedPop();
+  if (!fired) {
+    window.removeEventListener("popstate", onPopstate);
     return;
   }
-  window.history.pushState(state, "", pathname);
+  commit();
 };
 
 export default function useNavigate() {
@@ -101,8 +110,9 @@ export default function useNavigate() {
               const distance = matchDistance(options.until, index, histories);
               return distance < 0 ? 0 : distance;
             }
-            const skip = options?.skip ?? 0;
-            return skip <= 0 ? 0 : Math.min(skip, index);
+            // `Math.max(0, index)` so the first push (empty stack, index -1)
+            // stays a plain push instead of a negative `remove`.
+            return Math.min(toSkip(options?.skip, 0), Math.max(0, index));
           })();
 
           const { setStatus, setTransitionTaskId } = useNavigateStore.getState();
@@ -141,18 +151,20 @@ export default function useNavigate() {
           // pushState's the new screen, truncating the forward stack.
           addHistory(newEntry);
 
-          await syncCollapsedHistory(
-            remove,
-            {
-              id,
-              index: useHistoryStore.getState().index - remove,
-              status: "PUSHING",
-              params,
-              transitionName,
-              layoutId
-            },
-            pathname
-          );
+          await syncCollapsedHistory(remove, () => {
+            window.history.pushState(
+              {
+                id,
+                index: useHistoryStore.getState().index - remove,
+                status: "PUSHING",
+                params,
+                transitionName,
+                layoutId
+              },
+              "",
+              pathname
+            );
+          });
 
           return async () => {
             popHistories(remove);
@@ -205,8 +217,7 @@ export default function useNavigate() {
               const distance = matchDistance(options.until, index, histories);
               return distance < 0 ? 0 : distance + 1;
             }
-            const skip = options?.skip ?? 0;
-            return skip < 0 ? 0 : Math.min(skip + 1, index + 1);
+            return Math.min(toSkip(options?.skip, 0) + 1, index + 1);
           })();
 
           if (steps <= 0) {
@@ -251,18 +262,35 @@ export default function useNavigate() {
           popHistories(steps - 1);
           addHistory(newEntry);
 
-          await syncCollapsedHistory(
-            steps,
-            {
-              id,
-              index: useHistoryStore.getState().index - 1,
-              status: "REPLACING",
-              params,
-              transitionName,
-              layoutId
-            },
-            pathname
-          );
+          if (steps <= index) {
+            // A screen remains below the new one — go to it and pushState the
+            // new entry above (truncating the forward stack, no phantoms).
+            await syncCollapsedHistory(steps, () => {
+              window.history.pushState(
+                {
+                  id,
+                  index: useHistoryStore.getState().index - 1,
+                  status: "REPLACING",
+                  params,
+                  transitionName,
+                  layoutId
+                },
+                "",
+                pathname
+              );
+            });
+          } else {
+            // Collapsing the root: the new screen becomes the root. go(-steps)
+            // would overshoot index 0, so go to the current root and
+            // replaceState it.
+            await syncCollapsedHistory(index, () => {
+              window.history.replaceState(
+                { id, index: 0, status: "REPLACING", params, transitionName, layoutId },
+                "",
+                pathname
+              );
+            });
+          }
 
           return async () => {
             // Remove the leaving top, read live so it's correct after the
@@ -357,7 +385,7 @@ export default function useNavigate() {
         const distance = matchDistance(options.until, index, histories);
         return distance < 0 ? 0 : distance;
       }
-      const skip = options?.skip ?? 1;
+      const skip = toSkip(options?.skip, 1);
       return skip <= 0 ? 0 : Math.min(skip, index);
     });
   };
