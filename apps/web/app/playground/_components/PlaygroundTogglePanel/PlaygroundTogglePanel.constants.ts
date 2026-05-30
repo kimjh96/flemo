@@ -126,25 +126,25 @@ const spring: TransitionOption = {
 });`
 };
 
-const focus: TransitionOption = {
-  value: "focus",
-  label: "focus",
+const beam: TransitionOption = {
+  value: "beam",
+  label: "beam",
   group: "Custom + decorator",
   summary:
-    "The inverse of a bloom: the new screen settles in while a soft cool glow behind it converges from large and diffuse to a concentrated point — the decorator animates scale inward (1.7 → 0.55), light pulling into focus.",
-  code: `// The decorator collapses inward: it animates scale down, not up.
-const focus = createDecorator({
-  name: "focus",
-  initial: { background: FOCUS_GLOW, opacity: 0, scale: 1.7 },
-  enter:   { value: { background: FOCUS_GLOW, opacity: 1, scale: 0.55 }, options: { duration: 0.55 } },
-  exit:    { value: { background: FOCUS_GLOW, opacity: 0, scale: 1.7 },  options: { duration: 0.4 } }
+    "Built on rotation, not scale: as the screen rises, a soft cool beam of light swings in an arc across the backdrop, like a lighthouse or radar sweep — the decorator animates rotate.",
+  code: `// The decorator turns: a conic-gradient wedge animating rotate.
+const beam = createDecorator({
+  name: "beam",
+  initial: { background: BEAM, scale: 1.6, opacity: 0, rotate: -120 },
+  enter:   { value: { background: BEAM, scale: 1.6, opacity: 1, rotate: 110 }, options: { duration: 0.6 } },
+  exit:    { value: { background: BEAM, scale: 1.6, opacity: 0, rotate: -120 }, options: { duration: 0.4 } }
 });
 
 createTransition({
-  name: "focus",
-  initial: { scale: 1.06, opacity: 0 },
-  enter:   { value: { scale: 1, opacity: 1 }, options: { duration: 0.5 } },
-  options: { decoratorName: "focus" }
+  name: "beam",
+  initial: { y: "100%" },
+  enter:   { value: { y: 0 }, options: { duration: 0.6 } },
+  options: { decoratorName: "beam" }
 });`
 };
 
@@ -216,7 +216,7 @@ export const transitionGroups: ReadonlyArray<TransitionGroup> = [
   {
     kind: "Custom + decorator",
     caption: "A custom transition paired with a custom createDecorator layer.",
-    options: [ember, pulse, focus]
+    options: [ember, pulse, beam]
   }
 ];
 

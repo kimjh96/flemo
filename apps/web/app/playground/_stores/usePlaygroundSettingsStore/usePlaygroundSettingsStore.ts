@@ -16,7 +16,7 @@ export type PushTransitionOverride =
   | "spring"
   | "ember"
   | "pulse"
-  | "focus"
+  | "beam"
   | "none";
 
 interface PlaygroundSettingsState {

@@ -15,13 +15,13 @@ declare module "@flemo/react" {
     spring: "spring";
     ember: "ember";
     pulse: "pulse";
-    focus: "focus";
+    beam: "beam";
   }
 
   interface RegisterDecorator {
     glow: "glow";
     ring: "ring";
-    focus: "focus";
+    beam: "beam";
   }
 }
 
