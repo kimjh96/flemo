@@ -7,7 +7,8 @@ const material = createTransition({
   },
   idle: {
     value: {
-      y: 0
+      y: 0,
+      opacity: 1
     },
     options: {
       duration: 0
@@ -33,7 +34,8 @@ const material = createTransition({
   },
   exit: {
     value: {
-      y: -56
+      y: -56,
+      opacity: 0
     },
     options: {
       duration: 0.35,
@@ -42,7 +44,8 @@ const material = createTransition({
   },
   exitBack: {
     value: {
-      y: 0
+      y: 0,
+      opacity: 1
     },
     options: {
       duration: 0.25,
@@ -78,7 +81,8 @@ const material = createTransition({
       animate(
         prevScreen,
         {
-          y: -56 + progress
+          y: -56 + progress,
+          opacity: progress / 56
         },
         { duration: 0 }
       );
@@ -110,7 +114,8 @@ const material = createTransition({
         animate(
           prevScreen,
           {
-            y: isTriggered ? 0 : -56
+            y: isTriggered ? 0 : -56,
+            opacity: isTriggered ? 1 : 0
           },
           {
             duration: isTriggered ? 0.22 : 0.24,

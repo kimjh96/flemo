@@ -66,6 +66,24 @@ describe("compileTransitionStyles", () => {
     expect(popInactive).toContain("transform: none");
   });
 
+  it("fades the material outgoing screen out as it slides up (PUSHING-false)", () => {
+    const css = compileTransitionStyles([material], []);
+
+    const pushInactive = css
+      .split("\n\n")
+      .find(
+        (block) =>
+          block.includes(animationName("screen", "material", "PUSHING-false")) &&
+          block.startsWith("@keyframes")
+      );
+
+    expect(pushInactive).toBeDefined();
+    // outgoing screen lifts to -56px while fading from opaque to transparent
+    expect(pushInactive).toContain("opacity: 1");
+    expect(pushInactive).toContain("opacity: 0");
+    expect(pushInactive).toContain("transform: translateY(-56px)");
+  });
+
   it("emits `transform: none` (not an identity matrix) in rest rules so the scope creates no stacking context", () => {
     const css = compileTransitionStyles([cupertino], []);
 
@@ -351,7 +369,9 @@ describe("compileTransitionStyles", () => {
 describe("collectAnimatedProperties", () => {
   it("collapses transform-bucket props to a single `transform` entry", () => {
     expect(collectAnimatedProperties(cupertino)).toEqual(["transform"]);
-    expect(collectAnimatedProperties(material)).toEqual(["transform"]);
+    // material animates y (transform bucket) plus opacity for the exit fade —
+    // the y collapses into one `transform` entry, opacity is tracked alongside.
+    expect(collectAnimatedProperties(material)).toEqual(["opacity", "transform"]);
   });
 
   it("returns non-transform props in kebab-case", () => {
