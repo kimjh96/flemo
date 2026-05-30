@@ -15,6 +15,7 @@
     "clean": "rm -rf .next .turbo playwright-report test-results"
   },
   "dependencies": {
+    "@flemo/core": "workspace:*",
     "@flemo/react": "workspace:*",
     "@flemo/react-layout": "workspace:*",
     "fumadocs-core": "^16.8.5",

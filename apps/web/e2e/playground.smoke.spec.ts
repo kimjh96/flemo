@@ -32,7 +32,10 @@ test.describe("playground — smoke", () => {
     await expect(
       page.getByRole("heading", { name: "Compose transitions per navigation" })
     ).toBeVisible();
-    await expect(page.getByText("Mini-player + tab bar")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pin bars across screens" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "What flemo is doing, right now" })
+    ).toBeVisible();
   });
 
   test("library segment bar exposes all three segments", async ({ page }) => {
