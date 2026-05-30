@@ -115,6 +115,17 @@ function HeavyArrivalScreen() {
             >
               Pop 3
             </button>
+            {/* popTo jumps straight back to the nearest screen of a given
+                route — here the Library root — skipping every heavy screen in
+                between in one transition. */}
+            <button
+              type="button"
+              data-testid="perf-popto-root"
+              onClick={() => navigate.popTo("/")}
+              className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
+            >
+              Pop to Library
+            </button>
           </div>
         </div>
         {items.map((i) => (

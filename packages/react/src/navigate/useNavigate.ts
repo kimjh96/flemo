@@ -1,9 +1,12 @@
+import { pathToRegexp } from "path-to-regexp";
+
 import {
   markSelfInducedPop,
   TaskManger as TaskManager,
   useHistoryStore,
   useNavigateStore,
   useTransitionStore,
+  type History,
   type TransitionName
 } from "@flemo/core";
 
@@ -148,19 +151,19 @@ export default function useNavigate() {
     ).result?.();
   };
 
-  const pop = async (count = 1) => {
-    // A non-positive count is an explicit no-op (distinct from the default
-    // pop() which is count === 1). Don't enqueue anything.
-    if (count <= 0) {
-      return;
-    }
-
+  // Shared engine for pop(n) and popTo(path). `resolveSteps` runs inside the
+  // task — with the live history — and returns how many screens to pop. A
+  // result <= 0 is a no-op (e.g. popTo found no match). Whatever the count,
+  // the skipped screens are removed synchronously in the same block that flips
+  // to POPPING (before the browser paints), so they never appear; the leaving
+  // top stays mounted to drive and resolve the animation.
+  const runPop = async (resolveSteps: (index: number, histories: History[]) => number) => {
     const id = TaskManager.generateTaskId();
 
     (
       await TaskManager.addTask(
         async (abortController) => {
-          const { index, popHistory, popHistories } = useHistoryStore.getState();
+          const { index, histories, popHistory, popHistories } = useHistoryStore.getState();
 
           // Nothing below the root to pop — no-op without touching the browser.
           if (index <= 0) {
@@ -168,9 +171,14 @@ export default function useNavigate() {
             return;
           }
 
-          // Clamp to the available depth so pop(n) past the root lands on the
+          // Clamp to the available depth so popping past the root lands on the
           // root rather than over-popping.
-          const steps = Math.min(count, index);
+          const steps = Math.min(resolveSteps(index, histories), index);
+
+          if (steps <= 0) {
+            abortController.abort();
+            return;
+          }
 
           const { setStatus, setTransitionTaskId } = useNavigateStore.getState();
 
@@ -210,9 +218,38 @@ export default function useNavigate() {
     ).result?.();
   };
 
+  const pop = async (count = 1) => {
+    // A non-positive count is an explicit no-op (distinct from the default
+    // pop() which is count === 1). Don't enqueue anything.
+    if (count <= 0) {
+      return;
+    }
+
+    await runPop((index) => Math.min(count, index));
+  };
+
+  // Pop back to the nearest screen below the top whose route matches `path`.
+  // Searches from just under the top toward the root and stops at the first
+  // match, so duplicates resolve to the closest one. No match → no-op. The
+  // current top is never considered a target. `path` is a registered route
+  // pattern (e.g. "/album/:id"), matched against each entry's resolved
+  // pathname the same way the renderer assigns screens to routes.
+  const popTo = async <T extends keyof RegisterRoute>(path: T) => {
+    await runPop((index, histories) => {
+      const { regexp } = pathToRegexp(path as string);
+      for (let i = index - 1; i >= 0; i--) {
+        if (regexp.test(histories[i].pathname)) {
+          return index - i;
+        }
+      }
+      return 0;
+    });
+  };
+
   return {
     push,
     replace,
-    pop
+    pop,
+    popTo
   };
 }
