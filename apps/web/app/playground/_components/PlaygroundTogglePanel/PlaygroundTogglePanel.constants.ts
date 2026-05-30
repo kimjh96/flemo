@@ -135,9 +135,9 @@ const shine: TransitionOption = {
   code: `// The decorator moves: it animates backgroundPosition, not just opacity.
 const sheen = createDecorator({
   name: "sheen",
-  initial: { ...SHEEN, backgroundPosition: "180% 0%", opacity: 0 },
-  enter:   { value: { ...SHEEN, backgroundPosition: "-80% 0%", opacity: 1 }, options: { duration: 0.55 } },
-  exit:    { value: { ...SHEEN, backgroundPosition: "-80% 0%", opacity: 0 }, options: { duration: 0.4 } }
+  initial: { ...SHEEN, backgroundPosition: "150% 50%", opacity: 0 },
+  enter:   { value: { ...SHEEN, backgroundPosition: "-50% 50%", opacity: 0.9 }, options: { duration: 0.62 } },
+  exit:    { value: { ...SHEEN, backgroundPosition: "-50% 50%", opacity: 0 }, options: { duration: 0.4 } }
 });
 
 createTransition({
