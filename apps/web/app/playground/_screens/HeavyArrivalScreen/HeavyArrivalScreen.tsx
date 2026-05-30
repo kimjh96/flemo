@@ -77,14 +77,20 @@ function HeavyArrivalScreen() {
       { cpuMs: String(cpuMs), nodes: String(nodeCount) },
       { transitionName: "cupertino" }
     );
-  const handlePopTwo = () => navigate.pop({ count: 2 });
-  const handlePopThree = () => navigate.pop({ count: 3 });
+  const handlePopTwo = () => navigate.pop({ skip: 2 });
+  const handlePopThree = () => navigate.pop({ skip: 3 });
   const handlePopToLibrary = () => navigate.pop({ until: "/" });
   const handleReplaceCollapse = () =>
     navigate.replace(
       "/heavy/:cpuMs/:nodes",
       { cpuMs: String(cpuMs), nodes: String(nodeCount) },
-      { count: 2, transitionName: "cupertino" }
+      { skip: 2, transitionName: "cupertino" }
+    );
+  const handlePushCollapse = () =>
+    navigate.push(
+      "/heavy/:cpuMs/:nodes",
+      { cpuMs: String(cpuMs), nodes: String(nodeCount) },
+      { skip: 2, transitionName: "cupertino" }
     );
 
   // Each control skips/collapses screens in one transition; with a heavy tree
@@ -119,8 +125,17 @@ function HeavyArrivalScreen() {
     },
     {
       testid: "perf-replace-collapse",
-      label: "Replace 2 screens",
+      label: "Replace · skip 2",
       onClick: handleReplaceCollapse,
+      // replace REPLACES the reached screen, so skip 2 needs a screen two below
+      // the top that isn't the Library root — i.e. depth ≥ 3. (pop/push keep
+      // the reached screen, so they're fine landing on the root at depth 2.)
+      show: zIndex >= 3
+    },
+    {
+      testid: "perf-push-skip",
+      label: "Push · skip 2",
+      onClick: handlePushCollapse,
       show: zIndex >= 2
     }
   ].filter((control) => control.show);

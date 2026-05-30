@@ -4,9 +4,8 @@
 "@flemo/web": patch
 ---
 
-`useNavigate().pop` and `replace` now take an optional distance — `{ count }` (a number of screens) or `{ until }` (a route pattern) — to reach past the top in a single transition. The skipped screens are removed without ever painting, so they never flash by; only the screen you land on animates.
+`useNavigate().pop`, `replace`, and `push` now take an optional distance — `{ skip }` (a number of screens) or `{ until }` (a route pattern) — to reach a screen below the top in a single transition. The skipped screens are removed without ever painting, so they never flash by.
 
-- `pop({ count })` pops N screens (clamped to the stack depth); `pop({ until })` pops back to the nearest matching screen and lands on it.
-- `replace(path, params, { count })` collapses the top N screens into the new one; `replace(path, params, { until })` collapses down to and including the nearest match.
+All three reach the same target (`{ skip: n }` is the screen `n` below the top; `{ until }` is the nearest match) and differ only there: `pop` lands on it, `replace` replaces it (the target and everything above become the new screen), and `push` keeps it and stacks the new screen on top.
 
-`{ count }` / `{ until }` are mutually exclusive (`until` wins); an unmatched `until` or non-positive `count` is a no-op. Plain `pop()` / `replace(path)` are unchanged.
+`{ skip }` clamps to the stack depth; an unmatched `until` is a no-op for `pop`/`replace` and a plain push for `push`. Plain `pop()` / `replace(path)` / `push(path)` are unchanged.
