@@ -2,6 +2,7 @@
 
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
+import PlaygroundBenchmarkCard from "./PlaygroundBenchmarkCard";
 import PlaygroundCodePeek from "./PlaygroundCodePeek";
 import {
   naturalPushCode,
@@ -59,6 +60,8 @@ function PlaygroundTogglePanel() {
           off="Hidden"
         />
       </PlaygroundToggleCard>
+
+      <PlaygroundBenchmarkCard />
     </section>
   );
 }
