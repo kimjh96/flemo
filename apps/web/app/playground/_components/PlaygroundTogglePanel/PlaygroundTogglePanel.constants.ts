@@ -131,7 +131,7 @@ const shine: TransitionOption = {
   label: "shine",
   group: "Custom + decorator",
   summary:
-    "A soft lift + cross-fade, while a specular sheen sweeps across the screen behind — the decorator animates backgroundPosition and blends with mix-blend-mode: screen, so the highlight travels and adds light like a real reflection.",
+    "A soft lift + cross-fade, while a specular sheen — a bright core framed by faint dark shoulders — sweeps across the screen behind. The decorator animates backgroundPosition, so the highlight travels like light glancing off glass.",
   code: `// The decorator moves: it animates backgroundPosition, not just opacity.
 const sheen = createDecorator({
   name: "sheen",

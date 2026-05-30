@@ -7,16 +7,16 @@ import { createDecorator, createTransition } from "@flemo/react";
 // across the screen behind it, like light glancing off glass. The decorator
 // animates `backgroundPosition` (not just opacity), so the highlight actually
 // travels. The backdrop holds still so the sweep reads clearly.
-// A specular glint: a hot, narrow core (0.85) with a soft glow falling off on
-// both sides — not a flat band. `mixBlendMode: "screen"` makes the white *add*
-// light to the content beneath instead of painting over it, so it reads like a
-// real reflection sweeping across the surface rather than a translucent strip.
+// A specular glint: a hot, bright core framed by a pair of faint dark
+// shoulders, all feathered out to transparent. The dark shoulders give the
+// bright core the contrast it needs to read on a light surface (a plain white
+// sweep is invisible on white) — like the bright line and shadowed edge of
+// light glancing off glass. No blend mode: it must read on light content too.
 const SHEEN_BASE = {
   background:
-    "linear-gradient(100deg, rgba(255,255,255,0) 36%, rgba(255,255,255,0.1) 46%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0.1) 54%, rgba(255,255,255,0) 64%)",
+    "linear-gradient(100deg, rgba(0,0,0,0) 28%, rgba(0,0,0,0.05) 41%, rgba(255,255,255,0.9) 50%, rgba(0,0,0,0.05) 59%, rgba(0,0,0,0) 72%)",
   backgroundSize: "300% 300%",
-  backgroundRepeat: "no-repeat",
-  mixBlendMode: "screen"
+  backgroundRepeat: "no-repeat"
 } as const;
 
 export const sheen = createDecorator({
