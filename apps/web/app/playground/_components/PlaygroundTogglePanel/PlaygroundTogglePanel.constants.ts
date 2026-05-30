@@ -97,14 +97,16 @@ const reveal: TransitionOption = {
   label: "reveal",
   group: "Custom",
   summary:
-    "Iris reveal — the new screen opens through a growing circular clip-path while the backdrop recedes.",
+    "Iris reveal — the new screen opens through a circular clip-path that grows to just cover the viewport, while the backdrop recedes.",
   code: `createTransition({
   name: "reveal",
+  // 75% just covers the viewport (the farthest corner sits at ~70.7%),
+  // so the whole duration is visible growth, not invisible overshoot.
   initial: { clipPath: "circle(0% at 50% 50%)" },
-  enter:     { value: { clipPath: "circle(150% at 50% 50%)" }, options: { duration: 0.45 } },
-  exit:      { value: { scale: 0.92, opacity: 0.6 },          options: { duration: 0.45 } },
-  enterBack: { value: { clipPath: "circle(0% at 50% 50%)" },   options: { duration: 0.35 } },
-  exitBack:  { value: { scale: 1, opacity: 1 },                options: { duration: 0.35 } }
+  enter:     { value: { clipPath: "circle(75% at 50% 50%)" }, options: { duration: 0.55, ease: [0.65, 0, 0.35, 1] } },
+  exit:      { value: { scale: 0.94, opacity: 0.7 },          options: { duration: 0.55 } },
+  enterBack: { value: { clipPath: "circle(0% at 50% 50%)" },  options: { duration: 0.45 } },
+  exitBack:  { value: { scale: 1, opacity: 1 },               options: { duration: 0.45 } }
 });`
 };
 
