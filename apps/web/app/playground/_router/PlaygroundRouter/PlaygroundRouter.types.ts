@@ -11,6 +11,8 @@ declare module "@flemo/react" {
     "slide-right": "slide-right";
     zoom: "zoom";
     "card-stack": "card-stack";
+    reveal: "reveal";
+    spring: "spring";
   }
 }
 

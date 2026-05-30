@@ -92,6 +92,38 @@ const cardStack: TransitionOption = {
 });`
 };
 
+const reveal: TransitionOption = {
+  value: "reveal",
+  label: "reveal",
+  group: "Custom",
+  summary:
+    "Iris reveal — the new screen opens through a growing circular clip-path while the backdrop recedes.",
+  code: `createTransition({
+  name: "reveal",
+  initial: { clipPath: "circle(0% at 50% 50%)" },
+  enter:     { value: { clipPath: "circle(150% at 50% 50%)" }, options: { duration: 0.45 } },
+  exit:      { value: { scale: 0.92, opacity: 0.6 },          options: { duration: 0.45 } },
+  enterBack: { value: { clipPath: "circle(0% at 50% 50%)" },   options: { duration: 0.35 } },
+  exitBack:  { value: { scale: 1, opacity: 1 },                options: { duration: 0.35 } }
+});`
+};
+
+const spring: TransitionOption = {
+  value: "spring",
+  label: "spring",
+  group: "Custom",
+  summary:
+    "Springy pop — the new screen scales up with an overshooting ease, settling with a bounce.",
+  code: `createTransition({
+  name: "spring",
+  initial: { scale: 0.7, opacity: 0 },
+  enter:     { value: { scale: 1, opacity: 1 }, options: { duration: 0.42, ease: [0.34, 1.56, 0.64, 1] } },
+  exit:      { value: { scale: 0.96, opacity: 0 }, options: { duration: 0.3 } },
+  enterBack: { value: { scale: 0.7, opacity: 0 },  options: { duration: 0.3 } },
+  exitBack:  { value: { scale: 1, opacity: 1 },    options: { duration: 0.3 } }
+});`
+};
+
 // The "natural" code snippet — what each push site looks like by default.
 // Shown when no override is active so the reader sees that per-context
 // composition is the baseline, not a meta-option.
@@ -111,7 +143,7 @@ export const transitionGroups: ReadonlyArray<TransitionGroup> = [
   {
     kind: "Custom",
     caption: "Defined in this playground, not in @flemo/core.",
-    options: [blur, zoom, cardStack]
+    options: [blur, zoom, cardStack, reveal, spring]
   }
 ];
 

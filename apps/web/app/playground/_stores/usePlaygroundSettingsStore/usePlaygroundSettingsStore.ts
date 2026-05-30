@@ -12,6 +12,8 @@ export type PushTransitionOverride =
   | "blur"
   | "zoom"
   | "card-stack"
+  | "reveal"
+  | "spring"
   | "none";
 
 interface PlaygroundSettingsState {

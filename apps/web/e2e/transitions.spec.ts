@@ -63,6 +63,32 @@ test.describe("playground — transitions", () => {
     await expect(activeScreen(page)).toHaveAttribute("data-flemo-transition", "card-stack");
   });
 
+  test("reveal (custom): pick from the toggle panel and the next push uses reveal", async ({
+    page
+  }) => {
+    await page.goto("/playground");
+    await waitForTransitionSettled(page);
+
+    await page.getByRole("radio", { name: /reveal/i }).click();
+    await albumTile(page, 0).click();
+    await waitForTransitionSettled(page);
+
+    await expect(activeScreen(page)).toHaveAttribute("data-flemo-transition", "reveal");
+  });
+
+  test("spring (custom): pick from the toggle panel and the next push uses spring", async ({
+    page
+  }) => {
+    await page.goto("/playground");
+    await waitForTransitionSettled(page);
+
+    await page.getByRole("radio", { name: /spring/i }).click();
+    await albumTile(page, 0).click();
+    await waitForTransitionSettled(page);
+
+    await expect(activeScreen(page)).toHaveAttribute("data-flemo-transition", "spring");
+  });
+
   test("none: instant swap, no keyframe phase visible", async ({ page }) => {
     await page.goto("/playground");
     await waitForTransitionSettled(page);
