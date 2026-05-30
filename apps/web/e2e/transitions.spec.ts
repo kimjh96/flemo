@@ -37,6 +37,73 @@ test.describe("playground — transitions", () => {
     await expect(activeScreen(page)).toHaveAttribute("data-flemo-transition", "blur");
   });
 
+  test("zoom (custom): pick from the toggle panel and the next push uses zoom", async ({
+    page
+  }) => {
+    await page.goto("/playground");
+    await waitForTransitionSettled(page);
+
+    await page.getByRole("radio", { name: /zoom/i }).click();
+    await albumTile(page, 0).click();
+    await waitForTransitionSettled(page);
+
+    await expect(activeScreen(page)).toHaveAttribute("data-flemo-transition", "zoom");
+  });
+
+  test("card-stack (custom): pick from the toggle panel and the next push uses card-stack", async ({
+    page
+  }) => {
+    await page.goto("/playground");
+    await waitForTransitionSettled(page);
+
+    await page.getByRole("radio", { name: /card-stack/i }).click();
+    await albumTile(page, 0).click();
+    await waitForTransitionSettled(page);
+
+    await expect(activeScreen(page)).toHaveAttribute("data-flemo-transition", "card-stack");
+  });
+
+  test("reveal (custom): pick from the toggle panel and the next push uses reveal", async ({
+    page
+  }) => {
+    await page.goto("/playground");
+    await waitForTransitionSettled(page);
+
+    await page.getByRole("radio", { name: /reveal/i }).click();
+    await albumTile(page, 0).click();
+    await waitForTransitionSettled(page);
+
+    await expect(activeScreen(page)).toHaveAttribute("data-flemo-transition", "reveal");
+  });
+
+  test("spring (custom): pick from the toggle panel and the next push uses spring", async ({
+    page
+  }) => {
+    await page.goto("/playground");
+    await waitForTransitionSettled(page);
+
+    await page.getByRole("radio", { name: /spring/i }).click();
+    await albumTile(page, 0).click();
+    await waitForTransitionSettled(page);
+
+    await expect(activeScreen(page)).toHaveAttribute("data-flemo-transition", "spring");
+  });
+
+  for (const name of ["ripple", "dive"]) {
+    test(`${name} (custom + decorator): pick from the toggle panel and the next push uses ${name}`, async ({
+      page
+    }) => {
+      await page.goto("/playground");
+      await waitForTransitionSettled(page);
+
+      await page.getByRole("radio", { name: new RegExp(`^${name}`, "i") }).click();
+      await albumTile(page, 0).click();
+      await waitForTransitionSettled(page);
+
+      await expect(activeScreen(page)).toHaveAttribute("data-flemo-transition", name);
+    });
+  }
+
   test("none: instant swap, no keyframe phase visible", async ({ page }) => {
     await page.goto("/playground");
     await waitForTransitionSettled(page);

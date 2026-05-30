@@ -6,7 +6,17 @@ import { create } from "zustand";
 // its own navigation context (cupertino for browse-deeper hops, material for
 // the player). Setting a value here overrides every push to use that one
 // transition, exposed as a playground knob to compare behaviors.
-export type PushTransitionOverride = "cupertino" | "material" | "blur" | "none";
+export type PushTransitionOverride =
+  | "cupertino"
+  | "material"
+  | "blur"
+  | "zoom"
+  | "card-stack"
+  | "reveal"
+  | "spring"
+  | "ripple"
+  | "dive"
+  | "none";
 
 interface PlaygroundSettingsState {
   pushTransitionOverride: PushTransitionOverride | null;
