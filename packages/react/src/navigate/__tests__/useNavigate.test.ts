@@ -12,6 +12,7 @@ declare module "@Route" {
     "/b": Record<string, never>;
     "/c": Record<string, never>;
     "/c-prime": Record<string, never>;
+    "/album/:id": { id: string };
   }
 }
 
@@ -168,6 +169,143 @@ describe("useNavigate — pop", () => {
     expect(index).toBe(0);
     expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
     expect(useNavigateStore.getState().status).toBe("COMPLETED");
+  });
+
+  it("pop(2) skips one screen, landing two entries back in one transition", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/a");
+    await result.current.push("/b");
+    await result.current.push("/c");
+    await result.current.push("/c-prime"); // [a, b, c, c-prime] idx=3
+    await result.current.pop(2);
+
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(1);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b"]);
+    expect(useNavigateStore.getState().status).toBe("COMPLETED");
+  });
+
+  it("pop(3) lands three entries back", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/a");
+    await result.current.push("/b");
+    await result.current.push("/c");
+    await result.current.push("/c-prime"); // [a, b, c, c-prime] idx=3
+    await result.current.pop(3);
+
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(0);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
+  });
+
+  it("clamps to the root when count exceeds the available depth", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/a");
+    await result.current.push("/b");
+    await result.current.push("/c"); // [a, b, c] idx=2
+    await result.current.pop(99);
+
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(0);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
+  });
+
+  it("pop(1) matches the single-step pop", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/a");
+    await result.current.push("/b");
+    await result.current.pop(1);
+
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(0);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
+  });
+
+  it("pop(0) and negative counts are no-ops", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/a");
+    await result.current.push("/b"); // [a, b] idx=1
+    await result.current.pop(0);
+    await result.current.pop(-2);
+
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(1);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b"]);
+  });
+});
+
+describe("useNavigate — popTo", () => {
+  let stopSweeper: () => Promise<void>;
+  beforeEach(() => {
+    resetStores();
+    stopSweeper = startManualGateSweeper();
+  });
+  afterEach(async () => {
+    await stopSweeper();
+  });
+
+  it("pops back to the nearest screen matching the route pattern", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/a");
+    await result.current.push("/album/:id", { id: "1" });
+    await result.current.push("/b");
+    await result.current.push("/c"); // [a, album/1, b, c] idx=3
+
+    await result.current.popTo("/album/:id");
+
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(1);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a", "/album/1"]);
+    expect(useNavigateStore.getState().status).toBe("COMPLETED");
+  });
+
+  it("resolves to the closest match when several screens share the pattern", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/album/:id", { id: "1" });
+    await result.current.push("/album/:id", { id: "2" });
+    await result.current.push("/c"); // [album/1, album/2, c] idx=2
+
+    await result.current.popTo("/album/:id");
+
+    // The nearer album (/album/2) wins, not the deeper /album/1.
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(1);
+    expect(histories.map((h) => h.pathname)).toEqual(["/album/1", "/album/2"]);
+  });
+
+  it("never targets the current top, even if it matches the pattern", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/album/:id", { id: "1" });
+    await result.current.push("/b");
+    await result.current.push("/album/:id", { id: "2" }); // top is also an album
+
+    await result.current.popTo("/album/:id");
+
+    // Skips the top album and lands on the deeper /album/1.
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(0);
+    expect(histories.map((h) => h.pathname)).toEqual(["/album/1"]);
+  });
+
+  it("is a no-op when no screen below the top matches", async () => {
+    const { result } = renderHook(() => useNavigate());
+
+    await result.current.push("/a");
+    await result.current.push("/b"); // [a, b] idx=1, no album anywhere
+
+    await result.current.popTo("/album/:id");
+
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(1);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b"]);
   });
 });
 

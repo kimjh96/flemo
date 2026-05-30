@@ -16,6 +16,7 @@ interface HistoryStore {
   addHistory: (history: History) => void;
   replaceHistory: (index: number) => void;
   popHistory: (index: number) => void;
+  popHistories: (count: number) => void;
 }
 
 const useHistoryStore = create<HistoryStore>((set) => ({
@@ -39,7 +40,21 @@ const useHistoryStore = create<HistoryStore>((set) => ({
     set((state) => ({
       index: state.index - 1,
       histories: state.histories.filter((_, i) => i !== index)
-    }))
+    })),
+  // Drop `count` entries sitting directly below the current top, keeping the
+  // top itself. Used by pop(n) to remove the screens it skips over in the same
+  // synchronous block that starts the transition — so they never paint — while
+  // the leaving top stays mounted to drive and resolve the animation.
+  popHistories: (count) => {
+    if (count <= 0) return;
+    set((state) => {
+      const top = state.index;
+      return {
+        index: state.index - count,
+        histories: state.histories.filter((_, i) => i < top - count || i >= top)
+      };
+    });
+  }
 }));
 
 export default useHistoryStore;

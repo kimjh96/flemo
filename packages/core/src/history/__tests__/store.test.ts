@@ -105,6 +105,46 @@ describe("useHistoryStore — popHistory", () => {
   });
 });
 
+describe("useHistoryStore — popHistories", () => {
+  beforeEach(reset);
+
+  const seed = (...pathnames: string[]) => {
+    const { addHistory } = useHistoryStore.getState();
+    for (const pathname of pathnames) addHistory(makeEntry({ pathname }));
+  };
+
+  it("drops `count` entries directly below the top, keeping the top", () => {
+    seed("/a", "/b", "/c", "/d"); // index=3, [a,b,c,d]
+
+    useHistoryStore.getState().popHistories(1);
+    // The screen directly below the top (c) is removed; d stays as the top.
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(2);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b", "/d"]);
+  });
+
+  it("drops multiple intermediates at once and keeps both the root and the top", () => {
+    seed("/a", "/b", "/c", "/d"); // index=3
+
+    useHistoryStore.getState().popHistories(2);
+    // b and c are removed; a (root) and d (top) survive.
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(1);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a", "/d"]);
+  });
+
+  it("is a no-op for count <= 0", () => {
+    seed("/a", "/b", "/c"); // index=2
+
+    useHistoryStore.getState().popHistories(0);
+    useHistoryStore.getState().popHistories(-3);
+
+    const { index, histories } = useHistoryStore.getState();
+    expect(index).toBe(2);
+    expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b", "/c"]);
+  });
+});
+
 describe("useHistoryStore — mixed sequences", () => {
   beforeEach(reset);
 

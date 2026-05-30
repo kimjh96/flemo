@@ -68,6 +68,16 @@ function HeavyArrivalScreen() {
     void root.getBoundingClientRect().width;
   }, [nodeCount]);
 
+  const handlePushAnother = () =>
+    navigate.push(
+      "/heavy/:cpuMs/:nodes",
+      { cpuMs: String(cpuMs), nodes: String(nodeCount) },
+      { transitionName: "cupertino" }
+    );
+  const handlePopTwo = () => navigate.pop(2);
+  const handlePopThree = () => navigate.pop(3);
+  const handlePopToLibrary = () => navigate.popTo("/");
+
   return (
     <PlayerScreen appBar={<HeavyArrivalAppBar />}>
       <div
@@ -81,20 +91,46 @@ function HeavyArrivalScreen() {
           <div className="text-sm text-[var(--color-ink-soft)]">
             cpuMs={cpuMs} · nodes={nodeCount}
           </div>
-          <button
-            type="button"
-            data-testid="perf-push-next"
-            onClick={() =>
-              navigate.push(
-                "/heavy/:cpuMs/:nodes",
-                { cpuMs: String(cpuMs), nodes: String(nodeCount) },
-                { transitionName: "cupertino" }
-              )
-            }
-            className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
-          >
-            Push another
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              data-testid="perf-push-next"
+              onClick={handlePushAnother}
+              className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
+            >
+              Push another
+            </button>
+            {/* pop(n) skips n-1 screens in one transition; with heavy
+                intermediates this is the clearest place to confirm the skipped
+                screens never paint. */}
+            <button
+              type="button"
+              data-testid="perf-pop-2"
+              onClick={handlePopTwo}
+              className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
+            >
+              Pop 2
+            </button>
+            <button
+              type="button"
+              data-testid="perf-pop-3"
+              onClick={handlePopThree}
+              className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
+            >
+              Pop 3
+            </button>
+            {/* popTo jumps straight back to the nearest screen of a given
+                route — here the Library root — skipping every heavy screen in
+                between in one transition. */}
+            <button
+              type="button"
+              data-testid="perf-popto-root"
+              onClick={handlePopToLibrary}
+              className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
+            >
+              Pop to Library
+            </button>
+          </div>
         </div>
         {items.map((i) => (
           <div
