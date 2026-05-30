@@ -9,11 +9,11 @@ import NowPlayingScreen from "@/app/playground/_screens/NowPlayingScreen";
 import SearchScreen from "@/app/playground/_screens/SearchScreen";
 import blur from "@/app/playground/_transitions/blur";
 import breathe from "@/app/playground/_transitions/breathe";
+import aurora, { aurora as auroraDecorator } from "@/app/playground/_transitions/aurora";
 import cardStack from "@/app/playground/_transitions/cardStack";
-import drawer, { tint } from "@/app/playground/_transitions/drawer";
 import ember, { glow } from "@/app/playground/_transitions/ember";
+import pulse, { ring } from "@/app/playground/_transitions/pulse";
 import reveal from "@/app/playground/_transitions/reveal";
-import shine, { sheen } from "@/app/playground/_transitions/shine";
 import slideLeft from "@/app/playground/_transitions/slideLeft";
 import slideRight from "@/app/playground/_transitions/slideRight";
 import spring from "@/app/playground/_transitions/spring";
@@ -34,11 +34,11 @@ function PlaygroundRouter() {
         cardStack,
         reveal,
         spring,
-        drawer,
-        shine,
-        ember
+        ember,
+        aurora,
+        pulse
       ]}
-      decorators={[tint, sheen, glow]}
+      decorators={[glow, auroraDecorator, ring]}
     >
       <Route path="/" element={<LibraryScreen />} />
       <Route path="/search" element={<SearchScreen />} />

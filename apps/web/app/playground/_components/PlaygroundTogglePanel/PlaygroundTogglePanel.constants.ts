@@ -126,25 +126,25 @@ const spring: TransitionOption = {
 });`
 };
 
-const shine: TransitionOption = {
-  value: "shine",
-  label: "shine",
+const aurora: TransitionOption = {
+  value: "aurora",
+  label: "aurora",
   group: "Custom + decorator",
   summary:
-    "A soft lift + cross-fade, while a specular sheen — a bright core framed by faint dark shoulders — sweeps across the screen behind. The decorator animates backgroundPosition, so the highlight travels like light glancing off glass.",
-  code: `// The decorator moves: it animates backgroundPosition, not just opacity.
-const sheen = createDecorator({
-  name: "sheen",
-  initial: { ...SHEEN, backgroundPosition: "150% 50%", opacity: 0 },
-  enter:   { value: { ...SHEEN, backgroundPosition: "-50% 50%", opacity: 0.9 }, options: { duration: 0.62 } },
-  exit:    { value: { ...SHEEN, backgroundPosition: "-50% 50%", opacity: 0 }, options: { duration: 0.4 } }
+    "The new screen rises while a soft multi-color aurora (indigo → fuchsia → cyan) drifts across the backdrop. Colored, so it reads on light surfaces; the decorator animates backgroundPosition, so the hues slide.",
+  code: `// The decorator drifts: a colored gradient animating backgroundPosition.
+const aurora = createDecorator({
+  name: "aurora",
+  initial: { ...AURORA, backgroundPosition: "0% 50%",   opacity: 0 },
+  enter:   { value: { ...AURORA, backgroundPosition: "100% 50%", opacity: 1 }, options: { duration: 0.6 } },
+  exit:    { value: { ...AURORA, backgroundPosition: "100% 50%", opacity: 0 }, options: { duration: 0.4 } }
 });
 
 createTransition({
-  name: "shine",
-  initial: { y: 24, opacity: 0 },
-  enter:   { value: { y: 0, opacity: 1 }, options: { duration: 0.55 } },
-  options: { decoratorName: "sheen" }
+  name: "aurora",
+  initial: { y: "100%" },
+  enter:   { value: { y: 0 }, options: { duration: 0.55 } },
+  options: { decoratorName: "aurora" }
 });`
 };
 
@@ -170,25 +170,25 @@ createTransition({
 });`
 };
 
-const drawer: TransitionOption = {
-  value: "drawer",
-  label: "drawer",
+const pulse: TransitionOption = {
+  value: "pulse",
+  label: "pulse",
   group: "Custom + decorator",
   summary:
-    "Cupertino-style horizontal slide, but the receding screen washes with a brand-blue tint decorator instead of a neutral dim.",
-  code: `const tint = createDecorator({
-  name: "tint",
-  initial: { opacity: 0, backgroundColor: "rgba(49,130,246,0.42)" },
-  enter:   { value: { opacity: 1, backgroundColor: "rgba(49,130,246,0.42)" }, options: { duration: 0.45 } },
-  exit:    { value: { opacity: 0, backgroundColor: "rgba(49,130,246,0.42)" }, options: { duration: 0.38 } }
+    "As the new screen lands, a bright ring radiates out from the center across the backdrop — a sonar-style pulse. The decorator animates scale, so the ring expands from a point past the edges.",
+  code: `// The decorator expands: a radial ring animating scale outward.
+const ring = createDecorator({
+  name: "ring",
+  initial: { background: RING, opacity: 0, scale: 0.2 },
+  enter:   { value: { background: RING, opacity: 1, scale: 2.6 }, options: { duration: 0.6 } },
+  exit:    { value: { background: RING, opacity: 0, scale: 0.2 }, options: { duration: 0.4 } }
 });
 
 createTransition({
-  name: "drawer",
-  initial: { x: "100%" },
-  enter:   { value: { x: 0 },       options: { duration: 0.45 } },
-  exit:    { value: { x: "-30%" },  options: { duration: 0.45 } },
-  options: { decoratorName: "tint" }
+  name: "pulse",
+  initial: { scale: 0.85, opacity: 0 },
+  enter:   { value: { scale: 1, opacity: 1 }, options: { duration: 0.5 } },
+  options: { decoratorName: "ring" }
 });`
 };
 
@@ -216,7 +216,7 @@ export const transitionGroups: ReadonlyArray<TransitionGroup> = [
   {
     kind: "Custom + decorator",
     caption: "A custom transition paired with a custom createDecorator layer.",
-    options: [drawer, shine, ember]
+    options: [ember, aurora, pulse]
   }
 ];
 

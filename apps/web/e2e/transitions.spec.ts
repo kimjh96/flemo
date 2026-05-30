@@ -89,7 +89,7 @@ test.describe("playground — transitions", () => {
     await expect(activeScreen(page)).toHaveAttribute("data-flemo-transition", "spring");
   });
 
-  for (const name of ["drawer", "shine", "ember"]) {
+  for (const name of ["ember", "aurora", "pulse"]) {
     test(`${name} (custom + decorator): pick from the toggle panel and the next push uses ${name}`, async ({
       page
     }) => {
