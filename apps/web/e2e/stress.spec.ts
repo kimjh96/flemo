@@ -321,9 +321,9 @@ test.describe("playground — stress", () => {
         await page.getByRole("button", { name: "Albums" }).click();
         await waitForTransitionSettled(page);
       } else {
-        await page.getByRole("switch").click();
+        await page.getByRole("switch", { name: "Shared navigation bar" }).click();
         await waitForTransitionSettled(page);
-        await page.getByRole("switch").click();
+        await page.getByRole("switch", { name: "Shared navigation bar" }).click();
         await waitForTransitionSettled(page);
       }
     }
