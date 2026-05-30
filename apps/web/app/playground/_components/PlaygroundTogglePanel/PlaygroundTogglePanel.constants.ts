@@ -126,69 +126,91 @@ const spring: TransitionOption = {
 });`
 };
 
-const beam: TransitionOption = {
-  value: "beam",
-  label: "beam",
+// Each combo co-designs the transition motion and the decorator as one idea.
+
+const swipe: TransitionOption = {
+  value: "swipe",
+  label: "swipe",
   group: "Custom + decorator",
   summary:
-    "Built on rotation, not scale: as the screen rises, a soft cool beam of light swings in an arc across the backdrop, like a lighthouse or radar sweep — the decorator animates rotate.",
-  code: `// The decorator turns: a conic-gradient wedge animating rotate.
-const beam = createDecorator({
-  name: "beam",
-  initial: { background: BEAM, scale: 1.6, opacity: 0, rotate: -120 },
-  enter:   { value: { background: BEAM, scale: 1.6, opacity: 1, rotate: 110 }, options: { duration: 0.6 } },
-  exit:    { value: { background: BEAM, scale: 1.6, opacity: 0, rotate: -120 }, options: { duration: 0.4 } }
+    "A horizontal flick: the screen snaps in from the right (with overshoot) while a streak of light sweeps left across the backdrop in the same direction — one gesture, shared axis.",
+  code: `const trail = createDecorator({
+  name: "trail",
+  initial: { ...TRAIL, backgroundPosition: "150% 0%",  opacity: 0 },
+  enter:   { value: { ...TRAIL, backgroundPosition: "-60% 0%", opacity: 1 }, options: { duration: 0.42 } },
+  exit:    { value: { ...TRAIL, backgroundPosition: "-60% 0%", opacity: 0 }, options: { duration: 0.34 } }
 });
 
 createTransition({
-  name: "beam",
-  initial: { y: "100%" },
-  enter:   { value: { y: 0 }, options: { duration: 0.6 } },
-  options: { decoratorName: "beam" }
+  name: "swipe",
+  initial: { x: "100%" },
+  enter:   { value: { x: 0 },       options: { duration: 0.44, ease: [0.3, 1.25, 0.5, 1] } },
+  exit:    { value: { x: "-22%" },  options: { duration: 0.44 } }, // backdrop slides with the streak
+  options: { decoratorName: "trail" }
 });`
 };
 
-const ember: TransitionOption = {
-  value: "ember",
-  label: "ember",
+const ripple: TransitionOption = {
+  value: "ripple",
+  label: "ripple",
   group: "Custom + decorator",
   summary:
-    "The new screen scales in while a warm radial glow blooms behind it — the decorator animates scale, so the light swells outward.",
-  code: `// The decorator blooms: it animates scale, so the glow swells.
-const glow = createDecorator({
-  name: "glow",
-  initial: { opacity: 0, scale: 0.85, background: WARM_RADIAL },
-  enter:   { value: { opacity: 1, scale: 1.15, background: WARM_RADIAL }, options: { duration: 0.5 } },
-  exit:    { value: { opacity: 0, scale: 0.85, background: WARM_RADIAL }, options: { duration: 0.4 } }
+    "A drop in water: the screen reveals through a circle expanding from the center, and concentric rings radiate from that same point on the backdrop — reveal and ripples share one origin.",
+  code: `const ripples = createDecorator({
+  name: "ripples",
+  initial: { background: RINGS, opacity: 0, scale: 0.3 }, // repeating-radial-gradient
+  enter:   { value: { background: RINGS, opacity: 1, scale: 2.2 }, options: { duration: 0.55 } },
+  exit:    { value: { background: RINGS, opacity: 0, scale: 0.3 }, options: { duration: 0.4 } }
 });
 
 createTransition({
-  name: "ember",
-  initial: { scale: 0.88, opacity: 0 },
-  enter:   { value: { scale: 1, opacity: 1 }, options: { duration: 0.5 } },
-  options: { decoratorName: "glow" }
+  name: "ripple",
+  initial: { clipPath: "circle(0% at 50% 50%)" },
+  enter:   { value: { clipPath: "circle(75% at 50% 50%)" }, options: { duration: 0.55 } },
+  options: { decoratorName: "ripples" }
 });`
 };
 
-const pulse: TransitionOption = {
-  value: "pulse",
-  label: "pulse",
+const unfold: TransitionOption = {
+  value: "unfold",
+  label: "unfold",
   group: "Custom + decorator",
   summary:
-    "As the new screen lands, a bright ring radiates out from the center across the backdrop — a sonar-style pulse. The decorator animates scale, so the ring expands from a point past the edges.",
-  code: `// The decorator expands: a radial ring animating scale outward.
-const ring = createDecorator({
-  name: "ring",
-  initial: { background: RING, opacity: 0, scale: 0.2 },
-  enter:   { value: { background: RING, opacity: 1, scale: 2.6 }, options: { duration: 0.6 } },
-  exit:    { value: { background: RING, opacity: 0, scale: 0.2 }, options: { duration: 0.4 } }
+    "An unrolling banner: the screen unfolds downward from its top edge (scaleY from the top) while a crease-shadow grows down with it on the backdrop — both scale from the same top origin.",
+  code: `const crease = createDecorator({
+  name: "crease",
+  initial: { ...CREASE, transformOrigin: "50% 0%", scaleY: 0, opacity: 0 },
+  enter:   { value: { ...CREASE, transformOrigin: "50% 0%", scaleY: 1, opacity: 1 }, options: { duration: 0.5 } },
+  exit:    { value: { ...CREASE, transformOrigin: "50% 0%", scaleY: 0, opacity: 0 }, options: { duration: 0.4 } }
 });
 
 createTransition({
-  name: "pulse",
-  initial: { scale: 0.85, opacity: 0 },
-  enter:   { value: { scale: 1, opacity: 1 }, options: { duration: 0.5 } },
-  options: { decoratorName: "ring" }
+  name: "unfold",
+  initial: { scaleY: 0, transformOrigin: "50% 0%" },
+  enter:   { value: { scaleY: 1, transformOrigin: "50% 0%" }, options: { duration: 0.5 } },
+  options: { decoratorName: "crease" }
+});`
+};
+
+const dive: TransitionOption = {
+  value: "dive",
+  label: "dive",
+  group: "Custom + decorator",
+  summary:
+    "Diving forward through depth: the screen rushes in from a point at the center while the backdrop scales out into a closing dark tunnel — both read as the same plunge into depth.",
+  code: `const tunnel = createDecorator({
+  name: "tunnel",
+  initial: { background: TUNNEL, opacity: 0, scale: 1 },
+  enter:   { value: { background: TUNNEL, opacity: 1, scale: 1.4 }, options: { duration: 0.5 } },
+  exit:    { value: { background: TUNNEL, opacity: 0, scale: 1 },   options: { duration: 0.4 } }
+});
+
+createTransition({
+  name: "dive",
+  initial: { scale: 0.2, opacity: 0 },
+  enter:   { value: { scale: 1, opacity: 1 },    options: { duration: 0.5 } },
+  exit:    { value: { scale: 1.4, opacity: 0 },  options: { duration: 0.5 } }, // backdrop rushes past
+  options: { decoratorName: "tunnel" }
 });`
 };
 
@@ -216,7 +238,7 @@ export const transitionGroups: ReadonlyArray<TransitionGroup> = [
   {
     kind: "Custom + decorator",
     caption: "A custom transition paired with a custom createDecorator layer.",
-    options: [ember, pulse, beam]
+    options: [swipe, ripple, unfold, dive]
   }
 ];
 

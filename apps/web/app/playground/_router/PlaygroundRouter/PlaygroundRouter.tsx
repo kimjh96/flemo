@@ -9,14 +9,15 @@ import NowPlayingScreen from "@/app/playground/_screens/NowPlayingScreen";
 import SearchScreen from "@/app/playground/_screens/SearchScreen";
 import blur from "@/app/playground/_transitions/blur";
 import breathe from "@/app/playground/_transitions/breathe";
-import beam, { beam as beamDecorator } from "@/app/playground/_transitions/beam";
 import cardStack from "@/app/playground/_transitions/cardStack";
-import ember, { glow } from "@/app/playground/_transitions/ember";
-import pulse, { ring } from "@/app/playground/_transitions/pulse";
+import dive, { tunnel } from "@/app/playground/_transitions/dive";
 import reveal from "@/app/playground/_transitions/reveal";
+import ripple, { ripples } from "@/app/playground/_transitions/ripple";
 import slideLeft from "@/app/playground/_transitions/slideLeft";
 import slideRight from "@/app/playground/_transitions/slideRight";
 import spring from "@/app/playground/_transitions/spring";
+import swipe, { trail } from "@/app/playground/_transitions/swipe";
+import unfold, { crease } from "@/app/playground/_transitions/unfold";
 import zoom from "@/app/playground/_transitions/zoom";
 
 import "./PlaygroundRouter.types";
@@ -34,11 +35,12 @@ function PlaygroundRouter() {
         cardStack,
         reveal,
         spring,
-        ember,
-        pulse,
-        beam
+        swipe,
+        ripple,
+        unfold,
+        dive
       ]}
-      decorators={[glow, ring, beamDecorator]}
+      decorators={[trail, ripples, crease, tunnel]}
     >
       <Route path="/" element={<LibraryScreen />} />
       <Route path="/search" element={<SearchScreen />} />
