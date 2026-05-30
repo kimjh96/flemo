@@ -9,6 +9,8 @@ declare module "@flemo/react" {
     blur: "blur";
     "slide-left": "slide-left";
     "slide-right": "slide-right";
+    zoom: "zoom";
+    "card-stack": "card-stack";
   }
 }
 

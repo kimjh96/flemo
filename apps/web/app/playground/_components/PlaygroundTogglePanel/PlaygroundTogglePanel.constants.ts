@@ -60,6 +60,38 @@ const blur: TransitionOption = {
 });`
 };
 
+const zoom: TransitionOption = {
+  value: "zoom",
+  label: "zoom",
+  group: "Custom",
+  summary:
+    "Cross-zoom dive — the new screen scales up into focus while the old one pushes forward and fades.",
+  code: `createTransition({
+  name: "zoom",
+  initial: { scale: 0.8, opacity: 0 },
+  enter:     { value: { scale: 1,    opacity: 1 }, options: { duration: 0.34 } },
+  exit:      { value: { scale: 1.12, opacity: 0 }, options: { duration: 0.34 } },
+  enterBack: { value: { scale: 0.8,  opacity: 0 }, options: { duration: 0.3 } },
+  exitBack:  { value: { scale: 1,    opacity: 1 }, options: { duration: 0.3 } }
+});`
+};
+
+const cardStack: TransitionOption = {
+  value: "card-stack",
+  label: "card-stack",
+  group: "Custom",
+  summary:
+    "iOS-style card present — the new screen rises while the current one scales back and dims behind it.",
+  code: `createTransition({
+  name: "card-stack",
+  initial: { y: "100%" },
+  enter:     { value: { y: 0 },                       options: { duration: 0.4 } },
+  exit:      { value: { scale: 0.93, opacity: 0.55 }, options: { duration: 0.4 } },
+  enterBack: { value: { y: "100%" },                  options: { duration: 0.34 } },
+  exitBack:  { value: { scale: 1,    opacity: 1 },    options: { duration: 0.34 } }
+});`
+};
+
 // The "natural" code snippet — what each push site looks like by default.
 // Shown when no override is active so the reader sees that per-context
 // composition is the baseline, not a meta-option.
@@ -79,7 +111,7 @@ export const transitionGroups: ReadonlyArray<TransitionGroup> = [
   {
     kind: "Custom",
     caption: "Defined in this playground, not in @flemo/core.",
-    options: [blur]
+    options: [blur, zoom, cardStack]
   }
 ];
 
