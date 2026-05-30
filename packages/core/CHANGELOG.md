@@ -1,5 +1,23 @@
 # @flemo/core
 
+## 1.2.0
+
+### Minor Changes
+
+- [`156a6f3`](https://github.com/kimjh96/flemo/commit/156a6f3f71c8b81128a9fc6efce8075bc9579bef) `useNavigate().pop`, `replace`, and `push` now take an optional distance — `{ skip }` (a number of screens) or `{ until }` (a route pattern) — to reach a screen below the top in a single transition. The skipped screens are removed without ever painting, so they never flash by.
+
+  All three reach the same target (`{ skip: n }` is the screen `n` below the top; `{ until }` is the nearest match) and differ only there: `pop` lands on it, `replace` replaces it (the target and everything above become the new screen), and `push` keeps it and stacks the new screen on top.
+
+  `{ skip }` clamps to the stack depth; an unmatched `until` is a no-op for `pop`/`replace` and a plain push for `push`. Plain `pop()` / `replace(path)` / `push(path)` are unchanged.
+
+### Patch Changes
+
+- [`4caa94d`](https://github.com/kimjh96/flemo/commit/4caa94d698eff23ef72bd72ce353f585a4942056) Make the cupertino transition's outgoing-screen parallax viewport-proportional. The previous screen now slides to `-30%` of the viewport width (matching iOS), instead of a fixed `-100px` that looked negligible on wide viewports and appeared to lag behind the incoming screen.
+
+- [`4caa94d`](https://github.com/kimjh96/flemo/commit/4caa94d698eff23ef72bd72ce353f585a4942056) Fade the material transition's outgoing screen as it slides up, so the previous screen dissolves instead of just nudging behind the incoming one. Swipe-back mirrors the same fade.
+
+- [`6df7e4f`](https://github.com/kimjh96/flemo/commit/6df7e4fd5c3446771fbc9602d703273e75615af6) Drop the explicit cupertino easing from the overlay decorator's push/pop dim so it animates on the default ease curve.
+
 ## 1.1.2
 
 ### Patch Changes

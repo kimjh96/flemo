@@ -1,5 +1,13 @@
 # @flemo/react-layout
 
+## 0.1.7
+
+### Patch Changes
+
+- Updated dependencies ([`4caa94d`](https://github.com/kimjh96/flemo/commit/4caa94d698eff23ef72bd72ce353f585a4942056), [`4caa94d`](https://github.com/kimjh96/flemo/commit/4caa94d698eff23ef72bd72ce353f585a4942056), [`6df7e4f`](https://github.com/kimjh96/flemo/commit/6df7e4fd5c3446771fbc9602d703273e75615af6), [`156a6f3`](https://github.com/kimjh96/flemo/commit/156a6f3f71c8b81128a9fc6efce8075bc9579bef)):
+  - @flemo/core@1.2.0
+  - @flemo/react@1.1.0
+
 ## 0.1.6
 
 ### Patch Changes
