@@ -14,9 +14,7 @@ export type PushTransitionOverride =
   | "card-stack"
   | "reveal"
   | "spring"
-  | "swipe"
   | "ripple"
-  | "unfold"
   | "dive"
   | "none";
 

@@ -16,8 +16,6 @@ import ripple, { ripples } from "@/app/playground/_transitions/ripple";
 import slideLeft from "@/app/playground/_transitions/slideLeft";
 import slideRight from "@/app/playground/_transitions/slideRight";
 import spring from "@/app/playground/_transitions/spring";
-import swipe, { trail } from "@/app/playground/_transitions/swipe";
-import unfold, { crease } from "@/app/playground/_transitions/unfold";
 import zoom from "@/app/playground/_transitions/zoom";
 
 import "./PlaygroundRouter.types";
@@ -35,12 +33,10 @@ function PlaygroundRouter() {
         cardStack,
         reveal,
         spring,
-        swipe,
         ripple,
-        unfold,
         dive
       ]}
-      decorators={[trail, ripples, crease, tunnel]}
+      decorators={[ripples, tunnel]}
     >
       <Route path="/" element={<LibraryScreen />} />
       <Route path="/search" element={<SearchScreen />} />

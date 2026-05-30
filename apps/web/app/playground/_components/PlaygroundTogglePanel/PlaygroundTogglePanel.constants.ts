@@ -128,28 +128,6 @@ const spring: TransitionOption = {
 
 // Each combo co-designs the transition motion and the decorator as one idea.
 
-const swipe: TransitionOption = {
-  value: "swipe",
-  label: "swipe",
-  group: "Custom + decorator",
-  summary:
-    "A horizontal flick: the screen snaps in from the right (with overshoot) while a streak of light sweeps left across the backdrop in the same direction — one gesture, shared axis.",
-  code: `const trail = createDecorator({
-  name: "trail",
-  initial: { ...TRAIL, backgroundPosition: "150% 0%",  opacity: 0 },
-  enter:   { value: { ...TRAIL, backgroundPosition: "-60% 0%", opacity: 1 }, options: { duration: 0.42 } },
-  exit:    { value: { ...TRAIL, backgroundPosition: "-60% 0%", opacity: 0 }, options: { duration: 0.34 } }
-});
-
-createTransition({
-  name: "swipe",
-  initial: { x: "100%" },
-  enter:   { value: { x: 0 },       options: { duration: 0.44, ease: [0.3, 1.25, 0.5, 1] } },
-  exit:    { value: { x: "-22%" },  options: { duration: 0.44 } }, // backdrop slides with the streak
-  options: { decoratorName: "trail" }
-});`
-};
-
 const ripple: TransitionOption = {
   value: "ripple",
   label: "ripple",
@@ -168,27 +146,6 @@ createTransition({
   initial: { clipPath: "circle(0% at 50% 50%)" },
   enter:   { value: { clipPath: "circle(75% at 50% 50%)" }, options: { duration: 0.55 } },
   options: { decoratorName: "ripples" }
-});`
-};
-
-const unfold: TransitionOption = {
-  value: "unfold",
-  label: "unfold",
-  group: "Custom + decorator",
-  summary:
-    "An unrolling banner: the screen unfolds downward from its top edge (scaleY from the top) while a crease-shadow grows down with it on the backdrop — both scale from the same top origin.",
-  code: `const crease = createDecorator({
-  name: "crease",
-  initial: { ...CREASE, transformOrigin: "50% 0%", scaleY: 0, opacity: 0 },
-  enter:   { value: { ...CREASE, transformOrigin: "50% 0%", scaleY: 1, opacity: 1 }, options: { duration: 0.5 } },
-  exit:    { value: { ...CREASE, transformOrigin: "50% 0%", scaleY: 0, opacity: 0 }, options: { duration: 0.4 } }
-});
-
-createTransition({
-  name: "unfold",
-  initial: { scaleY: 0, transformOrigin: "50% 0%" },
-  enter:   { value: { scaleY: 1, transformOrigin: "50% 0%" }, options: { duration: 0.5 } },
-  options: { decoratorName: "crease" }
 });`
 };
 
@@ -238,7 +195,7 @@ export const transitionGroups: ReadonlyArray<TransitionGroup> = [
   {
     kind: "Custom + decorator",
     caption: "A custom transition paired with a custom createDecorator layer.",
-    options: [swipe, ripple, unfold, dive]
+    options: [ripple, dive]
   }
 ];
 

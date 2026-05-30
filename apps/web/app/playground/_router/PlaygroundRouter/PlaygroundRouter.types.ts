@@ -13,16 +13,12 @@ declare module "@flemo/react" {
     "card-stack": "card-stack";
     reveal: "reveal";
     spring: "spring";
-    swipe: "swipe";
     ripple: "ripple";
-    unfold: "unfold";
     dive: "dive";
   }
 
   interface RegisterDecorator {
-    trail: "trail";
     ripples: "ripples";
-    crease: "crease";
     tunnel: "tunnel";
   }
 }
