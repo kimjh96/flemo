@@ -36,8 +36,7 @@ const overlay = createDecorator({
       backgroundColor: DIM_COLOR
     },
     options: {
-      duration: 0.7,
-      ease: [0.32, 0.72, 0, 1]
+      duration: 0.7
     }
   },
   // POPPING-false target: the previously-behind screen is returning to active.
@@ -50,8 +49,7 @@ const overlay = createDecorator({
       backgroundColor: DIM_COLOR
     },
     options: {
-      duration: 0.6,
-      ease: [0.32, 0.72, 0, 1]
+      duration: 0.6
     }
   },
   options: {
