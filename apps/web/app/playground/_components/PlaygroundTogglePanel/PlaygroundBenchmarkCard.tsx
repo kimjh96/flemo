@@ -41,49 +41,25 @@ function PlaygroundBenchmarkCard() {
       { transitionName: "cupertino" }
     );
 
-  const handleReplace = (cpuMs: number, nodes: number) =>
-    navigate.replace(
-      "/heavy/:cpuMs/:nodes",
-      { cpuMs: String(cpuMs), nodes: String(nodes) },
-      { transitionName: "cupertino" }
-    );
-
   return (
     <PlaygroundToggleCard>
       <PlaygroundToggleCardHeader
         eyebrow="Performance"
         title="Stress-test arrival screens"
-        description="Push a synthetic heavy screen into the preview to feel how flemo holds the transition under load. cpuMs busy-waits in render; nodes inflates the tree. Replace runs the same weight through the replace transition."
+        description="Push a synthetic heavy screen into the preview to feel how flemo holds the transition under load. cpuMs busy-waits in render; nodes inflates the tree."
       />
-      <div data-testid="perf-scenarios" className="flex flex-col gap-3">
-        <div className="kicker">Push</div>
-        <div className="flex flex-wrap gap-2">
-          {scenarios.map(({ label, cpuMs, nodes }) => (
-            <button
-              key={`push-${label}`}
-              type="button"
-              data-testid={`perf-push-${cpuMs}-${nodes}`}
-              onClick={() => handlePush(cpuMs, nodes)}
-              className={buttonClassName}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="kicker">Replace</div>
-        <div className="flex flex-wrap gap-2">
-          {scenarios.map(({ label, cpuMs, nodes }) => (
-            <button
-              key={`replace-${label}`}
-              type="button"
-              data-testid={`perf-replace-${cpuMs}-${nodes}`}
-              onClick={() => handleReplace(cpuMs, nodes)}
-              className={buttonClassName}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      <div data-testid="perf-scenarios" className="flex flex-wrap gap-2">
+        {scenarios.map(({ label, cpuMs, nodes }) => (
+          <button
+            key={`push-${label}`}
+            type="button"
+            data-testid={`perf-push-${cpuMs}-${nodes}`}
+            onClick={() => handlePush(cpuMs, nodes)}
+            className={buttonClassName}
+          >
+            {label}
+          </button>
+        ))}
       </div>
     </PlaygroundToggleCard>
   );
