@@ -23,35 +23,41 @@ const navigate = useNavigate();
 navigate.push("/posts/:slug", { slug: "hello" });
 navigate.replace("/login");
 navigate.pop(); // 한 화면 뒤로
-navigate.pop({ count: 2 }); // 두 화면 뒤로, 한 번의 전환으로
+navigate.pop({ skip: 2 }); // 두 화면 뒤로, 한 번의 전환으로
 navigate.pop({ until: "/posts/:slug" }); // 가장 가까운 일치 화면까지 뒤로
 ```
 
-`push`와 `replace`는 비동기예요. 전환이 시작되고 라우트가 반영될 때까지 기다려요. `pop`/`replace`는
-얼마나 멀리 가든 **한 번의 전환**을 일으켜요.
+`push`·`replace`·`pop`은 비동기예요. 전환이 시작되고 라우트가 반영될 때까지 기다려요. 얼마나 멀리 가든
+**한 번의 전환**을 일으켜요.
 
-### 뒤로 가기 / 접기
+### top 너머로 도달하기
 
-`pop`과 `replace`는 선택적으로 **거리**를 받아요 — `{ count }`(화면 수) 또는 `{ until }`(라우트 패턴).
-top을 넘어 한 번의 전환으로 도달하고, 건너뛰는 중간 화면들은 **한 프레임도 그려지지 않고** 제거돼요 —
-스쳐 지나가는 게 안 보여요. 도착하는 화면만 애니메이션돼요.
+`pop`·`replace`·`push` 모두 선택적으로 **거리**를 받아요 — `{ skip }`(화면 수) 또는 `{ until }`(라우트 패턴).
+top 아래의 한 화면까지 한 번의 전환으로 도달하고, 건너뛰는 중간 화면들은 **한 프레임도 그려지지 않고**
+제거돼요 — 스쳐 지나가는 게 안 보여요.
 
-- `pop({ count })` — `count`개 뒤로. 스택 깊이로 제한(루트를 넘으면 루트). `pop()`은 `pop({ count: 1 })`.
-- `pop({ until })` — 일치하는 가장 가까운 화면까지 뒤로 가서 **그 화면에 안착**(유지). 현재 화면에서 루트
-  방향으로 탐색해 처음 일치에서 멈춰요. 일치 없으면 no-op.
-- `replace(path, params, { count })` — top `count`개 화면을 새 화면으로 접어 교체.
-- `replace(path, params, { until })` — 일치하는 가장 가까운 화면**까지 포함**해 접고(그 화면도 교체됨) 새
-  화면을 그 자리에 둬요. 일치 없으면 no-op.
+`{ skip: n }`은 top에서 `n`칸 아래 화면, `{ until }`은 라우트가 패턴과 일치하는 가장 가까운 아래 화면이에요
+(top→루트 탐색, 현재 top 제외). 셋은 **같은 화면에 도달**하고, 거기서 하는 일만 달라요:
+
+| 메서드    | 도달한 화면에서…                                        |
+| --------- | ------------------------------------------------------- |
+| `pop`     | 그 화면에 **안착** — 화면이 남아요                      |
+| `replace` | 그 화면을 **교체** — 그 화면과 위 전부가 새 화면이 돼요 |
+| `push`    | 그 화면을 **남기고** 위에 새 화면을 쌓아요              |
 
 ```ts
 // 스택:  /  →  /library  →  /posts/a  →  /posts/b   (top = /posts/b)
-navigate.pop({ count: 2 }); // → /library
-navigate.pop({ until: "/posts/:slug" }); // → /posts/a (가장 가까운 /posts/:slug에 안착)
-navigate.replace("/posts/:slug", { slug: "x" }, { count: 2 }); // → /, /library, /posts/x
-navigate.replace("/library", {}, { until: "/library" }); // 라이브러리로 접어 교체
+navigate.pop({ skip: 2 }); //               → /, /library          (/library에 안착)
+navigate.replace("/x", {}, { skip: 2 }); // → /, /x                (/library 교체)
+navigate.push("/x", {}, { skip: 2 }); //    → /, /library, /x      (/library 유지)
+
+navigate.pop({ until: "/library" }); //               → /, /library
+navigate.replace("/x", {}, { until: "/library" }); // → /, /x
+navigate.push("/x", {}, { until: "/library" }); //    → /, /library, /x
 ```
 
-`{ count }`와 `{ until }`은 상호 배타예요. 둘 다 주면 `until`이 우선해요.
+`{ skip }`과 `{ until }`은 상호 배타예요(둘 다 주면 `until` 우선). 일치하는 화면이 없으면 `pop`/`replace`는
+no-op, `push`는 그냥 일반 push예요. `{ skip }`은 스택 깊이로 제한돼요.
 
 ### 옵션
 
@@ -121,15 +127,15 @@ function Onboarding() {
 
 ## push와 step 중 무엇을 쓸까
 
-| 하고 싶은 동작                               | 사용                            |
-| -------------------------------------------- | ------------------------------- |
-| 다른 화면을 띄우기                           | `navigate.push`                 |
-| 현재 화면을 다른 화면으로 교체 (로그인 → 홈) | `navigate.replace`              |
-| 현재 화면을 닫기                             | `navigate.pop`                  |
-| 여러 화면을 한 번에 뒤로 가기                | `navigate.pop({ count })`       |
-| 특정 이전 화면까지 뒤로 가기                 | `navigate.pop({ until })`       |
-| 여러 화면을 접으며 교체                      | `navigate.replace(p, q, { … })` |
-| 같은 화면을 유지한 채 UI만 바꾸기            | `useStep().pushStep`            |
+| 하고 싶은 동작                               | 사용                           |
+| -------------------------------------------- | ------------------------------ |
+| 다른 화면을 띄우기                           | `navigate.push`                |
+| 현재 화면을 다른 화면으로 교체 (로그인 → 홈) | `navigate.replace`             |
+| 현재 화면을 닫기                             | `navigate.pop`                 |
+| 여러 화면을 한 번에 뒤로 가기                | `navigate.pop({ skip })`       |
+| 특정 이전 화면까지 뒤로 가기                 | `navigate.pop({ until })`      |
+| 중간 화면을 치우며 push/replace              | `…({ skip })` / `…({ until })` |
+| 같은 화면을 유지한 채 UI만 바꾸기            | `useStep().pushStep`           |
 
 <Callout type="info">
   `useStep`은 화면 트리 안에서 모든 게 유지돼요 — 같은 Screen 인스턴스, 같은 Provider, 스크롤
