@@ -24,6 +24,20 @@ const scenarios: Scenario[] = [
 function LibraryPerfScenarios() {
   const navigate = useNavigate();
 
+  const handlePush = (cpuMs: number, nodes: number) =>
+    navigate.push(
+      "/heavy/:cpuMs/:nodes",
+      { cpuMs: String(cpuMs), nodes: String(nodes) },
+      { transitionName: "cupertino" }
+    );
+
+  const handleReplace = (cpuMs: number, nodes: number) =>
+    navigate.replace(
+      "/heavy/:cpuMs/:nodes",
+      { cpuMs: String(cpuMs), nodes: String(nodes) },
+      { transitionName: "cupertino" }
+    );
+
   return (
     <section
       data-testid="perf-scenarios"
@@ -38,13 +52,7 @@ function LibraryPerfScenarios() {
             key={`push-${label}`}
             type="button"
             data-testid={`perf-push-${cpuMs}-${nodes}`}
-            onClick={() =>
-              navigate.push(
-                "/heavy/:cpuMs/:nodes",
-                { cpuMs: String(cpuMs), nodes: String(nodes) },
-                { transitionName: "cupertino" }
-              )
-            }
+            onClick={() => handlePush(cpuMs, nodes)}
             className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
           >
             {label}
@@ -60,13 +68,7 @@ function LibraryPerfScenarios() {
             key={`replace-${label}`}
             type="button"
             data-testid={`perf-replace-${cpuMs}-${nodes}`}
-            onClick={() =>
-              navigate.replace(
-                "/heavy/:cpuMs/:nodes",
-                { cpuMs: String(cpuMs), nodes: String(nodes) },
-                { transitionName: "cupertino" }
-              )
-            }
+            onClick={() => handleReplace(cpuMs, nodes)}
             className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
           >
             {label}
