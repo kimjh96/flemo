@@ -2,13 +2,14 @@
 
 import { createDecorator, createTransition } from "@flemo/react";
 
-// A transition + decorator combo. The entering screen scales up into focus,
-// while a radial-gradient **vignette** decorator darkens the edges of the
-// screen going behind — so attention pulls to the center, spotlight-style.
-// The decorator is the layer flemo paints over the backgrounding screen; the
-// transition references it by `decoratorName`.
+// Transition + decorator combo. The new screen grows from a small centered
+// card (scale 0.7 → 1) into focus, while a radial **vignette** decorator
+// darkens the edges of the screen behind it — the backdrop stays put and full,
+// so the vignette reads clearly around the growing card, like a spotlight
+// pulling focus to the new content. The transition links the decorator by
+// `decoratorName`; flemo paints the decorator over the backgrounding screen.
 const VIGNETTE =
-  "radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.6) 100%)";
+  "radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, 0.72) 100%)";
 
 export const vignette = createDecorator({
   name: "vignette",
@@ -19,36 +20,37 @@ export const vignette = createDecorator({
   },
   enter: {
     value: { opacity: 1, background: VIGNETTE },
-    options: { duration: 0.4 }
+    options: { duration: 0.45 }
   },
   exit: {
     value: { opacity: 0, background: VIGNETTE },
-    options: { duration: 0.32 }
+    options: { duration: 0.35 }
   }
 });
 
 const spotlight = createTransition({
   name: "spotlight",
-  initial: { scale: 0.92, opacity: 0 },
+  initial: { scale: 0.7, opacity: 0 },
   idle: {
     value: { scale: 1, opacity: 1 },
     options: { duration: 0 }
   },
   enter: {
     value: { scale: 1, opacity: 1 },
-    options: { duration: 0.4, ease: [0.32, 0.72, 0, 1] }
+    options: { duration: 0.45, ease: [0.32, 0.72, 0, 1] }
   },
   enterBack: {
-    value: { scale: 0.92, opacity: 0 },
-    options: { duration: 0.32, ease: [0.32, 0.72, 0, 1] }
+    value: { scale: 0.7, opacity: 0 },
+    options: { duration: 0.35, ease: [0.32, 0.72, 0, 1] }
   },
+  // The backdrop holds still and full so the vignette is the visible effect.
   exit: {
-    value: { scale: 0.96 },
-    options: { duration: 0.4, ease: [0.32, 0.72, 0, 1] }
+    value: {},
+    options: { duration: 0.45 }
   },
   exitBack: {
-    value: { scale: 1 },
-    options: { duration: 0.32, ease: [0.32, 0.72, 0, 1] }
+    value: {},
+    options: { duration: 0.35 }
   },
   options: { decoratorName: "vignette" }
 });

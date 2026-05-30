@@ -16,7 +16,7 @@ export type PushTransitionOverride =
   | "spring"
   | "spotlight"
   | "sheet"
-  | "swoosh"
+  | "drawer"
   | "none";
 
 interface PlaygroundSettingsState {

@@ -126,69 +126,70 @@ const spring: TransitionOption = {
 });`
 };
 
-const spotlight: TransitionOption = {
-  value: "spotlight",
-  label: "spotlight",
-  group: "Custom + decorator",
-  summary:
-    "Focus zoom paired with a radial vignette decorator that darkens the backgrounding screen's edges.",
-  code: `// A transition + decorator combo, linked by decoratorName.
-const vignette = createDecorator({
-  name: "vignette",
-  initial: { opacity: 0, background: RADIAL_VIGNETTE },
-  enter:   { value: { opacity: 1, background: RADIAL_VIGNETTE }, options: { duration: 0.4 } },
-  exit:    { value: { opacity: 0, background: RADIAL_VIGNETTE }, options: { duration: 0.32 } }
-});
-
-createTransition({
-  name: "spotlight",
-  initial: { scale: 0.92, opacity: 0 },
-  enter:   { value: { scale: 1, opacity: 1 }, options: { duration: 0.4 } },
-  exit:    { value: { scale: 0.96 },          options: { duration: 0.4 } },
-  options: { decoratorName: "vignette" }
-});`
-};
-
 const sheet: TransitionOption = {
   value: "sheet",
   label: "sheet",
   group: "Custom + decorator",
   summary:
-    "A bottom sheet rises while a frost decorator washes a soft light haze over the backdrop.",
-  code: `const frost = createDecorator({
-  name: "frost",
-  initial: { opacity: 0, backgroundColor: "rgba(247,248,250,0.6)" },
-  enter:   { value: { opacity: 1, backgroundColor: "rgba(247,248,250,0.6)" }, options: { duration: 0.42 } },
-  exit:    { value: { opacity: 0, backgroundColor: "rgba(247,248,250,0.6)" }, options: { duration: 0.34 } }
+    "A bottom sheet rises over a held-still backdrop that darkens under a dim decorator — an iOS-style modal present.",
+  code: `// A transition + decorator combo, linked by decoratorName.
+const dim = createDecorator({
+  name: "dim",
+  initial: { opacity: 0, backgroundColor: "rgba(0,0,0,0.55)" },
+  enter:   { value: { opacity: 1, backgroundColor: "rgba(0,0,0,0.55)" }, options: { duration: 0.42 } },
+  exit:    { value: { opacity: 0, backgroundColor: "rgba(0,0,0,0.55)" }, options: { duration: 0.34 } }
 });
 
 createTransition({
   name: "sheet",
   initial: { y: "100%" },
   enter:   { value: { y: 0 },  options: { duration: 0.42 } },
-  exit:    { value: {},        options: { duration: 0.42 } }, // backdrop stays; frost reads
-  options: { decoratorName: "frost" }
+  exit:    { value: {},        options: { duration: 0.42 } }, // backdrop holds; dim reads
+  options: { decoratorName: "dim" }
 });`
 };
 
-const swoosh: TransitionOption = {
-  value: "swoosh",
-  label: "swoosh",
+const spotlight: TransitionOption = {
+  value: "spotlight",
+  label: "spotlight",
   group: "Custom + decorator",
   summary:
-    "Diagonal corner entry over a cinematic scrim decorator — a dark gradient, heavier at the bottom.",
-  code: `const scrim = createDecorator({
-  name: "scrim",
-  initial: { opacity: 0, background: BOTTOM_SCRIM },
-  enter:   { value: { opacity: 1, background: BOTTOM_SCRIM }, options: { duration: 0.4 } },
-  exit:    { value: { opacity: 0, background: BOTTOM_SCRIM }, options: { duration: 0.32 } }
+    "The new screen grows from a small centered card (0.7 → 1) while a radial vignette darkens the backdrop's edges — a focus pull.",
+  code: `const vignette = createDecorator({
+  name: "vignette",
+  initial: { opacity: 0, background: RADIAL_VIGNETTE },
+  enter:   { value: { opacity: 1, background: RADIAL_VIGNETTE }, options: { duration: 0.45 } },
+  exit:    { value: { opacity: 0, background: RADIAL_VIGNETTE }, options: { duration: 0.35 } }
 });
 
 createTransition({
-  name: "swoosh",
-  initial: { x: "40%", y: "40%", opacity: 0.3 },
-  enter:   { value: { x: 0, y: 0, opacity: 1 }, options: { duration: 0.4 } },
-  options: { decoratorName: "scrim" }
+  name: "spotlight",
+  initial: { scale: 0.7, opacity: 0 },
+  enter:   { value: { scale: 1, opacity: 1 }, options: { duration: 0.45 } },
+  exit:    { value: {},                       options: { duration: 0.45 } }, // backdrop holds
+  options: { decoratorName: "vignette" }
+});`
+};
+
+const drawer: TransitionOption = {
+  value: "drawer",
+  label: "drawer",
+  group: "Custom + decorator",
+  summary:
+    "Cupertino-style horizontal slide, but the receding screen washes with a brand-blue tint decorator instead of a neutral dim.",
+  code: `const tint = createDecorator({
+  name: "tint",
+  initial: { opacity: 0, backgroundColor: "rgba(49,130,246,0.42)" },
+  enter:   { value: { opacity: 1, backgroundColor: "rgba(49,130,246,0.42)" }, options: { duration: 0.45 } },
+  exit:    { value: { opacity: 0, backgroundColor: "rgba(49,130,246,0.42)" }, options: { duration: 0.38 } }
+});
+
+createTransition({
+  name: "drawer",
+  initial: { x: "100%" },
+  enter:   { value: { x: 0 },       options: { duration: 0.45 } },
+  exit:    { value: { x: "-30%" },  options: { duration: 0.45 } },
+  options: { decoratorName: "tint" }
 });`
 };
 
@@ -216,7 +217,7 @@ export const transitionGroups: ReadonlyArray<TransitionGroup> = [
   {
     kind: "Custom + decorator",
     caption: "A custom transition paired with a custom createDecorator layer.",
-    options: [spotlight, sheet, swoosh]
+    options: [sheet, spotlight, drawer]
   }
 ];
 

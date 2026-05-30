@@ -10,13 +10,13 @@ import SearchScreen from "@/app/playground/_screens/SearchScreen";
 import blur from "@/app/playground/_transitions/blur";
 import breathe from "@/app/playground/_transitions/breathe";
 import cardStack from "@/app/playground/_transitions/cardStack";
+import drawer, { tint } from "@/app/playground/_transitions/drawer";
 import reveal from "@/app/playground/_transitions/reveal";
-import sheet, { frost } from "@/app/playground/_transitions/sheet";
+import sheet, { dim } from "@/app/playground/_transitions/sheet";
 import slideLeft from "@/app/playground/_transitions/slideLeft";
 import slideRight from "@/app/playground/_transitions/slideRight";
 import spotlight, { vignette } from "@/app/playground/_transitions/spotlight";
 import spring from "@/app/playground/_transitions/spring";
-import swoosh, { scrim } from "@/app/playground/_transitions/swoosh";
 import zoom from "@/app/playground/_transitions/zoom";
 
 import "./PlaygroundRouter.types";
@@ -36,9 +36,9 @@ function PlaygroundRouter() {
         spring,
         spotlight,
         sheet,
-        swoosh
+        drawer
       ]}
-      decorators={[vignette, frost, scrim]}
+      decorators={[vignette, dim, tint]}
     >
       <Route path="/" element={<LibraryScreen />} />
       <Route path="/search" element={<SearchScreen />} />

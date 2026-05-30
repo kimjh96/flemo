@@ -2,26 +2,26 @@
 
 import { createDecorator, createTransition } from "@flemo/react";
 
-// A transition + decorator combo. The entering screen rises from the bottom
-// like a sheet, while a **frost** decorator washes a soft light haze over the
-// screen behind it — as if the backdrop frosts over while the sheet comes up.
-// The backgrounding screen itself stays put (the transition's `exit` is a
-// no-op); the frost layer is what reads.
-const FROST = "rgba(247, 248, 250, 0.6)";
+// Transition + decorator combo — an iOS-style modal present. The new screen
+// rises from the bottom like a sheet, while a **dim** decorator darkens the
+// screen behind it. The backdrop holds still (the transition's `exit` is a
+// no-op) and the dark dim does the depth work, so the part of the backdrop
+// still visible above the rising sheet reads as "pushed back behind a scrim".
+const DIM = "rgba(0, 0, 0, 0.55)";
 
-export const frost = createDecorator({
-  name: "frost",
-  initial: { opacity: 0, backgroundColor: FROST },
+export const dim = createDecorator({
+  name: "dim",
+  initial: { opacity: 0, backgroundColor: DIM },
   idle: {
-    value: { opacity: 0, backgroundColor: FROST },
+    value: { opacity: 0, backgroundColor: DIM },
     options: { duration: 0 }
   },
   enter: {
-    value: { opacity: 1, backgroundColor: FROST },
+    value: { opacity: 1, backgroundColor: DIM },
     options: { duration: 0.42 }
   },
   exit: {
-    value: { opacity: 0, backgroundColor: FROST },
+    value: { opacity: 0, backgroundColor: DIM },
     options: { duration: 0.34 }
   }
 });
@@ -49,7 +49,7 @@ const sheet = createTransition({
     value: {},
     options: { duration: 0.34 }
   },
-  options: { decoratorName: "frost" }
+  options: { decoratorName: "dim" }
 });
 
 export default sheet;

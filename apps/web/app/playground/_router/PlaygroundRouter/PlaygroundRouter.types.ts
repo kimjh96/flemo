@@ -15,13 +15,13 @@ declare module "@flemo/react" {
     spring: "spring";
     spotlight: "spotlight";
     sheet: "sheet";
-    swoosh: "swoosh";
+    drawer: "drawer";
   }
 
   interface RegisterDecorator {
     vignette: "vignette";
-    frost: "frost";
-    scrim: "scrim";
+    dim: "dim";
+    tint: "tint";
   }
 }
 
