@@ -84,6 +84,17 @@ function HeavyArrivalScreen() {
       { count: 2, transitionName: "cupertino" }
     );
 
+  // pop(n)/replace collapse skip intermediate screens in one transition; with a
+  // heavy tree behind each button this is the clearest place to confirm the
+  // skipped screens never paint and the back/forward buttons stay correct.
+  const controls = [
+    { testid: "perf-push-next", label: "Push another", onClick: handlePushAnother },
+    { testid: "perf-pop-2", label: "Pop 2", onClick: handlePopTwo },
+    { testid: "perf-pop-3", label: "Pop 3", onClick: handlePopThree },
+    { testid: "perf-popto-root", label: "Pop to Library", onClick: handlePopToLibrary },
+    { testid: "perf-replace-collapse", label: "Replace ×2", onClick: handleReplaceCollapse }
+  ];
+
   return (
     <PlayerScreen appBar={<HeavyArrivalAppBar />}>
       <div
@@ -91,73 +102,40 @@ function HeavyArrivalScreen() {
         data-heavy-arrival
         data-heavy-cpu-ms={cpuMs}
         data-heavy-node-count={nodeCount}
-        className="flex min-h-full w-full flex-col gap-1 bg-[var(--color-surface)] px-5 pb-8 pt-3"
+        className="flex min-h-full w-full flex-col bg-[var(--color-surface)]"
       >
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-[var(--color-ink-soft)]">
-            cpuMs={cpuMs} · nodes={nodeCount}
+        <div className="flex flex-col gap-2.5 border-b border-[var(--color-line)] px-5 py-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--color-ink-soft)]">
+              Navigation demo
+            </span>
+            <span className="text-[11px] tabular-nums text-[var(--color-ink-mute)]">
+              cpuMs {cpuMs} · {nodeCount} nodes
+            </span>
           </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              data-testid="perf-push-next"
-              onClick={handlePushAnother}
-              className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
-            >
-              Push another
-            </button>
-            {/* pop(n) skips n-1 screens in one transition; with heavy
-                intermediates this is the clearest place to confirm the skipped
-                screens never paint. */}
-            <button
-              type="button"
-              data-testid="perf-pop-2"
-              onClick={handlePopTwo}
-              className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
-            >
-              Pop 2
-            </button>
-            <button
-              type="button"
-              data-testid="perf-pop-3"
-              onClick={handlePopThree}
-              className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
-            >
-              Pop 3
-            </button>
-            {/* pop({ until }) jumps straight back to the nearest screen of a
-                given route — here the Library root — skipping every heavy
-                screen in between in one transition. */}
-            <button
-              type="button"
-              data-testid="perf-popto-root"
-              onClick={handlePopToLibrary}
-              className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
-            >
-              Pop to Library
-            </button>
-            {/* replace({ count }) collapses the top N screens into a new one in
-                a single transition — the skipped screens never paint, same as
-                pop. Here the top 2 heavy screens become a fresh heavy screen. */}
-            <button
-              type="button"
-              data-testid="perf-replace-collapse"
-              onClick={handleReplaceCollapse}
-              className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
-            >
-              Replace ×2
-            </button>
+          {/* Wrap so a fifth button never clips the phone frame. */}
+          <div className="flex flex-wrap gap-1.5">
+            {controls.map(({ testid, label, onClick }) => (
+              <button
+                key={testid}
+                type="button"
+                data-testid={testid}
+                onClick={onClick}
+                className="rounded-md border border-[var(--color-line)] bg-[var(--color-layer)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
-        {items.map((i) => (
-          <div
-            key={i}
-            data-heavy-node
-            className="h-4 rounded bg-[var(--color-layer)] text-[10px] text-[var(--color-ink-soft)]"
-          >
-            {i}
-          </div>
-        ))}
+
+        {/* The heavy tree — `nodes` skeleton rows. Their widths are set by the
+            reflow effect above and read as content-line placeholders. */}
+        <div className="flex flex-1 flex-col gap-2 px-5 py-4">
+          {items.map((i) => (
+            <div key={i} data-heavy-node className="h-3 rounded-full bg-[var(--color-layer)]" />
+          ))}
+        </div>
       </div>
     </PlayerScreen>
   );
