@@ -1,3 +1,5 @@
+"use client";
+
 export interface PlaygroundToggleSwitchProps {
   checked: boolean;
   onChange: (next: boolean) => void;
@@ -27,7 +29,7 @@ function PlaygroundToggleSwitch({ checked, onChange, on, off }: PlaygroundToggle
         aria-hidden="true"
       >
         <span
-          className="absolute top-0.5 left-0 h-5 w-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.25)] transition-transform duration-200"
+          className="absolute top-0.5 left-0 h-5 w-5 rounded-full bg-white transition-transform duration-200"
           style={{ transform: checked ? "translateX(22px)" : "translateX(2px)" }}
         />
       </span>

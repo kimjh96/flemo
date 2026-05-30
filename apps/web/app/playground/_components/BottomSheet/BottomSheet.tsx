@@ -26,7 +26,7 @@ function BottomSheet({ open, onClose, title, children, trailing }: BottomSheetPr
         aria-label="Dismiss sheet"
         tabIndex={open ? 0 : -1}
         onClick={onClose}
-        className="absolute inset-0 cursor-default bg-[rgba(15,19,27,0.35)] transition-opacity duration-200"
+        className="absolute inset-0 cursor-default bg-[var(--color-ink)]/35 transition-opacity duration-200"
         style={{ opacity: open ? 1 : 0, pointerEvents: open ? "auto" : "none" }}
       />
       <section
@@ -35,7 +35,7 @@ function BottomSheet({ open, onClose, title, children, trailing }: BottomSheetPr
         aria-label={title}
         aria-hidden={!open}
         data-flemo-bottom-sheet={open ? "open" : "closed"}
-        className="absolute inset-x-0 bottom-0 flex flex-col gap-3 rounded-t-2xl border-t border-[var(--color-line)] bg-[var(--color-surface)] px-5 pb-6 pt-3 shadow-[0_-12px_32px_-12px_rgba(15,19,27,0.18)] transition-transform duration-300 ease-out"
+        className="absolute inset-x-0 bottom-0 flex flex-col gap-3 rounded-t-2xl border-t border-[var(--color-line)] bg-[var(--color-surface)] px-5 pb-6 pt-3 transition-transform duration-300 ease-out"
         style={{
           transform: open ? "translateY(0)" : "translateY(100%)",
           pointerEvents: open ? "auto" : "none"

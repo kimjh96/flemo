@@ -21,7 +21,7 @@ function AlbumScreen() {
     (state) => state.pushTransitionOverride
   );
 
-  const album = params ? albumById(params.id) : undefined;
+  const album = params ? albumById(params.id) : null;
 
   if (!album) {
     return (
@@ -54,7 +54,7 @@ function AlbumScreen() {
           <button
             type="button"
             onClick={handleOpenNowPlaying}
-            className="h-48 w-48 cursor-pointer rounded-2xl shadow-[0_4px_24px_-8px_rgba(15,19,27,0.14)]"
+            className="h-48 w-48 cursor-pointer rounded-2xl"
             style={{ background: gradientFor(album.hue) }}
             aria-label={`Play ${album.title}`}
           />

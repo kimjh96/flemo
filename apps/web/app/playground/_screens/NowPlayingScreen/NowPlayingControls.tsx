@@ -21,7 +21,7 @@ function NowPlayingControls() {
         type="button"
         aria-label={isPlaying ? "Pause" : "Play"}
         onClick={togglePlay}
-        className="grid h-16 w-16 place-items-center rounded-full bg-[var(--color-card)] text-[var(--color-text-primary)] shadow-[0_8px_24px_-8px_rgba(0,0,0,0.45)]"
+        className="grid h-16 w-16 place-items-center rounded-full border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-text-primary)]"
       >
         {isPlaying ? (
           <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" fill="currentColor">

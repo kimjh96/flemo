@@ -1,3 +1,5 @@
+"use client";
+
 import type { PushTransitionOverride } from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
 import type { TransitionGroup, TransitionOption } from "./PlaygroundTogglePanel.types";
@@ -56,8 +58,7 @@ function Chip({ option, active, onSelect }: ChipProps) {
       style={{
         borderColor: active ? "var(--color-primary)" : "var(--color-border)",
         backgroundColor: active ? "var(--color-primary)" : "var(--color-card)",
-        color: active ? "white" : "var(--color-text-primary)",
-        boxShadow: active ? "0 1px 6px -2px rgba(15,19,27,0.2)" : "none"
+        color: active ? "white" : "var(--color-text-primary)"
       }}
     >
       {option.label}

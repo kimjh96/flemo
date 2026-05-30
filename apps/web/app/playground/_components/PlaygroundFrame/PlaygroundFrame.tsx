@@ -11,12 +11,7 @@ export interface PlaygroundFrameProps {
 function PlaygroundFrame({ children }: PlaygroundFrameProps) {
   return (
     <div className="relative mx-auto">
-      {/* Drop shadow halo */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 -z-10 rounded-[44px] bg-[var(--color-ink)]/8 blur-2xl"
-      />
-      <div className="relative h-[680px] w-[320px] rounded-[44px] bg-[var(--color-ink)] p-[5px] shadow-[0_30px_80px_-30px_rgba(15,19,27,0.45)] ring-1 ring-black/40">
+      <div className="relative h-[680px] w-[320px] rounded-[44px] bg-[var(--color-ink)] p-[5px] ring-1 ring-[var(--color-ink)]/40">
         {/* Inner screen surface — also the containing block for fixed children */}
         <div
           className="relative h-full w-full overflow-hidden rounded-[40px] bg-[var(--color-surface)]"
