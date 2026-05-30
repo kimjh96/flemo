@@ -1,5 +1,11 @@
 # @flemo/web
 
+## 0.4.0
+
+### Minor Changes
+
+- [`237abd6`](https://github.com/kimjh96/flemo/commit/237abd64abeb90473557d1c46c99865329c03d30) Add six custom playground transitions, selectable from the transition picker. Four are pure `createTransition` demos — `zoom` (cross-zoom dive), `card-stack` (iOS sheet present with a receding backdrop), `reveal` (clip-path iris that opens to just cover the viewport), and `spring` (overshooting bounce). Two more co-design the transition motion and a custom `createDecorator` layer as one idea: `ripple` (a circular clip-path reveal with concentric rings radiating from the same origin) and `dive` (the screen rushes in from a point while the backdrop scales out into a closing dark tunnel).
+
 ## 0.3.1
 
 ### Patch Changes
