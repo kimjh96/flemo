@@ -127,7 +127,10 @@ function HeavyArrivalScreen() {
       testid: "perf-replace-collapse",
       label: "Replace · skip 2",
       onClick: handleReplaceCollapse,
-      show: zIndex >= 2
+      // replace REPLACES the reached screen, so skip 2 needs a screen two below
+      // the top that isn't the Library root — i.e. depth ≥ 3. (pop/push keep
+      // the reached screen, so they're fine landing on the root at depth 2.)
+      show: zIndex >= 3
     },
     {
       testid: "perf-push-skip",
