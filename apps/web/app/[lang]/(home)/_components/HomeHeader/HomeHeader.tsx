@@ -17,10 +17,8 @@ function HomeHeader({ lang }: HomeHeaderProps) {
   const showcaseHref = lang === i18n.defaultLanguage ? "/showcase" : `/${lang}/showcase`;
   const otherLang = lang === "ko" ? "en" : "ko";
   const otherHref = otherLang === i18n.defaultLanguage ? "/" : `/${otherLang}`;
+  // The language toggle shows the language you'd switch to, so it stays localized.
   const otherLabel = otherLang === "ko" ? "한국어" : "English";
-  const docsLabel = lang === "ko" ? "문서" : "Docs";
-  const playgroundLabel = lang === "ko" ? "플레이그라운드" : "Playground";
-  const showcaseLabel = lang === "ko" ? "쇼케이스" : "Showcase";
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-[var(--color-bg)]/85 backdrop-blur-md">
@@ -37,19 +35,19 @@ function HomeHeader({ lang }: HomeHeaderProps) {
             href={docsHref}
             className="rounded-full px-3 py-2 text-[14px] font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
           >
-            {docsLabel}
+            Docs
           </Link>
           <Link
             href={playgroundHref}
             className="rounded-full px-3 py-2 text-[14px] font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
           >
-            {playgroundLabel}
+            Playground
           </Link>
           <Link
             href={showcaseHref}
             className="rounded-full px-3 py-2 text-[14px] font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
           >
-            {showcaseLabel}
+            Showcase
           </Link>
           <Link
             href={GITHUB_URL}
