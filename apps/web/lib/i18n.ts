@@ -100,6 +100,24 @@ export const dict = {
       cta: "Try again",
       home: "Back to home"
     },
+    showcase: {
+      kicker: "Showcase",
+      title: "Built with flemo",
+      subtitle: "Real apps shipping flemo in production — not demos.",
+      flemoUsageLabel: "How it uses flemo",
+      appStore: "App Store",
+      playStore: "Google Play",
+      apps: {
+        shiflo: {
+          name: "shiflo",
+          tagline: "Work and schedule, in one place",
+          description:
+            "A scheduling app that helps shift workers keep their work rotations and personal plans in one place — a month grid, a week timeline, a list view, work-pattern templates, home-screen widgets, and a full dark theme.",
+          flemoUsage:
+            "shiflo is a hybrid app: the UI is a web app wrapped for iOS and Android. Screen-to-screen navigation runs on flemo — pushes and pops, the left-edge swipe-back gesture, and the transitions between screens — so the motion reads as native on both platforms, from a single web codebase."
+        }
+      }
+    },
     playground: {
       tabBar: { library: "Library", search: "Search" },
       segment: { albums: "Albums", songs: "Songs", artists: "Artists" },
@@ -276,6 +294,24 @@ export const dict = {
       cta: "다시 시도",
       home: "홈으로 돌아가기"
     },
+    showcase: {
+      kicker: "쇼케이스",
+      title: "flemo로 만든 앱",
+      subtitle: "데모가 아니라, flemo를 프로덕션에 출시한 실제 앱들이에요.",
+      flemoUsageLabel: "flemo를 어떻게 쓰나요",
+      appStore: "App Store",
+      playStore: "Google Play",
+      apps: {
+        shiflo: {
+          name: "shiflo",
+          tagline: "근무와 일정을 한 번에",
+          description:
+            "교대 근무자가 근무 일정과 개인 일정을 한 곳에서 관리하도록 돕는 일정 앱이에요 — 월 단위 달력, 주 단위 타임라인, 목록 보기, 근무 패턴 템플릿, 홈 화면 위젯, 그리고 완전한 다크 테마까지.",
+          flemoUsage:
+            "shiflo는 하이브리드 앱이에요. UI는 웹 앱이고, 그걸 iOS와 Android용으로 감쌌어요. 화면 간 이동은 flemo 위에서 돌아가요 — push와 pop, 좌측 엣지 스와이프 뒤로 가기, 화면 사이의 전환까지. 그래서 하나의 웹 코드베이스로 두 플랫폼 모두 네이티브처럼 읽히는 움직임을 만들어요."
+        }
+      }
+    },
     playground: {
       tabBar: { library: "보관함", search: "검색" },
       segment: { albums: "앨범", songs: "노래", artists: "아티스트" },
@@ -382,6 +418,8 @@ export const dict = {
 } as const;
 
 export type Lang = keyof typeof dict;
+
+export type ShowcaseAppId = keyof typeof dict.en.showcase.apps;
 
 export function getDict(lang: string): (typeof dict)[Lang] {
   return (dict as Record<string, (typeof dict)[Lang]>)[lang] ?? dict.en;
