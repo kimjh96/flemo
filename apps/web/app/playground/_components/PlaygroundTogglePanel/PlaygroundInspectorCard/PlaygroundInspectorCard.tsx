@@ -44,7 +44,11 @@ function PlaygroundInspectorCard() {
 
   return (
     <PlaygroundToggleCard>
-      <PlaygroundToggleCardHeader eyebrow={t.eyebrow} title={t.title} description={t.description} />
+      <PlaygroundToggleCardHeader
+        eyebrow="Live inspector"
+        title={t.title}
+        description={t.description}
+      />
 
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">

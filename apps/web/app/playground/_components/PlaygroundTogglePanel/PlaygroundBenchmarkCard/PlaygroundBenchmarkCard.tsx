@@ -46,7 +46,11 @@ function PlaygroundBenchmarkCard() {
 
   return (
     <PlaygroundToggleCard>
-      <PlaygroundToggleCardHeader eyebrow={t.eyebrow} title={t.title} description={t.description} />
+      <PlaygroundToggleCardHeader
+        eyebrow="Performance"
+        title={t.title}
+        description={t.description}
+      />
       <div data-testid="perf-scenarios" className="flex flex-wrap gap-2">
         {scenarios.map(({ label, cpuMs, nodes }) => (
           <button

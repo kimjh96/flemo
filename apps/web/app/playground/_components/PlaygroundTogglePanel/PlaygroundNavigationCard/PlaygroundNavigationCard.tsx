@@ -48,7 +48,11 @@ function PlaygroundNavigationCard() {
 
   return (
     <PlaygroundToggleCard>
-      <PlaygroundToggleCardHeader eyebrow={t.eyebrow} title={t.title} description={t.description} />
+      <PlaygroundToggleCardHeader
+        eyebrow="Navigation distance"
+        title={t.title}
+        description={t.description}
+      />
 
       <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-layer)] px-3 py-2">
         <span className="text-[12px] font-medium text-[var(--color-text-secondary)]">

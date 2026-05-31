@@ -26,14 +26,18 @@ function PlaygroundTransitionCard() {
 
   return (
     <PlaygroundToggleCard>
-      <PlaygroundToggleCardHeader eyebrow={t.eyebrow} title={t.title} description={t.description} />
+      <PlaygroundToggleCardHeader
+        eyebrow="Screen transition"
+        title={t.title}
+        description={t.description}
+      />
       <PlaygroundTransitionPicker
         groups={transitionGroups}
         value={pushTransitionOverride}
         onChange={setPushTransitionOverride}
       />
       <p className="text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
-        {active ? `${t.overridePrefix}${active.summary}` : t.noOverride}
+        {active ? `${t.overridePrefix}${t.summaries[active.value]}` : t.noOverride}
       </p>
       <PlaygroundCodePeek code={active ? active.code : naturalPushCode} />
     </PlaygroundToggleCard>

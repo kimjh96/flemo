@@ -6,7 +6,6 @@ export interface TransitionOption {
   value: PushTransitionOverride;
   label: string;
   group: TransitionGroupKind;
-  summary: string;
   code: string;
 }
 

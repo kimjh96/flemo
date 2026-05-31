@@ -129,14 +129,33 @@ export const dict = {
         more: "More",
         back: "Back"
       },
+      intro: {
+        description:
+          "A miniature music app powered by flemo's Router. Swap the screen transition, pin the shared bar — every choice reflects instantly in the phone preview, and the code that authored it sits right beside."
+      },
       devPanel: {
         transition: {
-          eyebrow: "Screen transition",
           title: "Compose transitions per navigation",
           description:
             "By default each push uses the transition that fits its affordance — cupertino for browse-deeper hops, material for the player. Pick a chip below to force every push to one transition for comparison; tap it again to drop back to the per-context defaults.",
           noOverride: "No override — each push site picks its own transition inline.",
-          overridePrefix: "Override active — "
+          overridePrefix: "Override active — ",
+          summaries: {
+            cupertino: "iOS-style horizontal push. Ships with @flemo/core.",
+            material: "Material-style vertical rise. Ships with @flemo/core.",
+            none: "Instant swap, no animation. Useful for tab-like routing.",
+            blur: "Author-defined with createTransition — lives in this playground, not the core.",
+            zoom: "Cross-zoom dive — the new screen scales up into focus while the old one pushes forward and fades.",
+            "card-stack":
+              "iOS-style card present — the new screen rises while the current one scales back and dims behind it.",
+            reveal:
+              "Iris reveal — the new screen opens through a circular clip-path that grows to just cover the viewport, while the backdrop recedes.",
+            spring:
+              "Springy pop — the new screen scales up with an overshooting ease, settling with a bounce.",
+            ripple:
+              "A drop in water: the screen reveals through a circle expanding from the center, and concentric rings radiate from that same point on the backdrop — reveal and ripples share one origin.",
+            dive: "Diving forward through depth: the screen rushes in from a point at the center while the backdrop scales out into a closing dark tunnel — both read as the same plunge into depth."
+          }
         },
         sharedBars: {
           title: "Pin bars across screens",
@@ -152,7 +171,6 @@ export const dict = {
           noScreen: "No screen mounted yet."
         },
         navigation: {
-          eyebrow: "Navigation distance",
           title: "Reach past the top in one transition",
           description:
             "pop / replace / push all take a distance — { skip } screens or { until } a route. The screens skipped over are removed without ever painting, so you never see them flash. Seed a stack, then reach back several screens at once and watch the depth jump with no flicker.",
@@ -162,13 +180,11 @@ export const dict = {
           seedFirst: "(seed first)"
         },
         performance: {
-          eyebrow: "Performance",
           title: "Stress-test arrival screens",
           description:
             "Push a synthetic heavy screen into the preview to feel how flemo holds the transition under load. cpuMs busy-waits in render; nodes inflates the tree."
         },
         inspector: {
-          eyebrow: "Live inspector",
           title: "What flemo is doing, right now",
           description:
             "A read-only window into flemo's stores — the history stack, the navigation status as it moves through its state machine, and which mounted screens registered which shared bars. Navigate the preview and watch it update live.",
@@ -290,14 +306,33 @@ export const dict = {
         more: "더보기",
         back: "뒤로"
       },
+      intro: {
+        description:
+          "flemo의 Router로 만든 미니 뮤직 앱이에요. 화면 전환을 바꾸고 공유 바를 고정해 보세요 — 모든 선택이 오른쪽 폰 미리보기에 즉시 반영되고, 그걸 만든 코드가 바로 옆에 함께 보여요."
+      },
       devPanel: {
         transition: {
-          eyebrow: "화면 전환",
           title: "내비게이션마다 전환 구성",
           description:
             "기본적으로 각 push는 상황에 맞는 전환을 써요 — 깊이 탐색은 cupertino, 플레이어는 material. 아래 칩을 눌러 모든 push를 한 전환으로 강제해 비교하고, 다시 누르면 상황별 기본값으로 돌아가요.",
           noOverride: "오버라이드 없음 — 각 push가 자체 전환을 선택해요.",
-          overridePrefix: "오버라이드 적용 중 — "
+          overridePrefix: "오버라이드 적용 중 — ",
+          summaries: {
+            cupertino: "iOS 스타일 가로 push. @flemo/core에 기본 포함돼요.",
+            material: "Material 스타일 세로 상승. @flemo/core에 기본 포함돼요.",
+            none: "애니메이션 없이 즉시 교체. 탭처럼 동작하는 라우팅에 유용해요.",
+            blur: "createTransition으로 직접 정의 — 코어가 아니라 이 playground에 있어요.",
+            zoom: "크로스 줌 다이브 — 새 화면이 확대되며 또렷해지고, 이전 화면은 앞으로 밀려나며 사라져요.",
+            "card-stack":
+              "iOS 스타일 카드 표시 — 새 화면이 떠오르고, 현재 화면은 뒤로 축소되며 그 뒤에서 어두워져요.",
+            reveal:
+              "아이리스 reveal — 새 화면이 원형 clip-path를 통해 열리며 뷰포트를 막 덮을 만큼 커지고, 배경은 뒤로 물러나요.",
+            spring:
+              "스프링 팝 — 새 화면이 살짝 튀어 오르는 이징으로 확대되며 통통 튀듯 자리를 잡아요.",
+            ripple:
+              "물에 떨어진 물방울 — 화면이 가운데에서 퍼지는 원을 통해 드러나고, 같은 지점에서 동심원이 배경으로 퍼져 나가요. reveal과 물결이 하나의 원점을 공유해요.",
+            dive: "깊이 속으로 다이빙 — 화면이 가운데 한 점에서 솟구쳐 들어오고, 배경은 닫히는 어두운 터널처럼 확장돼요. 둘 다 같은 깊이로의 돌입처럼 읽혀요."
+          }
         },
         sharedBars: {
           title: "여러 화면에 바 고정",
@@ -313,7 +348,6 @@ export const dict = {
           noScreen: "아직 마운트된 화면이 없어요."
         },
         navigation: {
-          eyebrow: "내비게이션 거리",
           title: "한 번의 전환으로 여러 화면 건너뛰기",
           description:
             "pop / replace / push 는 모두 이동 거리를 받아요 — { skip } 으로 건너뛸 화면 수를, { until } 로 멈출 라우트를 지정해요. 건너뛴 화면은 한 프레임도 그려지지 않고 제거돼요. 스택을 쌓은 뒤 여러 화면을 한 번에 거슬러 올라가며, 깊이가 깜빡임 없이 줄어드는 걸 확인해 보세요.",
@@ -323,13 +357,11 @@ export const dict = {
           seedFirst: "(먼저 쌓기)"
         },
         performance: {
-          eyebrow: "성능",
           title: "도착 화면 스트레스 테스트",
           description:
             "인위적으로 무겁게 만든 화면을 미리보기에 push해, 부하 속에서 flemo가 전환을 어떻게 버티는지 확인해 보세요. cpuMs는 렌더링 중 CPU를 바쁘게 점유하고, nodes는 트리 크기를 부풀려요."
         },
         inspector: {
-          eyebrow: "라이브 인스펙터",
           title: "지금 flemo가 하는 일",
           description:
             "flemo 스토어를 읽기 전용으로 들여다봐요 — history 스택, 상태 머신을 따라 움직이는 내비게이션 상태, 그리고 어떤 마운트된 화면이 어떤 공유 바를 등록했는지. 미리보기를 조작하며 실시간으로 갱신되는 걸 보세요.",

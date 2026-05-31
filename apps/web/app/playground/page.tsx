@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import PlaygroundFrame from "./_components/PlaygroundFrame";
+import PlaygroundIntro from "./_components/PlaygroundIntro";
 import PlaygroundTogglePanel from "./_components/PlaygroundTogglePanel";
 import PlaygroundIntlProvider from "./_providers/PlaygroundIntlProvider";
 import PlaygroundRouter from "./_router/PlaygroundRouter";
@@ -59,17 +60,7 @@ export default function PlaygroundPage() {
     <PlaygroundIntlProvider lang={lang}>
       <div className="min-h-[100dvh] bg-[var(--color-bg)] text-[var(--color-text-primary)]">
         <div className="mx-auto flex max-w-[1240px] flex-col gap-12 px-6 pb-24 pt-16 lg:gap-16 lg:pt-20">
-          <header className="mx-auto flex max-w-[720px] flex-col items-center gap-4 text-center">
-            <span className="kicker">Playground</span>
-            <h1 className="display text-[40px] text-[var(--color-text-primary)] sm:text-[56px]">
-              flemo, in motion.
-            </h1>
-            <p className="text-[15px] leading-relaxed text-[var(--color-text-secondary)] sm:text-[16px]">
-              A miniature music app powered by flemo&apos;s Router. Swap the screen transition, pin
-              the shared bar — every choice reflects instantly in the phone preview, and the code
-              that authored it sits right beside.
-            </p>
-          </header>
+          <PlaygroundIntro />
 
           <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[auto_1fr] lg:gap-14">
             <div className="flex justify-center lg:sticky lg:top-24 lg:justify-end">
