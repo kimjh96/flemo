@@ -2,6 +2,8 @@
 
 import { useNavigate } from "@flemo/react";
 
+import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
+
 export type TabPath = "/" | "/search";
 
 export interface TabBarProps {
@@ -10,14 +12,14 @@ export interface TabBarProps {
 
 interface Tab {
   path: TabPath;
-  label: string;
+  labelKey: "library" | "search";
   icon: (active: boolean) => React.ReactNode;
 }
 
 const tabs: Tab[] = [
   {
     path: "/",
-    label: "Library",
+    labelKey: "library",
     icon: (active) => (
       <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
         <path
@@ -31,7 +33,7 @@ const tabs: Tab[] = [
   },
   {
     path: "/search",
-    label: "Search",
+    labelKey: "search",
     icon: (active) => (
       <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
         <circle
@@ -82,6 +84,7 @@ interface TabBarButtonProps {
 }
 
 function TabBarButton({ tab, active, onSelect }: TabBarButtonProps) {
+  const dict = usePlaygroundDict();
   const handleClick = () => onSelect(tab.path);
 
   return (
@@ -92,7 +95,7 @@ function TabBarButton({ tab, active, onSelect }: TabBarButtonProps) {
       style={{ color: active ? "var(--color-brand)" : "var(--color-ink-mute)" }}
     >
       {tab.icon(active)}
-      <span className="text-[10px] font-semibold tracking-wide">{tab.label}</span>
+      <span className="text-[10px] font-semibold tracking-wide">{dict.tabBar[tab.labelKey]}</span>
     </button>
   );
 }

@@ -99,6 +99,36 @@ export const dict = {
       body: "An unexpected error occurred while rendering this page.",
       cta: "Try again",
       home: "Back to home"
+    },
+    playground: {
+      tabBar: { library: "Library", search: "Search" },
+      segment: { albums: "Albums", songs: "Songs", artists: "Artists" },
+      library: { title: "Library" },
+      search: {
+        placeholder: "Artists, songs, albums",
+        topPicks: "Top Picks",
+        artists: "Artists",
+        albums: "Albums",
+        noMatches: "No matches"
+      },
+      album: { fallbackTitle: "Album", notFound: "Album not found", play: "Play" },
+      nowPlaying: {
+        title: "Now Playing",
+        upNext: "Up Next",
+        lyrics: "Lyrics",
+        lyricsUnavailable: "Lyrics unavailable in the demo.",
+        lyricsHint:
+          "Tap the chip above to swap the sheet contents in place via `replaceStep` — no close / reopen."
+      },
+      player: {
+        previous: "Previous",
+        play: "Play",
+        pause: "Pause",
+        next: "Next",
+        close: "Close",
+        more: "More",
+        back: "Back"
+      }
     }
   },
   ko: {
@@ -173,6 +203,36 @@ export const dict = {
       body: "페이지를 그리는 중에 예상치 못한 오류가 생겼어요.",
       cta: "다시 시도",
       home: "홈으로 돌아가기"
+    },
+    playground: {
+      tabBar: { library: "보관함", search: "검색" },
+      segment: { albums: "앨범", songs: "노래", artists: "아티스트" },
+      library: { title: "보관함" },
+      search: {
+        placeholder: "아티스트, 노래, 앨범",
+        topPicks: "추천",
+        artists: "아티스트",
+        albums: "앨범",
+        noMatches: "검색 결과 없어요"
+      },
+      album: { fallbackTitle: "앨범", notFound: "앨범을 찾을 수 없어요", play: "재생" },
+      nowPlaying: {
+        title: "재생 중",
+        upNext: "다음 트랙",
+        lyrics: "가사",
+        lyricsUnavailable: "데모에서는 가사를 제공하지 않아요.",
+        lyricsHint:
+          "위 칩을 누르면 `replaceStep`으로 시트 내용을 그 자리에서 교체해요 — 닫고 다시 열지 않아요."
+      },
+      player: {
+        previous: "이전",
+        play: "재생",
+        pause: "일시정지",
+        next: "다음",
+        close: "닫기",
+        more: "더보기",
+        back: "뒤로"
+      }
     }
   }
 } as const;

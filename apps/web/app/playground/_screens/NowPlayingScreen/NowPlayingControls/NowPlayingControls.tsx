@@ -1,16 +1,18 @@
 "use client";
 
+import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
 import usePlayerStore from "@/app/playground/_stores/usePlayerStore";
 
 function NowPlayingControls() {
   const isPlaying = usePlayerStore((state) => state.isPlaying);
   const togglePlay = usePlayerStore((state) => state.togglePlay);
+  const dict = usePlaygroundDict();
 
   return (
     <div className="flex items-center justify-center gap-6">
       <button
         type="button"
-        aria-label="Previous"
+        aria-label={dict.player.previous}
         className="grid h-12 w-12 place-items-center rounded-full text-[var(--color-text-primary)] hover:bg-[var(--color-text-primary)]/8"
       >
         <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" fill="currentColor">
@@ -19,7 +21,7 @@ function NowPlayingControls() {
       </button>
       <button
         type="button"
-        aria-label={isPlaying ? "Pause" : "Play"}
+        aria-label={isPlaying ? dict.player.pause : dict.player.play}
         onClick={togglePlay}
         className="grid h-16 w-16 place-items-center rounded-full border border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-text-primary)]"
       >
@@ -36,7 +38,7 @@ function NowPlayingControls() {
       </button>
       <button
         type="button"
-        aria-label="Next"
+        aria-label={dict.player.next}
         className="grid h-12 w-12 place-items-center rounded-full text-[var(--color-text-primary)] hover:bg-[var(--color-text-primary)]/8"
       >
         <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" fill="currentColor">

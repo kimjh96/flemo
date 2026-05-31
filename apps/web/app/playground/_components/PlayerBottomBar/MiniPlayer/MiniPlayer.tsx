@@ -4,6 +4,7 @@ import { useNavigate } from "@flemo/react";
 
 import { albumById } from "@/app/playground/_data/albums";
 import { gradientFor } from "@/app/playground/_data/gradient";
+import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
 import usePlayerStore from "@/app/playground/_stores/usePlayerStore";
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
@@ -17,6 +18,7 @@ function MiniPlayer() {
   const pushTransitionOverride = usePlaygroundSettingsStore(
     (state) => state.pushTransitionOverride
   );
+  const dict = usePlaygroundDict();
 
   const album = albumById(currentTrack.albumId);
   if (!album) return null;
@@ -63,7 +65,7 @@ function MiniPlayer() {
       <button
         type="button"
         onClick={handleTogglePlay}
-        aria-label={isPlaying ? "Pause" : "Play"}
+        aria-label={isPlaying ? dict.player.pause : dict.player.play}
         className="grid h-9 w-9 place-items-center rounded-full text-[var(--color-text-primary)] hover:bg-[var(--color-layer)]"
       >
         <PlayPauseIcon playing={isPlaying} />

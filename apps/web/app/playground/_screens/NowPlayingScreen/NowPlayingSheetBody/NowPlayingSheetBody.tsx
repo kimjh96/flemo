@@ -1,5 +1,6 @@
 "use client";
 
+import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
 import type { Album } from "@/app/playground/_data/albums";
 
 import type { NowPlayingSheet } from "../NowPlayingScreen.types";
@@ -10,6 +11,7 @@ export interface NowPlayingSheetBodyProps {
 }
 
 function NowPlayingSheetBody({ sheet, album }: NowPlayingSheetBodyProps) {
+  const dict = usePlaygroundDict();
   if (sheet === "queue") {
     return (
       <ul
@@ -34,11 +36,8 @@ function NowPlayingSheetBody({ sheet, album }: NowPlayingSheetBodyProps) {
         data-flemo-step-pane="lyrics"
         className="text-center text-[13px] leading-relaxed text-[var(--color-text-primary)]/80"
       >
-        <p>Lyrics unavailable in the demo.</p>
-        <p className="mt-2 text-[var(--color-ink-mute)]">
-          Tap the chip above to swap the sheet contents in place via `replaceStep` — no close /
-          reopen.
-        </p>
+        <p>{dict.nowPlaying.lyricsUnavailable}</p>
+        <p className="mt-2 text-[var(--color-ink-mute)]">{dict.nowPlaying.lyricsHint}</p>
       </div>
     );
   }

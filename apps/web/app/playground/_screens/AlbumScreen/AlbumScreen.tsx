@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "@flemo/react";
 import PlayerBottomBar from "@/app/playground/_components/PlayerBottomBar";
 import { albumById } from "@/app/playground/_data/albums";
 import { gradientFor } from "@/app/playground/_data/gradient";
+import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
 import { PlayerScreen } from "@/app/playground/_screens/PlayerScreen";
 import usePlayerStore from "@/app/playground/_stores/usePlayerStore";
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
@@ -20,14 +21,15 @@ function AlbumScreen() {
   const pushTransitionOverride = usePlaygroundSettingsStore(
     (state) => state.pushTransitionOverride
   );
+  const dict = usePlaygroundDict();
 
   const album = params ? albumById(params.id) : null;
 
   if (!album) {
     return (
-      <PlayerScreen appBar={<AlbumAppBar title="Album" />}>
+      <PlayerScreen appBar={<AlbumAppBar title={dict.album.fallbackTitle} />}>
         <div className="grid h-full place-items-center bg-[var(--color-surface)] text-[14px] text-[var(--color-ink-mute)]">
-          Album not found
+          {dict.album.notFound}
         </div>
       </PlayerScreen>
     );
@@ -56,7 +58,7 @@ function AlbumScreen() {
             onClick={handleOpenNowPlaying}
             className="h-48 w-48 cursor-pointer rounded-2xl"
             style={{ background: gradientFor(album.hue) }}
-            aria-label={`Play ${album.title}`}
+            aria-label={`${dict.album.play} ${album.title}`}
           />
           <div className="w-full">
             <div className="text-2xl font-bold text-[var(--color-text-primary)]">{album.title}</div>

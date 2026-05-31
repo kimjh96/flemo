@@ -2,12 +2,15 @@
 
 import { useNavigate } from "@flemo/react";
 
+import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
+
 export interface AlbumAppBarProps {
   title: string;
 }
 
 function AlbumAppBar({ title }: AlbumAppBarProps) {
   const navigate = useNavigate();
+  const dict = usePlaygroundDict();
 
   const handleBack = () => navigate.pop();
 
@@ -16,7 +19,7 @@ function AlbumAppBar({ title }: AlbumAppBarProps) {
       <button
         type="button"
         onClick={handleBack}
-        aria-label="Back"
+        aria-label={dict.player.back}
         className="grid h-9 w-9 place-items-center rounded-full text-[var(--color-brand)] hover:bg-[var(--color-layer)]"
       >
         <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">

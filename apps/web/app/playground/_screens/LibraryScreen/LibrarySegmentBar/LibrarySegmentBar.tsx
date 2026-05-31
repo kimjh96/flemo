@@ -1,5 +1,7 @@
 "use client";
 
+import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
+
 import { segments } from "../LibraryScreen.constants";
 
 import type { Segment, SegmentDef } from "../LibraryScreen.types";
@@ -31,6 +33,7 @@ interface LibrarySegmentButtonProps {
 }
 
 function LibrarySegmentButton({ segment, active, onSelect }: LibrarySegmentButtonProps) {
+  const dict = usePlaygroundDict();
   const handleClick = () => onSelect(segment.key);
 
   return (
@@ -44,7 +47,7 @@ function LibrarySegmentButton({ segment, active, onSelect }: LibrarySegmentButto
         boxShadow: active ? "0 1px 0 var(--color-line)" : "none"
       }}
     >
-      {segment.label}
+      {dict.segment[segment.key]}
     </button>
   );
 }
