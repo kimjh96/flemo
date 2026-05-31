@@ -207,7 +207,7 @@ export const dict = {
       {
         icon: "swipe",
         label: "제스처 지원",
-        body: "스와이프 제스처로 자연스러운 네비게이션"
+        body: "스와이프 제스처로 자연스러운 내비게이션"
       },
       {
         icon: "code",
@@ -302,10 +302,10 @@ export const dict = {
         sharedBars: {
           title: "여러 화면에 바 고정",
           description:
-            "공유 바는 push 사이에도 마운트된 채 유지돼 다시 애니메이션되지 않아요. 네비게이션 바(미니플레이어+탭)는 보관함·검색·앨범에 걸쳐 있고, 앱 바는 보관함에만 공유돼요. 각각 토글한 뒤 아래 실시간 presence를 확인하세요.",
-          navName: "공유 네비게이션 바",
-          navOn: "네비게이션 바 · 표시",
-          navOff: "네비게이션 바 · 숨김",
+            "공유 바는 push 사이에도 마운트된 채 유지돼 다시 애니메이션되지 않아요. 내비게이션 바(미니플레이어+탭)는 보관함·검색·앨범에 걸쳐 있고, 앱 바는 보관함에만 공유돼요. 각각 토글한 뒤 아래 실시간 presence를 확인하세요.",
+          navName: "공유 내비게이션 바",
+          navOn: "내비게이션 바 · 표시",
+          navOff: "내비게이션 바 · 숨김",
           appName: "공유 앱 바",
           appOn: "앱 바 · 표시",
           appOff: "앱 바 · 숨김",
@@ -314,9 +314,9 @@ export const dict = {
         },
         navigation: {
           eyebrow: "내비게이션 거리",
-          title: "한 번의 전환으로 top 너머 도달",
+          title: "한 번의 전환으로 여러 화면 건너뛰기",
           description:
-            "pop / replace / push 모두 거리를 받아요 — { skip } 화면 수 또는 { until } 라우트. 건너뛴 화면은 한 프레임도 그려지지 않고 제거돼요. 스택을 쌓은 뒤 여러 화면을 한 번에 거슬러 올라가며 깊이가 깜빡임 없이 줄어드는 걸 보세요.",
+            "pop / replace / push 는 모두 이동 거리를 받아요 — { skip } 으로 건너뛸 화면 수를, { until } 로 멈출 라우트를 지정해요. 건너뛴 화면은 한 프레임도 그려지지 않고 제거돼요. 스택을 쌓은 뒤 여러 화면을 한 번에 거슬러 올라가며, 깊이가 깜빡임 없이 줄어드는 걸 확인해 보세요.",
           stackDepth: "스택 깊이",
           seed: "깊은 스택 쌓기",
           reachBack: "거슬러 올라가기",
@@ -326,7 +326,7 @@ export const dict = {
           eyebrow: "성능",
           title: "도착 화면 스트레스 테스트",
           description:
-            "합성 heavy 화면을 미리보기에 push해 부하 속에서 flemo가 전환을 어떻게 버티는지 느껴보세요. cpuMs는 렌더에서 바쁜 대기를, nodes는 트리 크기를 키워요."
+            "인위적으로 무겁게 만든 화면을 미리보기에 push해, 부하 속에서 flemo가 전환을 어떻게 버티는지 확인해 보세요. cpuMs는 렌더링 중 CPU를 바쁘게 점유하고, nodes는 트리 크기를 부풀려요."
         },
         inspector: {
           eyebrow: "라이브 인스펙터",
@@ -334,7 +334,7 @@ export const dict = {
           description:
             "flemo 스토어를 읽기 전용으로 들여다봐요 — history 스택, 상태 머신을 따라 움직이는 내비게이션 상태, 그리고 어떤 마운트된 화면이 어떤 공유 바를 등록했는지. 미리보기를 조작하며 실시간으로 갱신되는 걸 보세요.",
           status: "상태",
-          historyStack: "History 스택 (top 먼저)",
+          historyStack: "History 스택 (맨 위부터)",
           sharedBars: "화면별 공유 바",
           emptyStack: "빈 스택."
         },
@@ -343,7 +343,7 @@ export const dict = {
           custom: "커스텀",
           customDecorator: "커스텀 + 데코레이터",
           captionBuiltIn: "모든 push를 한 프리셋으로 강제.",
-          captionCustom: "이 playground에서 정의, @flemo/core 아님.",
+          captionCustom: "@flemo/core가 아니라 이 playground에서 정의했어요.",
           captionCustomDecorator: "커스텀 전환 + 커스텀 createDecorator 레이어 조합."
         }
       }
