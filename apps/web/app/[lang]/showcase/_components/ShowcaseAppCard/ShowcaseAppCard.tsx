@@ -92,7 +92,7 @@ export default function ShowcaseAppCard({
                 href={playStore.href}
                 target="_blank"
                 rel="noreferrer"
-                className="cta-pill-invert !h-12 border border-[var(--color-border)]"
+                className="inline-flex h-12 items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg)] px-[1.625rem] text-[16px] font-semibold tracking-[-0.01em] text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-layer)]"
               >
                 {playStore.label}
               </Link>
