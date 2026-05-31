@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import PlayerBottomBar from "@/app/playground/_components/PlayerBottomBar";
 import { albums } from "@/app/playground/_data/albums";
+import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
 import { PlayerScreen } from "@/app/playground/_screens/PlayerScreen";
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
@@ -16,6 +17,7 @@ const TOP_PICK_LIMIT = 24;
 
 function SearchScreen() {
   const [query, setQuery] = useState("");
+  const dict = usePlaygroundDict();
   const showMiniPlayer = usePlaygroundSettingsStore((state) => state.showMiniPlayer);
 
   const trimmed = query.trim().toLowerCase();
@@ -49,7 +51,7 @@ function SearchScreen() {
     >
       <div className="flex flex-col gap-6 px-5 pb-8 pt-2">
         {trimmed.length === 0 && (
-          <SearchSection title="Top Picks">
+          <SearchSection title={dict.search.topPicks}>
             {topPicks.map((album) => (
               <SearchAlbumRow key={album.id} album={album} />
             ))}
@@ -57,7 +59,7 @@ function SearchScreen() {
         )}
 
         {trimmed.length > 0 && artistMatches.length > 0 && (
-          <SearchSection title="Artists">
+          <SearchSection title={dict.search.artists}>
             {artistMatches.map((artist) => (
               <SearchArtistRow key={artist.name} name={artist.name} hue={artist.hue} />
             ))}
@@ -65,7 +67,7 @@ function SearchScreen() {
         )}
 
         {trimmed.length > 0 && albumMatches.length > 0 && (
-          <SearchSection title="Albums">
+          <SearchSection title={dict.search.albums}>
             {albumMatches.map((album) => (
               <SearchAlbumRow key={album.id} album={album} />
             ))}
@@ -74,7 +76,7 @@ function SearchScreen() {
 
         {trimmed.length > 0 && albumMatches.length === 0 && artistMatches.length === 0 && (
           <div className="py-10 text-center text-[14px] text-[var(--color-ink-mute)]">
-            No matches
+            {dict.search.noMatches}
           </div>
         )}
       </div>

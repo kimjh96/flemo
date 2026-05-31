@@ -4,6 +4,7 @@ import { useParams, useStep } from "@flemo/react";
 
 import BottomSheet from "@/app/playground/_components/BottomSheet";
 import { albumById } from "@/app/playground/_data/albums";
+import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
 import { PlayerScreen } from "@/app/playground/_screens/PlayerScreen";
 import usePlayerStore from "@/app/playground/_stores/usePlayerStore";
 
@@ -23,6 +24,7 @@ function NowPlayingScreen() {
   const currentTrack = usePlayerStore((state) => state.currentTrack);
   const params = useParams<"/now-playing">();
   const { pushStep, replaceStep, popStep } = useStep<"/now-playing">();
+  const dict = usePlaygroundDict();
 
   const album = albumById(currentTrack.albumId);
   if (!album) return null;
@@ -86,7 +88,7 @@ function NowPlayingScreen() {
         <BottomSheet
           open={sheetOpen}
           onClose={closeSheet}
-          title={sheet === "lyrics" ? "Lyrics" : "Up Next"}
+          title={sheet === "lyrics" ? dict.nowPlaying.lyrics : dict.nowPlaying.upNext}
           trailing={
             <button
               type="button"
@@ -94,7 +96,7 @@ function NowPlayingScreen() {
               data-flemo-step-action="swap-sheet"
               className="rounded-full bg-[var(--color-text-primary)]/8 px-3 py-1 text-[12px] font-semibold text-[var(--color-text-primary)]"
             >
-              {sheet === "lyrics" ? "Up Next" : "Lyrics"}
+              {sheet === "lyrics" ? dict.nowPlaying.upNext : dict.nowPlaying.lyrics}
             </button>
           }
         >

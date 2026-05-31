@@ -4,7 +4,6 @@ const cupertino: TransitionOption = {
   value: "cupertino",
   label: "cupertino",
   group: "Built-in",
-  summary: "iOS-style horizontal push. Ships with @flemo/core.",
   code: `createTransition({
   name: "cupertino",
   initial: { x: "100%" },
@@ -19,7 +18,6 @@ const material: TransitionOption = {
   value: "material",
   label: "material",
   group: "Built-in",
-  summary: "Material-style vertical rise. Ships with @flemo/core.",
   code: `createTransition({
   name: "material",
   initial: { y: "100%" },
@@ -34,7 +32,6 @@ const none: TransitionOption = {
   value: "none",
   label: "none",
   group: "Built-in",
-  summary: "Instant swap, no animation. Useful for tab-like routing.",
   code: `createTransition({
   name: "none",
   initial: {},
@@ -49,7 +46,6 @@ const blur: TransitionOption = {
   value: "blur",
   label: "blur",
   group: "Custom",
-  summary: "Author-defined with createTransition — lives in this playground, not the core.",
   code: `createTransition({
   name: "blur",
   initial: { filter: "blur(12px)", opacity: 0 },
@@ -64,8 +60,6 @@ const zoom: TransitionOption = {
   value: "zoom",
   label: "zoom",
   group: "Custom",
-  summary:
-    "Cross-zoom dive — the new screen scales up into focus while the old one pushes forward and fades.",
   code: `createTransition({
   name: "zoom",
   initial: { scale: 0.8, opacity: 0 },
@@ -80,8 +74,6 @@ const cardStack: TransitionOption = {
   value: "card-stack",
   label: "card-stack",
   group: "Custom",
-  summary:
-    "iOS-style card present — the new screen rises while the current one scales back and dims behind it.",
   code: `createTransition({
   name: "card-stack",
   initial: { y: "100%" },
@@ -96,8 +88,6 @@ const reveal: TransitionOption = {
   value: "reveal",
   label: "reveal",
   group: "Custom",
-  summary:
-    "Iris reveal — the new screen opens through a circular clip-path that grows to just cover the viewport, while the backdrop recedes.",
   code: `createTransition({
   name: "reveal",
   // 75% just covers the viewport (the farthest corner sits at ~70.7%),
@@ -114,8 +104,6 @@ const spring: TransitionOption = {
   value: "spring",
   label: "spring",
   group: "Custom",
-  summary:
-    "Springy pop — the new screen scales up with an overshooting ease, settling with a bounce.",
   code: `createTransition({
   name: "spring",
   initial: { scale: 0.7, opacity: 0 },
@@ -132,8 +120,6 @@ const ripple: TransitionOption = {
   value: "ripple",
   label: "ripple",
   group: "Custom + decorator",
-  summary:
-    "A drop in water: the screen reveals through a circle expanding from the center, and concentric rings radiate from that same point on the backdrop — reveal and ripples share one origin.",
   code: `const ripples = createDecorator({
   name: "ripples",
   initial: { background: RINGS, opacity: 0, scale: 0.3 }, // repeating-radial-gradient
@@ -153,8 +139,6 @@ const dive: TransitionOption = {
   value: "dive",
   label: "dive",
   group: "Custom + decorator",
-  summary:
-    "Diving forward through depth: the screen rushes in from a point at the center while the backdrop scales out into a closing dark tunnel — both read as the same plunge into depth.",
   code: `const tunnel = createDecorator({
   name: "tunnel",
   initial: { background: TUNNEL, opacity: 0, scale: 1 },
@@ -184,17 +168,14 @@ navigate.push("/now-playing", undefined, { transitionName: "material" });`;
 export const transitionGroups: ReadonlyArray<TransitionGroup> = [
   {
     kind: "Built-in",
-    caption: "Force one preset for every push.",
     options: [cupertino, material, none]
   },
   {
     kind: "Custom",
-    caption: "Defined in this playground, not in @flemo/core.",
     options: [blur, zoom, cardStack, reveal, spring]
   },
   {
     kind: "Custom + decorator",
-    caption: "A custom transition paired with a custom createDecorator layer.",
     options: [ripple, dive]
   }
 ];

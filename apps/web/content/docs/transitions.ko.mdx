@@ -9,19 +9,22 @@ description: 내장 프리셋, 직접 만들기, 스와이프 제스처
 ## 내장 프리셋
 
 <Cards>
-  <Card title="cupertino" description="iOS 스타일 가로 슬라이드 — 엣지 드래그 백 포함, 기본값" />
-  <Card title="material" description="아래에서 위로 슬라이드 — 드래그 dismiss + 러버밴드 저항" />
+  <Card title="cupertino" description="iOS 스타일 가로 슬라이드 — 엣지 스와이프 백 포함, 기본값" />
+  <Card
+    title="material"
+    description="아래에서 위로 슬라이드 — 아래로 드래그해 닫기 + 러버밴드 저항"
+  />
   <Card title="layout" description="layoutId 모핑에 어울리는 가벼운 페이드" />
   <Card title="none" description="즉시 컷, 애니메이션 없음" />
 </Cards>
 
-`<Router>`에서 전역 기본값을 바꿔요.
+`<Router>`에서 전역 기본값을 설정해요.
 
 ```tsx
 <Router defaultTransitionName="material">…</Router>
 ```
 
-navigation 단위로 한 번만 바꾸려면 옵션으로 넘겨요.
+내비게이션마다 덮어쓰려면 옵션으로 넘겨요.
 
 ```tsx
 navigate.push("/photos/:id", { id }, { transitionName: "layout" });
@@ -29,8 +32,8 @@ navigate.push("/photos/:id", { id }, { transitionName: "layout" });
 
 ## 직접 만들기
 
-흔한 형태는 `createTransition`(여섯 단계), 모든 navigate 상태를 분리해서 정의하고 싶다면
-`createRawTransition`을 써요.
+흔한 형태라면 `createTransition`(여섯 단계)을 쓰고, 모든 navigate 상태를 직접 제어하고
+싶다면 `createRawTransition`을 써요.
 
 ### createTransition
 
@@ -124,11 +127,11 @@ createTransition({
 ```
 
 핸들러는 `currentScreen`, `prevScreen`, `animate(target, value, options)` 함수, `dragControls`를
-받아요. 제스처 도중에 요소를 움직이는 책임이 핸들러에 있어요.
+받아요. 제스처 도중에 요소를 움직이는 건 직접 처리해야 해요.
 
 ## 데코레이터
 
-데코레이터는 이전 화면과 현재 화면 사이에 끼는 레이어예요. 내장 `overlay` 데코레이터가
+데코레이터는 이전 화면과 현재 화면 사이에 들어가는 레이어예요. 내장 `overlay` 데코레이터가
 cupertino 스와이프 동안 보이는 dim 효과를 만들어요.
 
 ```ts
@@ -140,7 +143,7 @@ const dim = createDecorator({
   initial: { opacity: 0 },
   // 활성 쪽 + PUSH/REPLACE 중인 *새* 화면의 휴지 상태. IDLE-*,
   // COMPLETED-true, POPPING-true, PUSHING-true, REPLACING-true 모두 여기에
-  // 머물러요. dim이 보이면 안 되는 슬롯들이라 0으로 잡아요.
+  // 머물러요. dim이 보이면 안 되는 슬롯들이라 0으로 둬요.
   idle: { value: { opacity: 0 }, options: { duration: 0 } },
   // "뒤로 들어가는" 상태. PUSHING-false / REPLACING-false에서 idle → enter로
   // 페이드인되고, COMPLETED-false 정착 룰에서 enter 값을 그대로 들고 있어요.
@@ -170,5 +173,5 @@ createTransition({
 </Router>
 ```
 
-상태별 완전 제어가 필요하면 `createRawDecorator`가 `createRawTransition`과 같은 형태로
-제공돼요.
+상태별 완전 제어가 필요하면 `createRawTransition`과 똑같은 형태의 `createRawDecorator`를
+쓰면 돼요.
