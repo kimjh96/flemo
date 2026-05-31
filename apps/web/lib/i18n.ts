@@ -101,7 +101,6 @@ export const dict = {
       home: "Back to home"
     },
     showcase: {
-      kicker: "Showcase",
       title: "Built with flemo",
       subtitle: "Real apps shipping flemo in production — not demos.",
       flemoUsageLabel: "How it uses flemo",
@@ -295,7 +294,6 @@ export const dict = {
       home: "홈으로 돌아가기"
     },
     showcase: {
-      kicker: "쇼케이스",
       title: "flemo로 만든 앱",
       subtitle: "데모가 아니라, flemo를 프로덕션에 출시한 실제 앱들이에요.",
       flemoUsageLabel: "flemo를 어떻게 쓰나요",

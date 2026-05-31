@@ -14,7 +14,7 @@ export default async function ShowcasePage({ params }: PageProps<"/[lang]/showca
 
   return (
     <main className="bg-[var(--color-bg)] text-[var(--color-text-primary)]">
-      <ShowcasePageHeader kicker={t.kicker} title={t.title} subtitle={t.subtitle} />
+      <ShowcasePageHeader title={t.title} subtitle={t.subtitle} />
       <section className="bg-[var(--color-bg)]">
         <div className="mx-auto flex max-w-[1240px] flex-col gap-8 px-6 py-16 sm:py-20">
           {showcaseApps.map((app) => {
