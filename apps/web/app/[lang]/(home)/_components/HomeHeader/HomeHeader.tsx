@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import LanguageToggle from "@/components/LanguageToggle";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import { i18n } from "@/lib/i18n";
@@ -14,11 +15,7 @@ function HomeHeader({ lang }: HomeHeaderProps) {
   const homeHref = lang === i18n.defaultLanguage ? "/" : `/${lang}`;
   const docsHref = lang === i18n.defaultLanguage ? "/docs" : `/${lang}/docs`;
   const playgroundHref = `/playground?lang=${lang}`;
-  const otherLang = lang === "ko" ? "en" : "ko";
-  const otherHref = otherLang === i18n.defaultLanguage ? "/" : `/${otherLang}`;
-  const otherLabel = otherLang === "ko" ? "한국어" : "English";
-  const docsLabel = lang === "ko" ? "문서" : "Docs";
-  const playgroundLabel = lang === "ko" ? "플레이그라운드" : "Playground";
+  const showcaseHref = lang === i18n.defaultLanguage ? "/showcase" : `/${lang}/showcase`;
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-[var(--color-bg)]/85 backdrop-blur-md">
@@ -35,13 +32,19 @@ function HomeHeader({ lang }: HomeHeaderProps) {
             href={docsHref}
             className="rounded-full px-3 py-2 text-[14px] font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
           >
-            {docsLabel}
+            Docs
           </Link>
           <Link
             href={playgroundHref}
             className="rounded-full px-3 py-2 text-[14px] font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
           >
-            {playgroundLabel}
+            Playground
+          </Link>
+          <Link
+            href={showcaseHref}
+            className="rounded-full px-3 py-2 text-[14px] font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+          >
+            Showcase
           </Link>
           <Link
             href={GITHUB_URL}
@@ -52,12 +55,7 @@ function HomeHeader({ lang }: HomeHeaderProps) {
             GitHub
           </Link>
           <ThemeToggle />
-          <Link
-            href={otherHref}
-            className="ml-1 rounded-full bg-[var(--color-neutral-200)] px-3 py-2 text-[13px] font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-neutral-300)]"
-          >
-            {otherLabel}
-          </Link>
+          <LanguageToggle lang={lang} />
         </nav>
       </div>
     </header>
