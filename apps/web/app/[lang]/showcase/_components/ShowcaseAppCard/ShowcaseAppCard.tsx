@@ -101,7 +101,7 @@ export default function ShowcaseAppCard({
         )}
       </div>
 
-      <div className="-mx-2 flex snap-x gap-4 overflow-x-auto px-2 py-2 lg:mx-0 lg:px-0">
+      <div className="-mr-8 flex snap-x gap-4 overflow-x-auto py-2 lg:-mr-12">
         {screenshots.map((screenshot) => (
           <img
             key={screenshot.src}
