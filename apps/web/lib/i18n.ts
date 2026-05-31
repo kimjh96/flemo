@@ -209,7 +209,7 @@ export const dict = {
       github: "GitHub"
     },
     hero: {
-      title: "네이티브 화면 전환을 위한 React 라우터",
+      title: "네이티브 같은 화면 전환을 위한 React 라우터",
       ctaPrimary: "시작하기",
       ctaSecondary: "플레이그라운드"
     },
@@ -217,7 +217,7 @@ export const dict = {
       {
         icon: "phone",
         label: "모바일 퍼스트",
-        body: "모바일 화면 전환부터 설계된 라우터"
+        body: "모바일 화면 전환을 위해 처음부터 설계한 라우터"
       },
       {
         icon: "swipe",
@@ -227,7 +227,7 @@ export const dict = {
       {
         icon: "code",
         label: "TypeScript 지원",
-        body: "타입 정의로 안전한 개발 경험"
+        body: "타입 안전한 라우트로 자신 있게 개발하는 경험"
       },
       {
         icon: "layers",
