@@ -1,5 +1,11 @@
 # @flemo/web
 
+## 0.6.0
+
+### Minor Changes
+
+- [`c0d0d5f`](https://github.com/kimjh96/flemo/commit/c0d0d5f522934a97403b56133fed2f372dada194) Add a Showcase page (`/showcase`) and a Showcase nav link, featuring real apps built with flemo. Launches with shiflo — a hybrid app on the App Store and Google Play — and is data-driven so more apps can be added.
+
 ## 0.5.0
 
 ### Minor Changes
