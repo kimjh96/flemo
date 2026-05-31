@@ -1,5 +1,11 @@
 # @flemo/web
 
+## 0.5.0
+
+### Minor Changes
+
+- [`617575d`](https://github.com/kimjh96/flemo/commit/617575d73c44b8ae2c3e704a7652aa8c5fc75f63) Localize the playground in full — the music-app chrome and the developer panel labels and descriptions now follow the docs locale, rendering in Korean when the playground is opened from the Korean site. Reword the docs intro so it no longer frames flemo as wiring a router and a motion library together. Sweep the Korean docs for awkward translations — fix loanword spellings, grammar, and literal calques, and close a few content gaps against the English source.
+
 ## 0.4.0
 
 ### Minor Changes
