@@ -114,7 +114,7 @@ export const dict = {
           description:
             "A scheduling app that helps shift workers keep their work rotations and personal plans in one place — a month grid, a week timeline, a list view, work-pattern templates, home-screen widgets, and a full dark theme.",
           flemoUsage:
-            "shiflo is a hybrid app: the UI is a web app wrapped for iOS and Android. Screen-to-screen navigation runs on flemo — pushes and pops, the left-edge swipe-back gesture, and the transitions between screens — so the motion reads as native on both platforms, from a single web codebase."
+            "shiflo is a React Native app, but its entire UI is a web app running inside a WebView. flemo drives all of its screen navigation — pushes and pops, the swipe-back gesture, and the transitions between screens — so the web UI inside the native shell moves like a native app on both iOS and Android, from a single web codebase."
         }
       }
     },
@@ -308,7 +308,7 @@ export const dict = {
           description:
             "교대 근무자가 근무 일정과 개인 일정을 한 곳에서 관리하도록 돕는 일정 앱이에요 — 월 단위 달력, 주 단위 타임라인, 목록 보기, 근무 패턴 템플릿, 홈 화면 위젯, 그리고 완전한 다크 테마까지.",
           flemoUsage:
-            "shiflo는 하이브리드 앱이에요. UI는 웹 앱이고, 그걸 iOS와 Android용으로 감쌌어요. 화면 간 이동은 flemo 위에서 돌아가요 — push와 pop, 좌측 엣지 스와이프 뒤로 가기, 화면 사이의 전환까지. 그래서 하나의 웹 코드베이스로 두 플랫폼 모두 네이티브처럼 읽히는 움직임을 만들어요."
+            "shiflo는 React Native 앱이지만, UI 전체가 WebView 안에서 도는 웹 앱이에요. 화면 간 이동은 전부 flemo가 담당해요 — push와 pop, 스와이프 뒤로 가기, 화면 사이의 전환까지. 그래서 네이티브 셸 안의 웹 UI가 하나의 웹 코드베이스로 iOS·Android 양쪽에서 네이티브 앱처럼 움직여요."
         }
       }
     },
