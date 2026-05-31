@@ -7,6 +7,7 @@
     "layout-screen",
     "navigation",
     "transitions",
-    "api"
+    "api",
+    "shiflo"
   ]
 }
