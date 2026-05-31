@@ -3,7 +3,7 @@
 import { albums } from "@/app/playground/_data/albums";
 import usePlayerStore from "@/app/playground/_stores/usePlayerStore";
 
-import LibrarySongRow from "./LibrarySongRow";
+import LibrarySongRow from "../LibrarySongRow";
 
 const VISIBLE_TRACK_COUNT = 60;
 

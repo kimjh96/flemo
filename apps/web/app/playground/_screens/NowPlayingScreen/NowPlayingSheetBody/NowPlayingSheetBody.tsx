@@ -2,7 +2,7 @@
 
 import type { Album } from "@/app/playground/_data/albums";
 
-import type { NowPlayingSheet } from "./NowPlayingScreen.types";
+import type { NowPlayingSheet } from "../NowPlayingScreen.types";
 
 export interface NowPlayingSheetBodyProps {
   sheet: NowPlayingSheet | null;

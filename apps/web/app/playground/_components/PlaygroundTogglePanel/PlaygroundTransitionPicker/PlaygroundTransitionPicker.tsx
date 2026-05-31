@@ -2,7 +2,7 @@
 
 import type { PushTransitionOverride } from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
-import type { TransitionGroup, TransitionOption } from "./PlaygroundTogglePanel.types";
+import type { TransitionGroup, TransitionOption } from "../PlaygroundTogglePanel.types";
 
 export interface PlaygroundTransitionPickerProps {
   groups: ReadonlyArray<TransitionGroup>;

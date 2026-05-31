@@ -5,11 +5,11 @@ import { useScreenStore } from "@flemo/react";
 
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
-import PlaygroundKeyValueList, { type KeyValueRow } from "./PlaygroundKeyValueList";
-import PlaygroundToggleCard from "./PlaygroundToggleCard";
-import PlaygroundToggleCardHeader from "./PlaygroundToggleCardHeader";
-import PlaygroundToggleSwitch from "./PlaygroundToggleSwitch";
-import { buildPresenceRows } from "./PlaygroundTogglePanel.presence";
+import PlaygroundKeyValueList, { type KeyValueRow } from "../PlaygroundKeyValueList";
+import PlaygroundToggleCard from "../PlaygroundToggleCard";
+import PlaygroundToggleCardHeader from "../PlaygroundToggleCardHeader";
+import PlaygroundToggleSwitch from "../PlaygroundToggleSwitch";
+import { buildPresenceRows } from "../PlaygroundTogglePanel.presence";
 
 const mark = (on: boolean) => (on ? "✓" : "✗");
 

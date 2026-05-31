@@ -2,8 +2,8 @@
 
 import { useNavigate } from "@flemo/react";
 
-import PlaygroundToggleCard from "./PlaygroundToggleCard";
-import PlaygroundToggleCardHeader from "./PlaygroundToggleCardHeader";
+import PlaygroundToggleCard from "../PlaygroundToggleCard";
+import PlaygroundToggleCardHeader from "../PlaygroundToggleCardHeader";
 
 // Benchmark entry points for `apps/web/e2e/heavy-screen.spec.ts` and
 // `deep-stack.spec.ts`. They push `/heavy/:cpuMs/:nodes` so the specs can

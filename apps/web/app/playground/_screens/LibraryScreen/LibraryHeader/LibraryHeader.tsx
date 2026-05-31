@@ -1,6 +1,6 @@
-import LibrarySegmentBar from "./LibrarySegmentBar";
+import LibrarySegmentBar from "../LibrarySegmentBar";
 
-import type { Segment } from "./LibraryScreen.types";
+import type { Segment } from "../LibraryScreen.types";
 
 export interface LibraryHeaderProps {
   segment: Segment;

@@ -2,15 +2,15 @@
 
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
-import PlaygroundCodePeek from "./PlaygroundCodePeek";
+import PlaygroundCodePeek from "../PlaygroundCodePeek";
 import {
   naturalPushCode,
   transitionGroups,
   transitionOptions
-} from "./PlaygroundTogglePanel.constants";
-import PlaygroundToggleCard from "./PlaygroundToggleCard";
-import PlaygroundToggleCardHeader from "./PlaygroundToggleCardHeader";
-import PlaygroundTransitionPicker from "./PlaygroundTransitionPicker";
+} from "../PlaygroundTogglePanel.constants";
+import PlaygroundToggleCard from "../PlaygroundToggleCard";
+import PlaygroundToggleCardHeader from "../PlaygroundToggleCardHeader";
+import PlaygroundTransitionPicker from "../PlaygroundTransitionPicker";
 
 function PlaygroundTransitionCard() {
   const pushTransitionOverride = usePlaygroundSettingsStore(

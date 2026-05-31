@@ -1,8 +1,8 @@
 "use client";
 
-import { segments } from "./LibraryScreen.constants";
+import { segments } from "../LibraryScreen.constants";
 
-import type { Segment, SegmentDef } from "./LibraryScreen.types";
+import type { Segment, SegmentDef } from "../LibraryScreen.types";
 
 export interface LibrarySegmentBarProps {
   value: Segment;

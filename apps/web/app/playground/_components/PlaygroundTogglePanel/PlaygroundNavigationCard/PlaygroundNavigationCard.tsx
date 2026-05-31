@@ -3,8 +3,8 @@
 import { useHistoryStore } from "@flemo/core";
 import { useNavigate } from "@flemo/react";
 
-import PlaygroundToggleCard from "./PlaygroundToggleCard";
-import PlaygroundToggleCardHeader from "./PlaygroundToggleCardHeader";
+import PlaygroundToggleCard from "../PlaygroundToggleCard";
+import PlaygroundToggleCardHeader from "../PlaygroundToggleCardHeader";
 
 // The demo stacks the synthetic heavy screen (light config) so each push is a
 // visibly distinct arrival, then reaches past the top with {skip}/{until} in a

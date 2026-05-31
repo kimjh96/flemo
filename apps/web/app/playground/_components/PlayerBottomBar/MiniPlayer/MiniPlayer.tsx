@@ -7,7 +7,7 @@ import { gradientFor } from "@/app/playground/_data/gradient";
 import usePlayerStore from "@/app/playground/_stores/usePlayerStore";
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
-import PlayPauseIcon from "./PlayPauseIcon";
+import PlayPauseIcon from "../PlayPauseIcon";
 
 function MiniPlayer() {
   const navigate = useNavigate();
