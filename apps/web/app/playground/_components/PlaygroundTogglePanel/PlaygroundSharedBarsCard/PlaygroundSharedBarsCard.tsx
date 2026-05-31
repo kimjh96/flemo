@@ -3,6 +3,7 @@
 import { useHistoryStore } from "@flemo/core";
 import { useScreenStore } from "@flemo/react";
 
+import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
 import PlaygroundKeyValueList, { type KeyValueRow } from "../PlaygroundKeyValueList";
@@ -18,6 +19,7 @@ function PlaygroundSharedBarsCard() {
   const showSharedAppBar = usePlaygroundSettingsStore((state) => state.showSharedAppBar);
   const setShowMiniPlayer = usePlaygroundSettingsStore((state) => state.setShowMiniPlayer);
   const setShowSharedAppBar = usePlaygroundSettingsStore((state) => state.setShowSharedAppBar);
+  const t = usePlaygroundDict().devPanel.sharedBars;
 
   const histories = useHistoryStore((state) => state.histories);
   const sharedBars = useScreenStore((state) => state.sharedBars);
@@ -32,30 +34,30 @@ function PlaygroundSharedBarsCard() {
     <PlaygroundToggleCard>
       <PlaygroundToggleCardHeader
         eyebrow="sharedAppBar · sharedNavigationBar"
-        title="Pin bars across screens"
-        description="A shared bar stays mounted across pushes so it never re-animates. The nav bar (mini-player + tabs) spans Library, Search and Album; the app bar is shared only on Library. Toggle each, then watch the live presence below."
+        title={t.title}
+        description={t.description}
       />
       <div className="flex flex-col gap-2">
         <PlaygroundToggleSwitch
-          name="Shared navigation bar"
+          name={t.navName}
           checked={showMiniPlayer}
           onChange={setShowMiniPlayer}
-          on="Navigation bar · visible"
-          off="Navigation bar · hidden"
+          on={t.navOn}
+          off={t.navOff}
         />
         <PlaygroundToggleSwitch
-          name="Shared app bar"
+          name={t.appName}
           checked={showSharedAppBar}
           onChange={setShowSharedAppBar}
-          on="App bar · visible"
-          off="App bar · hidden"
+          on={t.appOn}
+          off={t.appOff}
         />
       </div>
       <div className="flex flex-col gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-          Mounted now
+          {t.mountedNow}
         </span>
-        <PlaygroundKeyValueList rows={presenceRows} empty="No screen mounted yet." />
+        <PlaygroundKeyValueList rows={presenceRows} empty={t.noScreen} />
       </div>
     </PlaygroundToggleCard>
   );

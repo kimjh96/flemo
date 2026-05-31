@@ -128,6 +128,63 @@ export const dict = {
         close: "Close",
         more: "More",
         back: "Back"
+      },
+      devPanel: {
+        transition: {
+          eyebrow: "Screen transition",
+          title: "Compose transitions per navigation",
+          description:
+            "By default each push uses the transition that fits its affordance — cupertino for browse-deeper hops, material for the player. Pick a chip below to force every push to one transition for comparison; tap it again to drop back to the per-context defaults.",
+          noOverride: "No override — each push site picks its own transition inline.",
+          overridePrefix: "Override active — "
+        },
+        sharedBars: {
+          title: "Pin bars across screens",
+          description:
+            "A shared bar stays mounted across pushes so it never re-animates. The nav bar (mini-player + tabs) spans Library, Search and Album; the app bar is shared only on Library. Toggle each, then watch the live presence below.",
+          navName: "Shared navigation bar",
+          navOn: "Navigation bar · visible",
+          navOff: "Navigation bar · hidden",
+          appName: "Shared app bar",
+          appOn: "App bar · visible",
+          appOff: "App bar · hidden",
+          mountedNow: "Mounted now",
+          noScreen: "No screen mounted yet."
+        },
+        navigation: {
+          eyebrow: "Navigation distance",
+          title: "Reach past the top in one transition",
+          description:
+            "pop / replace / push all take a distance — { skip } screens or { until } a route. The screens skipped over are removed without ever painting, so you never see them flash. Seed a stack, then reach back several screens at once and watch the depth jump with no flicker.",
+          stackDepth: "Stack depth",
+          seed: "Seed deep stack",
+          reachBack: "Reach back",
+          seedFirst: "(seed first)"
+        },
+        performance: {
+          eyebrow: "Performance",
+          title: "Stress-test arrival screens",
+          description:
+            "Push a synthetic heavy screen into the preview to feel how flemo holds the transition under load. cpuMs busy-waits in render; nodes inflates the tree."
+        },
+        inspector: {
+          eyebrow: "Live inspector",
+          title: "What flemo is doing, right now",
+          description:
+            "A read-only window into flemo's stores — the history stack, the navigation status as it moves through its state machine, and which mounted screens registered which shared bars. Navigate the preview and watch it update live.",
+          status: "Status",
+          historyStack: "History stack (top first)",
+          sharedBars: "Shared bars by screen",
+          emptyStack: "Empty stack."
+        },
+        group: {
+          builtIn: "Built-in",
+          custom: "Custom",
+          customDecorator: "Custom + decorator",
+          captionBuiltIn: "Force one preset for every push.",
+          captionCustom: "Defined in this playground, not in @flemo/core.",
+          captionCustomDecorator: "A custom transition paired with a custom createDecorator layer."
+        }
       }
     }
   },
@@ -232,6 +289,63 @@ export const dict = {
         close: "닫기",
         more: "더보기",
         back: "뒤로"
+      },
+      devPanel: {
+        transition: {
+          eyebrow: "화면 전환",
+          title: "내비게이션마다 전환 구성",
+          description:
+            "기본적으로 각 push는 상황에 맞는 전환을 써요 — 깊이 탐색은 cupertino, 플레이어는 material. 아래 칩을 눌러 모든 push를 한 전환으로 강제해 비교하고, 다시 누르면 상황별 기본값으로 돌아가요.",
+          noOverride: "오버라이드 없음 — 각 push가 자체 전환을 선택해요.",
+          overridePrefix: "오버라이드 적용 중 — "
+        },
+        sharedBars: {
+          title: "여러 화면에 바 고정",
+          description:
+            "공유 바는 push 사이에도 마운트된 채 유지돼 다시 애니메이션되지 않아요. 네비게이션 바(미니플레이어+탭)는 보관함·검색·앨범에 걸쳐 있고, 앱 바는 보관함에만 공유돼요. 각각 토글한 뒤 아래 실시간 presence를 확인하세요.",
+          navName: "공유 네비게이션 바",
+          navOn: "네비게이션 바 · 표시",
+          navOff: "네비게이션 바 · 숨김",
+          appName: "공유 앱 바",
+          appOn: "앱 바 · 표시",
+          appOff: "앱 바 · 숨김",
+          mountedNow: "현재 마운트됨",
+          noScreen: "아직 마운트된 화면이 없어요."
+        },
+        navigation: {
+          eyebrow: "내비게이션 거리",
+          title: "한 번의 전환으로 top 너머 도달",
+          description:
+            "pop / replace / push 모두 거리를 받아요 — { skip } 화면 수 또는 { until } 라우트. 건너뛴 화면은 한 프레임도 그려지지 않고 제거돼요. 스택을 쌓은 뒤 여러 화면을 한 번에 거슬러 올라가며 깊이가 깜빡임 없이 줄어드는 걸 보세요.",
+          stackDepth: "스택 깊이",
+          seed: "깊은 스택 쌓기",
+          reachBack: "거슬러 올라가기",
+          seedFirst: "(먼저 쌓기)"
+        },
+        performance: {
+          eyebrow: "성능",
+          title: "도착 화면 스트레스 테스트",
+          description:
+            "합성 heavy 화면을 미리보기에 push해 부하 속에서 flemo가 전환을 어떻게 버티는지 느껴보세요. cpuMs는 렌더에서 바쁜 대기를, nodes는 트리 크기를 키워요."
+        },
+        inspector: {
+          eyebrow: "라이브 인스펙터",
+          title: "지금 flemo가 하는 일",
+          description:
+            "flemo 스토어를 읽기 전용으로 들여다봐요 — history 스택, 상태 머신을 따라 움직이는 내비게이션 상태, 그리고 어떤 마운트된 화면이 어떤 공유 바를 등록했는지. 미리보기를 조작하며 실시간으로 갱신되는 걸 보세요.",
+          status: "상태",
+          historyStack: "History 스택 (top 먼저)",
+          sharedBars: "화면별 공유 바",
+          emptyStack: "빈 스택."
+        },
+        group: {
+          builtIn: "내장",
+          custom: "커스텀",
+          customDecorator: "커스텀 + 데코레이터",
+          captionBuiltIn: "모든 push를 한 프리셋으로 강제.",
+          captionCustom: "이 playground에서 정의, @flemo/core 아님.",
+          captionCustomDecorator: "커스텀 전환 + 커스텀 createDecorator 레이어 조합."
+        }
       }
     }
   }

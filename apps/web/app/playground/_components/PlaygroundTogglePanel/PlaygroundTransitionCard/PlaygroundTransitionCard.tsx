@@ -1,5 +1,6 @@
 "use client";
 
+import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
 import usePlaygroundSettingsStore from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
 import PlaygroundCodePeek from "../PlaygroundCodePeek";
@@ -19,25 +20,20 @@ function PlaygroundTransitionCard() {
   const setPushTransitionOverride = usePlaygroundSettingsStore(
     (state) => state.setPushTransitionOverride
   );
+  const t = usePlaygroundDict().devPanel.transition;
 
   const active = transitionOptions.find((option) => option.value === pushTransitionOverride);
 
   return (
     <PlaygroundToggleCard>
-      <PlaygroundToggleCardHeader
-        eyebrow="Screen transition"
-        title="Compose transitions per navigation"
-        description="By default each push uses the transition that fits its affordance — cupertino for browse-deeper hops, material for the player. Pick a chip below to force every push to one transition for comparison; tap it again to drop back to the per-context defaults."
-      />
+      <PlaygroundToggleCardHeader eyebrow={t.eyebrow} title={t.title} description={t.description} />
       <PlaygroundTransitionPicker
         groups={transitionGroups}
         value={pushTransitionOverride}
         onChange={setPushTransitionOverride}
       />
       <p className="text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
-        {active
-          ? `Override active — ${active.summary}`
-          : "No override — each push site picks its own transition inline."}
+        {active ? `${t.overridePrefix}${active.summary}` : t.noOverride}
       </p>
       <PlaygroundCodePeek code={active ? active.code : naturalPushCode} />
     </PlaygroundToggleCard>

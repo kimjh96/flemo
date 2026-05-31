@@ -184,17 +184,14 @@ navigate.push("/now-playing", undefined, { transitionName: "material" });`;
 export const transitionGroups: ReadonlyArray<TransitionGroup> = [
   {
     kind: "Built-in",
-    caption: "Force one preset for every push.",
     options: [cupertino, material, none]
   },
   {
     kind: "Custom",
-    caption: "Defined in this playground, not in @flemo/core.",
     options: [blur, zoom, cardStack, reveal, spring]
   },
   {
     kind: "Custom + decorator",
-    caption: "A custom transition paired with a custom createDecorator layer.",
     options: [ripple, dive]
   }
 ];

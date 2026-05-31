@@ -1,8 +1,13 @@
 "use client";
 
+import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
 import type { PushTransitionOverride } from "@/app/playground/_stores/usePlaygroundSettingsStore";
 
-import type { TransitionGroup, TransitionOption } from "../PlaygroundTogglePanel.types";
+import type {
+  TransitionGroup,
+  TransitionGroupKind,
+  TransitionOption
+} from "../PlaygroundTogglePanel.types";
 
 export interface PlaygroundTransitionPickerProps {
   groups: ReadonlyArray<TransitionGroup>;
@@ -11,20 +16,32 @@ export interface PlaygroundTransitionPickerProps {
 }
 
 function PlaygroundTransitionPicker({ groups, value, onChange }: PlaygroundTransitionPickerProps) {
+  const group = usePlaygroundDict().devPanel.group;
+  const kindLabel: Record<TransitionGroupKind, string> = {
+    "Built-in": group.builtIn,
+    Custom: group.custom,
+    "Custom + decorator": group.customDecorator
+  };
+  const kindCaption: Record<TransitionGroupKind, string> = {
+    "Built-in": group.captionBuiltIn,
+    Custom: group.captionCustom,
+    "Custom + decorator": group.captionCustomDecorator
+  };
+
   return (
     <div className="flex flex-col gap-4" role="radiogroup" aria-label="Push transition override">
-      {groups.map((group) => (
-        <div key={group.kind} className="flex flex-col gap-2">
+      {groups.map((transitionGroup) => (
+        <div key={transitionGroup.kind} className="flex flex-col gap-2">
           <div className="flex items-baseline gap-2">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-              {group.kind}
+              {kindLabel[transitionGroup.kind]}
             </span>
             <span className="text-[11px] leading-snug text-[var(--color-ink-mute)]">
-              {group.caption}
+              {kindCaption[transitionGroup.kind]}
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {group.options.map((option) => (
+            {transitionGroup.options.map((option) => (
               <Chip
                 key={option.value}
                 option={option}

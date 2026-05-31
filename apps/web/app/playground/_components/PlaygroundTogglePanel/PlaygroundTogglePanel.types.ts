@@ -12,6 +12,5 @@ export interface TransitionOption {
 
 export interface TransitionGroup {
   kind: TransitionGroupKind;
-  caption: string;
   options: ReadonlyArray<TransitionOption>;
 }

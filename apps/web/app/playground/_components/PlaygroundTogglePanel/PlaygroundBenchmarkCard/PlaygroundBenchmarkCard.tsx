@@ -2,6 +2,8 @@
 
 import { useNavigate } from "@flemo/react";
 
+import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
+
 import PlaygroundToggleCard from "../PlaygroundToggleCard";
 import PlaygroundToggleCardHeader from "../PlaygroundToggleCardHeader";
 
@@ -33,6 +35,7 @@ const buttonClassName =
 
 function PlaygroundBenchmarkCard() {
   const navigate = useNavigate();
+  const t = usePlaygroundDict().devPanel.performance;
 
   const handlePush = (cpuMs: number, nodes: number) =>
     navigate.push(
@@ -43,11 +46,7 @@ function PlaygroundBenchmarkCard() {
 
   return (
     <PlaygroundToggleCard>
-      <PlaygroundToggleCardHeader
-        eyebrow="Performance"
-        title="Stress-test arrival screens"
-        description="Push a synthetic heavy screen into the preview to feel how flemo holds the transition under load. cpuMs busy-waits in render; nodes inflates the tree."
-      />
+      <PlaygroundToggleCardHeader eyebrow={t.eyebrow} title={t.title} description={t.description} />
       <div data-testid="perf-scenarios" className="flex flex-wrap gap-2">
         {scenarios.map(({ label, cpuMs, nodes }) => (
           <button

@@ -7,6 +7,8 @@
 import { useHistoryStore, useNavigateStore } from "@flemo/core";
 import { useScreenStore } from "@flemo/react";
 
+import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
+
 import PlaygroundKeyValueList, { type KeyValueRow } from "../PlaygroundKeyValueList";
 import PlaygroundStatusBadge from "../PlaygroundStatusBadge";
 import PlaygroundToggleCard from "../PlaygroundToggleCard";
@@ -20,6 +22,8 @@ function PlaygroundInspectorCard() {
   const index = useHistoryStore((state) => state.index);
   const status = useNavigateStore((state) => state.status);
   const sharedBars = useScreenStore((state) => state.sharedBars);
+  const dict = usePlaygroundDict().devPanel;
+  const t = dict.inspector;
 
   // Top of the stack first, so the active screen reads at the top.
   const stackRows: KeyValueRow[] = histories
@@ -40,31 +44,27 @@ function PlaygroundInspectorCard() {
 
   return (
     <PlaygroundToggleCard>
-      <PlaygroundToggleCardHeader
-        eyebrow="Live inspector"
-        title="What flemo is doing, right now"
-        description="A read-only window into flemo's stores — the history stack, the navigation status as it moves through its state machine, and which mounted screens registered which shared bars. Navigate the preview and watch it update live."
-      />
+      <PlaygroundToggleCardHeader eyebrow={t.eyebrow} title={t.title} description={t.description} />
 
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-          Status
+          {t.status}
         </span>
         <PlaygroundStatusBadge status={status} />
       </div>
 
       <div className="flex flex-col gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-          History stack (top first)
+          {t.historyStack}
         </span>
-        <PlaygroundKeyValueList rows={stackRows} empty="Empty stack." />
+        <PlaygroundKeyValueList rows={stackRows} empty={t.emptyStack} />
       </div>
 
       <div className="flex flex-col gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-          Shared bars by screen
+          {t.sharedBars}
         </span>
-        <PlaygroundKeyValueList rows={presenceRows} empty="No screen mounted yet." />
+        <PlaygroundKeyValueList rows={presenceRows} empty={dict.sharedBars.noScreen} />
       </div>
     </PlaygroundToggleCard>
   );

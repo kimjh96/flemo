@@ -3,6 +3,8 @@
 import { useHistoryStore } from "@flemo/core";
 import { useNavigate } from "@flemo/react";
 
+import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
+
 import PlaygroundToggleCard from "../PlaygroundToggleCard";
 import PlaygroundToggleCardHeader from "../PlaygroundToggleCardHeader";
 
@@ -19,6 +21,7 @@ const buttonClassName =
 function PlaygroundNavigationCard() {
   const navigate = useNavigate();
   const depth = useHistoryStore((state) => state.histories.length);
+  const t = usePlaygroundDict().devPanel.navigation;
 
   const canPopOne = depth >= 2;
   const canSkipTwo = depth >= 3;
@@ -45,15 +48,11 @@ function PlaygroundNavigationCard() {
 
   return (
     <PlaygroundToggleCard>
-      <PlaygroundToggleCardHeader
-        eyebrow="Navigation distance"
-        title="Reach past the top in one transition"
-        description="pop / replace / push all take a distance — { skip } screens or { until } a route. The screens skipped over are removed without ever painting, so you never see them flash. Seed a stack, then reach back several screens at once and watch the depth jump with no flicker."
-      />
+      <PlaygroundToggleCardHeader eyebrow={t.eyebrow} title={t.title} description={t.description} />
 
       <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-layer)] px-3 py-2">
         <span className="text-[12px] font-medium text-[var(--color-text-secondary)]">
-          Stack depth
+          {t.stackDepth}
         </span>
         <span
           data-testid="nav-demo-depth"
@@ -70,7 +69,7 @@ function PlaygroundNavigationCard() {
           onClick={handleSeed}
           className={buttonClassName}
         >
-          Seed deep stack
+          {t.seed}
         </button>
         <button
           type="button"
@@ -84,7 +83,7 @@ function PlaygroundNavigationCard() {
 
       <div className="flex flex-col gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
-          Reach back {canSkipTwo ? "" : "(seed first)"}
+          {t.reachBack} {canSkipTwo ? "" : t.seedFirst}
         </span>
         <div className="flex flex-wrap gap-2">
           <button
