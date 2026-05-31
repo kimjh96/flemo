@@ -160,15 +160,13 @@ export const dict = {
         sharedBars: {
           title: "Pin bars across screens",
           description:
-            "A shared bar stays mounted across pushes so it never re-animates. The nav bar (mini-player + tabs) spans Library, Search and Album; the app bar is shared only on Library. Toggle each, then watch the live presence below.",
+            "A shared bar stays mounted across pushes so it never re-animates. The nav bar (mini-player + tabs) spans Library, Search and Album; the app bar is shared only on Library. Toggle each and watch the bars appear or vanish in the preview; the Live inspector below shows which screens registered which bar.",
           navName: "Shared navigation bar",
           navOn: "Navigation bar · visible",
           navOff: "Navigation bar · hidden",
           appName: "Shared app bar",
           appOn: "App bar · visible",
-          appOff: "App bar · hidden",
-          mountedNow: "Mounted now",
-          noScreen: "No screen mounted yet."
+          appOff: "App bar · hidden"
         },
         navigation: {
           title: "Reach past the top in one transition",
@@ -191,7 +189,8 @@ export const dict = {
           status: "Status",
           historyStack: "History stack (top first)",
           sharedBars: "Shared bars by screen",
-          emptyStack: "Empty stack."
+          emptyStack: "Empty stack.",
+          noScreen: "No screen mounted yet."
         },
         group: {
           builtIn: "Built-in",
@@ -337,15 +336,13 @@ export const dict = {
         sharedBars: {
           title: "여러 화면에 바 고정",
           description:
-            "공유 바는 push 사이에도 마운트된 채 유지돼 다시 애니메이션되지 않아요. 내비게이션 바(미니플레이어+탭)는 보관함·검색·앨범에 걸쳐 있고, 앱 바는 보관함에만 공유돼요. 각각 토글한 뒤 아래 실시간 presence를 확인하세요.",
+            "공유 바는 push 사이에도 마운트된 채 유지돼 다시 애니메이션되지 않아요. 내비게이션 바(미니플레이어+탭)는 보관함·검색·앨범에 걸쳐 있고, 앱 바는 보관함에만 공유돼요. 각각 토글해 미리보기에서 바가 나타나거나 사라지는 걸 확인하고, 어떤 화면이 어떤 바를 등록했는지는 아래 Live inspector에서 보세요.",
           navName: "공유 내비게이션 바",
           navOn: "내비게이션 바 · 표시",
           navOff: "내비게이션 바 · 숨김",
           appName: "공유 앱 바",
           appOn: "앱 바 · 표시",
-          appOff: "앱 바 · 숨김",
-          mountedNow: "현재 마운트됨",
-          noScreen: "아직 마운트된 화면이 없어요."
+          appOff: "앱 바 · 숨김"
         },
         navigation: {
           title: "한 번의 전환으로 여러 화면 건너뛰기",
@@ -368,7 +365,8 @@ export const dict = {
           status: "상태",
           historyStack: "History 스택 (맨 위부터)",
           sharedBars: "화면별 공유 바",
-          emptyStack: "빈 스택."
+          emptyStack: "빈 스택.",
+          noScreen: "아직 마운트된 화면이 없어요."
         },
         group: {
           builtIn: "내장",

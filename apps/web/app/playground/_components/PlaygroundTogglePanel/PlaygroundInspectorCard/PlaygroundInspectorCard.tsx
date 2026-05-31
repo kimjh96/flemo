@@ -22,8 +22,7 @@ function PlaygroundInspectorCard() {
   const index = useHistoryStore((state) => state.index);
   const status = useNavigateStore((state) => state.status);
   const sharedBars = useScreenStore((state) => state.sharedBars);
-  const dict = usePlaygroundDict().devPanel;
-  const t = dict.inspector;
+  const t = usePlaygroundDict().devPanel.inspector;
 
   // Top of the stack first, so the active screen reads at the top.
   const stackRows: KeyValueRow[] = histories
@@ -68,7 +67,7 @@ function PlaygroundInspectorCard() {
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
           {t.sharedBars}
         </span>
-        <PlaygroundKeyValueList rows={presenceRows} empty={dict.sharedBars.noScreen} />
+        <PlaygroundKeyValueList rows={presenceRows} empty={t.noScreen} />
       </div>
     </PlaygroundToggleCard>
   );
