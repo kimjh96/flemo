@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import LanguageToggle from "@/components/LanguageToggle";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import { i18n } from "@/lib/i18n";
@@ -15,10 +16,6 @@ function HomeHeader({ lang }: HomeHeaderProps) {
   const docsHref = lang === i18n.defaultLanguage ? "/docs" : `/${lang}/docs`;
   const playgroundHref = `/playground?lang=${lang}`;
   const showcaseHref = lang === i18n.defaultLanguage ? "/showcase" : `/${lang}/showcase`;
-  const otherLang = lang === "ko" ? "en" : "ko";
-  const otherHref = otherLang === i18n.defaultLanguage ? "/" : `/${otherLang}`;
-  // The language toggle shows the language you'd switch to, so it stays localized.
-  const otherLabel = otherLang === "ko" ? "한국어" : "English";
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-[var(--color-bg)]/85 backdrop-blur-md">
@@ -58,12 +55,7 @@ function HomeHeader({ lang }: HomeHeaderProps) {
             GitHub
           </Link>
           <ThemeToggle />
-          <Link
-            href={otherHref}
-            className="ml-1 rounded-full bg-[var(--color-neutral-200)] px-3 py-2 text-[13px] font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-neutral-300)]"
-          >
-            {otherLabel}
-          </Link>
+          <LanguageToggle lang={lang} />
         </nav>
       </div>
     </header>

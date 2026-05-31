@@ -27,6 +27,8 @@ export default async function ShowcasePage({ params }: PageProps<"/[lang]/showca
                 description={copy.description}
                 flemoUsageLabel={t.flemoUsageLabel}
                 flemoUsage={copy.flemoUsage}
+                languagesLabel={t.languagesLabel}
+                languages={app.languages.map((code) => t.languageNames[code])}
                 logo={app.logo}
                 screenshots={app.screenshots.map((src, index) => ({
                   src,

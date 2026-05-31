@@ -11,6 +11,8 @@ export interface ShowcaseAppCardProps {
   description: string;
   flemoUsageLabel: string;
   flemoUsage: string;
+  languagesLabel: string;
+  languages: string[];
   logo: string;
   screenshots: { src: string; alt: string }[];
   appStore?: StoreLink;
@@ -23,6 +25,8 @@ export default function ShowcaseAppCard({
   description,
   flemoUsageLabel,
   flemoUsage,
+  languagesLabel,
+  languages,
   logo,
   screenshots,
   appStore,
@@ -50,6 +54,19 @@ export default function ShowcaseAppCard({
         <p className="text-[15px] leading-[1.7] text-[var(--color-text-secondary)]">
           {description}
         </p>
+
+        {languages.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[13px] font-semibold text-[var(--color-text-primary)]">
+              {languagesLabel}
+            </span>
+            {languages.map((language) => (
+              <span key={language} className="chip">
+                {language}
+              </span>
+            ))}
+          </div>
+        )}
 
         <div>
           <span className="kicker">{flemoUsageLabel}</span>

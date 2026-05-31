@@ -104,6 +104,8 @@ export const dict = {
       title: "Built with flemo",
       subtitle: "Real apps shipping flemo in production — not demos.",
       flemoUsageLabel: "How it uses flemo",
+      languagesLabel: "Languages",
+      languageNames: { ko: "Korean" },
       appStore: "App Store",
       playStore: "Google Play",
       apps: {
@@ -297,11 +299,13 @@ export const dict = {
       title: "flemo로 만든 앱",
       subtitle: "데모가 아니라, flemo를 프로덕션에 출시한 실제 앱들이에요.",
       flemoUsageLabel: "flemo를 어떻게 쓰나요",
+      languagesLabel: "지원 언어",
+      languageNames: { ko: "한국어" },
       appStore: "App Store",
       playStore: "Google Play",
       apps: {
         shiflo: {
-          name: "shiflo",
+          name: "시플로",
           tagline: "근무와 일정을 한 번에",
           description:
             "교대 근무자가 근무 일정과 개인 일정을 한 곳에서 관리하도록 돕는 일정 앱이에요 — 월 단위 달력, 주 단위 타임라인, 목록 보기, 근무 패턴 템플릿, 홈 화면 위젯, 그리고 완전한 다크 테마까지.",
@@ -418,6 +422,8 @@ export const dict = {
 export type Lang = keyof typeof dict;
 
 export type ShowcaseAppId = keyof typeof dict.en.showcase.apps;
+
+export type ShowcaseLanguageCode = keyof typeof dict.en.showcase.languageNames;
 
 export function getDict(lang: string): (typeof dict)[Lang] {
   return (dict as Record<string, (typeof dict)[Lang]>)[lang] ?? dict.en;
