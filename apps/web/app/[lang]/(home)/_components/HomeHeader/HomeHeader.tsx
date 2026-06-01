@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import HomeNavMenu, { type HomeNavLink } from "./HomeNavMenu";
 import LanguageToggle from "@/components/LanguageToggle";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -17,6 +18,13 @@ function HomeHeader({ lang }: HomeHeaderProps) {
   const playgroundHref = `/playground?lang=${lang}`;
   const showcaseHref = lang === i18n.defaultLanguage ? "/showcase" : `/${lang}/showcase`;
 
+  const links: HomeNavLink[] = [
+    { text: "Docs", href: docsHref },
+    { text: "Playground", href: playgroundHref },
+    { text: "Showcase", href: showcaseHref },
+    { text: "GitHub", href: GITHUB_URL, external: true }
+  ];
+
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-[var(--color-bg)]/85 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between px-6">
@@ -28,34 +36,22 @@ function HomeHeader({ lang }: HomeHeaderProps) {
           <span>flemo</span>
         </Link>
         <nav className="flex items-center gap-1">
-          <Link
-            href={docsHref}
-            className="rounded-full px-3 py-2 text-[14px] font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
-          >
-            Docs
-          </Link>
-          <Link
-            href={playgroundHref}
-            className="rounded-full px-3 py-2 text-[14px] font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
-          >
-            Playground
-          </Link>
-          <Link
-            href={showcaseHref}
-            className="rounded-full px-3 py-2 text-[14px] font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
-          >
-            Showcase
-          </Link>
-          <Link
-            href={GITHUB_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-full px-3 py-2 text-[14px] font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
-          >
-            GitHub
-          </Link>
+          <div className="hidden items-center gap-1 md:flex">
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                target={link.external ? "_blank" : undefined}
+                rel={link.external ? "noreferrer" : undefined}
+                className="rounded-full px-3 py-2 text-[14px] font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+              >
+                {link.text}
+              </Link>
+            ))}
+          </div>
           <ThemeToggle />
           <LanguageToggle lang={lang} />
+          <HomeNavMenu links={links} />
         </nav>
       </div>
     </header>
