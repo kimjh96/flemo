@@ -1,5 +1,12 @@
 # @flemo/web
 
+## 0.6.1
+
+### Patch Changes
+
+- [`49288b9`](https://github.com/kimjh96/flemo/commit/49288b91458a5e5396ee044b8f9bfa28f9b3087b) Fix the landing/showcase header overflowing on mobile. Nav links now collapse
+  into a hamburger menu below the `md` breakpoint instead of overlapping the logo.
+
 ## 0.6.0
 
 ### Minor Changes
