@@ -1,10 +1,11 @@
-import { Children, useEffect, type PropsWithChildren, type ReactElement } from "react";
+import { Children, useEffect, useState, type PropsWithChildren, type ReactElement } from "react";
 
 import {
+  createHistoryStore,
+  createNavigateStore,
+  createTransitionStore,
   getParams,
   isServer,
-  useHistoryStore,
-  useTransitionStore,
   type Decorator,
   type Transition,
   type TransitionName
@@ -14,7 +15,11 @@ import HistoryListener from "@history/HistoryListener";
 
 import Renderer from "@renderer/Renderer";
 
+import createScreenStore from "@screen/store";
+
 import useTransitionStyles from "@transition/styles";
+
+import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 
 import type { RouteProps } from "@Route";
 
@@ -38,27 +43,35 @@ function Router({
   const pathname = isServer() ? initPath || "/" : window.location.pathname;
   const search = isServer() ? pathname.split("?")[1] || "" : window.location.search;
 
-  useTransitionStore.setState({
-    defaultTransitionName
-  });
-  useHistoryStore.setState({
-    index: 0,
-    histories: [
-      {
-        id: "root",
-        pathname,
-        params: getParams(
-          Children.toArray(children)
-            .map((child) => (child as ReactElement<RouteProps>).props.path)
-            .flat(),
+  // Create the request-scoped stores once per mount, seeding history with the root frame derived
+  // from initPath. Because the seed is the store's *initial* state, zustand hands it to React as
+  // the SSR snapshot — so the screen renders on the server and each request keeps its own stack.
+  const [stores] = useState<FlemoStores>(() => ({
+    history: createHistoryStore(
+      [
+        {
+          id: "root",
           pathname,
-          search
-        ),
-        transitionName: defaultTransitionName,
-        layoutId: null
-      }
-    ]
-  });
+          params: getParams(
+            Children.toArray(children)
+              .map((child) => (child as ReactElement<RouteProps>).props.path)
+              .flat(),
+            pathname,
+            search
+          ),
+          transitionName: defaultTransitionName,
+          layoutId: null
+        }
+      ],
+      0
+    ),
+    navigate: createNavigateStore(),
+    transition: createTransitionStore(defaultTransitionName),
+    screen: createScreenStore()
+  }));
+
+  // Keep the seeded default in sync if the prop changes across renders.
+  stores.transition.setState({ defaultTransitionName });
 
   // Registers user-provided transitions/decorators with the global maps and
   // injects the compiled CSS keyframes into the document head. Runs in
@@ -83,10 +96,10 @@ function Router({
   }, [defaultTransitionName]);
 
   return (
-    <>
+    <StoreContext.Provider value={stores}>
       <HistoryListener />
       <Renderer>{children}</Renderer>
-    </>
+    </StoreContext.Provider>
   );
 }
 

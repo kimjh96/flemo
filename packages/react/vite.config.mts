@@ -22,6 +22,7 @@ export default defineConfig({
       "navigate",
       "renderer",
       "screen",
+      "stores",
       "transition",
       "utils",
       "Route",

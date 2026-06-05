@@ -2,17 +2,31 @@
 export { default as TaskManger } from "@core/TaskManger";
 
 // History
-export { default as useHistoryStore, type History } from "@history/store";
+export {
+  default as createHistoryStore,
+  type History,
+  type HistoryStore,
+  type HistoryStoreApi
+} from "@history/store";
 
 // Navigation state
-export { default as useNavigateStore, type NavigateStatus } from "@navigate/store";
+export {
+  default as createNavigateStore,
+  type NavigateStatus,
+  type NavigateStore,
+  type NavigateStoreApi
+} from "@navigate/store";
 export { markSelfInducedPop, consumeSelfInducedPop } from "@navigate/selfPopGuard";
 
 // Transition primitives
 export { default as createTransition } from "@transition/createTransition";
 export { default as createRawTransition } from "@transition/createRawTransition";
 export { transitionMap } from "@transition/transition";
-export { default as useTransitionStore } from "@transition/store";
+export {
+  default as createTransitionStore,
+  type TransitionStore,
+  type TransitionStoreApi
+} from "@transition/store";
 
 // Decorator primitives
 export { default as createDecorator } from "@transition/decorator/createDecorator";

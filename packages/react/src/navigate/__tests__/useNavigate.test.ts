@@ -1,9 +1,13 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TaskManger, useHistoryStore, useNavigateStore } from "@flemo/core";
+import { TaskManger } from "@flemo/core";
 
 import useNavigate from "@navigate/useNavigate";
+
+import { createTestStores, storesWrapper } from "@stores/__tests__/testUtils";
+
+import type { FlemoStores } from "@stores/StoreContext";
 
 declare module "@Route" {
   interface RegisterRoute {
@@ -35,9 +39,13 @@ const startManualGateSweeper = () => {
   };
 };
 
+let stores: FlemoStores;
+let wrapper: ReturnType<typeof storesWrapper>;
+
 const resetStores = () => {
-  useHistoryStore.setState({ index: -1, histories: [] });
-  useNavigateStore.setState({ status: "IDLE", transitionTaskId: null });
+  // Fresh request-scoped stores per test, provided to the hook via `wrapper`.
+  stores = createTestStores();
+  wrapper = storesWrapper(stores);
   // Bring window.history back to a known origin so pushState/back don't
   // confuse subsequent tests.
   while (window.history.length > 1) {
@@ -59,20 +67,20 @@ describe("useNavigate — push", () => {
   });
 
   it("adds a history entry, sets COMPLETED, and reflects the pathname in window.location", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(0);
     expect(histories.length).toBe(1);
     expect(histories[0]!.pathname).toBe("/a");
-    expect(useNavigateStore.getState().status).toBe("COMPLETED");
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
     expect(window.location.pathname).toBe("/a");
   });
 
   it("serializes back-to-back pushes in FIFO order", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await Promise.all([
       result.current.push("/a"),
@@ -80,24 +88,24 @@ describe("useNavigate — push", () => {
       result.current.push("/c")
     ]);
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(2);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b", "/c"]);
   });
 
   it("ignores a new push while the previous one hasn't reached COMPLETED", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     // Halt the sweeper for this case so the first push stays in PUSHING.
     await stopSweeper();
-    useNavigateStore.setState({ status: "PUSHING", transitionTaskId: "stuck" });
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: "stuck" });
 
     await result.current.push("/a");
-    const { histories } = useHistoryStore.getState();
+    const { histories } = stores.history.getState();
     expect(histories.length).toBe(0);
 
     // Restart sweeper so the afterEach teardown is consistent.
-    useNavigateStore.setState({ status: "COMPLETED", transitionTaskId: null });
+    stores.navigate.setState({ status: "COMPLETED", transitionTaskId: null });
     stopSweeper = startManualGateSweeper();
   });
 });
@@ -113,26 +121,26 @@ describe("useNavigate — replace", () => {
   });
 
   it("swaps the current entry: push /a then replace /b leaves [/b] at index 0", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.replace("/b");
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(0);
     expect(histories.map((h) => h.pathname)).toEqual(["/b"]);
-    expect(useNavigateStore.getState().status).toBe("COMPLETED");
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
     expect(window.location.pathname).toBe("/b");
   });
 
   it("serializes a push → replace → replace chain in FIFO order", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.replace("/b");
     await result.current.replace("/c");
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(0);
     expect(histories.map((h) => h.pathname)).toEqual(["/c"]);
   });
@@ -149,30 +157,30 @@ describe("useNavigate — pop", () => {
   });
 
   it("is a no-op when there's nothing below the root", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.pop();
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(-1);
     expect(histories).toEqual([]);
   });
 
   it("removes the top entry and decrements the index", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b");
     await result.current.pop();
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(0);
     expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
-    expect(useNavigateStore.getState().status).toBe("COMPLETED");
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
   });
 
   it("pop({ skip: 2 }) skips one screen, landing two entries back in one transition", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b");
@@ -180,14 +188,14 @@ describe("useNavigate — pop", () => {
     await result.current.push("/c-prime"); // [a, b, c, c-prime] idx=3
     await result.current.pop({ skip: 2 });
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(1);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b"]);
-    expect(useNavigateStore.getState().status).toBe("COMPLETED");
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
   });
 
   it("pop({ skip: 3 }) lands three entries back", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b");
@@ -195,45 +203,45 @@ describe("useNavigate — pop", () => {
     await result.current.push("/c-prime"); // [a, b, c, c-prime] idx=3
     await result.current.pop({ skip: 3 });
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(0);
     expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
   });
 
   it("clamps to the root when skip exceeds the available depth", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b");
     await result.current.push("/c"); // [a, b, c] idx=2
     await result.current.pop({ skip: 99 });
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(0);
     expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
   });
 
   it("pop({ skip: 1 }) matches the single-step pop", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b");
     await result.current.pop({ skip: 1 });
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(0);
     expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
   });
 
   it("pop({ skip: 0 }) and negative skips are no-ops", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b"); // [a, b] idx=1
     await result.current.pop({ skip: 0 });
     await result.current.pop({ skip: -2 });
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(1);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b"]);
   });
@@ -250,7 +258,7 @@ describe("useNavigate — pop({ until })", () => {
   });
 
   it("pops back to the nearest screen matching the route pattern", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/album/:id", { id: "1" });
@@ -259,14 +267,14 @@ describe("useNavigate — pop({ until })", () => {
 
     await result.current.pop({ until: "/album/:id" });
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(1);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/album/1"]);
-    expect(useNavigateStore.getState().status).toBe("COMPLETED");
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
   });
 
   it("resolves to the closest match when several screens share the pattern", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/album/:id", { id: "1" });
     await result.current.push("/album/:id", { id: "2" });
@@ -275,13 +283,13 @@ describe("useNavigate — pop({ until })", () => {
     await result.current.pop({ until: "/album/:id" });
 
     // The nearer album (/album/2) wins, not the deeper /album/1.
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(1);
     expect(histories.map((h) => h.pathname)).toEqual(["/album/1", "/album/2"]);
   });
 
   it("never targets the current top, even if it matches the pattern", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/album/:id", { id: "1" });
     await result.current.push("/b");
@@ -290,20 +298,20 @@ describe("useNavigate — pop({ until })", () => {
     await result.current.pop({ until: "/album/:id" });
 
     // Skips the top album and lands on the deeper /album/1.
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(0);
     expect(histories.map((h) => h.pathname)).toEqual(["/album/1"]);
   });
 
   it("is a no-op when no screen below the top matches", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b"); // [a, b] idx=1, no album anywhere
 
     await result.current.pop({ until: "/album/:id" });
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(1);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b"]);
   });
@@ -321,14 +329,14 @@ describe("useNavigate — pop({ transitionName })", () => {
   });
 
   it("relabels the leaving top's transition before the pop, then lands correctly", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b");
     await result.current.push("/c");
     await result.current.push("/c-prime"); // [a, b, c, c-prime] idx=3
 
-    const setSpy = vi.spyOn(useHistoryStore.getState(), "setTransitionName");
+    const setSpy = vi.spyOn(stores.history.getState(), "setTransitionName");
     await result.current.pop({ until: "/a", transitionName: "material" });
 
     // The override is stamped on the current top (idx 3, the leaving screen)
@@ -336,32 +344,32 @@ describe("useNavigate — pop({ transitionName })", () => {
     // from the first frame instead of the leaving screen's own transition.
     expect(setSpy).toHaveBeenCalledWith(3, "material");
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(0);
     expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
   });
 
   it("works with skip too", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b");
     await result.current.push("/c"); // [a, b, c] idx=2
 
-    const setSpy = vi.spyOn(useHistoryStore.getState(), "setTransitionName");
+    const setSpy = vi.spyOn(stores.history.getState(), "setTransitionName");
     await result.current.pop({ skip: 2, transitionName: "cupertino" });
 
     expect(setSpy).toHaveBeenCalledWith(2, "cupertino");
-    expect(useHistoryStore.getState().histories.map((h) => h.pathname)).toEqual(["/a"]);
+    expect(stores.history.getState().histories.map((h) => h.pathname)).toEqual(["/a"]);
   });
 
   it("a plain pop (no transitionName) never relabels", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b");
 
-    const setSpy = vi.spyOn(useHistoryStore.getState(), "setTransitionName");
+    const setSpy = vi.spyOn(stores.history.getState(), "setTransitionName");
     await result.current.pop();
 
     expect(setSpy).not.toHaveBeenCalled();
@@ -379,7 +387,7 @@ describe("useNavigate — replace collapse", () => {
   });
 
   it("replace({ skip: 1 }) replaces the top plus one screen below it", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b");
@@ -389,14 +397,14 @@ describe("useNavigate — replace collapse", () => {
     await result.current.replace("/album/:id", { id: "9" }, { skip: 1 });
 
     // reaches 1 below the top (c); c + c-prime collapse into the new album.
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(2);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b", "/album/9"]);
-    expect(useNavigateStore.getState().status).toBe("COMPLETED");
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
   });
 
   it("replace({ skip: 2 }) reaches two below the top and replaces it plus above", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b");
@@ -406,14 +414,14 @@ describe("useNavigate — replace collapse", () => {
     await result.current.replace("/album/:id", { id: "9" }, { skip: 2 });
 
     // reaches 2 below the top (b); b, c, c-prime collapse into the new album.
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(1);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/album/9"]);
-    expect(useNavigateStore.getState().status).toBe("COMPLETED");
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
   });
 
   it("clamps to the root, replacing the whole stack", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b");
@@ -421,13 +429,13 @@ describe("useNavigate — replace collapse", () => {
 
     await result.current.replace("/album/:id", { id: "9" }, { skip: 99 });
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(0);
     expect(histories.map((h) => h.pathname)).toEqual(["/album/9"]);
   });
 
   it("replace({ until }) collapses down to and including the nearest match", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/album/:id", { id: "1" });
@@ -437,33 +445,33 @@ describe("useNavigate — replace collapse", () => {
     await result.current.replace("/c-prime", {}, { until: "/album/:id" });
 
     // album/1 (the match) and everything above it collapse into /c-prime.
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(1);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/c-prime"]);
   });
 
   it("is a no-op when `until` matches nothing", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b"); // [a, b] idx=1
 
     await result.current.replace("/c", {}, { until: "/album/:id" });
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(1);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b"]);
   });
 
   it("replace without a distance option still swaps just the top", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b"); // [a, b] idx=1
 
     await result.current.replace("/c"); // single-screen replace
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(1);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/c"]);
   });
@@ -480,7 +488,7 @@ describe("useNavigate — push collapse", () => {
   });
 
   it("push({ skip }) removes the top N screens, then stacks the new one", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b");
@@ -490,14 +498,14 @@ describe("useNavigate — push collapse", () => {
     await result.current.push("/album/:id", { id: "9" }, { skip: 2 });
 
     // c and c-prime are removed; the new album stacks on b.
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(2);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b", "/album/9"]);
-    expect(useNavigateStore.getState().status).toBe("COMPLETED");
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
   });
 
   it("push({ until }) keeps the matched screen and stacks on top of it", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/album/:id", { id: "1" });
@@ -507,13 +515,13 @@ describe("useNavigate — push collapse", () => {
     await result.current.push("/c-prime", {}, { until: "/album/:id" });
 
     // b and c are removed; album/1 stays and /c-prime stacks on it.
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(2);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/album/1", "/c-prime"]);
   });
 
   it("push({ until }) falls back to a plain push when nothing matches", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b"); // [a, b] idx=1
@@ -521,20 +529,20 @@ describe("useNavigate — push collapse", () => {
     await result.current.push("/c", {}, { until: "/album/:id" });
 
     // no album below — the new screen just stacks on top.
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(2);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b", "/c"]);
   });
 
   it("push without a distance option still stacks normally", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b"); // [a, b] idx=1
 
     await result.current.push("/c");
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(2);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b", "/c"]);
   });
@@ -551,20 +559,20 @@ describe("useNavigate — mixed flows", () => {
   });
 
   it("push /a → push /b → replace /c → pop ends with [/a] at index 0", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await result.current.push("/a");
     await result.current.push("/b");
     await result.current.replace("/c");
     await result.current.pop();
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     expect(index).toBe(0);
     expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
   });
 
   it("concurrent fan-out of push + replace + pop drains in arrival order", async () => {
-    const { result } = renderHook(() => useNavigate());
+    const { result } = renderHook(() => useNavigate(), { wrapper });
 
     await Promise.all([
       result.current.push("/a"),
@@ -574,7 +582,7 @@ describe("useNavigate — mixed flows", () => {
       result.current.pop()
     ]);
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = stores.history.getState();
     // push a, push b, push c → [a, b, c] idx=2
     // replace c-prime → [a, b, c-prime] idx=2
     // pop → [a, b] idx=1

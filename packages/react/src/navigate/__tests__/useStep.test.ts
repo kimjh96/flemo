@@ -3,7 +3,7 @@ import { createElement, type PropsWithChildren, type ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { TaskManger, useHistoryStore, useNavigateStore } from "@flemo/core";
+import { TaskManger } from "@flemo/core";
 
 import useStep from "@navigate/useStep";
 
@@ -12,6 +12,8 @@ import ScreenContext from "@screen/ScreenContext";
 import ScreenParamsDispatchContext, {
   type ParamsDispatchContextType
 } from "@screen/ParamsProvider/ParamsDispatchContext";
+import { createTestStores } from "@stores/__tests__/testUtils";
+import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 
 // `useStep` reads the active screen's routePath from ScreenContext and the
 // params reducer from ScreenParamsDispatchContext. Provide both with a thin
@@ -32,26 +34,30 @@ interface HarnessProps extends PropsWithChildren {
 function buildHarness(routePath: string, dispatch: HarnessProps["dispatch"]) {
   function Harness({ children }: PropsWithChildren): ReactNode {
     return createElement(
-      ScreenContext.Provider,
-      {
-        value: {
-          id: "screen-1",
-          isActive: true,
-          isRoot: false,
-          isPrev: false,
-          zIndex: 0,
-          pathname: "/posts/1",
-          params: { id: "1" },
-          transitionName: "cupertino",
-          prevTransitionName: "cupertino",
-          layoutId: null,
-          routePath
-        }
-      },
+      StoreContext.Provider,
+      { value: stores },
       createElement(
-        ScreenParamsDispatchContext.Provider,
-        { value: dispatch ?? (() => undefined) },
-        children
+        ScreenContext.Provider,
+        {
+          value: {
+            id: "screen-1",
+            isActive: true,
+            isRoot: false,
+            isPrev: false,
+            zIndex: 0,
+            pathname: "/posts/1",
+            params: { id: "1" },
+            transitionName: "cupertino",
+            prevTransitionName: "cupertino",
+            layoutId: null,
+            routePath
+          }
+        },
+        createElement(
+          ScreenParamsDispatchContext.Provider,
+          { value: dispatch ?? (() => undefined) },
+          children
+        )
       )
     );
   }
@@ -65,8 +71,11 @@ const drainTaskManger = async () => {
   await TaskManger.resolveAllPending();
 };
 
+let stores: FlemoStores;
+
 const resetStores = () => {
-  useHistoryStore.setState({
+  stores = createTestStores();
+  stores.history.setState({
     index: 0,
     histories: [
       {
@@ -78,7 +87,7 @@ const resetStores = () => {
       }
     ]
   });
-  useNavigateStore.setState({ status: "COMPLETED", transitionTaskId: null });
+  stores.navigate.setState({ status: "COMPLETED", transitionTaskId: null });
   window.history.replaceState(null, "", "/posts/1");
 };
 

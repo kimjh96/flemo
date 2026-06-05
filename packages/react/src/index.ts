@@ -10,7 +10,13 @@ export { default as ScreenMotion } from "@screen/ScreenMotion";
 export { default as ScreenFreeze } from "@screen/ScreenFreeze";
 export { default as ScreenDecorator } from "@screen/ScreenDecorator";
 export { default as ScreenContext, type ScreenContextProps } from "@screen/ScreenContext";
-export { default as useScreenStore, type SharedBarPresence } from "@screen/store";
+export { default as useHistoryStore } from "@stores/useHistoryStore";
+export { default as useNavigateStore } from "@stores/useNavigateStore";
+export { default as useTransitionStore } from "@stores/useTransitionStore";
+export { default as useScreenStore } from "@stores/useScreenStore";
+export { default as useStores } from "@stores/useStores";
+export { type FlemoStores } from "@stores/StoreContext";
+export { type SharedBarPresence } from "@screen/store";
 export { default as useViewportScrollHeight } from "@screen/useViewportScrollHeight";
 
 // Framework-agnostic primitives re-exported so users importing from

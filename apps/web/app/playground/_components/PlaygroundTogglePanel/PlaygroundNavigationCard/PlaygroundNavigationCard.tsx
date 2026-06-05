@@ -1,7 +1,6 @@
 "use client";
 
-import { useHistoryStore } from "@flemo/core";
-import { useNavigate } from "@flemo/react";
+import { useHistoryStore, useNavigate, useStores } from "@flemo/react";
 
 import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
 
@@ -20,6 +19,7 @@ const buttonClassName =
 
 function PlaygroundNavigationCard() {
   const navigate = useNavigate();
+  const stores = useStores();
   const depth = useHistoryStore((state) => state.histories.length);
   const t = usePlaygroundDict().devPanel.navigation;
 
@@ -30,7 +30,7 @@ function PlaygroundNavigationCard() {
     navigate.push("/heavy/:cpuMs/:nodes", heavyParams, { transitionName: "cupertino" });
 
   const handleSeed = async () => {
-    while (useHistoryStore.getState().histories.length < SEED_DEPTH) {
+    while (stores.history.getState().histories.length < SEED_DEPTH) {
       await navigate.push("/heavy/:cpuMs/:nodes", heavyParams, { transitionName: "cupertino" });
     }
   };
