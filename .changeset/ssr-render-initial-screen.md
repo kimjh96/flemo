@@ -1,6 +1,7 @@
 ---
-"@flemo/core": major
-"@flemo/react": major
+"@flemo/core": minor
+"@flemo/react": minor
+"@flemo/react-layout": patch
 "@flemo/web": patch
 ---
 
@@ -12,8 +13,7 @@ store's initial state, zustand hands it to React as the server snapshot — so t
 screen stack paints on the server (previously the root was empty until the
 client mounted) and each concurrent request keeps its own stack.
 
-Breaking: `@flemo/core` replaces the singleton store hooks `useHistoryStore` /
-`useNavigateStore` / `useTransitionStore` with the `createHistoryStore` /
-`createNavigateStore` / `createTransitionStore` factories. The common API
-(`Router`, `Route`, `useNavigate`, `useParams`, `useScreen`, `Screen`) is
-unchanged.
+The public API (`Router`, `Route`, `useNavigate`, `useParams`, `useScreen`,
+`Screen`, `LayoutScreen`) is unchanged. Internally, `@flemo/core` now exposes the
+stores as `createHistoryStore` / `createNavigateStore` / `createTransitionStore`
+factories instead of singleton hooks.
