@@ -16,3 +16,7 @@ Breaking: `@flemo/core` now exports `createHistoryStore` / `createNavigateStore`
 React-bound `useHistoryStore` / `useNavigateStore` / `useTransitionStore` /
 `useScreenStore` from `@flemo/react` (they read the active Router's stores), or
 `useStores()` for imperative access.
+
+To read or drive the stores from outside the `<Router>` (devtools, an inspector
+panel beside the screen frame), wrap both in the new `<FlemoStoreProvider>`: the
+Router adopts the hosted bundle instead of creating its own, so siblings share it.

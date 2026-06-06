@@ -1,4 +1,11 @@
-import { Children, useEffect, useState, type PropsWithChildren, type ReactElement } from "react";
+import {
+  Children,
+  useContext,
+  useEffect,
+  useState,
+  type PropsWithChildren,
+  type ReactElement
+} from "react";
 
 import {
   createHistoryStore,
@@ -43,32 +50,45 @@ function Router({
   const pathname = isServer() ? initPath || "/" : window.location.pathname;
   const search = isServer() ? pathname.split("?")[1] || "" : window.location.search;
 
+  // A <FlemoStoreProvider> above the Router hosts the bundle so siblings outside the Router (an
+  // inspector/devtools panel) can read it. Adopt it when present; otherwise own the bundle here.
+  const hostedStores = useContext(StoreContext);
+
   // Create the request-scoped stores once per mount, seeding history with the root frame derived
   // from initPath. Because the seed is the store's *initial* state, zustand hands it to React as
   // the SSR snapshot — so the screen renders on the server and each request keeps its own stack.
-  const [stores] = useState<FlemoStores>(() => ({
-    history: createHistoryStore(
-      [
-        {
-          id: "root",
-          pathname,
-          params: getParams(
-            Children.toArray(children)
-              .map((child) => (child as ReactElement<RouteProps>).props.path)
-              .flat(),
-            pathname,
-            search
-          ),
-          transitionName: defaultTransitionName,
-          layoutId: null
-        }
-      ],
-      0
-    ),
-    navigate: createNavigateStore(),
-    transition: createTransitionStore(defaultTransitionName),
-    screen: createScreenStore()
-  }));
+  const [stores] = useState<FlemoStores>(() => {
+    const rootHistory = {
+      id: "root",
+      pathname,
+      params: getParams(
+        Children.toArray(children)
+          .map((child) => (child as ReactElement<RouteProps>).props.path)
+          .flat(),
+        pathname,
+        search
+      ),
+      transitionName: defaultTransitionName,
+      layoutId: null
+    };
+
+    // Hosted bundle: seed its history once (it starts empty at index -1). Seeding here rather than
+    // at creation means a hosted setup doesn't get the SSR snapshot — but the provider is for
+    // client-side devtools layouts, so that's fine.
+    if (hostedStores) {
+      if (hostedStores.history.getState().index === -1) {
+        hostedStores.history.setState({ index: 0, histories: [rootHistory] });
+      }
+      return hostedStores;
+    }
+
+    return {
+      history: createHistoryStore([rootHistory], 0),
+      navigate: createNavigateStore(),
+      transition: createTransitionStore(defaultTransitionName),
+      screen: createScreenStore()
+    };
+  });
 
   // Keep the seeded default in sync if the prop changes across renders.
   stores.transition.setState({ defaultTransitionName });

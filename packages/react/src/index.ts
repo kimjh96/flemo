@@ -15,6 +15,7 @@ export { default as useNavigateStore } from "@stores/useNavigateStore";
 export { default as useTransitionStore } from "@stores/useTransitionStore";
 export { default as useScreenStore } from "@stores/useScreenStore";
 export { default as useStores } from "@stores/useStores";
+export { default as FlemoStoreProvider } from "@stores/StoreProvider";
 export { type FlemoStores } from "@stores/StoreContext";
 export { type SharedBarPresence } from "@screen/store";
 export { default as useViewportScrollHeight } from "@screen/useViewportScrollHeight";
