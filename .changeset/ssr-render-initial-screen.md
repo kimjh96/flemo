@@ -18,5 +18,5 @@ React-bound `useHistoryStore` / `useNavigateStore` / `useTransitionStore` /
 `useStores()` for imperative access.
 
 To read or drive the stores from outside the `<Router>` (devtools, an inspector
-panel beside the screen frame), wrap both in the new `<FlemoStoreProvider>`: the
+panel beside the screen frame), wrap both in the new `<RouterScopeProvider>`: the
 Router adopts the hosted bundle instead of creating its own, so siblings share it.

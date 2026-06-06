@@ -50,7 +50,7 @@ function Router({
   const pathname = isServer() ? initPath || "/" : window.location.pathname;
   const search = isServer() ? pathname.split("?")[1] || "" : window.location.search;
 
-  // A <FlemoStoreProvider> above the Router hosts the bundle so siblings outside the Router (an
+  // A <RouterScopeProvider> above the Router hosts the bundle so siblings outside the Router (an
   // inspector/devtools panel) can read it. Adopt it when present; otherwise own the bundle here.
   const hostedStores = useContext(StoreContext);
 

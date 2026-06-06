@@ -16,7 +16,7 @@ import PlaygroundToggleCardHeader from "../PlaygroundToggleCardHeader";
 // developer/benchmark controls, not part of the music app, so they stay out
 // of the in-app screens (and out of the embedded hero, which renders only the
 // bare Router). `useNavigate` reads the request-scoped stores hosted by the
-// page's <FlemoStoreProvider>, so a push from here drives the Router mounted
+// page's <RouterScopeProvider>, so a push from here drives the Router mounted
 // inside the frame just the same.
 interface Scenario {
   label: string;

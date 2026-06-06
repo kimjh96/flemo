@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { FlemoStoreProvider } from "@flemo/react";
+import { RouterScopeProvider } from "@flemo/react";
 
 import PlaygroundFrame from "./_components/PlaygroundFrame";
 import PlaygroundIntro from "./_components/PlaygroundIntro";
@@ -64,10 +64,10 @@ export default function PlaygroundPage() {
         <div className="mx-auto flex max-w-[1240px] flex-col gap-12 px-6 pb-24 pt-16 lg:gap-16 lg:pt-20">
           <PlaygroundIntro />
 
-          {/* The toggle panel sits beside the frame, not inside the Router. FlemoStoreProvider
+          {/* The toggle panel sits beside the frame, not inside the Router. RouterScopeProvider
               hosts the request-scoped stores above both so the inspector reads — and the
               navigation/benchmark cards drive — the same Router shown in the frame. */}
-          <FlemoStoreProvider>
+          <RouterScopeProvider>
             <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[auto_1fr] lg:gap-14">
               <div className="flex justify-center lg:sticky lg:top-24 lg:justify-end">
                 <PlaygroundFrame>
@@ -78,7 +78,7 @@ export default function PlaygroundPage() {
                 <PlaygroundTogglePanel />
               </div>
             </div>
-          </FlemoStoreProvider>
+          </RouterScopeProvider>
         </div>
       </div>
     </PlaygroundIntlProvider>

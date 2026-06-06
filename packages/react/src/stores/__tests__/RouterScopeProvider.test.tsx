@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import Route from "@Route";
 import Router from "@Router";
 
-import FlemoStoreProvider from "@stores/StoreProvider";
+import RouterScopeProvider from "@stores/RouterScopeProvider";
 import useHistoryStore from "@stores/useHistoryStore";
 import useStores from "@stores/useStores";
 
@@ -25,15 +25,15 @@ function adopts() {
   return { get: () => adopted, Capture };
 }
 
-describe("FlemoStoreProvider", () => {
+describe("RouterScopeProvider", () => {
   it("lets a sibling outside the Router read the bundle the Router seeded", () => {
     const { getByTestId } = render(
-      <FlemoStoreProvider>
+      <RouterScopeProvider>
         <Router>
           <Route path="/" element={<div>root</div>} />
         </Router>
         <Probe />
-      </FlemoStoreProvider>
+      </RouterScopeProvider>
     );
 
     const probe = getByTestId("probe");
@@ -52,12 +52,12 @@ describe("FlemoStoreProvider", () => {
     }
 
     render(
-      <FlemoStoreProvider>
+      <RouterScopeProvider>
         <outside.Capture />
         <Router>
           <Route path="/" element={<Inside />} />
         </Router>
-      </FlemoStoreProvider>
+      </RouterScopeProvider>
     );
 
     // Same history store instance on both sides of the Router boundary.
