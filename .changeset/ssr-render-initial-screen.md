@@ -1,6 +1,7 @@
 ---
 "@flemo/core": major
 "@flemo/react": major
+"@flemo/web": patch
 ---
 
 Make the navigation stores request-scoped so screens render during SSR. The
