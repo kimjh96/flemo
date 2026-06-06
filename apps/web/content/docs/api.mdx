@@ -16,15 +16,15 @@ description: "Every export from `@flemo/react`, with the page that explains it"
 
 ## Hooks
 
-| Export                                                                           | Returns                                                     | More                                                            |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------- |
-| `useNavigate()`                                                                  | `{ push, replace, pop }`                                    | [Navigation](./navigation)                                      |
-| `useParams<T>()`                                                                 | The current route's params (path + query merged)            | [Navigation](./navigation#useparams)                            |
-| `useStep<T>()`                                                                   | `{ pushStep, replaceStep, popStep }` for sub-states         | [Navigation](./navigation#usestep)                              |
-| `useScreen()`                                                                    | Current screen meta (`id`, `isActive`, `zIndex`, …)         | [useScreen](#usescreen)                                         |
-| `useViewportScrollHeight()`                                                      | Visual-viewport scroll metrics, useful for mobile keyboards | —                                                               |
-| `useStores()`                                                                    | All four request-scoped store APIs (imperative)             | [Router](./router#reading-router-state-from-outside-the-router) |
-| `useHistoryStore` · `useNavigateStore` · `useTransitionStore` · `useScreenStore` | Selector reads of the active Router's stores                | [Router](./router#reading-router-state-from-outside-the-router) |
+| Export                                                    | Returns                                                     | More                                                            |
+| --------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------- |
+| `useNavigate()`                                           | `{ push, replace, pop }`                                    | [Navigation](./navigation)                                      |
+| `useParams<T>()`                                          | The current route's params (path + query merged)            | [Navigation](./navigation#useparams)                            |
+| `useStep<T>()`                                            | `{ pushStep, replaceStep, popStep }` for sub-states         | [Navigation](./navigation#usestep)                              |
+| `useScreen()`                                             | Current screen meta (`id`, `isActive`, `zIndex`, …)         | [useScreen](#usescreen)                                         |
+| `useViewportScrollHeight()`                               | Visual-viewport scroll metrics, useful for mobile keyboards | —                                                               |
+| `useStores()`                                             | All four request-scoped store APIs (imperative)             | [Router](./router#reading-router-state-from-outside-the-router) |
+| `useHistoryStore` · `useNavigateStore` · `useScreenStore` | Lower-level selector reads of the active Router's stores    | [Router](./router#reading-router-state-from-outside-the-router) |
 
 ## useScreen
 

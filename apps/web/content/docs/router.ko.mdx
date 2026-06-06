@@ -144,18 +144,18 @@ function Inspector() {
 </RouterScopeProvider>;
 ```
 
-모든 스토어 훅은 현재 Router의 요청 단위 스토어를 읽어요.
+`useStores()`가 진입점이에요. 명령형 `getState()` / `subscribe`용으로 요청 단위 스토어 API 네 개
+(`history`, `navigate`, `transition`, `screen`)를 전부 돌려줘요 — Router 밖 코드가 보통 원하는 게
+이거예요.
 
-| 훅                       | 읽는 것                                                |
-| ------------------------ | ------------------------------------------------------ |
-| `useHistoryStore(fn)`    | history 스택(`index`, `histories`)과 그 mutator        |
-| `useNavigateStore(fn)`   | 내비게이션 상태(`IDLE` / `PUSHING` / `POPPING` / …)    |
-| `useTransitionStore(fn)` | 기본 전환 이름                                         |
-| `useScreenStore(fn)`     | 드래그 / replace 상태와 shared-bar 레지스트리          |
-| `useStores()`            | 명령형 `getState()` / `subscribe`용 네 스토어 API 전체 |
+리액티브하게 읽으려면, 저수준 셀렉터 훅 세 개가 단일 스토어를 구독해 값이 바뀌면 zustand 훅처럼
+리렌더돼요.
 
-셀렉터 훅 네 개는 셀렉터를 받아 값이 바뀌면 리렌더돼요. `useStores()`는 React 렌더 밖에서 읽는
-이벤트 핸들러·이펙트를 위해 원본 스토어 API를 그대로 돌려줘요.
+| 훅                     | 읽는 것                                             |
+| ---------------------- | --------------------------------------------------- |
+| `useHistoryStore(fn)`  | history 스택(`index`, `histories`)과 그 mutator     |
+| `useNavigateStore(fn)` | 내비게이션 상태(`IDLE` / `PUSHING` / `POPPING` / …) |
+| `useScreenStore(fn)`   | 드래그 / replace 상태와 shared-bar 레지스트리       |
 
 <Callout>
   `<RouterScopeProvider>`는 **선택 사항**이에요 — `<Router>` 밖에서 상태를 읽거나 구동해야 할 때만

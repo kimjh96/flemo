@@ -12,7 +12,6 @@ export { default as ScreenDecorator } from "@screen/ScreenDecorator";
 export { default as ScreenContext, type ScreenContextProps } from "@screen/ScreenContext";
 export { default as useHistoryStore } from "@stores/useHistoryStore";
 export { default as useNavigateStore } from "@stores/useNavigateStore";
-export { default as useTransitionStore } from "@stores/useTransitionStore";
 export { default as useScreenStore } from "@stores/useScreenStore";
 export { default as useStores } from "@stores/useStores";
 export { default as RouterScopeProvider } from "@stores/RouterScopeProvider";

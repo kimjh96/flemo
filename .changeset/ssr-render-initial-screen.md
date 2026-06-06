@@ -13,10 +13,10 @@ screen stack paints on the server (previously the root was empty until the
 client mounted) and each concurrent request keeps its own stack.
 
 Breaking: `@flemo/core` now exports `createHistoryStore` / `createNavigateStore`
-/ `createTransitionStore` factories instead of the singleton hooks. Consume the
-React-bound `useHistoryStore` / `useNavigateStore` / `useTransitionStore` /
-`useScreenStore` from `@flemo/react` (they read the active Router's stores), or
-`useStores()` for imperative access.
+/ `createTransitionStore` factories instead of the singleton hooks. For imperative
+access to the active Router's stores use `useStores()` from `@flemo/react`; the
+lower-level `useHistoryStore` / `useNavigateStore` / `useScreenStore` selector
+hooks are also available for reactive reads.
 
 To read or drive the stores from outside the `<Router>` (devtools, an inspector
 panel beside the screen frame), wrap both in the new `<RouterScopeProvider>`: the

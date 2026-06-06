@@ -145,18 +145,18 @@ function Inspector() {
 </RouterScopeProvider>;
 ```
 
-Every store hook reads the active Router's request-scoped stores:
+`useStores()` is the entry point: it returns all four request-scoped store APIs (`history`,
+`navigate`, `transition`, `screen`) for imperative `getState()` / `subscribe` — what most
+outside-the-Router code wants.
 
-| Hook                     | Reads                                                         |
-| ------------------------ | ------------------------------------------------------------- |
-| `useHistoryStore(fn)`    | The history stack (`index`, `histories`) and its mutators     |
-| `useNavigateStore(fn)`   | Navigation status (`IDLE` / `PUSHING` / `POPPING` / …)        |
-| `useTransitionStore(fn)` | The default transition name                                   |
-| `useScreenStore(fn)`     | Drag / replace status and the shared-bar registry             |
-| `useStores()`            | All four store APIs for imperative `getState()` / `subscribe` |
+For reactive reads, three lower-level selector hooks subscribe to a single store and re-render on
+change, like a zustand hook:
 
-The four selector hooks take a selector and re-render on change. `useStores()` returns the raw
-store APIs for event handlers and effects that run outside React render.
+| Hook                   | Reads                                                     |
+| ---------------------- | --------------------------------------------------------- |
+| `useHistoryStore(fn)`  | The history stack (`index`, `histories`) and its mutators |
+| `useNavigateStore(fn)` | Navigation status (`IDLE` / `PUSHING` / `POPPING` / …)    |
+| `useScreenStore(fn)`   | Drag / replace status and the shared-bar registry         |
 
 <Callout>
   `<RouterScopeProvider>` is **opt-in** — reach for it only when something outside the `<Router>`
