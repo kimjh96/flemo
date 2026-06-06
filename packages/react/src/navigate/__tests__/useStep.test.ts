@@ -87,7 +87,7 @@ afterEach(async () => {
   await drainTaskManger();
 });
 
-describe("useStep — pushStep", () => {
+describe("useStep: pushStep", () => {
   it("rewrites the current entry to step:true on the first call, then pushes a step entry", async () => {
     const dispatches: ParamsDispatchContextType[] = [];
     const { result } = renderHook(() => useStep<"/posts/:id">(), {
@@ -122,7 +122,7 @@ describe("useStep — pushStep", () => {
   });
 });
 
-describe("useStep — replaceStep", () => {
+describe("useStep: replaceStep", () => {
   it("mutates the current entry's params in place (no new history entry)", async () => {
     const dispatches: ParamsDispatchContextType[] = [];
     const { result } = renderHook(() => useStep<"/posts/:id">(), {
@@ -142,9 +142,9 @@ describe("useStep — replaceStep", () => {
   });
 });
 
-describe("useStep — popStep", () => {
+describe("useStep: popStep", () => {
   it("falls back to abort when there is no history to pop (safety timeout)", async () => {
-    // Fresh history with a single entry — `history.back()` produces no
+    // Fresh history with a single entry. `history.back()` produces no
     // popstate, and the safety timeout fires after ~200ms.
     const { result } = renderHook(() => useStep<"/posts/:id">(), {
       wrapper: buildHarness("/posts/:id", () => undefined)

@@ -7,7 +7,7 @@ import {
   waitForTransitionSettled
 } from "./helpers/flemo";
 
-test.describe("playground — smoke", () => {
+test.describe("playground: smoke", () => {
   test("loads without console errors and renders the Library screen", async ({ page }) => {
     const { errors } = trackConsoleErrors(page);
 

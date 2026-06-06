@@ -1,6 +1,6 @@
 // Album-art gradient generator. Takes a hue (0-360) and returns a CSS
 // `linear-gradient(...)` string with two HSL stops. Hues are content (album
-// artwork), not UI tokens — so they live as raw values here while every other
+// artwork), not UI tokens, so they live as raw values here while every other
 // surface in the playground stays on the shiflo palette.
 export function gradientFor(hue: number): string {
   const top = `hsl(${hue}, 72%, 64%)`;

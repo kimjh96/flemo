@@ -17,7 +17,7 @@ declare module "@Route" {
 }
 
 // Each useNavigate call lives inside `TaskManger.addTask({ control: { manual:
-// true } })` — the task pauses in MANUAL_PENDING until something calls
+// true } })`. The task pauses in MANUAL_PENDING until something calls
 // resolveTask. ScreenMotion does that from `animationend` at runtime. In
 // jsdom there's no animation, so a background sweeper repeatedly calls
 // `resolveAllPending` to unblock each push/replace/pop in order.
@@ -48,7 +48,7 @@ const resetStores = () => {
   window.history.replaceState(null, "", "/");
 };
 
-describe("useNavigate — push", () => {
+describe("useNavigate: push", () => {
   let stopSweeper: () => Promise<void>;
   beforeEach(() => {
     resetStores();
@@ -102,7 +102,7 @@ describe("useNavigate — push", () => {
   });
 });
 
-describe("useNavigate — replace", () => {
+describe("useNavigate: replace", () => {
   let stopSweeper: () => Promise<void>;
   beforeEach(() => {
     resetStores();
@@ -138,7 +138,7 @@ describe("useNavigate — replace", () => {
   });
 });
 
-describe("useNavigate — pop", () => {
+describe("useNavigate: pop", () => {
   let stopSweeper: () => Promise<void>;
   beforeEach(() => {
     resetStores();
@@ -239,7 +239,7 @@ describe("useNavigate — pop", () => {
   });
 });
 
-describe("useNavigate — pop({ until })", () => {
+describe("useNavigate: pop({ until })", () => {
   let stopSweeper: () => Promise<void>;
   beforeEach(() => {
     resetStores();
@@ -309,7 +309,7 @@ describe("useNavigate — pop({ until })", () => {
   });
 });
 
-describe("useNavigate — pop({ transitionName })", () => {
+describe("useNavigate: pop({ transitionName })", () => {
   let stopSweeper: () => Promise<void>;
   beforeEach(() => {
     resetStores();
@@ -332,7 +332,7 @@ describe("useNavigate — pop({ transitionName })", () => {
     await result.current.pop({ until: "/a", transitionName: "material" });
 
     // The override is stamped on the current top (idx 3, the leaving screen)
-    // in the same block that flips to POPPING — so the back animation uses it
+    // in the same block that flips to POPPING, so the back animation uses it
     // from the first frame instead of the leaving screen's own transition.
     expect(setSpy).toHaveBeenCalledWith(3, "material");
 
@@ -368,7 +368,7 @@ describe("useNavigate — pop({ transitionName })", () => {
   });
 });
 
-describe("useNavigate — replace collapse", () => {
+describe("useNavigate: replace collapse", () => {
   let stopSweeper: () => Promise<void>;
   beforeEach(() => {
     resetStores();
@@ -469,7 +469,7 @@ describe("useNavigate — replace collapse", () => {
   });
 });
 
-describe("useNavigate — push collapse", () => {
+describe("useNavigate: push collapse", () => {
   let stopSweeper: () => Promise<void>;
   beforeEach(() => {
     resetStores();
@@ -520,7 +520,7 @@ describe("useNavigate — push collapse", () => {
 
     await result.current.push("/c", {}, { until: "/album/:id" });
 
-    // no album below — the new screen just stacks on top.
+    // no album below. The new screen just stacks on top.
     const { index, histories } = useHistoryStore.getState();
     expect(index).toBe(2);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b", "/c"]);
@@ -540,7 +540,7 @@ describe("useNavigate — push collapse", () => {
   });
 });
 
-describe("useNavigate — mixed flows", () => {
+describe("useNavigate: mixed flows", () => {
   let stopSweeper: () => Promise<void>;
   beforeEach(() => {
     resetStores();

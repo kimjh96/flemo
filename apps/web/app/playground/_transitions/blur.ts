@@ -5,7 +5,7 @@ import { createTransition } from "@flemo/react";
 // Blur + fade screen transition. The entering screen lifts out of focus and
 // settles to crisp; the leaving screen drifts back into focus and fades.
 // `filter: blur(...)` interpolates natively in CSS, so this is a single
-// compiled keyframe per variant — no JS in the loop.
+// compiled keyframe per variant. No JS in the loop.
 const blur = createTransition({
   name: "blur",
   initial: { filter: "blur(12px)", opacity: 0 },

@@ -87,7 +87,7 @@ describe("compileTransitionStyles", () => {
   it("emits `transform: none` (not an identity matrix) in rest rules so the scope creates no stacking context", () => {
     const css = compileTransitionStyles([cupertino], []);
 
-    // cupertino's IDLE-true / COMPLETED-true targets are { x: 0 } — identity.
+    // cupertino's IDLE-true / COMPLETED-true targets are { x: 0 }: identity.
     // The rest rule still exists (other props may be present), but the
     // transform decl collapses to `none`, which per CSS spec creates no
     // containing block or stacking context. Consumer overlays' fixed
@@ -152,7 +152,7 @@ describe("compileTransitionStyles", () => {
     const css = compileTransitionStyles([], [overlay]);
 
     // The visible decorator animation rides on the screen that's moving INTO
-    // the background — `PUSHING-false`, not `PUSHING-true`. The entering
+    // the background: `PUSHING-false`, not `PUSHING-true`. The entering
     // screen's decorator sits at `idle` and emits only a rest rule.
     expect(css).toContain(
       '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
@@ -167,7 +167,7 @@ describe("compileTransitionStyles", () => {
     expect(css).not.toContain("backgroundColor");
   });
 
-  // Decorators must accept the same CSS surface transitions do — author-defined
+  // Decorators must accept the same CSS surface transitions do: author-defined
   // `filter`, `backdropFilter`, `boxShadow`, transform shortcuts, and CSS
   // custom properties all need to land in the keyframe and the `will-change`
   // hint so a decorator can drive arbitrary effects, not just opacity. We
@@ -369,8 +369,8 @@ describe("compileTransitionStyles", () => {
 describe("collectAnimatedProperties", () => {
   it("collapses transform-bucket props to a single `transform` entry", () => {
     expect(collectAnimatedProperties(cupertino)).toEqual(["transform"]);
-    // material animates y (transform bucket) plus opacity for the exit fade —
-    // the y collapses into one `transform` entry, opacity is tracked alongside.
+    // material animates y (transform bucket) plus opacity for the exit fade.
+    // The y collapses into one `transform` entry, opacity is tracked alongside.
     expect(collectAnimatedProperties(material)).toEqual(["opacity", "transform"]);
   });
 
@@ -411,7 +411,7 @@ describe("collectAnimatedProperties", () => {
   });
 });
 
-describe("compileTransitionStyles — will-change (compositor promotion)", () => {
+describe("compileTransitionStyles: will-change (compositor promotion)", () => {
   // The 60fps story is: every variant that actually animates carries a
   // `will-change` listing exactly what it writes, scoped to the same status
   // selector as the animation. The browser promotes a compositor layer the
@@ -429,7 +429,7 @@ describe("compileTransitionStyles — will-change (compositor promotion)", () =>
       const line = lines[i]!;
       if (line.startsWith("@keyframes")) continue;
       if (!line.includes(selectorSubstring)) continue;
-      // Walk back over preceding lines that end with `,` — they're part of
+      // Walk back over preceding lines that end with `,`. They're part of
       // this same multi-line selector list.
       let startIdx = i;
       while (startIdx > 0 && lines[startIdx - 1]!.trimEnd().endsWith(",")) {
@@ -592,7 +592,7 @@ describe("compileTransitionStyles — will-change (compositor promotion)", () =>
   it("emits will-change on decorator variant rules too", () => {
     const css = compileTransitionStyles([], [overlay]);
     // The animating decorator slot is the screen going behind, not the active
-    // side — that's where `idle → enter` actually runs and the layer needs
+    // side. That's where `idle → enter` actually runs and the layer needs
     // promoting.
     const pushInactive = findRule(
       css,
@@ -604,13 +604,13 @@ describe("compileTransitionStyles — will-change (compositor promotion)", () =>
   });
 });
 
-describe("compileTransitionStyles — shared-bar ride-along selector", () => {
+describe("compileTransitionStyles: shared-bar ride-along selector", () => {
   // The compositor-sync story (commit 9e0384c): every animating screen rule
   // also targets a `[data-flemo-bar][data-flemo-bar-riding="true"]` sibling
   // under the SAME `animation:` + `will-change:` declarations. A bar wrapper
   // toggled to `riding=true` then runs the screen's @keyframes on the same
   // compositor pass, so there's no rAF JS mirror in the loop. These tests pin
-  // that contract — if it ever regresses, mobile bars start trailing the
+  // that contract. If it ever regresses, mobile bars start trailing the
   // screen by one composited frame.
 
   // Re-use the helpers from the will-change describe block. They're scoped
@@ -643,7 +643,7 @@ describe("compileTransitionStyles — shared-bar ride-along selector", () => {
     );
 
     expect(pushActive).toBeDefined();
-    // Same block must include the bar sibling — only one `animation:` and one
+    // Same block must include the bar sibling: only one `animation:` and one
     // `will-change:` for the pair, so the screen and bar run the exact same
     // @keyframes on the same compositor pass.
     expect(pushActive).toContain(
@@ -694,7 +694,7 @@ describe("compileTransitionStyles — shared-bar ride-along selector", () => {
     expect(css).not.toContain("data-flemo-bar");
   });
 
-  it("does NOT pair a bar sibling onto rest rules (IDLE / COMPLETED — no animation, no compositor sync needed)", () => {
+  it("does NOT pair a bar sibling onto rest rules (IDLE / COMPLETED: no animation, no compositor sync needed)", () => {
     const css = compileTransitionStyles([cupertino], []);
     const idleActive = findRule(
       css,
@@ -709,7 +709,7 @@ describe("compileTransitionStyles — shared-bar ride-along selector", () => {
   it("emits `contain: layout` and `pointer-events: none` on PUSHING / REPLACING rules (where new screens mount)", () => {
     // The hints isolate the transitioning scope from heavy work happening
     // inside the arriving screen during its initial mount commit. They're
-    // scoped to PUSHING and REPLACING — the verbs that actually trigger a
+    // scoped to PUSHING and REPLACING, the verbs that actually trigger a
     // mount. Pop is intentionally excluded (see below).
     const cssCupertino = compileTransitionStyles([cupertino], []);
     const pushActive = findRule(
@@ -732,7 +732,7 @@ describe("compileTransitionStyles — shared-bar ride-along selector", () => {
     // Bar sibling rides under the same block, so it inherits both.
     expect(pushActive).toContain("[data-flemo-bar]");
 
-    // Decorator rules get them too — the overlay needs to be non-clickable
+    // Decorator rules get them too: the overlay needs to be non-clickable
     // mid-transition and shouldn't propagate layout invalidation.
     const cssOverlay = compileTransitionStyles([], [overlay]);
     const decoRule = findRule(
@@ -748,7 +748,7 @@ describe("compileTransitionStyles — shared-bar ride-along selector", () => {
     // ScreenFreeze keeps popped-from screens mounted via display:none, so
     // pop's destination has no fresh mount work and there's nothing for
     // containment to isolate. The e2e harness measured ~8ms regression on
-    // 2k-DOM exiting screens during pop with the hints applied — pure cost
+    // 2k-DOM exiting screens during pop with the hints applied: pure cost
     // with no upside. POPPING-true (the exiting screen) and POPPING-false
     // (the returning screen) must both stay clean.
     const css = compileTransitionStyles([cupertino], []);

@@ -12,7 +12,7 @@ import PlaygroundToggleCardHeader from "../PlaygroundToggleCardHeader";
 // measure rAF cadence, long-animation-frame events, and click→COMPLETED
 // latency for arrival screens of varying weight, clicked by `data-testid`.
 //
-// Lives in the dev panel — outside the phone frame — on purpose: these are
+// Lives in the dev panel (outside the phone frame) on purpose: these are
 // developer/benchmark controls, not part of the music app, so they stay out
 // of the in-app screens (and out of the embedded hero, which renders only the
 // bare Router). `useNavigate` reads flemo's global stores, so a push from here

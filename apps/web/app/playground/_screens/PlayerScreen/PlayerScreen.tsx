@@ -9,8 +9,8 @@ import { Screen, type ScreenProps } from "@flemo/react";
 // at the top of the frame).
 //
 // `backgroundColor` is bound to `--color-surface` so the screen scope tracks
-// the shiflo light/dark token instead of defaulting to a hardcoded white —
-// otherwise the scope stays white in dark mode while the inner bars use the
+// the shiflo light/dark token instead of defaulting to a hardcoded white.
+// Otherwise the scope stays white in dark mode while the inner bars use the
 // dark surface token, creating a visible mismatch.
 function PlayerScreen(props: ScreenProps) {
   return (

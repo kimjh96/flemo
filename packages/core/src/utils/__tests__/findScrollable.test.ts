@@ -73,7 +73,7 @@ describe("overflowsAxis", () => {
     expect(overflowsAxis(el, "y")).toBe(true);
   });
 
-  it("treats axes independently — y overflow doesn't imply x overflow", () => {
+  it("treats axes independently: y overflow doesn't imply x overflow", () => {
     const el = document.createElement("div");
     mockLayout(el, {
       scrollHeight: 200,
@@ -86,7 +86,7 @@ describe("overflowsAxis", () => {
   });
 });
 
-describe("findScrollable — null / unsafe inputs", () => {
+describe("findScrollable: null / unsafe inputs", () => {
   it("returns { null, false } when startTarget is null", () => {
     expect(findScrollable(null)).toEqual({ element: null, hasMarker: false });
   });
@@ -99,7 +99,7 @@ describe("findScrollable — null / unsafe inputs", () => {
   });
 });
 
-describe("findScrollable — marker priority", () => {
+describe("findScrollable: marker priority", () => {
   it("returns the [data-swipe-at-edge] ancestor when it overflows on the requested axis", () => {
     const marker = document.createElement("div");
     marker.setAttribute("data-swipe-at-edge", "");
@@ -152,7 +152,7 @@ describe("findScrollable — marker priority", () => {
   });
 });
 
-describe("findScrollable — parent walk", () => {
+describe("findScrollable: parent walk", () => {
   it("returns the first ancestor that overflows on the chosen axis", () => {
     const outer = document.createElement("section"); // overflows
     mockLayout(outer, { scrollHeight: 500, clientHeight: 200 });
@@ -204,7 +204,7 @@ describe("findScrollable — parent walk", () => {
   });
 
   it("reaches documentElement (`<html>`) when it is the viewport scroller", () => {
-    // Body has no overflow, but <html> does — typical viewport-scroll setup.
+    // Body has no overflow, but <html> does: typical viewport-scroll setup.
     mockLayout(document.body, { scrollHeight: 100, clientHeight: 100 });
     mockLayout(document.documentElement, { scrollHeight: 1000, clientHeight: 200 });
 
@@ -216,7 +216,7 @@ describe("findScrollable — parent walk", () => {
     expect(element).toBe(document.documentElement);
   });
 
-  it("respects depthLimit — walking stops after the configured count", () => {
+  it("respects depthLimit: walking stops after the configured count", () => {
     // Build a chain of 5 wrappers; only the 5th overflows. With depthLimit:2
     // the walk gives up before reaching it.
     const chain: HTMLElement[] = [];
@@ -229,7 +229,7 @@ describe("findScrollable — parent walk", () => {
       cursor = wrapper;
     }
     const deepest = chain[4]!;
-    // Mock the *top* ancestor (chain[0]) to overflow — that requires walking
+    // Mock the *top* ancestor (chain[0]) to overflow. That requires walking
     // up from `deepest` past 5 layers.
     mockLayout(chain[0]!, { scrollHeight: 500, clientHeight: 100 });
 
@@ -245,7 +245,7 @@ describe("findScrollable — parent walk", () => {
   });
 });
 
-describe("canProgrammaticallyScroll — non-invasive computed-style probe", () => {
+describe("canProgrammaticallyScroll: non-invasive computed-style probe", () => {
   it("returns false when overflow is absent (no style read either, fast path)", () => {
     const el = document.createElement("div");
     mockLayout(el, { scrollHeight: 100, clientHeight: 100 });

@@ -4,8 +4,8 @@ import { activeScreen, albumTile, waitForTransitionSettled } from "./helpers/fle
 
 // Swipe-drag A/B harness. flemo intentionally keeps the swipe-drag path
 // main-thread inline (per-pointermove `transform` writes + rAF mirror for
-// shared bars) because the screen is being inline-driven during the drag —
-// there's no compositor animation to chase. This spec establishes a
+// shared bars) because the screen is being inline-driven during the drag.
+// There's no compositor animation to chase. This spec establishes a
 // baseline for rAF cadence under an active drag, and measures degradation
 // when background CPU contends for the main thread.
 //
@@ -13,7 +13,7 @@ import { activeScreen, albumTile, waitForTransitionSettled } from "./helpers/fle
 //   - idle: no background work
 //   - cpu-busy: setInterval that busy-waits 30ms per 50ms tick (~60% load)
 //
-// Diagnostic-only — no threshold-based fails. Numbers go to stdout keyed
+// Diagnostic-only. No threshold-based fails. Numbers go to stdout keyed
 // by `[swipe-perf]` so a future compositor-driven drag (or a regression in
 // the current rAF path) shows up as a clear delta.
 
@@ -83,7 +83,7 @@ async function measureDrag(page: Page, testInfo: TestInfo, scenario: DragScenari
   }, scenario);
 
   // Start the drag near the left edge of the active screen and pull it
-  // rightward by ~70% of viewport — well past the commit threshold so the
+  // rightward by ~70% of viewport, well past the commit threshold so the
   // pop actually fires on release. Spread the move across 20 steps over
   // ~400ms so the drag is observed under sustained pointer motion, not a
   // single instant jump.
@@ -139,7 +139,7 @@ async function measureDrag(page: Page, testInfo: TestInfo, scenario: DragScenari
   console.log(`[swipe-perf] ${summary}`);
 }
 
-test.describe("playground — swipe-drag rAF cadence (diagnostic)", () => {
+test.describe("playground: swipe-drag rAF cadence (diagnostic)", () => {
   test.describe.configure({ mode: "serial" });
   test.use({ actionTimeout: 30_000, navigationTimeout: 30_000 });
 

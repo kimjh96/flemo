@@ -73,7 +73,7 @@ const UNITLESS_PROPS = new Set([
 ]);
 
 const numberToPx = (value: number, prop: string) => {
-  // CSS custom properties are typeless — a number could mean "16 spacing
+  // CSS custom properties are typeless. A number could mean "16 spacing
   // tokens", a count, a ratio, etc. Emit the raw scalar so authors can
   // shape the unit themselves at use site (e.g., `calc(var(--space) * 1px)`).
   // Mirrors React's `name.startsWith("--")` short-circuit.
@@ -164,7 +164,7 @@ const transformPart = (prop: string, value: string): string => {
 // (across its `initial` and all variant `value`s). Multiple transform-bucket
 // props (x/y/scale/rotate/...) collapse to a single `transform` entry, matching
 // how targetToDecls emits them. Used by the React layer to mirror exactly the
-// properties a transition can write — so a ride-along shared bar tracks
+// properties a transition can write, so a ride-along shared bar tracks
 // arbitrary author-defined CSS, not just transform/opacity.
 export const collectAnimatedProperties = (transition: Transition): string[] => {
   const props = new Set<string>();
@@ -287,7 +287,7 @@ const restDecoratorSelector = (decoratorName: string, variant: TransitionVariant
 // Shared-bar ride-along selector. When a partner screen doesn't own the bar,
 // the bar's wrapper sets `data-flemo-bar-riding="true"` for the duration of
 // the transition. Pairing it as a sibling selector with the screen rule lets
-// both elements run the same `@keyframes` on the compositor — no JS rAF
+// both elements run the same `@keyframes` on the compositor: no JS rAF
 // mirroring, no main-thread style read/write per frame, perfectly synced.
 const barAttrSelector = (transitionName: string, variant: TransitionVariant): string => {
   const [status, active] = variant.split("-");
@@ -322,12 +322,12 @@ const compileVariantBlock = (
 
   // For the screen scope, also target a riding shared bar with the same
   // rule so the compositor drives both elements off one `@keyframes`.
-  // Decorators don't have a bar counterpart — they stay screen-only.
+  // Decorators don't have a bar counterpart. They stay screen-only.
   const screenSelector = selectorBuilder(name, variant);
   const selector =
     scope === "screen" ? `${screenSelector},\n${barAttrSelector(name, variant)}` : screenSelector;
 
-  // Variants with no animatable target — emit a rest rule so the element
+  // Variants with no animatable target: emit a rest rule so the element
   // simply holds the target value with no animation.
   if (toDecls.length === 0 && fromDecls.length === 0) {
     return "";
@@ -362,7 +362,7 @@ const compileVariantBlock = (
     .join(" ");
 
   // `will-change` is scoped to the variant-active rule (PUSHING/POPPING/...)
-  // and lists exactly the properties this variant writes — whatever the
+  // and lists exactly the properties this variant writes, whatever the
   // author put in their `initial` / variant `value`. The browser promotes a
   // compositor layer right before the animation starts and drops it the
   // moment the status flips to IDLE/COMPLETED. Keeps the animation off the
@@ -383,12 +383,12 @@ const compileVariantBlock = (
   // matching → containing block goes away, fixed bars re-anchor as before).
   //
   // `pointer-events: none` skips hit-testing on the moving element. Saves a
-  // compositor hit-test pass per frame and also acts as a correctness gate
-  // — a tap during the transition won't enqueue a second navigation.
+  // compositor hit-test pass per frame and also acts as a correctness gate.
+  // A tap during the transition won't enqueue a second navigation.
   //
   // Scoped to PUSHING and REPLACING only. Pop's arrival screen is unhidden
-  // by ScreenFreeze (never re-mounted), so there's no mount work to isolate
-  // — and the e2e harness showed a small but consistent regression (~8ms)
+  // by ScreenFreeze (never re-mounted), so there's no mount work to isolate,
+  // and the e2e harness showed a small but consistent regression (~8ms)
   // on heavy-DOM exiting screens during pop, attributable to containment
   // block evaluation cost on a 2k-node tree with no upside to offset it.
   const status = variant.split("-")[0];

@@ -4,7 +4,7 @@ export interface ShowcasePageHeaderProps {
 }
 
 // The "Showcase" kicker stays English in every locale, matching the Playground
-// page's kicker — it reads as a section wordmark, not body copy. Only the title
+// page's kicker. It reads as a section wordmark, not body copy. Only the title
 // and subtitle below are localized.
 export default function ShowcasePageHeader({ title, subtitle }: ShowcasePageHeaderProps) {
   return (

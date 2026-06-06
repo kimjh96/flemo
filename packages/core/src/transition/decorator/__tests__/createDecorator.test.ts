@@ -38,7 +38,7 @@ describe("createDecorator", () => {
     });
     // Active rest, inactive rest, the *new* screen during PUSH/REPLACE, the
     // active screen leaving on POP, and the active screen settled at
-    // COMPLETED — all sit at `idle`. The entering screen MUST land here so
+    // COMPLETED, all sit at `idle`. The entering screen MUST land here so
     // overlays don't flash on top of the new screen.
     expect(d.variants["IDLE-true"]).toBe(idle);
     expect(d.variants["IDLE-false"]).toBe(idle);

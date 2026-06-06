@@ -49,14 +49,14 @@ describe("animateInline", () => {
 
   it("ignores non-HTMLElement targets without throwing", async () => {
     await expect(
-      // @ts-expect-error — deliberately wrong type
+      // @ts-expect-error: deliberately wrong type
       animateInline(null, { x: 0 }, { duration: 0.1 })
     ).resolves.toBeUndefined();
   });
 
   it("clearInlineAnimation strips exactly the properties animateInline wrote", async () => {
-    // Hand-set styles that animateInline did NOT write should be left alone —
-    // only the properties it actually touched come off.
+    // Hand-set styles that animateInline did NOT write should be left alone.
+    // Only the properties it actually touched come off.
     el.style.color = "rgb(255, 0, 0)";
     await animateInline(el, { x: 50, opacity: 0.5 }, { duration: 0 });
     expect(el.style.transform).toContain("translateX(50px)");
@@ -85,7 +85,7 @@ describe("animateInline", () => {
   });
 
   it("clearInlineAnimation falls back to transform + opacity for untracked elements", () => {
-    // Element that animateInline never touched — defensive fallback.
+    // Element that animateInline never touched. Defensive fallback.
     el.style.transform = "translateX(50px)";
     el.style.opacity = "0.5";
     el.style.transition = "transform 0.3s ease";

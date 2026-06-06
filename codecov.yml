@@ -1,4 +1,4 @@
-# Codecov configuration — see https://docs.codecov.com/docs/codecov-yaml.
+# Codecov configuration. See https://docs.codecov.com/docs/codecov-yaml.
 # `project` is the overall coverage budget; `patch` is the per-PR delta. Both
 # allow a small slip so a refactor that shuffles uncovered lines doesn't trip
 # the gate, but a real regression (>1% drop or >0% new uncovered) still does.
@@ -22,10 +22,10 @@ flag_management:
 
 # Don't bother counting type-only files or entry barrels.
 # ScreenMotion drives `animationend`, `setPointerCapture`, and pointer-event
-# choreography that don't behave usefully in jsdom — its lifecycle is
+# choreography that don't behave usefully in jsdom. Its lifecycle is
 # verified by the Playwright e2e suite in `apps/web/e2e/` instead. See
 # `packages/react/CLAUDE.md`: "prefer the playground for interactive
-# transitions — these are hard to assert in jsdom".
+# transitions, these are hard to assert in jsdom".
 ignore:
   - "**/index.ts"
   - "**/__tests__/**"

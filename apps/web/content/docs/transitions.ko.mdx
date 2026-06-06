@@ -9,10 +9,10 @@ description: 내장 프리셋, 직접 만들기, 스와이프 제스처
 ## 내장 프리셋
 
 <Cards>
-  <Card title="cupertino" description="iOS 스타일 가로 슬라이드 — 엣지 스와이프 백 포함, 기본값" />
+  <Card title="cupertino" description="iOS 스타일 가로 슬라이드. 엣지 스와이프 백 포함, 기본값" />
   <Card
     title="material"
-    description="아래에서 위로 슬라이드 — 아래로 드래그해 닫기 + 러버밴드 저항"
+    description="아래에서 위로 슬라이드. 아래로 드래그해 닫기 + 러버밴드 저항"
   />
   <Card title="layout" description="layoutId 모핑에 어울리는 가벼운 페이드" />
   <Card title="none" description="즉시 컷, 애니메이션 없음" />
@@ -148,7 +148,7 @@ const dim = createDecorator({
   // "뒤로 들어가는" 상태. PUSHING-false / REPLACING-false에서 idle → enter로
   // 페이드인되고, COMPLETED-false 정착 룰에서 enter 값을 그대로 들고 있어요.
   enter: { value: { opacity: 0.4 }, options: { duration: 0.3 } },
-  // POPPING-false 종착 — 뒤에 깔려 있던 화면이 활성으로 복귀해요. enter →
+  // POPPING-false 종착. 뒤에 깔려 있던 화면이 활성으로 복귀해요. enter →
   // exit로 애니메이션. 여기서 `idle`(opacity 0)과 같게 두면 COMPLETED-true
   // 휴지 룰에 부드럽게 안착해요.
   exit: { value: { opacity: 0 }, options: { duration: 0.3 } }

@@ -42,7 +42,7 @@ describe("selfPopGuard", () => {
     markSelfInducedPop();
     markSelfInducedPop();
     expect(consumeSelfInducedPop()).toBe(true);
-    // 1 mark remains in flight — should still resolve on the next call.
+    // 1 mark remains in flight. Should still resolve on the next call.
     expect(consumeSelfInducedPop()).toBe(true);
     expect(consumeSelfInducedPop()).toBe(false);
   });

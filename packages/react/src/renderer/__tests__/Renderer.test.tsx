@@ -60,7 +60,7 @@ describe("Renderer", () => {
     expect(getByTestId("post")).toBeDefined();
   });
 
-  it("falls through Routes in order — the first matching Route wins", () => {
+  it("falls through Routes in order, the first matching Route wins", () => {
     seed([{ id: "a", pathname: "/users/me" }]);
     const { getByTestId, queryByTestId } = render(
       <Renderer>

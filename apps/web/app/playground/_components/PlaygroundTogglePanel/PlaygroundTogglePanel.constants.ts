@@ -155,13 +155,13 @@ createTransition({
 });`
 };
 
-// The "natural" code snippet — what each push site looks like by default.
+// The "natural" code snippet: what each push site looks like by default.
 // Shown when no override is active so the reader sees that per-context
 // composition is the baseline, not a meta-option.
-export const naturalPushCode = `// Library / Search → Album — browse deeper.
+export const naturalPushCode = `// Library / Search → Album: browse deeper.
 navigate.push("/album/:id", { id }, { transitionName: "cupertino" });
 
-// Album / MiniPlayer → NowPlaying — the player dismisses with a
+// Album / MiniPlayer → NowPlaying: the player dismisses with a
 // downward chevron, so material's vertical rise matches the axis.
 navigate.push("/now-playing", undefined, { transitionName: "material" });`;
 

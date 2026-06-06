@@ -22,7 +22,7 @@ export type TransitionVariantValue = {
 };
 
 // Native pointer-driven swipe info. Mirrors motion's PanInfo shape so
-// existing custom transitions need no behavioural rewrite — they just take
+// existing custom transitions need no behavioural rewrite. They just take
 // the local SwipeInfo / PointerEvent instead of importing from motion.
 export interface SwipeInfo {
   point: { x: number; y: number };

@@ -44,7 +44,7 @@ const useHistoryStore = create<HistoryStore>((set) => ({
     })),
   // Drop `count` entries sitting directly below the current top, keeping the
   // top itself. Used by pop(n) to remove the screens it skips over in the same
-  // synchronous block that starts the transition — so they never paint — while
+  // synchronous block that starts the transition (so they never paint) while
   // the leaving top stays mounted to drive and resolve the animation.
   popHistories: (count) => {
     if (count <= 0) return;
@@ -58,7 +58,7 @@ const useHistoryStore = create<HistoryStore>((set) => ({
   },
   // Override one entry's transition. Used by pop() to relabel the leaving top
   // before the POPPING flip so the back animation uses the caller's
-  // `transitionName` from the first frame — its original transition never
+  // `transitionName` from the first frame. Its original transition never
   // paints. Returns a fresh array so the renderer re-reads it.
   setTransitionName: (index, transitionName) =>
     set((state) => {

@@ -9,7 +9,7 @@ const reset = () =>
     sharedBars: {}
   });
 
-describe("useScreenStore — shared bar registry", () => {
+describe("useScreenStore: shared bar registry", () => {
   beforeEach(reset);
 
   it("registers a screen's shared bar presence", () => {
@@ -51,7 +51,7 @@ describe("useScreenStore — shared bar registry", () => {
   });
 });
 
-describe("useScreenStore — dragStatus", () => {
+describe("useScreenStore: dragStatus", () => {
   beforeEach(reset);
 
   it("defaults to IDLE", () => {
@@ -77,7 +77,7 @@ describe("useScreenStore — dragStatus", () => {
   });
 });
 
-describe("useScreenStore — replaceTransitionStatus", () => {
+describe("useScreenStore: replaceTransitionStatus", () => {
   beforeEach(reset);
 
   it("defaults to IDLE", () => {

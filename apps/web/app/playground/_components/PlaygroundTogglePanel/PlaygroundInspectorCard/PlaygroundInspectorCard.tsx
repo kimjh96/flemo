@@ -1,7 +1,7 @@
 "use client";
 
 // `@flemo/core` is imported here purely to READ flemo's runtime stores for a
-// live inspector — the playground never mutates them directly (it drives
+// live inspector. The playground never mutates them directly (it drives
 // navigation through `useNavigate`). This is inside the sanctioned playground
 // tree, so reaching into core for inspection is fine.
 import { useHistoryStore, useNavigateStore } from "@flemo/core";

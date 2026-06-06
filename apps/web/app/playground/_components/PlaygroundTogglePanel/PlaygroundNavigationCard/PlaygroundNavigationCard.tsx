@@ -10,7 +10,7 @@ import PlaygroundToggleCardHeader from "../PlaygroundToggleCardHeader";
 
 // The demo stacks the synthetic heavy screen (light config) so each push is a
 // visibly distinct arrival, then reaches past the top with {skip}/{until} in a
-// single transition — the skipped screens never paint. Seed to this depth so
+// single transition. The skipped screens never paint. Seed to this depth so
 // the multi-screen ops have something to collapse.
 const SEED_DEPTH = 4;
 const heavyParams = { cpuMs: "0", nodes: "50" } as const;
@@ -42,7 +42,7 @@ function PlaygroundNavigationCard() {
   const handlePopSkipTwo = () => navigate.pop({ skip: 2 });
   const handlePopToLibrary = () => navigate.pop({ until: "/" });
   // The seeded screens were pushed with cupertino; popping back with an explicit
-  // `material` proves the back transition can be overridden — and that the
+  // `material` proves the back transition can be overridden, and that the
   // screens' own cupertino never flashes during the collapse.
   const handlePopToLibraryMaterial = () => navigate.pop({ until: "/", transitionName: "material" });
 

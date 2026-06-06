@@ -3,7 +3,7 @@
 import { createTransition } from "@flemo/react";
 
 // iOS-style card present. The entering screen rises from the bottom (`y`),
-// while the screen it covers scales back and dims — stacking it behind like a
+// while the screen it covers scales back and dims, stacking it behind like a
 // sheet over a dimmed backdrop. The entering screen animates `y`, the leaving
 // one animates `scale` + `opacity`; they're different elements, so each is a
 // single compositor keyframe. On pop the card slides back down and the

@@ -1,6 +1,6 @@
 ---
 title: LayoutScreen
-description: Shared-element morphs between two screens — the list thumbnail that unfolds into the detail image
+description: Shared-element morphs between two screens. The list thumbnail that unfolds into the detail image
 experimental: true
 ---
 
@@ -9,7 +9,7 @@ morphing** across navigation. A thumbnail in a list "unfolds" into the hero imag
 screen, then folds back when you go back. It's the same gesture iOS uses for photos and Music,
 and Material 3 calls **container transform**.
 
-It lives in `@flemo/react-layout` — a separate package from `@flemo/react`. Motion is its peer
+It lives in `@flemo/react-layout`, a separate package from `@flemo/react`. Motion is its peer
 dependency, so apps that don't morph don't pay for it.
 
 ## When to reach for it
@@ -51,7 +51,7 @@ them and the morph silently fails (the element just fades).
 
 ### Why a separate `<LayoutScreen>`?
 
-`<Screen>` unmounts its tree when you navigate away. That's fine for a normal push — the old
+`<Screen>` unmounts its tree when you navigate away. That's fine for a normal push. The old
 screen is gone, the new screen draws fresh. But morphing requires motion to **see the same
 `layoutId` on both sides of the transition at the same time**. `<LayoutScreen>` keeps the tree
 alive a beat longer (and wraps children in `AnimatePresence`) so motion can match the destination
@@ -64,7 +64,7 @@ covered by a solid color while it's animating across.
 
 Motion's `<motion.div layout>` animates with its own default spring (~stiffness 700, damping 30).
 The flemo screen transition runs on a different timing (`layout` preset: 0.3s ease). Without
-syncing them, the screen finishes its fade before motion finishes the morph — you see the
+syncing them, the screen finishes its fade before motion finishes the morph. You see the
 morph land on a half-faded background, or the new screen pops in while the thumbnail is still
 expanding.
 
@@ -72,25 +72,25 @@ expanding.
 `navigate.push` call and feeds them to motion's `MotionConfig`. The morph and the screen fade
 land on the same frame.
 
-Place it as the outermost wrapper around whatever should morph — usually right inside
+Place it as the outermost wrapper around whatever should morph, usually right inside
 `<LayoutScreen>`.
 
 ### Why `transitionName: "layout"`?
 
 The default `cupertino` transition slides the entire new screen in from the right. That slide
-**covers the morph** — by the time the new screen settles, the morphing element has nothing to
+**covers the morph.** By the time the new screen settles, the morphing element has nothing to
 animate to.
 
 `layout` is a preset that does a brief, subtle opacity ramp on the screens themselves
 (`0.97 → 1` over 0.3s) without any translation. It stays out of motion's way so the morph reads
 clearly.
 
-You can author a custom transition for this slot — the requirement is "no translation that
+You can author a custom transition for this slot. The requirement is "no translation that
 covers the source element." Most useful custom layout transitions tweak only opacity or filter.
 
 ## A complete example
 
-```tsx title="Gallery.tsx — the source screen"
+```tsx title="Gallery.tsx (the source screen)"
 import { Screen, useNavigate } from "@flemo/react";
 import { LayoutConfig } from "@flemo/react-layout";
 import { motion } from "motion/react";
@@ -124,7 +124,7 @@ function Gallery() {
 }
 ```
 
-```tsx title="Photo.tsx — the destination screen"
+```tsx title="Photo.tsx (the destination screen)"
 import { useScreen } from "@flemo/react";
 import { LayoutScreen, LayoutConfig } from "@flemo/react-layout";
 import { motion } from "motion/react";
@@ -152,9 +152,9 @@ Things to notice:
 - **Both screens wrap their motion tree in `<LayoutConfig>`.** The source needs it so the
   card on its side animates on the same timeline.
 - **Every paired element shares a `layoutId` prefix.** `photo-card-`, `photo-image-`,
-  `photo-title-` — each with the same `id` appended. They morph as one unit.
+  `photo-title-`, each with the same `id` appended. They morph as one unit.
 - **The destination reads `useScreen().layoutId`** to rebuild the same id string the source
-  passed to `navigate.push`. There's no other channel — `layoutId` from `useScreen()` is the
+  passed to `navigate.push`. There's no other channel. `layoutId` from `useScreen()` is the
   only way the destination knows which card it came from.
 - **The destination's morphing container is `fixed inset-0`.** That's deliberate: morphing the
   container to fill the viewport is what creates the "unfold" effect.
@@ -167,7 +167,7 @@ The cleanest fit. A grid of thumbnails, each becoming a full-screen detail view.
 
 ### Card → modal-style overlay
 
-Same shape, but the destination doesn't fill the full viewport — it morphs to a card-sized
+Same shape, but the destination doesn't fill the full viewport. It morphs to a card-sized
 sheet over the previous screen. Set the destination's screen background to `transparent`
 (already the default in `<LayoutScreen>`) so the source stays visible underneath.
 
@@ -179,7 +179,7 @@ especially well for header images that "slide up" into a detail page.
 
 ## Common pitfalls
 
-### "The morph runs on the wrong timing — feels rubbery or out of sync"
+### "The morph runs on the wrong timing, feels rubbery or out of sync"
 
 You forgot `<LayoutConfig>` on at least one side. Motion is using its default spring instead
 of the screen transition's duration/ease. Add `<LayoutConfig>` to both screens.
@@ -193,7 +193,7 @@ slide is hiding the morph. Add it:
 navigate.push("/photos/:id", { id: p.id }, { transitionName: "layout", layoutId: p.id });
 ```
 
-### "Nothing morphs at all — elements just fade"
+### "Nothing morphs at all, elements just fade"
 
 The `layoutId` strings on the source and destination don't match. Print both:
 
@@ -211,7 +211,7 @@ Common causes:
   `undefined` because the push call omitted the option
 - A typo in the prefix (`photo-image-` vs `photo-img-`)
 
-### "Only the outer container morphs — the inner image and title fade in awkwardly"
+### "Only the outer container morphs, the inner image and title fade in awkwardly"
 
 You tagged only the parent with `layoutId`. Tag every element that should travel together:
 
@@ -231,7 +231,7 @@ to `<LayoutScreen>`.
 ### "The source screen freezes / re-renders during the morph"
 
 Don't put expensive components inside the morphing tree. The destination is mounted while the
-source is still visible during the morph — heavy work on the destination steals frames from
+source is still visible during the morph. Heavy work on the destination steals frames from
 motion's layout engine. Lazy-load detail content with `Suspense` so the morph runs on the
 shell, then content streams in.
 
@@ -242,11 +242,11 @@ shell, then content streams in.
 - You want a generic "page slide" between two unrelated screens. `cupertino` or `material` is
   the right call.
 - You need to ship the smallest possible bundle and don't morph anywhere. Don't install
-  `@flemo/react-layout` at all — it pulls in motion.
+  `@flemo/react-layout` at all. It pulls in motion.
 
 ## Props
 
-`<LayoutScreen>` accepts the same props as `<Screen>` — app bars, navigation bars, safe areas,
+`<LayoutScreen>` accepts the same props as `<Screen>`. App bars, navigation bars, safe areas,
 background, scroll, all identical. See the [Screen page](./screen) for the full table. The one
 difference is the default background: `transparent` instead of `white`, so the morphing element
 stays visible across the transition.

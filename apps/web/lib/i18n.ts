@@ -56,7 +56,7 @@ export const dict = {
       {
         icon: "layers",
         label: "Built-in transitions",
-        body: "Cupertino, Material, and more — bundled out of the box"
+        body: "Cupertino, Material, and more, bundled out of the box"
       },
       {
         icon: "sparkle",
@@ -102,7 +102,7 @@ export const dict = {
     },
     showcase: {
       title: "Built with flemo",
-      subtitle: "Real apps shipping flemo in production — not demos.",
+      subtitle: "Real apps shipping flemo in production, not demos.",
       flemoUsageLabel: "How it uses flemo",
       languagesLabel: "Languages",
       languageNames: { ko: "Korean" },
@@ -113,9 +113,9 @@ export const dict = {
           name: "shiflo",
           tagline: "Work and schedule, in one place",
           description:
-            "A scheduling app that helps shift workers keep their work rotations and personal plans in one place — a month grid, a week timeline, a list view, work-pattern templates, home-screen widgets, and a full dark theme.",
+            "A scheduling app that helps shift workers keep their work rotations and personal plans in one place: a month grid, a week timeline, a list view, work-pattern templates, home-screen widgets, and a full dark theme.",
           flemoUsage:
-            "shiflo is a React Native app, but its entire UI is a web app running inside a WebView. flemo drives all of its screen navigation — pushes and pops, the swipe-back gesture, and the transitions between screens — so the web UI inside the native shell moves like a native app on both iOS and Android, from a single web codebase."
+            "shiflo is a React Native app, but its entire UI is a web app running inside a WebView. flemo drives all of its screen navigation (pushes and pops, the swipe-back gesture, and the transitions between screens), so the web UI inside the native shell moves like a native app on both iOS and Android, from a single web codebase."
         }
       }
     },
@@ -137,7 +137,7 @@ export const dict = {
         lyrics: "Lyrics",
         lyricsUnavailable: "Lyrics unavailable in the demo.",
         lyricsHint:
-          "Tap the chip above to swap the sheet contents in place via `replaceStep` — no close / reopen."
+          "Tap the chip above to swap the sheet contents in place via `replaceStep`, no close / reopen."
       },
       player: {
         previous: "Previous",
@@ -150,30 +150,30 @@ export const dict = {
       },
       intro: {
         description:
-          "A miniature music app powered by flemo's Router. Swap the screen transition, pin the shared bar — every choice reflects instantly in the phone preview, and the code that authored it sits right beside."
+          "A miniature music app powered by flemo's Router. Swap the screen transition, pin the shared bar, and every choice reflects instantly in the phone preview, with the code that authored it right beside."
       },
       devPanel: {
         transition: {
           title: "Compose transitions per navigation",
           description:
-            "By default each push uses the transition that fits its affordance — cupertino for browse-deeper hops, material for the player. Pick a chip below to force every push to one transition for comparison; tap it again to drop back to the per-context defaults.",
-          noOverride: "No override — each push site picks its own transition inline.",
-          overridePrefix: "Override active — ",
+            "By default each push uses the transition that fits its affordance: cupertino for browse-deeper hops, material for the player. Pick a chip below to force every push to one transition for comparison; tap it again to drop back to the per-context defaults.",
+          noOverride: "No override. Each push site picks its own transition inline.",
+          overridePrefix: "Override active: ",
           summaries: {
             cupertino: "iOS-style horizontal push. Ships with @flemo/core.",
             material: "Material-style vertical rise. Ships with @flemo/core.",
             none: "Instant swap, no animation. Useful for tab-like routing.",
-            blur: "Author-defined with createTransition — lives in this playground, not the core.",
-            zoom: "Cross-zoom dive — the new screen scales up into focus while the old one pushes forward and fades.",
+            blur: "Author-defined with createTransition. Lives in this playground, not the core.",
+            zoom: "Cross-zoom dive: the new screen scales up into focus while the old one pushes forward and fades.",
             "card-stack":
-              "iOS-style card present — the new screen rises while the current one scales back and dims behind it.",
+              "iOS-style card present: the new screen rises while the current one scales back and dims behind it.",
             reveal:
-              "Iris reveal — the new screen opens through a circular clip-path that grows to just cover the viewport, while the backdrop recedes.",
+              "Iris reveal: the new screen opens through a circular clip-path that grows to just cover the viewport, while the backdrop recedes.",
             spring:
-              "Springy pop — the new screen scales up with an overshooting ease, settling with a bounce.",
+              "Springy pop: the new screen scales up with an overshooting ease, settling with a bounce.",
             ripple:
-              "A drop in water: the screen reveals through a circle expanding from the center, and concentric rings radiate from that same point on the backdrop — reveal and ripples share one origin.",
-            dive: "Diving forward through depth: the screen rushes in from a point at the center while the backdrop scales out into a closing dark tunnel — both read as the same plunge into depth."
+              "A drop in water: the screen reveals through a circle expanding from the center, and concentric rings radiate from that same point on the backdrop. Reveal and ripples share one origin.",
+            dive: "Diving forward through depth: the screen rushes in from a point at the center while the backdrop scales out into a closing dark tunnel. Both read as the same plunge into depth."
           }
         },
         sharedBars: {
@@ -190,7 +190,7 @@ export const dict = {
         navigation: {
           title: "Reach past the top in one transition",
           description:
-            "pop / replace / push all take a distance — { skip } screens or { until } a route. The screens skipped over are removed without ever painting, so you never see them flash. Seed a stack, then reach back several screens at once and watch the depth jump with no flicker.",
+            "pop / replace / push all take a distance: { skip } screens or { until } a route. The screens skipped over are removed without ever painting, so you never see them flash. Seed a stack, then reach back several screens at once and watch the depth jump with no flicker.",
           stackDepth: "Stack depth",
           seed: "Seed deep stack",
           reachBack: "Reach back",
@@ -204,7 +204,7 @@ export const dict = {
         inspector: {
           title: "What flemo is doing, right now",
           description:
-            "A read-only window into flemo's stores — the history stack, the navigation status as it moves through its state machine, and which mounted screens registered which shared bars. Navigate the preview and watch it update live.",
+            "A read-only window into flemo's stores: the history stack, the navigation status as it moves through its state machine, and which mounted screens registered which shared bars. Navigate the preview and watch it update live.",
           status: "Status",
           historyStack: "History stack (top first)",
           sharedBars: "Shared bars by screen",
@@ -308,9 +308,9 @@ export const dict = {
           name: "시플로",
           tagline: "근무와 일정을 한 번에",
           description:
-            "교대 근무자가 근무 일정과 개인 일정을 한 곳에서 관리하도록 돕는 일정 앱이에요 — 월 단위 달력, 주 단위 타임라인, 목록 보기, 근무 패턴 템플릿, 홈 화면 위젯, 그리고 완전한 다크 테마까지.",
+            "교대 근무자가 근무 일정과 개인 일정을 한 곳에서 관리하도록 돕는 일정 앱이에요. 월 단위 달력, 주 단위 타임라인, 목록 보기, 근무 패턴 템플릿, 홈 화면 위젯, 그리고 완전한 다크 테마까지.",
           flemoUsage:
-            "shiflo는 React Native 앱이지만, UI 전체가 WebView 안에서 도는 웹 앱이에요. 화면 간 이동은 전부 flemo가 담당해요 — push와 pop, 스와이프 뒤로 가기, 화면 사이의 전환까지. 그래서 네이티브 셸 안의 웹 UI가 하나의 웹 코드베이스로 iOS·Android 양쪽에서 네이티브 앱처럼 움직여요."
+            "shiflo는 React Native 앱이지만, UI 전체가 WebView 안에서 도는 웹 앱이에요. 화면 간 이동은 전부 flemo가 담당해요. push와 pop, 스와이프 뒤로 가기, 화면 사이의 전환까지요. 그래서 네이티브 셸 안의 웹 UI가 하나의 웹 코드베이스로 iOS·Android 양쪽에서 네이티브 앱처럼 움직여요."
         }
       }
     },
@@ -332,7 +332,7 @@ export const dict = {
         lyrics: "가사",
         lyricsUnavailable: "데모에서는 가사를 제공하지 않아요.",
         lyricsHint:
-          "위 칩을 누르면 `replaceStep`으로 시트 내용을 그 자리에서 교체해요 — 닫고 다시 열지 않아요."
+          "위 칩을 누르면 `replaceStep`으로 시트 내용을 그 자리에서 교체해요. 닫고 다시 열지 않아요."
       },
       player: {
         previous: "이전",
@@ -345,30 +345,30 @@ export const dict = {
       },
       intro: {
         description:
-          "flemo의 Router로 만든 미니 뮤직 앱이에요. 화면 전환을 바꾸고 공유 바를 고정해 보세요 — 모든 선택이 오른쪽 폰 미리보기에 즉시 반영되고, 그걸 만든 코드가 바로 옆에 함께 보여요."
+          "flemo의 Router로 만든 미니 뮤직 앱이에요. 화면 전환을 바꾸고 공유 바를 고정해 보세요. 모든 선택이 오른쪽 폰 미리보기에 즉시 반영되고, 그걸 만든 코드가 바로 옆에 함께 보여요."
       },
       devPanel: {
         transition: {
           title: "내비게이션마다 전환 구성",
           description:
-            "기본적으로 각 push는 상황에 맞는 전환을 써요 — 깊이 탐색은 cupertino, 플레이어는 material. 아래 칩을 눌러 모든 push를 한 전환으로 강제해 비교하고, 다시 누르면 상황별 기본값으로 돌아가요.",
-          noOverride: "오버라이드 없음 — 각 push가 자체 전환을 선택해요.",
-          overridePrefix: "오버라이드 적용 중 — ",
+            "기본적으로 각 push는 상황에 맞는 전환을 써요: 깊이 탐색은 cupertino, 플레이어는 material. 아래 칩을 눌러 모든 push를 한 전환으로 강제해 비교하고, 다시 누르면 상황별 기본값으로 돌아가요.",
+          noOverride: "오버라이드 없음. 각 push가 자체 전환을 선택해요.",
+          overridePrefix: "오버라이드 적용 중: ",
           summaries: {
             cupertino: "iOS 스타일 가로 push. @flemo/core에 기본 포함돼요.",
             material: "Material 스타일 세로 상승. @flemo/core에 기본 포함돼요.",
             none: "애니메이션 없이 즉시 교체. 탭처럼 동작하는 라우팅에 유용해요.",
-            blur: "createTransition으로 직접 정의 — 코어가 아니라 이 playground에 있어요.",
-            zoom: "크로스 줌 다이브 — 새 화면이 확대되며 또렷해지고, 이전 화면은 앞으로 밀려나며 사라져요.",
+            blur: "createTransition으로 직접 정의해요. 코어가 아니라 이 playground에 있어요.",
+            zoom: "크로스 줌 다이브: 새 화면이 확대되며 또렷해지고, 이전 화면은 앞으로 밀려나며 사라져요.",
             "card-stack":
-              "iOS 스타일 카드 표시 — 새 화면이 떠오르고, 현재 화면은 뒤로 축소되며 그 뒤에서 어두워져요.",
+              "iOS 스타일 카드 표시: 새 화면이 떠오르고, 현재 화면은 뒤로 축소되며 그 뒤에서 어두워져요.",
             reveal:
-              "아이리스 reveal — 새 화면이 원형 clip-path를 통해 열리며 뷰포트를 막 덮을 만큼 커지고, 배경은 뒤로 물러나요.",
+              "아이리스 reveal: 새 화면이 원형 clip-path를 통해 열리며 뷰포트를 막 덮을 만큼 커지고, 배경은 뒤로 물러나요.",
             spring:
-              "스프링 팝 — 새 화면이 살짝 튀어 오르는 이징으로 확대되며 통통 튀듯 자리를 잡아요.",
+              "스프링 팝: 새 화면이 살짝 튀어 오르는 이징으로 확대되며 통통 튀듯 자리를 잡아요.",
             ripple:
-              "물에 떨어진 물방울 — 화면이 가운데에서 퍼지는 원을 통해 드러나고, 같은 지점에서 동심원이 배경으로 퍼져 나가요. reveal과 물결이 하나의 원점을 공유해요.",
-            dive: "깊이 속으로 다이빙 — 화면이 가운데 한 점에서 솟구쳐 들어오고, 배경은 닫히는 어두운 터널처럼 확장돼요. 둘 다 같은 깊이로의 돌입처럼 읽혀요."
+              "물에 떨어진 물방울: 화면이 가운데에서 퍼지는 원을 통해 드러나고, 같은 지점에서 동심원이 배경으로 퍼져 나가요. reveal과 물결이 하나의 원점을 공유해요.",
+            dive: "깊이 속으로 다이빙: 화면이 가운데 한 점에서 솟구쳐 들어오고, 배경은 닫히는 어두운 터널처럼 확장돼요. 둘 다 같은 깊이로의 돌입처럼 읽혀요."
           }
         },
         sharedBars: {
@@ -385,7 +385,7 @@ export const dict = {
         navigation: {
           title: "한 번의 전환으로 여러 화면 건너뛰기",
           description:
-            "pop / replace / push 는 모두 이동 거리를 받아요 — { skip } 으로 건너뛸 화면 수를, { until } 로 멈출 라우트를 지정해요. 건너뛴 화면은 한 프레임도 그려지지 않고 제거돼요. 스택을 쌓은 뒤 여러 화면을 한 번에 거슬러 올라가며, 깊이가 깜빡임 없이 줄어드는 걸 확인해 보세요.",
+            "pop / replace / push 는 모두 이동 거리를 받아요: { skip } 으로 건너뛸 화면 수를, { until } 로 멈출 라우트를 지정해요. 건너뛴 화면은 한 프레임도 그려지지 않고 제거돼요. 스택을 쌓은 뒤 여러 화면을 한 번에 거슬러 올라가며, 깊이가 깜빡임 없이 줄어드는 걸 확인해 보세요.",
           stackDepth: "스택 깊이",
           seed: "깊은 스택 쌓기",
           reachBack: "거슬러 올라가기",
@@ -399,7 +399,7 @@ export const dict = {
         inspector: {
           title: "지금 flemo가 하는 일",
           description:
-            "flemo 스토어를 읽기 전용으로 들여다봐요 — history 스택, 상태 머신을 따라 움직이는 내비게이션 상태, 그리고 어떤 마운트된 화면이 어떤 공유 바를 등록했는지. 미리보기를 조작하며 실시간으로 갱신되는 걸 보세요.",
+            "flemo 스토어를 읽기 전용으로 들여다봐요: history 스택, 상태 머신을 따라 움직이는 내비게이션 상태, 그리고 어떤 마운트된 화면이 어떤 공유 바를 등록했는지. 미리보기를 조작하며 실시간으로 갱신되는 걸 보세요.",
           status: "상태",
           historyStack: "History 스택 (맨 위부터)",
           sharedBars: "화면별 공유 바",

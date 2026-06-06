@@ -21,7 +21,7 @@ function TrackRow({ index, track }: TrackRowProps) {
   const handlePlay = () => {
     setTrack(track);
     navigate.push("/now-playing", undefined, {
-      // Player open — match the close gesture's vertical axis with material.
+      // Player open. Match the close gesture's vertical axis with material.
       transitionName: pushTransitionOverride ?? "material"
     });
   };

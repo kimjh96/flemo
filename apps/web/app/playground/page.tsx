@@ -10,7 +10,7 @@ import PlaygroundRouter from "./_router/PlaygroundRouter";
 
 // `null` while detecting, then `true` if rendered inside an <iframe> (any
 // origin), else `false`. The Hero on the landing page already provides the
-// phone-frame chrome by iframing this route — drawing a second frame inside
+// phone-frame chrome by iframing this route. Drawing a second frame inside
 // double-stacks the geometry and clips Screen content out of view. When
 // embedded we render the bare PlaygroundRouter so the iframe IS the frame;
 // when visited directly we add the frame and the toggle panel.
@@ -25,7 +25,7 @@ function detectEmbedded(): boolean {
 
 export default function PlaygroundPage() {
   // The Router reads `window.location.pathname` on first render to seed its
-  // history. Without isolation that would be `/playground` — a path no Route
+  // history. Without isolation that would be `/playground`, a path no Route
   // matches, and Renderer's destructuring would crash on `undefined.props`.
   // Rewrite history to `/` before mounting so the Router sees the playground
   // app's own root, then render.

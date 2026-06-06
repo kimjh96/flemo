@@ -20,7 +20,7 @@ function AlbumTile({ album }: AlbumTileProps) {
     navigate.push(
       "/album/:id",
       { id: album.id },
-      // Browse-deeper hop — cupertino fits naturally. The override is for
+      // Browse-deeper hop. Cupertino fits naturally. The override is for
       // playground experimentation only.
       { transitionName: pushTransitionOverride ?? "cupertino" }
     );

@@ -34,7 +34,7 @@ description: "`@flemo/react`의 모든 export"
 | `isActive`           | `boolean`                  | 현재(top) 화면인지 여부                              |
 | `isRoot`             | `boolean`                  | 루트 화면(`zIndex` 0)인지 여부                       |
 | `isPrev`             | `boolean`                  | 이전 화면보다 아래에 있는지 여부 (정지된 채 화면 밖) |
-| `zIndex`             | `number`                   | 스택 깊이 — `0`이 루트, 클수록 최신                  |
+| `zIndex`             | `number`                   | 스택 깊이. `0`이 루트, 클수록 최신                   |
 | `pathname`           | `string`                   | 이 화면의 resolved pathname                          |
 | `params`             | `object`                   | 이 화면의 라우트 파라미터                            |
 | `routePath`          | `string`                   | 매칭된 라우트 패턴 (예: `/album/:id`)                |
@@ -70,11 +70,11 @@ function AlbumHeader() {
 
 ## 타입 레지스트리
 
-| 인터페이스           | 용도                                                   |
-| -------------------- | ------------------------------------------------------ |
-| `RegisterRoute`      | 라우트 등록 — `navigate.push`, `useParams`의 타입 안전 |
-| `RegisterTransition` | 커스텀 전환 이름 등록                                  |
-| `RegisterDecorator`  | 커스텀 데코레이터 이름 등록                            |
+| 인터페이스           | 용도                                                  |
+| -------------------- | ----------------------------------------------------- |
+| `RegisterRoute`      | 라우트 등록. `navigate.push`, `useParams`의 타입 안전 |
+| `RegisterTransition` | 커스텀 전환 이름 등록                                 |
+| `RegisterDecorator`  | 커스텀 데코레이터 이름 등록                           |
 
 ```ts
 declare module "@flemo/react" {
@@ -97,4 +97,4 @@ declare module "@flemo/react" {
 ## Peer dependencies
 
 `@flemo/react`는 `react ^19`, `react-dom ^19`만 peer로 요구해요. `@flemo/react-layout`은 `motion ^12`를
-추가 peer로 가져요 — `<LayoutScreen>`이나 `<LayoutConfig>`를 쓸 때 같이 설치하세요.
+추가 peer로 가져요. `<LayoutScreen>`이나 `<LayoutConfig>`를 쓸 때 같이 설치하세요.

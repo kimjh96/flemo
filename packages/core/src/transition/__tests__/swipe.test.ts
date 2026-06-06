@@ -8,7 +8,7 @@ import type { SwipeInfo, Transition } from "@transition/typing";
 // The swipe handlers are pure value-math: given a drag, they compute the
 // target the current/previous screens should sit at and hand it to the
 // injected `animate`. We exercise that math directly with a spy `animate`
-// and synthetic pointer info — no DOM choreography (that lives in the
+// and synthetic pointer info, no DOM choreography (that lives in the
 // playground e2e), just the parallax/fade numbers we care about.
 
 const makeInfo = (overrides: Partial<SwipeInfo>): SwipeInfo => ({

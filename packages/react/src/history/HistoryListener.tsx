@@ -12,7 +12,7 @@ import {
 function HistoryListener() {
   useEffect(() => {
     const handlePopState = async (e: PopStateEvent) => {
-      // A popstate flemo triggered itself — the navigation queue already owns it.
+      // A popstate flemo triggered itself. The navigation queue already owns it.
       if (consumeSelfInducedPop()) {
         return;
       }

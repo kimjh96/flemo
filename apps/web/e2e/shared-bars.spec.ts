@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { activeScreen, albumTile, waitForTransitionSettled } from "./helpers/flemo";
 
-test.describe("playground — shared bars", () => {
+test.describe("playground: shared bars", () => {
   test("Library declares a sharedAppBar (LibraryHeader)", async ({ page }) => {
     await page.goto("/playground");
     await waitForTransitionSettled(page);
@@ -33,7 +33,7 @@ test.describe("playground — shared bars", () => {
     await page.goto("/playground");
     await waitForTransitionSettled(page);
 
-    // Toggle switch in the side panel — clicking the row toggles visibility.
+    // Toggle switch in the side panel. Clicking the row toggles visibility.
     await page.getByRole("switch", { name: "Shared navigation bar" }).click();
     await expect(page.locator('[data-flemo-bar="nav"]')).toHaveCount(0);
 
@@ -49,7 +49,7 @@ test.describe("playground — shared bars", () => {
     await waitForTransitionSettled(page);
 
     // Library has the nav bar; Album does NOT declare `sharedNavigationBar`
-    // when the mini-player is off — toggle it off so partner ownership flips.
+    // when the mini-player is off, so toggle it off so partner ownership flips.
     await page.getByRole("switch", { name: "Shared navigation bar" }).click();
     await waitForTransitionSettled(page);
 

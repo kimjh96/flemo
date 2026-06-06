@@ -14,11 +14,11 @@ import buildRoutePath from "@utils/buildRoutePath";
 
 import type { RegisterRoute } from "@Route";
 
-// How far a pop / replace / push reaches into the existing stack — `skip`
+// How far a pop / replace / push reaches into the existing stack. `skip`
 // screens, or back until the nearest screen matching the `until` route pattern.
 // They reach the same target (the screen `skip` below the top ≡ the matched
 // screen): pop lands on it, replace replaces it, push keeps it and stacks on
-// top. Mutually exclusive — `until` wins if both are given.
+// top. Mutually exclusive. `until` wins if both are given.
 interface DistanceOptions {
   skip?: number;
   until?: keyof RegisterRoute;
@@ -47,7 +47,7 @@ const toSkip = (value: number | undefined, fallback: number): number =>
 // Sync the browser history for a collapse (replace / push): go back `goBack` to
 // where the new screen will sit, await flemo's own popstate (HistoryListener
 // filters it), then run `commit` (a push/replaceState) so the browser ends
-// matching the in-memory stack. `commit` distinguishes the two callers — push
+// matching the in-memory stack. `commit` distinguishes the two callers. Push
 // and below-root replace pushState the new entry (truncating the forward
 // stack); a root-collapsing replace can't go past index 0, so it goes to the
 // root and replaceState's it instead.
@@ -55,7 +55,7 @@ const toSkip = (value: number | undefined, fallback: number): number =>
 // If no popstate arrives within the window the traversal was either slow or a
 // no-op. We drop our one-shot listener and leave the self-pop mark for
 // HistoryListener to consume (a slow popstate is far likelier than none, now
-// that `goBack` never overshoots), and leave the browser as-is — the in-memory
+// that `goBack` never overshoots), and leave the browser as-is. The in-memory
 // store stays the source of truth and the visual still resolves.
 const syncCollapsedHistory = async (goBack: number, commit: () => void) => {
   let onPopstate!: () => void;
@@ -101,7 +101,7 @@ export default function useNavigate() {
         async () => {
           const { index, histories, addHistory, popHistories } = useHistoryStore.getState();
 
-          // Screens to remove below the new top — reaching the target (`skip`
+          // Screens to remove below the new top, reaching the target (`skip`
           // below the top, or the matched `until` screen), which is kept with
           // the new screen stacked on top. An unmatched `until` falls back to a
           // plain push (removes nothing).
@@ -131,7 +131,7 @@ export default function useNavigate() {
           };
 
           if (remove === 0) {
-            // Plain push — the new screen stacks on the current top, unchanged.
+            // Plain push. The new screen stacks on the current top, unchanged.
             window.history.pushState(
               { id, index: index + 1, status: "PUSHING", params, transitionName, layoutId },
               "",
@@ -146,7 +146,7 @@ export default function useNavigate() {
 
           // Collapse-push: stack the new screen normally (it enters over the
           // current top), then once it covers everything the resolver removes
-          // the `remove` screens now hidden below it — so the skipped screens
+          // the `remove` screens now hidden below it, so the skipped screens
           // never flash. The browser goes back to the kept target and
           // pushState's the new screen, truncating the forward stack.
           addHistory(newEntry);
@@ -207,7 +207,7 @@ export default function useNavigate() {
             useHistoryStore.getState();
 
           // How many screens the new one collapses (replaces). It reaches the
-          // target — `skip` below the top, or the matched `until` screen — and
+          // target (`skip` below the top, or the matched `until` screen) and
           // replaces it together with everything above, so it's the reach
           // distance plus one. `replace()` with no distance is the plain
           // single-screen replace (steps 1). Clamps to `index + 1` because
@@ -241,7 +241,7 @@ export default function useNavigate() {
           };
 
           if (steps === 1) {
-            // Single-screen replace — unchanged from the original behavior.
+            // Single-screen replace. Unchanged from the original behavior.
             window.history.replaceState(
               { id, index, status: "REPLACING", params, transitionName, layoutId },
               "",
@@ -255,15 +255,15 @@ export default function useNavigate() {
             };
           }
 
-          // Collapse: drop the steps-1 skipped screens synchronously — same
-          // block as setStatus, before the browser can paint — so they never
+          // Collapse: drop the steps-1 skipped screens synchronously (same
+          // block as setStatus, before the browser can paint) so they never
           // appear. The leaving top stays mounted (REPLACING-false, exiting)
           // while the new screen enters over it (REPLACING-true).
           popHistories(steps - 1);
           addHistory(newEntry);
 
           if (steps <= index) {
-            // A screen remains below the new one — go to it and pushState the
+            // A screen remains below the new one. Go to it and pushState the
             // new entry above (truncating the forward stack, no phantoms).
             await syncCollapsedHistory(steps, () => {
               window.history.pushState(
@@ -309,8 +309,8 @@ export default function useNavigate() {
     ).result?.();
   };
 
-  // Shared engine for pop. `resolveSteps` runs inside the task — with the live
-  // history — and returns how many screens to pop. A result <= 0 is a no-op
+  // Shared engine for pop. `resolveSteps` runs inside the task (with the live
+  // history) and returns how many screens to pop. A result <= 0 is a no-op
   // (e.g. an unmatched `until`, or a non-positive `count`). Whatever the count,
   // the skipped screens are removed synchronously in the same block that flips
   // to POPPING (before the browser paints), so they never appear; the leaving
@@ -327,7 +327,7 @@ export default function useNavigate() {
           const { index, histories, popHistory, popHistories, setTransitionName } =
             useHistoryStore.getState();
 
-          // Nothing below the root to pop — no-op without touching the browser.
+          // Nothing below the root to pop. A no-op without touching the browser.
           if (index <= 0) {
             abortController.abort();
             return;
@@ -345,7 +345,7 @@ export default function useNavigate() {
           const { setStatus, setTransitionTaskId } = useNavigateStore.getState();
 
           // Relabel the leaving top's transition before the POPPING flip, in the
-          // same synchronous block — so the first painted POPPING frame already
+          // same synchronous block, so the first painted POPPING frame already
           // uses it and the screen's original transition never shows. `index` is
           // the current top (the leaving screen); popHistories keeps that same
           // entry below, so the override survives the intermediate drop.
@@ -356,8 +356,8 @@ export default function useNavigate() {
           setStatus("POPPING");
           setTransitionTaskId(id);
 
-          // Drop the n-1 skipped screens synchronously — same block as
-          // setStatus, before the browser can paint — so they never appear.
+          // Drop the n-1 skipped screens synchronously (same block as
+          // setStatus, before the browser can paint) so they never appear.
           // The leaving top stays mounted; the destination becomes the visible
           // previous and the transition reduces to a normal 1-step pop.
           // popHistories(0) is a no-op, so steps === 1 takes the exact same
@@ -390,9 +390,9 @@ export default function useNavigate() {
   };
 
   // Go back `skip` screens, or back until the nearest screen matching `until`'s
-  // route pattern (which stays — pop lands on it). Omitted → one screen. An
+  // route pattern (which stays: pop lands on it). Omitted → one screen. An
   // unmatched `until` or non-positive `skip` is a no-op. `transitionName`
-  // overrides the back animation — handy when collapsing several screens whose
+  // overrides the back animation. Handy when collapsing several screens whose
   // own (top) transition isn't the one you want to play.
   const pop = async (options?: DistanceOptions & { transitionName?: TransitionName }) => {
     await runPop((index, histories) => {
