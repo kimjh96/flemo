@@ -5,26 +5,23 @@ description: "Every export from `@flemo/react`, with the page that explains it"
 
 ## Components
 
-| Export                | Summary                                                                    | Package               | More                                                            |
-| --------------------- | -------------------------------------------------------------------------- | --------------------- | --------------------------------------------------------------- |
-| `Router`              | Root container. Renders the active screen.                                 | `@flemo/react`        | [Router](./router)                                              |
-| `Route`               | Maps a path (or paths) to an element.                                      | `@flemo/react`        | [Router](./router)                                              |
-| `RouterScopeProvider` | Hosts the Router's request-scoped stores so code outside it can read them. | `@flemo/react`        | [Router](./router#reading-router-state-from-outside-the-router) |
-| `Screen`              | Per-route screen container with app/nav/safe-area slots.                   | `@flemo/react`        | [Screen](./screen)                                              |
-| `LayoutScreen`        | Screen variant for shared `layoutId` morphs across screens.                | `@flemo/react-layout` | [LayoutScreen](./layout-screen)                                 |
-| `LayoutConfig`        | Wraps motion children with the current screen's transition timing.         | `@flemo/react-layout` | [LayoutScreen](./layout-screen)                                 |
+| Export         | Summary                                                            | Package               | More                            |
+| -------------- | ------------------------------------------------------------------ | --------------------- | ------------------------------- |
+| `Router`       | Root container. Renders the active screen.                         | `@flemo/react`        | [Router](./router)              |
+| `Route`        | Maps a path (or paths) to an element.                              | `@flemo/react`        | [Router](./router)              |
+| `Screen`       | Per-route screen container with app/nav/safe-area slots.           | `@flemo/react`        | [Screen](./screen)              |
+| `LayoutScreen` | Screen variant for shared `layoutId` morphs across screens.        | `@flemo/react-layout` | [LayoutScreen](./layout-screen) |
+| `LayoutConfig` | Wraps motion children with the current screen's transition timing. | `@flemo/react-layout` | [LayoutScreen](./layout-screen) |
 
 ## Hooks
 
-| Export                                                    | Returns                                                     | More                                                            |
-| --------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------- |
-| `useNavigate()`                                           | `{ push, replace, pop }`                                    | [Navigation](./navigation)                                      |
-| `useParams<T>()`                                          | The current route's params (path + query merged)            | [Navigation](./navigation#useparams)                            |
-| `useStep<T>()`                                            | `{ pushStep, replaceStep, popStep }` for sub-states         | [Navigation](./navigation#usestep)                              |
-| `useScreen()`                                             | Current screen meta (`id`, `isActive`, `zIndex`, …)         | [useScreen](#usescreen)                                         |
-| `useViewportScrollHeight()`                               | Visual-viewport scroll metrics, useful for mobile keyboards | —                                                               |
-| `useStores()`                                             | All four request-scoped store APIs (imperative)             | [Router](./router#reading-router-state-from-outside-the-router) |
-| `useHistoryStore` · `useNavigateStore` · `useScreenStore` | Lower-level selector reads of the active Router's stores    | [Router](./router#reading-router-state-from-outside-the-router) |
+| Export                      | Returns                                                     | More                                 |
+| --------------------------- | ----------------------------------------------------------- | ------------------------------------ |
+| `useNavigate()`             | `{ push, replace, pop }`                                    | [Navigation](./navigation)           |
+| `useParams<T>()`            | The current route's params (path + query merged)            | [Navigation](./navigation#useparams) |
+| `useStep<T>()`              | `{ pushStep, replaceStep, popStep }` for sub-states         | [Navigation](./navigation#usestep)   |
+| `useScreen()`               | Current screen meta (`id`, `isActive`, `zIndex`, …)         | [useScreen](#usescreen)              |
+| `useViewportScrollHeight()` | Visual-viewport scroll metrics, useful for mobile keyboards | —                                    |
 
 ## useScreen
 
