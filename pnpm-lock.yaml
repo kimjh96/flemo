@@ -30,7 +30,7 @@ importers:
         specifier: ^11.1.6
         version: 11.2.0
       turbo:
-        specifier: ^2.3.3
+        specifier: ^2.9.16
         version: 2.9.16
 
   apps/web:
