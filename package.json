@@ -30,7 +30,7 @@
     "@changesets/cli": "^2.27.10",
     "@size-limit/preset-small-lib": "^11.2.0",
     "husky": "^9.1.7",
-    "lint-staged": "^16.1.5",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.6.2",
     "size-limit": "^11.1.6",
     "turbo": "^2.3.3"
