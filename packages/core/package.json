@@ -43,7 +43,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "path-to-regexp": "^8.2.0",
+    "path-to-regexp": "^8.4.2",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
