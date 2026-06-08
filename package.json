@@ -35,17 +35,9 @@
     "size-limit": "^12.1.0",
     "turbo": "^2.9.16"
   },
-  "packageManager": "pnpm@10.34.1",
+  "packageManager": "pnpm@11.5.2",
   "engines": {
     "node": ">=24.16.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@swc/core",
-      "esbuild",
-      "sharp",
-      "unrs-resolver"
-    ]
   },
   "lint-staged": {
     "*.{js,mjs,ts,jsx,tsx,mts,json,md,mdx}": "prettier --write --ignore-unknown"
