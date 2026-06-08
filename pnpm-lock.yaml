@@ -69,7 +69,7 @@ importers:
         specifier: ^19.2.0
         version: 19.2.7(react@19.2.7)
       zustand:
-        specifier: ^5.0.12
+        specifier: ^5.0.14
         version: 5.0.14(@types/react@19.2.17)(react@19.2.7)
     devDependencies:
       '@flemo/eslint-config':
@@ -118,7 +118,7 @@ importers:
         specifier: ^8.2.0
         version: 8.4.2
       zustand:
-        specifier: ^5.0.11
+        specifier: ^5.0.14
         version: 5.0.14(@types/react@19.2.17)(react@19.2.7)
     devDependencies:
       '@flemo/eslint-config':
@@ -197,7 +197,7 @@ importers:
         specifier: ^8.2.0
         version: 8.4.2
       zustand:
-        specifier: ^5.0.11
+        specifier: ^5.0.14
         version: 5.0.14(@types/react@19.2.17)(react@19.2.7)
     devDependencies:
       '@flemo/eslint-config':
