@@ -37,7 +37,7 @@
   },
   "packageManager": "pnpm@11.5.2",
   "engines": {
-    "node": ">=24.16.0"
+    "node": ">=22"
   },
   "lint-staged": {
     "*.{js,mjs,ts,jsx,tsx,mts,json,md,mdx}": "prettier --write --ignore-unknown"
