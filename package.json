@@ -26,18 +26,18 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@changesets/changelog-github": "^0.6.0",
-    "@changesets/cli": "^2.27.10",
+    "@changesets/changelog-github": "^0.7.0",
+    "@changesets/cli": "^2.31.0",
     "@size-limit/preset-small-lib": "^11.2.0",
     "husky": "^9.1.7",
-    "lint-staged": "^16.1.5",
-    "prettier": "^3.6.2",
-    "size-limit": "^11.1.6",
-    "turbo": "^2.3.3"
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.3",
+    "size-limit": "^11.2.0",
+    "turbo": "^2.9.16"
   },
-  "packageManager": "pnpm@10.28.2",
+  "packageManager": "pnpm@10.34.1",
   "engines": {
-    "node": ">=20"
+    "node": ">=20.20.2"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
