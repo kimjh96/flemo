@@ -35,8 +35,19 @@ const startManualGateSweeper = () => {
   };
 };
 
+// Captured before any test installs a spy. Zustand's setState copies the
+// current state into a fresh object, so a `vi.spyOn` left on
+// `setTransitionName` rides forward onto every later state. Vitest 4's
+// restore can't reach it once it has been copied, so reinstall the pristine
+// action on each reset to guarantee a clean spy target per test.
+const pristineSetTransitionName = useHistoryStore.getState().setTransitionName;
+
 const resetStores = () => {
-  useHistoryStore.setState({ index: -1, histories: [] });
+  useHistoryStore.setState({
+    index: -1,
+    histories: [],
+    setTransitionName: pristineSetTransitionName
+  });
   useNavigateStore.setState({ status: "IDLE", transitionTaskId: null });
   // Bring window.history back to a known origin so pushState/back don't
   // confuse subsequent tests.
