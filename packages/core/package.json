@@ -52,7 +52,7 @@
     "@types/node": "^24.3.0",
     "@vitest/coverage-v8": "^2.1.8",
     "csstype": "^3.2.3",
-    "eslint": "^9.33.0",
+    "eslint": "^9.39.4",
     "jsdom": "^25.0.1",
     "typescript": "^5.9.2",
     "vite": "^7.1.5",
