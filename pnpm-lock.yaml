@@ -24,7 +24,7 @@ importers:
         specifier: ^16.1.5
         version: 16.4.0
       prettier:
-        specifier: ^3.6.2
+        specifier: ^3.8.3
         version: 3.8.3
       size-limit:
         specifier: ^11.1.6
