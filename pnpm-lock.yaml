@@ -131,7 +131,7 @@ importers:
         specifier: ^24.3.0
         version: 24.13.1
       '@vitest/coverage-v8':
-        specifier: ^2.1.8
+        specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.1)(jsdom@25.0.1)(lightningcss@1.32.0))
       csstype:
         specifier: ^3.2.3
@@ -146,13 +146,13 @@ importers:
         specifier: ^5.9.2
         version: 5.9.3
       vite:
-        specifier: ^7.1.5
+        specifier: ^7.3.5
         version: 7.3.5(@types/node@24.13.1)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0)
       vite-plugin-dts:
         specifier: ^4.5.4
         version: 4.5.4(@types/node@24.13.1)(rollup@4.61.1)(typescript@5.9.3)(vite@7.3.5(@types/node@24.13.1)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0))
       vitest:
-        specifier: ^2.1.8
+        specifier: ^2.1.9
         version: 2.1.9(@types/node@24.13.1)(jsdom@25.0.1)(lightningcss@1.32.0)
 
   packages/eslint-config:
@@ -222,10 +222,10 @@ importers:
         specifier: ^19.2.0
         version: 19.2.3(@types/react@19.2.17)
       '@vitejs/plugin-react-swc':
-        specifier: ^4.0.1
+        specifier: ^4.3.1
         version: 4.3.1(vite@7.3.5(@types/node@24.13.1)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0))
       '@vitest/coverage-v8':
-        specifier: ^2.1.8
+        specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.1)(jsdom@25.0.1)(lightningcss@1.32.0))
       eslint:
         specifier: ^9.33.0
@@ -243,13 +243,13 @@ importers:
         specifier: ^5.9.2
         version: 5.9.3
       vite:
-        specifier: ^7.1.5
+        specifier: ^7.3.5
         version: 7.3.5(@types/node@24.13.1)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0)
       vite-plugin-dts:
         specifier: ^4.5.4
         version: 4.5.4(@types/node@24.13.1)(rollup@4.61.1)(typescript@5.9.3)(vite@7.3.5(@types/node@24.13.1)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0))
       vitest:
-        specifier: ^2.1.8
+        specifier: ^2.1.9
         version: 2.1.9(@types/node@24.13.1)(jsdom@25.0.1)(lightningcss@1.32.0)
 
   packages/react-layout:
@@ -277,7 +277,7 @@ importers:
         specifier: ^19.2.0
         version: 19.2.3(@types/react@19.2.17)
       '@vitejs/plugin-react-swc':
-        specifier: ^4.0.1
+        specifier: ^4.3.1
         version: 4.3.1(vite@7.3.5(@types/node@24.13.1)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0))
       eslint:
         specifier: ^9.33.0
@@ -295,7 +295,7 @@ importers:
         specifier: ^5.9.2
         version: 5.9.3
       vite:
-        specifier: ^7.1.5
+        specifier: ^7.3.5
         version: 7.3.5(@types/node@24.13.1)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0)
       vite-plugin-dts:
         specifier: ^4.5.4
