@@ -185,7 +185,7 @@ importers:
         specifier: ^16.3.0
         version: 16.5.0
       typescript-eslint:
-        specifier: ^8.39.1
+        specifier: ^8.60.1
         version: 8.60.1(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
 
   packages/react:
