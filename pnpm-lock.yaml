@@ -27,7 +27,7 @@ importers:
         specifier: ^3.6.2
         version: 3.8.3
       size-limit:
-        specifier: ^11.1.6
+        specifier: ^11.2.0
         version: 11.2.0
       turbo:
         specifier: ^2.3.3
