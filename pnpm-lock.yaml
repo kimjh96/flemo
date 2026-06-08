@@ -103,7 +103,7 @@ importers:
         specifier: ^16.2.4
         version: 16.2.7(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
       postcss:
-        specifier: ^8.5.1
+        specifier: ^8.5.15
         version: 8.5.15
       tailwindcss:
         specifier: ^4.0.0
