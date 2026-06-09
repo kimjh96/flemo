@@ -21,12 +21,12 @@ declare global {
 // Two knobs, both read from path params so the e2e can craft scenarios
 // without test-only globals leaking into the app:
 //
-//   cpuMs — busy-wait inside the render body. Models a synchronous JSX
+//   cpuMs: busy-wait inside the render body. Models a synchronous JSX
 //           render that a consumer might write (heavy `.map`s, expensive
 //           computed children). Lands on the React commit thread, so it's
 //           the kind of work `startTransition` is designed to defer.
 //
-//   nodes — tree size. Drives the layout/paint cost of the initial mount.
+//   nodes: tree size. Drives the layout/paint cost of the initial mount.
 //           Combined with a `useLayoutEffect` that touches every node's
 //           `offsetWidth`, this forces a synchronous reflow whose scope is
 //           the variable under test for `contain: layout paint`.
@@ -43,12 +43,12 @@ function HeavyArrivalScreen() {
     window.__flemoHeavyRenderCount = (window.__flemoHeavyRenderCount ?? 0) + 1;
   }
 
-  // Busy-wait. Yields the same hot-loop block as a real expensive render —
-  // the React reconciler is on the main thread while this is running.
+  // Busy-wait. Yields the same hot-loop block as a real expensive render.
+  // The React reconciler is on the main thread while this is running.
   if (cpuMs > 0) {
     const until = performance.now() + cpuMs;
     while (performance.now() < until) {
-      // intentionally empty — hot loop
+      // intentionally empty (hot loop)
     }
   }
 
@@ -128,7 +128,7 @@ function HeavyArrivalScreen() {
       label: "Replace · skip 2",
       onClick: handleReplaceCollapse,
       // replace REPLACES the reached screen, so skip 2 needs a screen two below
-      // the top that isn't the Library root — i.e. depth ≥ 3. (pop/push keep
+      // the top that isn't the Library root, i.e. depth ≥ 3. (pop/push keep
       // the reached screen, so they're fine landing on the root at depth 2.)
       show: zIndex >= 3
     },
@@ -159,8 +159,8 @@ function HeavyArrivalScreen() {
             </span>
           </div>
           <p className="text-[12px] leading-snug text-[var(--color-ink-soft)]">
-            Push to stack heavy screens, then jump several back — or replace them — in one
-            transition. The skipped screens never paint.
+            Push to stack heavy screens, then jump several back (or replace them) in one transition.
+            The skipped screens never paint.
           </p>
           {/* Wrap so the buttons never clip the phone frame. */}
           <div className="flex flex-wrap gap-1.5">
@@ -178,7 +178,7 @@ function HeavyArrivalScreen() {
           </div>
         </div>
 
-        {/* The heavy tree — `nodes` skeleton rows. Their widths are set by the
+        {/* The heavy tree: `nodes` skeleton rows. Their widths are set by the
             reflow effect above and read as content-line placeholders. */}
         <div className="flex flex-1 flex-col gap-2 px-5 py-4">
           {items.map((i) => (

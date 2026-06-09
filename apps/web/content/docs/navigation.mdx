@@ -1,6 +1,6 @@
 ---
 title: Navigation
-description: useNavigate, useParams, useStep — and how each one moves you around
+description: useNavigate, useParams, useStep, and how each one moves you around
 ---
 
 **flemo** gives you three navigation hooks. They cover different shapes of movement.
@@ -8,7 +8,7 @@ description: useNavigate, useParams, useStep — and how each one moves you arou
 <Cards>
   <Card
     title="useNavigate"
-    description="Move between routes — push / replace / pop"
+    description="Move between routes: push / replace / pop"
     href="#usenavigate"
   />
   <Card title="useParams" description="Read the current route's params" href="#useparams" />
@@ -28,24 +28,24 @@ navigate.pop({ until: "/posts/:slug" }); // back to the nearest matching screen
 navigate.pop({ until: "/", transitionName: "cupertino" }); // override the back transition
 ```
 
-`push`, `replace`, and `pop` are async — they wait for the transition to start and the route to
+`push`, `replace`, and `pop` are async. They wait for the transition to start and the route to
 take effect. However far one reaches, it drives a single transition.
 
 ### Reaching past the top
 
-`pop`, `replace`, and `push` all take an optional **distance** — `{ skip }` (a number of screens)
-or `{ until }` (a route pattern) — to reach a screen below the top in one transition. The screens
+`pop`, `replace`, and `push` all take an optional **distance** (`{ skip }`, a number of screens,
+or `{ until }`, a route pattern) to reach a screen below the top in one transition. The screens
 skipped over are removed **without ever painting**, so you never see them flash by.
 
 `{ skip: n }` is the screen `n` below the top; `{ until }` is the nearest screen below the top
 whose route matches the pattern (searched top → root, current top excluded). They reach the same
 target and differ only in what they do there:
 
-| Method    | At the reached target…                                              |
-| --------- | ------------------------------------------------------------------- |
-| `pop`     | lands on it — the target stays                                      |
-| `replace` | replaces it — the target and everything above become the new screen |
-| `push`    | keeps it — the new screen stacks on top                             |
+| Method    | At the reached target…                                             |
+| --------- | ------------------------------------------------------------------ |
+| `pop`     | lands on it. The target stays                                      |
+| `replace` | replaces it. The target and everything above become the new screen |
+| `push`    | keeps it. The new screen stacks on top                             |
 
 ```ts
 // stack:  /  →  /library  →  /posts/a  →  /posts/b   (top = /posts/b)
@@ -75,12 +75,12 @@ navigate.push(
 );
 ```
 
-| Option           | What it does                                                                                                                                                          |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `transitionName` | Override the transition for this navigation. On `pop` it sets the back animation — useful when collapsing several screens whose own transition isn't the one you want |
-| `layoutId`       | Pair with `transitionName: "layout"` on push or replace to enable shared-element morphs                                                                               |
-| `skip`           | Reach `n` screens past the top in one transition — see [Reaching past the top](#reaching-past-the-top)                                                                |
-| `until`          | Reach back to the nearest screen matching a route pattern — see [Reaching past the top](#reaching-past-the-top)                                                       |
+| Option           | What it does                                                                                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `transitionName` | Override the transition for this navigation. On `pop` it sets the back animation. Useful when collapsing several screens whose own transition isn't the one you want |
+| `layoutId`       | Pair with `transitionName: "layout"` on push or replace to enable shared-element morphs                                                                              |
+| `skip`           | Reach `n` screens past the top in one transition. See [Reaching past the top](#reaching-past-the-top)                                                                |
+| `until`          | Reach back to the nearest screen matching a route pattern. See [Reaching past the top](#reaching-past-the-top)                                                       |
 
 `skip`, `until`, and `transitionName` are accepted by `push`, `replace`, and `pop`; `layoutId`
 applies to `push` and `replace`.
@@ -106,8 +106,8 @@ useParams<"/posts/:slug">() → { slug: "hello", ref: "home" }
 
 ## useStep
 
-`useStep()` is for sub-states within the current screen. It pushes a new history entry — so the
-browser back button still goes back — but **doesn't change the route**. The same `<Screen>` stays
+`useStep()` is for sub-states within the current screen. It pushes a new history entry (so the
+browser back button still goes back) but **doesn't change the route**. The same `<Screen>` stays
 mounted; only its params update.
 
 A common case: a multi-step form on one screen.
@@ -146,6 +146,6 @@ function Onboarding() {
 | Stay on the same screen but change UI           | `useStep().pushStep`           |
 
 <Callout type="info">
-  **`useStep`** keeps everything in the screen tree — same Screen instance, same Provider, same
+  **`useStep`** keeps everything in the screen tree. Same Screen instance, same Provider, same
   scroll position. **`useNavigate`** mounts a new Screen with a real transition.
 </Callout>

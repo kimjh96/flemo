@@ -8,7 +8,7 @@ const reset = () => {
   useScreenStore = createScreenStore();
 };
 
-describe("createScreenStore — shared bar registry", () => {
+describe("createScreenStore: shared bar registry", () => {
   beforeEach(reset);
 
   it("registers a screen's shared bar presence", () => {
@@ -50,7 +50,7 @@ describe("createScreenStore — shared bar registry", () => {
   });
 });
 
-describe("createScreenStore — dragStatus", () => {
+describe("createScreenStore: dragStatus", () => {
   beforeEach(reset);
 
   it("defaults to IDLE", () => {
@@ -76,7 +76,7 @@ describe("createScreenStore — dragStatus", () => {
   });
 });
 
-describe("createScreenStore — replaceTransitionStatus", () => {
+describe("createScreenStore: replaceTransitionStatus", () => {
   beforeEach(reset);
 
   it("defaults to IDLE", () => {

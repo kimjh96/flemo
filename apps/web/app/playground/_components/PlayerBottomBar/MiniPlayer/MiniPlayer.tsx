@@ -25,7 +25,7 @@ function MiniPlayer() {
 
   const handleOpenNowPlaying = () => {
     navigate.push("/now-playing", undefined, {
-      // Player open — match the close gesture's vertical axis with material.
+      // Player open. Match the close gesture's vertical axis with material.
       transitionName: pushTransitionOverride ?? "material"
     });
   };

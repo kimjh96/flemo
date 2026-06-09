@@ -25,11 +25,11 @@ const overlay = createDecorator({
       duration: 0
     }
   },
-  // Visible dim — applied when this screen is the one going behind / sitting
+  // Visible dim: applied when this screen is the one going behind / sitting
   // behind a new active screen (PUSHING-false / REPLACING-false / COMPLETED-false).
   // Duration matches cupertino's enter so the dim resolves in lockstep with the
   // underlying screen slide (and there's no animation-vs-hold-by-fill window for
-  // the rest-rule handoff to race against — that's a function of duration + fill,
+  // the rest-rule handoff to race against. That's a function of duration + fill,
   // not the curve). Easing is intentionally left at the default: this animates
   // `opacity` (a luminance channel), not position, so cupertino's positional
   // decelerate curve would front-load the darkening into an abrupt step with a

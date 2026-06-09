@@ -18,12 +18,12 @@ export interface AnimationOptions {
 
 // Compiler-friendly CSS property shape with full IDE autocomplete across
 // the entire transitionable CSS surface (filter, color, boxShadow, etc.),
-// via `csstype` — the same types-only package React uses for its `style`
+// via `csstype`, the same types-only package React uses for its `style`
 // prop. Keys are camelCase as in inline React styles; the compiler kebabs
 // them on the way to the keyframe.
 //
-// On top of csstype's `Properties`, flemo adds short transform aliases —
-// authors can write `{ x: 16 }` instead of `{ transform: "translateX(16px)" }`.
+// On top of csstype's `Properties`, flemo adds short transform aliases.
+// Authors can write `{ x: 16 }` instead of `{ transform: "translateX(16px)" }`.
 // The compiler joins all transform-bucket entries into a single `transform`
 // declaration (see `targetToDecls` in `compileTransitionStyles.ts`).
 //
@@ -33,7 +33,7 @@ export interface AnimationOptions {
 // csstype declares CSS's individual `rotate`/`scale`/`translate` properties
 // with their own restricted unions. flemo overloads the bare `rotate` /
 // `scale*` keys as transform-shortcut shorthands, so we omit csstype's
-// versions before extending — the shortcut wins in our interface.
+// versions before extending. The shortcut wins in our interface.
 type CssProperties = Omit<
   Properties<string | number, string | number>,
   "rotate" | "scale" | "translate"
@@ -53,7 +53,7 @@ export interface TransitionTarget extends CssProperties {
   rotateY?: string | number;
   rotateZ?: string | number;
 
-  // Author-defined CSS custom properties remain an open escape hatch — useful
+  // Author-defined CSS custom properties remain an open escape hatch, useful
   // for theme tokens or registered properties (`@property --foo`) animated
   // via keyframes. `[key: \`--${string}\`]` would be stricter but a few
   // TypeScript versions still struggle with template-literal index keys, so
@@ -62,6 +62,6 @@ export interface TransitionTarget extends CssProperties {
 }
 
 // `initial` historically allowed transition options too (Motion's
-// TargetAndTransition). The compiler only inspects the target half — option
+// TargetAndTransition). The compiler only inspects the target half. Option
 // fields on `initial` are ignored.
 export type InitialTarget = TransitionTarget;

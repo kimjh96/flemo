@@ -35,7 +35,7 @@ mounted beneath it).
 | `isActive`           | `boolean`                  | Whether this is the current (top) screen                            |
 | `isRoot`             | `boolean`                  | Whether this is the root screen (`zIndex` 0)                        |
 | `isPrev`             | `boolean`                  | Whether this screen sits below the previous one (frozen, offscreen) |
-| `zIndex`             | `number`                   | Stacking depth — `0` is the root, higher is newer                   |
+| `zIndex`             | `number`                   | Stacking depth. `0` is the root, higher is newer                    |
 | `pathname`           | `string`                   | The resolved pathname for this screen                               |
 | `params`             | `object`                   | The route params for this screen                                    |
 | `routePath`          | `string`                   | The matched route pattern (e.g. `/album/:id`)                       |
@@ -98,4 +98,4 @@ declare module "@flemo/react" {
 ## Peer dependencies
 
 `@flemo/react` requires only `react ^19` and `react-dom ^19`. `@flemo/react-layout` adds `motion ^12`
-as a peer dependency — install it when you use `<LayoutScreen>` or `<LayoutConfig>`.
+as a peer dependency. Install it when you use `<LayoutScreen>` or `<LayoutConfig>`.

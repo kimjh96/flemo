@@ -2,7 +2,7 @@ import { test, type Page, type TestInfo } from "@playwright/test";
 
 import { albumTile, waitForTransitionSettled } from "./helpers/flemo";
 
-// Shared sampler — arms rAF before the push, drains after the transition
+// Shared sampler. Arms rAF before the push, drains after the transition
 // settles, logs a one-line summary keyed by `label` so multiple variants in
 // the same file are distinguishable in the report.
 async function samplePushRafCadence(page: Page, testInfo: TestInfo, label: string) {
@@ -60,19 +60,19 @@ async function samplePushRafCadence(page: Page, testInfo: TestInfo, label: strin
 // roughly idle and rAF should tick on a stable ~16.7ms cadence. If the loop
 // is doing per-frame style reads/writes, we'd see fat tail latencies.
 //
-// We don't fail on a numeric threshold — headless Chrome's frame scheduler
+// We don't fail on a numeric threshold. Headless Chrome's frame scheduler
 // is too variable across machines for that to be honest. The point is to
 // surface the numbers in the test report so a regression is visible. A
 // sustained-60fps run logs something like `min=8 avg=17 p95=24 max=48` on a
 // typical dev machine.
-test.describe("playground — rAF cadence during push (diagnostic)", () => {
+test.describe("playground: rAF cadence during push (diagnostic)", () => {
   test("samples rAF intervals across one cupertino push", async ({ page }, testInfo) => {
     await page.goto("/playground");
     await waitForTransitionSettled(page);
     await samplePushRafCadence(page, testInfo, "cupertino");
   });
 
-  // blur is a custom transition that animates `filter: blur(...)` — a
+  // blur is a custom transition that animates `filter: blur(...)`, a
   // non-transform property whose compositor promotion is only triggered
   // because `compileTransitionStyles` puts `filter` into the variant's
   // `will-change`. If the compositor promotion ever regresses for

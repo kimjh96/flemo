@@ -1,10 +1,10 @@
 ---
 title: Screen
-description: The unit of routing — and the place where mobile-app primitives live
+description: The unit of routing, and the place where mobile-app primitives live
 ---
 
 `<Screen>` is what each route renders. It's a fixed-position container with slots for app bars,
-navigation bars, and safe-area aware status bars — the same vocabulary you'd use building a
+navigation bars, and safe-area aware status bars, the same vocabulary you'd use building a
 native app.
 
 ## Anatomy
@@ -48,7 +48,7 @@ native app.
     <div>
       <dt className="text-[15px] font-semibold text-fd-foreground">App Bar</dt>
       <dd className="mt-1.5 text-fd-muted-foreground">
-        Top bar — set <strong className="text-fd-foreground">per-screen</strong>, or as a{" "}
+        Top bar. Set <strong className="text-fd-foreground">per-screen</strong>, or as a{" "}
         <strong className="text-fd-foreground">shared</strong> bar that stays mounted across
         transitions.
       </dd>
@@ -61,7 +61,7 @@ native app.
     <div>
       <dt className="text-[15px] font-semibold text-fd-foreground">Children</dt>
       <dd className="mt-1.5 text-fd-muted-foreground">
-        The screen body. Scrolls by default — disable it only when you bring your own scroll
+        The screen body. Scrolls by default. Disable it only when you bring your own scroll
         container.
       </dd>
       <dd className="mt-2 flex flex-wrap gap-1.5">
@@ -100,9 +100,9 @@ native app.
 App bar and navigation bar can be set in two ways. They mount at different times and behave
 differently across transitions.
 
-- **`appBar` / `navigationBar`** — the bar belongs to that one screen. It mounts and unmounts
+- **`appBar` / `navigationBar`**: the bar belongs to that one screen. It mounts and unmounts
   with the screen. Use this for headers and actions that change page-by-page.
-- **`sharedAppBar` / `sharedNavigationBar`** — the bar persists across screens. It stays put
+- **`sharedAppBar` / `sharedNavigationBar`**: the bar persists across screens. It stays put
   during push and pop transitions, so it never re-animates. Use this for global UI like a bottom
   tab bar or a fixed header. Pass the same node from each screen and flemo bridges it through
   the transition.
@@ -137,8 +137,8 @@ push. Use them for global UI like a bottom tab bar.
 
 ## Safe areas
 
-`<Screen>` reserves the top and bottom **safe areas** itself — the notch / dynamic island up top,
-Android's gesture or navigation bar at the bottom — through `statusBarHeight` and
+`<Screen>` reserves the top and bottom **safe areas** itself (the notch / dynamic island up top,
+Android's gesture or navigation bar at the bottom) through `statusBarHeight` and
 `systemNavigationBarHeight` (with matching `*Color` and `hide*` props).
 
 ```tsx
@@ -156,14 +156,14 @@ This pays off most when flemo runs inside a **native / hybrid app** (a WebView).
 setup is to let the **web own the safe areas end-to-end**: turn the native side's top and bottom
 safe-area handling **off**, and reserve them on `<Screen>` instead.
 
-- **Native shell** — disable the top and bottom safe areas.
-- **`<Screen>`** — set `statusBarHeight` / `systemNavigationBarHeight` (and the `*Color` props) to
+- **Native shell**: disable the top and bottom safe areas.
+- **`<Screen>`**: set `statusBarHeight` / `systemNavigationBarHeight` (and the `*Color` props) to
   draw them.
 
 That keeps the inset heights and colors under your control in one place, on the web side. They
 animate and recolor with the rest of the screen during transitions, instead of being painted by
 the native shell where your CSS can't reach. In a plain browser you can still pass
-`env(safe-area-inset-*)` so the values track the device — but the native-app case is where
+`env(safe-area-inset-*)` so the values track the device, but the native-app case is where
 controlling them from the web really matters.
 
 Pass `hideStatusBar` or `hideSystemNavigationBar` to collapse an area when you don't want it
@@ -207,6 +207,6 @@ If you're rendering your own scroll container, opt out of the built-in one:
 ## Shared-element morphs
 
 When a thumbnail in a list should **visually unfold** into the hero image on the next screen,
-reach for `<LayoutScreen>` — a `<Screen>` replacement from `@flemo/react-layout` that pairs elements
+reach for `<LayoutScreen>`, a `<Screen>` replacement from `@flemo/react-layout` that pairs elements
 across the navigation via motion's layout engine. See the dedicated
 [LayoutScreen page](./layout-screen) for the full walkthrough.

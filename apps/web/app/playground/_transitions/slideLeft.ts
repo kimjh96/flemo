@@ -2,7 +2,7 @@
 
 import { createTransition } from "@flemo/react";
 
-// Forward slide — the new content enters from the right while the outgoing
+// Forward slide. The new content enters from the right while the outgoing
 // content exits to the left. Used for segment tab moves in the forward
 // direction (e.g. Albums → Songs).
 const slideLeft = createTransition({

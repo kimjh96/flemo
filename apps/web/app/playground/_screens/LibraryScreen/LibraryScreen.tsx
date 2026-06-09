@@ -32,7 +32,7 @@ function LibraryScreen() {
   return (
     <PlayerScreen
       // Title + segment bar live in `sharedAppBar` so flemo pins them during
-      // the slide-left / slide-right segment transitions — only the list
+      // the slide-left / slide-right segment transitions. Only the list
       // content below scrolls past, while the header stays put.
       sharedAppBar={
         showSharedAppBar ? (

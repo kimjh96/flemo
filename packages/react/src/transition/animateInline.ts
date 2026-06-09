@@ -6,7 +6,7 @@ const isHTMLElement = (target: unknown): target is HTMLElement =>
   typeof HTMLElement !== "undefined" && target instanceof HTMLElement;
 
 // Track every CSS property animateInline has written to a given element, so
-// `clearInlineAnimation` can strip exactly that surface — regardless of which
+// `clearInlineAnimation` can strip exactly that surface, regardless of which
 // transition (built-in or custom) owns the property. Without this, the
 // default-branch cleanup only stripped transform + opacity, leaking any other
 // animated property (e.g., `filter` on the playground's `blur` transition).
@@ -53,7 +53,7 @@ export const clearInlineAnimation = (el: HTMLElement, properties?: string[]) => 
 // Imperative replacement for Motion's `animate()` inside transition swipe
 // handlers. Mutates inline `transform`/`opacity`/etc. and the inline
 // `transition` string. Returns a Promise that resolves on transitionend or a
-// duration-based timeout (safety net for transitionend that never fires —
+// duration-based timeout (safety net for transitionend that never fires,
 // e.g., when the property value didn't actually change).
 const animateInline: SwipeAnimate = (target, value, options = {}) => {
   if (!isHTMLElement(target)) return Promise.resolve();

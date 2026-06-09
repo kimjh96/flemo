@@ -3,7 +3,7 @@
 import { createTransition } from "@flemo/react";
 
 // Springy pop. The entering screen scales up from small with an overshooting
-// "back" easing — it springs slightly past 1 before settling — so the arrival
+// "back" easing (it springs slightly past 1 before settling), so the arrival
 // feels physical and bouncy. The leaving screen recedes and fades. Same
 // `scale` + `opacity` surface as `zoom`, but the overshoot ease is what gives
 // it the bounce.

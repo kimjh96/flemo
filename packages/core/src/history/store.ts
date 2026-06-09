@@ -23,8 +23,8 @@ export interface HistoryStore {
 export type HistoryStoreApi = StoreApi<HistoryStore>;
 
 // Request-scoped: the Router creates one per mount, seeded from initPath. Seeding at creation
-// (rather than via setState afterward) means `getInitialState()` — what zustand hands React as
-// the SSR snapshot — already holds the root frame, so the screen paints on the server and each
+// (rather than via setState afterward) means `getInitialState()` (what zustand hands React as
+// the SSR snapshot) already holds the root frame, so the screen paints on the server and each
 // concurrent request gets its own stack.
 export default function createHistoryStore(histories: History[] = [], index = -1): HistoryStoreApi {
   return createStore<HistoryStore>((set) => ({
@@ -51,7 +51,7 @@ export default function createHistoryStore(histories: History[] = [], index = -1
       })),
     // Drop `count` entries sitting directly below the current top, keeping the
     // top itself. Used by pop(n) to remove the screens it skips over in the same
-    // synchronous block that starts the transition — so they never paint — while
+    // synchronous block that starts the transition (so they never paint) while
     // the leaving top stays mounted to drive and resolve the animation.
     popHistories: (count) => {
       if (count <= 0) return;
@@ -65,7 +65,7 @@ export default function createHistoryStore(histories: History[] = [], index = -1
     },
     // Override one entry's transition. Used by pop() to relabel the leaving top
     // before the POPPING flip so the back animation uses the caller's
-    // `transitionName` from the first frame — its original transition never
+    // `transitionName` from the first frame. Its original transition never
     // paints. Returns a fresh array so the renderer re-reads it.
     setTransitionName: (index, transitionName) =>
       set((state) => {

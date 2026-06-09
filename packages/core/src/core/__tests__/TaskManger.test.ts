@@ -6,7 +6,7 @@ import TaskManger from "@core/TaskManger";
 // awaits its own addTask promise(s) and uses fresh execute fns, so state
 // doesn't leak between tests despite the shared instance.
 
-describe("TaskManger — basic execution", () => {
+describe("TaskManger: basic execution", () => {
   it("runs execute and resolves with success + result", async () => {
     const execute = vi.fn(async () => "ok");
     const outcome = await TaskManger.addTask(execute);
@@ -30,7 +30,7 @@ describe("TaskManger — basic execution", () => {
   });
 });
 
-describe("TaskManger — FIFO ordering", () => {
+describe("TaskManger: FIFO ordering", () => {
   it("processes sequentially in arrival order", async () => {
     const log: number[] = [];
     const p1 = TaskManger.addTask(async () => {
@@ -49,7 +49,7 @@ describe("TaskManger — FIFO ordering", () => {
   });
 });
 
-describe("TaskManger — manual control", () => {
+describe("TaskManger: manual control", () => {
   it("stays MANUAL_PENDING until resolveTask is called", async () => {
     let pendingResolved = false;
     const id = `manual-${Math.random().toString(36).slice(2)}`;
@@ -107,7 +107,7 @@ describe("TaskManger — manual control", () => {
   });
 });
 
-describe("TaskManger — signal control", () => {
+describe("TaskManger: signal control", () => {
   it("stays SIGNAL_PENDING until emitSignal fires the matching signal", async () => {
     const id = `sig-${Math.random().toString(36).slice(2)}`;
     const signalName = `signal-${Math.random().toString(36).slice(2)}`;
@@ -136,7 +136,7 @@ describe("TaskManger — signal control", () => {
   });
 });
 
-describe("TaskManger — stress", () => {
+describe("TaskManger: stress", () => {
   // These don't measure performance, they pin invariants under load. The
   // singleton TaskManager has to stay deterministic when callers fan out
   // dozens-to-hundreds of pushes, mix in failures, or interleave manual /
@@ -200,7 +200,7 @@ describe("TaskManger — stress", () => {
 
     // Wait long enough for the head task to enter MANUAL_PENDING and for
     // followers to fall into waitForPendingTasks polling. Followers must
-    // not have run yet — the manual is gating the chain.
+    // not have run yet. The manual is gating the chain.
     await new Promise((r) => setTimeout(r, 50));
     expect(log).toEqual([-1]);
 
@@ -223,8 +223,8 @@ describe("TaskManger — stress", () => {
       })
     );
 
-    // The chain serializes: only one task is in SIGNAL_PENDING at a time —
-    // the rest sit behind waitForPendingTasks (100ms poll). A naive
+    // The chain serializes: only one task is in SIGNAL_PENDING at a time.
+    // The rest sit behind waitForPendingTasks (100ms poll). A naive
     // "emit-once with a tight gap" race-leaks emits into empty slots. A
     // background sweeper re-emits every known signal until each task lands
     // in SIGNAL_PENDING and catches its emit.
@@ -301,7 +301,7 @@ describe("TaskManger — stress", () => {
   });
 });
 
-describe("TaskManger — failure paths", () => {
+describe("TaskManger: failure paths", () => {
   it("rejects when execute throws and invokes the rollback hook", async () => {
     const rollback = vi.fn(async () => undefined);
     const failure = TaskManger.addTask(
@@ -326,7 +326,7 @@ describe("TaskManger — failure paths", () => {
   });
 });
 
-describe("TaskManger — abort handling", () => {
+describe("TaskManger: abort handling", () => {
   it("aborting the controller during execute still resolves successfully (result is undefined)", async () => {
     const outcome = await TaskManger.addTask(async (controller) => {
       controller.abort();
@@ -338,7 +338,7 @@ describe("TaskManger — abort handling", () => {
   });
 });
 
-describe("TaskManger — pre-resolve delay (control.delay)", () => {
+describe("TaskManger: pre-resolve delay (control.delay)", () => {
   it("waits control.delay milliseconds after execute before resolving", async () => {
     const start = Date.now();
     await TaskManger.addTask(async () => "done", {

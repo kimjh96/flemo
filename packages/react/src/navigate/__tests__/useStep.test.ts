@@ -114,7 +114,7 @@ afterEach(async () => {
   await drainTaskManger();
 });
 
-describe("useStep — pushStep", () => {
+describe("useStep: pushStep", () => {
   it("rewrites the current entry to step:true on the first call, then pushes a step entry", async () => {
     const dispatches: ParamsDispatchContextType[] = [];
     const { result } = renderHook(() => useStep<"/posts/:id">(), {
@@ -149,7 +149,7 @@ describe("useStep — pushStep", () => {
   });
 });
 
-describe("useStep — replaceStep", () => {
+describe("useStep: replaceStep", () => {
   it("mutates the current entry's params in place (no new history entry)", async () => {
     const dispatches: ParamsDispatchContextType[] = [];
     const { result } = renderHook(() => useStep<"/posts/:id">(), {
@@ -169,9 +169,9 @@ describe("useStep — replaceStep", () => {
   });
 });
 
-describe("useStep — popStep", () => {
+describe("useStep: popStep", () => {
   it("aborts without a screen pop when back() lands on an unrecognized (null-state) entry", async () => {
-    // A step entry sits on top of a base entry whose history state is null —
+    // A step entry sits on top of a base entry whose history state is null,
     // e.g. the user arrived via a plain browser navigation. `back()` surfaces
     // that null state, which popStep treats as "nothing to pop": it aborts the
     // task and leaves the navigate store untouched (no POPPING).

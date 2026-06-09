@@ -3,7 +3,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 // Wait for the active screen scope to settle at a rest status (`COMPLETED`
 // or `IDLE`). Every flemo transition flips status back to one of these
 // when the keyframe ends, so it's the canonical "transition is done"
-// signal — no time-based sleep.
+// signal, with no time-based sleep.
 export async function waitForTransitionSettled(page: Page) {
   await expect(page.locator('[data-flemo-screen][data-flemo-active="true"]')).toHaveAttribute(
     "data-flemo-status",

@@ -17,7 +17,7 @@ export interface ScreenStore {
 
 export type ScreenStoreApi = StoreApi<ScreenStore>;
 
-// Request-scoped (see @flemo/core history/store.ts) — created per Router mount.
+// Request-scoped (see @flemo/core history/store.ts), created per Router mount.
 export default function createScreenStore(): ScreenStoreApi {
   return createStore<ScreenStore>((set) => ({
     dragStatus: "IDLE",

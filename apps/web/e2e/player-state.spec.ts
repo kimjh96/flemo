@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { activeScreen, albumTile, waitForTransitionSettled } from "./helpers/flemo";
 
-test.describe("playground — player state", () => {
+test.describe("playground: player state", () => {
   test("clicking a track on the Album screen updates the mini-player title", async ({ page }) => {
     await page.goto("/playground");
     await waitForTransitionSettled(page);
@@ -10,7 +10,7 @@ test.describe("playground — player state", () => {
     await albumTile(page, 0).click();
     await waitForTransitionSettled(page);
 
-    // First track row in AlbumScreen — click pushes to /now-playing AND
+    // First track row in AlbumScreen. Click pushes to /now-playing AND
     // updates the player store with that track.
     const firstTrack = activeScreen(page).getByRole("button").nth(2); // back, art, then tracks
     const trackTitle = await firstTrack.locator(".truncate").first().textContent();

@@ -39,7 +39,7 @@ You can also pass an array to share one component across paths:
 ## Type-safe routes
 
 Augment `RegisterRoute` and `navigate.push`, `useParams`, etc. all type-check against it. You can
-declare every route in one central file, or split the declaration across page files — TypeScript
+declare every route in one central file, or split the declaration across page files. TypeScript
 merges all the augmentations, so either approach works. Most projects keep it at the bottom of
 the file where `<Router>` is mounted.
 
@@ -78,14 +78,14 @@ navigate.push("/unknown"); // ❌ TS error
 
 ## Server-side rendering
 
-flemo is a **client-side SPA router** — it drives `window.history` and takes over navigation once
+flemo is a **client-side SPA router**. It drives `window.history` and takes over navigation once
 it mounts. `<Router>` can still render on the server for the first paint, but the server has no
 `window.location`, so you tell it which route to render first with `initPath`.
 
 - **Server**: renders the screen matching `initPath`. Defaults to `"/"`.
 - **Client**: on mount, reads `window.location.pathname` and takes over from there.
 
-Pass the request path through `initPath` and the first paint matches the URL — no hydration
+Pass the request path through `initPath` and the first paint matches the URL, with no hydration
 mismatch. This works with any setup that renders React to a string and lets flemo own routing
 from there:
 
@@ -94,12 +94,12 @@ from there:
 <Router initPath={requestPath}>{/* routes */}</Router>
 ```
 
-Pure-SPA setups (Vite, etc.) don't need `initPath` at all — the client reads
+Pure-SPA setups (Vite, etc.) don't need `initPath` at all. The client reads
 `window.location.pathname` on its own.
 
 <Callout type="warn">
   Because flemo owns client-side history (it pushes to `window.history` and listens for `popstate`),
-  it **does not compose with a host framework that also owns routing** — notably the **Next.js App
+  it **does not compose with a host framework that also owns routing**, notably the **Next.js App
   Router**. The two routers fight over navigation and the URL, so flemo can't act as the router for
   a Next.js app's pages. Use flemo in a pure SPA, or mount it as a self-contained, client-only
   island that doesn't share routing with the host framework.

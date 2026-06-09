@@ -2,7 +2,7 @@
 
 import { createTransition } from "@flemo/react";
 
-// Reverse slide — the new content enters from the left while the outgoing
+// Reverse slide. The new content enters from the left while the outgoing
 // content exits to the right. Used for segment tab moves backward (e.g.
 // Songs → Albums).
 const slideRight = createTransition({

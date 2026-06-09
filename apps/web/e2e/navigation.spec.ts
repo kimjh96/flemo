@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { activeScreen, albumTile, allScreens, waitForTransitionSettled } from "./helpers/flemo";
 
-test.describe("playground — navigation", () => {
+test.describe("playground: navigation", () => {
   test("push: clicking an album tile reaches the Album screen and updates URL", async ({
     page
   }) => {

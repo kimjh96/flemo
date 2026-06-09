@@ -4,7 +4,7 @@ import { createDecorator, createTransition } from "@flemo/react";
 
 // Co-designed concept: a drop in water. The new screen is revealed through a
 // circle that expands from the center (clip-path), and the screen behind it
-// carries concentric rings radiating from that SAME center point — the
+// carries concentric rings radiating from that SAME center point: the
 // ripples a droplet would send out. The reveal circle and the rings share one
 // origin, so they read as a single splash.
 const RIPPLES =

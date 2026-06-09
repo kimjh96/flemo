@@ -20,7 +20,7 @@ function SearchAlbumRow({ album }: SearchAlbumRowProps) {
     navigate.push(
       "/album/:id",
       { id: album.id },
-      // Browse-deeper hop — cupertino fits naturally.
+      // Browse-deeper hop. Cupertino fits naturally.
       { transitionName: pushTransitionOverride ?? "cupertino" }
     );
   };

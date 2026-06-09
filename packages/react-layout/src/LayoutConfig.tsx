@@ -14,10 +14,10 @@ function LayoutConfig({ children, ...props }: PropsWithChildren<MotionConfigProp
   // Our local AnimationOptions (in @flemo/core) is structurally a superset of
   // motion's Transition for the fields motion's layout engine actually reads
   // (duration, ease as cubic-bezier or named string). Motion's nominal type
-  // diverged after the split — cast to bridge.
+  // diverged after the split. Cast to bridge.
   const options = currentTransition?.variants[`${status}-${isActive}`]?.options;
 
-  // motion's layout animations only honor `transition.layout` — if we set
+  // motion's layout animations only honor `transition.layout`. If we set
   // only the top-level transition, layout animations silently fall back to
   // motion's default spring (which has overshoot, causing morphing text and
   // containers to briefly swell). Mirror the same options into `layout` so

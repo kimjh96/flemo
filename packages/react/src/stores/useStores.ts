@@ -8,7 +8,7 @@ export default function useStores(): FlemoStores {
   const stores = useContext(StoreContext);
 
   if (!stores) {
-    throw new Error("flemo stores are missing — render inside a <Router>.");
+    throw new Error("flemo stores are missing. Render inside a <Router>.");
   }
 
   return stores;

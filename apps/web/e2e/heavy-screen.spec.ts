@@ -13,7 +13,7 @@ import { waitForTransitionSettled } from "./helpers/flemo";
 //   4. Wait until `data-flemo-status="COMPLETED"` flips, mark settle time
 //   5. Drain & log one structured summary per scenario
 //
-// No threshold-based fails — these are diagnostic. Numbers go to stdout
+// No threshold-based fails. These are diagnostic. Numbers go to stdout
 // keyed by `[heavy-perf] <scenario> ...` so before/after diffing is
 // mechanical (grep, paste).
 
@@ -65,7 +65,7 @@ async function measureScenario(
   await waitForTransitionSettled(page);
 
   // For pop, set up by pushing to the heavy screen first so we have something
-  // to pop back from. The setup push is NOT measured — we arm the rAF/LoAF
+  // to pop back from. The setup push is NOT measured. We arm the rAF/LoAF
   // observers AFTER the setup settles, then click back.
   if (verb === "pop") {
     await page.getByTestId(`perf-push-${scenario.cpuMs}-${scenario.nodes}`).click();
@@ -116,7 +116,7 @@ async function measureScenario(
         });
         observer.observe({ entryTypes: ["longtask"] });
       } catch {
-        // No observer available — keep going, longFrames stays empty.
+        // No observer available, keep going, longFrames stays empty.
       }
     }
 
@@ -145,7 +145,7 @@ async function measureScenario(
   });
 
   // Mark click time inside the page so it sits on the same monotonic clock
-  // as the rAF samples — Playwright's wall-clock has skew vs page time.
+  // as the rAF samples. Playwright's wall-clock has skew vs page time.
   await page.evaluate(() =>
     (window as unknown as { __flemoMarkClick: () => void }).__flemoMarkClick()
   );
@@ -213,7 +213,7 @@ async function measureScenario(
   console.log(`[heavy-perf] ${summary}`);
 }
 
-test.describe("playground — heavy arrival screen (diagnostic A/B harness)", () => {
+test.describe("playground: heavy arrival screen (diagnostic A/B harness)", () => {
   // Single-project sequential run keeps the numbers comparable across
   // scenarios. The 2k-node scenarios block React commit long enough to
   // bust the default 5s action timeout, so bump it for this suite.

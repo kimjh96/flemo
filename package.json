@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Monorepo for flemo — a React router library with native-like screen transitions, plus its docs/landing site.",
+  "description": "Monorepo for flemo: a React router library with native-like screen transitions, plus its docs/landing site.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kimjh96/flemo.git"

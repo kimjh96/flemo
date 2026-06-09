@@ -56,7 +56,7 @@ function Router({
 
   // Create the request-scoped stores once per mount, seeding history with the root frame derived
   // from initPath. Because the seed is the store's *initial* state, zustand hands it to React as
-  // the SSR snapshot — so the screen renders on the server and each request keeps its own stack.
+  // the SSR snapshot, so the screen renders on the server and each request keeps its own stack.
   const [stores] = useState<FlemoStores>(() => {
     const rootHistory = {
       id: "root",
@@ -73,7 +73,7 @@ function Router({
     };
 
     // Hosted bundle: seed its history once (it starts empty at index -1). Seeding here rather than
-    // at creation means a hosted setup doesn't get the SSR snapshot — but the provider is for
+    // at creation means a hosted setup doesn't get the SSR snapshot, but the provider is for
     // client-side devtools layouts, so that's fine.
     if (hostedStores) {
       if (hostedStores.history.getState().index === -1) {

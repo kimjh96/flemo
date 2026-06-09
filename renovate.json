@@ -22,7 +22,7 @@
       "automergeStrategy": "squash"
     },
     {
-      "description": "Group all fumadocs packages together — they version in lockstep.",
+      "description": "Group all fumadocs packages together. They version in lockstep.",
       "groupName": "fumadocs",
       "matchPackagePatterns": ["^fumadocs"]
     },
@@ -52,7 +52,7 @@
       "matchPackagePatterns": ["^@changesets/"]
     },
     {
-      "description": "Pin major bumps for major libraries — surface them but don't auto-merge.",
+      "description": "Pin major bumps for major libraries. Surface them but don't auto-merge.",
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "labels": ["dependencies", "major"]

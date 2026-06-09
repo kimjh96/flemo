@@ -66,7 +66,7 @@
   /* Stable always-dark color (phone bezels, decorative surfaces that should not flip in dark) */
   --color-ink: #191f28;
 
-  /* Playground aliases — track shiflo light tokens. `.dark` block below
+  /* Playground aliases: track shiflo light tokens. `.dark` block below
      overrides for dark mode so /playground follows the system theme. */
   --color-ink-soft: #4e5968;
   --color-ink-mute: #8b95a1;
@@ -74,7 +74,7 @@
   --color-brand: #0066cc;
   --color-brand-hover: #1f78db;
 
-  /* Code peek syntax tokens — light */
+  /* Code peek syntax tokens (light) */
   --syntax-comment: #8b95a1;
   --syntax-string: #067d17;
   --syntax-number: #b08800;
@@ -82,7 +82,7 @@
   --syntax-key: #0066cc;
   --syntax-punctuation: #4e5968;
 
-  /* Fumadocs base — white/shiflo overrides (light) */
+  /* Fumadocs base: white/shiflo overrides (light) */
   --color-fd-background: #ffffff;
   --color-fd-foreground: #191f28;
   --color-fd-muted: #f9fafb;
@@ -144,14 +144,14 @@
 
   --gradient-primary-accent: linear-gradient(180deg, #5696f8 0%, #1f6fe5 100%);
 
-  /* Playground aliases — dark variants matching shiflo dark text tokens. */
+  /* Playground aliases: dark variants matching shiflo dark text tokens. */
   --color-ink-soft: #a5adb8;
   --color-ink-mute: #7b8494;
   --color-line: #2d343e;
   --color-brand: #3b82f6;
   --color-brand-hover: #5696f8;
 
-  /* Code peek syntax tokens — dark */
+  /* Code peek syntax tokens (dark) */
   --syntax-comment: #6b7684;
   --syntax-string: #98c379;
   --syntax-number: #d19a66;
@@ -159,7 +159,7 @@
   --syntax-key: #61afef;
   --syntax-punctuation: #a5adb8;
 
-  /* Fumadocs base — shiflo dark */
+  /* Fumadocs base: shiflo dark */
   --color-fd-background: #12161c;
   --color-fd-foreground: #edeff1;
   --color-fd-muted: #181d24;

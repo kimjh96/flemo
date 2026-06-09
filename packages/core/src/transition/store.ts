@@ -9,7 +9,7 @@ export interface TransitionStore {
 
 export type TransitionStoreApi = StoreApi<TransitionStore>;
 
-// Request-scoped (see history/store.ts) — created per Router mount, seeded with its
+// Request-scoped (see history/store.ts), created per Router mount, seeded with its
 // defaultTransitionName. The compiled-transition registries (transitionMap/decoratorMap) stay
 // global: they're name-keyed, idempotent, and not request state.
 export default function createTransitionStore(

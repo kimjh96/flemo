@@ -11,7 +11,7 @@ export interface NavigateStore {
 
 export type NavigateStoreApi = StoreApi<NavigateStore>;
 
-// Request-scoped (see history/store.ts) — created per Router mount.
+// Request-scoped (see history/store.ts), created per Router mount.
 export default function createNavigateStore(): NavigateStoreApi {
   return createStore<NavigateStore>((set) => ({
     status: "IDLE",

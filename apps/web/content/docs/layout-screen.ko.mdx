@@ -1,6 +1,6 @@
 ---
 title: LayoutScreen
-description: 두 화면을 잇는 공유 요소 모핑 — 목록의 썸네일이 상세의 큰 이미지로 펼쳐지는 그 동작
+description: 두 화면을 잇는 공유 요소 모핑. 목록의 썸네일이 상세의 큰 이미지로 펼쳐지는 그 동작
 experimental: true
 ---
 
@@ -9,7 +9,7 @@ experimental: true
 가면 다시 접히는 동작. iOS의 사진/뮤직 앱이 쓰는 바로 그 패턴이고, Material 3에선
 **container transform**이라고 불러요.
 
-`@flemo/react-layout`이라는 별도 패키지에 들어 있어요 — `@flemo/react`와는 분리되어 있어요.
+`@flemo/react-layout`이라는 별도 패키지에 들어 있어요. `@flemo/react`와는 분리되어 있어요.
 motion이 peer dependency이기 때문에, 모핑이 필요 없는 앱은 motion을 함께 포함하지
 않아도 돼요.
 
@@ -46,12 +46,12 @@ pnpm add @flemo/react-layout motion
 | `<LayoutScreen>`           | 도착 화면 (`<Screen>` 대신)                         | unmount 사이에도 layoutId 짝짓기를 유지            |
 | `motion.*` + `layoutId`    | 모프되어야 하는 모든 요소 (이미지·제목·컨테이너 등) | 두 화면의 DOM 노드가 "같은 것"임을 motion에 알려줌 |
 
-짝짓기 규칙은 단순해요 — **출발 화면과 도착 화면의 `layoutId`가 한 글자도 다르지 않아야**
+짝짓기 규칙은 단순해요. **출발 화면과 도착 화면의 `layoutId`가 한 글자도 다르지 않아야**
 해요. 다르면 motion이 짝을 찾지 못해 모프가 조용히 실패해요 (페이드만 일어나요).
 
 ### 왜 `<Screen>`이 아니라 `<LayoutScreen>`이 필요할까
 
-`<Screen>`은 화면을 떠날 때 트리를 즉시 unmount해요. 평범한 push에선 그게 자연스러워요 —
+`<Screen>`은 화면을 떠날 때 트리를 즉시 unmount해요. 평범한 push에선 그게 자연스러워요.
 이전 화면은 사라지고 새 화면이 새로 그려지면 끝이에요. 하지만 모프는 motion이 **전환 시점에
 두 화면의 같은 `layoutId`를 동시에 볼 수 있어야** 동작해요. `<LayoutScreen>`은 트리를 한
 박자 더 살려 두고 (`AnimatePresence`로 감싸서) 도착 화면의 노드를 출발 화면의 노드와
@@ -63,28 +63,28 @@ pnpm add @flemo/react-layout motion
 
 motion의 `<motion.div layout>`은 자체 기본 spring으로 움직여요 (stiffness ~700, damping 30).
 flemo의 화면 전환은 다른 타이밍(`layout` 프리셋: 0.3초 ease)으로 돌아가요. 둘을 맞춰주지
-않으면 화면 페이드는 끝났는데 모프는 아직 늘어나는 중이거나, 그 반대 상황이 벌어져요 —
+않으면 화면 페이드는 끝났는데 모프는 아직 늘어나는 중이거나, 그 반대 상황이 벌어져요.
 모프가 반쯤 페이드된 배경 위에 안착하는 식의 어색한 그림이 나와요.
 
 `<LayoutConfig>`는 현재 `navigate.push`가 쓰는 트랜지션의 **duration·ease를 읽어**
 motion의 `MotionConfig`에 넘겨줘요. 화면 페이드와 모프가 같은 프레임에 끝나요.
 
-모프되어야 할 트리의 가장 바깥에 둬요 — 보통 `<LayoutScreen>` 바로 안쪽이에요.
+모프되어야 할 트리의 가장 바깥에 둬요. 보통 `<LayoutScreen>` 바로 안쪽이에요.
 
 ### 왜 `transitionName: "layout"`이 필요할까
 
 기본 `cupertino` 트랜지션은 새 화면 전체를 오른쪽에서 슬라이드해 들여요. 이 슬라이드가
-**모프를 가려 버려요** — 새 화면이 자리를 잡을 때쯤이면 모프가 향할 목적지가 이미 사라진 뒤예요.
+**모프를 가려 버려요.** 새 화면이 자리를 잡을 때쯤이면 모프가 향할 목적지가 이미 사라진 뒤예요.
 
 `layout` 프리셋은 화면 자체에 짧고 옅은 opacity ramp(0.97 → 1, 0.3초)만 걸고 평행이동은
 하지 않아요. motion이 모프를 그릴 길을 비켜 주는 거예요.
 
-이 자리에 커스텀 트랜지션을 만들어 끼울 수도 있어요 — 조건은 "출발 요소를 가리는
+이 자리에 커스텀 트랜지션을 만들어 끼울 수도 있어요. 조건은 "출발 요소를 가리는
 평행이동이 없을 것" 하나예요. 보통은 opacity나 filter만 살짝 다루는 게 안전해요.
 
 ## 전체 예시
 
-```tsx title="Gallery.tsx — 출발 화면"
+```tsx title="Gallery.tsx (출발 화면)"
 import { Screen, useNavigate } from "@flemo/react";
 import { LayoutConfig } from "@flemo/react-layout";
 import { motion } from "motion/react";
@@ -118,7 +118,7 @@ function Gallery() {
 }
 ```
 
-```tsx title="Photo.tsx — 도착 화면"
+```tsx title="Photo.tsx (도착 화면)"
 import { useScreen } from "@flemo/react";
 import { LayoutScreen, LayoutConfig } from "@flemo/react-layout";
 import { motion } from "motion/react";
@@ -146,11 +146,11 @@ function Photo() {
 - **양쪽 화면 모두 motion 트리를 `<LayoutConfig>`로 감싸요.** 출발 화면 쪽 카드도 같은
   타이밍으로 움직여야 해서요.
 - **묶일 요소들은 같은 prefix의 `layoutId`를 가져요.** `photo-card-`, `photo-image-`,
-  `photo-title-` 각각에 같은 `id`를 붙여서 — 한 덩어리처럼 함께 모프해요.
+  `photo-title-` 각각에 같은 `id`를 붙여서, 한 덩어리처럼 함께 모프해요.
 - **도착 화면은 `useScreen().layoutId`로 키 문자열을 다시 만들어요.** 출발에서 push할 때
   넘긴 `layoutId`가 이 채널로만 도착하기 때문에, 도착 화면이 "어느 카드에서 왔는지"를
   알 수 있는 유일한 길이에요.
-- **도착 화면의 모프 컨테이너는 `fixed inset-0`이에요.** 의도된 거예요 — 컨테이너가
+- **도착 화면의 모프 컨테이너는 `fixed inset-0`이에요.** 의도된 거예요. 컨테이너가
   뷰포트 전체를 채우도록 모프하면서 "펼쳐지는" 느낌이 만들어져요.
 
 ## 패턴
@@ -173,7 +173,7 @@ function Photo() {
 
 ## 자주 만나는 함정
 
-### "모프 타이밍이 이상해요 — 고무처럼 튕기거나 어긋나요"
+### "모프 타이밍이 이상해요. 고무처럼 튕기거나 어긋나요"
 
 한쪽 화면에서 `<LayoutConfig>`를 빼먹은 상태예요. motion이 자기 기본 spring으로 움직이고
 있어요. 양쪽 화면 모두에 `<LayoutConfig>`를 추가하세요.
@@ -223,21 +223,21 @@ unmount돼서 짝짓기가 깨져요. `<LayoutScreen>`으로 바꿔 주세요.
 ### "모프 중에 화면이 멈칫하거나 재렌더되는 게 보여요"
 
 모프 트리 안에 무거운 컴포넌트를 두지 마세요. 모프 중에는 도착 화면이 마운트된 채 출발
-화면도 같이 보이는 상태 — 도착 쪽의 무거운 작업이 motion 레이아웃 엔진의 프레임을
+화면도 같이 보이는 상태예요. 도착 쪽의 무거운 작업이 motion 레이아웃 엔진의 프레임을
 가져가요. 상세 본문은 `Suspense`로 lazy-load해서 모프는 shell만으로 돌고 나머지 콘텐츠는
 스트리밍되도록 해 주세요.
 
 ## 사용하지 않아도 되는 경우
 
-- 도착 화면이 출발 요소를 시각적으로 이어받지 않을 때 — 일반 `<Screen>`과 기본 트랜지션
+- 도착 화면이 출발 요소를 시각적으로 이어받지 않을 때. 일반 `<Screen>`과 기본 트랜지션
   이 정답이에요.
-- 단순한 페이지 슬라이드만 필요할 때 — `cupertino`나 `material`로 충분해요.
-- 번들 크기를 최소화해야 하고 모프가 필요 없을 때 — `@flemo/react-layout`을 설치하지 마세요
+- 단순한 페이지 슬라이드만 필요할 때. `cupertino`나 `material`로 충분해요.
+- 번들 크기를 최소화해야 하고 모프가 필요 없을 때. `@flemo/react-layout`을 설치하지 마세요
   (motion이 함께 포함돼요).
 
 ## Props
 
-`<LayoutScreen>`은 `<Screen>`과 같은 prop을 받아요 — 앱 바, 내비게이션 바, 안전 영역,
+`<LayoutScreen>`은 `<Screen>`과 같은 prop을 받아요. 앱 바, 내비게이션 바, 안전 영역,
 배경, 스크롤 모두 동일해요. 전체 표는 [Screen 페이지](./screen)에서 보실 수 있어요.
 차이는 단 하나: 기본 배경이 `white`가 아니라 `transparent`라서, 모프 중인 요소가 가려지지
 않아요.

@@ -5,7 +5,7 @@ import { createTransition } from "@flemo/react";
 // Cross-zoom "dive". The entering screen scales up out of a small, soft state
 // into focus; the leaving screen pushes forward (past 1) and fades, so you
 // feel like you dove straight through it into the new one. `scale` + `opacity`
-// only, so it compiles to a single compositor keyframe per variant — no JS.
+// only, so it compiles to a single compositor keyframe per variant. No JS.
 const zoom = createTransition({
   name: "zoom",
   initial: { scale: 0.8, opacity: 0 },

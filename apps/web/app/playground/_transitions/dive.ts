@@ -4,7 +4,7 @@ import { createDecorator, createTransition } from "@flemo/react";
 
 // Co-designed concept: diving forward through depth. The new screen rushes in
 // from a tiny point at the center (scale 0.2 → 1), while the screen behind it
-// scales up and out as a dark **tunnel** vignette closes in around it — so the
+// scales up and out as a dark **tunnel** vignette closes in around it, so the
 // old screen reads as rushing past into the distance as you dive into the new
 // one. Both convey the same forward-into-depth motion.
 const TUNNEL = "radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 12%, rgba(0,0,0,0.78) 78%)";

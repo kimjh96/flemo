@@ -6,7 +6,7 @@ import { createTransition } from "@flemo/react";
 // grows from a point at the center until it just covers the viewport. A
 // `circle()` whose radius reaches the farthest corner is 70.7% of the
 // reference length regardless of aspect ratio, so we end at `75%` (a hair past
-// full coverage) — that way the whole duration is spent on *visible* growth
+// full coverage), so the whole duration is spent on *visible* growth
 // instead of expanding invisibly past the edges. An ease-in-out curve over a
 // relaxed duration keeps the iris readable the whole way. The screen
 // underneath recedes and dims. `clip-path` interpolates between same-shape

@@ -5,13 +5,13 @@ import { waitForTransitionSettled } from "./helpers/flemo";
 // Decorator opacity contract pin. The overlay decorator animates idle→enter
 // in lockstep with cupertino's push (0.7s, matched easing), so the
 // keyframe `to` arrives exactly when the screen status flips to
-// COMPLETED — no `fill: both` hold-window for a rest-rule handoff to
+// COMPLETED. There is no `fill: both` hold-window for a rest-rule handoff to
 // race against. The contract is: once the going-behind screen reaches
 // COMPLETED-false, its overlay opacity must hold at full strength.
 //
 // Born from an investigation into a reported Android / iOS flicker
 // ("opacity animates 0→1, then drops to 0 at the end of the transition").
-// The flicker did NOT reproduce in any local environment we can drive —
+// The flicker did NOT reproduce in any local environment we can drive:
 // chromium desktop, mobile-chromium emulation, or chromium under 6× CPU
 // throttle. The compiled CSS handoff stays solid in all four. The spec
 // stays so any future change that DOES dip the painted opacity (e.g., a
@@ -59,7 +59,7 @@ async function probeDecorator(page: Page, testInfo: TestInfo) {
       let running = true;
       const start = performance.now();
 
-      // The "going-behind" screen — the one that was active before the
+      // The "going-behind" screen, the one that was active before the
       // push, now sitting behind the new active screen. Its decorator is
       // the one animating idle→enter.
       const findDecorator = (): HTMLElement | null => {
@@ -135,8 +135,8 @@ async function probeDecorator(page: Page, testInfo: TestInfo) {
   // Detection: once the transition settles to COMPLETED with the
   // going-behind screen as the inactive side, the rest rule must hold the
   // overlay at full opacity. The PUSHING window is itself the rising
-  // edge — overlay's duration is aligned to cupertino's so there's no
-  // hold-by-fill sub-window during PUSHING to check separately — so we
+  // edge. Overlay's duration is aligned to cupertino's so there's no
+  // hold-by-fill sub-window during PUSHING to check separately, so we
   // only flag COMPLETED-false samples that aren't at full opacity.
   const suspect: Sample[] = [];
   for (const s of samples) {
@@ -163,7 +163,7 @@ async function probeDecorator(page: Page, testInfo: TestInfo) {
     }
   }
 
-  // Coarse curve trace — one line per ~50ms bucket showing the median
+  // Coarse curve trace. One line per ~50ms bucket showing the median
   // opacity and the current status. Lets us eyeball "rising, held flat,
   // settled" in one glance.
   lines.push("[decorator-probe] curve (50ms buckets):");
@@ -173,7 +173,7 @@ async function probeDecorator(page: Page, testInfo: TestInfo) {
     const minO = Math.min(...group.map((g) => g.opacity));
     const statuses = Array.from(new Set(group.map((g) => g.status))).join("|");
     lines.push(
-      `[decorator-probe]   ${bucket.padStart(10)} ms — ` +
+      `[decorator-probe]   ${bucket.padStart(10)} ms: ` +
         `opacity median=${med.toFixed(3)} min=${minO.toFixed(3)} status=${statuses}`
     );
   }
@@ -190,20 +190,18 @@ async function probeDecorator(page: Page, testInfo: TestInfo) {
   expect(suspect, "decorator opacity dropped after settling at COMPLETED-false").toEqual([]);
 }
 
-test.describe("playground — decorator opacity probe (diagnostic)", () => {
+test.describe("playground: decorator opacity probe (diagnostic)", () => {
   test.use({ actionTimeout: 30_000, navigationTimeout: 30_000 });
 
-  test("push from Library to Album — sample overlay opacity per rAF", async ({
-    page
-  }, testInfo) => {
+  test("push from Library to Album: sample overlay opacity per rAF", async ({ page }, testInfo) => {
     await probeDecorator(page, testInfo);
   });
 
-  test("push with 6x CPU throttling — does the tight timing expose a race?", async ({
+  test("push with 6x CPU throttling: does the tight timing expose a race?", async ({
     page
   }, testInfo) => {
     // CDP CPU throttle. 6x is roughly a mid-range Android of a few years
-    // ago — tight enough that style recalc / compositor scheduling gets
+    // ago, tight enough that style recalc / compositor scheduling gets
     // visibly stressed but not so heavy that the test hangs.
     const client = await page.context().newCDPSession(page);
     await client.send("Emulation.setCPUThrottlingRate", { rate: 6 });

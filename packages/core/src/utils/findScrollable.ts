@@ -17,7 +17,7 @@ export default function findScrollable(
   const start = getStartElement(startTarget);
   if (!start) return { element: null, hasMarker: false };
 
-  // Marker takes priority — an explicit `[data-swipe-at-edge]` ancestor is
+  // Marker takes priority: an explicit `[data-swipe-at-edge]` ancestor is
   // the author's hand-picked scroll container for swipe gating.
   const marked = start.closest?.(markerSelector);
   if (marked instanceof HTMLElement) {
@@ -29,8 +29,8 @@ export default function findScrollable(
     }
   }
 
-  // Walk ancestors. We intentionally do NOT stop at `document.body` —
-  // viewport-level scrolling commonly lives on `<html>` (`documentElement`),
+  // Walk ancestors. We intentionally do NOT stop at `document.body`.
+  // Viewport-level scrolling commonly lives on `<html>` (`documentElement`),
   // so gating swipe-back on it is the correct behavior. The loop exits
   // naturally when `parentElement` returns null at the top.
   let element: HTMLElement | null = start;
@@ -79,7 +79,7 @@ export function overflowsAxis(element: HTMLElement, direction: "y" | "x"): boole
 /**
  * Whether the element actually scrolls on the given axis.
  *
- * Reads `overflowX` / `overflowY` from computed style — fast, read-only,
+ * Reads `overflowX` / `overflowY` from computed style: fast, read-only,
  * and free of side effects. The previous implementation probed by writing
  * to `scrollTop` / `scrollLeft` and reverting, which fired scroll events
  * and interfered with `scroll-snap` / `scroll-behavior: smooth` consumers

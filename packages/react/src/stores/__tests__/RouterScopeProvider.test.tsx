@@ -10,7 +10,7 @@ import useNavigateStore from "@stores/useNavigateStore";
 import useScreenStore from "@stores/useScreenStore";
 import useStores from "@stores/useStores";
 
-// Reads the hosted stores from OUTSIDE the Router — the case that crashed when the inspector
+// Reads the hosted stores from OUTSIDE the Router, the case that crashed when the inspector
 // panel sat beside the frame: without a host provider, useStores() throws. Exercises every
 // selector hook so each resolves the same hosted bundle.
 function Probe() {
@@ -66,7 +66,7 @@ describe("RouterScopeProvider", () => {
 
     // Silence React's expected error log for the throwing render.
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(() => render(<Bare />)).toThrow(/render inside a <Router>/);
+    expect(() => render(<Bare />)).toThrow(/render inside a <Router>/i);
     spy.mockRestore();
   });
 

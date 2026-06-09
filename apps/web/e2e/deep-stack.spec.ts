@@ -87,10 +87,10 @@ async function runDeepStack(page: Page, testInfo: TestInfo) {
   console.log(report);
 }
 
-test.describe("playground — deep stack stress (diagnostic)", () => {
+test.describe("playground: deep stack stress (diagnostic)", () => {
   test.use({ actionTimeout: 30_000, navigationTimeout: 30_000 });
 
-  test("push 10 + pop 10 — flipLatency / DOM / heap per step", async ({ page }, testInfo) => {
+  test("push 10 + pop 10: flipLatency / DOM / heap per step", async ({ page }, testInfo) => {
     await runDeepStack(page, testInfo);
   });
 });

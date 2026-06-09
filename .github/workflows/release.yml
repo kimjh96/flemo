@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Mint an App-installation token. PRs opened with the default
-      # `secrets.GITHUB_TOKEN` are silently demoted by GitHub — `pull_request`
+      # `secrets.GITHUB_TOKEN` are silently demoted by GitHub. `pull_request`
       # events on those PRs do NOT trigger other workflows (the
       # infinite-loop guard). That left required CI checks (Verify / E2E /
       # Playwright) stuck on "Expected — waiting for status to be reported"

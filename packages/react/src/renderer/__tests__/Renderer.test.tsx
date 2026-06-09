@@ -13,7 +13,7 @@ let wrapper: ReturnType<typeof storesWrapper>;
 
 beforeEach(() => {
   // Fresh request-scoped stores per test; Renderer reads them via context. A fresh history store
-  // starts empty (index -1) — the same snapshot the server sees before a Router seeds it.
+  // starts empty (index -1), the same snapshot the server sees before a Router seeds it.
   stores = createTestStores();
   wrapper = storesWrapper(stores);
 });
@@ -81,7 +81,7 @@ describe("Renderer", () => {
     expect(getByTestId("post")).toBeDefined();
   });
 
-  it("falls through Routes in order — the first matching Route wins", () => {
+  it("falls through Routes in order, the first matching Route wins", () => {
     seed([{ id: "a", pathname: "/users/me" }]);
     const { getByTestId, queryByTestId } = render(
       <Renderer>

@@ -75,13 +75,13 @@ function ScreenMotion({
   const prevScreenRef = useRef<HTMLDivElement | null>(null);
   const decoratorRef = useRef<HTMLDivElement | null>(null);
   const prevDecoratorRef = useRef<HTMLDivElement | null>(null);
-  // Bars that should "ride along" during this swipe — split by which screen
+  // Bars that should "ride along" during this swipe, split by which screen
   // they belong to. `current` are this screen's bars (mirrored when the
   // swipe handler writes to `currentScreen`); `prev` are the partner
   // screen's bars (mirrored when the handler writes to `prevScreen`, which
   // cupertino / material both do). Captured at beginSwipe and consumed by
   // the wrapped animate function, so bar inline writes happen in the same
-  // JS tick as the screen write — no rAF mirror, no one-frame trailing lag.
+  // JS tick as the screen write. No rAF mirror, no one-frame trailing lag.
   const swipeRidingBarsRef = useRef<{ current: HTMLDivElement[]; prev: HTMLDivElement[] }>({
     current: [],
     prev: []
@@ -136,9 +136,9 @@ function ScreenMotion({
   };
 
   // Wrap `animateInline` so any write to a screen is mirrored to the bars
-  // that ride along with that screen — in the SAME synchronous tick. Without
+  // that ride along with that screen, in the SAME synchronous tick. Without
   // this, the bars would need a rAF mirror loop that reads
-  // `getComputedStyle(scope)` every frame — and rAF dispatches in its own JS
+  // `getComputedStyle(scope)` every frame, and rAF dispatches in its own JS
   // tick separate from the pointermove handler, so the bar always trailed
   // the screen by one frame (visible mostly on user-driven swipe drags).
   // Synchronous mirroring puts both elements in the same paint commit.
@@ -301,13 +301,13 @@ function ScreenMotion({
 
     if (isTriggered) {
       // The swipe already animated the screen all the way out. Mark the
-      // element so the upcoming POPPING keyframe is suppressed — otherwise
+      // element so the upcoming POPPING keyframe is suppressed; otherwise
       // the CSS animation would snap the screen back to its `from` value
       // before animating again.
       scopeRef.current?.setAttribute(SKIP_ANIMATION_ATTR, "true");
       decoratorRef.current?.setAttribute(SKIP_ANIMATION_ATTR, "true");
-      // Current-side bars unmount with the current screen via history.back()
-      // — just drop will-change so the layer can be discarded.
+      // Current-side bars unmount with the current screen via history.back().
+      // Just drop will-change so the layer can be discarded.
       for (const bar of swipeRidingBarsRef.current.current) {
         bar.style.removeProperty("will-change");
       }
@@ -465,7 +465,7 @@ function ScreenMotion({
   // next microtask so the navigation queue still advances.
   //
   // `useLayoutEffect` (not `useEffect`) so the `animationend` listener is
-  // attached synchronously during commit — before the browser paints the
+  // attached synchronously during commit, before the browser paints the
   // first animation frame. Closes a tiny race where a very short variant
   // could finish before a post-commit `useEffect` attaches the listener.
   // The COMPLETED-branch inline cleanup also runs pre-paint, which means
@@ -484,13 +484,13 @@ function ScreenMotion({
       setDragStatus("IDLE");
       setReplaceTransitionStatus("IDLE");
       // Defensive cleanup. Inline `transform`/`opacity`/`transition` may have
-      // been written by a swipe handler — onSwipe writes during drag, and
+      // been written by a swipe handler. onSwipe writes during drag, and
       // onSwipeEnd writes the cancel/commit animation. The swipe-cancel
       // branch clears them on resolve, but the swipe-commit branch and any
       // mid-flight navigation that interleaves can leave stale inline styles
       // on this scope. Because ScreenFreeze keeps the DOM mounted via
       // `display: none`, those styles outlive the original navigation and
-      // resurface when this screen becomes active again — inline > compiled
+      // resurface when this screen becomes active again; inline > compiled
       // CSS rest rule. Strip them now that we've settled as the active
       // screen so the next push/pop runs against a clean slate.
       //
@@ -536,7 +536,7 @@ function ScreenMotion({
     const hasAnimation = !skipAnimation && variantHasAnimation(currentTransition, variantKey);
 
     if (!hasAnimation) {
-      // No CSS animation will fire — resolve in a microtask so React commits
+      // No CSS animation will fire. Resolve in a microtask so React commits
       // first and the queue keeps advancing.
       queueMicrotask(resolve);
       return;
@@ -620,13 +620,13 @@ function ScreenMotion({
   //    a sibling selector that targets `[data-flemo-bar][...riding="true"]`
   //    with the same `@keyframes` the screen uses. We set the bar's data-
   //    attributes here and toggle `data-flemo-bar-riding` based on partner
-  //    ownership. The compositor drives both elements off one keyframe — no
+  //    ownership. The compositor drives both elements off one keyframe. No
   //    JS frame in the loop, no main-thread style read/write per frame.
   // 2. Swipe drag. Handled synchronously inside the swipe lifecycle via
   //    `animateSwipe` (see beginSwipe / continueSwipe / endSwipe above),
   //    which mirrors every `animate(currentScreen, ...)` call to the riding
-  //    bars in the SAME JS tick. No rAF loop, no `getComputedStyle` reads —
-  //    the bars and the screen commit in the same paint pass.
+  //    bars in the SAME JS tick. No rAF loop, no `getComputedStyle` reads.
+  //    The bars and the screen commit in the same paint pass.
   const isTopOrTopPrev = isActive || zIndex === index - 1;
   const hasSharedAppBar = !!sharedAppBar;
   const hasSharedNavigationBar = !!sharedNavigationBar;

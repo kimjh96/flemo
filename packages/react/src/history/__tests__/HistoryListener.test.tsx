@@ -85,7 +85,7 @@ describe("HistoryListener", () => {
       await new Promise((r) => setTimeout(r, 20));
     });
 
-    // No status change — listener bailed early after consuming the mark.
+    // No status change. Listener bailed early after consuming the mark.
     expect(stores.navigate.getState().status).toBe(before.status);
     expect(stores.navigate.getState().transitionTaskId).toBe(before.transitionTaskId);
   });
@@ -136,7 +136,7 @@ describe("HistoryListener", () => {
     const stop = fireSweeper();
 
     await act(async () => {
-      // Same index + no status — listener can't classify, aborts.
+      // Same index + no status, listener can't classify, aborts.
       window.dispatchEvent(
         new PopStateEvent("popstate", {
           state: { id: "noise", index: 0 }

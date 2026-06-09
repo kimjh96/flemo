@@ -13,7 +13,7 @@ export const metadata = {
     "flemo brings native-app-like screen transitions to the web. Push, pop, and shared layouts that just work in React.",
   icons: {
     icon: [
-      // default — used by browsers that don't honor prefers-color-scheme on favicons
+      // default. Used by browsers that don't honor prefers-color-scheme on favicons
       { url: "/logo.png", type: "image/png" },
       // overrides when supported (Safari / Firefox)
       { url: "/logo-dark.png", type: "image/png", media: "(prefers-color-scheme: dark)" }

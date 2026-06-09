@@ -89,7 +89,7 @@ export default function useStep<T extends keyof RegisterRoute>() {
             );
           });
 
-          // Safety timeout — back() should always produce a popstate when
+          // Safety timeout. back() should always produce a popstate when
           // there's something to go back to; this prevents a queue hang.
           const safetyTimeout = new Promise<undefined>((resolve) =>
             setTimeout(() => resolve(undefined), 200)
@@ -109,7 +109,7 @@ export default function useStep<T extends keyof RegisterRoute>() {
           }
 
           if (nextState.step) {
-            // Step pop — apply params right here.
+            // Step pop. Apply params right here.
             dispatch({ type: "SET", params: nextState.params ?? {} });
             abortController.abort();
             return;

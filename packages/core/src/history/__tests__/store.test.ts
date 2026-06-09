@@ -17,7 +17,7 @@ const reset = () => {
   store = createHistoryStore();
 };
 
-describe("createHistoryStore — addHistory", () => {
+describe("createHistoryStore: addHistory", () => {
   beforeEach(reset);
 
   it("starts at index -1 with an empty stack", () => {
@@ -45,7 +45,7 @@ describe("createHistoryStore — addHistory", () => {
   });
 });
 
-describe("createHistoryStore — replaceHistory", () => {
+describe("createHistoryStore: replaceHistory", () => {
   beforeEach(reset);
 
   it("removes the entry at the given index and decrements the index", () => {
@@ -81,7 +81,7 @@ describe("createHistoryStore — replaceHistory", () => {
   });
 });
 
-describe("createHistoryStore — popHistory", () => {
+describe("createHistoryStore: popHistory", () => {
   beforeEach(reset);
 
   it("removes the entry at the given index and decrements the index", () => {
@@ -110,7 +110,7 @@ describe("createHistoryStore — popHistory", () => {
   });
 });
 
-describe("createHistoryStore — popHistories", () => {
+describe("createHistoryStore: popHistories", () => {
   beforeEach(reset);
 
   const seed = (...pathnames: string[]) => {
@@ -150,7 +150,7 @@ describe("createHistoryStore — popHistories", () => {
   });
 });
 
-describe("createHistoryStore — setTransitionName", () => {
+describe("createHistoryStore: setTransitionName", () => {
   beforeEach(reset);
 
   const seed = (...pathnames: string[]) => {
@@ -192,7 +192,7 @@ describe("createHistoryStore — setTransitionName", () => {
   });
 });
 
-describe("createHistoryStore — mixed sequences", () => {
+describe("createHistoryStore: mixed sequences", () => {
   beforeEach(reset);
 
   it("push → push → replace → pop ends with the expected stack and index", () => {

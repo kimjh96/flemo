@@ -2,8 +2,8 @@
 
 import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
 
-// The kicker and the "flemo, in motion." wordmark stay English in every locale
-// — they read as a brand tagline, not body copy. Only the description below is
+// The kicker and the "flemo, in motion." wordmark stay English in every locale.
+// They read as a brand tagline, not body copy. Only the description below is
 // localized.
 function PlaygroundIntro() {
   const dict = usePlaygroundDict();

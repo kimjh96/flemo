@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { activeScreen, albumTile, waitForTransitionSettled } from "./helpers/flemo";
 
-test.describe("playground — transitions", () => {
+test.describe("playground: transitions", () => {
   test("default push uses cupertino", async ({ page }) => {
     await page.goto("/playground");
     await waitForTransitionSettled(page);
