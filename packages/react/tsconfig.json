@@ -12,6 +12,8 @@
       "@renderer/*": ["./src/renderer/*"],
       "@screen": ["./src/screen"],
       "@screen/*": ["./src/screen/*"],
+      "@stores": ["./src/stores"],
+      "@stores/*": ["./src/stores/*"],
       "@transition": ["./src/transition"],
       "@transition/*": ["./src/transition/*"],
       "@utils": ["./src/utils"],

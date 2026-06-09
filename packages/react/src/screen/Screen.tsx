@@ -1,11 +1,12 @@
 import { type ComponentPropsWithoutRef, type PropsWithChildren, type ReactNode } from "react";
 
-import { useHistoryStore, useNavigateStore } from "@flemo/core";
-
 import ScreenFreeze from "@screen/ScreenFreeze";
 import ScreenMotion from "@screen/ScreenMotion";
-import useScreenStore from "@screen/store";
 import useScreen from "@screen/useScreen";
+
+import useHistoryStore from "@stores/useHistoryStore";
+import useNavigateStore from "@stores/useNavigateStore";
+import useScreenStore from "@stores/useScreenStore";
 
 export interface ScreenProps extends PropsWithChildren<
   Omit<

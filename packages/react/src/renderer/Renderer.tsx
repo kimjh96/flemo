@@ -2,11 +2,13 @@ import { Children, type PropsWithChildren, type ReactElement } from "react";
 
 import { pathToRegexp } from "path-to-regexp";
 
-import { getMatchedPathPattern, useHistoryStore } from "@flemo/core";
+import { getMatchedPathPattern } from "@flemo/core";
 
 import ScreenContext from "@screen/ScreenContext";
 
 import ParamsProvider from "@screen/ParamsProvider/ParamsProvider";
+
+import useHistoryStore from "@stores/useHistoryStore";
 
 import type { RouteProps } from "@Route";
 

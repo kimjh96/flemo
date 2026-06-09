@@ -1,11 +1,10 @@
 "use client";
 
-// `@flemo/core` is imported here purely to READ flemo's runtime stores for a
-// live inspector — the playground never mutates them directly (it drives
-// navigation through `useNavigate`). This is inside the sanctioned playground
-// tree, so reaching into core for inspection is fine.
-import { useHistoryStore, useNavigateStore } from "@flemo/core";
-import { useScreenStore } from "@flemo/react";
+// These store hooks READ flemo's request-scoped runtime stores for a live
+// inspector — the playground never mutates them directly (it drives navigation
+// through `useNavigate`). They come from `@flemo/react` so they resolve the
+// active Router's stores via context.
+import { useHistoryStore, useNavigateStore, useScreenStore } from "@flemo/react";
 
 import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
 

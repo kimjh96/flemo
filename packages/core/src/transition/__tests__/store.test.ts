@@ -1,21 +1,27 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import useTransitionStore from "@transition/store";
+import createTransitionStore, { type TransitionStoreApi } from "@transition/store";
 
-const reset = () => useTransitionStore.setState({ defaultTransitionName: "cupertino" });
+let store: TransitionStoreApi;
 
-describe("useTransitionStore", () => {
-  beforeEach(reset);
+describe("createTransitionStore", () => {
+  beforeEach(() => {
+    store = createTransitionStore();
+  });
 
   it("defaults the transition name to `cupertino`", () => {
-    expect(useTransitionStore.getState().defaultTransitionName).toBe("cupertino");
+    expect(store.getState().defaultTransitionName).toBe("cupertino");
+  });
+
+  it("accepts a seeded default transition name", () => {
+    expect(createTransitionStore("material").getState().defaultTransitionName).toBe("material");
   });
 
   it("setDefaultTransitionName updates the active default", () => {
-    useTransitionStore.getState().setDefaultTransitionName("material");
-    expect(useTransitionStore.getState().defaultTransitionName).toBe("material");
+    store.getState().setDefaultTransitionName("material");
+    expect(store.getState().defaultTransitionName).toBe("material");
 
-    useTransitionStore.getState().setDefaultTransitionName("none");
-    expect(useTransitionStore.getState().defaultTransitionName).toBe("none");
+    store.getState().setDefaultTransitionName("none");
+    expect(store.getState().defaultTransitionName).toBe("none");
   });
 });

@@ -2,9 +2,9 @@ import type { PropsWithChildren } from "react";
 
 import { MotionConfig, type MotionConfigProps } from "motion/react";
 
-import { transitionMap, useNavigateStore } from "@flemo/core";
+import { transitionMap } from "@flemo/core";
 
-import { useScreen } from "@flemo/react";
+import { useNavigateStore, useScreen } from "@flemo/react";
 
 function LayoutConfig({ children, ...props }: PropsWithChildren<MotionConfigProps>) {
   const { isActive, transitionName } = useScreen();
