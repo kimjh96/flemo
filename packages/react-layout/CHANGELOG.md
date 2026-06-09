@@ -1,5 +1,28 @@
 # @flemo/react-layout
 
+## 0.1.9
+
+### Patch Changes
+
+- [`cf01904`](https://github.com/kimjh96/flemo/commit/cf01904fb806408db03cba65ceb4026201d3b551) Roll up Renovate dependency updates. Bump runtime and peer ranges: `react`/`react-dom` to `^19.2.7`, `motion` to `^12.40.0`, `path-to-regexp` to `^8.4.2`, `zustand` to `^5.0.14`. Also refreshes web app and toolchain deps (next, fumadocs, tailwindcss, eslint, typescript, vite) with no API changes.
+
+- [`475540c`](https://github.com/kimjh96/flemo/commit/475540cfbbf78614b4227fc798c0f4d3987852d6) Make the navigation stores request-scoped so screens render during SSR. The
+  history/navigate/transition/screen stores are no longer module-level singletons
+  shared across every SSR request; the Router now creates one bundle per mount,
+  seeds it from `initPath`, and provides it via context. Because the seed is the
+  store's initial state, zustand hands it to React as the server snapshot, so the
+  screen stack paints on the server (previously the root was empty until the
+  client mounted) and each concurrent request keeps its own stack.
+
+  The public API (`Router`, `Route`, `useNavigate`, `useParams`, `useScreen`,
+  `Screen`, `LayoutScreen`) is unchanged. Internally, `@flemo/core` now exposes the
+  stores as `createHistoryStore` / `createNavigateStore` / `createTransitionStore`
+  factories instead of singleton hooks.
+
+- Updated dependencies ([`cf01904`](https://github.com/kimjh96/flemo/commit/cf01904fb806408db03cba65ceb4026201d3b551), [`475540c`](https://github.com/kimjh96/flemo/commit/475540cfbbf78614b4227fc798c0f4d3987852d6)):
+  - @flemo/core@1.4.0
+  - @flemo/react@1.3.0
+
 ## 0.1.8
 
 ### Patch Changes
