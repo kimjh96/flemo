@@ -26,26 +26,18 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@changesets/changelog-github": "^0.6.0",
-    "@changesets/cli": "^2.27.10",
-    "@size-limit/preset-small-lib": "^11.1.6",
+    "@changesets/changelog-github": "^0.7.0",
+    "@changesets/cli": "^2.31.0",
+    "@size-limit/preset-small-lib": "^12.1.0",
     "husky": "^9.1.7",
-    "lint-staged": "^16.1.5",
-    "prettier": "^3.6.2",
-    "size-limit": "^11.1.6",
-    "turbo": "^2.3.3"
+    "lint-staged": "^17.0.7",
+    "prettier": "^3.8.3",
+    "size-limit": "^12.1.0",
+    "turbo": "^2.9.16"
   },
-  "packageManager": "pnpm@10.28.2",
+  "packageManager": "pnpm@11.5.2",
   "engines": {
-    "node": ">=20"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@swc/core",
-      "esbuild",
-      "sharp",
-      "unrs-resolver"
-    ]
+    "node": ">=22"
   },
   "lint-staged": {
     "*.{js,mjs,ts,jsx,tsx,mts,json,md,mdx}": "prettier --write --ignore-unknown"
