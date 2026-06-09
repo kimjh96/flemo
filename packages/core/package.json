@@ -43,21 +43,21 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "path-to-regexp": "^8.2.0",
-    "zustand": "^5.0.11"
+    "path-to-regexp": "^8.4.2",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@flemo/eslint-config": "workspace:*",
     "@flemo/tsconfig": "workspace:*",
-    "@types/node": "^24.3.0",
-    "@vitest/coverage-v8": "^2.1.8",
+    "@types/node": "^24.13.1",
+    "@vitest/coverage-v8": "^4.1.8",
     "csstype": "^3.2.3",
-    "eslint": "^9.33.0",
-    "jsdom": "^25.0.1",
-    "typescript": "^5.9.2",
-    "vite": "^7.1.5",
-    "vite-plugin-dts": "^4.5.4",
-    "vitest": "^2.1.8"
+    "eslint": "^9.39.4",
+    "jsdom": "^29.1.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-dts": "^5.0.2",
+    "vitest": "^4.1.8"
   },
   "publishConfig": {
     "access": "public"

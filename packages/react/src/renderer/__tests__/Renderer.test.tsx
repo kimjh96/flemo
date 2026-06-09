@@ -1,16 +1,25 @@
 import { render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
-
-import { useHistoryStore } from "@flemo/core";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import Renderer from "@renderer/Renderer";
 
 import Route from "@Route";
+import { createTestStores, storesWrapper } from "@stores/__tests__/testUtils";
 
-const reset = () => useHistoryStore.setState({ index: -1, histories: [] });
+import type { FlemoStores } from "@stores/StoreContext";
+
+let stores: FlemoStores;
+let wrapper: ReturnType<typeof storesWrapper>;
+
+beforeEach(() => {
+  // Fresh request-scoped stores per test; Renderer reads them via context. A fresh history store
+  // starts empty (index -1), the same snapshot the server sees before a Router seeds it.
+  stores = createTestStores();
+  wrapper = storesWrapper(stores);
+});
 
 const seed = (entries: Array<{ id: string; pathname: string; params?: object }>) => {
-  useHistoryStore.setState({
+  stores.history.setState({
     index: entries.length - 1,
     histories: entries.map((e) => ({
       id: e.id,
@@ -22,14 +31,13 @@ const seed = (entries: Array<{ id: string; pathname: string; params?: object }>)
   });
 };
 
-afterEach(reset);
-
 describe("Renderer", () => {
   it("renders nothing when history is empty", () => {
     const { container } = render(
       <Renderer>
         <Route path="/" element={<div data-testid="root">root</div>} />
-      </Renderer>
+      </Renderer>,
+      { wrapper }
     );
     expect(container.querySelector('[data-testid="root"]')).toBeNull();
   });
@@ -40,9 +48,21 @@ describe("Renderer", () => {
       <Renderer>
         <Route path="/" element={<div data-testid="home">home</div>} />
         <Route path="/posts/:id" element={<div data-testid="post">post</div>} />
-      </Renderer>
+      </Renderer>,
+      { wrapper }
     );
     expect(getByTestId("home")).toBeDefined();
+  });
+
+  it("resolves params from a seeded dynamic pathname", () => {
+    seed([{ id: "a", pathname: "/posts/42" }]);
+    const { getByTestId } = render(
+      <Renderer>
+        <Route path="/posts/:id" element={<div data-testid="post">post</div>} />
+      </Renderer>,
+      { wrapper }
+    );
+    expect(getByTestId("post")).toBeDefined();
   });
 
   it("stacks screens in history order, each mounted from its matched Route", () => {
@@ -54,7 +74,8 @@ describe("Renderer", () => {
       <Renderer>
         <Route path="/" element={<div data-testid="home">home</div>} />
         <Route path="/posts/:id" element={<div data-testid="post">post</div>} />
-      </Renderer>
+      </Renderer>,
+      { wrapper }
     );
     expect(getByTestId("home")).toBeDefined();
     expect(getByTestId("post")).toBeDefined();
@@ -66,7 +87,8 @@ describe("Renderer", () => {
       <Renderer>
         <Route path="/users/:id" element={<div data-testid="dynamic">dynamic</div>} />
         <Route path="/users/me" element={<div data-testid="static">static</div>} />
-      </Renderer>
+      </Renderer>,
+      { wrapper }
     );
     expect(getByTestId("dynamic")).toBeDefined();
     expect(queryByTestId("static")).toBeNull();
@@ -77,7 +99,8 @@ describe("Renderer", () => {
     const { getByTestId, rerender } = render(
       <Renderer>
         <Route path="/" element={<div data-testid="home">home</div>} />
-      </Renderer>
+      </Renderer>,
+      { wrapper }
     );
     const first = getByTestId("home");
     rerender(

@@ -1,7 +1,6 @@
 {
   "extends": "@flemo/tsconfig/nextjs.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
     }

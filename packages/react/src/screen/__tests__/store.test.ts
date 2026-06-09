@@ -1,15 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import useScreenStore from "@screen/store";
+import createScreenStore, { type ScreenStoreApi } from "@screen/store";
 
-const reset = () =>
-  useScreenStore.setState({
-    dragStatus: "IDLE",
-    replaceTransitionStatus: "IDLE",
-    sharedBars: {}
-  });
+let useScreenStore: ScreenStoreApi;
 
-describe("useScreenStore: shared bar registry", () => {
+const reset = () => {
+  useScreenStore = createScreenStore();
+};
+
+describe("createScreenStore: shared bar registry", () => {
   beforeEach(reset);
 
   it("registers a screen's shared bar presence", () => {
@@ -51,7 +50,7 @@ describe("useScreenStore: shared bar registry", () => {
   });
 });
 
-describe("useScreenStore: dragStatus", () => {
+describe("createScreenStore: dragStatus", () => {
   beforeEach(reset);
 
   it("defaults to IDLE", () => {
@@ -77,7 +76,7 @@ describe("useScreenStore: dragStatus", () => {
   });
 });
 
-describe("useScreenStore: replaceTransitionStatus", () => {
+describe("createScreenStore: replaceTransitionStatus", () => {
   beforeEach(reset);
 
   it("defaults to IDLE", () => {

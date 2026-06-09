@@ -1,10 +1,10 @@
 import { AnimatePresence } from "motion/react";
 
-import { useHistoryStore, useNavigateStore } from "@flemo/core";
-
 import {
   ScreenFreeze,
   ScreenMotion,
+  useHistoryStore,
+  useNavigateStore,
   useScreen,
   useScreenStore,
   type ScreenProps

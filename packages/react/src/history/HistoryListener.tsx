@@ -3,13 +3,15 @@ import { useEffect } from "react";
 import {
   consumeSelfInducedPop,
   TaskManger as TaskManager,
-  useHistoryStore,
-  useNavigateStore,
   type NavigateStatus,
   type TransitionName
 } from "@flemo/core";
 
+import useStores from "@stores/useStores";
+
 function HistoryListener() {
+  const stores = useStores();
+
   useEffect(() => {
     const handlePopState = async (e: PopStateEvent) => {
       // A popstate flemo triggered itself. The navigation queue already owns it.
@@ -28,8 +30,8 @@ function HistoryListener() {
             const nextParams = e.state?.params;
             const nextTransitionName = e.state?.transitionName as TransitionName;
             const nextLayoutId = e.state?.layoutId as string | number | null;
-            const { setStatus, setTransitionTaskId } = useNavigateStore.getState();
-            const { index, addHistory, popHistory } = useHistoryStore.getState();
+            const { setStatus, setTransitionTaskId } = stores.navigate.getState();
+            const { index, addHistory, popHistory } = stores.history.getState();
             const isPop = nextIndex < index;
             const isPush = nextStatus === "PUSHING" && nextIndex > index;
             const isReplace = nextStatus === "REPLACING" && nextIndex > index;
@@ -89,7 +91,7 @@ function HistoryListener() {
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
-  }, []);
+  }, [stores]);
 
   return null;
 }

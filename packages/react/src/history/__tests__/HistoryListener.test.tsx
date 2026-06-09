@@ -1,12 +1,21 @@
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { markSelfInducedPop, TaskManger, useHistoryStore, useNavigateStore } from "@flemo/core";
+import { markSelfInducedPop, TaskManger } from "@flemo/core";
 
 import HistoryListener from "@history/HistoryListener";
 
+import { createTestStores, storesWrapper } from "@stores/__tests__/testUtils";
+
+import type { FlemoStores } from "@stores/StoreContext";
+
+let stores: FlemoStores;
+let wrapper: ReturnType<typeof storesWrapper>;
+
 const resetStores = () => {
-  useHistoryStore.setState({
+  stores = createTestStores();
+  wrapper = storesWrapper(stores);
+  stores.history.setState({
     index: 0,
     histories: [
       {
@@ -18,7 +27,7 @@ const resetStores = () => {
       }
     ]
   });
-  useNavigateStore.setState({ status: "COMPLETED", transitionTaskId: null });
+  stores.navigate.setState({ status: "COMPLETED", transitionTaskId: null });
 };
 
 const fireSweeper = () => {
@@ -46,7 +55,7 @@ afterEach(() => {
 describe("HistoryListener", () => {
   it("attaches a popstate listener on mount and cleans it up on unmount", () => {
     const before = window.onpopstate;
-    const { unmount } = render(<HistoryListener />);
+    const { unmount } = render(<HistoryListener />, { wrapper });
     // Mount itself doesn't change onpopstate (uses addEventListener, not
     // assignment), but the popstate dispatch flow only runs through the
     // listener. Verify by firing a benign popstate before/after unmount.
@@ -63,8 +72,8 @@ describe("HistoryListener", () => {
   });
 
   it("ignores self-induced popstates by consuming the selfPopGuard mark", async () => {
-    render(<HistoryListener />);
-    const before = useNavigateStore.getState();
+    render(<HistoryListener />, { wrapper });
+    const before = stores.navigate.getState();
 
     markSelfInducedPop();
     await act(async () => {
@@ -77,12 +86,12 @@ describe("HistoryListener", () => {
     });
 
     // No status change. Listener bailed early after consuming the mark.
-    expect(useNavigateStore.getState().status).toBe(before.status);
-    expect(useNavigateStore.getState().transitionTaskId).toBe(before.transitionTaskId);
+    expect(stores.navigate.getState().status).toBe(before.status);
+    expect(stores.navigate.getState().transitionTaskId).toBe(before.transitionTaskId);
   });
 
   it("flips status to POPPING for a back navigation (nextIndex < current index)", async () => {
-    useHistoryStore.setState({
+    stores.history.setState({
       index: 1,
       histories: [
         {
@@ -102,7 +111,7 @@ describe("HistoryListener", () => {
       ]
     });
 
-    render(<HistoryListener />);
+    render(<HistoryListener />, { wrapper });
     const stop = fireSweeper();
 
     await act(async () => {
@@ -118,16 +127,16 @@ describe("HistoryListener", () => {
 
     // After the sweeper resolves the manual task, the cleanup callback
     // flips status back to COMPLETED and pops the entry at nextIndex+1=1.
-    expect(useNavigateStore.getState().status).toBe("COMPLETED");
-    expect(useHistoryStore.getState().histories.length).toBe(1);
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
+    expect(stores.history.getState().histories.length).toBe(1);
   });
 
   it("aborts the task when the popstate state shape doesn't match push / replace / pop", async () => {
-    render(<HistoryListener />);
+    render(<HistoryListener />, { wrapper });
     const stop = fireSweeper();
 
     await act(async () => {
-      // Same index + no status. Listener can't classify, aborts.
+      // Same index + no status, listener can't classify, aborts.
       window.dispatchEvent(
         new PopStateEvent("popstate", {
           state: { id: "noise", index: 0 }
@@ -138,7 +147,7 @@ describe("HistoryListener", () => {
     await stop();
 
     // History stays put.
-    expect(useHistoryStore.getState().index).toBe(0);
-    expect(useHistoryStore.getState().histories.length).toBe(1);
+    expect(stores.history.getState().index).toBe(0);
+    expect(stores.history.getState().histories.length).toBe(1);
   });
 });

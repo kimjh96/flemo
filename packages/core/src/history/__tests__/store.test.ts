@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import useHistoryStore, { type History } from "@history/store";
+import createHistoryStore, { type History, type HistoryStoreApi } from "@history/store";
 
 const makeEntry = (overrides: Partial<History> = {}): History => ({
   id: overrides.id ?? Math.random().toString(36).slice(2),
@@ -10,41 +10,46 @@ const makeEntry = (overrides: Partial<History> = {}): History => ({
   layoutId: overrides.layoutId ?? null
 });
 
-const reset = () => useHistoryStore.setState({ index: -1, histories: [] });
+let store: HistoryStoreApi;
 
-describe("useHistoryStore: addHistory", () => {
+// Fresh, isolated store per test (the factory defaults to index -1, empty stack).
+const reset = () => {
+  store = createHistoryStore();
+};
+
+describe("createHistoryStore: addHistory", () => {
   beforeEach(reset);
 
   it("starts at index -1 with an empty stack", () => {
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = store.getState();
     expect(index).toBe(-1);
     expect(histories).toEqual([]);
   });
 
   it("addHistory appends and bumps index from -1 → 0", () => {
-    useHistoryStore.getState().addHistory(makeEntry({ pathname: "/a" }));
-    const { index, histories } = useHistoryStore.getState();
+    store.getState().addHistory(makeEntry({ pathname: "/a" }));
+    const { index, histories } = store.getState();
     expect(index).toBe(0);
     expect(histories.length).toBe(1);
     expect(histories[0]!.pathname).toBe("/a");
   });
 
   it("multiple addHistory calls keep arrival order and walk the index", () => {
-    const { addHistory } = useHistoryStore.getState();
+    const { addHistory } = store.getState();
     addHistory(makeEntry({ pathname: "/a" }));
     addHistory(makeEntry({ pathname: "/b" }));
     addHistory(makeEntry({ pathname: "/c" }));
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = store.getState();
     expect(index).toBe(2);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b", "/c"]);
   });
 });
 
-describe("useHistoryStore: replaceHistory", () => {
+describe("createHistoryStore: replaceHistory", () => {
   beforeEach(reset);
 
   it("removes the entry at the given index and decrements the index", () => {
-    const { addHistory, replaceHistory } = useHistoryStore.getState();
+    const { addHistory, replaceHistory } = store.getState();
     addHistory(makeEntry({ pathname: "/a" }));
     addHistory(makeEntry({ pathname: "/b" }));
     addHistory(makeEntry({ pathname: "/c" }));
@@ -52,13 +57,13 @@ describe("useHistoryStore: replaceHistory", () => {
 
     replaceHistory(2);
     // state: index=1, [a, b]
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = store.getState();
     expect(index).toBe(1);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b"]);
   });
 
   it("composes with addHistory to model 'replace current' (add new, drop old)", () => {
-    const { addHistory, replaceHistory } = useHistoryStore.getState();
+    const { addHistory, replaceHistory } = store.getState();
     addHistory(makeEntry({ pathname: "/a" }));
     addHistory(makeEntry({ pathname: "/b" }));
     // state: index=1, [a, b]
@@ -66,59 +71,59 @@ describe("useHistoryStore: replaceHistory", () => {
     // useNavigate.replace flow: addHistory(new) bumps to index=2, then
     // replaceHistory(1) drops the OLD entry at the previous index. Net is
     // "the entry at the current slot got replaced".
-    const previousIndex = useHistoryStore.getState().index;
+    const previousIndex = store.getState().index;
     addHistory(makeEntry({ pathname: "/c" }));
     replaceHistory(previousIndex);
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = store.getState();
     expect(index).toBe(1);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/c"]);
   });
 });
 
-describe("useHistoryStore: popHistory", () => {
+describe("createHistoryStore: popHistory", () => {
   beforeEach(reset);
 
   it("removes the entry at the given index and decrements the index", () => {
-    const { addHistory, popHistory } = useHistoryStore.getState();
+    const { addHistory, popHistory } = store.getState();
     addHistory(makeEntry({ pathname: "/a" }));
     addHistory(makeEntry({ pathname: "/b" }));
     addHistory(makeEntry({ pathname: "/c" }));
 
     popHistory(2);
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = store.getState();
     expect(index).toBe(1);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b"]);
   });
 
   it("repeated popHistory unwinds the stack back to empty", () => {
-    const { addHistory, popHistory } = useHistoryStore.getState();
+    const { addHistory, popHistory } = store.getState();
     addHistory(makeEntry({ pathname: "/a" }));
     addHistory(makeEntry({ pathname: "/b" }));
 
     popHistory(1);
     popHistory(0);
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = store.getState();
     expect(index).toBe(-1);
     expect(histories).toEqual([]);
   });
 });
 
-describe("useHistoryStore: popHistories", () => {
+describe("createHistoryStore: popHistories", () => {
   beforeEach(reset);
 
   const seed = (...pathnames: string[]) => {
-    const { addHistory } = useHistoryStore.getState();
+    const { addHistory } = store.getState();
     for (const pathname of pathnames) addHistory(makeEntry({ pathname }));
   };
 
   it("drops `count` entries directly below the top, keeping the top", () => {
     seed("/a", "/b", "/c", "/d"); // index=3, [a,b,c,d]
 
-    useHistoryStore.getState().popHistories(1);
+    store.getState().popHistories(1);
     // The screen directly below the top (c) is removed; d stays as the top.
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = store.getState();
     expect(index).toBe(2);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b", "/d"]);
   });
@@ -126,9 +131,9 @@ describe("useHistoryStore: popHistories", () => {
   it("drops multiple intermediates at once and keeps both the root and the top", () => {
     seed("/a", "/b", "/c", "/d"); // index=3
 
-    useHistoryStore.getState().popHistories(2);
+    store.getState().popHistories(2);
     // b and c are removed; a (root) and d (top) survive.
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = store.getState();
     expect(index).toBe(1);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/d"]);
   });
@@ -136,40 +141,40 @@ describe("useHistoryStore: popHistories", () => {
   it("is a no-op for count <= 0", () => {
     seed("/a", "/b", "/c"); // index=2
 
-    useHistoryStore.getState().popHistories(0);
-    useHistoryStore.getState().popHistories(-3);
+    store.getState().popHistories(0);
+    store.getState().popHistories(-3);
 
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = store.getState();
     expect(index).toBe(2);
     expect(histories.map((h) => h.pathname)).toEqual(["/a", "/b", "/c"]);
   });
 });
 
-describe("useHistoryStore: setTransitionName", () => {
+describe("createHistoryStore: setTransitionName", () => {
   beforeEach(reset);
 
   const seed = (...pathnames: string[]) => {
-    const { addHistory } = useHistoryStore.getState();
+    const { addHistory } = store.getState();
     for (const pathname of pathnames) addHistory(makeEntry({ pathname, transitionName: "none" }));
   };
 
   it("overrides one entry's transition and leaves the rest untouched", () => {
     seed("/a", "/b", "/c"); // all "none"
 
-    useHistoryStore.getState().setTransitionName(2, "cupertino");
+    store.getState().setTransitionName(2, "cupertino");
 
-    const { histories } = useHistoryStore.getState();
+    const { histories } = store.getState();
     expect(histories.map((h) => h.transitionName)).toEqual(["none", "none", "cupertino"]);
   });
 
   it("returns a fresh array and entry so subscribers re-read (immutable)", () => {
     seed("/a", "/b");
-    const before = useHistoryStore.getState().histories;
+    const before = store.getState().histories;
     const beforeEntry = before[0]!;
 
-    useHistoryStore.getState().setTransitionName(0, "material");
+    store.getState().setTransitionName(0, "material");
 
-    const after = useHistoryStore.getState().histories;
+    const after = store.getState().histories;
     expect(after).not.toBe(before);
     expect(after[0]).not.toBe(beforeEntry);
     // The other entry is preserved by reference.
@@ -178,55 +183,55 @@ describe("useHistoryStore: setTransitionName", () => {
 
   it("is a no-op for a missing index or an unchanged value", () => {
     seed("/a");
-    const before = useHistoryStore.getState().histories;
+    const before = store.getState().histories;
 
-    useHistoryStore.getState().setTransitionName(5, "cupertino"); // out of range
-    useHistoryStore.getState().setTransitionName(0, "none"); // same value
+    store.getState().setTransitionName(5, "cupertino"); // out of range
+    store.getState().setTransitionName(0, "none"); // same value
 
-    expect(useHistoryStore.getState().histories).toBe(before);
+    expect(store.getState().histories).toBe(before);
   });
 });
 
-describe("useHistoryStore: mixed sequences", () => {
+describe("createHistoryStore: mixed sequences", () => {
   beforeEach(reset);
 
   it("push → push → replace → pop ends with the expected stack and index", () => {
-    const { addHistory, popHistory, replaceHistory } = useHistoryStore.getState();
+    const { addHistory, popHistory, replaceHistory } = store.getState();
 
     // push /a
     addHistory(makeEntry({ pathname: "/a" }));
-    expect(useHistoryStore.getState().index).toBe(0);
+    expect(store.getState().index).toBe(0);
 
     // push /b
     addHistory(makeEntry({ pathname: "/b" }));
-    expect(useHistoryStore.getState().index).toBe(1);
+    expect(store.getState().index).toBe(1);
 
     // replace /b → /c (the canonical useNavigate.replace flow: add new, drop old)
-    const prevIndex = useHistoryStore.getState().index;
+    const prevIndex = store.getState().index;
     addHistory(makeEntry({ pathname: "/c" }));
     replaceHistory(prevIndex);
     {
-      const { index, histories } = useHistoryStore.getState();
+      const { index, histories } = store.getState();
       expect(index).toBe(1);
       expect(histories.map((h) => h.pathname)).toEqual(["/a", "/c"]);
     }
 
     // pop /c
-    const popIndex = useHistoryStore.getState().index;
+    const popIndex = store.getState().index;
     popHistory(popIndex);
     {
-      const { index, histories } = useHistoryStore.getState();
+      const { index, histories } = store.getState();
       expect(index).toBe(0);
       expect(histories.map((h) => h.pathname)).toEqual(["/a"]);
     }
   });
 
   it("preserves ordering across 200 sequential addHistory calls", () => {
-    const { addHistory } = useHistoryStore.getState();
+    const { addHistory } = store.getState();
     for (let i = 0; i < 200; i++) {
       addHistory(makeEntry({ pathname: `/p${i}` }));
     }
-    const { index, histories } = useHistoryStore.getState();
+    const { index, histories } = store.getState();
     expect(index).toBe(199);
     expect(histories.length).toBe(200);
     expect(histories[0]!.pathname).toBe("/p0");

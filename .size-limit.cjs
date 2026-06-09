@@ -7,8 +7,8 @@ module.exports = [
   {
     name: "@flemo/core",
     path: "packages/core/dist/index.mjs",
-    // Measured with all dependencies bundled (zustand + path-to-regexp) —
-    // that's the real wire cost for a fresh consumer. ~10.4 KB current.
+    // Measured with all dependencies bundled (zustand + path-to-regexp).
+    // That's the real wire cost for a fresh consumer. ~10.4 KB current.
     limit: "11 KB",
     gzip: true
   },
@@ -17,7 +17,7 @@ module.exports = [
     path: "packages/react/dist/index.mjs",
     limit: "12 KB",
     gzip: true,
-    // peers + workspace dep — already excluded by Vite externals, but list
+    // peers + workspace dep, already excluded by Vite externals, but list
     // them here too so size-limit doesn't try to resolve and bundle them
     // when introspecting.
     ignore: ["react", "react-dom", "@flemo/core"]

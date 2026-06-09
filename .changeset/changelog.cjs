@@ -1,6 +1,6 @@
 // Custom changeset changelog formatter. Mirrors
 // `@changesets/changelog-github`'s commit-linked output but omits the
-// "Thanks [@user]!" suffix — flemo is solo-maintained, and the line reads
+// "Thanks [@user]!" suffix. flemo is solo-maintained, and the line reads
 // as the author thanking themselves. The commit link stays for traceability.
 
 function getReleaseLine(changeset, _type, options) {

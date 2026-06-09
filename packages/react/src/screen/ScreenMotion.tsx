@@ -13,8 +13,6 @@ import {
   findScrollable,
   TaskManger,
   transitionMap,
-  useHistoryStore,
-  useNavigateStore,
   variantHasAnimation,
   type SwipeInfo
 } from "@flemo/core";
@@ -22,14 +20,16 @@ import {
 import type { ScreenProps } from "@screen/Screen";
 import ScreenDecorator from "@screen/ScreenDecorator";
 
-import useScreenStore from "@screen/store";
 import useScreen from "@screen/useScreen";
 
 import useViewportScrollHeight from "@screen/useViewportScrollHeight";
 
 import animateInline, { clearInlineAnimation } from "@transition/animateInline";
 
-const useNavigationStore = useNavigateStore;
+import useHistoryStore from "@stores/useHistoryStore";
+import useNavigateStore from "@stores/useNavigateStore";
+import useScreenStore from "@stores/useScreenStore";
+import useStores from "@stores/useStores";
 
 const SKIP_ANIMATION_ATTR = "data-flemo-skip-animation";
 
@@ -51,10 +51,12 @@ function ScreenMotion({
 }: ScreenProps) {
   const { id, isActive, isRoot, zIndex, transitionName, prevTransitionName } = useScreen();
 
-  const status = useNavigationStore((state) => state.status);
+  const stores = useStores();
+
+  const status = useNavigateStore((state) => state.status);
   const dragStatus = useScreenStore((state) => state.dragStatus);
-  const setDragStatus = useScreenStore.getState().setDragStatus;
-  const setReplaceTransitionStatus = useScreenStore.getState().setReplaceTransitionStatus;
+  const setDragStatus = stores.screen.getState().setDragStatus;
+  const setReplaceTransitionStatus = stores.screen.getState().setReplaceTransitionStatus;
   const index = useHistoryStore((state) => state.index);
 
   const currentTransition = (transitionMap.get(transitionName) ?? transitionMap.get("none"))!;
@@ -163,9 +165,9 @@ function ScreenMotion({
 
   const captureRidingBars = (prevScreenContainer: HTMLDivElement | null) => {
     const partnerId = isActive
-      ? useHistoryStore.getState().histories[index - 1]?.id
-      : useHistoryStore.getState().histories[index]?.id;
-    const partnerBars = partnerId ? useScreenStore.getState().sharedBars[partnerId] : undefined;
+      ? stores.history.getState().histories[index - 1]?.id
+      : stores.history.getState().histories[index]?.id;
+    const partnerBars = partnerId ? stores.screen.getState().sharedBars[partnerId] : undefined;
 
     // Current side: this screen's own bars, ride if the partner doesn't have
     // a matching bar.
@@ -523,7 +525,7 @@ function ScreenMotion({
     if (!scope) return;
 
     const resolve = () => {
-      const transitionTaskId = useNavigationStore.getState().transitionTaskId;
+      const transitionTaskId = stores.navigate.getState().transitionTaskId;
       if (transitionTaskId) {
         void TaskManger.resolveTask(transitionTaskId);
       }
@@ -560,7 +562,8 @@ function ScreenMotion({
     transitionName,
     currentTransition,
     setDragStatus,
-    setReplaceTransitionStatus
+    setReplaceTransitionStatus,
+    stores.navigate
   ]);
 
   useLayoutEffect(() => {
@@ -597,13 +600,13 @@ function ScreenMotion({
 
   // Register this screen's shared-bar presence so other screens can read it.
   useLayoutEffect(() => {
-    const { registerSharedBars, unregisterSharedBars } = useScreenStore.getState();
+    const { registerSharedBars, unregisterSharedBars } = stores.screen.getState();
     registerSharedBars(id, {
       appBar: !!sharedAppBar,
       navigationBar: !!sharedNavigationBar
     });
     return () => unregisterSharedBars(id);
-  }, [id, sharedAppBar, sharedNavigationBar]);
+  }, [id, sharedAppBar, sharedNavigationBar, stores.screen]);
 
   // Shared bars render outside the animated scope (siblings inside screenRef),
   // so any transition the scope runs has no inherent effect on the bar. When
@@ -640,18 +643,18 @@ function ScreenMotion({
 
     const apply = () => {
       const transitioningNow =
-        useNavigationStore.getState().status === "PUSHING" ||
-        useNavigationStore.getState().status === "POPPING" ||
-        useNavigationStore.getState().status === "REPLACING";
+        stores.navigate.getState().status === "PUSHING" ||
+        stores.navigate.getState().status === "POPPING" ||
+        stores.navigate.getState().status === "REPLACING";
       if (!transitioningNow || !isTopOrTopPrev) {
         appBarEl?.removeAttribute("data-flemo-bar-riding");
         navBarEl?.removeAttribute("data-flemo-bar-riding");
         return;
       }
       const partnerId = isActive
-        ? useHistoryStore.getState().histories[index - 1]?.id
-        : useHistoryStore.getState().histories[index]?.id;
-      const partnerBars = partnerId ? useScreenStore.getState().sharedBars[partnerId] : undefined;
+        ? stores.history.getState().histories[index - 1]?.id
+        : stores.history.getState().histories[index]?.id;
+      const partnerBars = partnerId ? stores.screen.getState().sharedBars[partnerId] : undefined;
       const rideApp = hasSharedAppBar && !partnerBars?.appBar;
       const rideNav = hasSharedNavigationBar && !partnerBars?.navigationBar;
       if (appBarEl) appBarEl.setAttribute("data-flemo-bar-riding", rideApp ? "true" : "false");
@@ -659,15 +662,24 @@ function ScreenMotion({
     };
 
     apply();
-    const unsubScreen = useScreenStore.subscribe(apply);
-    const unsubNavigation = useNavigationStore.subscribe(apply);
+    const unsubScreen = stores.screen.subscribe(apply);
+    const unsubNavigation = stores.navigate.subscribe(apply);
     return () => {
       unsubScreen();
       unsubNavigation();
       appBarEl?.removeAttribute("data-flemo-bar-riding");
       navBarEl?.removeAttribute("data-flemo-bar-riding");
     };
-  }, [isTopOrTopPrev, isActive, index, hasSharedAppBar, hasSharedNavigationBar]);
+  }, [
+    isTopOrTopPrev,
+    isActive,
+    index,
+    hasSharedAppBar,
+    hasSharedNavigationBar,
+    stores.history,
+    stores.navigate,
+    stores.screen
+  ]);
 
   const initialStyle: { transform?: string; opacity?: string } = (() => {
     // Only the actively entering screen needs the initial style; everything

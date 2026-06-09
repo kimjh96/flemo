@@ -1,19 +1,22 @@
-import { create } from "zustand";
+import { createStore, type StoreApi } from "zustand/vanilla";
 
 export type NavigateStatus = "IDLE" | "PUSHING" | "REPLACING" | "POPPING" | "COMPLETED";
 
-interface NavigateStore {
+export interface NavigateStore {
   status: NavigateStatus;
   transitionTaskId: string | null;
   setStatus: (status: NavigateStatus) => void;
   setTransitionTaskId: (transitionTaskId: string | null) => void;
 }
 
-const useNavigateStore = create<NavigateStore>((set) => ({
-  status: "IDLE",
-  transitionTaskId: null,
-  setStatus: (status) => set({ status }),
-  setTransitionTaskId: (transitionTaskId) => set({ transitionTaskId })
-}));
+export type NavigateStoreApi = StoreApi<NavigateStore>;
 
-export default useNavigateStore;
+// Request-scoped (see history/store.ts), created per Router mount.
+export default function createNavigateStore(): NavigateStoreApi {
+  return createStore<NavigateStore>((set) => ({
+    status: "IDLE",
+    transitionTaskId: null,
+    setStatus: (status) => set({ status }),
+    setTransitionTaskId: (transitionTaskId) => set({ transitionTaskId })
+  }));
+}

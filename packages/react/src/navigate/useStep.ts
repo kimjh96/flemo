@@ -1,22 +1,20 @@
 import { useContext } from "react";
 
-import {
-  markSelfInducedPop,
-  TaskManger as TaskManager,
-  useHistoryStore,
-  useNavigateStore
-} from "@flemo/core";
+import { markSelfInducedPop, TaskManger as TaskManager } from "@flemo/core";
 
 import useScreen from "@screen/useScreen";
 
 import buildRoutePath from "@utils/buildRoutePath";
 
 import ScreenParamsDispatchContext from "@screen/ParamsProvider/ParamsDispatchContext";
+import useStores from "@stores/useStores";
 
 import type { RegisterRoute } from "@Route";
 
 export default function useStep<T extends keyof RegisterRoute>() {
   const { routePath } = useScreen();
+
+  const stores = useStores();
 
   const dispatch = useContext(ScreenParamsDispatchContext);
 
@@ -120,8 +118,8 @@ export default function useStep<T extends keyof RegisterRoute>() {
           // Crossed the step boundary into a screen pop. Same pattern as
           // `pop()`: setStatus + transitionTaskId, animation completes, then
           // the returned completion fn pops the history entry.
-          const { setStatus, setTransitionTaskId } = useNavigateStore.getState();
-          const { index, popHistory } = useHistoryStore.getState();
+          const { setStatus, setTransitionTaskId } = stores.navigate.getState();
+          const { index, popHistory } = stores.history.getState();
 
           setStatus("POPPING");
           setTransitionTaskId(id);

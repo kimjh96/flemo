@@ -3,14 +3,13 @@ import { pathToRegexp } from "path-to-regexp";
 import {
   markSelfInducedPop,
   TaskManger as TaskManager,
-  useHistoryStore,
-  useNavigateStore,
-  useTransitionStore,
   type History,
   type TransitionName
 } from "@flemo/core";
 
 import buildRoutePath from "@utils/buildRoutePath";
+
+import useStores from "@stores/useStores";
 
 import type { RegisterRoute } from "@Route";
 
@@ -77,6 +76,8 @@ const syncCollapsedHistory = async (goBack: number, commit: () => void) => {
 };
 
 export default function useNavigate() {
+  const stores = useStores();
+
   const push = async <T extends keyof RegisterRoute>(
     path: T,
     params?: RegisterRoute[T],
@@ -85,13 +86,13 @@ export default function useNavigate() {
       transitionName?: TransitionName;
     }
   ) => {
-    const { status } = useNavigateStore.getState();
+    const { status } = stores.navigate.getState();
 
     if (status !== "COMPLETED" && status !== "IDLE") {
       return;
     }
 
-    const defaultTransitionName = useTransitionStore.getState().defaultTransitionName;
+    const defaultTransitionName = stores.transition.getState().defaultTransitionName;
     const { transitionName = defaultTransitionName, layoutId = null } = options ?? {};
 
     const id = TaskManager.generateTaskId();
@@ -99,7 +100,7 @@ export default function useNavigate() {
     (
       await TaskManager.addTask(
         async () => {
-          const { index, histories, addHistory, popHistories } = useHistoryStore.getState();
+          const { index, histories, addHistory, popHistories } = stores.history.getState();
 
           // Screens to remove below the new top, reaching the target (`skip`
           // below the top, or the matched `until` screen), which is kept with
@@ -115,7 +116,7 @@ export default function useNavigate() {
             return Math.min(toSkip(options?.skip, 0), Math.max(0, index));
           })();
 
-          const { setStatus, setTransitionTaskId } = useNavigateStore.getState();
+          const { setStatus, setTransitionTaskId } = stores.navigate.getState();
 
           setStatus("PUSHING");
           setTransitionTaskId(id);
@@ -155,7 +156,7 @@ export default function useNavigate() {
             window.history.pushState(
               {
                 id,
-                index: useHistoryStore.getState().index - remove,
+                index: stores.history.getState().index - remove,
                 status: "PUSHING",
                 params,
                 transitionName,
@@ -189,13 +190,13 @@ export default function useNavigate() {
       transitionName?: TransitionName;
     }
   ) => {
-    const { status } = useNavigateStore.getState();
+    const { status } = stores.navigate.getState();
 
     if (status !== "COMPLETED" && status !== "IDLE") {
       return;
     }
 
-    const defaultTransitionName = useTransitionStore.getState().defaultTransitionName;
+    const defaultTransitionName = stores.transition.getState().defaultTransitionName;
     const { transitionName = defaultTransitionName, layoutId = null } = options ?? {};
 
     const id = TaskManager.generateTaskId();
@@ -204,7 +205,7 @@ export default function useNavigate() {
       await TaskManager.addTask(
         async (abortController) => {
           const { index, histories, addHistory, replaceHistory, popHistories } =
-            useHistoryStore.getState();
+            stores.history.getState();
 
           // How many screens the new one collapses (replaces). It reaches the
           // target (`skip` below the top, or the matched `until` screen) and
@@ -225,7 +226,7 @@ export default function useNavigate() {
             return;
           }
 
-          const { setStatus, setTransitionTaskId } = useNavigateStore.getState();
+          const { setStatus, setTransitionTaskId } = stores.navigate.getState();
 
           setStatus("REPLACING");
           setTransitionTaskId(id);
@@ -269,7 +270,7 @@ export default function useNavigate() {
               window.history.pushState(
                 {
                   id,
-                  index: useHistoryStore.getState().index - 1,
+                  index: stores.history.getState().index - 1,
                   status: "REPLACING",
                   params,
                   transitionName,
@@ -295,7 +296,7 @@ export default function useNavigate() {
           return async () => {
             // Remove the leaving top, read live so it's correct after the
             // intermediate drop and the new entry shifted the index.
-            replaceHistory(useHistoryStore.getState().index - 1);
+            replaceHistory(stores.history.getState().index - 1);
             setStatus("COMPLETED");
           };
         },
@@ -325,7 +326,7 @@ export default function useNavigate() {
       await TaskManager.addTask(
         async (abortController) => {
           const { index, histories, popHistory, popHistories, setTransitionName } =
-            useHistoryStore.getState();
+            stores.history.getState();
 
           // Nothing below the root to pop. A no-op without touching the browser.
           if (index <= 0) {
@@ -342,7 +343,7 @@ export default function useNavigate() {
             return;
           }
 
-          const { setStatus, setTransitionTaskId } = useNavigateStore.getState();
+          const { setStatus, setTransitionTaskId } = stores.navigate.getState();
 
           // Relabel the leaving top's transition before the POPPING flip, in the
           // same synchronous block, so the first painted POPPING frame already
@@ -375,7 +376,7 @@ export default function useNavigate() {
           return async () => {
             // Remove the leaving top, read live so it's correct after the
             // intermediate drop shifted the index.
-            popHistory(useHistoryStore.getState().index);
+            popHistory(stores.history.getState().index);
             setStatus("COMPLETED");
           };
         },
