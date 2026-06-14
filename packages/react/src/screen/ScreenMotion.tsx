@@ -572,9 +572,15 @@ function ScreenMotion({
       setSharedAppBarHeight(0);
       return;
     }
-    setSharedAppBarHeight(element.offsetHeight);
+    if (element.offsetHeight > 0) setSharedAppBarHeight(element.offsetHeight);
     const observer = new ResizeObserver(([entry]) => {
-      setSharedAppBarHeight(entry.contentRect.height);
+      // Ignore a measured height of 0: it happens when this screen is frozen
+      // (display:none) during a transition, not because the bar shrank. Letting
+      // the spacer collapse would grow the scroll area, and WebKit clamps
+      // scrollTop to the smaller max and does NOT restore it on unfreeze (scroll
+      // jumps up on short pages). Keep the last real height so the reserved space
+      // stays stable across freeze/unfreeze.
+      if (entry.contentRect.height > 0) setSharedAppBarHeight(entry.contentRect.height);
     });
     observer.observe(element);
     return () => {
@@ -588,9 +594,15 @@ function ScreenMotion({
       setSharedNavigationBarHeight(0);
       return;
     }
-    setSharedNavigationBarHeight(element.offsetHeight);
+    if (element.offsetHeight > 0) setSharedNavigationBarHeight(element.offsetHeight);
     const observer = new ResizeObserver(([entry]) => {
-      setSharedNavigationBarHeight(entry.contentRect.height);
+      // Ignore a measured height of 0: it happens when this screen is frozen
+      // (display:none) during a transition, not because the bar shrank. Letting
+      // the spacer collapse would grow the scroll area, and WebKit clamps
+      // scrollTop to the smaller max and does NOT restore it on unfreeze (scroll
+      // jumps up on short pages). Keep the last real height so the reserved space
+      // stays stable across freeze/unfreeze.
+      if (entry.contentRect.height > 0) setSharedNavigationBarHeight(entry.contentRect.height);
     });
     observer.observe(element);
     return () => {
