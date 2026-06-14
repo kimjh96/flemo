@@ -1,5 +1,11 @@
 # @flemo/react
 
+## 1.3.1
+
+### Patch Changes
+
+- [`343ea33`](https://github.com/kimjh96/flemo/commit/343ea3331ed5ac3f087fdf8fb0ed0a9ebf4c1062) Keep the shared app/navigation bar spacer height stable while a screen is frozen (`display: none`) during a transition. The ResizeObserver reports a height of 0 for the frozen screen; using it collapsed the spacer, and WebKit then clamped `scrollTop` to the smaller scroll range without restoring it on unfreeze, so short pages jumped on navigation. The measurement now ignores 0 and holds the last real height.
+
 ## 1.3.0
 
 ### Minor Changes
