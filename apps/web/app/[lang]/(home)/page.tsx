@@ -16,6 +16,7 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
     <main className="bg-[var(--color-bg)] text-[var(--color-text-primary)]">
       <HomeHero
         title={t.hero.title}
+        subtitle={t.hero.subtitle}
         ctaPrimary={{ label: t.hero.ctaPrimary, href: docsHref }}
         ctaSecondary={{ label: t.hero.ctaSecondary, href: playgroundHref }}
         lang={lang}

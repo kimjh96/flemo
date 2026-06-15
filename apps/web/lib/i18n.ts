@@ -34,6 +34,8 @@ export const dict = {
     },
     hero: {
       title: "A React router for native-like screen transitions",
+      subtitle:
+        "Push, pop, and swipe-back between screens, all from one web codebase. It already runs shiflo's WebView UI on iOS and Android.",
       ctaPrimary: "Get started",
       ctaSecondary: "Playground"
     },
@@ -229,6 +231,8 @@ export const dict = {
     },
     hero: {
       title: "네이티브 같은 화면 전환을 위한 React 라우터",
+      subtitle:
+        "push, pop, 스와이프 뒤로 가기로 화면을 오가요. 전부 하나의 웹 코드베이스로요. 이미 시플로의 WebView UI를 iOS·Android에서 구동하고 있어요.",
       ctaPrimary: "시작하기",
       ctaSecondary: "플레이그라운드"
     },

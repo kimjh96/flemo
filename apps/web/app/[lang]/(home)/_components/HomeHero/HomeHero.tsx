@@ -4,12 +4,13 @@ import HeroDemo from "./HeroDemo";
 
 export interface HomeHeroProps {
   title: string;
+  subtitle: string;
   ctaPrimary: { label: string; href: string };
   ctaSecondary: { label: string; href: string };
   lang: string;
 }
 
-function HomeHero({ title, ctaPrimary, ctaSecondary, lang }: HomeHeroProps) {
+function HomeHero({ title, subtitle, ctaPrimary, ctaSecondary, lang }: HomeHeroProps) {
   return (
     <section className="relative overflow-hidden border-b border-[var(--color-border)]">
       <div className="mx-auto grid max-w-[1240px] grid-cols-1 gap-16 px-6 pt-24 pb-24 sm:pt-32 lg:grid-cols-[1.15fr_1fr] lg:gap-12 lg:pt-40 lg:pb-32">
@@ -17,6 +18,9 @@ function HomeHero({ title, ctaPrimary, ctaSecondary, lang }: HomeHeroProps) {
           <h1 className="display max-w-[14ch] text-balance text-[40px] leading-[1.05] sm:text-[64px] lg:text-[80px]">
             {title}
           </h1>
+          <p className="mt-6 max-w-[46ch] text-balance text-[16px] leading-[1.6] text-[var(--color-text-secondary)] sm:text-[18px]">
+            {subtitle}
+          </p>
           <div className="mt-10 flex flex-wrap items-center gap-2">
             <Link href={ctaPrimary.href} className="cta-pill">
               {ctaPrimary.label}
