@@ -35,7 +35,7 @@
     "size-limit": "^12.1.0",
     "turbo": "^2.9.18"
   },
-  "packageManager": "pnpm@11.5.2",
+  "packageManager": "pnpm@11.8.0",
   "engines": {
     "node": ">=22"
   },
