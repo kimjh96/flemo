@@ -46,6 +46,7 @@ function ScreenMotion({
   const stores = useStores();
 
   const status = useNavigateStore((state) => state.status);
+  const viewTransition = useNavigateStore((state) => state.viewTransition);
   const dragStatus = useScreenStore((state) => state.dragStatus);
   const setDragStatus = stores.screen.getState().setDragStatus;
   const setReplaceTransitionStatus = stores.screen.getState().setReplaceTransitionStatus;
@@ -274,6 +275,18 @@ function ScreenMotion({
   //    bars in the SAME JS tick. No rAF loop, no `getComputedStyle` reads.
   //    The bars and the screen commit in the same paint pass.
   const isTopOrTopPrev = isActive || zIndex === index - 1;
+
+  // While a View-Transitions navigation is active, name the entering and leaving
+  // scopes so the browser animates their snapshots (the non-composited path).
+  // Inert otherwise — `view-transition-name` stays unset, so nothing changes for
+  // the CSS-keyframe path.
+  const viewTransitionName = !viewTransition.active
+    ? undefined
+    : isActive
+      ? "flemo-vt-new"
+      : zIndex === index - 1
+        ? "flemo-vt-old"
+        : undefined;
   const hasSharedAppBar = !!sharedAppBar;
   const hasSharedNavigationBar = !!sharedNavigationBar;
 
@@ -392,6 +405,7 @@ function ScreenMotion({
           backgroundColor,
           overflowY: contentScrollable ? undefined : "auto",
           touchAction: swipeDirection === "x" ? "pan-y" : swipeDirection === "y" ? "pan-x" : "auto",
+          viewTransitionName,
           ...initialStyle,
           ...props.style
         }}

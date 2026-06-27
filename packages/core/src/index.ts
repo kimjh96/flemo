@@ -14,7 +14,8 @@ export {
   default as createNavigateStore,
   type NavigateStatus,
   type NavigateStore,
-  type NavigateStoreApi
+  type NavigateStoreApi,
+  type ViewTransitionState
 } from "@navigate/store";
 export { markSelfInducedPop, consumeSelfInducedPop } from "@navigate/selfPopGuard";
 
