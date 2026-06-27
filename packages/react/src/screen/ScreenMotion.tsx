@@ -789,7 +789,31 @@ function ScreenMotion({
             display: "flex",
             flexDirection: "column",
             flexGrow: 1,
-            overflowY: contentScrollable ? "auto" : undefined
+            overflowY: contentScrollable ? "auto" : undefined,
+            // Promote the content onto its own compositing layer for the
+            // duration of any transition. The scope (`data-flemo-screen`) is the
+            // element the transition's keyframe animates, and `{children}` paint
+            // into it. When the content re-renders mid-transition (e.g. an async
+            // fetch resolving and swapping skeleton → content), it dirties the
+            // scope layer's backing store. WebKit runs the keyframe on the
+            // compositor — a pure main-thread block does NOT disturb it — but a
+            // repaint of the *animating layer itself* stalls that layer's
+            // presentation, so the transition visibly skips ahead and lands
+            // early. (Verified with a per-video-frame slit-scan: identical to a
+            // clean run once isolated; abbreviated without.) Giving the content
+            // its own layer means a mid-transition repaint hits THIS layer, not
+            // the scope's, so the scope keeps animating smoothly and the content
+            // fills in when ready — matching how Chromium already behaves.
+            //
+            // Transition-agnostic on purpose: it isolates the content's paint
+            // regardless of which property the scope animates (translate, scale,
+            // opacity, or anything a custom `createTransition` defines). Scoped
+            // to the in-flight window so the extra layer is dropped at rest, and
+            // it adds no containing block beyond the one the scope's own
+            // transform already establishes while animating.
+            ...(status !== "IDLE" && status !== "COMPLETED"
+              ? { transform: "translateZ(0)", willChange: "transform" }
+              : null)
           }}
         >
           {children}

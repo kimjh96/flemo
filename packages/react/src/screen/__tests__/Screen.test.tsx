@@ -99,6 +99,42 @@ describe("Screen", () => {
     expect(freezeWrapper).not.toBeNull();
   });
 
+  // The content wrapper (the flexGrow box that holds {children}) is promoted to
+  // its own compositing layer while a transition is in flight, so a mid-transition
+  // re-render repaints that layer instead of the transform-animated scope layer
+  // (which would stall the transition's presentation on WebKit).
+  it("isolates the content onto its own layer while a transition is in flight", () => {
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+    stores.history.setState({ index: 0, histories: [] });
+
+    const { getByTestId } = render(
+      <Screen>
+        <div data-testid="content">hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true }) }
+    );
+
+    const contentWrapper = getByTestId("content").parentElement!;
+    expect(contentWrapper.style.transform).toBe("translateZ(0)");
+    expect(contentWrapper.style.willChange).toBe("transform");
+  });
+
+  it("drops the content layer once the transition settles", () => {
+    // beforeEach leaves status COMPLETED.
+    stores.history.setState({ index: 0, histories: [] });
+
+    const { getByTestId } = render(
+      <Screen>
+        <div data-testid="content">hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true }) }
+    );
+
+    const contentWrapper = getByTestId("content").parentElement!;
+    expect(contentWrapper.style.transform).toBe("");
+    expect(contentWrapper.style.willChange).toBe("");
+  });
+
   it("keeps a deeper prev screen frozen once the top has moved more than one entry past it", () => {
     stores.navigate.setState({ status: "POPPING", transitionTaskId: null });
     // index - 2 (1) > zIndex (0) → frozen regardless of replaceTransitionStatus.
