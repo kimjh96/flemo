@@ -56,8 +56,19 @@ export const buildViewTransitionCss = (
   // page chrome — animating it would only risk a stray flash.
   const rootRule = "::view-transition-group(root) {\n  animation: none;\n}";
 
+  // Clip the entering/leaving snapshots to flemo's container. The ::view-
+  // transition pseudo tree lives on the document top layer, so it does NOT
+  // inherit the container's overflow/border-radius clipping and the snapshots
+  // (square corners, blur halo, edge content) escape it. `inset(0)` clips each
+  // group to its own box (= the screen scope = the container); `round` matches
+  // the container's corners. [VALIDATION: radius hardcoded to 40px.]
+  const clipRule =
+    `::view-transition-group(${VIEW_TRANSITION_NEW}),\n` +
+    `::view-transition-group(${VIEW_TRANSITION_OLD}) {\n  clip-path: inset(0 round 40px);\n}`;
+
   return [
     rootRule,
+    clipRule,
     rule("new", VIEW_TRANSITION_NEW, newVariant),
     rule("old", VIEW_TRANSITION_OLD, oldVariant)
   ].join("\n");
