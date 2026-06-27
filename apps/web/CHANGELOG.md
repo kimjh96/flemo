@@ -1,5 +1,15 @@
 # @flemo/web
 
+## 0.6.5
+
+### Patch Changes
+
+- [`002c317`](https://github.com/kimjh96/flemo/commit/002c317647017b0c11dd4a3243fab830e2a535b1) Add progress-driven part transitions. `createPartTransition` defines a named, status×active animation for a single element (any CSS property), and `<Part name="...">` runs it on that element anywhere inside a screen: an app/navigation bar child, body content, anything. Programmatic transitions play on the compositor with no React re-render, and the same definition follows the swipe-back drag inline. Register the transitions through the `Router`'s `partTransitions` prop. `createRawPartTransition` gives full per-variant control.
+- Updated dependencies ([`002c317`](https://github.com/kimjh96/flemo/commit/002c317647017b0c11dd4a3243fab830e2a535b1)):
+  - @flemo/core@1.5.0
+  - @flemo/react@1.4.0
+  - @flemo/react-layout@0.1.12
+
 ## 0.6.4
 
 ### Patch Changes
