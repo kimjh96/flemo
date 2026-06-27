@@ -8,6 +8,8 @@ export {
   type HistoryStore,
   type HistoryStoreApi
 } from "@history/store";
+export { default as seedInitialHistory } from "@history/seedInitialHistory";
+export { default as ensureWindowHistoryState } from "@history/ensureWindowHistoryState";
 
 // Navigation state
 export {
@@ -17,6 +19,22 @@ export {
   type NavigateStoreApi
 } from "@navigate/store";
 export { markSelfInducedPop, consumeSelfInducedPop } from "@navigate/selfPopGuard";
+
+// Screen-scoped transition-UI state (drag / replace status + shared-bar registry)
+export {
+  default as createScreenStore,
+  type ScreenStore,
+  type ScreenStoreApi,
+  type SharedBarPresence
+} from "@screen/store";
+export {
+  default as createScreenSelector,
+  type ScreenSelection
+} from "@screen/createScreenSelector";
+export {
+  default as computeScreenFreeze,
+  type ScreenFreezeInput
+} from "@screen/computeScreenFreeze";
 
 // Transition primitives
 export { default as createTransition } from "@transition/createTransition";
@@ -50,6 +68,7 @@ export {
   easingToCss,
   type CssDecl
 } from "@transition/compileTransitionStyles";
+export { default as applyTransitionStyles } from "@transition/applyTransitionStyles";
 
 // Imperative swipe driver (framework-agnostic DOM helper). Mutates inline
 // styles during a drag; the runtime engine and custom transitions consume it.

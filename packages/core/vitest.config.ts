@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: {
-    alias: ["core", "history", "navigate", "transition", "utils"].map((input) => ({
+    alias: ["core", "history", "navigate", "screen", "transition", "utils"].map((input) => ({
       find: `@${input}`,
       replacement: resolve(__dirname, `src/${input}`)
     }))
