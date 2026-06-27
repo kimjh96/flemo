@@ -1,5 +1,11 @@
 # @flemo/react
 
+## 1.4.1
+
+### Patch Changes
+
+- [`080024f`](https://github.com/kimjh96/flemo/commit/080024f7daa158c4ed36ba25d516eaaa04908aa5) Fix consumer `position: fixed` overlays (e.g. bottom sheets) jumping or flashing across the screen during transitions. The content layer is now promoted with `will-change: opacity` instead of a transform, so it no longer establishes a containing block that re-parents those overlays into the scrollable content box mid-transition. Overlays stay pinned to the screen and ride the transition cleanly.
+
 ## 1.4.0
 
 ### Minor Changes
