@@ -127,6 +127,16 @@ describe("createHistorySync (headless, no React)", () => {
     dispose();
   });
 
+  it("a REPLACING popstate that does not advance the index is ignored", async () => {
+    const { stores, dispose } = setup();
+    firePopState({ id: "x", index: 0, status: "REPLACING" });
+    await settle();
+
+    expect(stores.history.getState().index).toBe(0);
+    expect(stores.history.getState().histories).toHaveLength(1);
+    dispose();
+  });
+
   it("the disposer detaches the listener", async () => {
     const { stores, dispose } = setup();
     dispose();

@@ -66,7 +66,9 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
               transitionName: nextTransitionName,
               layoutId: nextLayoutId
             });
-          } else if (isReplace) {
+          } else {
+            // Must be a replace: the guard above already returned unless one of
+            // pop/push/replace held, and pop/push are ruled out by here.
             setStatus("REPLACING");
 
             addHistory({

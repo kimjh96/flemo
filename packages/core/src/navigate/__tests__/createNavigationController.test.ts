@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import TaskManager from "@core/TaskManger";
 
@@ -193,5 +193,40 @@ describe("createNavigationController distance options (skip / until / collapse)"
     await buildStack(controller);
     await controller.pop({ skip: 99 });
     expect(stores.history.getState().index).toBe(0);
+  });
+
+  it("pop { skip: 0 } is a no-op", async () => {
+    const { stores, controller } = setup();
+    await buildStack(controller);
+    const before = stores.history.getState().index;
+    await controller.pop({ skip: 0 });
+    expect(stores.history.getState().index).toBe(before);
+  });
+
+  it("replace is ignored while a transition is mid-flight", async () => {
+    const { stores, controller } = setup();
+    stores.navigate.getState().setStatus("REPLACING");
+    await controller.replace("/a");
+    expect(stores.history.getState().histories).toHaveLength(1);
+  });
+
+  it("replace { until } with no match is a no-op", async () => {
+    const { stores, controller } = setup();
+    await buildStack(controller);
+    const before = stores.history.getState().histories.length;
+    await controller.replace("/c", {}, { until: "/nope" });
+    expect(stores.history.getState().histories).toHaveLength(before);
+  });
+
+  it("a collapse whose popstate never fires still settles via the timeout fallback", async () => {
+    const { stores, controller } = setup();
+    await buildStack(controller);
+    // Suppress the browser pop so syncCollapsedHistory's popstate never arrives
+    // and it falls through to the 200ms safety timeout instead of committing.
+    const go = vi.spyOn(window.history, "go").mockImplementation(() => undefined);
+    await controller.push("/c", {}, { until: "/" });
+    go.mockRestore();
+    expect(stores.history.getState().histories.at(-1)?.pathname).toBe("/c");
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
   });
 });
