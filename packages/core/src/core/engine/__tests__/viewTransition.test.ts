@@ -4,6 +4,7 @@ import createTransition from "@transition/createTransition";
 
 import {
   buildViewTransitionCss,
+  getContainerClipRadius,
   runViewTransition,
   supportsViewTransitions
 } from "@core/engine/viewTransition";
@@ -34,6 +35,43 @@ describe("supportsViewTransitions", () => {
   it("is true when document.startViewTransition exists", () => {
     (document as { startViewTransition?: unknown }).startViewTransition = () => ({});
     expect(supportsViewTransitions()).toBe(true);
+  });
+});
+
+describe("getContainerClipRadius", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("returns the border-radius of the nearest clipping ancestor", () => {
+    const frame = document.createElement("div");
+    frame.style.overflow = "hidden";
+    frame.style.borderRadius = "40px";
+    const screen = document.createElement("div");
+    screen.setAttribute("data-flemo-screen", "");
+    frame.appendChild(screen);
+    document.body.appendChild(frame);
+
+    expect(getContainerClipRadius(screen)).toBe("40px");
+  });
+
+  it("skips ancestors that don't clip", () => {
+    const frame = document.createElement("div");
+    frame.style.overflow = "hidden";
+    frame.style.borderRadius = "24px";
+    const passthrough = document.createElement("div"); // overflow visible
+    const screen = document.createElement("div");
+    passthrough.appendChild(screen);
+    frame.appendChild(passthrough);
+    document.body.appendChild(frame);
+
+    expect(getContainerClipRadius(screen)).toBe("24px");
+  });
+
+  it("is 0px when there is no clipping ancestor (fullscreen mount)", () => {
+    const screen = document.createElement("div");
+    document.body.appendChild(screen);
+    expect(getContainerClipRadius(screen)).toBe("0px");
   });
 });
 

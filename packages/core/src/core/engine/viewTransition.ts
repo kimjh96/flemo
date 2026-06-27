@@ -29,6 +29,33 @@ const variantDelay = (variant: { options?: { delay?: number } } | undefined): nu
   return typeof delay === "number" && delay > 0 ? delay : 0;
 };
 
+// The corner radius of flemo's clipping container — the nearest ancestor of a
+// mounted screen that clips overflow (e.g. a phone-frame wrapper). The VT
+// snapshot is clipped to it so it doesn't escape the container's rounded corners.
+// "0px" when flemo fills the viewport (no clipping ancestor / no radius), which
+// makes the clip a plain box clip (harmless).
+export const getContainerClipRadius = (
+  scope: Element | null | undefined = typeof document === "undefined"
+    ? null
+    : document.querySelector("[data-flemo-screen]")
+): string => {
+  // An unset overflow computes to "visible" in browsers but "" in jsdom; treat
+  // both as non-clipping.
+  const isVisible = (value: string) => value === "" || value === "visible";
+
+  let el = scope?.parentElement ?? null;
+  while (el) {
+    const style = getComputedStyle(el);
+    const clips =
+      !isVisible(style.overflow) || !isVisible(style.overflowX) || !isVisible(style.overflowY);
+    if (clips) {
+      return style.borderRadius ? style.borderRadius : "0px";
+    }
+    el = el.parentElement;
+  }
+  return "0px";
+};
+
 // Build the `::view-transition-new/old` rules that drive the entering (new) and
 // leaving (old) screen snapshots with the transition's already-compiled
 // `@keyframes`. No new keyframes are generated — the same ones the CSS path uses
@@ -61,10 +88,11 @@ export const buildViewTransitionCss = (
   // inherit the container's overflow/border-radius clipping and the snapshots
   // (square corners, blur halo, edge content) escape it. `inset(0)` clips each
   // group to its own box (= the screen scope = the container); `round` matches
-  // the container's corners. [VALIDATION: radius hardcoded to 40px.]
+  // the container's measured corner radius.
+  const clipRadius = getContainerClipRadius();
   const clipRule =
     `::view-transition-group(${VIEW_TRANSITION_NEW}),\n` +
-    `::view-transition-group(${VIEW_TRANSITION_OLD}) {\n  clip-path: inset(0 round 40px);\n}`;
+    `::view-transition-group(${VIEW_TRANSITION_OLD}) {\n  clip-path: inset(0 round ${clipRadius});\n}`;
 
   return [
     rootRule,
