@@ -45,7 +45,7 @@ declare global {
 function FetchSwapScreen() {
   const params = useParams<"/fetch-swap/:mode/:delayMs/:nodes">();
   const navigate = useNavigate();
-  const { isActive } = useScreen();
+  const { isActive, transitionName } = useScreen();
   const status = useNavigateStore((state) => state.status);
   const mode = params?.mode === "deferred" ? "deferred" : "now";
   const delayMs = params ? Number(params.delayMs) : 150;
@@ -77,11 +77,14 @@ function FetchSwapScreen() {
 
   const items = resolved ? Array.from({ length: nodeCount }, (_, i) => i) : [];
 
+  // Reuse whatever transition this screen arrived with, so "push another"
+  // keeps testing the same (possibly custom) transition rather than forcing
+  // cupertino. The bug and the deferral fix are transition-agnostic.
   const handlePushAnother = () =>
     navigate.push(
       "/fetch-swap/:mode/:delayMs/:nodes",
       { mode, delayMs: String(delayMs), nodes: String(nodeCount) },
-      { transitionName: "cupertino" }
+      { transitionName }
     );
 
   return (

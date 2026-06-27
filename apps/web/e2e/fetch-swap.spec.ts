@@ -216,11 +216,16 @@ test.describe("playground: fetch-swap mid-animation (WebKit repro)", () => {
   test.skip(!RUN, "Set FLEMO_WEBKIT=1 to run (needs the webkit project + browser).");
   test.describe.configure({ mode: "serial" });
 
+  // Each transition is tested in both modes. `zoom` is a user-authored
+  // createTransition (scale + opacity, no translate) — proves the bug and the
+  // deferral fix are transition-agnostic. Note: the maxTxJump column is only
+  // meaningful for translate transitions; for zoom it stays ~0 and the
+  // frame-gap metric is the signal.
   for (const testid of [
-    "fetch-swap-push-now-150-1500",
-    "fetch-swap-push-now-300-1500",
-    "fetch-swap-push-deferred-150-1500",
-    "fetch-swap-push-deferred-300-1500"
+    "fetch-swap-push-cupertino-now-150-1500",
+    "fetch-swap-push-cupertino-deferred-150-1500",
+    "fetch-swap-push-zoom-now-150-1500",
+    "fetch-swap-push-zoom-deferred-150-1500"
   ]) {
     test(testid, async ({ page }, testInfo) => {
       // Desktop chromium vs webkit is the comparison; skip the mobile preset.

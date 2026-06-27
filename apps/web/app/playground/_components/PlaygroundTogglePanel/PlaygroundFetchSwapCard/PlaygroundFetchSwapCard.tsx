@@ -14,16 +14,26 @@ import PlaygroundToggleCardHeader from "../PlaygroundToggleCardHeader";
 // developer controls, kept out of the in-app screens and the embedded hero.
 interface Scenario {
   label: string;
+  // The transition to push with. "zoom" is a user-authored createTransition
+  // (scale + opacity, no translate) — included to prove the bug and the fix
+  // are transition-agnostic, not specific to the default cupertino slide.
+  transition: "cupertino" | "zoom";
   mode: "now" | "deferred";
   delayMs: number;
   nodes: number;
 }
 
 const scenarios: Scenario[] = [
-  { label: "Now · heavy", mode: "now", delayMs: 150, nodes: 1500 },
-  { label: "Now · late", mode: "now", delayMs: 300, nodes: 1500 },
-  { label: "Deferred · heavy", mode: "deferred", delayMs: 150, nodes: 1500 },
-  { label: "Deferred · late", mode: "deferred", delayMs: 300, nodes: 1500 }
+  { label: "cupertino · now", transition: "cupertino", mode: "now", delayMs: 150, nodes: 1500 },
+  {
+    label: "cupertino · deferred",
+    transition: "cupertino",
+    mode: "deferred",
+    delayMs: 150,
+    nodes: 1500
+  },
+  { label: "zoom · now", transition: "zoom", mode: "now", delayMs: 150, nodes: 1500 },
+  { label: "zoom · deferred", transition: "zoom", mode: "deferred", delayMs: 150, nodes: 1500 }
 ];
 
 const buttonClassName =
@@ -32,11 +42,11 @@ const buttonClassName =
 function PlaygroundFetchSwapCard() {
   const navigate = useNavigate();
 
-  const handlePush = (mode: "now" | "deferred", delayMs: number, nodes: number) =>
+  const handlePush = (scenario: Scenario) =>
     navigate.push(
       "/fetch-swap/:mode/:delayMs/:nodes",
-      { mode, delayMs: String(delayMs), nodes: String(nodes) },
-      { transitionName: "cupertino" }
+      { mode: scenario.mode, delayMs: String(scenario.delayMs), nodes: String(scenario.nodes) },
+      { transitionName: scenario.transition }
     );
 
   return (
@@ -47,15 +57,15 @@ function PlaygroundFetchSwapCard() {
         description="Push with a skeleton, then swap in heavy content mid-animation. Reproduces the WebKit abbreviated-slide report."
       />
       <div data-testid="fetch-swap-scenarios" className="flex flex-wrap gap-2">
-        {scenarios.map(({ label, mode, delayMs, nodes }) => (
+        {scenarios.map((scenario) => (
           <button
-            key={`fetch-swap-${label}`}
+            key={`fetch-swap-${scenario.label}`}
             type="button"
-            data-testid={`fetch-swap-push-${mode}-${delayMs}-${nodes}`}
-            onClick={() => handlePush(mode, delayMs, nodes)}
+            data-testid={`fetch-swap-push-${scenario.transition}-${scenario.mode}-${scenario.delayMs}-${scenario.nodes}`}
+            onClick={() => handlePush(scenario)}
             className={buttonClassName}
           >
-            {label}
+            {scenario.label}
           </button>
         ))}
       </div>
