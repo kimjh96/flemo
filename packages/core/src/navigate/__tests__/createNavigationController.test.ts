@@ -86,4 +86,112 @@ describe("createNavigationController (headless, no React)", () => {
     await controller.push("/a", {}, { transitionName: "material" });
     expect(stores.history.getState().histories.at(-1)?.transitionName).toBe("material");
   });
+
+  it("a navigation is ignored while a transition is mid-flight", async () => {
+    const { stores, controller } = setup();
+    stores.navigate.getState().setStatus("PUSHING");
+    await controller.push("/a");
+    expect(stores.history.getState().index).toBe(0);
+    expect(stores.history.getState().histories).toHaveLength(1);
+  });
+});
+
+// Build [root, /a, /b] (index 2) with plain pushes, then exercise the collapse
+// paths (skip / until distance options) that stack on, replace through, or pop
+// over the screens between the top and a target below it.
+const buildStack = async (controller: ReturnType<typeof setup>["controller"]) => {
+  await controller.push("/a");
+  await controller.push("/b");
+};
+
+describe("createNavigationController distance options (skip / until / collapse)", () => {
+  it("push { skip } collapses the skipped screen under the new top", async () => {
+    const { stores, controller } = setup();
+    await buildStack(controller);
+    await controller.push("/c", {}, { skip: 1 });
+    expect(stores.history.getState().histories.at(-1)?.pathname).toBe("/c");
+    expect(stores.history.getState().histories).toHaveLength(3); // one screen collapsed away
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
+  });
+
+  it("push { until } collapses back to the matched screen and stacks on it", async () => {
+    const { stores, controller } = setup();
+    await buildStack(controller);
+    await controller.push("/c", {}, { until: "/" });
+    expect(stores.history.getState().histories.map((h) => h.pathname)).toEqual(["/", "/c"]);
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
+  });
+
+  it("push { until } with no match falls back to a plain push", async () => {
+    const { stores, controller } = setup();
+    await buildStack(controller);
+    await controller.push("/c", {}, { until: "/nope" });
+    expect(stores.history.getState().histories).toHaveLength(4); // nothing collapsed
+    expect(stores.history.getState().histories.at(-1)?.pathname).toBe("/c");
+  });
+
+  it("replace { skip } collapses through to the target", async () => {
+    const { stores, controller } = setup();
+    await buildStack(controller);
+    await controller.replace("/c", {}, { skip: 1 });
+    expect(stores.history.getState().histories.at(-1)?.pathname).toBe("/c");
+    expect(stores.history.getState().histories.length).toBeLessThan(3);
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
+  });
+
+  it("replace { until } to the root collapses the whole stack", async () => {
+    const { stores, controller } = setup();
+    await buildStack(controller);
+    await controller.replace("/c", {}, { until: "/" });
+    expect(stores.history.getState().histories.at(-1)?.pathname).toBe("/c");
+    expect(stores.history.getState().index).toBe(0);
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
+  });
+
+  it("pop { skip } pops several screens at once", async () => {
+    const { stores, controller } = setup();
+    await buildStack(controller);
+    await controller.pop({ skip: 2 });
+    expect(stores.history.getState().index).toBe(0);
+    expect(stores.history.getState().histories.at(-1)?.pathname).toBe("/");
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
+  });
+
+  it("pop { until } pops back to the matched screen", async () => {
+    const { stores, controller } = setup();
+    await buildStack(controller);
+    await controller.pop({ until: "/" });
+    expect(stores.history.getState().index).toBe(0);
+    expect(stores.history.getState().histories.at(-1)?.pathname).toBe("/");
+  });
+
+  it("pop { until } with no match is a no-op", async () => {
+    const { stores, controller } = setup();
+    await buildStack(controller);
+    const before = stores.history.getState().index;
+    await controller.pop({ until: "/nope" });
+    expect(stores.history.getState().index).toBe(before);
+  });
+
+  it("pop relabels the leaving top with the override transitionName", async () => {
+    const { stores, controller } = setup();
+    await buildStack(controller);
+    await controller.pop({ transitionName: "material" });
+    expect(stores.history.getState().histories.at(-1)?.pathname).toBe("/a");
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
+  });
+
+  it("pop at the root is a no-op", async () => {
+    const { stores, controller } = setup();
+    await controller.pop();
+    expect(stores.history.getState().index).toBe(0);
+    expect(stores.history.getState().histories).toHaveLength(1);
+  });
+
+  it("pop { skip } past the root clamps to the root", async () => {
+    const { stores, controller } = setup();
+    await buildStack(controller);
+    await controller.pop({ skip: 99 });
+    expect(stores.history.getState().index).toBe(0);
+  });
 });
