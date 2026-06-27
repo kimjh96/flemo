@@ -29,16 +29,22 @@ const variantDelay = (variant: { options?: { delay?: number } } | undefined): nu
   return typeof delay === "number" && delay > 0 ? delay : 0;
 };
 
-// The corner radius of flemo's clipping container — the nearest ancestor of a
-// mounted screen that clips overflow (e.g. a phone-frame wrapper). The VT
-// snapshot is clipped to it so it doesn't escape the container's rounded corners.
-// "0px" when flemo fills the viewport (no clipping ancestor / no radius), which
-// makes the clip a plain box clip (harmless).
-export const getContainerClipRadius = (
+export interface ContainerClip {
+  rect: DOMRect;
+  radius: string;
+}
+
+// flemo's clipping container — the nearest ancestor of a mounted screen that
+// clips overflow (e.g. a phone-frame wrapper) — as its viewport rect + corner
+// radius. The VT pseudo tree lives on the document top layer and is NOT clipped
+// by this container, so each lifted element is clipped back to its shape.
+// `null` when flemo fills the viewport (no clipping ancestor) — then nothing can
+// escape and no clip is needed.
+export const getContainerClip = (
   scope: Element | null | undefined = typeof document === "undefined"
     ? null
     : document.querySelector("[data-flemo-screen]")
-): string => {
+): ContainerClip | null => {
   // An unset overflow computes to "visible" in browsers but "" in jsdom; treat
   // both as non-clipping.
   const isVisible = (value: string) => value === "" || value === "visible";
@@ -49,11 +55,31 @@ export const getContainerClipRadius = (
     const clips =
       !isVisible(style.overflow) || !isVisible(style.overflowX) || !isVisible(style.overflowY);
     if (clips) {
-      return style.borderRadius ? style.borderRadius : "0px";
+      return { rect: el.getBoundingClientRect(), radius: style.borderRadius || "0px" };
     }
     el = el.parentElement;
   }
-  return "0px";
+  return null;
+};
+
+// Clip an element's VT group to the container's SHAPE: a box clip (`inset(0)`)
+// that rounds ONLY the corners where the element sits exactly at one of the
+// container's corners — so the container's rounded corners are matched and the
+// snapshot's square corners don't poke past them. An element away from an edge
+// keeps square corners there (it's inside the container, so it can't escape
+// anyway). Position-agnostic: a full-bleed screen rounds all four, a top bar the
+// top two, a bottom bar the bottom two, a margined bar none.
+const containerCornerClip = (el: Element, container: ContainerClip): string => {
+  const e = el.getBoundingClientRect();
+  const c = container.rect;
+  const T = 1.5; // px tolerance for "at the edge"
+  const corner = (atVertical: boolean, atHorizontal: boolean) =>
+    atVertical && atHorizontal ? container.radius : "0px";
+  const tl = corner(Math.abs(e.top - c.top) < T, Math.abs(e.left - c.left) < T);
+  const tr = corner(Math.abs(e.top - c.top) < T, Math.abs(e.right - c.right) < T);
+  const br = corner(Math.abs(e.bottom - c.bottom) < T, Math.abs(e.right - c.right) < T);
+  const bl = corner(Math.abs(e.bottom - c.bottom) < T, Math.abs(e.left - c.left) < T);
+  return `inset(0 round ${tl} ${tr} ${br} ${bl})`;
 };
 
 // Build the `::view-transition-new/old` rules that drive the entering (new) and
@@ -83,20 +109,38 @@ export const buildViewTransitionCss = (
   // page chrome — animating it would only risk a stray flash.
   const rootRule = "::view-transition-group(root) {\n  animation: none;\n}";
 
-  // Clip the entering/leaving snapshots to flemo's container. The ::view-
-  // transition pseudo tree lives on the document top layer, so it does NOT
-  // inherit the container's overflow/border-radius clipping and the snapshots
-  // (square corners, blur halo, edge content) escape it. `inset(0)` clips each
-  // group to its own box (= the screen scope = the container); `round` matches
-  // the container's measured corner radius.
-  const clipRadius = getContainerClipRadius();
-  const clipRule =
-    `::view-transition-group(${VIEW_TRANSITION_NEW}),\n` +
-    `::view-transition-group(${VIEW_TRANSITION_OLD}) {\n  clip-path: inset(0 round ${clipRadius});\n}`;
+  // Clip every lifted element back to flemo's container. The ::view-transition
+  // pseudo tree lives on the document top layer and does NOT inherit the
+  // container's overflow/border-radius clipping, so without this the snapshots
+  // (square corners, blur halo, edge content) escape it. Each group is clipped
+  // to the container's shape via `containerCornerClip`, which rounds only the
+  // corners that sit at the container's corners — robust for screens AND the
+  // shared bars at any edge. No clip when flemo fills the viewport.
+  const container = typeof document === "undefined" ? null : getContainerClip();
+  const clipRules: string[] = [];
+  if (container) {
+    // Screens fill the container (all four corners).
+    clipRules.push(
+      `::view-transition-group(${VIEW_TRANSITION_NEW}),\n` +
+        `::view-transition-group(${VIEW_TRANSITION_OLD}) {\n  clip-path: inset(0 round ${container.radius});\n}`
+    );
+    // Shared bars (when present) clip to the edge they sit on, and DON'T animate:
+    // they're pinned, so the default shared-element cross-fade would only make
+    // them semi-transparent mid-transition (a flicker). `animation: none` holds
+    // the new snapshot at full opacity — the bar stays crisp and still.
+    const barRules = (bar: string, el: Element) =>
+      `::view-transition-group(${bar}) {\n  clip-path: ${containerCornerClip(el, container)};\n}\n` +
+      `::view-transition-old(${bar}),\n::view-transition-new(${bar}) {\n  animation: none;\n}`;
+
+    const appBar = document.querySelector('[data-flemo-bar="app"]');
+    if (appBar) clipRules.push(barRules("flemo-vt-app-bar", appBar));
+    const navBar = document.querySelector('[data-flemo-bar="nav"]');
+    if (navBar) clipRules.push(barRules("flemo-vt-nav-bar", navBar));
+  }
 
   return [
     rootRule,
-    clipRule,
+    ...clipRules,
     rule("new", VIEW_TRANSITION_NEW, newVariant),
     rule("old", VIEW_TRANSITION_OLD, oldVariant)
   ].join("\n");

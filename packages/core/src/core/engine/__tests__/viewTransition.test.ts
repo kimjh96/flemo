@@ -4,7 +4,7 @@ import createTransition from "@transition/createTransition";
 
 import {
   buildViewTransitionCss,
-  getContainerClipRadius,
+  getContainerClip,
   runViewTransition,
   supportsViewTransitions
 } from "@core/engine/viewTransition";
@@ -38,12 +38,12 @@ describe("supportsViewTransitions", () => {
   });
 });
 
-describe("getContainerClipRadius", () => {
+describe("getContainerClip", () => {
   afterEach(() => {
     document.body.innerHTML = "";
   });
 
-  it("returns the border-radius of the nearest clipping ancestor", () => {
+  it("returns the radius of the nearest clipping ancestor", () => {
     const frame = document.createElement("div");
     frame.style.overflow = "hidden";
     frame.style.borderRadius = "40px";
@@ -52,7 +52,7 @@ describe("getContainerClipRadius", () => {
     frame.appendChild(screen);
     document.body.appendChild(frame);
 
-    expect(getContainerClipRadius(screen)).toBe("40px");
+    expect(getContainerClip(screen)?.radius).toBe("40px");
   });
 
   it("skips ancestors that don't clip", () => {
@@ -65,13 +65,13 @@ describe("getContainerClipRadius", () => {
     frame.appendChild(passthrough);
     document.body.appendChild(frame);
 
-    expect(getContainerClipRadius(screen)).toBe("24px");
+    expect(getContainerClip(screen)?.radius).toBe("24px");
   });
 
-  it("is 0px when there is no clipping ancestor (fullscreen mount)", () => {
+  it("is null when there is no clipping ancestor (fullscreen mount)", () => {
     const screen = document.createElement("div");
     document.body.appendChild(screen);
-    expect(getContainerClipRadius(screen)).toBe("0px");
+    expect(getContainerClip(screen)).toBeNull();
   });
 });
 
