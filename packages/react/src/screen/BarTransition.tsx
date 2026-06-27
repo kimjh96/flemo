@@ -1,4 +1,4 @@
-import { type ComponentPropsWithRef, type PropsWithChildren, useRef } from "react";
+import { type ComponentPropsWithRef, type PropsWithChildren } from "react";
 
 import type { BarTransitionName } from "@flemo/core";
 
@@ -20,17 +20,11 @@ export interface BarTransitionProps extends PropsWithChildren<ComponentPropsWith
 function BarTransition({ ref, name, style, children, ...props }: BarTransitionProps) {
   const { isActive } = useScreen();
 
-  const scopeRef = useRef<HTMLDivElement | null>(null);
-
   const status = useNavigateStore((state) => state.status);
 
   return (
     <div
-      ref={(node) => {
-        scopeRef.current = node;
-        if (typeof ref === "function") ref(node);
-        else if (ref) ref.current = node;
-      }}
+      ref={ref}
       data-flemo-bar-transition-name={name}
       data-flemo-status={status}
       data-flemo-active={isActive ? "true" : "false"}

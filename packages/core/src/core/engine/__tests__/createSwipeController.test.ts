@@ -247,6 +247,19 @@ describe("createSwipeController", () => {
       );
     });
 
+    it("skips bar elements whose name isn't registered", async () => {
+      const ghost = document.createElement("div");
+      ghost.setAttribute("data-flemo-bar-transition-name", "not-registered");
+      dom.screenContainer.appendChild(ghost);
+      const c = createSwipeController(config);
+      c.pointerDown(event({ target: dom.scope }));
+      c.pointerMove(event({ clientX: 40 }));
+      await flush();
+      // The registered element still fires; the unknown name resolves to no def
+      // and is silently skipped — no throw.
+      expect(btStart).toHaveBeenCalled();
+    });
+
     it("clears the previous side's inline writes when the swipe commits", async () => {
       onSwipeEnd.mockImplementation(
         async (_e: unknown, _i: unknown, o: { onStart?: (t: boolean) => void }) => {
