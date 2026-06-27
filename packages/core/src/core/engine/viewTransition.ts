@@ -51,7 +51,13 @@ export const buildViewTransitionCss = (
     return `::view-transition-${pseudo}(${name}) {\n  animation: ${animation};\n}`;
   };
 
+  // Suppress the default root cross-fade. The transitioning screens are lifted
+  // out of the root (named above), so the root snapshot is just the unchanging
+  // page chrome — animating it would only risk a stray flash.
+  const rootRule = "::view-transition-group(root) {\n  animation: none;\n}";
+
   return [
+    rootRule,
     rule("new", VIEW_TRANSITION_NEW, newVariant),
     rule("old", VIEW_TRANSITION_OLD, oldVariant)
   ].join("\n");

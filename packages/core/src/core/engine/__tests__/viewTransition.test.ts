@@ -42,6 +42,7 @@ describe("buildViewTransitionCss", () => {
     const css = buildViewTransitionCss(transition, "PUSHING-true", "PUSHING-false");
     expect(css).toContain("::view-transition-new(flemo-vt-new)");
     expect(css).toContain("::view-transition-old(flemo-vt-old)");
+    expect(css).toContain("::view-transition-group(root)");
     expect(css).toContain("flemo-screen-vt-test-PUSHING-true");
     expect(css).toContain("flemo-screen-vt-test-PUSHING-false");
     expect(css).toContain("0.32s");
