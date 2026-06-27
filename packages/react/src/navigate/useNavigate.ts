@@ -11,7 +11,9 @@ import {
   TaskManger as TaskManager,
   transitionMap,
   type History,
-  type TransitionName
+  type Transition,
+  type TransitionName,
+  type TransitionVariant
 } from "@flemo/core";
 
 import buildRoutePath from "@utils/buildRoutePath";
@@ -85,6 +87,35 @@ const syncCollapsedHistory = async (goBack: number, commit: () => void) => {
 export default function useNavigate() {
   const stores = useStores();
 
+  // Run a navigation commit through the View Transitions snapshot path: name the
+  // entering / leaving scopes (render-side, via the navigate-store flag), inject
+  // the pseudo-element rules built from the transition's compiled keyframes, run
+  // the `commit` inside the browser's startViewTransition (wrapped in flushSync
+  // so the DOM mutation is synchronous), await it, then clear the flag. Shared
+  // by push / pop / replace; the caller supplies the variants, ids, and commit.
+  const runVTNavigation = async (opts: {
+    transition: Transition;
+    transitionName: TransitionName;
+    newVariant: TransitionVariant;
+    oldVariant: TransitionVariant;
+    enteringId: string | null;
+    leavingId: string | null;
+    commit: () => void;
+  }) => {
+    const { setViewTransition } = stores.navigate.getState();
+    const css = buildViewTransitionCss(opts.transition, opts.newVariant, opts.oldVariant);
+    flushSync(() =>
+      setViewTransition({
+        active: true,
+        transitionName: opts.transitionName,
+        enteringId: opts.enteringId,
+        leavingId: opts.leavingId
+      })
+    );
+    await runViewTransition(css, () => flushSync(opts.commit));
+    setViewTransition({ active: false, transitionName: null, enteringId: null, leavingId: null });
+  };
+
   const push = async <T extends keyof RegisterRoute>(
     path: T,
     params?: RegisterRoute[T],
@@ -134,7 +165,7 @@ export default function useNavigate() {
             return Math.min(toSkip(options?.skip, 0), Math.max(0, index));
           })();
 
-          const { setStatus, setTransitionTaskId, setViewTransition } = stores.navigate.getState();
+          const { setStatus, setTransitionTaskId } = stores.navigate.getState();
 
           const { pathname, toPathname } = buildRoutePath(path, (params ?? {}) as RegisterRoute[T]);
 
@@ -150,12 +181,17 @@ export default function useNavigate() {
           // entering screen at REST and let the browser animate the GPU
           // snapshots, so heavy main-thread work can't stall it. No PUSHING, so
           // the CSS keyframe is skipped. This task is non-manual: it resolves
-          // here when `vt.finished` settles.
+          // here when `vt.finished` settles. The leaving screen stays in the
+          // root snapshot (covered by the entering one), so only `enteringId`.
           if (useViewTransition && transition) {
-            const css = buildViewTransitionCss(transition, "PUSHING-true", "PUSHING-false");
-            flushSync(() => setViewTransition({ active: true, transitionName, enteringId: id }));
-            await runViewTransition(css, () =>
-              flushSync(() => {
+            await runVTNavigation({
+              transition,
+              transitionName,
+              newVariant: "PUSHING-true",
+              oldVariant: "PUSHING-false",
+              enteringId: id,
+              leavingId: null,
+              commit: () => {
                 window.history.pushState(
                   { id, index: index + 1, status: "COMPLETED", params, transitionName, layoutId },
                   "",
@@ -164,9 +200,8 @@ export default function useNavigate() {
                 addHistory(newEntry);
                 setStatus("COMPLETED");
                 setTransitionTaskId(null);
-              })
-            );
-            setViewTransition({ active: false, transitionName: null, enteringId: null });
+              }
+            });
             return;
           }
 
@@ -241,6 +276,16 @@ export default function useNavigate() {
 
     const id = TaskManager.generateTaskId();
 
+    // VT decision: a single replace of a non-composited transition (driven by
+    // the new screen's transition).
+    const replaceTransition = transitionMap.get(transitionName);
+    const useViewTransition =
+      options?.skip == null &&
+      options?.until == null &&
+      !!replaceTransition &&
+      !isCompositedTransition(replaceTransition) &&
+      supportsViewTransitions();
+
     (
       await TaskManager.addTask(
         async (abortController) => {
@@ -268,9 +313,6 @@ export default function useNavigate() {
 
           const { setStatus, setTransitionTaskId } = stores.navigate.getState();
 
-          setStatus("REPLACING");
-          setTransitionTaskId(id);
-
           const { pathname, toPathname } = buildRoutePath(path, (params ?? {}) as RegisterRoute[T]);
 
           const newEntry = {
@@ -280,6 +322,36 @@ export default function useNavigate() {
             transitionName,
             layoutId
           };
+
+          // View Transitions path (single replace of a non-composited
+          // transition): animate the leaving (old) and entering (new) snapshots,
+          // no REPLACING flip. Resolves on vt.finished.
+          if (useViewTransition && replaceTransition) {
+            const leavingId = histories[index].id;
+            await runVTNavigation({
+              transition: replaceTransition,
+              transitionName,
+              newVariant: "REPLACING-true",
+              oldVariant: "REPLACING-false",
+              enteringId: id,
+              leavingId,
+              commit: () => {
+                window.history.replaceState(
+                  { id, index, status: "COMPLETED", params, transitionName, layoutId },
+                  "",
+                  pathname
+                );
+                addHistory(newEntry);
+                replaceHistory(index);
+                setStatus("COMPLETED");
+                setTransitionTaskId(null);
+              }
+            });
+            return;
+          }
+
+          setStatus("REPLACING");
+          setTransitionTaskId(id);
 
           if (steps === 1) {
             // Single-screen replace. Unchanged from the original behavior.
@@ -342,9 +414,7 @@ export default function useNavigate() {
         },
         {
           id,
-          control: {
-            manual: true
-          }
+          control: useViewTransition ? undefined : { manual: true }
         }
       )
     ).result?.();
@@ -361,6 +431,24 @@ export default function useNavigate() {
     transitionName?: TransitionName
   ) => {
     const id = TaskManager.generateTaskId();
+
+    // VT decision: a single pop of a non-composited transition. The pop is
+    // driven by the leaving top's transition (or the override).
+    const popLive = stores.history.getState();
+    const popSteps =
+      popLive.index <= 0
+        ? 0
+        : Math.min(resolveSteps(popLive.index, popLive.histories), popLive.index);
+    const leavingTransitionName =
+      transitionName ?? popLive.histories[popLive.index]?.transitionName;
+    const popTransition = leavingTransitionName
+      ? transitionMap.get(leavingTransitionName)
+      : undefined;
+    const useViewTransition =
+      popSteps === 1 &&
+      !!popTransition &&
+      !isCompositedTransition(popTransition) &&
+      supportsViewTransitions();
 
     (
       await TaskManager.addTask(
@@ -384,6 +472,30 @@ export default function useNavigate() {
           }
 
           const { setStatus, setTransitionTaskId } = stores.navigate.getState();
+
+          // View Transitions path: animate the leaving (old) and revealed (new)
+          // snapshots. No POPPING flip (CSS keyframe skipped); resolves on
+          // vt.finished.
+          if (useViewTransition && popTransition && leavingTransitionName) {
+            const leavingId = histories[index].id;
+            const enteringId = histories[index - 1]?.id ?? null;
+            await runVTNavigation({
+              transition: popTransition,
+              transitionName: leavingTransitionName,
+              newVariant: "POPPING-true",
+              oldVariant: "POPPING-false",
+              enteringId,
+              leavingId,
+              commit: () => {
+                markSelfInducedPop();
+                window.history.back();
+                popHistory(stores.history.getState().index);
+                setStatus("COMPLETED");
+                setTransitionTaskId(null);
+              }
+            });
+            return;
+          }
 
           // Relabel the leaving top's transition before the POPPING flip, in the
           // same synchronous block, so the first painted POPPING frame already
@@ -422,9 +534,7 @@ export default function useNavigate() {
         },
         {
           id,
-          control: {
-            manual: true
-          }
+          control: useViewTransition ? undefined : { manual: true }
         }
       )
     ).result?.();

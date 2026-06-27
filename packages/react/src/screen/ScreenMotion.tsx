@@ -276,12 +276,17 @@ function ScreenMotion({
   //    The bars and the screen commit in the same paint pass.
   const isTopOrTopPrev = isActive || zIndex === index - 1;
 
-  // While a View-Transitions navigation is active, name the entering screen's
-  // scope so the browser animates its snapshot (the non-composited path). Keyed
-  // on the entering history id rather than `isActive`, because the leaving
-  // screen is still active in the pre-commit snapshot. Inert otherwise.
-  const viewTransitionName =
-    viewTransition.active && id === viewTransition.enteringId ? "flemo-vt-new" : undefined;
+  // While a View-Transitions navigation is active, name the entering / leaving
+  // scopes so the browser animates their snapshots (the non-composited path).
+  // Keyed on history id rather than `isActive`, because the leaving screen is
+  // still active in the pre-commit snapshot. Inert otherwise.
+  const viewTransitionName = !viewTransition.active
+    ? undefined
+    : id === viewTransition.enteringId
+      ? "flemo-vt-new"
+      : id === viewTransition.leavingId
+        ? "flemo-vt-old"
+        : undefined;
   const hasSharedAppBar = !!sharedAppBar;
   const hasSharedNavigationBar = !!sharedNavigationBar;
 
