@@ -13,6 +13,8 @@ import layout from "@transition/layout";
 import material from "@transition/material";
 import none from "@transition/none";
 
+import createBarTransition from "@transition/barTransition/createBarTransition";
+
 import createDecorator from "@transition/decorator/createDecorator";
 import overlay from "@transition/decorator/overlay";
 
@@ -813,5 +815,43 @@ describe("variantHasAnimation", () => {
   it("returns false for the none transition (zero duration, empty value)", () => {
     expect(variantHasAnimation(none, "PUSHING-true")).toBe(false);
     expect(variantHasAnimation(none, "POPPING-false")).toBe(false);
+  });
+});
+
+declare module "@transition/barTransition/typing" {
+  interface RegisterBarTransition {
+    "test-title-fade": "test-title-fade";
+  }
+}
+
+describe("compileTransitionStyles bar transitions", () => {
+  const titleFade = createBarTransition({
+    name: "test-title-fade",
+    initial: { opacity: 0 },
+    idle: { value: { opacity: 1 }, options: { duration: 0.4 } },
+    enter: { value: { opacity: 0 }, options: { duration: 0.3 } },
+    exit: { value: { opacity: 1 }, options: { duration: 0.3 } }
+  });
+
+  it("emits per-element selectors keyed by data-flemo-bar-transition-name + status + active", () => {
+    const css = compileTransitionStyles([], [], [titleFade]);
+    expect(css).toContain(
+      '[data-flemo-bar-transition-name="test-title-fade"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
+    );
+    // Never paired with the screen ride-along selector (that's screen scope only).
+    expect(css).not.toContain("data-flemo-bar-riding");
+  });
+
+  it("emits a keyframe in the bar scope for the leaving side fading out", () => {
+    const css = compileTransitionStyles([], [], [titleFade]);
+    expect(css).toContain("@keyframes flemo-bar-test-title-fade-PUSHING-false");
+    const block = css.slice(css.indexOf("flemo-bar-test-title-fade-PUSHING-false {"));
+    expect(block).toContain("opacity: 1"); // from (idle)
+    expect(block).toContain("opacity: 0"); // to (enter)
+  });
+
+  it("is empty when no bar transitions are passed", () => {
+    const css = compileTransitionStyles([], []);
+    expect(css).not.toContain("data-flemo-bar-transition-name");
   });
 });
