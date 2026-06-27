@@ -1,6 +1,6 @@
 "use client";
 
-import { useNavigate } from "@flemo/react";
+import { BarTransition, useNavigate } from "@flemo/react";
 
 import { usePlaygroundDict } from "@/app/playground/_providers/PlaygroundIntlProvider";
 
@@ -33,11 +33,11 @@ function AlbumAppBar({ title }: AlbumAppBarProps) {
           />
         </svg>
       </button>
-      <div className="min-w-0 flex-1 text-center">
+      <BarTransition name="title-fade" className="min-w-0 flex-1 text-center">
         <div className="truncate text-[14px] font-semibold text-[var(--color-text-primary)]">
           {title}
         </div>
-      </div>
+      </BarTransition>
       <div className="h-9 w-9" />
     </header>
   );
