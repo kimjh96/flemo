@@ -10,6 +10,7 @@ import {
   createSwipeController,
   createTransitionEngine,
   decoratorMap,
+  driveBarRiding,
   transitionMap
 } from "@flemo/core";
 
@@ -278,54 +279,36 @@ function ScreenMotion({
   const hasSharedNavigationBar = !!sharedNavigationBar;
 
   // (1) Toggle `data-flemo-bar-riding` on each bar based on partner ownership.
-  // `useLayoutEffect` so the attribute is set before the browser paints the
-  // first frame of the transition. We re-evaluate on store changes too,
-  // because a partner Screen may register its shared bars slightly after this
-  // screen reads them (commit-order races).
-  useLayoutEffect(() => {
-    const appBarEl = sharedAppBarRef.current;
-    const navBarEl = sharedNavigationBarRef.current;
-    if (!appBarEl && !navBarEl) return;
-
-    const apply = () => {
-      const transitioningNow =
-        stores.navigate.getState().status === "PUSHING" ||
-        stores.navigate.getState().status === "POPPING" ||
-        stores.navigate.getState().status === "REPLACING";
-      if (!transitioningNow || !isTopOrTopPrev) {
-        appBarEl?.removeAttribute("data-flemo-bar-riding");
-        navBarEl?.removeAttribute("data-flemo-bar-riding");
-        return;
-      }
-      const partnerId = isActive
-        ? stores.history.getState().histories[index - 1]?.id
-        : stores.history.getState().histories[index]?.id;
-      const partnerBars = partnerId ? stores.screen.getState().sharedBars[partnerId] : undefined;
-      const rideApp = hasSharedAppBar && !partnerBars?.appBar;
-      const rideNav = hasSharedNavigationBar && !partnerBars?.navigationBar;
-      if (appBarEl) appBarEl.setAttribute("data-flemo-bar-riding", rideApp ? "true" : "false");
-      if (navBarEl) navBarEl.setAttribute("data-flemo-bar-riding", rideNav ? "true" : "false");
-    };
-
-    apply();
-    const unsubScreen = stores.screen.subscribe(apply);
-    const unsubNavigation = stores.navigate.subscribe(apply);
-    return () => {
-      unsubScreen();
-      unsubNavigation();
-      appBarEl?.removeAttribute("data-flemo-bar-riding");
-      navBarEl?.removeAttribute("data-flemo-bar-riding");
-    };
-  }, [
-    isTopOrTopPrev,
-    isActive,
-    index,
-    hasSharedAppBar,
-    hasSharedNavigationBar,
-    stores.history,
-    stores.navigate,
-    stores.screen
-  ]);
+  // `useLayoutEffect` so the attribute is set before the first transition frame
+  // paints; the core controller owns the toggle + re-subscription logic and
+  // stays framework-neutral (plain DOM + injected store reads).
+  useLayoutEffect(
+    () =>
+      driveBarRiding({
+        appBar: sharedAppBarRef.current,
+        navBar: sharedNavigationBarRef.current,
+        isTopOrTopPrev,
+        isActive,
+        index,
+        hasAppBar: hasSharedAppBar,
+        hasNavBar: hasSharedNavigationBar,
+        getStatus: () => stores.navigate.getState().status,
+        getHistories: () => stores.history.getState().histories,
+        getSharedBars: () => stores.screen.getState().sharedBars,
+        subscribeStatus: (listener) => stores.navigate.subscribe(listener),
+        subscribeSharedBars: (listener) => stores.screen.subscribe(listener)
+      }),
+    [
+      isTopOrTopPrev,
+      isActive,
+      index,
+      hasSharedAppBar,
+      hasSharedNavigationBar,
+      stores.history,
+      stores.navigate,
+      stores.screen
+    ]
+  );
 
   const initialStyle: { transform?: string; opacity?: string } = (() => {
     // Only the actively entering screen needs the initial style; everything
