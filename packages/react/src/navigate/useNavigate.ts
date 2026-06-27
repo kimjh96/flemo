@@ -181,8 +181,11 @@ export default function useNavigate() {
           // entering screen at REST and let the browser animate the GPU
           // snapshots, so heavy main-thread work can't stall it. No PUSHING, so
           // the CSS keyframe is skipped. This task is non-manual: it resolves
-          // here when `vt.finished` settles. The leaving screen stays in the
-          // root snapshot (covered by the entering one), so only `enteringId`.
+          // here when `vt.finished` settles. Name the leaving screen too: the
+          // commit sets COMPLETED, which freezes (display:none) the now-prev
+          // screen — so it must be captured in its OWN old snapshot (taken before
+          // the commit, while it's still visible) or it vanishes from the
+          // backdrop instead of playing its exit (PUSHING-false).
           if (useViewTransition && transition) {
             await runVTNavigation({
               transition,
@@ -190,7 +193,7 @@ export default function useNavigate() {
               newVariant: "PUSHING-true",
               oldVariant: "PUSHING-false",
               enteringId: id,
-              leavingId: null,
+              leavingId: histories[index]?.id ?? null,
               commit: () => {
                 window.history.pushState(
                   { id, index: index + 1, status: "COMPLETED", params, transitionName, layoutId },
