@@ -1,6 +1,6 @@
-import { easingToCss, targetToDecls } from "@flemo/core";
+import { easingToCss, targetToDecls } from "@transition/compileTransitionStyles";
 
-import type { SwipeAnimate } from "@flemo/core";
+import type { SwipeAnimate } from "@transition/typing";
 
 const isHTMLElement = (target: unknown): target is HTMLElement =>
   typeof HTMLElement !== "undefined" && target instanceof HTMLElement;

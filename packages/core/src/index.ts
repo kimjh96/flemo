@@ -51,6 +51,10 @@ export {
   type CssDecl
 } from "@transition/compileTransitionStyles";
 
+// Imperative swipe driver (framework-agnostic DOM helper). Mutates inline
+// styles during a drag; the runtime engine and custom transitions consume it.
+export { default as animateInline, clearInlineAnimation } from "@transition/animateInline";
+
 // Transition types
 export type {
   RegisterTransition,

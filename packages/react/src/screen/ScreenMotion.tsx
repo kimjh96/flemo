@@ -7,7 +7,9 @@ import {
 } from "react";
 
 import {
+  animateInline,
   animationName,
+  clearInlineAnimation,
   collectAnimatedProperties,
   decoratorMap,
   findScrollable,
@@ -23,8 +25,6 @@ import ScreenDecorator from "@screen/ScreenDecorator";
 import useScreen from "@screen/useScreen";
 
 import useViewportScrollHeight from "@screen/useViewportScrollHeight";
-
-import animateInline, { clearInlineAnimation } from "@transition/animateInline";
 
 import useHistoryStore from "@stores/useHistoryStore";
 import useNavigateStore from "@stores/useNavigateStore";
