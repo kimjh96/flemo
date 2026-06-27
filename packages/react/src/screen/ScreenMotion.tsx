@@ -290,6 +290,18 @@ function ScreenMotion({
   const hasSharedAppBar = !!sharedAppBar;
   const hasSharedNavigationBar = !!sharedNavigationBar;
 
+  // During a VT, name the shared bars with stable names so they are treated as
+  // shared elements pinned across the entering and leaving screens (the same
+  // name appears in the old + new snapshots → the bar holds still). Without this
+  // they fall into the root snapshot and get swept up by the root suppression +
+  // the leaving screen's freeze, so they flash to a blank/white strip.
+  const inViewTransition =
+    viewTransition.active && (id === viewTransition.enteringId || id === viewTransition.leavingId);
+  const sharedAppBarViewTransitionName =
+    inViewTransition && hasSharedAppBar ? "flemo-vt-app-bar" : undefined;
+  const sharedNavigationBarViewTransitionName =
+    inViewTransition && hasSharedNavigationBar ? "flemo-vt-nav-bar" : undefined;
+
   // (1) Toggle `data-flemo-bar-riding` on each bar based on partner ownership.
   // `useLayoutEffect` so the attribute is set before the browser paints the
   // first frame of the transition. We re-evaluate on store changes too,
@@ -507,7 +519,8 @@ function ScreenMotion({
             top: !hideStatusBar ? statusBarHeight : 0,
             left: 0,
             width: "100%",
-            zIndex: 1
+            zIndex: 1,
+            viewTransitionName: sharedAppBarViewTransitionName
           }}
         >
           {sharedAppBar}
@@ -526,7 +539,8 @@ function ScreenMotion({
             bottom: !hideSystemNavigationBar ? systemNavigationBarHeight : 0,
             left: 0,
             width: "100%",
-            zIndex: 1
+            zIndex: 1,
+            viewTransitionName: sharedNavigationBarViewTransitionName
           }}
         >
           {sharedNavigationBar}
