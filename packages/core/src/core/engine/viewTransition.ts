@@ -125,12 +125,21 @@ export const buildViewTransitionCss = (
         `::view-transition-group(${VIEW_TRANSITION_OLD}) {\n  clip-path: inset(0 round ${container.radius});\n}`
     );
     // Shared bars (when present) clip to the edge they sit on, and DON'T animate:
-    // they're pinned, so the default shared-element cross-fade would only make
-    // them semi-transparent mid-transition (a flicker). `animation: none` holds
-    // the new snapshot at full opacity — the bar stays crisp and still.
+    // they're pinned. The default shared-element cross-fade blends the old + new
+    // snapshots with `mix-blend-mode: plus-lighter` (additive), so merely
+    // stopping the animation leaves BOTH at full opacity → they sum to a washed-
+    // out flicker. Instead, hide the old snapshot and show only the new at full
+    // opacity with normal compositing — the bar stays crisp and still.
+    // `z-index` lifts the bar group ABOVE the screen groups: the entering screen
+    // (a non-composited transition fades/blurs in semi-transparent) otherwise
+    // paints OVER the pinned bar, showing it faintly through itself — the
+    // remaining "bar flicker". With the bar on top, only its own (opaque, non-
+    // animated, old-hidden) snapshot shows, crisp and still.
     const barRules = (bar: string, el: Element) =>
-      `::view-transition-group(${bar}) {\n  clip-path: ${containerCornerClip(el, container)};\n}\n` +
-      `::view-transition-old(${bar}),\n::view-transition-new(${bar}) {\n  animation: none;\n}`;
+      `::view-transition-group(${bar}) {\n  clip-path: ${containerCornerClip(el, container)};\n  z-index: 2147483647;\n}\n` +
+      `::view-transition-image-pair(${bar}) {\n  isolation: auto;\n}\n` +
+      `::view-transition-old(${bar}) {\n  animation: none;\n  mix-blend-mode: normal;\n  opacity: 0;\n}\n` +
+      `::view-transition-new(${bar}) {\n  animation: none;\n  mix-blend-mode: normal;\n  opacity: 1;\n}`;
 
     const appBar = document.querySelector('[data-flemo-bar="app"]');
     if (appBar) clipRules.push(barRules("flemo-vt-app-bar", appBar));
