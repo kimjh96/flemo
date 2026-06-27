@@ -8,14 +8,13 @@ import {
 
 import {
   animateInline,
-  animationName,
   clearInlineAnimation,
   collectAnimatedProperties,
+  createTransitionEngine,
   decoratorMap,
   findScrollable,
-  TaskManger,
+  SKIP_ANIMATION_ATTR,
   transitionMap,
-  variantHasAnimation,
   type SwipeInfo
 } from "@flemo/core";
 
@@ -30,8 +29,6 @@ import useHistoryStore from "@stores/useHistoryStore";
 import useNavigateStore from "@stores/useNavigateStore";
 import useScreenStore from "@stores/useScreenStore";
 import useStores from "@stores/useStores";
-
-const SKIP_ANIMATION_ATTR = "data-flemo-skip-animation";
 
 function ScreenMotion({
   children,
@@ -58,6 +55,19 @@ function ScreenMotion({
   const setDragStatus = stores.screen.getState().setDragStatus;
   const setReplaceTransitionStatus = stores.screen.getState().setReplaceTransitionStatus;
   const index = useHistoryStore((state) => state.index);
+
+  // Framework-neutral lifecycle engine, stable for this screen's lifetime.
+  // It owns when the navigation task resolves and the COMPLETED cleanup; the
+  // store callbacks below are stable for this router scope.
+  const engineRef = useRef<ReturnType<typeof createTransitionEngine> | null>(null);
+  if (!engineRef.current) {
+    engineRef.current = createTransitionEngine({
+      getTransitionTaskId: () => stores.navigate.getState().transitionTaskId,
+      setDragStatus,
+      setReplaceTransitionStatus
+    });
+  }
+  const engine = engineRef.current;
 
   const currentTransition = (transitionMap.get(transitionName) ?? transitionMap.get("none"))!;
   const { initial, swipeDirection, decoratorName } = currentTransition;
@@ -459,112 +469,26 @@ function ScreenMotion({
     };
   }, []);
 
-  // Drive transition lifecycle. The active screen resolves the current
-  // navigation task once its animation settles (animationend on the primary
-  // keyframe). For variants that compile to no animation we resolve on the
-  // next microtask so the navigation queue still advances.
-  //
-  // `useLayoutEffect` (not `useEffect`) so the `animationend` listener is
-  // attached synchronously during commit, before the browser paints the
-  // first animation frame. Closes a tiny race where a very short variant
-  // could finish before a post-commit `useEffect` attaches the listener.
-  // The COMPLETED-branch inline cleanup also runs pre-paint, which means
-  // the browser never paints a transient frame where stale inline styles
-  // overlap the rest CSS rule.
-  useLayoutEffect(() => {
-    if (!isActive) {
-      const isTransitionDiffOnReplace = prevTransitionName !== transitionName;
-      if (status === "REPLACING" && isTransitionDiffOnReplace) {
-        setReplaceTransitionStatus("PENDING");
-      }
-      return;
-    }
-
-    if (status === "COMPLETED") {
-      setDragStatus("IDLE");
-      setReplaceTransitionStatus("IDLE");
-      // Defensive cleanup. Inline `transform`/`opacity`/`transition` may have
-      // been written by a swipe handler. onSwipe writes during drag, and
-      // onSwipeEnd writes the cancel/commit animation. The swipe-cancel
-      // branch clears them on resolve, but the swipe-commit branch and any
-      // mid-flight navigation that interleaves can leave stale inline styles
-      // on this scope. Because ScreenFreeze keeps the DOM mounted via
-      // `display: none`, those styles outlive the original navigation and
-      // resurface when this screen becomes active again; inline > compiled
-      // CSS rest rule. Strip them now that we've settled as the active
-      // screen so the next push/pop runs against a clean slate.
-      //
-      // Same applies to this screen's shared bars: the swipe-mirror writes
-      // inline styles via `animateSwipe`, and if a release path is missed
-      // (interleaved navigation, a partner whose ride-along path didn't
-      // finalize, etc.) the bar would sit at the off-screen position even
-      // after the owning screen settled as active. Clearing here also
-      // re-bases bars to the compiled CSS rest rule.
-      if (scopeRef.current) {
-        clearInlineAnimation(scopeRef.current);
-        scopeRef.current.removeAttribute(SKIP_ANIMATION_ATTR);
-      }
-      if (decoratorRef.current) {
-        clearInlineAnimation(decoratorRef.current);
-        decoratorRef.current.removeAttribute(SKIP_ANIMATION_ATTR);
-      }
-      if (sharedAppBarRef.current) {
-        clearInlineAnimation(sharedAppBarRef.current);
-        sharedAppBarRef.current.style.removeProperty("will-change");
-      }
-      if (sharedNavigationBarRef.current) {
-        clearInlineAnimation(sharedNavigationBarRef.current);
-        sharedNavigationBarRef.current.style.removeProperty("will-change");
-      }
-      return;
-    }
-
-    if (status === "IDLE") return;
-
-    const scope = scopeRef.current;
-    if (!scope) return;
-
-    const resolve = () => {
-      const transitionTaskId = stores.navigate.getState().transitionTaskId;
-      if (transitionTaskId) {
-        void TaskManger.resolveTask(transitionTaskId);
-      }
-    };
-
-    const variantKey = `${status}-true` as const;
-    const skipAnimation = scope.getAttribute(SKIP_ANIMATION_ATTR) === "true";
-    const hasAnimation = !skipAnimation && variantHasAnimation(currentTransition, variantKey);
-
-    if (!hasAnimation) {
-      // No CSS animation will fire. Resolve in a microtask so React commits
-      // first and the queue keeps advancing.
-      queueMicrotask(resolve);
-      return;
-    }
-
-    const expectedName = animationName("screen", transitionName, variantKey);
-    const onEnd = (event: AnimationEvent) => {
-      if (event.target !== scope) return;
-      if (event.animationName !== expectedName) return;
-      scope.removeEventListener("animationend", onEnd);
-      resolve();
-    };
-
-    scope.addEventListener("animationend", onEnd);
-    return () => {
-      scope.removeEventListener("animationend", onEnd);
-    };
-  }, [
-    status,
-    isActive,
-    id,
-    prevTransitionName,
-    transitionName,
-    currentTransition,
-    setDragStatus,
-    setReplaceTransitionStatus,
-    stores.navigate
-  ]);
+  // Drive the navigation-task lifecycle through the framework-neutral engine.
+  // It resolves the active screen's task on its animationend (or a microtask
+  // for no-animation variants) and runs the COMPLETED cleanup on the scope,
+  // decorator, and shared bars. `useLayoutEffect` so the listener attaches and
+  // the cleanup runs pre-paint, before the first animation frame.
+  useLayoutEffect(
+    () =>
+      engine.driveScreenLifecycle({
+        getElements: () => ({
+          scope: scopeRef.current,
+          decorator: decoratorRef.current,
+          bars: [sharedAppBarRef.current, sharedNavigationBarRef.current]
+        }),
+        transitionName,
+        prevTransitionName,
+        status,
+        isActive
+      }),
+    [engine, status, isActive, prevTransitionName, transitionName]
+  );
 
   useLayoutEffect(() => {
     const element = sharedAppBarRef.current;
