@@ -73,6 +73,13 @@ export {
   type SwipeControllerElements,
   type SharedBarPresenceLike
 } from "@core/engine/createSwipeController";
+export {
+  supportsViewTransitions,
+  buildViewTransitionCss,
+  runViewTransition,
+  VIEW_TRANSITION_NEW,
+  VIEW_TRANSITION_OLD
+} from "@core/engine/viewTransition";
 
 // Transition types
 export type {
