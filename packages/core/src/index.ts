@@ -71,6 +71,7 @@ export {
   type SwipeControllerElements,
   type SharedBarPresenceLike
 } from "@core/engine/createSwipeController";
+export { default as driveBarRiding, type BarRidingInput } from "@core/engine/barRiding";
 
 // Transition types
 export type {
