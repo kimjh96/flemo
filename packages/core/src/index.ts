@@ -8,6 +8,8 @@ export {
   type HistoryStore,
   type HistoryStoreApi
 } from "@history/store";
+export { default as seedInitialHistory } from "@history/seedInitialHistory";
+export { default as ensureWindowHistoryState } from "@history/ensureWindowHistoryState";
 
 // Navigation state
 export {

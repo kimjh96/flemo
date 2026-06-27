@@ -11,8 +11,9 @@ import {
   createHistoryStore,
   createNavigateStore,
   createTransitionStore,
-  getParams,
+  ensureWindowHistoryState,
   isServer,
+  seedInitialHistory,
   type Decorator,
   type Transition,
   type TransitionName
@@ -58,19 +59,10 @@ function Router({
   // from initPath. Because the seed is the store's *initial* state, zustand hands it to React as
   // the SSR snapshot, so the screen renders on the server and each request keeps its own stack.
   const [stores] = useState<FlemoStores>(() => {
-    const rootHistory = {
-      id: "root",
-      pathname,
-      params: getParams(
-        Children.toArray(children)
-          .map((child) => (child as ReactElement<RouteProps>).props.path)
-          .flat(),
-        pathname,
-        search
-      ),
-      transitionName: defaultTransitionName,
-      layoutId: null
-    };
+    const routePaths = Children.toArray(children)
+      .map((child) => (child as ReactElement<RouteProps>).props.path)
+      .flat();
+    const rootHistory = seedInitialHistory(routePaths, pathname, search, defaultTransitionName);
 
     // Hosted bundle: seed its history once (it starts empty at index -1). Seeding here rather than
     // at creation means a hosted setup doesn't get the SSR snapshot, but the provider is for
@@ -99,20 +91,7 @@ function Router({
   useTransitionStyles(transitions, decorators);
 
   useEffect(() => {
-    if (window.history.state?.index) return;
-
-    window.history.replaceState(
-      {
-        id: "root",
-        index: 0,
-        status: "IDLE",
-        params: {},
-        transitionName: defaultTransitionName,
-        layoutId: null
-      },
-      "",
-      window.location.href
-    );
+    ensureWindowHistoryState(defaultTransitionName);
   }, [defaultTransitionName]);
 
   return (
