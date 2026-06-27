@@ -64,6 +64,13 @@ export {
   type TransitionEngineDeps,
   type ScreenLifecycleInput
 } from "@core/engine/types";
+export { default as createSwipeController } from "@core/engine/createSwipeController";
+export {
+  type SwipeController,
+  type SwipeControllerConfig,
+  type SwipeControllerElements,
+  type SharedBarPresenceLike
+} from "@core/engine/createSwipeController";
 
 // Transition types
 export type {
