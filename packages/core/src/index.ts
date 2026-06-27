@@ -19,6 +19,13 @@ export {
   type NavigateStoreApi
 } from "@navigate/store";
 export { markSelfInducedPop, consumeSelfInducedPop } from "@navigate/selfPopGuard";
+export {
+  default as createNavigationController,
+  type NavigationControllerDeps,
+  type DistanceOptions,
+  type NavigateOptions,
+  type PopOptions
+} from "@navigate/createNavigationController";
 
 // Screen-scoped transition-UI state (drag / replace status + shared-bar registry)
 export {
