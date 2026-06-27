@@ -1,5 +1,7 @@
 import { type ComponentPropsWithoutRef, type PropsWithChildren, type ReactNode } from "react";
 
+import { computeScreenFreeze } from "@flemo/core";
+
 import ScreenFreeze from "@screen/ScreenFreeze";
 import ScreenMotion from "@screen/ScreenMotion";
 import useScreen from "@screen/useScreen";
@@ -36,11 +38,15 @@ function Screen({ children, ...props }: ScreenProps) {
   const dragStatus = useScreenStore((state) => state.dragStatus);
   const replaceTransitionStatus = useScreenStore((state) => state.replaceTransitionStatus);
 
-  const isTransitionCompleted = status === "COMPLETED" && dragStatus === "IDLE";
-  const isFrozen =
-    (!isActive && isTransitionCompleted) ||
-    (isPrev && index - 2 <= zIndex && replaceTransitionStatus === "IDLE") ||
-    (isPrev && index - 2 > zIndex);
+  const isFrozen = computeScreenFreeze({
+    isActive,
+    isPrev,
+    zIndex,
+    index,
+    status,
+    dragStatus,
+    replaceTransitionStatus
+  });
 
   return (
     <ScreenFreeze freeze={isFrozen}>

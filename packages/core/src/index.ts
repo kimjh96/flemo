@@ -29,6 +29,10 @@ export {
   default as createScreenSelector,
   type ScreenSelection
 } from "@screen/createScreenSelector";
+export {
+  default as computeScreenFreeze,
+  type ScreenFreezeInput
+} from "@screen/computeScreenFreeze";
 
 // Transition primitives
 export { default as createTransition } from "@transition/createTransition";
