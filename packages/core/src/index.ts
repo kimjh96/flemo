@@ -55,6 +55,16 @@ export {
 // styles during a drag; the runtime engine and custom transitions consume it.
 export { default as animateInline, clearInlineAnimation } from "@transition/animateInline";
 
+// Framework-neutral transition engine. Owns the navigation-task lifecycle and
+// cleanup for a screen; bindings feed it plain DOM elements + state.
+export { default as createTransitionEngine } from "@core/engine/createTransitionEngine";
+export {
+  SKIP_ANIMATION_ATTR,
+  type TransitionEngine,
+  type TransitionEngineDeps,
+  type ScreenLifecycleInput
+} from "@core/engine/types";
+
 // Transition types
 export type {
   RegisterTransition,
