@@ -2,7 +2,7 @@ import { Children, type PropsWithChildren, type ReactElement } from "react";
 
 import { pathToRegexp } from "path-to-regexp";
 
-import { getMatchedPathPattern } from "@flemo/core";
+import { createScreenSelector, getMatchedPathPattern } from "@flemo/core";
 
 import ScreenContext from "@screen/ScreenContext";
 
@@ -16,37 +16,31 @@ function Renderer({ children }: PropsWithChildren) {
   const index = useHistoryStore((state) => state.index);
   const histories = useHistoryStore((state) => state.histories);
 
-  return histories
-    .map((history) =>
-      Children.toArray(children).filter((child) =>
-        pathToRegexp((child as ReactElement<RouteProps>).props.path as string).regexp.test(
-          history.pathname
-        )
+  // Selection (which screens stack, active/prev/zIndex, transition names) is a
+  // pure derivation in @flemo/core; React only matches each screen to its Route
+  // child for `routePath` and mounts it.
+  return createScreenSelector(histories, index).map((selection) => {
+    const [child] = Children.toArray(children).filter((routeChild) =>
+      pathToRegexp((routeChild as ReactElement<RouteProps>).props.path as string).regexp.test(
+        selection.pathname
       )
-    )
-    .map(([child], zIndex) => (
+    );
+
+    return (
       <ScreenContext.Provider
-        key={histories[zIndex].id}
+        key={selection.id}
         value={{
-          id: histories[zIndex].id,
-          isActive: zIndex === index,
-          isRoot: zIndex === 0,
-          isPrev: zIndex < index - 1,
-          zIndex,
-          pathname: histories[zIndex].pathname,
-          params: histories[zIndex].params,
-          transitionName: histories[index].transitionName,
-          prevTransitionName: histories[index - 1]?.transitionName,
-          layoutId: histories[zIndex].layoutId,
+          ...selection,
           routePath: getMatchedPathPattern(
             (child as ReactElement<RouteProps>).props.path,
-            histories[zIndex].pathname
+            selection.pathname
           )
         }}
       >
         <ParamsProvider>{child}</ParamsProvider>
       </ScreenContext.Provider>
-    ));
+    );
+  });
 }
 
 export default Renderer;

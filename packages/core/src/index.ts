@@ -25,6 +25,10 @@ export {
   type ScreenStoreApi,
   type SharedBarPresence
 } from "@screen/store";
+export {
+  default as createScreenSelector,
+  type ScreenSelection
+} from "@screen/createScreenSelector";
 
 // Transition primitives
 export { default as createTransition } from "@transition/createTransition";
