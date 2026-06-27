@@ -1,5 +1,14 @@
 # @flemo/web
 
+## 0.6.4
+
+### Patch Changes
+
+- [`0e791dc`](https://github.com/kimjh96/flemo/commit/0e791dc159a71336898cf76caadeb100f3b2e0bb) Roll up Renovate dependency updates: next `^16.2.9`, fumadocs-core/ui `^16.10.4`, fumadocs-mdx `^15.0.12`. Also refreshes toolchain (pnpm 11.8.0, typescript-eslint `^8.61.1`) with no API changes.
+- Updated dependencies ([`05cc7eb`](https://github.com/kimjh96/flemo/commit/05cc7eba37ede2ca088c1ea73116a9b99388f7f6)):
+  - @flemo/react@1.3.2
+  - @flemo/react-layout@0.1.11
+
 ## 0.6.3
 
 ### Patch Changes

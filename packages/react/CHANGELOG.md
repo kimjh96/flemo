@@ -1,5 +1,11 @@
 # @flemo/react
 
+## 1.3.2
+
+### Patch Changes
+
+- [`05cc7eb`](https://github.com/kimjh96/flemo/commit/05cc7eba37ede2ca088c1ea73116a9b99388f7f6) Fix transitions skipping ahead on WebKit when a screen's content updates mid-transition (e.g. an async fetch resolving). The content is now isolated onto its own compositing layer while a transition is in flight, so the repaint no longer stalls the animating layer's presentation. Applies to every transition, including custom ones.
+
 ## 1.3.1
 
 ### Patch Changes
