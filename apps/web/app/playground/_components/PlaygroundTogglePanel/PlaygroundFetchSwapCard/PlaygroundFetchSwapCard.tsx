@@ -14,10 +14,13 @@ import PlaygroundToggleCardHeader from "../PlaygroundToggleCardHeader";
 // developer controls, kept out of the in-app screens and the embedded hero.
 interface Scenario {
   label: string;
-  // The transition to push with. "zoom" is a user-authored createTransition
-  // (scale + opacity, no translate) — included to prove the bug and the fix
-  // are transition-agnostic, not specific to the default cupertino slide.
-  transition: "cupertino" | "zoom";
+  // The transition to push with. Spans the two compositability classes:
+  //   cupertino (translate), zoom (scale + opacity) → compositor-accelerated,
+  //     fully covered by the content-layer fix.
+  //   blur (filter), reveal (clip-path) → animate non-compositable properties
+  //     on the screen scope, so that part runs on the main thread and the fix
+  //     can't decouple it. Kept here to document the boundary.
+  transition: "cupertino" | "zoom" | "blur" | "reveal";
   mode: "now" | "deferred";
   delayMs: number;
   nodes: number;
@@ -33,7 +36,11 @@ const scenarios: Scenario[] = [
     nodes: 1500
   },
   { label: "zoom · now", transition: "zoom", mode: "now", delayMs: 150, nodes: 1500 },
-  { label: "zoom · deferred", transition: "zoom", mode: "deferred", delayMs: 150, nodes: 1500 }
+  { label: "zoom · deferred", transition: "zoom", mode: "deferred", delayMs: 150, nodes: 1500 },
+  { label: "blur · now", transition: "blur", mode: "now", delayMs: 150, nodes: 1500 },
+  { label: "blur · deferred", transition: "blur", mode: "deferred", delayMs: 150, nodes: 1500 },
+  { label: "reveal · now", transition: "reveal", mode: "now", delayMs: 150, nodes: 1500 },
+  { label: "reveal · deferred", transition: "reveal", mode: "deferred", delayMs: 150, nodes: 1500 }
 ];
 
 const buttonClassName =
