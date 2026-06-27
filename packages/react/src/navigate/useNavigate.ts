@@ -482,8 +482,12 @@ export default function useNavigate() {
             await runVTNavigation({
               transition: popTransition,
               transitionName: leavingTransitionName,
-              newVariant: "POPPING-true",
-              oldVariant: "POPPING-false",
+              // On pop the LEAVING (popped) screen is the active one, so it plays
+              // POPPING-true (the exit) and the revealed screen plays POPPING-false
+              // (it comes back). This is flipped vs push/replace, where the
+              // entering screen is the active one.
+              newVariant: "POPPING-false",
+              oldVariant: "POPPING-true",
               enteringId,
               leavingId,
               commit: () => {
