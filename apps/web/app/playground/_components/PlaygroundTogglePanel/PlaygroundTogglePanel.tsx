@@ -1,6 +1,7 @@
 "use client";
 
 import PlaygroundBenchmarkCard from "./PlaygroundBenchmarkCard";
+import PlaygroundFetchSwapCard from "./PlaygroundFetchSwapCard";
 import PlaygroundInspectorCard from "./PlaygroundInspectorCard";
 import PlaygroundNavigationCard from "./PlaygroundNavigationCard";
 import PlaygroundSharedBarsCard from "./PlaygroundSharedBarsCard";
@@ -18,6 +19,7 @@ function PlaygroundTogglePanel() {
       <PlaygroundSharedBarsCard />
       <PlaygroundNavigationCard />
       <PlaygroundBenchmarkCard />
+      <PlaygroundFetchSwapCard />
       <PlaygroundInspectorCard />
     </section>
   );
