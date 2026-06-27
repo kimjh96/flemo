@@ -294,7 +294,7 @@ const barAttrSelector = (transitionName: string, variant: TransitionVariant): st
   const [status, active] = variant.split("-");
   return (
     `[data-flemo-bar]` +
-    `[data-flemo-part-transition="${transitionName}"]` +
+    `[data-flemo-bar-transition="${transitionName}"]` +
     `[data-flemo-bar-status="${status}"]` +
     `[data-flemo-bar-active="${active}"]` +
     `[data-flemo-bar-riding="true"]`
