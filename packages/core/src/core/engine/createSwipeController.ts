@@ -169,11 +169,11 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
 
   const captureBarTransitions = (prevScreenContainer: HTMLElement | null) => {
     const { screenContainer } = config.getElements();
-    const query = (root: HTMLElement | null) =>
-      root
-        ? Array.from(root.querySelectorAll<HTMLElement>("[data-flemo-bar-transition-name]"))
-        : [];
-    barTxEls = { current: query(screenContainer ?? null), prev: query(prevScreenContainer) };
+    // Reached only after beginSwipe's guards resolve the scope + prev screen, so
+    // both containers are present.
+    const select = (root: HTMLElement | null) =>
+      Array.from(root!.querySelectorAll<HTMLElement>("[data-flemo-bar-transition-name]"));
+    barTxEls = { current: select(screenContainer), prev: select(prevScreenContainer) };
   };
 
   // Drive each captured <BarTransition> element through its registered
@@ -185,8 +185,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     progress: number
   ) => {
     const run = (element: HTMLElement, active: boolean) => {
-      const name = element.getAttribute("data-flemo-bar-transition-name");
-      const def = name ? barTransitionMap.get(name) : undefined;
+      // Selected by [data-flemo-bar-transition-name], so the attribute is present.
+      const def = barTransitionMap.get(element.getAttribute("data-flemo-bar-transition-name")!);
       if (!def) return;
       const options = { animate: animateInline, element, active };
       if (hook === "swipe") def.onSwipe?.(triggered, progress, options);
