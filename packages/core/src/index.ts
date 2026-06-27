@@ -61,6 +61,7 @@ export { decoratorMap } from "@transition/decorator/decorator";
 
 // Bar-transition primitives (progress-driven, name-referenced bar-child animations)
 export { default as createBarTransition } from "@transition/barTransition/createBarTransition";
+export { default as createRawBarTransition } from "@transition/barTransition/createRawBarTransition";
 export { barTransitionMap } from "@transition/barTransition/barTransition";
 
 // Built-in presets

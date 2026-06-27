@@ -28,6 +28,7 @@ export {
   createDecorator,
   createRawDecorator,
   createBarTransition,
+  createRawBarTransition,
   barTransitionMap
 } from "@flemo/core";
 
