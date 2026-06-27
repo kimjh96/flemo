@@ -12,6 +12,10 @@ export type NavigateStatus = "IDLE" | "PUSHING" | "REPLACING" | "POPPING" | "COM
 export interface ViewTransitionState {
   active: boolean;
   transitionName: TransitionName | null;
+  // History id of the entering screen. Bindings name THAT screen's scope (not
+  // whichever is momentarily active), so the leaving screen — still active in
+  // the pre-commit snapshot — doesn't wrongly grab the entering name.
+  enteringId: string | null;
 }
 
 export interface NavigateStore {
@@ -30,7 +34,7 @@ export default function createNavigateStore(): NavigateStoreApi {
   return createStore<NavigateStore>((set) => ({
     status: "IDLE",
     transitionTaskId: null,
-    viewTransition: { active: false, transitionName: null },
+    viewTransition: { active: false, transitionName: null, enteringId: null },
     setStatus: (status) => set({ status }),
     setTransitionTaskId: (transitionTaskId) => set({ transitionTaskId }),
     setViewTransition: (viewTransition) => set({ viewTransition })

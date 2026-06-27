@@ -1,8 +1,15 @@
+import { flushSync } from "react-dom";
+
 import { pathToRegexp } from "path-to-regexp";
 
 import {
+  buildViewTransitionCss,
+  isCompositedTransition,
   markSelfInducedPop,
+  runViewTransition,
+  supportsViewTransitions,
   TaskManger as TaskManager,
+  transitionMap,
   type History,
   type TransitionName
 } from "@flemo/core";
@@ -97,6 +104,17 @@ export default function useNavigate() {
 
     const id = TaskManager.generateTaskId();
 
+    // Route a plain push of a non-composited transition through the View
+    // Transitions snapshot path (when supported). Collapses (skip / until) stay
+    // on the CSS path for now.
+    const transition = transitionMap.get(transitionName);
+    const useViewTransition =
+      options?.skip == null &&
+      options?.until == null &&
+      !!transition &&
+      !isCompositedTransition(transition) &&
+      supportsViewTransitions();
+
     (
       await TaskManager.addTask(
         async () => {
@@ -116,10 +134,7 @@ export default function useNavigate() {
             return Math.min(toSkip(options?.skip, 0), Math.max(0, index));
           })();
 
-          const { setStatus, setTransitionTaskId } = stores.navigate.getState();
-
-          setStatus("PUSHING");
-          setTransitionTaskId(id);
+          const { setStatus, setTransitionTaskId, setViewTransition } = stores.navigate.getState();
 
           const { pathname, toPathname } = buildRoutePath(path, (params ?? {}) as RegisterRoute[T]);
 
@@ -130,6 +145,33 @@ export default function useNavigate() {
             transitionName,
             layoutId
           };
+
+          // View Transitions path (non-composited transitions): mount the
+          // entering screen at REST and let the browser animate the GPU
+          // snapshots, so heavy main-thread work can't stall it. No PUSHING, so
+          // the CSS keyframe is skipped. This task is non-manual: it resolves
+          // here when `vt.finished` settles.
+          if (useViewTransition && transition) {
+            const css = buildViewTransitionCss(transition, "PUSHING-true", "PUSHING-false");
+            flushSync(() => setViewTransition({ active: true, transitionName, enteringId: id }));
+            await runViewTransition(css, () =>
+              flushSync(() => {
+                window.history.pushState(
+                  { id, index: index + 1, status: "COMPLETED", params, transitionName, layoutId },
+                  "",
+                  pathname
+                );
+                addHistory(newEntry);
+                setStatus("COMPLETED");
+                setTransitionTaskId(null);
+              })
+            );
+            setViewTransition({ active: false, transitionName: null, enteringId: null });
+            return;
+          }
+
+          setStatus("PUSHING");
+          setTransitionTaskId(id);
 
           if (remove === 0) {
             // Plain push. The new screen stacks on the current top, unchanged.
@@ -174,9 +216,7 @@ export default function useNavigate() {
         },
         {
           id,
-          control: {
-            manual: true
-          }
+          control: useViewTransition ? undefined : { manual: true }
         }
       )
     ).result?.();
