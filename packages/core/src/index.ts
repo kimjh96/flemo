@@ -62,6 +62,7 @@ export {
   easingToCss,
   type CssDecl
 } from "@transition/compileTransitionStyles";
+export { default as applyTransitionStyles } from "@transition/applyTransitionStyles";
 
 // Imperative swipe driver (framework-agnostic DOM helper). Mutates inline
 // styles during a drag; the runtime engine and custom transitions consume it.
