@@ -8,14 +8,20 @@ module.exports = [
     name: "@flemo/core",
     path: "packages/core/dist/index.mjs",
     // Measured with all dependencies bundled (zustand + path-to-regexp).
-    // That's the real wire cost for a fresh consumer. ~10.4 KB current.
-    limit: "11 KB",
+    // That's the real wire cost for a fresh consumer. ~11.2 KB current — the
+    // framework-neutral engine (lifecycle, swipe, bar-riding, screen store,
+    // navigation controller, popstate bridge) now lives here, moved out of
+    // @flemo/react.
+    limit: "13 KB",
     gzip: true
   },
   {
     name: "@flemo/react",
     path: "packages/react/dist/index.mjs",
-    limit: "12 KB",
+    // ~6.2 KB current — a thin binding now that the transition logic moved to
+    // @flemo/core. Tightened from 12 KB to lock in the shrink and trip on an
+    // accidental balloon back.
+    limit: "8 KB",
     gzip: true,
     // peers + workspace dep, already excluded by Vite externals, but list
     // them here too so size-limit doesn't try to resolve and bundle them
