@@ -115,8 +115,12 @@ describe("Screen", () => {
     );
 
     const contentWrapper = getByTestId("content").parentElement!;
-    expect(contentWrapper.style.transform).toBe("translateZ(0)");
-    expect(contentWrapper.style.willChange).toBe("transform");
+    // Promoted via `will-change: opacity`, NOT a transform: a transform would
+    // make this wrapper a containing block for consumer `position: fixed`
+    // overlays and re-parent them into the scrollable content box mid-transition
+    // (flashing a closed bottom sheet across the screen).
+    expect(contentWrapper.style.willChange).toBe("opacity");
+    expect(contentWrapper.style.transform).toBe("");
   });
 
   it("drops the content layer once the transition settles", () => {

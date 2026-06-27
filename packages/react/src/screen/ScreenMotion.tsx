@@ -425,12 +425,20 @@ function ScreenMotion({
             // Transition-agnostic on purpose: it isolates the content's paint
             // regardless of which property the scope animates (translate, scale,
             // opacity, or anything a custom `createTransition` defines). Scoped
-            // to the in-flight window so the extra layer is dropped at rest, and
-            // it adds no containing block beyond the one the scope's own
-            // transform already establishes while animating.
-            ...(status !== "IDLE" && status !== "COMPLETED"
-              ? { transform: "translateZ(0)", willChange: "transform" }
-              : null)
+            // to the in-flight window so the extra layer is dropped at rest.
+            //
+            // Promote with `will-change: opacity`, NOT a transform. A transform
+            // (e.g. translateZ(0)) makes this element a containing block for
+            // `position: fixed` descendants, which re-parents a consumer overlay
+            // (e.g. a bottom sheet) into this scrollable, *content-height* box
+            // instead of letting it resolve against the screen scope. That jumps
+            // the overlay the instant the layer toggles at transition start —
+            // a closed, viewport-pinned sheet flashes across the screen mid-
+            // transition (verified: a fixed bottom:0 marker leaps off the
+            // viewport). `will-change: opacity` composites without establishing
+            // that containing block, so overlays keep resolving against the
+            // scope and ride the transition with it.
+            ...(status !== "IDLE" && status !== "COMPLETED" ? { willChange: "opacity" } : null)
           }}
         >
           {children}
