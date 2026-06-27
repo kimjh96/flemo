@@ -9,6 +9,14 @@ const BASE_URL = `http://localhost:${PORT}`;
 // `next start` serves the optimized bundle exactly as users see it.
 const isCI = !!process.env.CI;
 
+// WebKit is opt-in: CI's Playwright job only installs chromium, so adding the
+// project unconditionally would make `playwright test` fail on a missing
+// browser. Run `FLEMO_WEBKIT=1 pnpm --filter @flemo/web exec playwright test`
+// locally (after `playwright install webkit`) to include it. Used by
+// `e2e/fetch-swap.spec.ts` to reproduce the WebKit-only abbreviated-transition
+// report against a chromium baseline.
+const withWebkit = !!process.env.FLEMO_WEBKIT;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -35,7 +43,15 @@ export default defineConfig({
     {
       name: "mobile-chromium",
       use: { ...devices["Pixel 7"] }
-    }
+    },
+    ...(withWebkit
+      ? [
+          {
+            name: "webkit",
+            use: { ...devices["Desktop Safari"] }
+          }
+        ]
+      : [])
   ],
   webServer: {
     command: `pnpm build && pnpm start -p ${PORT}`,

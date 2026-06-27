@@ -3,6 +3,7 @@
 import { Route, Router } from "@flemo/react";
 
 import AlbumScreen from "@/app/playground/_screens/AlbumScreen";
+import FetchSwapScreen from "@/app/playground/_screens/FetchSwapScreen";
 import HeavyArrivalScreen from "@/app/playground/_screens/HeavyArrivalScreen";
 import LibraryScreen from "@/app/playground/_screens/LibraryScreen";
 import NowPlayingScreen from "@/app/playground/_screens/NowPlayingScreen";
@@ -43,6 +44,7 @@ function PlaygroundRouter() {
       <Route path="/album/:id" element={<AlbumScreen />} />
       <Route path="/now-playing" element={<NowPlayingScreen />} />
       <Route path="/heavy/:cpuMs/:nodes" element={<HeavyArrivalScreen />} />
+      <Route path="/fetch-swap/:delayMs/:nodes" element={<FetchSwapScreen />} />
     </Router>
   );
 }
