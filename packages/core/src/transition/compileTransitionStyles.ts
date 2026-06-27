@@ -1,6 +1,7 @@
 import type { AnimationOptions, InitialTarget } from "@transition/cssTypes";
 import type { Transition, TransitionVariant, TransitionVariantValue } from "@transition/typing";
 
+import type { BarTransition } from "@transition/barTransition/typing";
 import type { Decorator } from "@transition/decorator/typing";
 
 // Where the screen physically sits before each variant's animation begins.
@@ -300,14 +301,27 @@ const barAttrSelector = (transitionName: string, variant: TransitionVariant): st
   );
 };
 
+// A <BarTransition name="..."> child element. Referenced by name (not bound to a
+// screen transition like a decorator), driven by the SAME status / active the
+// screen scope exposes — so a programmatic transition runs the bar element's
+// own `@keyframes` on the compositor, in lockstep with the screen, no JS.
+const barTransitionSelector = (name: string, variant: TransitionVariant): string => {
+  const [status, active] = variant.split("-");
+  return (
+    `[data-flemo-bar-transition-name="${name}"]` +
+    `[data-flemo-status="${status}"]` +
+    `[data-flemo-active="${active}"]`
+  );
+};
+
 export const animationName = (
-  scope: "screen" | "decorator",
+  scope: "screen" | "decorator" | "bar",
   name: string,
   variant: TransitionVariant
 ) => `flemo-${scope}-${cssIdentifier(name)}-${variant}`;
 
 const compileVariantBlock = (
-  scope: "screen" | "decorator",
+  scope: "screen" | "decorator" | "bar",
   name: string,
   variant: TransitionVariant,
   fromValue: TransitionVariantValue["value"] | InitialTarget,
@@ -414,7 +428,8 @@ const compileRestBlock = (
 
 export const compileTransitionStyles = (
   transitions: Iterable<Transition>,
-  decorators: Iterable<Decorator>
+  decorators: Iterable<Decorator>,
+  barTransitions: Iterable<BarTransition> = []
 ): string => {
   const blocks: string[] = [];
 
@@ -463,6 +478,27 @@ export const compileTransitionStyles = (
           variantValue,
           restDecoratorSelector
         )
+      );
+    }
+  }
+
+  for (const barTransition of barTransitions) {
+    const name = barTransition.name;
+
+    for (const variant of DECORATOR_VARIANTS) {
+      const variantValue = barTransition.variants[variant];
+      const fromKey = FROM_VARIANT[variant];
+
+      if (fromKey === "self") {
+        blocks.push(compileRestBlock(barTransitionSelector, name, variant, variantValue));
+        continue;
+      }
+
+      const fromValue =
+        fromKey === "initial" ? barTransition.initial : barTransition.variants[fromKey].value;
+
+      blocks.push(
+        compileVariantBlock("bar", name, variant, fromValue, variantValue, barTransitionSelector)
       );
     }
   }

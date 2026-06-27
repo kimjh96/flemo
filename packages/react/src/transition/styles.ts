@@ -2,13 +2,19 @@ import { useInsertionEffect } from "react";
 
 import {
   applyTransitionStyles,
+  barTransitionMap,
   decoratorMap,
   transitionMap,
+  type BarTransition,
   type Decorator,
   type Transition
 } from "@flemo/core";
 
-export default function useTransitionStyles(transitions: Transition[], decorators: Decorator[]) {
+export default function useTransitionStyles(
+  transitions: Transition[],
+  decorators: Decorator[],
+  barTransitions: BarTransition[] = []
+) {
   // useInsertionEffect runs synchronously before any layout effect or paint,
   // so the stylesheet is in place by the time screens commit their data-* attrs.
   // Registration/cleanup is the React lifecycle's job; compiling + writing the
@@ -16,11 +22,13 @@ export default function useTransitionStyles(transitions: Transition[], decorator
   useInsertionEffect(() => {
     for (const t of transitions) transitionMap.set(t.name, t);
     for (const d of decorators) decoratorMap.set(d.name, d);
+    for (const b of barTransitions) barTransitionMap.set(b.name, b);
     applyTransitionStyles();
     return () => {
       for (const t of transitions) transitionMap.delete(t.name);
       for (const d of decorators) decoratorMap.delete(d.name);
+      for (const b of barTransitions) barTransitionMap.delete(b.name);
       applyTransitionStyles();
     };
-  }, [transitions, decorators]);
+  }, [transitions, decorators, barTransitions]);
 }
