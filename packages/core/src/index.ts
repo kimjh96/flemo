@@ -59,6 +59,11 @@ export { default as createDecorator } from "@transition/decorator/createDecorato
 export { default as createRawDecorator } from "@transition/decorator/createRawDecorator";
 export { decoratorMap } from "@transition/decorator/decorator";
 
+// Bar-transition primitives (progress-driven, name-referenced bar-child animations)
+export { default as createPartTransition } from "@transition/partTransition/createPartTransition";
+export { default as createRawPartTransition } from "@transition/partTransition/createRawPartTransition";
+export { partTransitionMap } from "@transition/partTransition/partTransition";
+
 // Built-in presets
 export { default as cupertino } from "@transition/cupertino";
 export { default as material } from "@transition/material";
@@ -120,6 +125,14 @@ export type {
   DecoratorOptions,
   Decorator
 } from "@transition/decorator/typing";
+
+// Bar-transition types
+export type {
+  RegisterPartTransition,
+  PartTransitionName,
+  PartTransitionOptions,
+  PartTransition
+} from "@transition/partTransition/typing";
 
 // Pure utils
 export { default as isServer } from "@utils/isServer";

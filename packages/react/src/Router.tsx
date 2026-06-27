@@ -14,6 +14,7 @@ import {
   ensureWindowHistoryState,
   isServer,
   seedInitialHistory,
+  type PartTransition,
   type Decorator,
   type Transition,
   type TransitionName
@@ -36,17 +37,20 @@ interface RouterProps {
   defaultTransitionName?: TransitionName;
   transitions?: Transition[];
   decorators?: Decorator[];
+  partTransitions?: PartTransition[];
 }
 
 const EMPTY_TRANSITIONS: Transition[] = [];
 const EMPTY_DECORATORS: Decorator[] = [];
+const EMPTY_PART_TRANSITIONS: PartTransition[] = [];
 
 function Router({
   children,
   initPath = "/",
   defaultTransitionName = "cupertino",
   transitions = EMPTY_TRANSITIONS,
-  decorators = EMPTY_DECORATORS
+  decorators = EMPTY_DECORATORS,
+  partTransitions = EMPTY_PART_TRANSITIONS
 }: PropsWithChildren<RouterProps>) {
   const pathname = isServer() ? initPath || "/" : window.location.pathname;
   const search = isServer() ? pathname.split("?")[1] || "" : window.location.search;
@@ -88,7 +92,7 @@ function Router({
   // Registers user-provided transitions/decorators with the global maps and
   // injects the compiled CSS keyframes into the document head. Runs in
   // useInsertionEffect so styles are committed before any screen paints.
-  useTransitionStyles(transitions, decorators);
+  useTransitionStyles(transitions, decorators, partTransitions);
 
   useEffect(() => {
     ensureWindowHistoryState(defaultTransitionName);

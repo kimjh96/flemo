@@ -17,6 +17,7 @@ import ripple, { ripples } from "@/app/playground/_transitions/ripple";
 import slideLeft from "@/app/playground/_transitions/slideLeft";
 import slideRight from "@/app/playground/_transitions/slideRight";
 import spring from "@/app/playground/_transitions/spring";
+import titleFade from "@/app/playground/_transitions/titleFade";
 import zoom from "@/app/playground/_transitions/zoom";
 
 import "./PlaygroundRouter.types";
@@ -38,6 +39,7 @@ function PlaygroundRouter() {
         dive
       ]}
       decorators={[ripples, tunnel]}
+      partTransitions={[titleFade]}
     >
       <Route path="/" element={<LibraryScreen />} />
       <Route path="/search" element={<SearchScreen />} />

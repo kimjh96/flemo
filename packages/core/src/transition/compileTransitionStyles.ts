@@ -2,6 +2,7 @@ import type { AnimationOptions, InitialTarget } from "@transition/cssTypes";
 import type { Transition, TransitionVariant, TransitionVariantValue } from "@transition/typing";
 
 import type { Decorator } from "@transition/decorator/typing";
+import type { PartTransition } from "@transition/partTransition/typing";
 
 // Where the screen physically sits before each variant's animation begins.
 // Resolved against the variant value table for the same transition, except
@@ -300,14 +301,27 @@ const barAttrSelector = (transitionName: string, variant: TransitionVariant): st
   );
 };
 
+// A <PartTransition name="..."> child element. Referenced by name (not bound to a
+// screen transition like a decorator), driven by the SAME status / active the
+// screen scope exposes — so a programmatic transition runs the element's
+// own `@keyframes` on the compositor, in lockstep with the screen, no JS.
+const partSelector = (name: string, variant: TransitionVariant): string => {
+  const [status, active] = variant.split("-");
+  return (
+    `[data-flemo-part-name="${name}"]` +
+    `[data-flemo-status="${status}"]` +
+    `[data-flemo-active="${active}"]`
+  );
+};
+
 export const animationName = (
-  scope: "screen" | "decorator",
+  scope: "screen" | "decorator" | "part",
   name: string,
   variant: TransitionVariant
 ) => `flemo-${scope}-${cssIdentifier(name)}-${variant}`;
 
 const compileVariantBlock = (
-  scope: "screen" | "decorator",
+  scope: "screen" | "decorator" | "part",
   name: string,
   variant: TransitionVariant,
   fromValue: TransitionVariantValue["value"] | InitialTarget,
@@ -414,7 +428,8 @@ const compileRestBlock = (
 
 export const compileTransitionStyles = (
   transitions: Iterable<Transition>,
-  decorators: Iterable<Decorator>
+  decorators: Iterable<Decorator>,
+  partTransitions: Iterable<PartTransition> = []
 ): string => {
   const blocks: string[] = [];
 
@@ -463,6 +478,27 @@ export const compileTransitionStyles = (
           variantValue,
           restDecoratorSelector
         )
+      );
+    }
+  }
+
+  for (const partTransition of partTransitions) {
+    const name = partTransition.name;
+
+    for (const variant of DECORATOR_VARIANTS) {
+      const variantValue = partTransition.variants[variant];
+      const fromKey = FROM_VARIANT[variant];
+
+      if (fromKey === "self") {
+        blocks.push(compileRestBlock(partSelector, name, variant, variantValue));
+        continue;
+      }
+
+      const fromValue =
+        fromKey === "initial" ? partTransition.initial : partTransition.variants[fromKey].value;
+
+      blocks.push(
+        compileVariantBlock("part", name, variant, fromValue, variantValue, partSelector)
       );
     }
   }

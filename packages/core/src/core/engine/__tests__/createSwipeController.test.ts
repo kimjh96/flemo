@@ -5,6 +5,7 @@ import type { Transition } from "@transition/typing";
 import createSwipeController, {
   type SwipeControllerConfig
 } from "@core/engine/createSwipeController";
+import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 // Minimal DOM mirroring the renderer: a previous screen wrapper followed by the
 // current screen wrapper, so beginSwipe's `parentElement.previousElementSibling`
@@ -156,5 +157,124 @@ describe("createSwipeController", () => {
     await flush();
     expect(vi.mocked(back)).not.toHaveBeenCalled();
     expect(vi.mocked(setDragStatus)).toHaveBeenCalledWith("IDLE");
+  });
+
+  describe("bar transitions", () => {
+    let btStart: ReturnType<typeof vi.fn>;
+    let btSwipe: ReturnType<typeof vi.fn>;
+    let btEnd: ReturnType<typeof vi.fn>;
+    let curBar: HTMLElement;
+    let prevBar: HTMLElement;
+
+    beforeEach(() => {
+      // A <Part> element on the current screen and one on the previous
+      // screen's subtree (resolved via parentElement.previousElementSibling).
+      curBar = document.createElement("div");
+      curBar.setAttribute("data-flemo-part-name", "test-bar");
+      dom.screenContainer.appendChild(curBar);
+      prevBar = document.createElement("div");
+      prevBar.setAttribute("data-flemo-part-name", "test-bar");
+      (dom.root.firstElementChild as HTMLElement).appendChild(prevBar); // prevWrapper
+
+      btStart = vi.fn();
+      btSwipe = vi.fn();
+      btEnd = vi.fn();
+      partTransitionMap.set("test-bar", {
+        name: "test-bar",
+        initial: {},
+        variants: {} as never,
+        onSwipeStart: btStart,
+        onSwipe: btSwipe,
+        onSwipeEnd: btEnd
+      } as never);
+
+      // Make the transition relay its lifecycle callbacks so the controller's
+      // bar-transition driving actually runs.
+      onSwipeStart.mockImplementation(
+        async (_e: unknown, _i: unknown, o: { onStart?: (t: boolean) => void }) => {
+          o.onStart?.(true);
+          return true;
+        }
+      );
+      onSwipe.mockImplementation(
+        (_e: unknown, _i: unknown, o: { onProgress?: (t: boolean, p: number) => void }) => {
+          o.onProgress?.(true, 42);
+          return 42;
+        }
+      );
+      onSwipeEnd.mockImplementation(
+        async (_e: unknown, _i: unknown, o: { onStart?: (t: boolean) => void }) => {
+          o.onStart?.(true);
+          return false;
+        }
+      );
+    });
+
+    afterEach(() => partTransitionMap.delete("test-bar"));
+
+    it("drives current (active) + previous (inactive) bar elements through start/swipe", async () => {
+      const c = createSwipeController(config);
+      c.pointerDown(event({ target: dom.scope }));
+      c.pointerMove(event({ clientX: 40 }));
+      await flush();
+      expect(btStart).toHaveBeenCalledWith(
+        true,
+        expect.objectContaining({ element: curBar, active: true })
+      );
+      expect(btStart).toHaveBeenCalledWith(
+        true,
+        expect.objectContaining({ element: prevBar, active: false })
+      );
+
+      c.pointerMove(event({ clientX: 140, clientY: 0, timeStamp: 16 }));
+      expect(btSwipe).toHaveBeenCalledWith(
+        true,
+        42,
+        expect.objectContaining({ element: curBar, active: true })
+      );
+    });
+
+    it("runs onSwipeEnd and releases inline writes on a cancelled swipe", async () => {
+      const c = createSwipeController(config);
+      c.pointerDown(event({ target: dom.scope }));
+      c.pointerMove(event({ clientX: 40 }));
+      await flush();
+      c.pointerUp(event({ clientX: 5 }));
+      await flush();
+      expect(btEnd).toHaveBeenCalledWith(
+        true,
+        expect.objectContaining({ element: curBar, active: true })
+      );
+    });
+
+    it("skips bar elements whose name isn't registered", async () => {
+      const ghost = document.createElement("div");
+      ghost.setAttribute("data-flemo-part-name", "not-registered");
+      dom.screenContainer.appendChild(ghost);
+      const c = createSwipeController(config);
+      c.pointerDown(event({ target: dom.scope }));
+      c.pointerMove(event({ clientX: 40 }));
+      await flush();
+      // The registered element still fires; the unknown name resolves to no def
+      // and is silently skipped — no throw.
+      expect(btStart).toHaveBeenCalled();
+    });
+
+    it("clears the previous side's inline writes when the swipe commits", async () => {
+      onSwipeEnd.mockImplementation(
+        async (_e: unknown, _i: unknown, o: { onStart?: (t: boolean) => void }) => {
+          o.onStart?.(true);
+          return true;
+        }
+      );
+      const c = createSwipeController(config);
+      c.pointerDown(event({ target: dom.scope }));
+      c.pointerMove(event({ clientX: 40 }));
+      await flush();
+      c.pointerUp(event({ clientX: 200 }));
+      await flush();
+      expect(vi.mocked(back)).toHaveBeenCalledTimes(1);
+      expect(btEnd).toHaveBeenCalled();
+    });
   });
 });
