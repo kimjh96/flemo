@@ -132,7 +132,12 @@ async function measure(page: Page, testInfo: TestInfo, testid: string) {
   await page.evaluate(() => (window as unknown as { __fsMarkClick: () => void }).__fsMarkClick());
   await page.getByTestId(testid).click();
   await waitForTransitionSettled(page);
-  await page.waitForTimeout(120); // let the tail rAF samples land
+  // Stamp the settle time before the tail wait. The analysis window is
+  // [click, settled] = the slide itself. For `deferred`, the heavy swap fires
+  // at COMPLETED (≈ settled), so its raster spike lands at/after this mark and
+  // is excluded — exactly the point: was the SLIDE smooth?
+  const settledAt = await page.evaluate(() => performance.now());
+  await page.waitForTimeout(150); // let the tail rAF samples land
 
   const raw = await page.evaluate(() =>
     (
@@ -151,9 +156,16 @@ async function measure(page: Page, testInfo: TestInfo, testid: string) {
   const clickAt = raw.clickAt ?? 0;
   const swapAt = raw.swapAt;
 
-  // Keep only the frames inside the push window (click → end of samples).
+  // Slide window = [click, end]. For `deferred`, the swap fires at COMPLETED
+  // (≈ settled); since `settledAt` is stamped after Playwright observes the
+  // status flip — which can be a beat after the post-completion raster begins —
+  // bound the window at the swap mark (set in a layout effect, BEFORE that
+  // raster) so the deferred raster is excluded. The question for deferred is
+  // strictly "was the SLIDE smooth", and the slide is over by the mark.
+  const deferred = testid.includes("deferred");
+  const windowEnd = deferred && swapAt !== null ? Math.min(settledAt, swapAt) : settledAt;
   const windowSamples: Sample[] = raw.samples
-    .filter((s) => s.t >= clickAt)
+    .filter((s) => s.t >= clickAt && s.t <= windowEnd)
     .map((s) => ({ t: s.t, tx: translateXOf(s.transform) }));
 
   // Per-consecutive-frame deltas.
@@ -204,7 +216,12 @@ test.describe("playground: fetch-swap mid-animation (WebKit repro)", () => {
   test.skip(!RUN, "Set FLEMO_WEBKIT=1 to run (needs the webkit project + browser).");
   test.describe.configure({ mode: "serial" });
 
-  for (const testid of ["fetch-swap-push-150-1500", "fetch-swap-push-300-1500"]) {
+  for (const testid of [
+    "fetch-swap-push-now-150-1500",
+    "fetch-swap-push-now-300-1500",
+    "fetch-swap-push-deferred-150-1500",
+    "fetch-swap-push-deferred-300-1500"
+  ]) {
     test(testid, async ({ page }, testInfo) => {
       // Desktop chromium vs webkit is the comparison; skip the mobile preset.
       test.skip(testInfo.project.name === "mobile-chromium", "desktop comparison only");

@@ -44,7 +44,7 @@ function PlaygroundRouter() {
       <Route path="/album/:id" element={<AlbumScreen />} />
       <Route path="/now-playing" element={<NowPlayingScreen />} />
       <Route path="/heavy/:cpuMs/:nodes" element={<HeavyArrivalScreen />} />
-      <Route path="/fetch-swap/:delayMs/:nodes" element={<FetchSwapScreen />} />
+      <Route path="/fetch-swap/:mode/:delayMs/:nodes" element={<FetchSwapScreen />} />
     </Router>
   );
 }

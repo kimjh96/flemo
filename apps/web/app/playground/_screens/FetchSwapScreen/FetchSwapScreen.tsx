@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { useNavigate, useParams } from "@flemo/react";
+import { useNavigate, useNavigateStore, useParams, useScreen } from "@flemo/react";
 
 import { PlayerScreen } from "@/app/playground/_screens/PlayerScreen";
 
@@ -26,6 +26,12 @@ declare global {
 // ahead and finish late. With a warm cache the content is present at mount and
 // nothing repaints mid-animation, so the slide stays smooth (matches the report).
 //
+//   mode:    "now" swaps the content in as soon as the fetch resolves (the
+//            buggy path). "deferred" holds the skeleton until the screen's own
+//            transition status flips to COMPLETED, then swaps — i.e. the heavy
+//            raster happens AFTER the slide, never during it. This is the
+//            consumer-expressible workaround under test (status is readable via
+//            the exported `useNavigateStore`).
 //   delayMs: when the simulated fetch resolves after mount. Tuned to land
 //            inside the cupertino push window (~700ms) so the swap overlaps the
 //            in-flight animation.
@@ -37,18 +43,26 @@ declare global {
 // rasterizing it. That keeps the signal about the browser's layer handling,
 // not synthetic CPU we injected ourselves.
 function FetchSwapScreen() {
-  const params = useParams<"/fetch-swap/:delayMs/:nodes">();
+  const params = useParams<"/fetch-swap/:mode/:delayMs/:nodes">();
   const navigate = useNavigate();
+  const { isActive } = useScreen();
+  const status = useNavigateStore((state) => state.status);
+  const mode = params?.mode === "deferred" ? "deferred" : "now";
   const delayMs = params ? Number(params.delayMs) : 150;
   const nodeCount = params ? Number(params.nodes) : 1500;
 
-  const [resolved, setResolved] = useState(false);
+  const [fetched, setFetched] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const id = window.setTimeout(() => setResolved(true), delayMs);
+    const id = window.setTimeout(() => setFetched(true), delayMs);
     return () => window.clearTimeout(id);
   }, [delayMs]);
+
+  // "deferred" gates the swap on the transition settling, so heavy content
+  // never paints mid-slide. "now" reveals it the instant the fetch resolves.
+  const transitionSettled = !isActive || status === "COMPLETED" || status === "IDLE";
+  const resolved = fetched && (mode === "now" || transitionSettled);
 
   // After the swap commits, stamp the page clock and force one layout flush so
   // the new subtree's layout/paint lands within this frame (the worst case for
@@ -65,8 +79,8 @@ function FetchSwapScreen() {
 
   const handlePushAnother = () =>
     navigate.push(
-      "/fetch-swap/:delayMs/:nodes",
-      { delayMs: String(delayMs), nodes: String(nodeCount) },
+      "/fetch-swap/:mode/:delayMs/:nodes",
+      { mode, delayMs: String(delayMs), nodes: String(nodeCount) },
       { transitionName: "cupertino" }
     );
 
@@ -103,7 +117,7 @@ function FetchSwapScreen() {
               Fetch-swap repro
             </span>
             <span className="text-[11px] tabular-nums text-[var(--color-ink-mute)]">
-              {delayMs}ms · {nodeCount} nodes
+              {mode} · {delayMs}ms · {nodeCount} nodes
             </span>
           </div>
           <p className="text-[12px] leading-snug text-[var(--color-ink-soft)]">
@@ -161,6 +175,6 @@ export default FetchSwapScreen;
 
 declare module "@flemo/react" {
   interface RegisterRoute {
-    "/fetch-swap/:delayMs/:nodes": { delayMs: string; nodes: string };
+    "/fetch-swap/:mode/:delayMs/:nodes": { mode: string; delayMs: string; nodes: string };
   }
 }

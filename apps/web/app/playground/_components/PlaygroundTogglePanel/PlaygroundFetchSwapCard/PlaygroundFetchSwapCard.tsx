@@ -14,14 +14,16 @@ import PlaygroundToggleCardHeader from "../PlaygroundToggleCardHeader";
 // developer controls, kept out of the in-app screens and the embedded hero.
 interface Scenario {
   label: string;
+  mode: "now" | "deferred";
   delayMs: number;
   nodes: number;
 }
 
 const scenarios: Scenario[] = [
-  { label: "Light swap", delayMs: 150, nodes: 300 },
-  { label: "Heavy swap", delayMs: 150, nodes: 1500 },
-  { label: "Late · heavy", delayMs: 300, nodes: 1500 }
+  { label: "Now · heavy", mode: "now", delayMs: 150, nodes: 1500 },
+  { label: "Now · late", mode: "now", delayMs: 300, nodes: 1500 },
+  { label: "Deferred · heavy", mode: "deferred", delayMs: 150, nodes: 1500 },
+  { label: "Deferred · late", mode: "deferred", delayMs: 300, nodes: 1500 }
 ];
 
 const buttonClassName =
@@ -30,10 +32,10 @@ const buttonClassName =
 function PlaygroundFetchSwapCard() {
   const navigate = useNavigate();
 
-  const handlePush = (delayMs: number, nodes: number) =>
+  const handlePush = (mode: "now" | "deferred", delayMs: number, nodes: number) =>
     navigate.push(
-      "/fetch-swap/:delayMs/:nodes",
-      { delayMs: String(delayMs), nodes: String(nodes) },
+      "/fetch-swap/:mode/:delayMs/:nodes",
+      { mode, delayMs: String(delayMs), nodes: String(nodes) },
       { transitionName: "cupertino" }
     );
 
@@ -45,12 +47,12 @@ function PlaygroundFetchSwapCard() {
         description="Push with a skeleton, then swap in heavy content mid-animation. Reproduces the WebKit abbreviated-slide report."
       />
       <div data-testid="fetch-swap-scenarios" className="flex flex-wrap gap-2">
-        {scenarios.map(({ label, delayMs, nodes }) => (
+        {scenarios.map(({ label, mode, delayMs, nodes }) => (
           <button
             key={`fetch-swap-${label}`}
             type="button"
-            data-testid={`fetch-swap-push-${delayMs}-${nodes}`}
-            onClick={() => handlePush(delayMs, nodes)}
+            data-testid={`fetch-swap-push-${mode}-${delayMs}-${nodes}`}
+            onClick={() => handlePush(mode, delayMs, nodes)}
             className={buttonClassName}
           >
             {label}
