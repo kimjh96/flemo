@@ -39,7 +39,7 @@ function PlaygroundRouter() {
         dive
       ]}
       decorators={[ripples, tunnel]}
-      barTransitions={[titleFade]}
+      partTransitions={[titleFade]}
     >
       <Route path="/" element={<LibraryScreen />} />
       <Route path="/search" element={<SearchScreen />} />

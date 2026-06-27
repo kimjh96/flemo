@@ -2,10 +2,10 @@ import { useInsertionEffect } from "react";
 
 import {
   applyTransitionStyles,
-  barTransitionMap,
+  partTransitionMap,
   decoratorMap,
   transitionMap,
-  type BarTransition,
+  type PartTransition,
   type Decorator,
   type Transition
 } from "@flemo/core";
@@ -13,7 +13,7 @@ import {
 export default function useTransitionStyles(
   transitions: Transition[],
   decorators: Decorator[],
-  barTransitions: BarTransition[] = []
+  partTransitions: PartTransition[] = []
 ) {
   // useInsertionEffect runs synchronously before any layout effect or paint,
   // so the stylesheet is in place by the time screens commit their data-* attrs.
@@ -22,13 +22,13 @@ export default function useTransitionStyles(
   useInsertionEffect(() => {
     for (const t of transitions) transitionMap.set(t.name, t);
     for (const d of decorators) decoratorMap.set(d.name, d);
-    for (const b of barTransitions) barTransitionMap.set(b.name, b);
+    for (const b of partTransitions) partTransitionMap.set(b.name, b);
     applyTransitionStyles();
     return () => {
       for (const t of transitions) transitionMap.delete(t.name);
       for (const d of decorators) decoratorMap.delete(d.name);
-      for (const b of barTransitions) barTransitionMap.delete(b.name);
+      for (const b of partTransitions) partTransitionMap.delete(b.name);
       applyTransitionStyles();
     };
-  }, [transitions, decorators, barTransitions]);
+  }, [transitions, decorators, partTransitions]);
 }

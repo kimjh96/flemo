@@ -13,10 +13,9 @@ import layout from "@transition/layout";
 import material from "@transition/material";
 import none from "@transition/none";
 
-import createBarTransition from "@transition/barTransition/createBarTransition";
-
 import createDecorator from "@transition/decorator/createDecorator";
 import overlay from "@transition/decorator/overlay";
+import createPartTransition from "@transition/partTransition/createPartTransition";
 
 declare module "@transition/typing" {
   interface RegisterTransition {
@@ -818,14 +817,14 @@ describe("variantHasAnimation", () => {
   });
 });
 
-declare module "@transition/barTransition/typing" {
-  interface RegisterBarTransition {
+declare module "@transition/partTransition/typing" {
+  interface RegisterPartTransition {
     "test-title-fade": "test-title-fade";
   }
 }
 
 describe("compileTransitionStyles bar transitions", () => {
-  const titleFade = createBarTransition({
+  const titleFade = createPartTransition({
     name: "test-title-fade",
     initial: { opacity: 0 },
     idle: { value: { opacity: 1 }, options: { duration: 0.4 } },
@@ -833,10 +832,10 @@ describe("compileTransitionStyles bar transitions", () => {
     exit: { value: { opacity: 1 }, options: { duration: 0.3 } }
   });
 
-  it("emits per-element selectors keyed by data-flemo-bar-transition-name + status + active", () => {
+  it("emits per-element selectors keyed by data-flemo-part-name + status + active", () => {
     const css = compileTransitionStyles([], [], [titleFade]);
     expect(css).toContain(
-      '[data-flemo-bar-transition-name="test-title-fade"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
+      '[data-flemo-part-name="test-title-fade"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
     );
     // Never paired with the screen ride-along selector (that's screen scope only).
     expect(css).not.toContain("data-flemo-bar-riding");
@@ -844,14 +843,14 @@ describe("compileTransitionStyles bar transitions", () => {
 
   it("emits a keyframe in the bar scope for the leaving side fading out", () => {
     const css = compileTransitionStyles([], [], [titleFade]);
-    expect(css).toContain("@keyframes flemo-bar-test-title-fade-PUSHING-false");
-    const block = css.slice(css.indexOf("flemo-bar-test-title-fade-PUSHING-false {"));
+    expect(css).toContain("@keyframes flemo-part-test-title-fade-PUSHING-false");
+    const block = css.slice(css.indexOf("flemo-part-test-title-fade-PUSHING-false {"));
     expect(block).toContain("opacity: 1"); // from (idle)
     expect(block).toContain("opacity: 0"); // to (enter)
   });
 
   it("is empty when no bar transitions are passed", () => {
     const css = compileTransitionStyles([], []);
-    expect(css).not.toContain("data-flemo-bar-transition-name");
+    expect(css).not.toContain("data-flemo-part-name");
   });
 });

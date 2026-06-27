@@ -1,13 +1,13 @@
 "use client";
 
-import { createBarTransition } from "@flemo/react";
+import { createPartTransition } from "@flemo/react";
 
-// A bar-child transition: the wrapped element fades + lifts in as its screen
+// A part transition: the wrapped element fades + lifts in as its screen
 // becomes active, and fades + lifts out as the screen drops into the
-// background. Reference it from <BarTransition name="title-fade">. Programmatic
+// background. Reference it from <Part name="title-fade">. Programmatic
 // transitions run the compiled keyframes on the compositor (no React re-render);
 // the same definition drives the swipe drag inline.
-const titleFade = createBarTransition({
+const titleFade = createPartTransition({
   name: "title-fade",
   initial: { opacity: 0, transform: "translateY(8px)" },
   idle: {

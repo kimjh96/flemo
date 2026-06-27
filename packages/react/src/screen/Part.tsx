@@ -1,23 +1,23 @@
 import { type ComponentPropsWithRef, type PropsWithChildren } from "react";
 
-import type { BarTransitionName } from "@flemo/core";
+import type { PartTransitionName } from "@flemo/core";
 
 import useScreen from "@screen/useScreen";
 
 import useNavigateStore from "@stores/useNavigateStore";
 
-export interface BarTransitionProps extends PropsWithChildren<ComponentPropsWithRef<"div">> {
-  // The registered createBarTransition `name` to run on this element.
-  name: BarTransitionName;
+export interface PartProps extends PropsWithChildren<ComponentPropsWithRef<"div">> {
+  // The registered createPartTransition `name` to run on this element.
+  name: PartTransitionName;
 }
 
-// Wraps a specific bar child and runs a named bar transition on it, driven by
+// Wraps a specific element and runs a named part-transition on it, driven by
 // the screen's lifecycle. Programmatic transitions are driven by the compiled
 // `@keyframes` the bar selector emits (compositor, no React re-render); the
 // status / active the screen scope exposes are mirrored onto the wrapper so the
 // right variant matches. Selective by design: only the wrapped child animates,
 // the rest of the bar stays put.
-function BarTransition({ ref, name, style, children, ...props }: BarTransitionProps) {
+function Part({ ref, name, style, children, ...props }: PartProps) {
   const { isActive } = useScreen();
 
   const status = useNavigateStore((state) => state.status);
@@ -25,7 +25,7 @@ function BarTransition({ ref, name, style, children, ...props }: BarTransitionPr
   return (
     <div
       ref={ref}
-      data-flemo-bar-transition-name={name}
+      data-flemo-part-name={name}
       data-flemo-status={status}
       data-flemo-active={isActive ? "true" : "false"}
       style={style}
@@ -36,4 +36,4 @@ function BarTransition({ ref, name, style, children, ...props }: BarTransitionPr
   );
 }
 
-export default BarTransition;
+export default Part;

@@ -9,7 +9,7 @@ export { default as Screen, type ScreenProps } from "@screen/Screen";
 export { default as ScreenMotion } from "@screen/ScreenMotion";
 export { default as ScreenFreeze } from "@screen/ScreenFreeze";
 export { default as ScreenDecorator } from "@screen/ScreenDecorator";
-export { default as BarTransition, type BarTransitionProps } from "@screen/BarTransition";
+export { default as Part, type PartProps } from "@screen/Part";
 export { default as ScreenContext, type ScreenContextProps } from "@screen/ScreenContext";
 export { default as useHistoryStore } from "@stores/useHistoryStore";
 export { default as useNavigateStore } from "@stores/useNavigateStore";
@@ -27,9 +27,9 @@ export {
   createRawTransition,
   createDecorator,
   createRawDecorator,
-  createBarTransition,
-  createRawBarTransition,
-  barTransitionMap
+  createPartTransition,
+  createRawPartTransition,
+  partTransitionMap
 } from "@flemo/core";
 
 export type {
@@ -37,7 +37,7 @@ export type {
   RegisterTransition,
   DecoratorName,
   RegisterDecorator,
-  BarTransitionName,
-  RegisterBarTransition,
-  BarTransitionOptions
+  PartTransitionName,
+  RegisterPartTransition,
+  PartTransitionOptions
 } from "@flemo/core";

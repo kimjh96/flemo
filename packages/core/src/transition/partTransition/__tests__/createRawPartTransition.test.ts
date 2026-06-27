@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { TransitionTarget } from "@transition/cssTypes";
 
-import createRawBarTransition from "@transition/barTransition/createRawBarTransition";
+import createRawPartTransition from "@transition/partTransition/createRawPartTransition";
 
 const v = (value: TransitionTarget, duration = 0.3) => ({ value, options: { duration } });
 
-describe("createRawBarTransition", () => {
+describe("createRawPartTransition", () => {
   it("maps each enter/exit slot to its own status×active variant key", () => {
     const idle = v({ opacity: 0 }, 0);
     const pushOnEnter = v({ opacity: 1 });
@@ -18,7 +18,7 @@ describe("createRawBarTransition", () => {
     const completedOnEnter = v({ opacity: 1 });
     const completedOnExit = v({ opacity: 0 });
 
-    const t = createRawBarTransition({
+    const t = createRawPartTransition({
       name: "raw-bar",
       initial: { opacity: 0 },
       idle,
@@ -47,7 +47,7 @@ describe("createRawBarTransition", () => {
 
   it("carries swipe options through", () => {
     const onSwipe = () => {};
-    const t = createRawBarTransition({
+    const t = createRawPartTransition({
       name: "raw-bar",
       initial: { opacity: 0 },
       idle: v({ opacity: 0 }),

@@ -2,13 +2,13 @@ import type { InitialTarget } from "@transition/cssTypes";
 import { type TransitionVariantValue } from "@transition/typing";
 
 import {
-  type BarTransition,
-  type BarTransitionName,
-  type BarTransitionOptions
-} from "@transition/barTransition/typing";
+  type PartTransition,
+  type PartTransitionName,
+  type PartTransitionOptions
+} from "@transition/partTransition/typing";
 
-interface CreateRawBarTransitionProps {
-  name: BarTransitionName;
+interface CreateRawPartProps {
+  name: PartTransitionName;
   initial: InitialTarget;
   idle: TransitionVariantValue;
   pushOnEnter: TransitionVariantValue;
@@ -19,13 +19,13 @@ interface CreateRawBarTransitionProps {
   popOnExit: TransitionVariantValue;
   completedOnEnter: TransitionVariantValue;
   completedOnExit: TransitionVariantValue;
-  options?: BarTransitionOptions;
+  options?: PartTransitionOptions;
 }
 
 // Full-control factory: every status×active variant is set explicitly, for when
-// the idle / enter / exit collapse in createBarTransition is too coarse. Mirrors
+// the idle / enter / exit collapse in createPartTransition is too coarse. Mirrors
 // createRawDecorator.
-export default function createRawBarTransition({
+export default function createRawPartTransition({
   name,
   initial,
   idle,
@@ -38,7 +38,7 @@ export default function createRawBarTransition({
   completedOnEnter,
   completedOnExit,
   options
-}: CreateRawBarTransitionProps): BarTransition {
+}: CreateRawPartProps): PartTransition {
   return {
     name,
     initial,

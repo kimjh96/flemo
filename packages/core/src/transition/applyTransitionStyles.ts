@@ -4,8 +4,8 @@ import { transitionMap } from "@transition/transition";
 
 import isServer from "@utils/isServer";
 
-import { barTransitionMap } from "@transition/barTransition/barTransition";
 import { decoratorMap } from "@transition/decorator/decorator";
+import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 const STYLE_TAG_ATTRIBUTE = "data-flemo";
 
@@ -19,7 +19,7 @@ export default function applyTransitionStyles() {
   const css = compileTransitionStyles(
     transitionMap.values(),
     decoratorMap.values(),
-    barTransitionMap.values()
+    partTransitionMap.values()
   );
   let tag = document.head.querySelector<HTMLStyleElement>(`style[${STYLE_TAG_ATTRIBUTE}]`);
   if (!tag) {

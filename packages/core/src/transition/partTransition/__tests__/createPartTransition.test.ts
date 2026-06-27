@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import type { TransitionTarget } from "@transition/cssTypes";
 
-import createBarTransition from "@transition/barTransition/createBarTransition";
+import createPartTransition from "@transition/partTransition/createPartTransition";
 
 const v = (value: TransitionTarget, duration = 0.3) => ({ value, options: { duration } });
 
-describe("createBarTransition", () => {
+describe("createPartTransition", () => {
   it("returns name + initial unchanged and carries swipe options through", () => {
     const onSwipe = () => {};
-    const t = createBarTransition({
+    const t = createPartTransition({
       name: "title-fade",
       initial: { opacity: 0 },
       idle: v({ opacity: 1 }, 0),
@@ -26,7 +26,7 @@ describe("createBarTransition", () => {
     const idle = v({ opacity: 1 });
     const enter = v({ opacity: 0 });
     const exit = v({ opacity: 0.5 });
-    const t = createBarTransition({
+    const t = createPartTransition({
       name: "title-fade",
       initial: { opacity: 0 },
       idle,

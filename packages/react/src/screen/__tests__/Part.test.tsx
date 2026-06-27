@@ -3,13 +3,13 @@ import { createElement, type PropsWithChildren, type ReactNode } from "react";
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import BarTransition from "@screen/BarTransition";
+import Part from "@screen/Part";
 import ScreenContext, { type ScreenContextProps } from "@screen/ScreenContext";
 
 import { createTestStores } from "@stores/__tests__/testUtils";
 import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 
-// BarTransition mirrors the screen's status (navigate store) and active flag
+// Part mirrors the screen's status (navigate store) and active flag
 // (ScreenContext) onto its wrapper so the compiled bar-transition keyframes
 // match the right variant. Drive both with a thin harness.
 
@@ -43,18 +43,18 @@ function buildHarness(isActive: boolean) {
   };
 }
 
-describe("BarTransition", () => {
+describe("Part", () => {
   it("renders its child inside a wrapper carrying name + mirrored status/active", () => {
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
 
     const { container, getByText } = render(
-      <BarTransition name="title-fade">
+      <Part name="title-fade">
         <span>Album Title</span>
-      </BarTransition>,
+      </Part>,
       { wrapper: buildHarness(true) }
     );
 
-    const el = container.querySelector('[data-flemo-bar-transition-name="title-fade"]');
+    const el = container.querySelector('[data-flemo-part-name="title-fade"]');
     expect(el).not.toBeNull();
     expect(el?.getAttribute("data-flemo-status")).toBe("PUSHING");
     expect(el?.getAttribute("data-flemo-active")).toBe("true");
@@ -64,11 +64,11 @@ describe("BarTransition", () => {
   it("reports active=false for the previous (inactive) screen's bar", () => {
     stores.navigate.setState({ status: "POPPING", transitionTaskId: null });
 
-    const { container } = render(<BarTransition name="title-fade">x</BarTransition>, {
+    const { container } = render(<Part name="title-fade">x</Part>, {
       wrapper: buildHarness(false)
     });
 
-    const el = container.querySelector('[data-flemo-bar-transition-name="title-fade"]');
+    const el = container.querySelector('[data-flemo-part-name="title-fade"]');
     expect(el?.getAttribute("data-flemo-active")).toBe("false");
     expect(el?.getAttribute("data-flemo-status")).toBe("POPPING");
   });

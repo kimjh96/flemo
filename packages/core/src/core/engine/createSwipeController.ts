@@ -6,7 +6,7 @@ import type { Transition } from "@transition/typing";
 
 import findScrollable from "@utils/findScrollable";
 
-import { barTransitionMap } from "@transition/barTransition/barTransition";
+import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 import type { Decorator } from "@transition/decorator/typing";
 
@@ -64,9 +64,9 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   let prevScreen: HTMLElement | null = null;
   let prevDecorator: HTMLElement | null = null;
   let ridingBars: { current: HTMLElement[]; prev: HTMLElement[] } = { current: [], prev: [] };
-  // <BarTransition> elements on the current + previous screens, driven inline by
+  // <Part> elements on the current + previous screens, driven inline by
   // the drag progress (the interactive path; the programmatic path is CSS).
-  let barTxEls: { current: HTMLElement[]; prev: HTMLElement[] } = { current: [], prev: [] };
+  let partEls: { current: HTMLElement[]; prev: HTMLElement[] } = { current: [], prev: [] };
 
   let shouldStartDrag = false;
   let isTouchPrevented = false;
@@ -167,39 +167,39 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     ridingBars = { current: [], prev: [] };
   };
 
-  const captureBarTransitions = (prevScreenContainer: HTMLElement | null) => {
+  const capturePartTransitions = (prevScreenContainer: HTMLElement | null) => {
     const { screenContainer } = config.getElements();
     // Reached only after beginSwipe's guards resolve the scope + prev screen, so
     // both containers are present.
     const select = (root: HTMLElement | null) =>
-      Array.from(root!.querySelectorAll<HTMLElement>("[data-flemo-bar-transition-name]"));
-    barTxEls = { current: select(screenContainer), prev: select(prevScreenContainer) };
+      Array.from(root!.querySelectorAll<HTMLElement>("[data-flemo-part-name]"));
+    partEls = { current: select(screenContainer), prev: select(prevScreenContainer) };
   };
 
-  // Drive each captured <BarTransition> element through its registered
-  // bar-transition's swipe hook, passing whether it sits on the current
+  // Drive each captured <Part> element through its registered
+  // part-transition's swipe hook, passing whether it sits on the current
   // (active) or previous screen so the author can map the drag per side.
-  const driveBarTransitions = (
+  const drivePartTransitions = (
     hook: "start" | "swipe" | "end",
     triggered: boolean,
     progress: number
   ) => {
     const run = (element: HTMLElement, active: boolean) => {
-      // Selected by [data-flemo-bar-transition-name], so the attribute is present.
-      const def = barTransitionMap.get(element.getAttribute("data-flemo-bar-transition-name")!);
+      // Selected by [data-flemo-part-name], so the attribute is present.
+      const def = partTransitionMap.get(element.getAttribute("data-flemo-part-name")!);
       if (!def) return;
       const options = { animate: animateInline, element, active };
       if (hook === "swipe") def.onSwipe?.(triggered, progress, options);
       else if (hook === "start") def.onSwipeStart?.(triggered, options);
       else def.onSwipeEnd?.(triggered, options);
     };
-    for (const element of barTxEls.current) run(element, true);
-    for (const element of barTxEls.prev) run(element, false);
+    for (const element of partEls.current) run(element, true);
+    for (const element of partEls.prev) run(element, false);
   };
 
-  const releaseBarTransitions = () => {
-    for (const element of [...barTxEls.current, ...barTxEls.prev]) clearInlineAnimation(element);
-    barTxEls = { current: [], prev: [] };
+  const releasePartTransitions = () => {
+    for (const element of [...partEls.current, ...partEls.prev]) clearInlineAnimation(element);
+    partEls = { current: [], prev: [] };
   };
 
   const beginSwipe = async (event: PointerEvent) => {
@@ -224,7 +224,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     swipeVelocity = { x: 0, y: 0 };
     scope.setPointerCapture(event.pointerId);
     captureRidingBars(prevScreenContainer);
-    captureBarTransitions(prevScreenContainer);
+    capturePartTransitions(prevScreenContainer);
 
     const decoratorDef = config.getDecorator();
     const isTriggered = await transition.onSwipeStart(event, buildSwipeInfo(event), {
@@ -237,7 +237,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
           currentDecorator: decorator as HTMLDivElement,
           prevDecorator: prevDecorator as HTMLDivElement
         });
-        driveBarTransitions("start", triggered, 0);
+        drivePartTransitions("start", triggered, 0);
       }
     });
 
@@ -268,7 +268,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
           currentDecorator: decorator as HTMLDivElement,
           prevDecorator: prevDecorator as HTMLDivElement
         });
-        driveBarTransitions("swipe", triggered, progress);
+        drivePartTransitions("swipe", triggered, progress);
       }
     });
   };
@@ -294,7 +294,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
           currentDecorator: decorator as HTMLDivElement,
           prevDecorator: prevDecorator as HTMLDivElement
         });
-        driveBarTransitions("end", triggered, 0);
+        drivePartTransitions("end", triggered, 0);
       }
     });
 
@@ -312,10 +312,10 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         bar.style.removeProperty("will-change");
       }
       ridingBars = { current: [], prev: [] };
-      // Current-side bar-transition elements unmount with the screen; clear the
+      // Current-side part-transition elements unmount with the screen; clear the
       // previous side's inline writes so they don't shadow the next rule.
-      for (const element of barTxEls.prev) clearInlineAnimation(element);
-      barTxEls = { current: [], prev: [] };
+      for (const element of partEls.prev) clearInlineAnimation(element);
+      partEls = { current: [], prev: [] };
       config.back();
     } else {
       // Cancel: animation already played back to rest. Clear inline styles so
@@ -325,7 +325,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       if (decorator) clearInlineAnimation(decorator);
       if (prevDecorator) clearInlineAnimation(prevDecorator);
       releaseRidingBars();
-      releaseBarTransitions();
+      releasePartTransitions();
       config.setDragStatus("IDLE");
     }
   };

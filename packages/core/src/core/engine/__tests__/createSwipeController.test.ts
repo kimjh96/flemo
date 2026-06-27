@@ -5,7 +5,7 @@ import type { Transition } from "@transition/typing";
 import createSwipeController, {
   type SwipeControllerConfig
 } from "@core/engine/createSwipeController";
-import { barTransitionMap } from "@transition/barTransition/barTransition";
+import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 // Minimal DOM mirroring the renderer: a previous screen wrapper followed by the
 // current screen wrapper, so beginSwipe's `parentElement.previousElementSibling`
@@ -167,19 +167,19 @@ describe("createSwipeController", () => {
     let prevBar: HTMLElement;
 
     beforeEach(() => {
-      // A <BarTransition> element on the current screen and one on the previous
+      // A <Part> element on the current screen and one on the previous
       // screen's subtree (resolved via parentElement.previousElementSibling).
       curBar = document.createElement("div");
-      curBar.setAttribute("data-flemo-bar-transition-name", "test-bar");
+      curBar.setAttribute("data-flemo-part-name", "test-bar");
       dom.screenContainer.appendChild(curBar);
       prevBar = document.createElement("div");
-      prevBar.setAttribute("data-flemo-bar-transition-name", "test-bar");
+      prevBar.setAttribute("data-flemo-part-name", "test-bar");
       (dom.root.firstElementChild as HTMLElement).appendChild(prevBar); // prevWrapper
 
       btStart = vi.fn();
       btSwipe = vi.fn();
       btEnd = vi.fn();
-      barTransitionMap.set("test-bar", {
+      partTransitionMap.set("test-bar", {
         name: "test-bar",
         initial: {},
         variants: {} as never,
@@ -210,7 +210,7 @@ describe("createSwipeController", () => {
       );
     });
 
-    afterEach(() => barTransitionMap.delete("test-bar"));
+    afterEach(() => partTransitionMap.delete("test-bar"));
 
     it("drives current (active) + previous (inactive) bar elements through start/swipe", async () => {
       const c = createSwipeController(config);
@@ -249,7 +249,7 @@ describe("createSwipeController", () => {
 
     it("skips bar elements whose name isn't registered", async () => {
       const ghost = document.createElement("div");
-      ghost.setAttribute("data-flemo-bar-transition-name", "not-registered");
+      ghost.setAttribute("data-flemo-part-name", "not-registered");
       dom.screenContainer.appendChild(ghost);
       const c = createSwipeController(config);
       c.pointerDown(event({ target: dom.scope }));

@@ -2,13 +2,13 @@ import type { InitialTarget } from "@transition/cssTypes";
 import { type TransitionVariantValue } from "@transition/typing";
 
 import {
-  type BarTransition,
-  type BarTransitionName,
-  type BarTransitionOptions
-} from "@transition/barTransition/typing";
+  type PartTransition,
+  type PartTransitionName,
+  type PartTransitionOptions
+} from "@transition/partTransition/typing";
 
-interface CreateBarTransitionProps {
-  name: BarTransitionName;
+interface CreatePartProps {
+  name: PartTransitionName;
   initial: InitialTarget;
   // Rest / active state — held on IDLE-*, the entering side of PUSH/REPLACE
   // (PUSHING-true / REPLACING-true), POPPING-true and COMPLETED-true. The bar
@@ -23,20 +23,20 @@ interface CreateBarTransitionProps {
   // from `enter` back toward the rest state. Match `exit` to `idle` to land
   // softly without a snap.
   exit: TransitionVariantValue;
-  options?: BarTransitionOptions;
+  options?: PartTransitionOptions;
 }
 
 // Factory mirroring createDecorator: collapses the 3-state (idle / enter / exit)
 // model into the 8 status×active variants the compiler consumes, plus the
-// optional swipe hooks. Reference the result by `name` from <BarTransition>.
-export default function createBarTransition({
+// optional swipe hooks. Reference the result by `name` from <PartTransition>.
+export default function createPartTransition({
   name,
   initial,
   idle,
   enter,
   exit,
   options
-}: CreateBarTransitionProps): BarTransition {
+}: CreatePartProps): PartTransition {
   return {
     name,
     initial,
