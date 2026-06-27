@@ -192,6 +192,18 @@ export const collectAnimatedProperties = (transition: Transition): string[] => {
   return Array.from(props);
 };
 
+// Properties the compositor animates off the main thread.
+const COMPOSITED_PROPERTIES = new Set(["transform", "opacity"]);
+
+// A transition is "composited" when every property it animates is one the
+// compositor drives (transform / opacity) — so it stays smooth under heavy
+// main-thread work and runs on the CSS-keyframe path. A transition that animates
+// anything else (filter, clip-path, background, ...) has a part bound to the
+// main thread; the engine routes those through the View Transitions snapshot
+// path so they stay smooth too. A no-animation transition counts as composited.
+export const isCompositedTransition = (transition: Transition): boolean =>
+  collectAnimatedProperties(transition).every((property) => COMPOSITED_PROPERTIES.has(property));
+
 export const targetToDecls = (
   target: TransitionVariantValue["value"] | InitialTarget
 ): CssDecl[] => {

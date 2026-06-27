@@ -47,6 +47,7 @@ export {
   variantHasAnimation,
   targetToDecls,
   collectAnimatedProperties,
+  isCompositedTransition,
   easingToCss,
   type CssDecl
 } from "@transition/compileTransitionStyles";
