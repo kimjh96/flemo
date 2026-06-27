@@ -18,6 +18,14 @@ export {
 } from "@navigate/store";
 export { markSelfInducedPop, consumeSelfInducedPop } from "@navigate/selfPopGuard";
 
+// Screen-scoped transition-UI state (drag / replace status + shared-bar registry)
+export {
+  default as createScreenStore,
+  type ScreenStore,
+  type ScreenStoreApi,
+  type SharedBarPresence
+} from "@screen/store";
+
 // Transition primitives
 export { default as createTransition } from "@transition/createTransition";
 export { default as createRawTransition } from "@transition/createRawTransition";

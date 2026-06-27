@@ -12,6 +12,8 @@
       "@history/*": ["./src/history/*"],
       "@navigate": ["./src/navigate"],
       "@navigate/*": ["./src/navigate/*"],
+      "@screen": ["./src/screen"],
+      "@screen/*": ["./src/screen/*"],
       "@transition": ["./src/transition"],
       "@transition/*": ["./src/transition/*"],
       "@utils": ["./src/utils"],
