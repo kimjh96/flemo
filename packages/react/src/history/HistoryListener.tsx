@@ -1,97 +1,15 @@
 import { useEffect } from "react";
 
-import {
-  consumeSelfInducedPop,
-  TaskManger as TaskManager,
-  type NavigateStatus,
-  type TransitionName
-} from "@flemo/core";
+import { createHistorySync } from "@flemo/core";
 
 import useStores from "@stores/useStores";
 
+// Thin React binding: the popstate-to-navigation bridge lives in @flemo/core's
+// createHistorySync; this component owns only the effect lifecycle.
 function HistoryListener() {
   const stores = useStores();
 
-  useEffect(() => {
-    const handlePopState = async (e: PopStateEvent) => {
-      // A popstate flemo triggered itself. The navigation queue already owns it.
-      if (consumeSelfInducedPop()) {
-        return;
-      }
-
-      const nextId = e.state?.id;
-      const taskId = TaskManager.generateTaskId();
-
-      (
-        await TaskManager.addTask(
-          async (abortController) => {
-            const nextIndex = e.state?.index;
-            const nextStatus = e.state?.status as NavigateStatus;
-            const nextParams = e.state?.params;
-            const nextTransitionName = e.state?.transitionName as TransitionName;
-            const nextLayoutId = e.state?.layoutId as string | number | null;
-            const { setStatus, setTransitionTaskId } = stores.navigate.getState();
-            const { index, addHistory, popHistory } = stores.history.getState();
-            const isPop = nextIndex < index;
-            const isPush = nextStatus === "PUSHING" && nextIndex > index;
-            const isReplace = nextStatus === "REPLACING" && nextIndex > index;
-            const pathname = window.location.pathname;
-
-            if (!isPop && !isPush && !isReplace) {
-              abortController.abort();
-              return;
-            }
-
-            setTransitionTaskId(taskId);
-
-            if (isPop) {
-              setStatus("POPPING");
-            } else if (isPush) {
-              setStatus("PUSHING");
-
-              addHistory({
-                id: nextId,
-                pathname,
-                params: nextParams,
-                transitionName: nextTransitionName,
-                layoutId: nextLayoutId
-              });
-            } else if (isReplace) {
-              setStatus("REPLACING");
-
-              addHistory({
-                id: nextId,
-                pathname,
-                params: nextParams,
-                transitionName: nextTransitionName,
-                layoutId: nextLayoutId
-              });
-            }
-
-            return async () => {
-              if (isPop) {
-                popHistory(nextIndex + 1);
-              }
-
-              setStatus("COMPLETED");
-            };
-          },
-          {
-            id: taskId,
-            control: {
-              manual: true
-            }
-          }
-        )
-      ).result?.();
-    };
-
-    window.addEventListener("popstate", handlePopState);
-
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-    };
-  }, [stores]);
+  useEffect(() => createHistorySync({ stores }), [stores]);
 
   return null;
 }

@@ -10,6 +10,7 @@ export {
 } from "@history/store";
 export { default as seedInitialHistory } from "@history/seedInitialHistory";
 export { default as ensureWindowHistoryState } from "@history/ensureWindowHistoryState";
+export { default as createHistorySync, type HistorySyncDeps } from "@history/createHistorySync";
 
 // Navigation state
 export {
