@@ -1,5 +1,13 @@
 # @flemo/web
 
+## 0.6.7
+
+### Patch Changes
+
+- Updated dependencies ([`e316444`](https://github.com/kimjh96/flemo/commit/e316444d3327df09569cd4568eb697878da85bff)):
+  - @flemo/react@1.4.2
+  - @flemo/react-layout@0.1.14
+
 ## 0.6.6
 
 ### Patch Changes

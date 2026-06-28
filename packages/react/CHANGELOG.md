@@ -1,5 +1,11 @@
 # @flemo/react
 
+## 1.4.2
+
+### Patch Changes
+
+- [`e316444`](https://github.com/kimjh96/flemo/commit/e316444d3327df09569cd4568eb697878da85bff) Keep consumer `backdrop-filter` rendering during transitions. The content-isolation layer now promotes with `transform: translateZ(0)` instead of `will-change: opacity`, so a frosted header inside a screen no longer washes out mid-transition.
+
 ## 1.4.1
 
 ### Patch Changes
