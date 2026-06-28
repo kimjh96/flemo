@@ -100,16 +100,31 @@ export const dict = {
         kicker: "Built with flemo",
         title: "A web app that moves like native.",
         subtitle:
-          "This shell is itself a flemo app: one Router, one Slot, native screen transitions. The shiflo demo lands here next.",
+          "This shell is itself a flemo app: one Router, one Slot, native screen transitions. The phone on the right runs flemo too.",
         ctaPrimary: "Get started",
         ctaSecondary: "Playground",
-        phoneCaption: "shiflo demo · coming next"
+        demoCaption: "An interactive flemo demo. Tap around."
       },
       showcase: {
         kicker: "Showcase",
         title: "Real apps, shipping flemo.",
         subtitle: "Peer pages slide on a shared axis. The cards arrive in a follow-up PR.",
         placeholder: "Showcase content lands in a follow-up PR."
+      },
+      wallet: {
+        tab: { home: "Home", activity: "Activity" },
+        balanceLabel: "Total balance",
+        actions: { send: "Send", request: "Request", topup: "Top up" },
+        recent: "Recent",
+        day: { today: "Today", yesterday: "Yesterday" },
+        detail: { status: "Completed", spent: "Paid", received: "Received" },
+        sheet: {
+          title: "Send money",
+          amountLabel: "Amount",
+          toLabel: "To",
+          toValue: "Jamie Park",
+          confirm: "Send"
+        }
       }
     },
     notFound: {
@@ -318,16 +333,31 @@ export const dict = {
         kicker: "flemo로 만든",
         title: "네이티브처럼 움직이는 웹 앱.",
         subtitle:
-          "이 셸 자체가 flemo 앱이에요. Router 하나, Slot 하나, 네이티브 화면 전환. shiflo 데모가 다음에 여기로 들어와요.",
+          "이 셸 자체가 flemo 앱이에요. Router 하나, Slot 하나, 네이티브 화면 전환. 오른쪽 폰도 flemo로 돌아가요.",
         ctaPrimary: "시작하기",
         ctaSecondary: "플레이그라운드",
-        phoneCaption: "shiflo 데모 · 곧"
+        demoCaption: "직접 만져보는 flemo 데모. 눌러보세요."
       },
       showcase: {
         kicker: "쇼케이스",
         title: "실제 앱이 flemo로 출시돼요.",
         subtitle: "형제 페이지가 공유 축으로 미끄러져요. 카드는 후속 PR에서 들어와요.",
         placeholder: "쇼케이스 콘텐츠는 후속 PR에서 들어와요."
+      },
+      wallet: {
+        tab: { home: "홈", activity: "내역" },
+        balanceLabel: "총 잔액",
+        actions: { send: "보내기", request: "받기", topup: "충전" },
+        recent: "최근 거래",
+        day: { today: "오늘", yesterday: "어제" },
+        detail: { status: "완료", spent: "결제", received: "받음" },
+        sheet: {
+          title: "보내기",
+          amountLabel: "금액",
+          toLabel: "받는 사람",
+          toValue: "박지민",
+          confirm: "보내기"
+        }
       }
     },
     notFound: {
