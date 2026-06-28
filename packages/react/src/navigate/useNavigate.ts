@@ -31,7 +31,9 @@ export default function useNavigate() {
   const controller = createNavigationController({
     stores,
     buildPathname: (path, params) =>
-      buildRoutePath(path, params as RegisterRoute[keyof RegisterRoute])
+      buildRoutePath(path, params as RegisterRoute[keyof RegisterRoute]),
+    driver: stores.driver,
+    markSelfInduced: stores.markSelfInduced
   });
 
   return {

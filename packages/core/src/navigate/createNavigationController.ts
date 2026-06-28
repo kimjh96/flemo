@@ -45,6 +45,11 @@ export interface NavigationControllerDeps {
   // The history backend. Defaults to the real browser History API; a nested
   // <Router> injects an in-memory driver so its navigation stays local.
   driver?: HistoryDriver;
+  // Marks a flemo-induced traversal so the history sync ignores its own
+  // popstate. Defaults to the global guard the root <Router> shares with the
+  // sync; a nested <Router> (no global sync attached) injects a no-op so it
+  // never touches that shared counter.
+  markSelfInduced?: () => void;
 }
 
 // Distance from the top to the nearest screen below it whose route matches
@@ -80,14 +85,19 @@ const toSkip = (value: number | undefined, fallback: number): number =>
 // history sync to consume (a slow popstate is far likelier than none, now that
 // `goBack` never overshoots), and leave the browser as-is. The in-memory store
 // stays the source of truth and the visual still resolves.
-const syncCollapsedHistory = async (driver: HistoryDriver, goBack: number, commit: () => void) => {
+const syncCollapsedHistory = async (
+  driver: HistoryDriver,
+  markSelfInduced: () => void,
+  goBack: number,
+  commit: () => void
+) => {
   let dispose!: () => void;
   const popstateFired = new Promise<boolean>((resolve) => {
     dispose = driver.subscribe(() => resolve(true));
   });
   const safetyTimeout = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 200));
 
-  markSelfInducedPop();
+  markSelfInduced();
   driver.go(-goBack);
   const fired = await Promise.race([popstateFired, safetyTimeout]);
 
@@ -103,7 +113,12 @@ const syncCollapsedHistory = async (driver: HistoryDriver, goBack: number, commi
 // queue) over injected stores + a path compiler. A binding wires the stores
 // from its own context and provides the typed wrappers.
 export default function createNavigationController(deps: NavigationControllerDeps) {
-  const { stores, buildPathname, driver = createBrowserHistoryDriver() } = deps;
+  const {
+    stores,
+    buildPathname,
+    driver = createBrowserHistoryDriver(),
+    markSelfInduced = markSelfInducedPop
+  } = deps;
 
   const push = async (path: string, params?: object, options?: NavigateOptions) => {
     const { status } = stores.navigate.getState();
@@ -171,7 +186,7 @@ export default function createNavigationController(deps: NavigationControllerDep
           // pushState's the new screen, truncating the forward stack.
           addHistory(newEntry);
 
-          await syncCollapsedHistory(driver, remove, () => {
+          await syncCollapsedHistory(driver, markSelfInduced, remove, () => {
             driver.pushState(
               {
                 id,
@@ -276,7 +291,7 @@ export default function createNavigationController(deps: NavigationControllerDep
           if (steps <= index) {
             // A screen remains below the new one. Go to it and pushState the
             // new entry above (truncating the forward stack, no phantoms).
-            await syncCollapsedHistory(driver, steps, () => {
+            await syncCollapsedHistory(driver, markSelfInduced, steps, () => {
               driver.pushState(
                 {
                   id,
@@ -293,7 +308,7 @@ export default function createNavigationController(deps: NavigationControllerDep
             // Collapsing the root: the new screen becomes the root. go(-steps)
             // would overshoot index 0, so go to the current root and
             // replaceState it.
-            await syncCollapsedHistory(driver, index, () => {
+            await syncCollapsedHistory(driver, markSelfInduced, index, () => {
               driver.replaceState(
                 { id, index: 0, status: "REPLACING", params, transitionName, layoutId },
                 pathname
@@ -374,7 +389,7 @@ export default function createNavigationController(deps: NavigationControllerDep
           popHistories(steps - 1);
 
           // flemo drives the browser; its own popstate is filtered by the history sync.
-          markSelfInducedPop();
+          markSelfInduced();
           if (steps === 1) {
             driver.back();
           } else {
