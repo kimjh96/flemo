@@ -11,6 +11,12 @@ export {
 export { default as seedInitialHistory } from "@history/seedInitialHistory";
 export { default as ensureWindowHistoryState } from "@history/ensureWindowHistoryState";
 export { default as createHistorySync, type HistorySyncDeps } from "@history/createHistorySync";
+export {
+  default as createBrowserHistoryDriver,
+  type HistoryDriver,
+  type HistoryNavEvent
+} from "@history/historyDriver";
+export { default as createMemoryHistoryDriver } from "@history/memoryHistoryDriver";
 
 // Navigation state
 export {
