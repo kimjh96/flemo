@@ -7,6 +7,7 @@ import type { TransitionName } from "@flemo/core";
 
 import Screen from "@screen/Screen";
 import ScreenContext, { type ScreenContextProps } from "@screen/ScreenContext";
+import ScreenViewportContext from "@screen/ScreenViewportContext";
 
 import { createTestStores } from "@stores/__tests__/testUtils";
 import StoreContext, { type FlemoStores } from "@stores/StoreContext";
@@ -138,6 +139,41 @@ describe("Screen", () => {
     const contentWrapper = getByTestId("content").parentElement!;
     expect(contentWrapper.style.transform).toBe("");
     expect(contentWrapper.style.willChange).toBe("");
+  });
+
+  // The screen container is fixed to the viewport for a root <Router>, and
+  // contained (position: absolute, anchored to its region) under a nested
+  // <Router>. The container is the element carrying `contain: layout style`.
+  it("anchors the screen container to the viewport by default", () => {
+    stores.history.setState({ index: 0, histories: [] });
+
+    const { container } = render(
+      <Screen>
+        <div data-testid="content">hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true }) }
+    );
+
+    const screenContainer = container.querySelector<HTMLElement>('div[style*="contain"]');
+    expect(screenContainer).not.toBeNull();
+    expect(screenContainer!.style.position).toBe("fixed");
+  });
+
+  it("contains the screen within its region when nested (ScreenViewportContext)", () => {
+    stores.history.setState({ index: 0, histories: [] });
+
+    const { container } = render(
+      <ScreenViewportContext.Provider value={{ contained: true }}>
+        <Screen>
+          <div data-testid="content">hello</div>
+        </Screen>
+      </ScreenViewportContext.Provider>,
+      { wrapper: buildHarness({ isActive: true }) }
+    );
+
+    const screenContainer = container.querySelector<HTMLElement>('div[style*="contain"]');
+    expect(screenContainer).not.toBeNull();
+    expect(screenContainer!.style.position).toBe("absolute");
   });
 
   it("keeps a deeper prev screen frozen once the top has moved more than one entry past it", () => {
