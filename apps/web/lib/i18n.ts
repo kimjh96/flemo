@@ -103,7 +103,9 @@ export const dict = {
           "This shell is itself a flemo app: one Router, one Slot, native screen transitions. The shiflo demo lands here next.",
         ctaPrimary: "Get started",
         ctaSecondary: "Playground",
-        phoneCaption: "shiflo demo · coming next"
+        demoCaption: "Real shiflo screens, driven by flemo.",
+        shotAlt: "A shiflo app screen",
+        shotNext: "Next screen"
       },
       showcase: {
         kicker: "Showcase",
@@ -321,7 +323,9 @@ export const dict = {
           "이 셸 자체가 flemo 앱이에요. Router 하나, Slot 하나, 네이티브 화면 전환. shiflo 데모가 다음에 여기로 들어와요.",
         ctaPrimary: "시작하기",
         ctaSecondary: "플레이그라운드",
-        phoneCaption: "shiflo 데모 · 곧"
+        demoCaption: "진짜 shiflo 화면을 flemo가 굴려요.",
+        shotAlt: "shiflo 앱 화면",
+        shotNext: "다음 화면"
       },
       showcase: {
         kicker: "쇼케이스",
