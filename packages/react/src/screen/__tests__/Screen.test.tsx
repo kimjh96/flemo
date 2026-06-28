@@ -115,12 +115,13 @@ describe("Screen", () => {
     );
 
     const contentWrapper = getByTestId("content").parentElement!;
-    // Promoted via `will-change: opacity`, NOT a transform: a transform would
-    // make this wrapper a containing block for consumer `position: fixed`
-    // overlays and re-parent them into the scrollable content box mid-transition
-    // (flashing a closed bottom sheet across the screen).
-    expect(contentWrapper.style.willChange).toBe("opacity");
-    expect(contentWrapper.style.transform).toBe("");
+    // Promoted via `transform: translateZ(0)`, NOT `will-change: opacity`: a
+    // backdrop-root trigger would wash out a consumer `backdrop-filter` (frosted
+    // header) for the duration of the transition, and that breaks on every push
+    // of every frosted screen with no consumer-side workaround. A transform is
+    // not a backdrop root, so blur keeps rendering.
+    expect(contentWrapper.style.transform).toBe("translateZ(0)");
+    expect(contentWrapper.style.willChange).toBe("transform");
   });
 
   it("drops the content layer once the transition settles", () => {
