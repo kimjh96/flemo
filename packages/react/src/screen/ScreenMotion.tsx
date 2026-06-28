@@ -17,6 +17,7 @@ import {
 import type { ScreenProps } from "@screen/Screen";
 import ScreenDecorator from "@screen/ScreenDecorator";
 
+import { useScreenViewport } from "@screen/ScreenViewportContext";
 import useScreen from "@screen/useScreen";
 
 import useViewportScrollHeight from "@screen/useViewportScrollHeight";
@@ -43,6 +44,13 @@ function ScreenMotion({
   ...props
 }: ScreenProps) {
   const { id, isActive, isRoot, zIndex, transitionName, prevTransitionName } = useScreen();
+
+  // A root <Router> renders screens fixed to the viewport; a nested <Router>
+  // (a transition region inside a persistent layout) contains them, so the
+  // screen container and its viewport-level chrome anchor to the region via
+  // `position: absolute` instead.
+  const { contained } = useScreenViewport();
+  const screenPosition = contained ? "absolute" : "fixed";
 
   const stores = useStores();
 
@@ -330,7 +338,7 @@ function ScreenMotion({
     <div
       ref={screenRef}
       style={{
-        position: "fixed",
+        position: screenPosition,
         top: 0,
         left: 0,
         width: "100%",
@@ -349,7 +357,7 @@ function ScreenMotion({
       <div
         data-swipe-at-edge-bar
         style={{
-          position: "fixed",
+          position: screenPosition,
           top: 0,
           left: 0,
           width: 8,
@@ -383,7 +391,7 @@ function ScreenMotion({
           <div style={{ minHeight: statusBarHeight }}>
             <div
               style={{
-                position: "fixed",
+                position: screenPosition,
                 top: 0,
                 width: "100%",
                 minHeight: statusBarHeight,
@@ -474,7 +482,7 @@ function ScreenMotion({
           >
             <div
               style={{
-                position: "fixed",
+                position: screenPosition,
                 bottom: 0,
                 width: "100%",
                 minHeight: systemNavigationBarHeight,
@@ -492,7 +500,7 @@ function ScreenMotion({
           data-flemo-bar-status={status}
           data-flemo-bar-active={isActive ? "true" : "false"}
           style={{
-            position: "fixed",
+            position: screenPosition,
             top: !hideStatusBar ? statusBarHeight : 0,
             left: 0,
             width: "100%",
@@ -511,7 +519,7 @@ function ScreenMotion({
           data-flemo-bar-active={isActive ? "true" : "false"}
           style={{
             display: isKeyboardVisible ? "none" : undefined,
-            position: "fixed",
+            position: screenPosition,
             bottom: !hideSystemNavigationBar ? systemNavigationBarHeight : 0,
             left: 0,
             width: "100%",
@@ -525,7 +533,7 @@ function ScreenMotion({
       <div
         data-swipe-at-edge-bar
         style={{
-          position: "fixed",
+          position: screenPosition,
           top: 0,
           right: 0,
           width: 8,
