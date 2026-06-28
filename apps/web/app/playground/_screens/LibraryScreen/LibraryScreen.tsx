@@ -42,6 +42,22 @@ function LibraryScreen() {
       sharedNavigationBar={showMiniPlayer ? <PlayerBottomBar activePath="/" /> : undefined}
     >
       <div className="px-5 pb-8 pt-2">
+        <button
+          type="button"
+          onClick={() => navigate.push("/regions")}
+          className="mb-5 flex w-full cursor-pointer items-center justify-between rounded-2xl border border-[var(--color-line)] bg-[var(--color-card)] px-4 py-3 text-left"
+        >
+          <div>
+            <div className="text-sm font-semibold text-[var(--color-text-primary)]">
+              Partial-area regions
+            </div>
+            <div className="text-xs text-[var(--color-ink-soft)]">
+              Nested &lt;Router&gt; · a sub-region transitions on its own
+            </div>
+          </div>
+          <span className="text-lg text-[var(--color-ink-mute)]">→</span>
+        </button>
+
         {segment === "albums" && (
           <div className="grid grid-cols-2 gap-x-4 gap-y-6">
             {albums.map((album) => (

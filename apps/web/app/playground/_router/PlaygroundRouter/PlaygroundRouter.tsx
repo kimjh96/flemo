@@ -7,6 +7,7 @@ import FetchSwapScreen from "@/app/playground/_screens/FetchSwapScreen";
 import HeavyArrivalScreen from "@/app/playground/_screens/HeavyArrivalScreen";
 import LibraryScreen from "@/app/playground/_screens/LibraryScreen";
 import NowPlayingScreen from "@/app/playground/_screens/NowPlayingScreen";
+import RegionsScreen from "@/app/playground/_screens/RegionsScreen";
 import SearchScreen from "@/app/playground/_screens/SearchScreen";
 import blur from "@/app/playground/_transitions/blur";
 import breathe from "@/app/playground/_transitions/breathe";
@@ -45,6 +46,7 @@ function PlaygroundRouter() {
       <Route path="/search" element={<SearchScreen />} />
       <Route path="/album/:id" element={<AlbumScreen />} />
       <Route path="/now-playing" element={<NowPlayingScreen />} />
+      <Route path="/regions" element={<RegionsScreen />} />
       <Route path="/heavy/:cpuMs/:nodes" element={<HeavyArrivalScreen />} />
       <Route path="/fetch-swap/:mode/:delayMs/:nodes" element={<FetchSwapScreen />} />
     </Router>
