@@ -1,5 +1,9 @@
 import TaskManager from "@core/TaskManger";
 
+import createBrowserHistoryDriver, {
+  type HistoryDriver,
+  type HistoryNavEvent
+} from "@history/historyDriver";
 import type { HistoryStoreApi } from "@history/store";
 
 import { consumeSelfInducedPop } from "@navigate/selfPopGuard";
@@ -13,39 +17,53 @@ export interface HistorySyncDeps {
     history: HistoryStoreApi;
     navigate: NavigateStoreApi;
   };
+  // The history backend. Defaults to the real browser History API; a nested
+  // <Router> injects an in-memory driver so its navigation stays local.
+  driver?: HistoryDriver;
 }
 
-// Bridge the browser Back/Forward (popstate) into flemo's navigation queue:
-// classify the event against the current stack (pop / push / replace), park a
-// manual-gated task, mutate the stores, and resolve on completion. flemo-induced
-// popstates are filtered via the self-pop guard. Framework-neutral: attaches the
-// listener and returns a disposer; a binding calls it from its own effect.
-export default function createHistorySync(deps: HistorySyncDeps): () => void {
-  const { stores } = deps;
+// The flemo frame a back/forward event carries (stored by a prior push/replace).
+// A foreign (non-flemo) entry won't have these, so the classification below
+// rejects it.
+interface PopStateFrame {
+  id: string;
+  index: number;
+  status: NavigateStatus;
+  params: object;
+  transitionName: TransitionName;
+  layoutId: string | number | null;
+}
 
-  const handlePopState = async (e: PopStateEvent) => {
-    // A popstate flemo triggered itself. The navigation queue already owns it.
+// Bridge the Back/Forward traversals the driver reports into flemo's navigation
+// queue: classify the event against the current stack (pop / push / replace),
+// park a manual-gated task, mutate the stores, and resolve on completion.
+// flemo-induced traversals are filtered via the self-pop guard. Framework-
+// neutral: subscribes through the injected driver and returns its disposer; a
+// binding calls it from its own effect.
+export default function createHistorySync(deps: HistorySyncDeps): () => void {
+  const { stores, driver = createBrowserHistoryDriver() } = deps;
+
+  const handlePopState = async (event: HistoryNavEvent) => {
+    // A traversal flemo triggered itself. The navigation queue already owns it.
     if (consumeSelfInducedPop()) {
       return;
     }
 
-    const nextId = e.state?.id;
+    const frame = event.state as PopStateFrame | null;
     const taskId = TaskManager.generateTaskId();
 
     (
       await TaskManager.addTask(
         async (abortController) => {
-          const nextIndex = e.state?.index;
-          const nextStatus = e.state?.status as NavigateStatus;
-          const nextParams = e.state?.params;
-          const nextTransitionName = e.state?.transitionName as TransitionName;
-          const nextLayoutId = e.state?.layoutId as string | number | null;
           const { setStatus, setTransitionTaskId } = stores.navigate.getState();
           const { index, addHistory, popHistory } = stores.history.getState();
-          const isPop = nextIndex < index;
-          const isPush = nextStatus === "PUSHING" && nextIndex > index;
-          const isReplace = nextStatus === "REPLACING" && nextIndex > index;
-          const pathname = window.location.pathname;
+
+          const nextIndex = frame?.index;
+          const isPop = nextIndex !== undefined && nextIndex < index;
+          const isPush =
+            frame?.status === "PUSHING" && nextIndex !== undefined && nextIndex > index;
+          const isReplace =
+            frame?.status === "REPLACING" && nextIndex !== undefined && nextIndex > index;
 
           if (!isPop && !isPush && !isReplace) {
             abortController.abort();
@@ -56,32 +74,23 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
 
           if (isPop) {
             setStatus("POPPING");
-          } else if (isPush) {
-            setStatus("PUSHING");
-
-            addHistory({
-              id: nextId,
-              pathname,
-              params: nextParams,
-              transitionName: nextTransitionName,
-              layoutId: nextLayoutId
-            });
           } else {
-            // Must be a replace: the guard above already returned unless one of
-            // pop/push/replace held, and pop/push are ruled out by here.
-            setStatus("REPLACING");
+            // A push or replace: the guard above ruled out everything else, so
+            // isPush/isReplace held, both of which require a frame.
+            const pushed = frame!;
+            setStatus(isPush ? "PUSHING" : "REPLACING");
 
             addHistory({
-              id: nextId,
-              pathname,
-              params: nextParams,
-              transitionName: nextTransitionName,
-              layoutId: nextLayoutId
+              id: pushed.id,
+              pathname: event.pathname,
+              params: pushed.params,
+              transitionName: pushed.transitionName,
+              layoutId: pushed.layoutId
             });
           }
 
           return async () => {
-            if (isPop) {
+            if (isPop && nextIndex !== undefined) {
               popHistory(nextIndex + 1);
             }
 
@@ -98,9 +107,5 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
     ).result?.();
   };
 
-  window.addEventListener("popstate", handlePopState);
-
-  return () => {
-    window.removeEventListener("popstate", handlePopState);
-  };
+  return driver.subscribe(handlePopState);
 }

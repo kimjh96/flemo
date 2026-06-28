@@ -2,6 +2,7 @@ import { pathToRegexp } from "path-to-regexp";
 
 import TaskManager from "@core/TaskManger";
 
+import createBrowserHistoryDriver, { type HistoryDriver } from "@history/historyDriver";
 import type { History, HistoryStoreApi } from "@history/store";
 
 import { markSelfInducedPop } from "@navigate/selfPopGuard";
@@ -41,6 +42,9 @@ export interface NavigationControllerDeps {
   // resolved pathname stored on the history entry. Injected because the binding
   // owns the route registry / type surface (e.g. RegisterRoute in React).
   buildPathname: (path: string, params: object) => { pathname: string; toPathname: string };
+  // The history backend. Defaults to the real browser History API; a nested
+  // <Router> injects an in-memory driver so its navigation stays local.
+  driver?: HistoryDriver;
 }
 
 // Distance from the top to the nearest screen below it whose route matches
@@ -76,20 +80,19 @@ const toSkip = (value: number | undefined, fallback: number): number =>
 // history sync to consume (a slow popstate is far likelier than none, now that
 // `goBack` never overshoots), and leave the browser as-is. The in-memory store
 // stays the source of truth and the visual still resolves.
-const syncCollapsedHistory = async (goBack: number, commit: () => void) => {
-  let onPopstate!: () => void;
+const syncCollapsedHistory = async (driver: HistoryDriver, goBack: number, commit: () => void) => {
+  let dispose!: () => void;
   const popstateFired = new Promise<boolean>((resolve) => {
-    onPopstate = () => resolve(true);
-    window.addEventListener("popstate", onPopstate, { once: true });
+    dispose = driver.subscribe(() => resolve(true));
   });
   const safetyTimeout = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 200));
 
   markSelfInducedPop();
-  window.history.go(-goBack);
+  driver.go(-goBack);
   const fired = await Promise.race([popstateFired, safetyTimeout]);
 
+  dispose();
   if (!fired) {
-    window.removeEventListener("popstate", onPopstate);
     return;
   }
   commit();
@@ -100,7 +103,7 @@ const syncCollapsedHistory = async (goBack: number, commit: () => void) => {
 // queue) over injected stores + a path compiler. A binding wires the stores
 // from its own context and provides the typed wrappers.
 export default function createNavigationController(deps: NavigationControllerDeps) {
-  const { stores, buildPathname } = deps;
+  const { stores, buildPathname, driver = createBrowserHistoryDriver() } = deps;
 
   const push = async (path: string, params?: object, options?: NavigateOptions) => {
     const { status } = stores.navigate.getState();
@@ -150,9 +153,8 @@ export default function createNavigationController(deps: NavigationControllerDep
 
           if (remove === 0) {
             // Plain push. The new screen stacks on the current top, unchanged.
-            window.history.pushState(
+            driver.pushState(
               { id, index: index + 1, status: "PUSHING", params, transitionName, layoutId },
-              "",
               pathname
             );
             addHistory(newEntry);
@@ -169,8 +171,8 @@ export default function createNavigationController(deps: NavigationControllerDep
           // pushState's the new screen, truncating the forward stack.
           addHistory(newEntry);
 
-          await syncCollapsedHistory(remove, () => {
-            window.history.pushState(
+          await syncCollapsedHistory(driver, remove, () => {
+            driver.pushState(
               {
                 id,
                 index: stores.history.getState().index - remove,
@@ -179,7 +181,6 @@ export default function createNavigationController(deps: NavigationControllerDep
                 transitionName,
                 layoutId
               },
-              "",
               pathname
             );
           });
@@ -253,9 +254,8 @@ export default function createNavigationController(deps: NavigationControllerDep
 
           if (steps === 1) {
             // Single-screen replace. Unchanged from the original behavior.
-            window.history.replaceState(
+            driver.replaceState(
               { id, index, status: "REPLACING", params, transitionName, layoutId },
-              "",
               pathname
             );
             addHistory(newEntry);
@@ -276,8 +276,8 @@ export default function createNavigationController(deps: NavigationControllerDep
           if (steps <= index) {
             // A screen remains below the new one. Go to it and pushState the
             // new entry above (truncating the forward stack, no phantoms).
-            await syncCollapsedHistory(steps, () => {
-              window.history.pushState(
+            await syncCollapsedHistory(driver, steps, () => {
+              driver.pushState(
                 {
                   id,
                   index: stores.history.getState().index - 1,
@@ -286,7 +286,6 @@ export default function createNavigationController(deps: NavigationControllerDep
                   transitionName,
                   layoutId
                 },
-                "",
                 pathname
               );
             });
@@ -294,10 +293,9 @@ export default function createNavigationController(deps: NavigationControllerDep
             // Collapsing the root: the new screen becomes the root. go(-steps)
             // would overshoot index 0, so go to the current root and
             // replaceState it.
-            await syncCollapsedHistory(index, () => {
-              window.history.replaceState(
+            await syncCollapsedHistory(driver, index, () => {
+              driver.replaceState(
                 { id, index: 0, status: "REPLACING", params, transitionName, layoutId },
-                "",
                 pathname
               );
             });
@@ -378,9 +376,9 @@ export default function createNavigationController(deps: NavigationControllerDep
           // flemo drives the browser; its own popstate is filtered by the history sync.
           markSelfInducedPop();
           if (steps === 1) {
-            window.history.back();
+            driver.back();
           } else {
-            window.history.go(-steps);
+            driver.go(-steps);
           }
 
           return async () => {
