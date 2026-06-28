@@ -427,18 +427,30 @@ function ScreenMotion({
             // opacity, or anything a custom `createTransition` defines). Scoped
             // to the in-flight window so the extra layer is dropped at rest.
             //
-            // Promote with `will-change: opacity`, NOT a transform. A transform
-            // (e.g. translateZ(0)) makes this element a containing block for
-            // `position: fixed` descendants, which re-parents a consumer overlay
-            // (e.g. a bottom sheet) into this scrollable, *content-height* box
-            // instead of letting it resolve against the screen scope. That jumps
-            // the overlay the instant the layer toggles at transition start —
-            // a closed, viewport-pinned sheet flashes across the screen mid-
-            // transition (verified: a fixed bottom:0 marker leaps off the
-            // viewport). `will-change: opacity` composites without establishing
-            // that containing block, so overlays keep resolving against the
-            // scope and ride the transition with it.
-            ...(status !== "IDLE" && status !== "COMPLETED" ? { willChange: "opacity" } : null)
+            // Promote with `transform: translateZ(0)`, NOT `will-change: opacity`.
+            // A backdrop-root trigger (opacity < 1, will-change: opacity, filter,
+            // isolation) re-renders this subtree into an isolated group, which
+            // changes how a consumer `backdrop-filter` (e.g. a frosted sticky
+            // header inside the content) samples its backdrop: the blur visibly
+            // washes out for the duration of the transition. A transform does not
+            // establish a backdrop root, so consumer blur keeps rendering. The
+            // WebKit isolation is statistically identical to `will-change: opacity`
+            // (slit-scan).
+            //
+            // KNOWN LIMITATION: a transform also makes this box a containing block
+            // for `position: fixed` descendants. A consumer overlay rendered
+            // INSIDE the scrolling body (e.g. an inline, non-portaled bottom
+            // sheet) re-parents into this *content-height* box for the in-flight
+            // window, so a closed sheet can flash. This is the trilemma — no
+            // single CSS compositing trigger is neither a backdrop-root nor a
+            // fixed-containing-block — and the real fix is structural (route such
+            // overlays to the screen scope, not the isolated body). Until then we
+            // keep backdrop working, since a washed-out blur shows on every push
+            // of every frosted screen and has no consumer-side workaround, whereas
+            // an inline-fixed sheet is narrower and can portal to the body.
+            ...(status !== "IDLE" && status !== "COMPLETED"
+              ? { transform: "translateZ(0)", willChange: "transform" }
+              : null)
           }}
         >
           {children}
