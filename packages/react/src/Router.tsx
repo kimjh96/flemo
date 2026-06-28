@@ -1,11 +1,13 @@
 import {
   Children,
+  isValidElement,
   useContext,
   useEffect,
   useState,
   type CSSProperties,
   type PropsWithChildren,
-  type ReactElement
+  type ReactElement,
+  type ReactNode
 } from "react";
 
 import {
@@ -36,8 +38,33 @@ import useTransitionStyles from "@transition/styles";
 import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 
 import RouterDepthContext from "./RouterDepthContext";
+import Slot from "./Slot";
 
 import type { RouteProps } from "@Route";
+
+// Find a <Slot> in the layout tree and return its <Route> children — the route
+// declarations to seed and match against. The Slot may sit anywhere in the
+// static JSX the Router receives (nested in layout divs is fine), so walk
+// recursively. null when there's no Slot: the Router then treats its own
+// children as the routes (the bare, full-viewport form).
+function findSlotRoutes(node: ReactNode): ReactElement<RouteProps>[] | null {
+  let routes: ReactElement<RouteProps>[] | null = null;
+  Children.forEach(node, (child) => {
+    if (routes || !isValidElement(child)) return;
+    if (child.type === Slot) {
+      routes = Children.toArray((child.props as PropsWithChildren).children).filter(
+        isValidElement
+      ) as ReactElement<RouteProps>[];
+      return;
+    }
+    const nested = (child.props as PropsWithChildren).children;
+    if (nested) {
+      const found = findSlotRoutes(nested);
+      if (found) routes = found;
+    }
+  });
+  return routes;
+}
 
 interface RouterProps {
   initPath?: string;
@@ -75,6 +102,13 @@ function Router({
   const depth = useContext(RouterDepthContext);
   const isNested = depth > 0;
 
+  // When the layout marks a content region with <Slot>, the routes live inside
+  // it and the rest of `children` is persistent chrome (rendered as-is, with the
+  // Slot rendering the screen stack at its position). Without a Slot, `children`
+  // are the routes and the Router renders the full-viewport stack itself.
+  const slotRoutes = findSlotRoutes(children);
+  const hasSlot = slotRoutes !== null;
+
   // A nested region navigates in its own initPath-seeded stack; only the root
   // reads the browser location.
   const pathname = isNested || isServer() ? initPath || "/" : window.location.pathname;
@@ -90,9 +124,8 @@ function Router({
   // from initPath. Because the seed is the store's *initial* state, zustand hands it to React as
   // the SSR snapshot, so the screen renders on the server and each request keeps its own stack.
   const [stores] = useState<FlemoStores>(() => {
-    const routePaths = Children.toArray(children)
-      .map((child) => (child as ReactElement<RouteProps>).props.path)
-      .flat();
+    const routeChildren = slotRoutes ?? (Children.toArray(children) as ReactElement<RouteProps>[]);
+    const routePaths = routeChildren.map((child) => child.props.path).flat();
     const rootHistory = seedInitialHistory(routePaths, pathname, search, defaultTransitionName);
 
     // Hosted bundle: seed its history once (it starts empty at index -1). Seeding here rather than
@@ -149,13 +182,19 @@ function Router({
   // it via className/style), clip the slide overflow, and run no global history
   // listener. Everything outside this <Router> in the layout persists across its
   // navigations.
+  // With a <Slot>, render the layout as-is (the Slot renders the contained stack
+  // at its position); without one, render the stack directly. `children` already
+  // carries its own positioning in the Slot case, so the bare-children form is
+  // the same for root (viewport-fixed) and nested (the region box wraps it).
+  const stack = hasSlot ? children : <Renderer>{children}</Renderer>;
+
   if (isNested) {
     return (
       <div className={className} style={{ position: "relative", overflow: "hidden", ...style }}>
         <RouterDepthContext.Provider value={depth + 1}>
           <StoreContext.Provider value={stores}>
             <ScreenViewportContext.Provider value={CONTAINED_VIEWPORT}>
-              <Renderer>{children}</Renderer>
+              {stack}
             </ScreenViewportContext.Provider>
           </StoreContext.Provider>
         </RouterDepthContext.Provider>
@@ -167,7 +206,7 @@ function Router({
     <RouterDepthContext.Provider value={depth + 1}>
       <StoreContext.Provider value={stores}>
         <HistoryListener />
-        <Renderer>{children}</Renderer>
+        {stack}
       </StoreContext.Provider>
     </RouterDepthContext.Provider>
   );

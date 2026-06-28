@@ -1,7 +1,9 @@
 import { useEffect } from "react";
 
-import { render } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { TaskManger } from "@flemo/core";
 
 import useNavigate from "@navigate/useNavigate";
 
@@ -11,6 +13,32 @@ import Route from "@Route";
 
 import Router from "../Router";
 import RouterDepthContext from "../RouterDepthContext";
+import Slot from "../Slot";
+
+// Each navigation parks a manual-gated task that ScreenMotion resolves from
+// `animationend` at runtime. jsdom has no animation, so sweep the manual gate so
+// each push completes and releases the shared task lock for the next test.
+const startManualGateSweeper = () => {
+  let sweeping = true;
+  const sweeper = (async () => {
+    while (sweeping) {
+      await new Promise((resolve) => setTimeout(resolve, 8));
+      await TaskManger.resolveAllPending();
+    }
+  })();
+  return async () => {
+    sweeping = false;
+    await sweeper;
+  };
+};
+
+let stopSweeper: () => Promise<void>;
+beforeEach(() => {
+  stopSweeper = startManualGateSweeper();
+});
+afterEach(async () => {
+  await stopSweeper();
+});
 
 // A root <Router> renders full-viewport screens (no region wrapper); a <Router>
 // nested inside another (depth > 0) becomes a transition region: it wraps its
@@ -100,5 +128,63 @@ describe("Router", () => {
     expect(pushStateSpy).not.toHaveBeenCalled();
 
     pushStateSpy.mockRestore();
+  });
+
+  it("Slot: routes render in the contained region; outside-Slot chrome persists and drives it", async () => {
+    function Sidebar() {
+      const navigate = useNavigate();
+      return (
+        <button
+          type="button"
+          data-testid="to-library"
+          onClick={() => (navigate.push as (path: string) => void)("/library")}
+        >
+          library
+        </button>
+      );
+    }
+
+    const { getByTestId, findByTestId } = render(
+      <Router initPath="/">
+        <div>
+          <Sidebar />
+          <Slot className="region">
+            <Route
+              path="/"
+              element={
+                <Screen>
+                  <div data-testid="home">home</div>
+                </Screen>
+              }
+            />
+            <Route
+              path="/library"
+              element={
+                <Screen>
+                  <div data-testid="library">library</div>
+                </Screen>
+              }
+            />
+          </Slot>
+        </div>
+      </Router>
+    );
+
+    // The route renders inside the Slot's contained region (absolute), and the
+    // region box is the positioned ancestor.
+    const region = document.querySelector<HTMLElement>(".region");
+    expect(region!.style.position).toBe("relative");
+    const screenContainer = region!.querySelector<HTMLElement>('div[style*="contain"]');
+    expect(screenContainer!.style.position).toBe("absolute");
+    expect(getByTestId("home")).toBeDefined();
+
+    // The sidebar lives OUTSIDE the Slot, yet its plain useNavigate drives the
+    // region — one Router, one history, no cross-boundary wiring.
+    const sidebarButton = getByTestId("to-library");
+    fireEvent.click(sidebarButton);
+
+    await findByTestId("library");
+    // The chrome persisted across the region's navigation (same DOM node).
+    expect(getByTestId("to-library")).toBe(sidebarButton);
   });
 });
