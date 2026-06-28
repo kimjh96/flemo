@@ -89,6 +89,29 @@ export const dict = {
     footer: {
       built: "MIT · © kimjh96"
     },
+    app: {
+      nav: {
+        home: "Home",
+        showcase: "Showcase",
+        docs: "Docs",
+        github: "GitHub"
+      },
+      home: {
+        kicker: "Built with flemo",
+        title: "A web app that moves like native.",
+        subtitle:
+          "This shell is itself a flemo app: one Router, one Slot, native screen transitions. The shiflo demo lands here next.",
+        ctaPrimary: "Get started",
+        ctaSecondary: "Playground",
+        phoneCaption: "shiflo demo · coming next"
+      },
+      showcase: {
+        kicker: "Showcase",
+        title: "Real apps, shipping flemo.",
+        subtitle: "Peer pages slide on a shared axis. The cards arrive in a follow-up PR.",
+        placeholder: "Showcase content lands in a follow-up PR."
+      }
+    },
     notFound: {
       title: "Page not found",
       body: "The page you're looking for doesn't exist or has moved.",
@@ -283,6 +306,29 @@ export const dict = {
     },
     footer: {
       built: "MIT · © kimjh96"
+    },
+    app: {
+      nav: {
+        home: "홈",
+        showcase: "쇼케이스",
+        docs: "문서",
+        github: "GitHub"
+      },
+      home: {
+        kicker: "flemo로 만든",
+        title: "네이티브처럼 움직이는 웹 앱.",
+        subtitle:
+          "이 셸 자체가 flemo 앱이에요. Router 하나, Slot 하나, 네이티브 화면 전환. shiflo 데모가 다음에 여기로 들어와요.",
+        ctaPrimary: "시작하기",
+        ctaSecondary: "플레이그라운드",
+        phoneCaption: "shiflo 데모 · 곧"
+      },
+      showcase: {
+        kicker: "쇼케이스",
+        title: "실제 앱이 flemo로 출시돼요.",
+        subtitle: "형제 페이지가 공유 축으로 미끄러져요. 카드는 후속 PR에서 들어와요.",
+        placeholder: "쇼케이스 콘텐츠는 후속 PR에서 들어와요."
+      }
     },
     notFound: {
       title: "찾는 페이지가 없어요",
