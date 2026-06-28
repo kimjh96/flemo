@@ -1,6 +1,12 @@
 import { useState, type PropsWithChildren } from "react";
 
-import { createHistoryStore, createNavigateStore, createTransitionStore } from "@flemo/core";
+import {
+  createBrowserHistoryDriver,
+  createHistoryStore,
+  createNavigateStore,
+  createTransitionStore,
+  markSelfInducedPop
+} from "@flemo/core";
 
 import createScreenStore from "@screen/store";
 
@@ -16,7 +22,9 @@ function RouterScopeProvider({ children }: PropsWithChildren) {
     history: createHistoryStore(),
     navigate: createNavigateStore(),
     transition: createTransitionStore(),
-    screen: createScreenStore()
+    screen: createScreenStore(),
+    driver: createBrowserHistoryDriver(),
+    markSelfInduced: markSelfInducedPop
   }));
 
   return <StoreContext.Provider value={stores}>{children}</StoreContext.Provider>;
