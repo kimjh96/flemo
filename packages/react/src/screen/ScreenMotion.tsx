@@ -14,6 +14,7 @@ import {
   transitionMap
 } from "@flemo/core";
 
+import LayerMountContext from "@screen/LayerMountContext";
 import type { ScreenProps } from "@screen/Screen";
 import ScreenDecorator from "@screen/ScreenDecorator";
 
@@ -83,6 +84,12 @@ function ScreenMotion({
 
   const [sharedAppBarHeight, setSharedAppBarHeight] = useState(0);
   const [sharedNavigationBarHeight, setSharedNavigationBarHeight] = useState(0);
+
+  // The scope-level node <Layer> portals overlays to (set via ref callback so
+  // the context updates once it exists). It lives outside the content-isolation
+  // box, so a portaled overlay resolves against the full-screen scope and rides
+  // the transition instead of being trapped in the inset content box.
+  const [layerMount, setLayerMount] = useState<HTMLDivElement | null>(null);
 
   const screenRef = useRef<HTMLDivElement | null>(null);
   const scopeRef = useRef<HTMLDivElement | null>(null);
@@ -445,23 +452,21 @@ function ScreenMotion({
             // WebKit isolation is statistically identical to `will-change: opacity`
             // (slit-scan).
             //
-            // KNOWN LIMITATION: a transform also makes this box a containing block
-            // for `position: fixed` descendants. A consumer overlay rendered
-            // INSIDE the scrolling body (e.g. an inline, non-portaled bottom
-            // sheet) re-parents into this *content-height* box for the in-flight
-            // window, so a closed sheet can flash. This is the trilemma — no
-            // single CSS compositing trigger is neither a backdrop-root nor a
-            // fixed-containing-block — and the real fix is structural (route such
-            // overlays to the screen scope, not the isolated body). Until then we
-            // keep backdrop working, since a washed-out blur shows on every push
-            // of every frosted screen and has no consumer-side workaround, whereas
-            // an inline-fixed sheet is narrower and can portal to the body.
+            // A transform also makes this box a containing block for `position:
+            // fixed` descendants, so an overlay rendered INSIDE the scrolling
+            // body (an inline bottom sheet) would re-parent into this
+            // *content-height* box for the in-flight window and a closed sheet
+            // could flash. That's the structural escape <Layer> provides: it
+            // portals such overlays up to the scope level (outside this box), so
+            // they resolve against the full-screen scope and ride the transition.
+            // This is the trilemma resolved — backdrop keeps working here (a
+            // transform is not a backdrop root) AND overlays escape via <Layer>.
             ...(status !== "IDLE" && status !== "COMPLETED"
               ? { transform: "translateZ(0)", willChange: "transform" }
               : null)
           }}
         >
-          {children}
+          <LayerMountContext.Provider value={layerMount}>{children}</LayerMountContext.Provider>
         </div>
         {navigationBar}
         {sharedNavigationBar && (
@@ -491,6 +496,9 @@ function ScreenMotion({
             />
           </div>
         )}
+        {/* <Layer> overlays portal here: scope level, outside the isolation box,
+            after the content so they stack above it. */}
+        <div ref={setLayerMount} data-flemo-layer-mount />
       </div>
       {sharedAppBar && (
         <div
