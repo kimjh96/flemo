@@ -31,7 +31,7 @@ function DocsSidebar() {
   };
 
   return (
-    <aside className="hidden w-64 shrink-0 overflow-y-auto px-4 py-12 md:block lg:py-16">
+    <aside className="hidden w-64 shrink-0 overflow-y-auto px-3 py-12 md:block lg:py-16">
       <nav className="flex flex-col gap-7">
         {sections.map((section) => (
           <div key={section.title} className="flex flex-col gap-0.5">

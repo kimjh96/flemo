@@ -30,7 +30,7 @@ function DocsRouter({ initPath }: DocsRouterProps) {
       initPath={initPath}
       createDriver={(key) => createLocaleHistoryDriver(key, getLocale)}
       transitions={[docStepForward, docStepBackward]}
-      className="mx-auto flex h-full w-full max-w-[1200px] bg-[var(--color-bg)]"
+      className="mx-auto flex h-full w-full max-w-[1240px] bg-[var(--color-bg)]"
     >
       <DocsSidebar />
       <Slot className="min-w-0 flex-1">
