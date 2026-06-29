@@ -1,26 +1,17 @@
-import type { I18nConfig } from "fumadocs-core/i18n";
+// The app's locale config. The default language is served without a URL prefix;
+// every other language keeps its `/lang` prefix (see proxy.ts). Consumed by the
+// locale middleware, the locale-aware history driver, and generateStaticParams.
+export interface I18nConfig {
+  defaultLanguage: string;
+  languages: string[];
+}
 
 export const i18n: I18nConfig = {
   defaultLanguage: "en",
-  languages: ["en", "ko"],
-  hideLocale: "default-locale"
+  languages: ["en", "ko"]
 };
 
-export const fumadocsTranslations: Record<string, Record<string, string>> = {
-  ko: {
-    search: "검색",
-    searchNoResult: "결과 없음",
-    toc: "이 페이지에서",
-    tocNoHeadings: "헤딩이 없어요",
-    lastUpdate: "최근 수정",
-    chooseLanguage: "언어 선택",
-    nextPage: "다음 페이지",
-    previousPage: "이전 페이지",
-    chooseTheme: "테마",
-    editOnGithub: "GitHub에서 수정"
-  }
-};
-
+// Display names for the language switcher.
 export const localeNames: Record<string, string> = {
   en: "English",
   ko: "한국어"
@@ -32,60 +23,6 @@ export const dict = {
       docs: "Docs",
       github: "GitHub"
     },
-    hero: {
-      title: "A React router for native-like screen transitions",
-      ctaPrimary: "Get started",
-      ctaSecondary: "Playground"
-    },
-    features: [
-      {
-        icon: "phone",
-        label: "Mobile-first",
-        body: "Designed from the ground up for mobile screen transitions"
-      },
-      {
-        icon: "swipe",
-        label: "Gestures",
-        body: "Swipe gestures for natural navigation"
-      },
-      {
-        icon: "code",
-        label: "TypeScript",
-        body: "Type-safe routes for a confident development experience"
-      },
-      {
-        icon: "layers",
-        label: "Built-in transitions",
-        body: "Cupertino, Material, and more, bundled out of the box"
-      },
-      {
-        icon: "sparkle",
-        label: "Decorators",
-        body: "Decorators like Overlay enhance your transitions"
-      },
-      {
-        icon: "palette",
-        label: "Custom transitions",
-        body: "Build and apply your own transitions"
-      }
-    ],
-    resources: {
-      kicker: "Resources",
-      cards: [
-        {
-          label: "Docs",
-          body: "Quick start, API reference, and migration guide",
-          cta: "Read the docs",
-          target: "docs" as const
-        },
-        {
-          label: "GitHub",
-          body: "Source, issues, discussions, and pull requests",
-          cta: "View on GitHub",
-          target: "github" as const
-        }
-      ]
-    },
     footer: {
       built: "MIT · © kimjh96"
     },
@@ -93,23 +30,18 @@ export const dict = {
       nav: {
         home: "Home",
         showcase: "Showcase",
+        playground: "Playground",
         docs: "Docs",
         github: "GitHub"
       },
       home: {
-        kicker: "Built with flemo",
-        title: "A web app that moves like native.",
+        kicker: "Native-like, on the web",
+        title: "A React router for native-like screen transitions",
         subtitle:
-          "This shell is itself a flemo app: one Router, one Slot, native screen transitions. The phone on the right runs flemo too.",
+          "Push, pop, the swipe-back gesture, and shared bars. All the motion of a native app, on the web.",
         ctaPrimary: "Get started",
         ctaSecondary: "Playground",
         demoCaption: "An interactive flemo demo. Tap around."
-      },
-      showcase: {
-        kicker: "Showcase",
-        title: "Real apps, shipping flemo.",
-        subtitle: "Peer pages slide on a shared axis. The cards arrive in a follow-up PR.",
-        placeholder: "Showcase content lands in a follow-up PR."
       },
       wallet: {
         tab: { home: "Home", activity: "Activity" },
@@ -125,6 +57,14 @@ export const dict = {
           toValue: "Jamie Park",
           confirm: "Send"
         }
+      },
+      playground: {
+        kicker: "Playground",
+        title: "Compose transitions, live",
+        subtitle:
+          "Pick a transition and toggle the shared bar in the panel. The demo beside it reflects every choice on the next move.",
+        transitionLabel: "Transition",
+        sharedBarLabel: "Shared bar"
       }
     },
     notFound: {
@@ -139,8 +79,9 @@ export const dict = {
       home: "Back to home"
     },
     showcase: {
+      kicker: "Showcase",
       title: "Built with flemo",
-      subtitle: "Real apps shipping flemo in production, not demos.",
+      subtitle: "Real apps shipping flemo in production.",
       flemoUsageLabel: "How it uses flemo",
       languagesLabel: "Languages",
       languageNames: { ko: "Korean" },
@@ -265,60 +206,6 @@ export const dict = {
       docs: "문서",
       github: "GitHub"
     },
-    hero: {
-      title: "네이티브 같은 화면 전환을 위한 React 라우터",
-      ctaPrimary: "시작하기",
-      ctaSecondary: "플레이그라운드"
-    },
-    features: [
-      {
-        icon: "phone",
-        label: "모바일 퍼스트",
-        body: "모바일 화면 전환을 위해 처음부터 설계한 라우터"
-      },
-      {
-        icon: "swipe",
-        label: "제스처 지원",
-        body: "스와이프 제스처로 자연스러운 내비게이션"
-      },
-      {
-        icon: "code",
-        label: "TypeScript 지원",
-        body: "타입 안전한 라우트로 자신 있게 개발하는 경험"
-      },
-      {
-        icon: "layers",
-        label: "Built-in 트랜지션",
-        body: "Cupertino, Material 등 다양한 내장 트랜지션"
-      },
-      {
-        icon: "sparkle",
-        label: "데코레이터",
-        body: "Overlay 등 트랜지션 효과를 향상시키는 데코레이터"
-      },
-      {
-        icon: "palette",
-        label: "커스텀 트랜지션",
-        body: "필요한 트랜지션을 직접 제작하고 적용"
-      }
-    ],
-    resources: {
-      kicker: "리소스",
-      cards: [
-        {
-          label: "문서",
-          body: "시작하기, API 레퍼런스, 마이그레이션 가이드까지",
-          cta: "문서 보기",
-          target: "docs" as const
-        },
-        {
-          label: "GitHub",
-          body: "소스, 이슈, 디스커션, PR",
-          cta: "GitHub에서 보기",
-          target: "github" as const
-        }
-      ]
-    },
     footer: {
       built: "MIT · © kimjh96"
     },
@@ -326,23 +213,18 @@ export const dict = {
       nav: {
         home: "홈",
         showcase: "쇼케이스",
+        playground: "플레이그라운드",
         docs: "문서",
         github: "GitHub"
       },
       home: {
-        kicker: "flemo로 만든",
-        title: "네이티브처럼 움직이는 웹 앱.",
+        kicker: "웹에서, 네이티브처럼",
+        title: "네이티브 같은 화면 전환을 위한 React 라우터",
         subtitle:
-          "이 셸 자체가 flemo 앱이에요. Router 하나, Slot 하나, 네이티브 화면 전환. 오른쪽 폰도 flemo로 돌아가요.",
+          "push, pop, 스와이프 뒤로가기, 공유 바까지. 네이티브 앱의 움직임을 웹에서 그대로 재현해요.",
         ctaPrimary: "시작하기",
         ctaSecondary: "플레이그라운드",
         demoCaption: "직접 만져보는 flemo 데모. 눌러보세요."
-      },
-      showcase: {
-        kicker: "쇼케이스",
-        title: "실제 앱이 flemo로 출시돼요.",
-        subtitle: "형제 페이지가 공유 축으로 미끄러져요. 카드는 후속 PR에서 들어와요.",
-        placeholder: "쇼케이스 콘텐츠는 후속 PR에서 들어와요."
       },
       wallet: {
         tab: { home: "홈", activity: "내역" },
@@ -358,6 +240,14 @@ export const dict = {
           toValue: "박지민",
           confirm: "보내기"
         }
+      },
+      playground: {
+        kicker: "플레이그라운드",
+        title: "전환을 라이브로 구성",
+        subtitle:
+          "패널에서 전환을 고르고 공유 바를 켜고 끄면, 바로 옆 데모가 다음 화면 이동부터 그대로 반영해요.",
+        transitionLabel: "전환",
+        sharedBarLabel: "공유 바"
       }
     },
     notFound: {
@@ -372,8 +262,9 @@ export const dict = {
       home: "홈으로 돌아가기"
     },
     showcase: {
+      kicker: "쇼케이스",
       title: "flemo로 만든 앱",
-      subtitle: "데모가 아니라, flemo를 프로덕션에 출시한 실제 앱들이에요.",
+      subtitle: "flemo로 만들어 실제로 서비스하고 있는 앱들이에요.",
       flemoUsageLabel: "flemo를 어떻게 쓰나요",
       languagesLabel: "지원 언어",
       languageNames: { ko: "한국어" },

@@ -348,7 +348,7 @@ export default function createNavigationController(deps: NavigationControllerDep
     (
       await TaskManager.addTask(
         async (abortController) => {
-          const { index, histories, popHistory, popHistories, setTransitionName } =
+          const { index, histories, popHistory, popHistories, setPendingIndex, setTransitionName } =
             stores.history.getState();
 
           // Nothing below the root to pop. A no-op without touching the browser.
@@ -365,6 +365,10 @@ export default function createNavigationController(deps: NavigationControllerDep
             abortController.abort();
             return;
           }
+
+          // Report the destination immediately (the actual index only moves when
+          // the transition resolves), so usePathname reflects a pop at once.
+          setPendingIndex(index - steps);
 
           const { setStatus, setTransitionTaskId } = stores.navigate.getState();
 

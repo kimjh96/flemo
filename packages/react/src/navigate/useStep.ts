@@ -1,6 +1,6 @@
 import { useContext } from "react";
 
-import { markSelfInducedPop, TaskManger as TaskManager } from "@flemo/core";
+import { TaskManger as TaskManager } from "@flemo/core";
 
 import useScreen from "@screen/useScreen";
 
@@ -11,6 +11,13 @@ import useStores from "@stores/useStores";
 
 import type { RegisterRoute } from "@Route";
 
+// A step is a sub-state of the current screen (a param change that pushes a
+// history entry without stacking a new screen). It goes through this Router's
+// driver, not raw `window.history`, for two reasons: a keyed (nested or
+// multi-Router) browser driver stores the frame under its `routerKey`, so the
+// step flag + params must live inside that frame to survive a back; and the pop
+// must mark this Router's OWN self-pop guard so its history sync skips the
+// traversal instead of also handling it.
 export default function useStep<T extends keyof RegisterRoute>() {
   const { routePath } = useScreen();
 
@@ -18,29 +25,24 @@ export default function useStep<T extends keyof RegisterRoute>() {
 
   const dispatch = useContext(ScreenParamsDispatchContext);
 
+  const { driver, markSelfInduced } = stores;
+
   const pushStep = async (params: RegisterRoute[T]) => {
     (
       await TaskManager.addTask(async () => {
         const { pathname } = buildRoutePath(routePath, params);
 
-        if (!window.history.state?.step) {
-          window.history.replaceState(
-            {
-              ...window.history.state,
-              step: true
-            },
-            "",
-            window.location.pathname
-          );
+        // Mark the current frame as a step boundary, preserving its params, so a
+        // later popStep back onto it restores that screen's params instead of an
+        // empty object.
+        const current = driver.readState() as { step?: boolean } | null;
+
+        if (!current?.step) {
+          driver.replaceState({ ...current, step: true }, window.location.pathname);
         }
 
-        window.history.pushState(
-          {
-            ...window.history.state,
-            step: true,
-            params
-          },
-          "",
+        driver.pushState(
+          { ...(driver.readState() as object | null), step: true, params },
           pathname
         );
 
@@ -54,13 +56,8 @@ export default function useStep<T extends keyof RegisterRoute>() {
       await TaskManager.addTask(async () => {
         const { pathname } = buildRoutePath(routePath, params);
 
-        window.history.replaceState(
-          {
-            ...window.history.state,
-            step: true,
-            params
-          },
-          "",
+        driver.replaceState(
+          { ...(driver.readState() as object | null), step: true, params },
           pathname
         );
 
@@ -75,28 +72,30 @@ export default function useStep<T extends keyof RegisterRoute>() {
     (
       await TaskManager.addTask(
         async (abortController) => {
-          // Capture the popstate inline so any step-dispatch or screen-pop
-          // work happens *within this task*. Letting popstate listeners enqueue
-          // separate tasks would put them behind whatever the caller queued
-          // after popStep(), breaking call order.
+          // Capture the traversal inline so any step-dispatch or screen-pop work
+          // happens *within this task*. Letting the listener enqueue a separate
+          // task would put it behind whatever the caller queued after popStep(),
+          // breaking call order.
           type NextState = { step?: boolean; params?: object } | null;
 
+          // Wait on the driver's own traversal event: the keyed frame is already
+          // extracted (state[routerKey]) and a memory Router fires it too.
           const popstateFired = new Promise<NextState>((resolve) => {
-            window.addEventListener(
-              "popstate",
-              (e: PopStateEvent) => resolve(e.state as NextState),
-              { once: true }
-            );
+            const dispose = driver.subscribe((event) => {
+              dispose();
+              resolve(event.state as NextState);
+            });
           });
 
-          // Safety timeout. back() should always produce a popstate when
-          // there's something to go back to; this prevents a queue hang.
+          // Safety timeout. back() should always produce a traversal when there's
+          // something to go back to; this prevents a queue hang.
           const safetyTimeout = new Promise<undefined>((resolve) =>
             setTimeout(() => resolve(undefined), 200)
           );
 
-          markSelfInducedPop();
-          window.history.back();
+          // Mark THIS Router's guard so its history sync skips the traversal.
+          markSelfInduced();
+          driver.back();
 
           const nextState = await Promise.race<NextState | undefined>([
             popstateFired,

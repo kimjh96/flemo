@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-import { fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TaskManger } from "@flemo/core";
@@ -10,6 +10,7 @@ import useNavigate from "@navigate/useNavigate";
 import Screen from "@screen/Screen";
 
 import Route from "@Route";
+import useStores from "@stores/useStores";
 
 import Router from "../Router";
 import RouterDepthContext from "../RouterDepthContext";
@@ -91,10 +92,51 @@ describe("Router", () => {
     expect(getByTestId("home")).toBeDefined();
   });
 
-  it("nested: navigates in its local stack without touching the browser history", async () => {
+  it('nested history="memory": navigates in its local stack without touching the browser history', async () => {
     const pushStateSpy = vi.spyOn(window.history, "pushState");
 
     function Home() {
+      const navigate = useNavigate();
+      useEffect(() => {
+        (navigate.push as (path: string) => void)("/next");
+      }, [navigate]);
+      return (
+        <Screen>
+          <div data-testid="home">home</div>
+        </Screen>
+      );
+    }
+
+    const { findByTestId } = render(
+      <RouterDepthContext.Provider value={1}>
+        <Router initPath="/" history="memory">
+          <Route path="/" element={<Home />} />
+          <Route
+            path="/next"
+            element={
+              <Screen>
+                <div data-testid="next">next</div>
+              </Screen>
+            }
+          />
+        </Router>
+      </RouterDepthContext.Provider>
+    );
+
+    // The entering screen mounts (the nested region navigated)...
+    await findByTestId("next");
+    // ...via the in-memory driver, so the browser history was never touched.
+    expect(pushStateSpy).not.toHaveBeenCalled();
+
+    pushStateSpy.mockRestore();
+  });
+
+  it('nested history="browser" (default): push writes window.history, then a browser back pops its own stack', async () => {
+    const pushStateSpy = vi.spyOn(window.history, "pushState");
+    let stores: ReturnType<typeof useStores> | null = null;
+
+    function Home() {
+      stores = useStores();
       const navigate = useNavigate();
       useEffect(() => {
         (navigate.push as (path: string) => void)("/next");
@@ -122,10 +164,20 @@ describe("Router", () => {
       </RouterDepthContext.Provider>
     );
 
-    // The entering screen mounts (the nested region navigated)...
+    // A nested browser Router participates in window.history: the push wrote it
+    // and the local stack advanced to index 1.
     await findByTestId("next");
-    // ...via the in-memory driver, so the browser history was never touched.
-    expect(pushStateSpy).not.toHaveBeenCalled();
+    expect(pushStateSpy).toHaveBeenCalled();
+    expect(stores!.history.getState().index).toBe(1);
+
+    // A genuine browser back pops the nested Router within its own keyed stack:
+    // its HistoryListener resolves the popstate down to index 0.
+    await act(async () => {
+      window.history.back();
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    });
+
+    await waitFor(() => expect(stores!.history.getState().index).toBe(0));
 
     pushStateSpy.mockRestore();
   });

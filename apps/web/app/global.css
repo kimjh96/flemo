@@ -1,6 +1,4 @@
 @import "tailwindcss";
-@import "fumadocs-ui/css/neutral.css";
-@import "fumadocs-ui/css/preset.css";
 
 @source "../node_modules/fumadocs-ui/dist/**/*.js";
 @source "../content/**/*.{md,mdx}";
@@ -63,6 +61,11 @@
 
   --gradient-primary-accent: linear-gradient(180deg, #1f78db 0%, #0066cc 100%);
 
+  /* Hero blob: the vivid field the glass demo window floats on. Built from the
+     shiflo palette — accent blue → primary-light → success teal — so it stays
+     in harmony with the brand. */
+  --gradient-blob: linear-gradient(135deg, #3182f6 0%, #3b8ef0 44%, #00bf9d 100%);
+
   /* Stable always-dark color (phone bezels, decorative surfaces that should not flip in dark) */
   --color-ink: #191f28;
 
@@ -81,24 +84,6 @@
   --syntax-function: #6f42c1;
   --syntax-key: #0066cc;
   --syntax-punctuation: #4e5968;
-
-  /* Fumadocs base: white/shiflo overrides (light) */
-  --color-fd-background: #ffffff;
-  --color-fd-foreground: #191f28;
-  --color-fd-muted: #f9fafb;
-  --color-fd-muted-foreground: #6b7684;
-  --color-fd-popover: #ffffff;
-  --color-fd-popover-foreground: #191f28;
-  --color-fd-card: #ffffff;
-  --color-fd-card-foreground: #191f28;
-  --color-fd-border: #e5e8eb;
-  --color-fd-primary: #0066cc;
-  --color-fd-primary-foreground: #ffffff;
-  --color-fd-secondary: #f7f8fa;
-  --color-fd-secondary-foreground: #191f28;
-  --color-fd-accent: #f2f4f6;
-  --color-fd-accent-foreground: #191f28;
-  --color-fd-ring: #3182f6;
 }
 
 .dark {
@@ -158,31 +143,11 @@
   --syntax-function: #c678dd;
   --syntax-key: #61afef;
   --syntax-punctuation: #a5adb8;
-
-  /* Fumadocs base: shiflo dark */
-  --color-fd-background: #12161c;
-  --color-fd-foreground: #edeff1;
-  --color-fd-muted: #181d24;
-  --color-fd-muted-foreground: #a5adb8;
-  --color-fd-popover: #1a1f26;
-  --color-fd-popover-foreground: #edeff1;
-  --color-fd-card: #1e242c;
-  --color-fd-card-foreground: #edeff1;
-  --color-fd-border: #2d343e;
-  --color-fd-primary: #3b82f6;
-  --color-fd-primary-foreground: #ffffff;
-  --color-fd-secondary: #242a32;
-  --color-fd-secondary-foreground: #edeff1;
-  --color-fd-accent: #2d343e;
-  --color-fd-accent-foreground: #edeff1;
-  --color-fd-ring: #60a5fa;
 }
 
 @layer base {
   :root {
     --display-tracking: -0.03em;
-    /* Fumadocs DocsLayout: fill the full viewport instead of capping at 97rem. */
-    --fd-layout-width: 100vw;
   }
 
   html {
@@ -318,4 +283,27 @@
   border-radius: 9999px;
   background-color: var(--color-neutral-300);
   animation: hero-demo-dot 1.2s ease-in-out infinite both;
+}
+
+/* The hero's two real-app demo cards (wallet + music) roll diagonally: the
+   front card recedes down-right while the other comes forward. Two elements run
+   the same loop, the second offset by half a cycle. */
+@keyframes flemo-card-roll {
+  0%,
+  42% {
+    transform: translate3d(0, 0, 0) scale(1);
+    z-index: 2;
+    filter: brightness(1);
+  }
+  50%,
+  92% {
+    transform: translate3d(46px, 40px, 0) scale(0.9);
+    z-index: 1;
+    filter: brightness(0.94);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    z-index: 2;
+    filter: brightness(1);
+  }
 }

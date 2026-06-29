@@ -34,6 +34,8 @@ export default function createMemoryHistoryDriver(initial?: {
   };
 
   return {
+    readState: () => entries[index].state,
+    readPathname: () => entries[index].url,
     pushState: (state, url) => {
       // Truncate the forward stack, then stack the new entry as the current one.
       entries.splice(index + 1);

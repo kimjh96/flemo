@@ -1,16 +1,7 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { type Locator, type Page } from "@playwright/test";
 
-// Wait for the active screen scope to settle at a rest status (`COMPLETED`
-// or `IDLE`). Every flemo transition flips status back to one of these
-// when the keyframe ends, so it's the canonical "transition is done"
-// signal, with no time-based sleep.
-export async function waitForTransitionSettled(page: Page) {
-  await expect(page.locator('[data-flemo-screen][data-flemo-active="true"]')).toHaveAttribute(
-    "data-flemo-status",
-    /COMPLETED|IDLE/
-  );
-}
-
+// Every flemo screen carries these data attributes; `data-flemo-status` flips
+// back to COMPLETED/IDLE when a transition's keyframe ends.
 export function activeScreen(page: Page): Locator {
   return page.locator('[data-flemo-screen][data-flemo-active="true"]');
 }
@@ -19,13 +10,20 @@ export function allScreens(page: Page): Locator {
   return page.locator("[data-flemo-screen]");
 }
 
-export function albumTile(page: Page, nth = 0): Locator {
-  return page.locator("button:has(.aspect-square)").nth(nth);
+// The site header is the first <header> in the DOM; in-screen demos (wallet,
+// music) render their own <header>s later, so scope to the first one.
+export function siteHeader(page: Page): Locator {
+  return page.locator("header").first();
 }
 
-// Browser-level network noise (404 favicon / manifest / sourcemap fetches)
-// surfaces through `console.error` but isn't a JS bug worth failing tests
-// over. Filter on the canonical Chromium message so we keep real errors.
+// The header's nav buttons, scoped so they never collide with in-screen CTAs of
+// the same label.
+export function navButton(page: Page, label: string): Locator {
+  return siteHeader(page).getByRole("button", { name: label, exact: true });
+}
+
+// Browser-level network noise (favicon / manifest 404s) shows up as
+// console.error but is not a JS bug. Filter it so we only catch real errors.
 const NETWORK_NOISE = /^Failed to load resource: the server responded with a status/;
 
 export function trackConsoleErrors(page: Page): { errors: string[] } {

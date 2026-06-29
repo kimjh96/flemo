@@ -25,7 +25,12 @@ export {
   type NavigateStore,
   type NavigateStoreApi
 } from "@navigate/store";
-export { markSelfInducedPop, consumeSelfInducedPop } from "@navigate/selfPopGuard";
+export {
+  markSelfInducedPop,
+  consumeSelfInducedPop,
+  createSelfPopGuard,
+  type SelfPopGuard
+} from "@navigate/selfPopGuard";
 export {
   default as createNavigationController,
   type NavigationControllerDeps,

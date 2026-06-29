@@ -9,7 +9,10 @@ import useStores from "@stores/useStores";
 function HistoryListener() {
   const stores = useStores();
 
-  useEffect(() => createHistorySync({ stores, driver: stores.driver }), [stores]);
+  useEffect(
+    () => createHistorySync({ stores, driver: stores.driver, consume: stores.consume }),
+    [stores]
+  );
 
   return null;
 }
