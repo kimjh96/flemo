@@ -209,8 +209,12 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const { scope, screenContainer, decorator } = config.getElements();
     if (!scope) return;
 
+    // Screen containers render as direct siblings: the <Activity>-based freeze
+    // adds no wrapper element, so the previous screen sits in the immediately
+    // preceding sibling container. (It used to sit one level up, under a freeze
+    // wrapper div that no longer exists.)
     const prevScreenContainer =
-      (screenContainer?.parentElement?.previousElementSibling as HTMLElement | null) ?? null;
+      (screenContainer?.previousElementSibling as HTMLElement | null) ?? null;
     prevScreen = prevScreenContainer?.querySelector<HTMLElement>("[data-flemo-screen]") ?? null;
     prevDecorator =
       prevScreenContainer?.querySelector<HTMLElement>("[data-flemo-decorator]") ?? null;

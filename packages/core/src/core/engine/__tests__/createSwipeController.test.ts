@@ -7,24 +7,23 @@ import createSwipeController, {
 } from "@core/engine/createSwipeController";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
-// Minimal DOM mirroring the renderer: a previous screen wrapper followed by the
-// current screen wrapper, so beginSwipe's `parentElement.previousElementSibling`
-// walk resolves the prev screen's `[data-flemo-screen]`.
+// Minimal DOM mirroring the renderer: the previous and current screen containers
+// as DIRECT siblings (Activity-based freeze adds no wrapper element), so
+// beginSwipe's previous-sibling walk resolves the prev screen's
+// `[data-flemo-screen]`.
 function buildDom() {
   const root = document.createElement("div");
-  const prevWrapper = document.createElement("div");
+  const prevScreenContainer = document.createElement("div");
   const prevScope = document.createElement("div");
   prevScope.setAttribute("data-flemo-screen", "");
-  prevWrapper.appendChild(prevScope);
+  prevScreenContainer.appendChild(prevScope);
 
-  const curWrapper = document.createElement("div");
   const screenContainer = document.createElement("div");
   const scope = document.createElement("div");
   scope.setAttribute("data-flemo-screen", "");
   screenContainer.appendChild(scope);
-  curWrapper.appendChild(screenContainer);
 
-  root.append(prevWrapper, curWrapper);
+  root.append(prevScreenContainer, screenContainer);
   document.body.appendChild(root);
 
   // jsdom doesn't implement pointer capture; stub it.
@@ -101,6 +100,33 @@ describe("createSwipeController", () => {
     expect(c.shouldPreventTouch()).toBe(false);
   });
 
+  it("does not begin the swipe when there is no screen below to reveal", async () => {
+    // Drop the previous screen container so the current screen has no preceding
+    // sibling: beginSwipe must find no prev screen and bail.
+    dom.root.firstElementChild?.remove();
+    const c = createSwipeController(config);
+    c.pointerDown(event({ target: dom.scope }));
+    c.pointerMove(event({ clientX: 40 }));
+    await flush();
+    expect(onSwipeStart).not.toHaveBeenCalled();
+    expect(vi.mocked(setDragStatus)).not.toHaveBeenCalledWith("PENDING");
+  });
+
+  it("does not begin the swipe when the screen container is missing", async () => {
+    config.getElements = () => ({
+      scope: dom.scope,
+      screenContainer: null,
+      decorator: null,
+      sharedTopBar: null,
+      sharedBottomBar: null
+    });
+    const c = createSwipeController(config);
+    c.pointerDown(event({ target: dom.scope }));
+    c.pointerMove(event({ clientX: 40 }));
+    await flush();
+    expect(onSwipeStart).not.toHaveBeenCalled();
+  });
+
   it("begins the swipe past the x-threshold and goes PENDING when the transition triggers", async () => {
     const c = createSwipeController(config);
     c.pointerDown(event({ target: dom.scope }));
@@ -168,13 +194,13 @@ describe("createSwipeController", () => {
 
     beforeEach(() => {
       // A <Part> element on the current screen and one on the previous
-      // screen's subtree (resolved via parentElement.previousElementSibling).
+      // screen's subtree (resolved via the previous-sibling walk).
       curBar = document.createElement("div");
       curBar.setAttribute("data-flemo-part-name", "test-bar");
       dom.screenContainer.appendChild(curBar);
       prevBar = document.createElement("div");
       prevBar.setAttribute("data-flemo-part-name", "test-bar");
-      (dom.root.firstElementChild as HTMLElement).appendChild(prevBar); // prevWrapper
+      (dom.root.firstElementChild as HTMLElement).appendChild(prevBar); // prevScreenContainer
 
       btStart = vi.fn();
       btSwipe = vi.fn();
