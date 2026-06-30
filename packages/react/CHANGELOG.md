@@ -1,5 +1,41 @@
 # @flemo/react
 
+## 1.5.0
+
+### Minor Changes
+
+- [`f04a8d1`](https://github.com/kimjh96/flemo/commit/f04a8d17c587d7ab930e548a45497d63fa85bf95) Add `<Layer>`: lift an overlay (bottom sheet, dim backdrop, FAB, toast) out of a screen's content-isolation box up to the scope level, so it floats over the screen and rides the transition instead of being trapped (and flashed mid-transition) inside the inset, scrollable content box. Put it inside a reusable overlay component once and every call site gets the escape for free; outside a `<Screen>` it renders in place. This resolves the backdrop / overlay / WebKit trilemma: the content layer keeps `backdrop-filter` working while overlays escape via `<Layer>`.
+
+- [`35f29e9`](https://github.com/kimjh96/flemo/commit/35f29e99902362c2ade3c9652af7442829ea0a13) A `<Router>` nested inside another is now a local transition region: it runs its own in-memory history (no browser back/forward, no URL change) and contains its screens to its box via `position: absolute`, so only that region transitions while the surrounding layout (sidebars, headers) persists. A root `<Router>` is unchanged.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Let a Router run on a custom history backend. Router accepts a `createDriver` factory, and HistoryDriver gains `readPathname()`, so the Router reads and writes the URL only through its driver. A wrapper (e.g. a locale-aware driver that keeps a `/ko` prefix in the address bar while the Router matches unprefixed paths) can now own the whole URL surface without the Router touching window.location directly.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Add a per-Router `history` prop (`"browser"` default, `"memory"` opt-in) that decouples the history backend from nesting. A nested `<Router>` now participates in browser back/forward by default, while `history="memory"` keeps its previous isolated in-memory stack. Browser Routers namespace their `window.history.state` by a stable key and use a per-Router self-pop guard so multiple browser Routers coexist without clobbering each other.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Freeze inactive screens with React's `<Activity>` instead of a manual
+  display:none wrapper. Hidden screens keep their DOM state (scroll position, form
+  values, media) and restore it when shown again, while their effects now suspend
+  while hidden and remount on show, so timers and subscriptions no longer run on
+  screens the user can't see. Requires React 19.2+.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Add `usePathname`, a public hook that returns the active pathname reactively. It lets chrome rendered outside a `<Screen>` (a header or sidebar) highlight the current route without reaching into the stores.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) `useStep` now works outside a `<Screen>`, so persistent UI like a header menu or a sidebar can drive a history-backed step that the Back button closes. Pass the param type for inference (`useStep<{ menu: boolean }>()`); inside a `<Screen>` it behaves exactly as before.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Rename the `Screen` bar props to position-based, platform-neutral names: `appBar` to `topBar`, `navigationBar` to `bottomBar`, `sharedAppBar` to `sharedTopBar`, `sharedNavigationBar` to `sharedBottomBar` (the exported `SharedBarPresence` fields rename to match). Behavior is unchanged. This is a breaking rename: update any `Screen` that sets these props. The old `navigationBar` was easy to misread since it means the top bar on iOS and the web, while flemo uses it for the bottom one.
+
+- [`f9f0214`](https://github.com/kimjh96/flemo/commit/f9f02140b091903ffa9f7a64494a5c1d8d56b084) Add `<Slot>`: mark where the screen stack renders inside a layout. Put your `<Route>`s in a `<Slot>` and lay the rest of the screen (sidebar, header, footer) around it. Only that region transitions between routes while everything outside it persists. It stays one `<Router>`, one history, one `navigate`, so a sidebar's `useNavigate` drives the region with no extra wiring.
+
+### Patch Changes
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Make usePathname report a pop's destination immediately, consistent with push. The history store tracks a `pendingIndex` that advances to the target as soon as a pop starts (the render index still lags on the leaving screen until the transition resolves), and usePathname reads it. A browser Back no longer leaves chrome (active nav highlight, breadcrumbs) on the old route until the back animation finishes.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) `Router` now splits a query off `initPath` (such as `/playground/1?code=x`) and seeds the matched route's params from it, so a deep link or refresh renders the right step state on load. A plain `initPath` with no query is unchanged.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Fix useStep losing the screen's params in a keyed browser Router (a nested Router, or more than one Router on the page). pushStep/popStep and the step param restoration now go through the Router's own driver and self-pop guard, so closing a step (close button or browser Back) returns to the screen it was opened from instead of resetting to the first one. A deep-linked screen now seeds its params into the history frame too.
+- Updated dependencies ([`35f29e9`](https://github.com/kimjh96/flemo/commit/35f29e99902362c2ade3c9652af7442829ea0a13), [`9937291`](https://github.com/kimjh96/flemo/commit/993729187939f96122381cd740343a7a8878efc1), [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912), [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912), [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912), [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912), [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912)):
+  - @flemo/core@1.6.0
+
 ## 1.4.2
 
 ### Patch Changes
