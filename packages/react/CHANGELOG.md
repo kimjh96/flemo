@@ -1,5 +1,12 @@
 # @flemo/react
 
+## 1.5.1
+
+### Patch Changes
+
+- Updated dependencies ([`7513f82`](https://github.com/kimjh96/flemo/commit/7513f82eac7788d7c49ba57efd248a60b4d906f2)):
+  - @flemo/core@1.6.1
+
 ## 1.5.0
 
 ### Minor Changes

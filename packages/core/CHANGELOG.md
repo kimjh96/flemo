@@ -1,5 +1,11 @@
 # @flemo/core
 
+## 1.6.1
+
+### Patch Changes
+
+- [`7513f82`](https://github.com/kimjh96/flemo/commit/7513f82eac7788d7c49ba57efd248a60b4d906f2) Fix the swipe-back gesture not starting. The controller located the previous screen through a freeze wrapper element that the React `<Activity>`-based screen freeze no longer renders, so the drag found no screen to reveal and bailed. It now walks direct sibling containers to find the previous screen.
+
 ## 1.6.0
 
 ### Minor Changes
