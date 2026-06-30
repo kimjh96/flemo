@@ -8,11 +8,7 @@ import type { DecoratorName } from "@transition/decorator/typing";
 export interface RegisterTransition {}
 
 export type TransitionName =
-  | RegisterTransition[keyof RegisterTransition]
-  | "none"
-  | "cupertino"
-  | "material"
-  | "layout";
+  RegisterTransition[keyof RegisterTransition] | "none" | "cupertino" | "material" | "layout";
 
 export type TransitionVariant = `${NavigateStatus}-${boolean}`;
 
