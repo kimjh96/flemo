@@ -1,5 +1,67 @@
 # @flemo/web
 
+## 0.7.0
+
+### Minor Changes
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Docs and playground sub-pages are now real composed URLs under `/docs` and `/playground` instead of fake `/doc` and `/stage` paths. They are deep-linkable and refresh-safe (no more 404s), and browser back/forward walks between them.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Make the docs a flemo zone: a slide-in-from-right entry, a persistent glass sidebar with the content area transitioning vertically on its own, and concise bilingual content. Add a second app to the landing hero (a music mini-app) so the wallet and music demos roll diagonally, and give the header per-menu, idempotent navigation with smoother transitions.
+
+- [`5d6c6de`](https://github.com/kimjh96/flemo/commit/5d6c6de517b735308c397c02242b65198f60c0fe) Add a flemo app-shell skeleton at the noindex `/shell` preview route: one root Router with a persistent header outside a `<Slot>`, and Home/Showcase peer screens that move with a Material shared-axis (X) transition. This is the groundwork for rebuilding the landing and showcase as a flemo app; the live shiflo phone and migrated content follow in later PRs.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Mobile: the header menu is now a history-backed step with an open and close animation, and the docs sidebar opens as a sheet so other pages stay reachable. The home Get started button navigates again, the 404 and 500 pages localize by URL, and the landing and docs copy is reworked.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Group the playground transition picker into Built-in and Custom, tag the decorator combos (dive + tunnel, ripple + ripples), and add a "View source" panel that shows each transition's createTransition definition. The panel is driven by flemo's useStep, so it opens as a history step and the browser Back button closes it.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Bring back the authored playground transitions (blur, reveal, dive, ripple, card stack, spring; dive and ripple carry their decorators) so the playground shows what custom transitions can do. Restore the end-to-end suite, now covering shell navigation, the playground transitions, docs, and the language toggle against the rebuilt surfaces.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Replace the hero placeholder with a live, interactive flemo demo: a wallet app ("flemo pay") built as a nested Router with its own in-memory history, running natively in the shell (no iframe). It exercises shared-axis tabs over a persistent tab bar, a cupertino push to a transaction detail with swipe-back, and a `<Layer>` glass bottom sheet.
+
+### Patch Changes
+
+- [`c9b3cc8`](https://github.com/kimjh96/flemo/commit/c9b3cc8e5f998e2e6ede89d7c0a6afda5af9e412) Add a "Partial-area regions" playground demo: a persistent header and footer around a nested `<Router>` card region whose steps slide within their box, showing a sub-region transitioning on its own local history while everything around it stays put.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Make entering the docs section a full-width horizontal shove like the playground, instead of a cover: the marketing surface now slides all the way out to the left rather than receding 18% and dimming under the incoming docs page. The docs sidebar page-to-page transition is unchanged (the vertical fade).
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Unify the docs sidebar with the content area across themes. It dropped the faint
+  white tint, blur, and right divider that only showed up against the dark
+  background, so the sidebar now shares the page background seamlessly in both
+  light and dark mode.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Cap and center the docs layout so the reading column stays next to the sidebar on
+  wide screens, instead of drifting far to the right with a large empty gap.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Refine the Korean marketing copy to read naturally instead of like a literal
+  translation (showcase and playground subtitles, the hero subtitle wording).
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Add a Layer docs page, reflect the renamed top/bottom bar props, and rework the Slot, shared-bar, raw-transition, and safe-area sections for accuracy. Polish the landing and docs copy.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Keep the locale prefix in the shell URL with a locale-aware history driver instead of stripping it on entry. The Router matches unprefixed paths while the driver maps the `/ko` prefix, so SEO URLs are preserved, the language survives a refresh from the URL (no localStorage), the toggle switches locale in place by re-prefixing, and the load-time URL strip is gone.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Give each page its own SEO metadata (per-doc titles and descriptions, localized
+  showcase/playground titles) instead of a single shared title. Remove fumadocs
+  entirely: docs render from typed data, locale routing moves to a small custom
+  middleware, and the body uses the app's own color tokens, dropping fumadocs-core,
+  fumadocs-ui, fumadocs-mdx and the unused MDX content/search pipeline.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Server-render the shell at the requested route (each page passes its initPath, nested Docs/Playground Routers seed from the matched slug/panel), removing the blank-frame flicker on load and the deep-link hydration mismatch. The playground source panel now stays mounted and slides open/closed via a CSS transition, so closing animates too.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Add a mobile header menu, keep the chosen language across a refresh (localStorage), highlight the active menu for composed sub-page URLs, reflect the nested panel id in the playground URL, and animate the playground source panel. Decorator chips are marked aria-hidden so the chip's name stays the transition.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Smooth the full-page shove slides (entering the playground vertically, the docs
+  horizontally). They now share one ease-in-out curve so the conveyor glides out
+  of rest and lands softly instead of snapping into motion.
+
+- [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912) Polish the playground "View source" panel: the code now scrolls inside its
+  rounded frame (so the scrollbar no longer squares off the corners), reserves the
+  floating control dock's height instead of hiding the last lines behind it, and
+  drops the leading `"use client"` directive from the displayed source.
+- Updated dependencies ([`f04a8d1`](https://github.com/kimjh96/flemo/commit/f04a8d17c587d7ab930e548a45497d63fa85bf95), [`35f29e9`](https://github.com/kimjh96/flemo/commit/35f29e99902362c2ade3c9652af7442829ea0a13), [`9937291`](https://github.com/kimjh96/flemo/commit/993729187939f96122381cd740343a7a8878efc1), [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912), [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912), [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912), [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912), [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912), [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912), [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912), [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912), [`32a5c6e`](https://github.com/kimjh96/flemo/commit/32a5c6e2d94c16bda0af5d9b90989abf8c213912), [`f9f0214`](https://github.com/kimjh96/flemo/commit/f9f02140b091903ffa9f7a64494a5c1d8d56b084)):
+  - @flemo/react@1.5.0
+  - @flemo/core@1.6.0
+  - @flemo/react-layout@0.1.15
+
 ## 0.6.7
 
 ### Patch Changes
