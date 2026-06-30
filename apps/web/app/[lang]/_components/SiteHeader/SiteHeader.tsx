@@ -1,10 +1,8 @@
 "use client";
 
-import { useState } from "react";
-
 import Link from "next/link";
 
-import { useNavigate, usePathname } from "@flemo/react";
+import { useNavigate, usePathname, useStep } from "@flemo/react";
 
 import {
   useShellDict,
@@ -29,18 +27,31 @@ function SiteHeader() {
   const toggleLang = useToggleShellLang();
   // Public API: the current pathname drives the nav highlight + direction.
   const activePath = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  // The mobile menu is a flemo step (history-backed), so the Back button closes
+  // it. The header is chrome outside the <Slot> (no <Screen>), so useStep keeps
+  // the current path and reports the open state reactively.
+  const { step, pushStep, popStep } = useStep<{ menu: boolean }>();
+  const mobileOpen = Boolean(step?.menu);
 
   // Prefix match so a composed sub-page (deep link / refresh) keeps its menu
   // active: /docs/router -> Docs, /playground/3 -> Playground. Home stays exact.
   const isActivePath = (path: ShellPath) =>
     path === "/" ? activePath === "/" : activePath === path || activePath.startsWith(`${path}/`);
 
-  const toggleMobile = () => setMobileOpen((open) => !open);
+  const toggleMobile = () => {
+    if (mobileOpen) popStep();
+    else pushStep({ menu: true });
+  };
 
-  const handleMobileLink = (onClick: () => void) => {
+  const handleMobileLink = async (onClick: () => void) => {
+    // Close the menu (pop its step) before navigating, so the destination isn't
+    // stacked on top of the open menu entry.
+    if (mobileOpen) await popStep();
     onClick();
-    setMobileOpen(false);
+  };
+
+  const handleGithubClick = () => {
+    if (mobileOpen) popStep();
   };
   // Home and Showcase are ordered peers, so they share one directional handler
   // (a shared-axis that slides left or right by nav order). Playground and Docs
@@ -137,38 +148,45 @@ function SiteHeader() {
           </button>
         </nav>
       </div>
-      {mobileOpen && (
-        <div className="border-t border-white/10 bg-[var(--color-bg)]/90 backdrop-blur-2xl md:hidden">
-          <nav className="mx-auto flex max-w-[1240px] flex-col gap-0.5 px-4 py-3">
-            {shellLinks.map((link) => {
-              const active = isActivePath(link.path);
-              return (
-                <button
-                  key={link.path}
-                  type="button"
-                  onClick={() => handleMobileLink(link.onClick)}
-                  aria-current={active ? "page" : undefined}
-                  className={`cursor-pointer rounded-xl px-3 py-2.5 text-left text-[15px] font-medium transition-colors ${
-                    active
-                      ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
-                      : "text-[var(--color-text-secondary)] hover:bg-[var(--color-layer)] hover:text-[var(--color-text-primary)]"
-                  }`}
-                >
-                  {link.label}
-                </button>
-              );
-            })}
-            <Link
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-xl px-3 py-2.5 text-[15px] font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-layer)] hover:text-[var(--color-text-primary)]"
-            >
-              {dict.nav.github}
-            </Link>
-          </nav>
-        </div>
-      )}
+      {/* Always mounted so open AND close animate; the header's frosted glass is
+          mirrored here for one continuous chrome surface. `inert` when closed
+          keeps it out of focus/interaction. */}
+      <div
+        inert={!mobileOpen}
+        className={`overflow-hidden border-white/10 bg-[var(--color-bg)]/30 backdrop-blur-2xl transition-all duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] md:hidden ${
+          mobileOpen ? "max-h-[420px] border-t opacity-100" : "max-h-0 opacity-0"
+        }`}
+      >
+        <nav className="mx-auto flex max-w-[1240px] flex-col gap-0.5 px-4 py-3">
+          {shellLinks.map((link) => {
+            const active = isActivePath(link.path);
+            return (
+              <button
+                key={link.path}
+                type="button"
+                onClick={() => handleMobileLink(link.onClick)}
+                aria-current={active ? "page" : undefined}
+                className={`cursor-pointer rounded-xl px-3 py-2.5 text-left text-[15px] font-medium transition-colors ${
+                  active
+                    ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
+                    : "text-[var(--color-text-secondary)] hover:bg-[var(--color-layer)] hover:text-[var(--color-text-primary)]"
+                }`}
+              >
+                {link.label}
+              </button>
+            );
+          })}
+          <Link
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noreferrer"
+            onClick={handleGithubClick}
+            className="rounded-xl px-3 py-2.5 text-[15px] font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-layer)] hover:text-[var(--color-text-primary)]"
+          >
+            {dict.nav.github}
+          </Link>
+        </nav>
+      </div>
     </header>
   );
 }

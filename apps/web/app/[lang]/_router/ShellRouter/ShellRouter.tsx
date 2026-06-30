@@ -6,10 +6,10 @@ import { useShellLocaleGetter } from "@/app/[lang]/_providers/ShellIntlProvider"
 import createLocaleHistoryDriver from "@/lib/localeHistoryDriver";
 
 import SiteHeader from "@/app/[lang]/_components/SiteHeader";
-import DocsScreen from "@/app/[lang]/_screens/DocsScreen";
 import HomeScreen from "@/app/[lang]/_screens/HomeScreen";
-import PlaygroundScreen from "@/app/[lang]/_screens/PlaygroundScreen";
-import ShowcaseScreen from "@/app/[lang]/_screens/ShowcaseScreen";
+import DocsScreen from "@/app/[lang]/docs/_screens/DocsScreen";
+import PlaygroundScreen from "@/app/[lang]/playground/_screens/PlaygroundScreen";
+import ShowcaseScreen from "@/app/[lang]/showcase/_screens/ShowcaseScreen";
 import docsEnter from "@/app/[lang]/_transitions/docsEnter";
 import pageShoveBackward from "@/app/[lang]/_transitions/pageShoveBackward";
 import pageShoveForward from "@/app/[lang]/_transitions/pageShoveForward";

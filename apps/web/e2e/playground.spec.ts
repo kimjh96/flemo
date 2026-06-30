@@ -48,6 +48,15 @@ test.describe("playground", () => {
     await expect(page).toHaveURL(/\/playground\/1$/);
   });
 
+  // A deep link with the step query opens the source panel on load (server +
+  // client), proving the query is seeded through to the nested Router's params.
+  test("a deep link with ?code opens the source panel", async ({ page }) => {
+    await page.goto("/playground/1?code=cupertino");
+
+    await expect(page.getByRole("button", { name: "Close", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "View source" })).toBeHidden();
+  });
+
   // Regression: a step pop in the keyed nested Router must restore the panel's
   // params, so closing the source on panel 3 returns to panel 3 (not panel 1).
   // Deep-link straight to panel 3 so a single screen is mounted.

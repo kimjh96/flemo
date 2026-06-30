@@ -2,7 +2,7 @@
 
 import { Screen, useParams } from "@flemo/react";
 
-import DocsRouter from "@/app/[lang]/docs/_docs/_router/DocsRouter";
+import DocsRouter from "../../_router/DocsRouter";
 
 // The Docs peer, full-bleed. Entered from the header with a slide in from the
 // right; inside, the sidebar persists and the page area transitions on its own.

@@ -1,13 +1,9 @@
 "use client";
 
-import Link from "next/link";
-
 import { Screen, useNavigate, useScreen } from "@flemo/react";
 
-import { useShellDict, useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
-import { i18n } from "@/lib/i18n";
-
-import PlaygroundDemo from "../../_home/PlaygroundDemo";
+import HeroDemo from "@/app/[lang]/_components/HeroDemo";
+import { useShellDict } from "@/app/[lang]/_providers/ShellIntlProvider";
 
 // Landing hero: a bold black headline and pill CTAs on the left, and on the
 // right the live flemo demo inside a glass window floating on a colorful blob.
@@ -16,15 +12,16 @@ import PlaygroundDemo from "../../_home/PlaygroundDemo";
 // shared-axis slide carries the whole region to Showcase.
 function HomeScreen() {
   const dict = useShellDict();
-  const lang = useShellLang();
   const navigate = useNavigate();
   // Only animate the demo while this screen is the active one. When it's frozen
   // under a pushed screen, a navigate from the demo's nested Router would never
   // resolve (its frozen screen never fires animationend), wedging the shared
   // task queue and freezing all navigation.
   const { isActive } = useScreen();
-  const docsHref = lang === i18n.defaultLanguage ? "/docs" : `/${lang}/docs`;
 
+  // Navigate through flemo (a client transition within the shell), not next/link
+  // — a Next navigation would fight the shell Router's history driver.
+  const handleOpenDocs = () => navigate.push("/docs", {}, { transitionName: "docs-enter" });
   const handleOpenPlayground = () =>
     navigate.push("/playground", {}, { transitionName: "page-shove-forward" });
 
@@ -44,12 +41,13 @@ function HomeScreen() {
                 {dict.home.subtitle}
               </p>
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <Link
-                  href={docsHref}
-                  className="inline-flex h-14 items-center rounded-full bg-[var(--color-primary)] px-7 text-[15px] font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
+                <button
+                  type="button"
+                  onClick={handleOpenDocs}
+                  className="inline-flex h-14 cursor-pointer items-center rounded-full bg-[var(--color-primary)] px-7 text-[15px] font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
                 >
                   {dict.home.ctaPrimary}
-                </Link>
+                </button>
                 <button
                   type="button"
                   onClick={handleOpenPlayground}
@@ -61,7 +59,7 @@ function HomeScreen() {
             </div>
 
             <div className="flex justify-center lg:justify-end">
-              <PlaygroundDemo active={isActive} />
+              <HeroDemo active={isActive} />
             </div>
           </div>
         </div>

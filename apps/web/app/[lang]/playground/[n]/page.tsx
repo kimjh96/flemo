@@ -15,8 +15,18 @@ export async function generateMetadata({
   };
 }
 
-export default async function PlaygroundStagePage({ params }: PageProps<"/[lang]/playground/[n]">) {
+export default async function PlaygroundStagePage({
+  params,
+  searchParams
+}: PageProps<"/[lang]/playground/[n]">) {
   const { lang, n } = await params;
+  // Forward the query into initPath so the server seeds any deep-linked step
+  // (e.g. ?code=x opens the source panel) and matches the client.
+  const search = new URLSearchParams(
+    Object.entries(await searchParams).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string"
+    )
+  ).toString();
 
-  return <ShellApp lang={lang} initPath={`/playground/${n}`} />;
+  return <ShellApp lang={lang} initPath={`/playground/${n}${search ? `?${search}` : ""}`} />;
 }

@@ -2,11 +2,12 @@
 
 import type { ReactNode } from "react";
 
-import { Screen, useParams } from "@flemo/react";
+import { Screen, useParams, useStep } from "@flemo/react";
 
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 
 import CodeBlock from "@/components/molecules/CodeBlock";
+import DocsNavSheet from "../../_components/DocsNavSheet";
 import { getDocPage } from "../../_data/docPages";
 
 // Render `inline code` segments (backtick-delimited) inside prose.
@@ -31,7 +32,18 @@ function renderInline(text: string): ReactNode[] {
 function DocPageScreen() {
   const params = useParams<"/docs/:slug">();
   const lang = useShellLang();
-  const page = getDocPage(lang, params?.slug ?? "introduction");
+  const slug = params?.slug ?? "introduction";
+  const page = getDocPage(lang, slug);
+  // On mobile the persistent sidebar is hidden, so the doc nav opens as a sheet
+  // through a flemo step (a sub-state of this /docs/:slug screen), so the Back
+  // button dismisses it, the same way the playground source panel uses `code`.
+  const { pushStep, popStep } = useStep<"/docs/:slug">();
+  const navOpen = Boolean(params?.nav);
+
+  const handleOpenNav = () => pushStep({ slug, nav: true });
+  const handleCloseNav = () => {
+    if (navOpen) popStep();
+  };
 
   if (!page) return null;
 
@@ -39,9 +51,24 @@ function DocPageScreen() {
     <Screen statusBarHeight="0px" systemNavigationBarHeight="0px" backgroundColor="var(--color-bg)">
       <div
         data-testid="docs-scroll"
-        className="h-full overflow-y-auto px-8 py-12 lg:px-16 lg:py-16"
+        className="h-full overflow-y-auto px-6 pt-24 pb-16 lg:px-16 lg:pt-28 lg:pb-20"
       >
         <article className="mx-auto max-w-[720px]">
+          <button
+            type="button"
+            onClick={handleOpenNav}
+            className="mb-6 flex cursor-pointer items-center gap-2 rounded-full border border-[var(--color-border-light)] px-3.5 py-2 text-[13px] font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] md:hidden"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M4 6h16M4 12h16M4 18h16"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+            {page.title}
+          </button>
           <h1 className="text-[clamp(2rem,4vw,2.75rem)] font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
             {page.title}
           </h1>
@@ -136,6 +163,7 @@ function DocPageScreen() {
           </div>
         </article>
       </div>
+      <DocsNavSheet open={navOpen} onClose={handleCloseNav} />
     </Screen>
   );
 }

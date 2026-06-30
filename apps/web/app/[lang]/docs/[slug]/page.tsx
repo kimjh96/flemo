@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import ShellApp from "@/app/[lang]/_components/ShellApp";
 
-import { getDocPage, getDocPageDescription } from "../_docs/_data/docPages";
+import { getDocPage, getDocPageDescription } from "../_data/docPages";
 
 export async function generateMetadata({
   params

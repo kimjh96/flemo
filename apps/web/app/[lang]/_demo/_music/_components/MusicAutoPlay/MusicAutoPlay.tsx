@@ -7,7 +7,7 @@ import { useNavigate } from "@flemo/react";
 import { TRACKS } from "../../_data/tracks";
 
 export interface MusicAutoPlayProps {
-  // Only loops while the host screen is active (see PlaygroundDemo). A longer,
+  // Only loops while the host screen is active (see HeroDemo). A longer,
   // offset period from the wallet demo keeps the two nested Routers from firing
   // navigations on the same tick into the shared task queue.
   active: boolean;

@@ -36,7 +36,7 @@ export const dict = {
       },
       home: {
         kicker: "Native-like, on the web",
-        title: "A React router for native-like screen transitions",
+        title: "A router for native-like screen transitions",
         subtitle:
           "Push, pop, the swipe-back gesture, and shared bars. All the motion of a native app, on the web.",
         ctaPrimary: "Get started",
@@ -219,9 +219,9 @@ export const dict = {
       },
       home: {
         kicker: "웹에서, 네이티브처럼",
-        title: "네이티브 같은 화면 전환을 위한 React 라우터",
+        title: "네이티브 같은 화면 전환을 위한 라우터",
         subtitle:
-          "push, pop, 스와이프 뒤로가기, 공유 바까지. 네이티브 앱의 움직임을 웹에서 그대로 재현해요.",
+          "push와 pop, 스와이프 뒤로 가기, 화면 사이를 잇는 공유 바까지. 네이티브 앱 같은 움직임을 웹에서 그대로 만들어요.",
         ctaPrimary: "시작하기",
         ctaSecondary: "플레이그라운드",
         demoCaption: "직접 만져보는 flemo 데모. 눌러보세요."

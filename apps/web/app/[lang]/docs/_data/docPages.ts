@@ -29,14 +29,14 @@ const EN: DocSection[] = [
         slug: "introduction",
         title: "Introduction",
         blocks: [
-          { type: "p", text: "flemo is a React router for screen transitions." },
+          { type: "p", text: "flemo is a router for screen transitions." },
           {
             type: "p",
-            text: "Use it when you want a web app that flows screen by screen the way a native app does. Push, pop, the transitions between screens, and swipe-back gestures are all built in. Transitions compile to CSS keyframes. You describe how screens flow in plain React, and flemo handles the rest."
+            text: "Native apps move by pushing a screen on, popping it off, and swiping back to leave. flemo lets you build that same flow on the web."
           },
           {
             type: "p",
-            text: "The goal is simple: stacking and unstacking screens, the way native apps move, should feel natural in plain React code."
+            text: "The transitions between screens can use the built-in presets, or ones you define yourself."
           },
           { type: "h", text: "Where to go next" },
           {
@@ -182,7 +182,7 @@ const EN: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "By default a `Router` transitions the whole viewport. When part of the layout should stay put, like a header, a sidebar, or a bottom tab bar, wrap just the screens in a `Slot`. Everything outside it stays mounted and still while only the screen area animates, so the chrome never slides or re-renders with each navigation."
+            text: "By default a `Router` transitions the whole viewport. When part of the layout should stay put, like a header, a sidebar, or a bottom tab bar, wrap just the screens in a `Slot`. Everything outside it stays mounted and still while only the screen area animates, so the surrounding layout never slides or re-renders with each navigation."
           },
           {
             type: "code",
@@ -200,7 +200,7 @@ const EN: DocSection[] = [
           },
           {
             type: "note",
-            text: "If a `Router` has children that are not `Route`s (a header, an effect-only component), wrap the routes in a `Slot` so flemo can tell screens from chrome."
+            text: "If a `Router` has children that are not `Route`s (a header, an effect-only component), wrap the routes in a `Slot` so flemo can tell screens from the surrounding layout."
           }
         ]
       },
@@ -415,7 +415,7 @@ const EN: DocSection[] = [
               ["`Screen`", "Per-route container with app/nav/safe-area slots", "`@flemo/react`"],
               [
                 "`Slot`",
-                "Marks the transitioning region, keeping chrome persistent",
+                "Marks the transitioning region, keeping the surrounding layout persistent",
                 "`@flemo/react`"
               ],
               ["`Layer`", "Portals an overlay out of the content isolation box", "`@flemo/react`"],
@@ -565,14 +565,14 @@ const KO: DocSection[] = [
         slug: "introduction",
         title: "소개",
         blocks: [
-          { type: "p", text: "flemo는 화면 전환을 위한 React 라우터예요." },
+          { type: "p", text: "flemo는 화면 전환을 위한 라우터예요." },
           {
             type: "p",
-            text: "네이티브 앱처럼 화면 단위로 흐르는 웹 앱을 만들고 싶을 때 써요. push, pop, 화면 사이 전환, 스와이프 뒤로가기가 모두 내장돼 있어요. 전환은 CSS 키프레임으로 컴파일돼요. 화면이 어떻게 흐르는지 평범한 React로 적으면 나머지는 flemo가 처리해요."
+            text: "네이티브 앱은 화면을 쌓고(push) 걷어내고(pop), 스와이프로 뒤로 가며 움직여요. flemo는 그 움직임을 웹에서 그대로 만들 수 있게 해줘요."
           },
           {
             type: "p",
-            text: "목표는 단순해요. 화면을 쌓고 걷어내는 네이티브 앱의 움직임이 평범한 React 코드에서 자연스럽게 느껴지는 것."
+            text: "화면 사이의 전환은 기본으로 제공되는 트랜지션을 바로 쓰거나, 직접 정의해서 쓸 수 있어요."
           },
           { type: "h", text: "다음으로" },
           {
@@ -713,7 +713,7 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "기본적으로 `Router`는 화면 전체를 전환해요. 헤더, 사이드바, 하단 탭 바처럼 레이아웃의 일부가 그대로 머물러야 할 때, 화면들만 `Slot`으로 감싸요. 그러면 `Slot` 바깥은 마운트된 채 가만히 있고 화면 영역만 움직여서, 크롬이 이동할 때마다 미끄러지거나 다시 렌더되지 않아요."
+            text: "기본적으로 `Router`는 화면 전체를 전환해요. 헤더, 사이드바, 하단 탭 바처럼 레이아웃의 일부가 그대로 머물러야 할 때, 화면들만 `Slot`으로 감싸요. 그러면 `Slot` 바깥은 마운트된 채 가만히 있고 화면 영역만 움직여서, 주변 레이아웃이 이동할 때마다 미끄러지거나 다시 렌더되지 않아요."
           },
           {
             type: "code",
@@ -731,7 +731,7 @@ const KO: DocSection[] = [
           },
           {
             type: "note",
-            text: "`Router`에 `Route`가 아닌 자식(헤더, 효과 전용 컴포넌트)이 있으면, 라우트들을 `Slot`으로 감싸 flemo가 화면과 크롬을 구분하게 하세요."
+            text: "`Router`에 `Route`가 아닌 자식(헤더, 효과 전용 컴포넌트)이 있으면, 라우트들을 `Slot`으로 감싸 flemo가 화면과 주변 레이아웃을 구분하게 하세요."
           }
         ]
       },
@@ -938,7 +938,7 @@ const KO: DocSection[] = [
               ["`Router`", "루트 컨테이너, 활성 화면을 그려요", "`@flemo/react`"],
               ["`Route`", "경로(들)를 엘리먼트에 연결", "`@flemo/react`"],
               ["`Screen`", "앱/네비/세이프 에어리어 슬롯을 가진 화면", "`@flemo/react`"],
-              ["`Slot`", "전환 영역 표시, 크롬은 지속", "`@flemo/react`"],
+              ["`Slot`", "전환 영역 표시, 주변 레이아웃은 유지", "`@flemo/react`"],
               ["`Layer`", "오버레이를 격리 박스 밖으로 portal", "`@flemo/react`"],
               ["`LayoutScreen` / `LayoutConfig`", "공유 `layoutId` 모핑", "`@flemo/react-layout`"]
             ]

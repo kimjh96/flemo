@@ -28,6 +28,24 @@ test.describe("shell ux", () => {
     await expect(page.getByRole("heading", { name: "소개", level: 1 })).toBeVisible();
   });
 
+  // The 404 localizes by the URL prefix, not just the cookie/browser language —
+  // a fresh context (no NEXT_LOCALE cookie) on /ko still gets Korean.
+  test("a 404 localizes by URL prefix", async ({ page }) => {
+    await page.goto("/this-page-does-not-exist");
+    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+
+    await page.goto("/ko/this-page-does-not-exist");
+    await expect(page.getByRole("heading", { name: "찾는 페이지가 없어요" })).toBeVisible();
+  });
+
+  // The home hero CTA navigates through flemo (a client transition), not a
+  // next/link that would fight the shell Router.
+  test("the home Get started CTA navigates to docs", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Get started", exact: true }).click();
+    await expect(page).toHaveURL(/\/docs(\/|$)/);
+  });
+
   // Mobile has no inline nav; the hamburger opens a menu that navigates.
   test("the mobile menu opens and navigates", async ({ page, viewport }) => {
     test.skip(!viewport || viewport.width >= 768, "mobile menu only");

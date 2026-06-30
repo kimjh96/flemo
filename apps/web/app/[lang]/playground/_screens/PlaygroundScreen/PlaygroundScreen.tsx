@@ -2,8 +2,8 @@
 
 import { Screen, useParams } from "@flemo/react";
 
-import LabSettingsProvider from "@/app/[lang]/playground/_lab/_providers/LabSettingsProvider";
-import LabRouter from "@/app/[lang]/playground/_lab/_router/LabRouter";
+import LabSettingsProvider from "../../_providers/LabSettingsProvider";
+import LabRouter from "../../_router/LabRouter";
 
 // The Playground peer, a full-bleed immersive stage. The whole viewport is the
 // demo; a floating control bar picks the transition and steps through panels,
@@ -13,7 +13,10 @@ import LabRouter from "@/app/[lang]/playground/_lab/_router/LabRouter";
 // client, so a deep link server-renders the right panel with no mismatch.
 function PlaygroundScreen() {
   const params = useParams<"/playground/:n">();
-  const initPath = `/playground/${params?.n ?? "1"}`;
+  // Forward the `code` step query so a deep link (/playground/1?code=x) seeds the
+  // nested Router with the source panel open, on both server and client.
+  const code = params?.code;
+  const initPath = `/playground/${params?.n ?? "1"}${code ? `?code=${code}` : ""}`;
 
   return (
     <Screen hideStatusBar hideSystemNavigationBar backgroundColor="var(--color-bg)">

@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 
-import MusicRouter from "../_music/_router/MusicRouter";
-import WalletRouter from "../_wallet/_router/WalletRouter";
+import MusicRouter from "../../_demo/_music/_router/MusicRouter";
+import WalletRouter from "../../_demo/_wallet/_router/WalletRouter";
 
 // The hero showpiece: two real flemo apps (a wallet and a music player) inside
 // glass bezels, rolling diagonally so each takes a turn up front, with a third
 // frosted card behind for depth. Only the bezel is glass; the apps stay solid.
 // Both auto-cycle their transitions while idle and pause while the visitor
 // interacts (which also lets them tap the front app).
-export interface PlaygroundDemoProps {
+export interface HeroDemoProps {
   // The demos only auto-play while the host screen is active; navigating from a
   // frozen screen's nested Router would wedge the shared task queue.
   active: boolean;
@@ -19,7 +19,7 @@ export interface PlaygroundDemoProps {
 const BEZEL =
   "absolute inset-x-0 top-0 h-[500px] rounded-[34px] border border-white/30 bg-white/10 p-1.5 shadow-[0_34px_80px_-26px_rgba(15,23,42,0.55)] backdrop-blur-2xl";
 
-function PlaygroundDemo({ active }: PlaygroundDemoProps) {
+function HeroDemo({ active }: HeroDemoProps) {
   const [interacting, setInteracting] = useState(false);
 
   const handlePointerEnter = () => setInteracting(true);
@@ -71,4 +71,4 @@ function PlaygroundDemo({ active }: PlaygroundDemoProps) {
   );
 }
 
-export default PlaygroundDemo;
+export default HeroDemo;

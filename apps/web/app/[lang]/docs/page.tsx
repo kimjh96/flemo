@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import ShellApp from "@/app/[lang]/_components/ShellApp";
 import { getDict } from "@/lib/i18n";
 
-import { getDocPageDescription } from "./_docs/_data/docPages";
+import { getDocPageDescription } from "./_data/docPages";
 
 export async function generateMetadata({ params }: PageProps<"/[lang]/docs">): Promise<Metadata> {
   const { lang } = await params;

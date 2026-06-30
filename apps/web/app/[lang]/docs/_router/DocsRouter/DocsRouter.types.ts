@@ -3,7 +3,10 @@
 // and refreshes resolve.
 declare module "@flemo/react" {
   interface RegisterRoute {
-    "/docs/:slug": { slug: string };
+    // `nav` is a flemo `useStep` param: on mobile the sidebar opens as a sheet
+    // through a history step, so Back/close pops it (the same pattern as the
+    // playground source panel's `code`).
+    "/docs/:slug": { slug: string; nav?: boolean };
   }
 
   interface RegisterTransition {

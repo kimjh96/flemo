@@ -6,11 +6,11 @@ import "./global.css";
 export const metadata = {
   metadataBase: new URL("https://flemo.dev"),
   title: {
-    default: "flemo · Native-like screen transitions for React",
+    default: "flemo · Native-like screen transitions for the web",
     template: "%s · flemo"
   },
   description:
-    "flemo brings native-app-like screen transitions to the web. Push, pop, and shared layouts that just work in React.",
+    "flemo brings native-app-like screen transitions to the web. Push, pop, and shared layouts that just work.",
   icons: {
     icon: [
       // default. Used by browsers that don't honor prefers-color-scheme on favicons
