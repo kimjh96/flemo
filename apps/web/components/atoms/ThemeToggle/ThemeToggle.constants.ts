@@ -7,3 +7,12 @@ export const THEME_LABEL: Record<ThemeKind, string> = {
   light: "라이트 모드",
   dark: "다크 모드"
 };
+
+// Mirrors the theme setting so the server can read it (next-themes only writes
+// localStorage) and render the matching toggle icon on first paint, with no
+// mount flicker.
+export const THEME_COOKIE = "flemo-theme";
+
+export function normalizeTheme(value: string | undefined): ThemeKind {
+  return THEME_ORDER.includes(value as ThemeKind) ? (value as ThemeKind) : "system";
+}

@@ -3,24 +3,28 @@
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
-import { THEME_LABEL, THEME_ORDER, type ThemeKind } from "./ThemeToggle.constants";
+import { useInitialTheme } from "./InitialThemeProvider";
+import { THEME_COOKIE, THEME_LABEL, THEME_ORDER, type ThemeKind } from "./ThemeToggle.constants";
 import ThemeToggleIcon from "./ThemeToggleIcon";
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  // Seeded from the cookie the server read, so the first client render draws the
+  // same icon the server did. No mount gate, so no flicker and no mismatch.
+  const initialTheme = useInitialTheme();
+  const [current, setCurrent] = useState<ThemeKind>(initialTheme);
 
-  useEffect(() => setMounted(true), []);
+  // Mirror next-themes' setting (it lives in localStorage) into the icon state
+  // and the SSR-readable cookie. Runs on mount too, so a returning user whose
+  // cookie was absent or stale converges and the next server render is correct.
+  useEffect(() => {
+    if (!theme || !THEME_ORDER.includes(theme as ThemeKind)) return;
+    const resolved = theme as ThemeKind;
+    setCurrent(resolved);
+    document.cookie = `${THEME_COOKIE}=${resolved}; path=/; max-age=31536000; samesite=lax`;
+  }, [theme]);
 
-  if (!mounted) {
-    return <span className="inline-block size-9" aria-hidden />;
-  }
-
-  const current: ThemeKind = THEME_ORDER.includes(theme as ThemeKind)
-    ? (theme as ThemeKind)
-    : "system";
   const next = THEME_ORDER[(THEME_ORDER.indexOf(current) + 1) % THEME_ORDER.length]!;
-
   const handleClick = () => setTheme(next);
 
   return (
