@@ -1,5 +1,4 @@
 import {
-  startTransition,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -12,7 +11,6 @@ import {
   createSwipeController,
   createTransitionEngine,
   decoratorMap,
-  initialHidesScreen,
   transitionMap
 } from "@flemo/core";
 
@@ -102,34 +100,6 @@ function ScreenMotion({
   // box, so a portaled overlay resolves against the full-screen scope and rides
   // the transition instead of being trapped in the inset content box.
   const [layerMount, setLayerMount] = useState<HTMLDivElement | null>(null);
-
-  // Decouple the transition START from the entering screen's content render. The
-  // scope element the keyframe animates and the consumer's `{children}` commit
-  // in one React render, so a heavy cold mount (lazy chunk + fetch + a large
-  // DOM) delays the first paint, and thus the animation's start, until that
-  // whole subtree commits. That reads as the transition arriving late and
-  // colliding with the content's re-render, worst on iOS where promoting and
-  // rasterizing the layer on the first animated frame is itself costly. For an
-  // entering push/replace screen, paint the scope first over an EMPTY content
-  // box (the keyframe starts at once, on a cheap layer), then fill the children
-  // on the next, transition-priority commit. The root, SSR, pop (Activity
-  // preserves this state), and no-offset ("none") paths render children
-  // directly, unchanged.
-  //
-  // Defer ONLY when the screen is invisible on its first frame (fully
-  // transparent, or translated off-screen): then the one-commit empty box is
-  // unseen and the keyframe ramps the real content in. A partial fade or scale
-  // that leaves the screen visible on frame 1 (e.g. the `layout` preset's
-  // opacity 0.97) renders content immediately and never flashes a box.
-  const [contentReady, setContentReady] = useState(
-    () =>
-      !(isActive && (status === "PUSHING" || status === "REPLACING") && initialHidesScreen(initial))
-  );
-  useEffect(() => {
-    if (contentReady) return;
-    startTransition(() => setContentReady(true));
-  }, [contentReady]);
-  const content = contentReady ? children : null;
 
   const screenRef = useRef<HTMLDivElement | null>(null);
   const scopeRef = useRef<HTMLDivElement | null>(null);
@@ -485,7 +455,7 @@ function ScreenMotion({
               : null)
           }}
         >
-          <LayerMountContext.Provider value={layerMount}>{content}</LayerMountContext.Provider>
+          <LayerMountContext.Provider value={layerMount}>{children}</LayerMountContext.Provider>
         </div>
         {bottomBar}
         {sharedBottomBar && (
