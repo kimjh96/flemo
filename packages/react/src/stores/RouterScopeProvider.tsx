@@ -1,6 +1,7 @@
 import { useState, type PropsWithChildren } from "react";
 
 import {
+  consumeSelfInducedPop,
   createBrowserHistoryDriver,
   createHistoryStore,
   createNavigateStore,
@@ -24,7 +25,8 @@ function RouterScopeProvider({ children }: PropsWithChildren) {
     transition: createTransitionStore(),
     screen: createScreenStore(),
     driver: createBrowserHistoryDriver(),
-    markSelfInduced: markSelfInducedPop
+    markSelfInduced: markSelfInducedPop,
+    consume: consumeSelfInducedPop
   }));
 
   return <StoreContext.Provider value={stores}>{children}</StoreContext.Provider>;

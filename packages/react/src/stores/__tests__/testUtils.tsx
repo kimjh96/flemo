@@ -1,6 +1,7 @@
 import { type PropsWithChildren } from "react";
 
 import {
+  consumeSelfInducedPop,
   createBrowserHistoryDriver,
   createHistoryStore,
   createNavigateStore,
@@ -21,7 +22,8 @@ export function createTestStores(): FlemoStores {
     transition: createTransitionStore(),
     screen: createScreenStore(),
     driver: createBrowserHistoryDriver(),
-    markSelfInduced: markSelfInducedPop
+    markSelfInduced: markSelfInducedPop,
+    consume: consumeSelfInducedPop
   };
 }
 

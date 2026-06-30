@@ -12,11 +12,19 @@ export interface History {
 
 export interface HistoryStore {
   index: number;
+  // The destination index of the in-flight navigation. It equals `index` at rest
+  // and on push/replace, but on a pop it advances to the target IMMEDIATELY
+  // (while `index` stays on the leaving screen until the transition completes, so
+  // the renderer keeps it mounted). Reads of "where am I now" (usePathname) use
+  // this so pop reports its destination at once, like push does.
+  pendingIndex: number;
   histories: History[];
   addHistory: (history: History) => void;
   replaceHistory: (index: number) => void;
   popHistory: (index: number) => void;
   popHistories: (count: number) => void;
+  // Point pendingIndex at a pop's destination before the transition resolves.
+  setPendingIndex: (index: number) => void;
   setTransitionName: (index: number, transitionName: TransitionName) => void;
 }
 
@@ -29,10 +37,12 @@ export type HistoryStoreApi = StoreApi<HistoryStore>;
 export default function createHistoryStore(histories: History[] = [], index = -1): HistoryStoreApi {
   return createStore<HistoryStore>((set) => ({
     index,
+    pendingIndex: index,
     histories,
     addHistory: (history) =>
       set((state) => ({
         index: state.index + 1,
+        pendingIndex: state.index + 1,
         histories: state.histories.concat(history)
       })),
     replaceHistory: (index) =>
@@ -41,12 +51,14 @@ export default function createHistoryStore(histories: History[] = [], index = -1
 
         return {
           index: state.index - 1,
+          pendingIndex: state.index - 1,
           histories: state.histories
         };
       }),
     popHistory: (index) =>
       set((state) => ({
         index: state.index - 1,
+        pendingIndex: state.index - 1,
         histories: state.histories.filter((_, i) => i !== index)
       })),
     // Drop `count` entries sitting directly below the current top, keeping the
@@ -59,10 +71,12 @@ export default function createHistoryStore(histories: History[] = [], index = -1
         const top = state.index;
         return {
           index: state.index - count,
+          pendingIndex: state.index - count,
           histories: state.histories.filter((_, i) => i < top - count || i >= top)
         };
       });
     },
+    setPendingIndex: (index) => set({ pendingIndex: index }),
     // Override one entry's transition. Used by pop() to relabel the leaving top
     // before the POPPING flip so the back animation uses the caller's
     // `transitionName` from the first frame. Its original transition never

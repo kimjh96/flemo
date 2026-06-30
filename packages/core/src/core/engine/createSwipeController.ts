@@ -12,8 +12,8 @@ import type { Decorator } from "@transition/decorator/typing";
 
 // Presence of a partner screen's shared bars, used to decide ride-along.
 export interface SharedBarPresenceLike {
-  appBar: boolean;
-  navigationBar: boolean;
+  topBar: boolean;
+  bottomBar: boolean;
 }
 
 export interface SwipeControllerElements {
@@ -22,8 +22,8 @@ export interface SwipeControllerElements {
   // screen's subtree at swipe start.
   screenContainer: HTMLElement | null;
   decorator: HTMLElement | null;
-  sharedAppBar: HTMLElement | null;
-  sharedNavigationBar: HTMLElement | null;
+  sharedTopBar: HTMLElement | null;
+  sharedBottomBar: HTMLElement | null;
 }
 
 // Everything the controller needs from its host, read live so it reflects the
@@ -32,8 +32,8 @@ export interface SwipeControllerConfig {
   getTransition: () => Transition;
   getDecorator: () => Decorator | undefined;
   getElements: () => SwipeControllerElements;
-  hasSharedAppBar: () => boolean;
-  hasSharedNavigationBar: () => boolean;
+  hasSharedTopBar: () => boolean;
+  hasSharedBottomBar: () => boolean;
   getViewportScrollHeight: () => number;
   // The full readiness gate for starting a drag (isRoot / isActive / status /
   // dragStatus / swipeDirection / keyboard), computed by the binding.
@@ -128,11 +128,11 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
 
     // Current side: this screen's own bars ride if the partner lacks a match.
     const current: HTMLElement[] = [];
-    const { sharedAppBar, sharedNavigationBar } = config.getElements();
-    if (sharedAppBar && config.hasSharedAppBar() && !partnerBars?.appBar)
-      current.push(sharedAppBar);
-    if (sharedNavigationBar && config.hasSharedNavigationBar() && !partnerBars?.navigationBar) {
-      current.push(sharedNavigationBar);
+    const { sharedTopBar, sharedBottomBar } = config.getElements();
+    if (sharedTopBar && config.hasSharedTopBar() && !partnerBars?.topBar)
+      current.push(sharedTopBar);
+    if (sharedBottomBar && config.hasSharedBottomBar() && !partnerBars?.bottomBar) {
+      current.push(sharedBottomBar);
     }
 
     // Prev side: the partner screen's bars (in its own subtree) ride if this
@@ -140,10 +140,10 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // partner instance.
     const prev: HTMLElement[] = [];
     if (prevScreenContainer) {
-      const prevAppBar = prevScreenContainer.querySelector<HTMLElement>('[data-flemo-bar="app"]');
+      const prevTopBar = prevScreenContainer.querySelector<HTMLElement>('[data-flemo-bar="app"]');
       const prevNavBar = prevScreenContainer.querySelector<HTMLElement>('[data-flemo-bar="nav"]');
-      if (prevAppBar && !config.hasSharedAppBar()) prev.push(prevAppBar);
-      if (prevNavBar && !config.hasSharedNavigationBar()) prev.push(prevNavBar);
+      if (prevTopBar && !config.hasSharedTopBar()) prev.push(prevTopBar);
+      if (prevNavBar && !config.hasSharedBottomBar()) prev.push(prevNavBar);
     }
 
     ridingBars = { current, prev };

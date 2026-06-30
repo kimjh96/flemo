@@ -238,3 +238,36 @@ describe("createHistoryStore: mixed sequences", () => {
     expect(histories[199]!.pathname).toBe("/p199");
   });
 });
+
+describe("createHistoryStore: pendingIndex", () => {
+  beforeEach(reset);
+
+  it("follows index on push and pop", () => {
+    const { addHistory } = store.getState();
+    addHistory(makeEntry({ pathname: "/a" }));
+    expect(store.getState().pendingIndex).toBe(0);
+    addHistory(makeEntry({ pathname: "/b" }));
+    expect(store.getState().pendingIndex).toBe(1);
+
+    store.getState().popHistory(1);
+    expect(store.getState().pendingIndex).toBe(0);
+  });
+
+  it("setPendingIndex advances to a pop destination ahead of index", () => {
+    const { addHistory } = store.getState();
+    addHistory(makeEntry({ pathname: "/a" }));
+    addHistory(makeEntry({ pathname: "/b" }));
+    addHistory(makeEntry({ pathname: "/c" }));
+
+    // A pop starts: the destination is index 1, but the leaving top stays at 2
+    // until the transition resolves.
+    store.getState().setPendingIndex(1);
+    expect(store.getState().pendingIndex).toBe(1);
+    expect(store.getState().index).toBe(2);
+
+    // The transition resolves: both land on the destination.
+    store.getState().popHistory(2);
+    expect(store.getState().index).toBe(1);
+    expect(store.getState().pendingIndex).toBe(1);
+  });
+});

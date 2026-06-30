@@ -21,9 +21,12 @@ export interface FlemoStores {
   // root <Router>, an in-memory stack for a nested one. Shared by the navigation
   // controller and the history sync so both drive the same history.
   driver: HistoryDriver;
-  // Self-pop guard mark for this scope: the global guard for a root <Router>, a
-  // no-op for a nested one (which has no global history sync to coordinate with).
+  // Self-pop guard for this scope. A browser <Router> creates its own guard
+  // instance: `markSelfInduced` (injected into the navigation controller) marks a
+  // flemo-induced traversal, and `consume` (injected into the history sync) skips
+  // it. A memory <Router> uses a no-op mark and a never-true consume.
   markSelfInduced: () => void;
+  consume: () => boolean;
 }
 
 const StoreContext = createContext<FlemoStores | null>(null);

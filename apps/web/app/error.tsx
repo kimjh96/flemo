@@ -4,7 +4,6 @@ import Link from "next/link";
 
 import { useEffect, useState } from "react";
 
-import { readCookie } from "@/lib/cookie";
 import { getDict, i18n } from "@/lib/i18n";
 
 interface ErrorProps {
@@ -16,13 +15,12 @@ export default function Error({ error, reset }: ErrorProps) {
   const [lang, setLang] = useState<string>(i18n.defaultLanguage);
 
   useEffect(() => {
-    const cookie = readCookie("NEXT_LOCALE");
-    if (cookie && i18n.languages.includes(cookie)) {
-      setLang(cookie);
-      return;
+    // The /ko prefix in the URL is authoritative; anything else is the default
+    // locale (the proxy serves it unprefixed), matching the rendered content.
+    const segment = window.location.pathname.split("/")[1];
+    if (i18n.languages.includes(segment) && segment !== i18n.defaultLanguage) {
+      setLang(segment);
     }
-    const browser = navigator.language?.split("-")[0];
-    if (browser && i18n.languages.includes(browser)) setLang(browser);
   }, []);
 
   useEffect(() => {

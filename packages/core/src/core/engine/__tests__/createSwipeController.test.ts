@@ -73,11 +73,11 @@ describe("createSwipeController", () => {
         scope: dom.scope,
         screenContainer: dom.screenContainer,
         decorator: null,
-        sharedAppBar: null,
-        sharedNavigationBar: null
+        sharedTopBar: null,
+        sharedBottomBar: null
       }),
-      hasSharedAppBar: () => false,
-      hasSharedNavigationBar: () => false,
+      hasSharedTopBar: () => false,
+      hasSharedBottomBar: () => false,
       getViewportScrollHeight: () => 0,
       isReadyForDrag: () => true,
       getPartnerBars: () => undefined,

@@ -2,8 +2,9 @@
 export { default as Router } from "@Router";
 export { default as Route, type RegisterRoute } from "@Route";
 export { default as Slot, type SlotProps } from "./Slot";
-export { default as Layer } from "./Layer";
+export { default as Layer } from "@screen/Layer";
 export { default as useNavigate } from "@navigate/useNavigate";
+export { default as usePathname } from "@navigate/usePathname";
 export { default as useStep } from "@navigate/useStep";
 export { default as useScreen } from "@screen/useScreen";
 export { default as useParams } from "@screen/ParamsProvider/useParams";
@@ -31,7 +32,8 @@ export {
   createRawDecorator,
   createPartTransition,
   createRawPartTransition,
-  partTransitionMap
+  partTransitionMap,
+  createBrowserHistoryDriver
 } from "@flemo/core";
 
 export type {
@@ -41,5 +43,7 @@ export type {
   RegisterDecorator,
   PartTransitionName,
   RegisterPartTransition,
-  PartTransitionOptions
+  PartTransitionOptions,
+  HistoryDriver,
+  HistoryNavEvent
 } from "@flemo/core";

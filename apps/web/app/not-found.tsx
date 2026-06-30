@@ -4,11 +4,16 @@ import { cookies, headers } from "next/headers";
 import { getDict, i18n } from "@/lib/i18n";
 
 async function detectLang(): Promise<string> {
+  const headerStore = await headers();
+
+  // The URL the request resolved to (proxy.ts), authoritative over preference.
+  const urlLocale = headerStore.get("x-locale");
+  if (urlLocale && i18n.languages.includes(urlLocale)) return urlLocale;
+
   const cookieStore = await cookies();
   const cookieLang = cookieStore.get("NEXT_LOCALE")?.value;
   if (cookieLang && i18n.languages.includes(cookieLang)) return cookieLang;
 
-  const headerStore = await headers();
   const accept = headerStore.get("accept-language") ?? "";
   for (const part of accept.split(",")) {
     const tag = part.split(";")[0]?.trim().toLowerCase();

@@ -20,6 +20,11 @@ export interface HistorySyncDeps {
   // The history backend. Defaults to the real browser History API; a nested
   // <Router> injects an in-memory driver so its navigation stays local.
   driver?: HistoryDriver;
+  // Consumes a flemo-induced traversal so the sync ignores its own popstate.
+  // Defaults to the global guard a lone root <Router> shares with its controller;
+  // a keyed browser <Router> injects its OWN guard's `consume` so a sibling
+  // Router's `go(-n)` isn't mis-attributed to this one.
+  consume?: () => boolean;
 }
 
 // The flemo frame a back/forward event carries (stored by a prior push/replace).
@@ -41,11 +46,11 @@ interface PopStateFrame {
 // neutral: subscribes through the injected driver and returns its disposer; a
 // binding calls it from its own effect.
 export default function createHistorySync(deps: HistorySyncDeps): () => void {
-  const { stores, driver = createBrowserHistoryDriver() } = deps;
+  const { stores, driver = createBrowserHistoryDriver(), consume = consumeSelfInducedPop } = deps;
 
   const handlePopState = async (event: HistoryNavEvent) => {
     // A traversal flemo triggered itself. The navigation queue already owns it.
-    if (consumeSelfInducedPop()) {
+    if (consume()) {
       return;
     }
 
@@ -56,7 +61,7 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
       await TaskManager.addTask(
         async (abortController) => {
           const { setStatus, setTransitionTaskId } = stores.navigate.getState();
-          const { index, addHistory, popHistory } = stores.history.getState();
+          const { index, addHistory, popHistory, setPendingIndex } = stores.history.getState();
 
           const nextIndex = frame?.index;
           const isPop = nextIndex !== undefined && nextIndex < index;
@@ -73,6 +78,9 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
           setTransitionTaskId(taskId);
 
           if (isPop) {
+            // Report the destination immediately; the actual index only moves
+            // when the transition resolves (popHistory below).
+            setPendingIndex(nextIndex);
             setStatus("POPPING");
           } else {
             // A push or replace: the guard above ruled out everything else, so

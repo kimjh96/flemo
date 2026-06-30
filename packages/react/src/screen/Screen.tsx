@@ -21,10 +21,10 @@ export interface ScreenProps extends PropsWithChildren<
   systemNavigationBarHeight?: string;
   systemNavigationBarColor?: string;
   backgroundColor?: string;
-  sharedAppBar?: ReactNode;
-  sharedNavigationBar?: ReactNode;
-  appBar?: ReactNode;
-  navigationBar?: ReactNode;
+  sharedTopBar?: ReactNode;
+  sharedBottomBar?: ReactNode;
+  topBar?: ReactNode;
+  bottomBar?: ReactNode;
   hideStatusBar?: boolean;
   hideSystemNavigationBar?: boolean;
   contentScrollable?: boolean;

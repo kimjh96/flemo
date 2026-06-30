@@ -121,4 +121,15 @@ describe("createMemoryHistoryDriver", () => {
 
     expect(events).toEqual([{ state: null, pathname: "/" }]);
   });
+
+  it("readState returns the current entry's state", () => {
+    const driver = createMemoryHistoryDriver({ state: { id: "root" }, url: "/" });
+    expect(driver.readState()).toEqual({ id: "root" });
+
+    driver.pushState({ id: "a" }, "/a");
+    expect(driver.readState()).toEqual({ id: "a" });
+
+    driver.back();
+    expect(driver.readState()).toEqual({ id: "root" });
+  });
 });
