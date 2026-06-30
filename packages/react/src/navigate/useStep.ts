@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { useContext, useEffect, useState } from "react";
 
 import { TaskManger as TaskManager } from "@flemo/core";
 
@@ -11,14 +11,45 @@ import useStores from "@stores/useStores";
 
 import type { RegisterRoute } from "@Route";
 
-// A step is a sub-state of the current screen (a param change that pushes a
-// history entry without stacking a new screen). It goes through this Router's
-// driver, not raw `window.history`, for two reasons: a keyed (nested or
-// multi-Router) browser driver stores the frame under its `routerKey`, so the
-// step flag + params must live inside that frame to survive a back; and the pop
-// must mark this Router's OWN self-pop guard so its history sync skips the
-// traversal instead of also handling it.
-export default function useStep<T extends keyof RegisterRoute>() {
+// The step's param shape. Pass a registered route to reuse its params from a
+// screen (`useStep<"/posts/:id">()`), or pass the param object type directly for
+// chrome rendered outside a <Screen> (`useStep<{ menu: boolean }>()`), so the
+// header/sidebar overlay is typed too. Bare `useStep()` falls back to a free object.
+type StepParams<T> = [T] extends [never]
+  ? Record<string, unknown>
+  : T extends keyof RegisterRoute
+    ? RegisterRoute[T]
+    : T;
+
+// The current step's params from a history frame, or null when not on a step.
+const readStepParams = <P>(state: unknown): P | null => {
+  const frame = state as { step?: boolean; params?: object } | null;
+  return frame?.step ? ((frame.params ?? {}) as P) : null;
+};
+
+// The current pathname plus the params as a query, so a chrome step reflects in
+// the URL the same way a screen step does (`?code`), just on the current path
+// since there is no route to build from.
+const appendParamsQuery = (pathname: string, params: object): string => {
+  const search = new URLSearchParams(
+    Object.fromEntries(Object.entries(params).map(([key, value]) => [key, String(value)]))
+  ).toString();
+  return search ? `${pathname}?${search}` : pathname;
+};
+
+// A step is a sub-state pushed onto history without stacking a new screen (a
+// param change). It goes through this Router's driver, not raw `window.history`:
+// a keyed nested/multi-Router driver stores the frame under its `routerKey`, and
+// the pop marks this Router's self-pop guard so its history sync skips it.
+//
+// Called from a <Screen>, the route's params drive the step URL and `useParams`
+// reads them back (unchanged). Called from chrome OUTSIDE a <Screen> (a header
+// menu), there is no route and no ParamsProvider, so the step keeps the current
+// pathname and `step` reports its params reactively, read only after mount —
+// chrome overlays start closed (the server can't know an open menu), so there is
+// no hydration mismatch. Everything chrome-specific is gated on `!routePath`, so
+// the screen path is byte-for-byte the original behavior.
+export default function useStep<T extends keyof RegisterRoute | object = never>() {
   const { routePath } = useScreen();
 
   const stores = useStores();
@@ -27,18 +58,48 @@ export default function useStep<T extends keyof RegisterRoute>() {
 
   const { driver, markSelfInduced } = stores;
 
-  const pushStep = async (params: RegisterRoute[T]) => {
+  // Chrome's reactive read of the current step. Inert for a screen: the effect
+  // returns immediately when there is a routePath (the screen reads useParams),
+  // so `step` stays null and nothing subscribes.
+  const [step, setStep] = useState<StepParams<T> | null>(null);
+
+  useEffect(() => {
+    if (routePath) return;
+
+    setStep(readStepParams<StepParams<T>>(driver.readState()));
+
+    return driver.subscribe((event) => setStep(readStepParams<StepParams<T>>(event.state)));
+  }, [routePath, driver]);
+
+  // A screen builds the step URL from its route (unchanged); chrome appends the
+  // params as a query on the current pathname.
+  const stepPathname = (params: object) =>
+    routePath
+      ? buildRoutePath(routePath, params as RegisterRoute[keyof RegisterRoute]).pathname
+      : appendParamsQuery(driver.readPathname(), params);
+
+  // Surface the params: a screen dispatches to its ParamsProvider (unchanged);
+  // chrome, which has no provider and gets no popstate from a push, sets `step`.
+  const apply = (params: object) => {
+    dispatch({ type: "SET", params });
+
+    if (!routePath) setStep(params as StepParams<T>);
+  };
+
+  const pushStep = async (params: StepParams<T>) => {
     (
       await TaskManager.addTask(async () => {
-        const { pathname } = buildRoutePath(routePath, params);
+        const pathname = stepPathname(params);
 
         // Mark the current frame as a step boundary, preserving its params, so a
-        // later popStep back onto it restores that screen's params instead of an
+        // later popStep back onto it restores that frame's params instead of an
         // empty object.
         const current = driver.readState() as { step?: boolean } | null;
 
         if (!current?.step) {
-          driver.replaceState({ ...current, step: true }, window.location.pathname);
+          // Read the current path THROUGH the driver (a wrapping driver's URL
+          // mapping round-trips); never `window.location` directly.
+          driver.replaceState({ ...current, step: true }, driver.readPathname());
         }
 
         driver.pushState(
@@ -46,22 +107,22 @@ export default function useStep<T extends keyof RegisterRoute>() {
           pathname
         );
 
-        return async () => dispatch({ type: "SET", params });
+        return async () => apply(params);
       })
     ).result?.();
   };
 
-  const replaceStep = async (params: RegisterRoute[T]) => {
+  const replaceStep = async (params: StepParams<T>) => {
     (
       await TaskManager.addTask(async () => {
-        const { pathname } = buildRoutePath(routePath, params);
+        const pathname = stepPathname(params);
 
         driver.replaceState(
           { ...(driver.readState() as object | null), step: true, params },
           pathname
         );
 
-        return async () => dispatch({ type: "SET", params });
+        return async () => apply(params);
       })
     ).result?.();
   };
@@ -108,8 +169,8 @@ export default function useStep<T extends keyof RegisterRoute>() {
           }
 
           if (nextState.step) {
-            // Step pop. Apply params right here.
-            dispatch({ type: "SET", params: nextState.params ?? {} });
+            // Step pop. Apply the boundary params right here.
+            apply(nextState.params ?? {});
             abortController.abort();
             return;
           }
@@ -139,6 +200,7 @@ export default function useStep<T extends keyof RegisterRoute>() {
   };
 
   return {
+    step,
     pushStep,
     replaceStep,
     popStep

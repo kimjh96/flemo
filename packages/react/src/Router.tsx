@@ -161,9 +161,18 @@ function Router({
   // initPath: a nested browser rides the host's current entry rather than
   // reflecting the host's URL.
   const readsWindowLocation = !isNested && !useMemory && !isServer();
-  const pathname =
+  // initPath may carry a query (a deep-linked step, e.g. /playground/1?code=x).
+  // Split it so the route matches on the clean pathname while its params still
+  // resolve from the search. A no-query initPath is unchanged.
+  const location =
     readsWindowLocation && browserDriver ? browserDriver.readPathname() : initPath || "/";
-  const search = readsWindowLocation ? window.location.search : pathname.split("?")[1] || "";
+  const queryIndex = location.indexOf("?");
+  const pathname = (queryIndex >= 0 ? location.slice(0, queryIndex) : location) || "/";
+  const search = readsWindowLocation
+    ? window.location.search
+    : queryIndex >= 0
+      ? location.slice(queryIndex)
+      : "";
 
   // Create the request-scoped stores once per mount, seeding history with the root frame derived
   // from initPath. Because the seed is the store's *initial* state, zustand hands it to React as

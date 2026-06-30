@@ -3,7 +3,7 @@
 
 <h1>flemo</h1>
 
-**Native-like screen transitions for React**
+**Native-like screen transitions for the web**
 
 [![npm](https://img.shields.io/npm/v/@flemo/react.svg)](https://www.npmjs.com/package/@flemo/react)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -12,9 +12,10 @@
 
 ---
 
-flemo is a React router whose unit of routing is a **screen**, not a page. Push, pop, and the
+flemo is a router whose unit of routing is a **screen**, not a page. Push, pop, and the
 animations and gestures between screens are handled by flemo, so you don't need to wire a
-router and a motion library together yourself.
+router and a motion library together yourself. `@flemo/react` is the React binding (the
+framework-agnostic core lives in `@flemo/core`).
 
 ## Install
 
