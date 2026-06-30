@@ -59,6 +59,7 @@ export {
 export { default as createTransition } from "@transition/createTransition";
 export { default as createRawTransition } from "@transition/createRawTransition";
 export { transitionMap } from "@transition/transition";
+export { default as initialHidesScreen } from "@transition/initialHidesScreen";
 export {
   default as createTransitionStore,
   type TransitionStore,

@@ -12,6 +12,7 @@ import {
   createSwipeController,
   createTransitionEngine,
   decoratorMap,
+  initialHidesScreen,
   transitionMap
 } from "@flemo/core";
 
@@ -111,13 +112,18 @@ function ScreenMotion({
   // rasterizing the layer on the first animated frame is itself costly. For an
   // entering push/replace screen, paint the scope first over an EMPTY content
   // box (the keyframe starts at once, on a cheap layer), then fill the children
-  // on the next, transition-priority commit. The screen is hidden by its
-  // `initial` on the first frame, so the empty box is never seen. The root, SSR,
-  // pop (Activity preserves this state), and no-offset ("none") paths render
-  // children directly, unchanged.
-  const hidesOnEnter = !!initial && Object.keys(initial).length > 0;
+  // on the next, transition-priority commit. The root, SSR, pop (Activity
+  // preserves this state), and no-offset ("none") paths render children
+  // directly, unchanged.
+  //
+  // Defer ONLY when the screen is invisible on its first frame (fully
+  // transparent, or translated off-screen): then the one-commit empty box is
+  // unseen and the keyframe ramps the real content in. A partial fade or scale
+  // that leaves the screen visible on frame 1 (e.g. the `layout` preset's
+  // opacity 0.97) renders content immediately and never flashes a box.
   const [contentReady, setContentReady] = useState(
-    () => !(isActive && (status === "PUSHING" || status === "REPLACING") && hidesOnEnter)
+    () =>
+      !(isActive && (status === "PUSHING" || status === "REPLACING") && initialHidesScreen(initial))
   );
   useEffect(() => {
     if (contentReady) return;
