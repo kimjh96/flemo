@@ -6,9 +6,7 @@ import type { Properties } from "csstype";
 // `transition.initial`, variant `value`, and the imperative inline animator.
 
 export type AnimationEasing =
-  | string
-  | readonly [number, number, number, number]
-  | [number, number, number, number];
+  string | readonly [number, number, number, number] | [number, number, number, number];
 
 export interface AnimationOptions {
   duration?: number;

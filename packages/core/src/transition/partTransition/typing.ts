@@ -7,8 +7,7 @@ import type { BaseTransition, SwipeAnimate } from "@transition/typing";
 export interface RegisterPartTransition {}
 
 export type PartTransitionName =
-  | RegisterPartTransition[keyof RegisterPartTransition]
-  | (string & {});
+  RegisterPartTransition[keyof RegisterPartTransition] | (string & {});
 
 // Imperative, per-frame hooks for the swipe (interactive) path. Each fires for a
 // single `<PartTransition>` element with its `active` side, so the author maps the
