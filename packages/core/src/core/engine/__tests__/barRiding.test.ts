@@ -8,48 +8,48 @@ import driveBarRiding from "@core/engine/barRiding";
 
 const RIDING = "data-flemo-bar-riding";
 const bars = () => ({
-  appBar: document.createElement("div"),
+  topBar: document.createElement("div"),
   navBar: document.createElement("div")
 });
 const history = (id: string) => ({ id }) as unknown as History;
 
 describe("driveBarRiding", () => {
   it("rides only the bar the partner screen does not own, during a transition", () => {
-    const { appBar, navBar } = bars();
+    const { topBar, navBar } = bars();
     const dispose = driveBarRiding({
-      appBar,
+      topBar,
       navBar,
       isTopOrTopPrev: true,
       isActive: true, // partner = histories[index - 1]
       index: 1,
-      hasAppBar: true,
+      hasTopBar: true,
       hasNavBar: true,
       getStatus: () => "PUSHING",
       getHistories: () => [history("a"), history("b")],
-      getSharedBars: () => ({ a: { appBar: true, navigationBar: false } }),
+      getSharedBars: () => ({ a: { topBar: true, bottomBar: false } }),
       subscribeStatus: () => () => {},
       subscribeSharedBars: () => () => {}
     });
 
     // Partner "a" owns the app bar (don't ride) but not the nav bar (ride).
-    expect(appBar.getAttribute(RIDING)).toBe("false");
+    expect(topBar.getAttribute(RIDING)).toBe("false");
     expect(navBar.getAttribute(RIDING)).toBe("true");
 
     dispose();
-    expect(appBar.hasAttribute(RIDING)).toBe(false);
+    expect(topBar.hasAttribute(RIDING)).toBe(false);
     expect(navBar.hasAttribute(RIDING)).toBe(false);
   });
 
   it("clears the attribute when not transitioning", () => {
-    const { appBar, navBar } = bars();
-    appBar.setAttribute(RIDING, "true");
+    const { topBar, navBar } = bars();
+    topBar.setAttribute(RIDING, "true");
     driveBarRiding({
-      appBar,
+      topBar,
       navBar,
       isTopOrTopPrev: true,
       isActive: true,
       index: 1,
-      hasAppBar: true,
+      hasTopBar: true,
       hasNavBar: true,
       getStatus: () => "COMPLETED",
       getHistories: () => [],
@@ -57,21 +57,21 @@ describe("driveBarRiding", () => {
       subscribeStatus: () => () => {},
       subscribeSharedBars: () => () => {}
     });
-    expect(appBar.hasAttribute(RIDING)).toBe(false);
+    expect(topBar.hasAttribute(RIDING)).toBe(false);
     expect(navBar.hasAttribute(RIDING)).toBe(false);
   });
 
   it("re-applies when a subscriber fires (partner registers late)", () => {
-    const { appBar, navBar } = bars();
+    const { topBar, navBar } = bars();
     let status: NavigateStatus = "COMPLETED";
     let fire = () => {};
     driveBarRiding({
-      appBar,
+      topBar,
       navBar,
       isTopOrTopPrev: true,
       isActive: true,
       index: 1,
-      hasAppBar: true,
+      hasTopBar: true,
       hasNavBar: false,
       getStatus: () => status,
       getHistories: () => [history("a"), history("b")],
@@ -83,23 +83,23 @@ describe("driveBarRiding", () => {
       subscribeSharedBars: () => () => {}
     });
 
-    expect(appBar.hasAttribute(RIDING)).toBe(false); // not transitioning yet
+    expect(topBar.hasAttribute(RIDING)).toBe(false); // not transitioning yet
     status = "PUSHING";
     fire();
-    expect(appBar.getAttribute(RIDING)).toBe("true");
+    expect(topBar.getAttribute(RIDING)).toBe("true");
   });
 
   it("unsubscribes from both stores on dispose", () => {
     const unsubStatus = vi.fn();
     const unsubSharedBars = vi.fn();
-    const { appBar, navBar } = bars();
+    const { topBar, navBar } = bars();
     const dispose = driveBarRiding({
-      appBar,
+      topBar,
       navBar,
       isTopOrTopPrev: false,
       isActive: false,
       index: 1,
-      hasAppBar: true,
+      hasTopBar: true,
       hasNavBar: true,
       getStatus: () => "PUSHING",
       getHistories: () => [],

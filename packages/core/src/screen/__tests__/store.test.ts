@@ -12,40 +12,40 @@ describe("createScreenStore: shared bar registry", () => {
   beforeEach(reset);
 
   it("registers a screen's shared bar presence", () => {
-    useScreenStore.getState().registerSharedBars("a", { appBar: true, navigationBar: false });
+    useScreenStore.getState().registerSharedBars("a", { topBar: true, bottomBar: false });
 
     expect(useScreenStore.getState().sharedBars).toEqual({
-      a: { appBar: true, navigationBar: false }
+      a: { topBar: true, bottomBar: false }
     });
   });
 
   it("removes an entry on unregister without touching others", () => {
     const { registerSharedBars, unregisterSharedBars } = useScreenStore.getState();
 
-    registerSharedBars("a", { appBar: true, navigationBar: true });
-    registerSharedBars("b", { appBar: false, navigationBar: true });
+    registerSharedBars("a", { topBar: true, bottomBar: true });
+    registerSharedBars("b", { topBar: false, bottomBar: true });
     unregisterSharedBars("a");
 
     expect(useScreenStore.getState().sharedBars).toEqual({
-      b: { appBar: false, navigationBar: true }
+      b: { topBar: false, bottomBar: true }
     });
   });
 
   it("re-registering the same id overwrites the previous presence", () => {
     const { registerSharedBars } = useScreenStore.getState();
-    registerSharedBars("a", { appBar: true, navigationBar: false });
-    registerSharedBars("a", { appBar: false, navigationBar: true });
+    registerSharedBars("a", { topBar: true, bottomBar: false });
+    registerSharedBars("a", { topBar: false, bottomBar: true });
     expect(useScreenStore.getState().sharedBars.a).toEqual({
-      appBar: false,
-      navigationBar: true
+      topBar: false,
+      bottomBar: true
     });
   });
 
   it("unregistering an unknown id is a no-op (other entries intact)", () => {
-    useScreenStore.getState().registerSharedBars("a", { appBar: true, navigationBar: true });
+    useScreenStore.getState().registerSharedBars("a", { topBar: true, bottomBar: true });
     useScreenStore.getState().unregisterSharedBars("does-not-exist");
     expect(useScreenStore.getState().sharedBars).toEqual({
-      a: { appBar: true, navigationBar: true }
+      a: { topBar: true, bottomBar: true }
     });
   });
 });
@@ -66,13 +66,13 @@ describe("createScreenStore: dragStatus", () => {
 
   it("setDragStatus does not affect replaceTransitionStatus or sharedBars", () => {
     useScreenStore.setState({ replaceTransitionStatus: "PENDING" });
-    useScreenStore.getState().registerSharedBars("a", { appBar: true, navigationBar: false });
+    useScreenStore.getState().registerSharedBars("a", { topBar: true, bottomBar: false });
     useScreenStore.getState().setDragStatus("PENDING");
 
     const state = useScreenStore.getState();
     expect(state.dragStatus).toBe("PENDING");
     expect(state.replaceTransitionStatus).toBe("PENDING");
-    expect(state.sharedBars.a).toEqual({ appBar: true, navigationBar: false });
+    expect(state.sharedBars.a).toEqual({ topBar: true, bottomBar: false });
   });
 });
 

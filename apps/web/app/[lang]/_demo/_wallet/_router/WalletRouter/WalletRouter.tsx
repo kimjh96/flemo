@@ -20,7 +20,7 @@ export interface WalletRouterProps {
 // The wallet demo: a NESTED <Router> (local in-memory history, no browser URL)
 // running inside the landing hero, exercising flemo's headline features:
 //   - Home <-> Activity: peers, a shared-axis move. Both declare the same
-//     `sharedNavigationBar`, so the tab bar stays PINNED across them.
+//     `sharedBottomBar`, so the tab bar stays PINNED across them.
 //   - Row -> Detail: a cupertino push. Detail has no bar, so the shared tab bar
 //     animates away, the shared-bar present/absent transition.
 //   - Send: a material vertical rise, also barless, a third transition kind.

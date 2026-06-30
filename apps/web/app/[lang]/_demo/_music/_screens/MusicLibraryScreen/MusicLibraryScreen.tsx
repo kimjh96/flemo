@@ -19,7 +19,7 @@ function MusicLibraryScreen() {
     navigate.push("/music/playing/:id", { id }, { transitionName: "material" });
 
   return (
-    <MusicScreen sharedNavigationBar={<MiniPlayer />}>
+    <MusicScreen sharedBottomBar={<MiniPlayer />}>
       <div className="flex h-full flex-col">
         <header className="px-5 pt-6 pb-3">
           <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">

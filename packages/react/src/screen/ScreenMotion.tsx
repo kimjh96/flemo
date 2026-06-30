@@ -34,10 +34,10 @@ function ScreenMotion({
   statusBarColor,
   systemNavigationBarHeight,
   systemNavigationBarColor,
-  sharedAppBar,
-  sharedNavigationBar,
-  appBar,
-  navigationBar,
+  sharedTopBar,
+  sharedBottomBar,
+  topBar,
+  bottomBar,
   hideStatusBar,
   hideSystemNavigationBar,
   backgroundColor = "white",
@@ -82,8 +82,8 @@ function ScreenMotion({
 
   const isKeyboardVisible = viewportScrollHeight > 0;
 
-  const [sharedAppBarHeight, setSharedAppBarHeight] = useState(0);
-  const [sharedNavigationBarHeight, setSharedNavigationBarHeight] = useState(0);
+  const [sharedTopBarHeight, setSharedTopBarHeight] = useState(0);
+  const [sharedBottomBarHeight, setSharedBottomBarHeight] = useState(0);
 
   // The scope-level node <Layer> portals overlays to (set via ref callback so
   // the context updates once it exists). It lives outside the content-isolation
@@ -94,8 +94,8 @@ function ScreenMotion({
   const screenRef = useRef<HTMLDivElement | null>(null);
   const scopeRef = useRef<HTMLDivElement | null>(null);
   const decoratorRef = useRef<HTMLDivElement | null>(null);
-  const sharedAppBarRef = useRef<HTMLDivElement | null>(null);
-  const sharedNavigationBarRef = useRef<HTMLDivElement | null>(null);
+  const sharedTopBarRef = useRef<HTMLDivElement | null>(null);
+  const sharedBottomBarRef = useRef<HTMLDivElement | null>(null);
 
   // Framework-neutral swipe-back controller, stable for this screen's lifetime.
   // It holds the gesture state and drives the transition/decorator swipe
@@ -105,8 +105,8 @@ function ScreenMotion({
   const swipeEnvRef = useRef({
     transition: currentTransition,
     decorator,
-    hasSharedAppBar: !!sharedAppBar,
-    hasSharedNavigationBar: !!sharedNavigationBar,
+    hasSharedTopBar: !!sharedTopBar,
+    hasSharedBottomBar: !!sharedBottomBar,
     viewportScrollHeight,
     isRoot,
     isActive,
@@ -117,8 +117,8 @@ function ScreenMotion({
   swipeEnvRef.current = {
     transition: currentTransition,
     decorator,
-    hasSharedAppBar: !!sharedAppBar,
-    hasSharedNavigationBar: !!sharedNavigationBar,
+    hasSharedTopBar: !!sharedTopBar,
+    hasSharedBottomBar: !!sharedBottomBar,
     viewportScrollHeight,
     isRoot,
     isActive,
@@ -136,11 +136,11 @@ function ScreenMotion({
         scope: scopeRef.current,
         screenContainer: screenRef.current,
         decorator: decoratorRef.current,
-        sharedAppBar: sharedAppBarRef.current,
-        sharedNavigationBar: sharedNavigationBarRef.current
+        sharedTopBar: sharedTopBarRef.current,
+        sharedBottomBar: sharedBottomBarRef.current
       }),
-      hasSharedAppBar: () => swipeEnvRef.current.hasSharedAppBar,
-      hasSharedNavigationBar: () => swipeEnvRef.current.hasSharedNavigationBar,
+      hasSharedTopBar: () => swipeEnvRef.current.hasSharedTopBar,
+      hasSharedBottomBar: () => swipeEnvRef.current.hasSharedBottomBar,
       getViewportScrollHeight: () => swipeEnvRef.current.viewportScrollHeight,
       isReadyForDrag: () => {
         const env = swipeEnvRef.current;
@@ -207,7 +207,7 @@ function ScreenMotion({
         getElements: () => ({
           scope: scopeRef.current,
           decorator: decoratorRef.current,
-          bars: [sharedAppBarRef.current, sharedNavigationBarRef.current]
+          bars: [sharedTopBarRef.current, sharedBottomBarRef.current]
         }),
         transitionName,
         prevTransitionName,
@@ -218,12 +218,12 @@ function ScreenMotion({
   );
 
   useLayoutEffect(() => {
-    const element = sharedAppBarRef.current;
+    const element = sharedTopBarRef.current;
     if (!element) {
-      setSharedAppBarHeight(0);
+      setSharedTopBarHeight(0);
       return;
     }
-    if (element.offsetHeight > 0) setSharedAppBarHeight(element.offsetHeight);
+    if (element.offsetHeight > 0) setSharedTopBarHeight(element.offsetHeight);
     const observer = new ResizeObserver(([entry]) => {
       // Ignore a measured height of 0: it happens when this screen is frozen
       // (display:none) during a transition, not because the bar shrank. Letting
@@ -231,21 +231,21 @@ function ScreenMotion({
       // scrollTop to the smaller max and does NOT restore it on unfreeze (scroll
       // jumps up on short pages). Keep the last real height so the reserved space
       // stays stable across freeze/unfreeze.
-      if (entry.contentRect.height > 0) setSharedAppBarHeight(entry.contentRect.height);
+      if (entry.contentRect.height > 0) setSharedTopBarHeight(entry.contentRect.height);
     });
     observer.observe(element);
     return () => {
       observer.disconnect();
     };
-  }, [sharedAppBar]);
+  }, [sharedTopBar]);
 
   useLayoutEffect(() => {
-    const element = sharedNavigationBarRef.current;
+    const element = sharedBottomBarRef.current;
     if (!element) {
-      setSharedNavigationBarHeight(0);
+      setSharedBottomBarHeight(0);
       return;
     }
-    if (element.offsetHeight > 0) setSharedNavigationBarHeight(element.offsetHeight);
+    if (element.offsetHeight > 0) setSharedBottomBarHeight(element.offsetHeight);
     const observer = new ResizeObserver(([entry]) => {
       // Ignore a measured height of 0: it happens when this screen is frozen
       // (display:none) during a transition, not because the bar shrank. Letting
@@ -253,23 +253,23 @@ function ScreenMotion({
       // scrollTop to the smaller max and does NOT restore it on unfreeze (scroll
       // jumps up on short pages). Keep the last real height so the reserved space
       // stays stable across freeze/unfreeze.
-      if (entry.contentRect.height > 0) setSharedNavigationBarHeight(entry.contentRect.height);
+      if (entry.contentRect.height > 0) setSharedBottomBarHeight(entry.contentRect.height);
     });
     observer.observe(element);
     return () => {
       observer.disconnect();
     };
-  }, [sharedNavigationBar]);
+  }, [sharedBottomBar]);
 
   // Register this screen's shared-bar presence so other screens can read it.
   useLayoutEffect(() => {
     const { registerSharedBars, unregisterSharedBars } = stores.screen.getState();
     registerSharedBars(id, {
-      appBar: !!sharedAppBar,
-      navigationBar: !!sharedNavigationBar
+      topBar: !!sharedTopBar,
+      bottomBar: !!sharedBottomBar
     });
     return () => unregisterSharedBars(id);
-  }, [id, sharedAppBar, sharedNavigationBar, stores.screen]);
+  }, [id, sharedTopBar, sharedBottomBar, stores.screen]);
 
   // Shared bars render outside the animated scope (siblings inside screenRef),
   // so any transition the scope runs has no inherent effect on the bar. When
@@ -290,8 +290,8 @@ function ScreenMotion({
   //    bars in the SAME JS tick. No rAF loop, no `getComputedStyle` reads.
   //    The bars and the screen commit in the same paint pass.
   const isTopOrTopPrev = isActive || zIndex === index - 1;
-  const hasSharedAppBar = !!sharedAppBar;
-  const hasSharedNavigationBar = !!sharedNavigationBar;
+  const hasSharedTopBar = !!sharedTopBar;
+  const hasSharedBottomBar = !!sharedBottomBar;
 
   // (1) Toggle `data-flemo-bar-riding` on each bar based on partner ownership.
   // `useLayoutEffect` so the attribute is set before the first transition frame
@@ -300,13 +300,13 @@ function ScreenMotion({
   useLayoutEffect(
     () =>
       driveBarRiding({
-        appBar: sharedAppBarRef.current,
-        navBar: sharedNavigationBarRef.current,
+        topBar: sharedTopBarRef.current,
+        navBar: sharedBottomBarRef.current,
         isTopOrTopPrev,
         isActive,
         index,
-        hasAppBar: hasSharedAppBar,
-        hasNavBar: hasSharedNavigationBar,
+        hasTopBar: hasSharedTopBar,
+        hasNavBar: hasSharedBottomBar,
         getStatus: () => stores.navigate.getState().status,
         getHistories: () => stores.history.getState().histories,
         getSharedBars: () => stores.screen.getState().sharedBars,
@@ -317,8 +317,8 @@ function ScreenMotion({
       isTopOrTopPrev,
       isActive,
       index,
-      hasSharedAppBar,
-      hasSharedNavigationBar,
+      hasSharedTopBar,
+      hasSharedBottomBar,
       stores.history,
       stores.navigate,
       stores.screen
@@ -407,15 +407,15 @@ function ScreenMotion({
             />
           </div>
         )}
-        {sharedAppBar && (
+        {sharedTopBar && (
           <div
             style={{
               width: "100%",
-              minHeight: sharedAppBarHeight
+              minHeight: sharedTopBarHeight
             }}
           />
         )}
-        {appBar}
+        {topBar}
         <div
           style={{
             display: "flex",
@@ -468,13 +468,13 @@ function ScreenMotion({
         >
           <LayerMountContext.Provider value={layerMount}>{children}</LayerMountContext.Provider>
         </div>
-        {navigationBar}
-        {sharedNavigationBar && (
+        {bottomBar}
+        {sharedBottomBar && (
           <div
             style={{
               display: isKeyboardVisible ? "none" : undefined,
               width: "100%",
-              minHeight: sharedNavigationBarHeight
+              minHeight: sharedBottomBarHeight
             }}
           />
         )}
@@ -500,9 +500,9 @@ function ScreenMotion({
             after the content so they stack above it. */}
         <div ref={setLayerMount} data-flemo-layer-mount />
       </div>
-      {sharedAppBar && (
+      {sharedTopBar && (
         <div
-          ref={sharedAppBarRef}
+          ref={sharedTopBarRef}
           data-flemo-bar="app"
           data-flemo-bar-transition={transitionName}
           data-flemo-bar-status={status}
@@ -515,12 +515,12 @@ function ScreenMotion({
             zIndex: 1
           }}
         >
-          {sharedAppBar}
+          {sharedTopBar}
         </div>
       )}
-      {sharedNavigationBar && (
+      {sharedBottomBar && (
         <div
-          ref={sharedNavigationBarRef}
+          ref={sharedBottomBarRef}
           data-flemo-bar="nav"
           data-flemo-bar-transition={transitionName}
           data-flemo-bar-status={status}
@@ -534,7 +534,7 @@ function ScreenMotion({
             zIndex: 1
           }}
         >
-          {sharedNavigationBar}
+          {sharedBottomBar}
         </div>
       )}
       {decorator && <ScreenDecorator ref={decoratorRef} />}

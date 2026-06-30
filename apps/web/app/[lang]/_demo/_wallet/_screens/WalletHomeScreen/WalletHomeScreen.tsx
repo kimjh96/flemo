@@ -20,7 +20,7 @@ function WalletHomeScreen() {
   const recent = TRANSACTIONS.slice(0, 4);
 
   return (
-    <WalletScreen sharedNavigationBar={<WalletTabBar />}>
+    <WalletScreen sharedBottomBar={<WalletTabBar />}>
       <div className="flex h-full flex-col">
         <div className="flex-1 overflow-y-auto pb-20">
           <header className="px-5 pt-5">

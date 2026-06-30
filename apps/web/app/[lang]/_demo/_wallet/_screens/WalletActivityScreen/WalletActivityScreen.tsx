@@ -18,7 +18,7 @@ function WalletActivityScreen() {
   const dict = useShellDict();
 
   return (
-    <WalletScreen sharedNavigationBar={<WalletTabBar />}>
+    <WalletScreen sharedBottomBar={<WalletTabBar />}>
       <div className="flex h-full flex-col">
         <header className="px-5 pt-5 pb-1">
           <h1 className="text-xl font-bold tracking-tight text-[var(--color-text-primary)]">

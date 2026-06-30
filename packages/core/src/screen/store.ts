@@ -1,8 +1,8 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 export interface SharedBarPresence {
-  appBar: boolean;
-  navigationBar: boolean;
+  topBar: boolean;
+  bottomBar: boolean;
 }
 
 export interface ScreenStore {
