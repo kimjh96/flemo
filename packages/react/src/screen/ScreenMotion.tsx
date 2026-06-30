@@ -1,4 +1,5 @@
 import {
+  startTransition,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -7,10 +8,10 @@ import {
 } from "react";
 
 import {
+  computeBarRiding,
   createSwipeController,
   createTransitionEngine,
   decoratorMap,
-  driveBarRiding,
   transitionMap
 } from "@flemo/core";
 
@@ -60,6 +61,16 @@ function ScreenMotion({
   const setDragStatus = stores.screen.getState().setDragStatus;
   const setReplaceTransitionStatus = stores.screen.getState().setReplaceTransitionStatus;
   const index = useHistoryStore((state) => state.index);
+  const histories = useHistoryStore((state) => state.histories);
+
+  // The partner screen this one would hand its shared bars to (the active top
+  // looks one below; a prev looks at the top). Subscribe to JUST that entry so
+  // bar-riding recomputes when the partner registers/unregisters its bars,
+  // without re-rendering on unrelated screens' bars.
+  const partnerId = isActive ? histories[index - 1]?.id : histories[index]?.id;
+  const partnerBars = useScreenStore((state) =>
+    partnerId ? state.sharedBars[partnerId] : undefined
+  );
 
   // Framework-neutral lifecycle engine, stable for this screen's lifetime.
   // It owns when the navigation task resolves and the COMPLETED cleanup; the
@@ -90,6 +101,29 @@ function ScreenMotion({
   // box, so a portaled overlay resolves against the full-screen scope and rides
   // the transition instead of being trapped in the inset content box.
   const [layerMount, setLayerMount] = useState<HTMLDivElement | null>(null);
+
+  // Decouple the transition START from the entering screen's content render. The
+  // scope element the keyframe animates and the consumer's `{children}` commit
+  // in one React render, so a heavy cold mount (lazy chunk + fetch + a large
+  // DOM) delays the first paint, and thus the animation's start, until that
+  // whole subtree commits. That reads as the transition arriving late and
+  // colliding with the content's re-render, worst on iOS where promoting and
+  // rasterizing the layer on the first animated frame is itself costly. For an
+  // entering push/replace screen, paint the scope first over an EMPTY content
+  // box (the keyframe starts at once, on a cheap layer), then fill the children
+  // on the next, transition-priority commit. The screen is hidden by its
+  // `initial` on the first frame, so the empty box is never seen. The root, SSR,
+  // pop (Activity preserves this state), and no-offset ("none") paths render
+  // children directly, unchanged.
+  const hidesOnEnter = !!initial && Object.keys(initial).length > 0;
+  const [contentReady, setContentReady] = useState(
+    () => !(isActive && (status === "PUSHING" || status === "REPLACING") && hidesOnEnter)
+  );
+  useEffect(() => {
+    if (contentReady) return;
+    startTransition(() => setContentReady(true));
+  }, [contentReady]);
+  const content = contentReady ? children : null;
 
   const screenRef = useRef<HTMLDivElement | null>(null);
   const scopeRef = useRef<HTMLDivElement | null>(null);
@@ -281,10 +315,13 @@ function ScreenMotion({
   //
   // 1. CSS-driven transitions (push / pop / replace). The compiled rule emits
   //    a sibling selector that targets `[data-flemo-bar][...riding="true"]`
-  //    with the same `@keyframes` the screen uses. We set the bar's data-
-  //    attributes here and toggle `data-flemo-bar-riding` based on partner
-  //    ownership. The compositor drives both elements off one keyframe. No
-  //    JS frame in the loop, no main-thread style read/write per frame.
+  //    with the same `@keyframes` the screen uses. `data-flemo-bar-riding` is
+  //    computed here in RENDER and set on the bar below, in the SAME commit as
+  //    the bar's `data-flemo-bar-status`. The compiled rule keys on both, so
+  //    rendering them together guarantees one paint — a bar can't carry the
+  //    POPPING status without its riding flag for a frame (which an imperative
+  //    effect write could, landing late on a genuine browser-back where React
+  //    reconnects the unfrozen subtree's effects as follow-up work).
   // 2. Swipe drag. Handled synchronously inside the core swipe controller,
   //    which mirrors every `animate(currentScreen, ...)` call to the riding
   //    bars in the SAME JS tick. No rAF loop, no `getComputedStyle` reads.
@@ -293,37 +330,13 @@ function ScreenMotion({
   const hasSharedTopBar = !!sharedTopBar;
   const hasSharedBottomBar = !!sharedBottomBar;
 
-  // (1) Toggle `data-flemo-bar-riding` on each bar based on partner ownership.
-  // `useLayoutEffect` so the attribute is set before the first transition frame
-  // paints; the core controller owns the toggle + re-subscription logic and
-  // stays framework-neutral (plain DOM + injected store reads).
-  useLayoutEffect(
-    () =>
-      driveBarRiding({
-        topBar: sharedTopBarRef.current,
-        navBar: sharedBottomBarRef.current,
-        isTopOrTopPrev,
-        isActive,
-        index,
-        hasTopBar: hasSharedTopBar,
-        hasNavBar: hasSharedBottomBar,
-        getStatus: () => stores.navigate.getState().status,
-        getHistories: () => stores.history.getState().histories,
-        getSharedBars: () => stores.screen.getState().sharedBars,
-        subscribeStatus: (listener) => stores.navigate.subscribe(listener),
-        subscribeSharedBars: (listener) => stores.screen.subscribe(listener)
-      }),
-    [
-      isTopOrTopPrev,
-      isActive,
-      index,
-      hasSharedTopBar,
-      hasSharedBottomBar,
-      stores.history,
-      stores.navigate,
-      stores.screen
-    ]
-  );
+  const { app: rideTopBar, nav: rideBottomBar } = computeBarRiding({
+    status,
+    isTopOrTopPrev,
+    hasTopBar: hasSharedTopBar,
+    hasNavBar: hasSharedBottomBar,
+    partnerBars
+  });
 
   const initialStyle: { transform?: string; opacity?: string } = (() => {
     // Only the actively entering screen needs the initial style; everything
@@ -466,7 +479,7 @@ function ScreenMotion({
               : null)
           }}
         >
-          <LayerMountContext.Provider value={layerMount}>{children}</LayerMountContext.Provider>
+          <LayerMountContext.Provider value={layerMount}>{content}</LayerMountContext.Provider>
         </div>
         {bottomBar}
         {sharedBottomBar && (
@@ -507,6 +520,7 @@ function ScreenMotion({
           data-flemo-bar-transition={transitionName}
           data-flemo-bar-status={status}
           data-flemo-bar-active={isActive ? "true" : "false"}
+          data-flemo-bar-riding={rideTopBar ? "true" : "false"}
           style={{
             position: screenPosition,
             top: !hideStatusBar ? statusBarHeight : 0,
@@ -525,6 +539,7 @@ function ScreenMotion({
           data-flemo-bar-transition={transitionName}
           data-flemo-bar-status={status}
           data-flemo-bar-active={isActive ? "true" : "false"}
+          data-flemo-bar-riding={rideBottomBar ? "true" : "false"}
           style={{
             display: isKeyboardVisible ? "none" : undefined,
             position: screenPosition,
