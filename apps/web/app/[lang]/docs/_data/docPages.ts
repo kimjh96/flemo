@@ -44,7 +44,7 @@ const EN: DocSection[] = [
             items: [
               "`Getting started` install through your first push and pop",
               "`Router & Route` path matching, registration, defaults",
-              "`Screen` app bar, navigation bar, safe areas",
+              "`Screen` top bar, bottom bar, safe areas",
               "`Navigation` useNavigate, useParams, useStep",
               "`Transitions` built-in presets, custom transitions, gestures"
             ]
@@ -57,6 +57,10 @@ const EN: DocSection[] = [
         blocks: [
           { type: "h", text: "Install" },
           { type: "code", lang: "bash", code: "pnpm add @flemo/react" },
+          {
+            type: "note",
+            text: "Svelte and SolidJS support is planned."
+          },
           { type: "h", text: "1. Register your routes" },
           {
             type: "p",
@@ -144,6 +148,10 @@ const EN: DocSection[] = [
             lang: "tsx",
             code: 'navigate.push("/posts/:slug", { slug: "hello" }); // ok\nnavigate.push("/posts/:slug", { id: "1" }); // type error\nnavigate.push("/unknown"); // type error'
           },
+          {
+            type: "note",
+            text: "These `declare module` blocks merge: TypeScript folds every `RegisterRoute` augmentation across your codebase into one interface. So prefer declaring each route at the bottom of the file that defines its screen, next to the code it describes, rather than keeping a central registry file. Declare `RegisterTransition`, `RegisterDecorator`, and `RegisterPartTransition` the same way, in the file where you create each one."
+          },
           { type: "h", text: "Router options" },
           {
             type: "table",
@@ -189,10 +197,6 @@ const EN: DocSection[] = [
             lang: "tsx",
             code: '<Router>\n  <Header />\n  <Slot className="h-full w-full">\n    <Route path="/" element={<Home />} />\n    <Route path="/about" element={<About />} />\n  </Slot>\n</Router>'
           },
-          {
-            type: "p",
-            text: "Here `Header` mounts once and never moves. Only the screens inside `Slot` slide, and the header's own `useNavigate` drives them with no extra wiring."
-          },
           { type: "h", text: "Give it a size" },
           {
             type: "p",
@@ -210,22 +214,26 @@ const EN: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "`Screen` is what each route renders. It is a container with slots for app bars, navigation bars, and safe-area aware insets, the same vocabulary you would use building a native app. The content area scrolls by default and the background is white unless you change it."
+            text: "`Screen` is what each route renders: a container with slots for a top bar, a bottom bar, and safe-area insets."
           },
-          { type: "h", text: "App bar and navigation bar" },
+          { type: "h", text: "Top bar and bottom bar" },
           {
             type: "p",
-            text: "Two slots, two flavors each. Per-screen bars (`appBar`, `navigationBar`) mount and unmount with the screen. Shared bars (`sharedAppBar`, `sharedNavigationBar`) stay mounted across transitions, so they do not re-animate on every push. Use shared bars for global UI like a bottom tab bar."
+            text: "Two slots, two flavors each. Per-screen bars (`topBar`, `bottomBar`) mount and unmount with the screen. Shared bars (`sharedTopBar`, `sharedBottomBar`) are kept out of the transition, so they do not animate on every push. Use shared bars for global UI like a bottom tab bar."
           },
           {
             type: "code",
             lang: "tsx",
-            code: '<Screen\n  appBar={<TopBar title="Inbox" />}\n  sharedNavigationBar={<TabBar />}\n>\n  <MailList />\n</Screen>'
+            code: '<Screen\n  topBar={<TopBar title="Inbox" />}\n  sharedBottomBar={<TabBar />}\n>\n  <MailList />\n</Screen>'
+          },
+          {
+            type: "note",
+            text: "A shared bar overlaps with `Slot` (see the previous page), but they fit different cases. `Slot` puts one element, the same on every screen, outside the screen stack, so it never moves with a transition. A shared bar belongs to each screen, but when you move between two screens that both have one it is left out of the transition and stays in place, so its contents can differ from screen to screen. Use `Slot` for a fixed frame that is identical everywhere, and a shared bar for a per-screen bar that should still look continuous."
           },
           { type: "h", text: "Safe areas" },
           {
             type: "p",
-            text: "`Screen` reserves the top and bottom safe areas itself through `statusBarHeight` and `systemNavigationBarHeight` (with matching `*Color` and `hide*` props). This matters most inside a native or hybrid WebView app: turn the native safe-area handling off and let the web own the insets, so they animate and recolor with the rest of the screen."
+            text: "`Screen` reserves the top and bottom safe areas itself through `statusBarHeight` and `systemNavigationBarHeight` (with matching `*Color` and `hide*` props). This matters most inside a native or hybrid WebView app: turn the native safe-area handling off and let the web own the insets. Then the safe-area bands transition with the screen, so the whole screen slides and recolors as one piece, instead of content sliding under static native bars that never move and give the WebView away."
           },
           {
             type: "code",
@@ -237,14 +245,37 @@ const EN: DocSection[] = [
             type: "table",
             headers: ["Prop", "Type", "Default"],
             rows: [
-              ["`appBar` / `navigationBar`", "`ReactNode`", "—"],
-              ["`sharedAppBar` / `sharedNavigationBar`", "`ReactNode`", "—"],
+              ["`topBar` / `bottomBar`", "`ReactNode`", "—"],
+              ["`sharedTopBar` / `sharedBottomBar`", "`ReactNode`", "—"],
               ["`backgroundColor`", "`string`", "`white`"],
               ["`statusBarHeight` / `statusBarColor`", "`string`", "—"],
               ["`systemNavigationBarHeight` / `systemNavigationBarColor`", "`string`", "—"],
               ["`hideStatusBar` / `hideSystemNavigationBar`", "`boolean`", "`false`"],
               ["`contentScrollable`", "`boolean`", "`true`"]
             ]
+          }
+        ]
+      },
+      {
+        slug: "layer",
+        title: "Layer",
+        blocks: [
+          {
+            type: "p",
+            text: "To transition smoothly, each `Screen` isolates its content in its own compositing layer. That layer is a transformed element, which makes it a containing block: a `position: fixed` overlay inside it resolves against the box, not the viewport, and the box also clips and scrolls. So a full-screen sheet, a dim backdrop, or a pinned FAB rendered in the content gets trapped, clipped, or mispositioned. `Layer` is the escape hatch: it portals its children up to the screen's scope level, outside that isolation box, so they position against the whole screen and are not clipped, while still riding the screen's transition."
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: 'import { Layer } from "@flemo/react";\n\nfunction BottomSheet({ open, children }) {\n  return (\n    <Layer>\n      <div className={open ? "sheet sheet-open" : "sheet"}>{children}</div>\n    </Layer>\n  );\n}'
+          },
+          {
+            type: "p",
+            text: "It is a building block, not a wrapper you repeat. Put `Layer` inside a reusable overlay component once (a `BottomSheet`, a `Dialog`), and every call site gets the escape for free with no extra wrapping. Outside a `Screen` there is no mount node, so `Layer` renders its children in place and the component still works anywhere."
+          },
+          {
+            type: "note",
+            text: "Reach for `Layer` only when an overlay must escape the content box to cover or pin to the whole screen: a sheet, a dim backdrop, a FAB, a toast. Plain in-flow content does not need it."
           }
         ]
       },
@@ -264,12 +295,12 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "`push`, `replace`, and `pop` are async. They wait for the transition to start and the route to take effect, and however far one reaches it drives a single transition."
+            text: "`push`, `replace`, and `pop` return a promise, so you can `await` a move before doing the next thing. It settles once the transition has started and the route has updated. Jumping several screens at once still plays one transition, not one per screen."
           },
           { type: "h", text: "Reaching past the top" },
           {
             type: "p",
-            text: "All three take an optional distance, `skip` (a number of screens) or `until` (a route pattern), to reach a screen below the top in one transition. Skipped screens are removed without ever painting. They reach the same target and differ only in what they do there."
+            text: "All three take an optional distance, `skip` (a number of screens) or `until` (a route pattern), to reach a screen below the top in one transition. The screens you skip over are removed without ever painting, so they never flash by on the way."
           },
           {
             type: "table",
@@ -306,7 +337,7 @@ const EN: DocSection[] = [
           { type: "h", text: "useStep" },
           {
             type: "p",
-            text: "`useStep()` is for sub-states within the current screen. It adds a history entry, so the back button still works, but does not change the route. The same `Screen` stays mounted and only its params update. A multi-step form on one screen is the common case."
+            text: "`useStep()` moves between steps inside one screen without navigating away, like a sign-up form going name → email → password. The route and the `Screen` stay the same and only the params change, but each step is its own history entry, so the back button returns to the previous step."
           },
           {
             type: "code",
@@ -321,10 +352,6 @@ const EN: DocSection[] = [
               ["`replaceStep(params)`", "Replace the current history entry"],
               ["`popStep()`", "Go back one step"]
             ]
-          },
-          {
-            type: "note",
-            text: "`useStep` keeps everything in the screen tree: same Screen instance, same providers, same scroll position. `useNavigate` mounts a new Screen with a real transition."
           }
         ]
       },
@@ -353,7 +380,7 @@ const EN: DocSection[] = [
           { type: "h", text: "Author your own" },
           {
             type: "p",
-            text: "`createTransition` describes six phases. flemo compiles them to CSS keyframes, so nothing animates on the JS thread."
+            text: "`createTransition` defines six phases."
           },
           {
             type: "code",
@@ -372,7 +399,12 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "Register it on the `Router`, then add it to `RegisterTransition` so `transitionName` autocompletes."
+            text: "Augment `RegisterTransition` so `transitionName` autocompletes (the same module augmentation as `RegisterRoute`), then register it on the `Router`."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'declare module "@flemo/react" {\n  interface RegisterTransition {\n    myFade: "myFade";\n  }\n}'
           },
           {
             type: "code",
@@ -382,7 +414,16 @@ const EN: DocSection[] = [
           { type: "h", text: "Raw transitions and swipe" },
           {
             type: "p",
-            text: "Use `createRawTransition` when you need different animations for push, replace, and pop on each side. A transition becomes gesture-driven by setting `swipeDirection` and the swipe handlers in `options`."
+            text: "`createTransition` derives push, replace, and pop from one symmetric set of phases. When that is too coarse, `createRawTransition` is the low-level escape hatch: you spell out the entering and the leaving screen for every operation, so push can move differently from replace or pop."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'import { createRawTransition } from "@flemo/react";\n\nexport const shove = createRawTransition({\n  name: "shove",\n  initial: { transform: "translateX(100%)" },\n  idle: { value: { transform: "translateX(0)" }, options: { duration: 0 } },\n  pushOnEnter: { value: { transform: "translateX(0)" }, options: { duration: 0.4 } },\n  pushOnExit: { value: { transform: "translateX(-30%)" }, options: { duration: 0.4 } },\n  replaceOnEnter: { value: { transform: "translateX(0)" }, options: { duration: 0.4 } },\n  replaceOnExit: { value: { transform: "translateX(-100%)" }, options: { duration: 0.4 } },\n  popOnEnter: { value: { transform: "translateX(-30%)" }, options: { duration: 0.4 } },\n  popOnExit: { value: { transform: "translateX(100%)" }, options: { duration: 0.4 } },\n  completedOnEnter: { value: { transform: "translateX(0)" }, options: { duration: 0 } },\n  completedOnExit: { value: { transform: "translateX(0)" }, options: { duration: 0 } }\n});'
+          },
+          {
+            type: "p",
+            text: "Any transition, preset or custom, becomes gesture-driven by setting `swipeDirection` and the swipe handlers in `options`. That is the same wiring behind cupertino's edge swipe-back."
           },
           { type: "h", text: "Decorators" },
           {
@@ -393,6 +434,75 @@ const EN: DocSection[] = [
             type: "code",
             lang: "ts",
             code: 'import { createDecorator } from "@flemo/react";\n\nconst dim = createDecorator({\n  name: "dim",\n  initial: { opacity: 0 },\n  idle: { value: { opacity: 0 }, options: { duration: 0 } },\n  enter: { value: { opacity: 0.4 }, options: { duration: 0.3 } },\n  exit: { value: { opacity: 0 }, options: { duration: 0.3 } }\n});'
+          },
+          {
+            type: "p",
+            text: "Augment `RegisterDecorator` for the typed name."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'declare module "@flemo/react" {\n  interface RegisterDecorator {\n    dim: "dim";\n  }\n}'
+          },
+          {
+            type: "p",
+            text: "A transition opts into the decorator with `decoratorName`, and both go on the `Router`."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'const dive = createTransition({\n  name: "dive",\n  // ...phases\n  options: { decoratorName: "dim" }\n});'
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: "<Router transitions={[dive]} decorators={[dim]}>\n  ...\n</Router>"
+          }
+        ]
+      },
+      {
+        slug: "part",
+        title: "Part",
+        blocks: [
+          {
+            type: "p",
+            text: "`Part` gives one element inside a screen its own animation, driven by the screen's lifecycle and timed with its transition, but applied to just that one element. The classic use is a pinned shared bar whose title cross-fades from screen to screen."
+          },
+          {
+            type: "p",
+            text: "First author the transition with `createPartTransition`, then augment `RegisterPartTransition` for a typed `name` (the same module augmentation as `RegisterRoute`). For a title, it is visible at rest (`idle`), fades as the screen moves into the background (`enter`), and comes back when it returns (`exit`)."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'import { createPartTransition } from "@flemo/react";\n\nconst titleFade = createPartTransition({\n  name: "titleFade",\n  initial: { opacity: 1 },\n  idle: { value: { opacity: 1 }, options: { duration: 0.3 } },\n  enter: { value: { opacity: 0 }, options: { duration: 0.3 } },\n  exit: { value: { opacity: 1 }, options: { duration: 0.3 } }\n});'
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'declare module "@flemo/react" {\n  interface RegisterPartTransition {\n    titleFade: "titleFade";\n  }\n}'
+          },
+          {
+            type: "p",
+            text: "Register it on the `Router`, the same as `transitions` and `decorators`."
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: "<Router partTransitions={[titleFade]}>\n  ...\n</Router>"
+          },
+          {
+            type: "p",
+            text: "Then wrap the element in `Part`."
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: 'import { Part, Screen } from "@flemo/react";\n\nfunction Inbox() {\n  return (\n    <Screen sharedTopBar={<header><Part name="titleFade">Inbox</Part></header>}>\n      <MailList />\n    </Screen>\n  );\n}'
+          },
+          {
+            type: "note",
+            text: "For finer control over each operation, `createRawPartTransition` exposes every status, the way `createRawTransition` does."
           }
         ]
       }
@@ -412,7 +522,11 @@ const EN: DocSection[] = [
             rows: [
               ["`Router`", "Root container, renders the active screen", "`@flemo/react`"],
               ["`Route`", "Maps a path (or paths) to an element", "`@flemo/react`"],
-              ["`Screen`", "Per-route container with app/nav/safe-area slots", "`@flemo/react`"],
+              [
+                "`Screen`",
+                "Per-route container with top/bottom bar and safe-area slots",
+                "`@flemo/react`"
+              ],
               [
                 "`Slot`",
                 "Marks the transitioning region, keeping the surrounding layout persistent",
@@ -473,7 +587,7 @@ const EN: DocSection[] = [
           { type: "h", text: "Peer dependencies" },
           {
             type: "p",
-            text: "`@flemo/react` requires only `react ^19` and `react-dom ^19`. `@flemo/react-layout` adds `motion ^12`, installed when you use `LayoutScreen` or `LayoutConfig`."
+            text: "`@flemo/react` requires only `react ^19` and `react-dom ^19`. Shared-element transitions are the one thing that needs more: `@flemo/react-layout` with `motion ^12`, added only when you reach for them."
           }
         ]
       }
@@ -568,21 +682,21 @@ const KO: DocSection[] = [
           { type: "p", text: "flemo는 화면 전환을 위한 라우터예요." },
           {
             type: "p",
-            text: "네이티브 앱은 화면을 쌓고(push) 걷어내고(pop), 스와이프로 뒤로 가며 움직여요. flemo는 그 움직임을 웹에서 그대로 만들 수 있게 해줘요."
+            text: "네이티브 앱은 화면을 쌓고(push) 걷어내고(pop), 스와이프로 뒤로 가며 움직여요. flemo는 그 움직임을 웹에서 그대로 만들 수 있게 도와줘요."
           },
           {
             type: "p",
-            text: "화면 사이의 전환은 기본으로 제공되는 트랜지션을 바로 쓰거나, 직접 정의해서 쓸 수 있어요."
+            text: "화면 사이의 전환은 기본으로 제공되는 트랜지션을 바로 사용하거나, 직접 정의해서 사용할 수 있어요."
           },
           { type: "h", text: "다음으로" },
           {
             type: "list",
             items: [
               "`빠르게 시작하기` 설치부터 첫 push/pop까지",
-              "`Router & Route` 경로 매칭, 등록, 기본값",
-              "`Screen` 앱 바, 네비게이션 바, 세이프 에어리어",
-              "`네비게이션` useNavigate, useParams, useStep",
-              "`트랜지션` 내장 프리셋, 커스텀 전환, 제스처"
+              "`Router와 Route` 경로 매칭, 등록, 기본값",
+              "`Screen` 상단 바, 하단 바, 세이프 에어리어",
+              "`Navigation` useNavigate, useParams, useStep",
+              "`Transitions` 내장 프리셋, 커스텀 트랜지션, 제스처"
             ]
           }
         ]
@@ -593,6 +707,10 @@ const KO: DocSection[] = [
         blocks: [
           { type: "h", text: "설치" },
           { type: "code", lang: "bash", code: "pnpm add @flemo/react" },
+          {
+            type: "note",
+            text: "Svelte, SolidJS 지원도 준비 중이에요."
+          },
           { type: "h", text: "1. 라우트 등록" },
           {
             type: "p",
@@ -651,14 +769,14 @@ const KO: DocSection[] = [
             type: "table",
             headers: ["요소", "역할"],
             rows: [
-              ["`Router`", "히스토리, 전환, 데코레이터를 구성해요"],
+              ["`Router`", "히스토리, 트랜지션, 데코레이터를 구성해요"],
               ["`Route`", "`path`(들)를 `element`에 연결해요"]
             ]
           },
           { type: "h", text: "경로 패턴" },
           {
             type: "p",
-            text: "flemo는 매칭에 path-to-regexp v8을 써요. 배열을 넘기면 한 컴포넌트를 여러 경로에서 공유해요."
+            text: "flemo는 매칭에 path-to-regexp v8을 사용해요. 배열을 넘기면 한 컴포넌트를 여러 경로에서 공유해요."
           },
           {
             type: "code",
@@ -672,17 +790,30 @@ const KO: DocSection[] = [
           },
           {
             type: "code",
+            lang: "ts",
+            code: 'declare module "@flemo/react" {\n  interface RegisterRoute {\n    "/": undefined;\n    "/posts/:slug": { slug: string };\n  }\n}'
+          },
+          {
+            type: "code",
             lang: "tsx",
             code: 'navigate.push("/posts/:slug", { slug: "hello" }); // 통과\nnavigate.push("/posts/:slug", { id: "1" }); // 타입 에러\nnavigate.push("/unknown"); // 타입 에러'
+          },
+          {
+            type: "note",
+            text: "이 `declare module` 블록들은 서로 병합돼요. TypeScript가 코드베이스 곳곳의 `RegisterRoute` 확장을 하나의 인터페이스로 합쳐 주거든요. 그러니 레지스트리를 한 파일에 모으기보다, 각 라우트를 그 화면이 정의된 파일 맨 아래에 선언해 두는 걸 권장해요. `RegisterTransition`, `RegisterDecorator`, `RegisterPartTransition`도 마찬가지로, 트랜지션이나 데코레이터를 만든 파일에 함께 선언해 두세요."
           },
           { type: "h", text: "Router 옵션" },
           {
             type: "table",
             headers: ["Prop", "기본값", "역할"],
             rows: [
-              ["`initPath`", "`/`", "`window.location` 전, SSR에서 쓰는 경로"],
-              ["`defaultTransitionName`", "`cupertino`", "push가 전환을 안 정했을 때 쓰는 값"],
-              ["`transitions`", "`[]`", "등록할 커스텀 전환"],
+              ["`initPath`", "`/`", "`window.location` 전, SSR에서 사용하는 경로"],
+              [
+                "`defaultTransitionName`",
+                "`cupertino`",
+                "push가 트랜지션을 안 정했을 때 사용하는 값"
+              ],
+              ["`transitions`", "`[]`", "등록할 커스텀 트랜지션"],
               ["`decorators`", "`[]`", "등록할 커스텀 데코레이터(오버레이)"],
               [
                 "`history`",
@@ -694,16 +825,16 @@ const KO: DocSection[] = [
           { type: "h", text: "중첩 Router와 history 모드" },
           {
             type: "p",
-            text: '`Router` 안의 `Router`는 자기 스택을 가진 독립 영역이에요. 기본적으로 그 안에서도 브라우저 히스토리를 써서 URL이 바뀌고 브라우저 뒤로/앞으로가 동작해요. 임베드된 데모, 위저드, 캐러셀처럼 URL이나 브라우저 뒤로가기를 건드리면 안 되는 격리 스택이 필요하면 `history="memory"`를 주세요.'
+            text: '`Router` 안의 `Router`는 자기 스택을 가진 독립 영역이에요. 기본적으로 그 안에서도 브라우저 히스토리를 사용해서 URL이 바뀌고 브라우저 뒤로/앞으로가 동작해요. 임베드된 데모, 위저드, 캐러셀처럼 URL이나 브라우저 뒤로가기를 건드리면 안 되는 격리 스택이 필요하면 `history="memory"`를 주세요.'
           },
           { type: "h", text: "서버 사이드 렌더링" },
           {
             type: "p",
-            text: "flemo는 클라이언트 SPA 라우터예요. 마운트되면 `window.history`를 구동하며 네비게이션을 넘겨받아요. 서버엔 `window.location`이 없으니 `initPath`로 첫 화면 경로를 알려줘요. 클라이언트에선 `window.location.pathname`을 읽어 이어받아요. 순수 SPA(Vite 등)는 `initPath`가 아예 필요 없어요."
+            text: "flemo는 클라이언트 SPA 라우터예요. 마운트되면 `window.history`를 직접 다루면서 내비게이션을 도맡아요. 서버엔 `window.location`이 없어서, `initPath`로 첫 화면 경로를 알려줘요. 클라이언트에선 `window.location.pathname`을 읽어 그대로 이어가요. 순수 SPA(Vite 등)에선 `initPath`가 아예 필요 없어요."
           },
           {
             type: "note",
-            text: "flemo가 클라이언트 히스토리를 소유하기 때문에, 라우팅을 함께 소유하는 호스트 프레임워크와는 같이 못 써요. 순수 SPA나, 라우팅을 호스트와 공유하지 않는 독립 클라이언트 아일랜드로 쓰세요."
+            text: "flemo가 클라이언트 히스토리를 소유하기 때문에, 라우팅을 함께 소유하는 호스트 프레임워크와는 같이 사용할 수 없어요. 순수 SPA나, 라우팅을 호스트와 공유하지 않는 독립 클라이언트 아일랜드로 사용하세요."
           }
         ]
       },
@@ -713,25 +844,21 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "기본적으로 `Router`는 화면 전체를 전환해요. 헤더, 사이드바, 하단 탭 바처럼 레이아웃의 일부가 그대로 머물러야 할 때, 화면들만 `Slot`으로 감싸요. 그러면 `Slot` 바깥은 마운트된 채 가만히 있고 화면 영역만 움직여서, 주변 레이아웃이 이동할 때마다 미끄러지거나 다시 렌더되지 않아요."
+            text: "기본적으로 `Router`는 화면 전체를 전환해요. 헤더, 사이드바, 하단 탭 바처럼 레이아웃의 일부가 그대로 머물러야 할 때, 화면만 `Slot`으로 감싸요. 그러면 `Slot` 바깥은 마운트된 채 가만히 있고 화면 영역만 움직여서, 내비게이션할 때마다 주변 레이아웃이 딸려 가거나 다시 렌더되지 않아요."
           },
           {
             type: "code",
             lang: "tsx",
             code: '<Router>\n  <Header />\n  <Slot className="h-full w-full">\n    <Route path="/" element={<Home />} />\n    <Route path="/about" element={<About />} />\n  </Slot>\n</Router>'
           },
-          {
-            type: "p",
-            text: "여기서 `Header`는 한 번 마운트되고 움직이지 않아요. `Slot` 안의 화면만 미끄러지고, 헤더의 `useNavigate`가 별도 배선 없이 그 영역을 몰아요."
-          },
           { type: "h", text: "크기를 주세요" },
           {
             type: "p",
-            text: '`Slot`은 화면들이 그 안에서 움직이는 박스예요. 자기 영역으로 잘라내고 화면들을 absolute로 쌓기 때문에, 크기를 명시하지 않으면 높이가 0으로 줄어 아무것도 안 보일 수 있어요. 보통 부모를 채우도록 바깥에서 `className="h-full w-full"`로 크기를 주세요.'
+            text: '`Slot`은 화면이 그 안에서 움직이는 박스예요. 자기 영역으로 잘라내고 화면을 absolute로 쌓기 때문에, 크기를 명시하지 않으면 높이가 0으로 줄어 아무것도 안 보일 수 있어요. 보통 부모를 채우도록 바깥에서 `className="h-full w-full"`로 크기를 주세요.'
           },
           {
             type: "note",
-            text: "`Router`에 `Route`가 아닌 자식(헤더, 효과 전용 컴포넌트)이 있으면, 라우트들을 `Slot`으로 감싸 flemo가 화면과 주변 레이아웃을 구분하게 하세요."
+            text: "`Router`에 `Route`가 아닌 자식(헤더, 효과 전용 컴포넌트)이 있으면, 라우트를 `Slot`으로 감싸 flemo가 화면과 주변 레이아웃을 구분하게 하세요."
           }
         ]
       },
@@ -741,22 +868,26 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "`Screen`은 각 라우트가 그리는 것이에요. 앱 바, 네비게이션 바, 세이프 에어리어 인셋 슬롯을 가진 컨테이너로, 네이티브 앱을 만들 때 쓰는 어휘 그대로예요. 본문은 기본으로 스크롤되고, 배경은 바꾸기 전엔 흰색이에요."
+            text: "`Screen`은 각 라우트가 그려내는 화면이에요. 상단 바, 하단 바, 세이프 에어리어 인셋 슬롯을 갖춘 컨테이너고요."
           },
-          { type: "h", text: "앱 바와 네비게이션 바" },
+          { type: "h", text: "상단 바와 하단 바" },
           {
             type: "p",
-            text: "슬롯 둘, 각각 두 종류예요. 화면별 바(`appBar`, `navigationBar`)는 화면과 함께 마운트·언마운트돼요. 공유 바(`sharedAppBar`, `sharedNavigationBar`)는 전환을 가로질러 유지돼서 push마다 다시 애니메이션되지 않아요. 하단 탭 바 같은 전역 UI에 공유 바를 써요."
+            text: "슬롯 둘, 각각 두 종류예요. 화면별 바(`topBar`, `bottomBar`)는 화면과 함께 마운트·언마운트돼요. 공유 바(`sharedTopBar`, `sharedBottomBar`)는 전환에서 빠져서 push마다 애니메이션되지 않아요. 하단 탭 바 같은 전역 UI에 공유 바를 사용해요."
           },
           {
             type: "code",
             lang: "tsx",
-            code: '<Screen\n  appBar={<TopBar title="Inbox" />}\n  sharedNavigationBar={<TabBar />}\n>\n  <MailList />\n</Screen>'
+            code: '<Screen\n  topBar={<TopBar title="Inbox" />}\n  sharedBottomBar={<TabBar />}\n>\n  <MailList />\n</Screen>'
+          },
+          {
+            type: "note",
+            text: "공유 바는 이전 페이지의 `Slot`과 겹쳐 보이지만 용도가 달라요. `Slot`은 모든 화면에 공통인 요소 하나를 화면 스택 바깥에 두어서, 화면이 바뀌어도 함께 움직이지 않고 늘 제자리에 있어요. 공유 바는 화면마다 각자 가지되, 바를 둘 다 가진 화면끼리 오갈 땐 전환에서 빠져 제자리에 그대로 보여요. 그래서 바 안의 내용은 화면마다 달라도 돼요. 어느 화면에서나 똑같은 고정 틀이면 `Slot`을, 화면마다 내용은 달라도 끊김 없이 이어져 보여야 하는 바면 공유 바를 사용하세요."
           },
           { type: "h", text: "세이프 에어리어" },
           {
             type: "p",
-            text: "`Screen`이 `statusBarHeight`·`systemNavigationBarHeight`(그리고 `*Color`·`hide*`)로 상·하단 세이프 에어리어를 직접 잡아요. 네이티브·하이브리드 WebView 앱에서 특히 중요해요. 네이티브의 세이프 에어리어 처리를 끄고 웹이 인셋을 소유하면, 인셋이 화면과 함께 애니메이션·재색칠돼요."
+            text: "`Screen`이 `statusBarHeight`·`systemNavigationBarHeight`(그리고 `*Color`·`hide*`)로 상·하단 세이프 에어리어를 직접 잡아요. 네이티브·하이브리드 WebView 앱에서 특히 중요해요. 네이티브의 세이프 에어리어 처리를 끄고 웹이 인셋을 소유하면, 전환할 때 세이프 에어리어 영역까지 화면과 함께 움직이고 색이 바뀌어요. 고정된 네이티브 바 밑으로 콘텐츠만 따로 움직여 WebView 티가 나는 어색함 없이, 화면 전체가 한 덩어리로 전환돼요."
           },
           {
             type: "code",
@@ -768,8 +899,8 @@ const KO: DocSection[] = [
             type: "table",
             headers: ["Prop", "타입", "기본값"],
             rows: [
-              ["`appBar` / `navigationBar`", "`ReactNode`", "—"],
-              ["`sharedAppBar` / `sharedNavigationBar`", "`ReactNode`", "—"],
+              ["`topBar` / `bottomBar`", "`ReactNode`", "—"],
+              ["`sharedTopBar` / `sharedBottomBar`", "`ReactNode`", "—"],
               ["`backgroundColor`", "`string`", "`white`"],
               ["`statusBarHeight` / `statusBarColor`", "`string`", "—"],
               ["`systemNavigationBarHeight` / `systemNavigationBarColor`", "`string`", "—"],
@@ -780,10 +911,33 @@ const KO: DocSection[] = [
         ]
       },
       {
+        slug: "layer",
+        title: "Layer",
+        blocks: [
+          {
+            type: "p",
+            text: "`Screen`은 부드러운 전환을 위해 본문을 각자의 합성 레이어로 격리해요. 그 레이어는 transform이 걸린 요소라 컨테이닝 블록이 돼요. 그래서 그 안의 `position: fixed` 오버레이는 뷰포트가 아니라 그 박스를 기준으로 잡혀요. 게다가 박스는 내용을 잘라내고 스크롤하는 영역이고요. 결국 본문 안에 그린 풀스크린 시트·딤 배경·고정 FAB는 갇히거나, 잘리거나, 엉뚱한 위치에 놓여요. `Layer`는 그 탈출구예요. 자식을 격리 박스 밖, 화면 scope 레벨로 portal해서 화면 전체 기준으로 잡히고 안 잘리게 하면서도 화면 전환엔 그대로 올라타요."
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: 'import { Layer } from "@flemo/react";\n\nfunction BottomSheet({ open, children }) {\n  return (\n    <Layer>\n      <div className={open ? "sheet sheet-open" : "sheet"}>{children}</div>\n    </Layer>\n  );\n}'
+          },
+          {
+            type: "p",
+            text: "매번 감싸는 래퍼가 아니라 빌딩 블록이에요. 재사용 오버레이 컴포넌트(`BottomSheet`, `Dialog`) 안에 `Layer`를 한 번만 넣으면, 호출하는 쪽은 별도 래핑 없이 그 탈출을 공짜로 얻어요. `Screen` 밖에선 마운트 노드가 없어서 `Layer`가 자식을 제자리에 그대로 그려요. 그래서 어디서든 동작해요."
+          },
+          {
+            type: "note",
+            text: "오버레이가 content 박스를 벗어나 화면 전체를 덮거나 화면에 고정돼야 할 때만 `Layer`를 사용하세요. 시트, 딤 배경, FAB, 토스트 같은 것들이요. 일반 in-flow 콘텐츠엔 필요 없어요."
+          }
+        ]
+      },
+      {
         slug: "navigation",
         title: "Navigation",
         blocks: [
-          { type: "p", text: "flemo는 움직임의 모양에 따라 세 가지 네비게이션 훅을 줘요." },
+          { type: "p", text: "flemo는 이동 방식에 따라 세 가지 내비게이션 훅을 제공해요." },
           { type: "h", text: "useNavigate" },
           {
             type: "code",
@@ -792,18 +946,18 @@ const KO: DocSection[] = [
           },
           {
             type: "p",
-            text: "`push`, `replace`, `pop`은 async예요. 전환 시작과 라우트 반영을 기다리고, 얼마나 멀리 가든 전환은 한 번만 돌아요."
+            text: "`push`, `replace`, `pop`은 Promise를 돌려줘서, 한 이동을 `await`한 뒤 다음 동작을 이어갈 수 있어요. 전환이 시작되고 라우트가 갱신되면 끝나요. 여러 화면을 한 번에 건너뛰어도, 화면마다가 아니라 전환은 한 번만 돌아요."
           },
-          { type: "h", text: "위로 건너뛰기" },
+          { type: "h", text: "여러 화면 한 번에 건너뛰기" },
           {
             type: "p",
-            text: "셋 다 거리 옵션을 받아요. `skip`(화면 수) 또는 `until`(경로 패턴)으로 한 번의 전환에 꼭대기 아래 화면까지 닿아요. 건너뛴 화면은 그려지지 않고 제거돼요. 도착 지점은 같고, 거기서 하는 일만 달라요."
+            text: "셋 다 건너뛸 거리를 받아요. `skip`은 화면 수, `until`은 경로 패턴이에요. 여러 화면을 한 번의 전환으로 건너뛰어요. 건너뛴 중간 화면은 한 번도 그려지지 않고 제거돼서, 화면에 잠깐 스쳐 보이는 일이 없어요."
           },
           {
             type: "table",
             headers: ["메서드", "도착 지점에서"],
             rows: [
-              ["`pop`", "그 화면에 안착해요. 대상은 남아요"],
+              ["`pop`", "그 화면에서 멈춰요. 대상은 남아요"],
               ["`replace`", "대상을 교체해요. 대상과 그 위가 새 화면이 돼요"],
               ["`push`", "대상을 두고, 그 위에 새 화면을 쌓아요"]
             ]
@@ -813,9 +967,9 @@ const KO: DocSection[] = [
             type: "table",
             headers: ["옵션", "역할"],
             rows: [
-              ["`transitionName`", "이 이동의 전환을 덮어써요(`pop`에선 뒤로 애니메이션)"],
+              ["`transitionName`", "이 이동의 트랜지션을 재정의해요(`pop`에선 뒤로 애니메이션)"],
               ["`layoutId`", '`transitionName: "layout"`과 짝지어 공유 요소 모핑'],
-              ["`skip` / `until`", "한 번의 전환으로 꼭대기 아래까지"]
+              ["`skip` / `until`", "한 번의 전환으로 여러 화면 건너뛰기"]
             ]
           },
           { type: "h", text: "useParams" },
@@ -831,7 +985,7 @@ const KO: DocSection[] = [
           { type: "h", text: "useStep" },
           {
             type: "p",
-            text: "`useStep()`은 현재 화면 안의 하위 상태를 위한 거예요. 히스토리 항목을 추가해서 뒤로가기는 동작하지만 라우트는 안 바뀌어요. 같은 `Screen`이 마운트된 채 파라미터만 갱신돼요. 한 화면의 다단계 폼이 대표적이에요."
+            text: "`useStep()`은 화면을 바꾸지 않고, 한 화면 안에서 단계만 앞뒤로 넘기는 훅이에요. 회원가입 폼의 이름 → 이메일 → 비밀번호처럼요. 라우트도 `Screen`도 그대로고 파라미터만 바뀌지만, 히스토리에는 쌓여서 뒤로가기로 이전 단계로 돌아와요."
           },
           {
             type: "code",
@@ -846,10 +1000,6 @@ const KO: DocSection[] = [
               ["`replaceStep(params)`", "현재 항목을 교체"],
               ["`popStep()`", "한 스텝 뒤로"]
             ]
-          },
-          {
-            type: "note",
-            text: "`useStep`은 화면 트리를 그대로 둬요. 같은 Screen 인스턴스, 같은 프로바이더, 같은 스크롤 위치. `useNavigate`는 새 Screen을 진짜 전환과 함께 마운트해요."
           }
         ]
       },
@@ -873,12 +1023,12 @@ const KO: DocSection[] = [
           },
           {
             type: "p",
-            text: "`Router`에 전역 기본값을 두거나, 이동마다 `transitionName`으로 덮어써요."
+            text: "`Router`에 전역 기본값을 두거나, 이동마다 `transitionName`으로 재정의해요."
           },
           { type: "h", text: "직접 만들기" },
           {
             type: "p",
-            text: "`createTransition`은 여섯 단계를 적어요. flemo가 CSS 키프레임으로 컴파일해서 JS 스레드에서 애니메이션이 안 돌아요."
+            text: "`createTransition`은 여섯 단계를 정의해요."
           },
           {
             type: "code",
@@ -897,27 +1047,110 @@ const KO: DocSection[] = [
           },
           {
             type: "p",
-            text: "`Router`에 등록하고, `RegisterTransition`에 더해 `transitionName` 자동완성이 되게 해요."
+            text: "`RegisterTransition`을 확장하면 `transitionName` 자동완성이 돼요(`RegisterRoute`와 같은 모듈 확장이에요). 그다음 `Router`에 등록해요."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'declare module "@flemo/react" {\n  interface RegisterTransition {\n    myFade: "myFade";\n  }\n}'
           },
           {
             type: "code",
             lang: "tsx",
             code: '<Router transitions={[myFade]} defaultTransitionName="myFade">\n  ...\n</Router>'
           },
-          { type: "h", text: "Raw 전환과 스와이프" },
+          { type: "h", text: "Raw 트랜지션과 스와이프" },
           {
             type: "p",
-            text: "push·replace·pop마다, 양쪽마다 다른 애니메이션이 필요하면 `createRawTransition`을 써요. `options`에 `swipeDirection`과 스와이프 핸들러를 주면 제스처로 끌 수 있어요."
+            text: "`createTransition`은 push·replace·pop을 하나의 대칭 phase 세트에서 끌어내요. 그게 너무 뭉뚱그려질 때 `createRawTransition`이 저수준 탈출구예요. 들어오는 화면과 나가는 화면을 작업(push·replace·pop)마다 직접 다 적어서, push가 replace나 pop과 다르게 움직이게 할 수 있어요."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'import { createRawTransition } from "@flemo/react";\n\nexport const shove = createRawTransition({\n  name: "shove",\n  initial: { transform: "translateX(100%)" },\n  idle: { value: { transform: "translateX(0)" }, options: { duration: 0 } },\n  pushOnEnter: { value: { transform: "translateX(0)" }, options: { duration: 0.4 } },\n  pushOnExit: { value: { transform: "translateX(-30%)" }, options: { duration: 0.4 } },\n  replaceOnEnter: { value: { transform: "translateX(0)" }, options: { duration: 0.4 } },\n  replaceOnExit: { value: { transform: "translateX(-100%)" }, options: { duration: 0.4 } },\n  popOnEnter: { value: { transform: "translateX(-30%)" }, options: { duration: 0.4 } },\n  popOnExit: { value: { transform: "translateX(100%)" }, options: { duration: 0.4 } },\n  completedOnEnter: { value: { transform: "translateX(0)" }, options: { duration: 0 } },\n  completedOnExit: { value: { transform: "translateX(0)" }, options: { duration: 0 } }\n});'
+          },
+          {
+            type: "p",
+            text: "preset이든 커스텀이든 `options`에 `swipeDirection`과 스와이프 핸들러를 주면 제스처로 끌 수 있어요. 내장 cupertino 엣지 스와이프 뒤로가기가 바로 그 방식이에요."
           },
           { type: "h", text: "데코레이터" },
           {
             type: "p",
-            text: "데코레이터는 이전 화면과 현재 화면 사이에 놓여요. 내장 `overlay`가 cupertino 스와이프 중의 딤이에요. `createDecorator`로 만들고, 전환에 `decoratorName`으로 붙이고, `Router`에 등록해요."
+            text: "데코레이터는 이전 화면과 현재 화면 사이에 놓여요. 내장 `overlay`가 cupertino 스와이프 중의 딤이에요. `createDecorator`로 만들고, 트랜지션에 `decoratorName`으로 붙이고, `Router`에 등록해요."
           },
           {
             type: "code",
             lang: "ts",
             code: 'import { createDecorator } from "@flemo/react";\n\nconst dim = createDecorator({\n  name: "dim",\n  initial: { opacity: 0 },\n  idle: { value: { opacity: 0 }, options: { duration: 0 } },\n  enter: { value: { opacity: 0.4 }, options: { duration: 0.3 } },\n  exit: { value: { opacity: 0 }, options: { duration: 0.3 } }\n});'
+          },
+          {
+            type: "p",
+            text: "타입이 잡히도록 `RegisterDecorator`를 확장해요."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'declare module "@flemo/react" {\n  interface RegisterDecorator {\n    dim: "dim";\n  }\n}'
+          },
+          {
+            type: "p",
+            text: "트랜지션에 `decoratorName`으로 데코레이터를 연결하고, 데코레이터와 트랜지션을 `Router`에 함께 등록해요."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'const dive = createTransition({\n  name: "dive",\n  // ...phases\n  options: { decoratorName: "dim" }\n});'
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: "<Router transitions={[dive]} decorators={[dim]}>\n  ...\n</Router>"
+          }
+        ]
+      },
+      {
+        slug: "part",
+        title: "Part",
+        blocks: [
+          {
+            type: "p",
+            text: "`Part`는 화면 안의 한 요소에 자기만의 애니메이션을 줘요. 화면 생명주기로 구동되고 화면 전환에 맞춰 함께 동작하되, 화면 전체가 아니라 감싼 그 요소만 움직여요. 대표적인 예는 고정된 공유 바에서 타이틀만 화면마다 크로스페이드 되는 거예요."
+          },
+          {
+            type: "p",
+            text: "먼저 `createPartTransition`으로 트랜지션을 만들고, `RegisterPartTransition`을 확장해 `name`을 타입 안전하게 해요(`RegisterRoute`와 같은 모듈 확장이에요). 타이틀이라면 평소엔 보이고(`idle`), 화면이 뒤로 밀릴 때 사라지고(`enter`), 돌아올 때 다시 보여요(`exit`)."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'import { createPartTransition } from "@flemo/react";\n\nconst titleFade = createPartTransition({\n  name: "titleFade",\n  initial: { opacity: 1 },\n  idle: { value: { opacity: 1 }, options: { duration: 0.3 } },\n  enter: { value: { opacity: 0 }, options: { duration: 0.3 } },\n  exit: { value: { opacity: 1 }, options: { duration: 0.3 } }\n});'
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'declare module "@flemo/react" {\n  interface RegisterPartTransition {\n    titleFade: "titleFade";\n  }\n}'
+          },
+          {
+            type: "p",
+            text: "`transitions`·`decorators`와 똑같이 `Router`에 등록해요."
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: "<Router partTransitions={[titleFade]}>\n  ...\n</Router>"
+          },
+          {
+            type: "p",
+            text: "그다음 요소를 `Part`로 감싸요."
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: 'import { Part, Screen } from "@flemo/react";\n\nfunction Inbox() {\n  return (\n    <Screen sharedTopBar={<header><Part name="titleFade">Inbox</Part></header>}>\n      <MailList />\n    </Screen>\n  );\n}'
+          },
+          {
+            type: "note",
+            text: "작업별로 더 세밀히 제어하려면 `createRawPartTransition`이 `createRawTransition`처럼 모든 status를 열어줘요."
           }
         ]
       }
@@ -937,7 +1170,7 @@ const KO: DocSection[] = [
             rows: [
               ["`Router`", "루트 컨테이너, 활성 화면을 그려요", "`@flemo/react`"],
               ["`Route`", "경로(들)를 엘리먼트에 연결", "`@flemo/react`"],
-              ["`Screen`", "앱/네비/세이프 에어리어 슬롯을 가진 화면", "`@flemo/react`"],
+              ["`Screen`", "상단/하단 바와 세이프 에어리어 슬롯을 가진 화면", "`@flemo/react`"],
               ["`Slot`", "전환 영역 표시, 주변 레이아웃은 유지", "`@flemo/react`"],
               ["`Layer`", "오버레이를 격리 박스 밖으로 portal", "`@flemo/react`"],
               ["`LayoutScreen` / `LayoutConfig`", "공유 `layoutId` 모핑", "`@flemo/react-layout`"]
@@ -959,7 +1192,7 @@ const KO: DocSection[] = [
             type: "table",
             headers: ["필드", "의미"],
             rows: [
-              ["`isActive`", "현재(꼭대기) 화면인지"],
+              ["`isActive`", "지금 활성(맨 위) 화면인지"],
               ["`isPrev`", "이전 화면 아래에 있는지(frozen)"],
               ["`zIndex`", "쌓임 깊이. `0`이 루트, 클수록 최신"],
               ["`pathname` / `params`", "해석된 pathname과 라우트 파라미터"],
@@ -971,9 +1204,9 @@ const KO: DocSection[] = [
           {
             type: "list",
             items: [
-              "`createTransition` / `createRawTransition` 전환 제작",
+              "`createTransition` / `createRawTransition` 트랜지션 제작",
               "`createDecorator` / `createRawDecorator` 데코레이터 제작",
-              "내장 전환: `cupertino`, `material`, `layout`, `none`",
+              "내장 트랜지션: `cupertino`, `material`, `layout`, `none`",
               "내장 데코레이터: `overlay`"
             ]
           },
@@ -983,14 +1216,14 @@ const KO: DocSection[] = [
             headers: ["인터페이스", "용도"],
             rows: [
               ["`RegisterRoute`", "타입 안전한 `push`·`useParams`를 위한 라우트 등록"],
-              ["`RegisterTransition`", "커스텀 전환 이름 등록"],
+              ["`RegisterTransition`", "커스텀 트랜지션 이름 등록"],
               ["`RegisterDecorator`", "커스텀 데코레이터 이름 등록"]
             ]
           },
           { type: "h", text: "Peer 의존성" },
           {
             type: "p",
-            text: "`@flemo/react`는 `react ^19`, `react-dom ^19`만 필요해요. `@flemo/react-layout`은 `motion ^12`를 더하고, `LayoutScreen`이나 `LayoutConfig`를 쓸 때 설치해요."
+            text: "`@flemo/react`는 `react ^19`, `react-dom ^19`만 필요해요. 더 필요한 건 공유 요소 전환 하나뿐이에요. 그때만 `@flemo/react-layout`이 `motion ^12`을 함께 요구하니, 그 전환이 필요할 때 설치하면 돼요."
           }
         ]
       }
@@ -1005,15 +1238,15 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "note",
-            text: "`@flemo/react-layout`은 실험적이에요. 두 화면이 같은 요소를 공유할 때만 쓰세요."
+            text: "`@flemo/react-layout`은 실험적이에요. 두 화면이 같은 요소를 공유할 때만 사용하세요."
           },
           {
             type: "p",
-            text: "`LayoutScreen`은 `Screen`을 대체하면서 이동 중 공유 요소 모핑을 더해요. 목록의 썸네일이 다음 화면의 큰 이미지로 펼쳐졌다가, 뒤로 가면 다시 접혀요. iOS의 사진·뮤직이 쓰는 동작이고, Material 3은 컨테이너 트랜스폼이라 불러요."
+            text: "`LayoutScreen`은 `Screen`을 대체하면서 이동 중 공유 요소 모핑을 더해요. 목록의 썸네일이 다음 화면의 큰 이미지로 펼쳐졌다가, 뒤로 가면 다시 접혀요. iOS의 사진·뮤직이 사용하는 동작이고, Material 3은 컨테이너 트랜스폼이라 불러요."
           },
           {
             type: "p",
-            text: "별도 패키지 `@flemo/react-layout`에 있고 `motion`이 peer 의존성이라, 모핑을 안 쓰는 앱은 비용을 안 내요."
+            text: "별도 패키지 `@flemo/react-layout`에 있고 `motion`이 peer 의존성이라, 모핑하지 않는 앱은 비용을 안 내요."
           },
           { type: "code", lang: "bash", code: "pnpm add @flemo/react-layout motion" },
           { type: "h", text: "멘탈 모델" },
@@ -1036,7 +1269,7 @@ const KO: DocSection[] = [
           { type: "h", text: "전체 예제" },
           {
             type: "p",
-            text: "출발 화면은 모핑할 트리를 `LayoutConfig`로 감싸고, 각 요소에 공유 `layoutId`를 달고, `layout` 전환으로 push해요."
+            text: "출발 화면은 모핑할 트리를 `LayoutConfig`로 감싸고, 각 요소에 공유 `layoutId`를 달고, `layout` 트랜지션으로 push해요."
           },
           {
             type: "code",
@@ -1045,7 +1278,7 @@ const KO: DocSection[] = [
           },
           {
             type: "p",
-            text: "도착 화면은 `Screen` 대신 `LayoutScreen`을 쓰고, `useScreen().layoutId`로 같은 id를 다시 만들고, `fixed inset-0` 컨테이너를 화면 가득 모핑해요."
+            text: "도착 화면은 `Screen` 대신 `LayoutScreen`을 사용하고, `useScreen().layoutId`로 같은 id를 다시 만들고, `fixed inset-0` 컨테이너를 화면 가득 모핑해요."
           },
           {
             type: "code",

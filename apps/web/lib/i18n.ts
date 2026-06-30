@@ -243,9 +243,9 @@ export const dict = {
       },
       playground: {
         kicker: "플레이그라운드",
-        title: "전환을 라이브로 구성",
+        title: "트랜지션을 라이브로 구성",
         subtitle:
-          "패널에서 전환을 고르고 공유 바를 켜고 끄면, 바로 옆 데모가 다음 화면 이동부터 그대로 반영해요.",
+          "패널에서 트랜지션을 고르고 공유 바를 켜고 끄면, 바로 옆 데모가 다음 화면 이동부터 그대로 반영해요.",
         transitionLabel: "전환",
         sharedBarLabel: "공유 바"
       }
@@ -265,7 +265,7 @@ export const dict = {
       kicker: "쇼케이스",
       title: "flemo로 만든 앱",
       subtitle: "flemo로 만들어 실제로 서비스하고 있는 앱들이에요.",
-      flemoUsageLabel: "flemo를 어떻게 쓰나요",
+      flemoUsageLabel: "flemo를 어떻게 사용하나요",
       languagesLabel: "지원 언어",
       languageNames: { ko: "한국어" },
       appStore: "App Store",
@@ -318,8 +318,8 @@ export const dict = {
         transition: {
           title: "내비게이션마다 전환 구성",
           description:
-            "기본적으로 각 push는 상황에 맞는 전환을 써요: 깊이 탐색은 cupertino, 플레이어는 material. 아래 칩을 눌러 모든 push를 한 전환으로 강제해 비교하고, 다시 누르면 상황별 기본값으로 돌아가요.",
-          noOverride: "오버라이드 없음. 각 push가 자체 전환을 선택해요.",
+            "기본적으로 각 push는 상황에 맞는 트랜지션을 사용해요: 깊이 탐색은 cupertino, 플레이어는 material. 아래 칩을 눌러 모든 push를 한 트랜지션으로 강제해 비교하고, 다시 누르면 상황별 기본값으로 돌아가요.",
+          noOverride: "오버라이드 없음. 각 push가 자체 트랜지션을 선택해요.",
           overridePrefix: "오버라이드 적용 중: ",
           summaries: {
             cupertino: "iOS 스타일 가로 push. @flemo/core에 기본 포함돼요.",
@@ -330,11 +330,11 @@ export const dict = {
             "card-stack":
               "iOS 스타일 카드 표시: 새 화면이 떠오르고, 현재 화면은 뒤로 축소되며 그 뒤에서 어두워져요.",
             reveal:
-              "아이리스 reveal: 새 화면이 원형 clip-path를 통해 열리며 뷰포트를 막 덮을 만큼 커지고, 배경은 뒤로 물러나요.",
+              "아이리스 reveal: 새 화면이 원형 clip-path로 열리며 뷰포트를 막 덮을 만큼 커지고, 배경은 뒤로 물러나요.",
             spring:
               "스프링 팝: 새 화면이 살짝 튀어 오르는 이징으로 확대되며 통통 튀듯 자리를 잡아요.",
             ripple:
-              "물에 떨어진 물방울: 화면이 가운데에서 퍼지는 원을 통해 드러나고, 같은 지점에서 동심원이 배경으로 퍼져 나가요. reveal과 물결이 하나의 원점을 공유해요.",
+              "물에 떨어진 물방울: 화면이 가운데에서 퍼지는 원으로 드러나고, 같은 지점에서 동심원이 배경으로 퍼져 나가요. reveal과 물결이 하나의 원점을 공유해요.",
             dive: "깊이 속으로 다이빙: 화면이 가운데 한 점에서 솟구쳐 들어오고, 배경은 닫히는 어두운 터널처럼 확장돼요. 둘 다 같은 깊이로의 돌입처럼 읽혀요."
           }
         },
@@ -379,7 +379,7 @@ export const dict = {
           customDecorator: "커스텀 + 데코레이터",
           captionBuiltIn: "모든 push를 한 프리셋으로 강제.",
           captionCustom: "@flemo/core가 아니라 이 playground에서 정의했어요.",
-          captionCustomDecorator: "커스텀 전환 + 커스텀 createDecorator 레이어 조합."
+          captionCustomDecorator: "커스텀 트랜지션 + 커스텀 createDecorator 레이어 조합."
         }
       }
     }
