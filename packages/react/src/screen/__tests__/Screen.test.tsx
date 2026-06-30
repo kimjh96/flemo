@@ -3,7 +3,7 @@ import { createElement, type PropsWithChildren, type ReactNode } from "react";
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { TransitionName } from "@flemo/core";
+import type { History, SharedBarPresence, TransitionName } from "@flemo/core";
 
 import Screen from "@screen/Screen";
 import ScreenContext, { type ScreenContextProps } from "@screen/ScreenContext";
@@ -190,5 +190,66 @@ describe("Screen", () => {
 
     const freezeWrapper = getByTestId("content").closest("div[style*='display']");
     expect(freezeWrapper).not.toBeNull();
+  });
+
+  const historyEntry = (id: string): History => ({
+    id,
+    pathname: "/",
+    params: {},
+    transitionName: "cupertino" as TransitionName,
+    layoutId: null
+  });
+
+  // The bar's CSS ride rule keys on `data-flemo-bar-riding` AND
+  // `data-flemo-bar-status`. Both are rendered onto the same element here, in one
+  // commit, so the bar can never carry the transition status without its riding
+  // flag for a frame (the late-by-a-frame bug on genuine browser-back).
+  it("rides a shared bar in render when the partner screen doesn't own it", () => {
+    stores.navigate.setState({ status: "POPPING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+
+    const { container } = render(
+      <Screen sharedBottomBar={<div>tabs</div>}>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true, id: "top" }) }
+    );
+
+    const bar = container.querySelector('[data-flemo-bar="nav"]')!;
+    expect(bar.getAttribute("data-flemo-bar-status")).toBe("POPPING");
+    expect(bar.getAttribute("data-flemo-bar-riding")).toBe("true");
+  });
+
+  it("does not ride a shared bar the partner screen owns (it hands over instead)", () => {
+    stores.navigate.setState({ status: "POPPING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+    const presence: SharedBarPresence = { topBar: false, bottomBar: true };
+    stores.screen.setState({ sharedBars: { below: presence } });
+
+    const { container } = render(
+      <Screen sharedBottomBar={<div>tabs</div>}>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true, id: "top" }) }
+    );
+
+    const bar = container.querySelector('[data-flemo-bar="nav"]')!;
+    expect(bar.getAttribute("data-flemo-bar-riding")).toBe("false");
+  });
+
+  // A "none" transition doesn't hide the entering screen on its first frame, so
+  // deferring the content would flash an empty box — children render at once.
+  it("renders an entering screen's content immediately when the transition has no initial offset", () => {
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+    stores.history.setState({ index: 0, histories: [] });
+
+    const { getByTestId } = render(
+      <Screen>
+        <div data-testid="content">hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true, transitionName: "none" as TransitionName }) }
+    );
+
+    expect(getByTestId("content")).toBeDefined();
   });
 });

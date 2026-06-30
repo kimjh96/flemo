@@ -59,6 +59,7 @@ export {
 export { default as createTransition } from "@transition/createTransition";
 export { default as createRawTransition } from "@transition/createRawTransition";
 export { transitionMap } from "@transition/transition";
+export { default as initialHidesScreen } from "@transition/initialHidesScreen";
 export {
   default as createTransitionStore,
   type TransitionStore,
@@ -114,7 +115,7 @@ export {
   type SwipeControllerElements,
   type SharedBarPresenceLike
 } from "@core/engine/createSwipeController";
-export { default as driveBarRiding, type BarRidingInput } from "@core/engine/barRiding";
+export { default as computeBarRiding, type BarRidingInput } from "@screen/computeBarRiding";
 
 // Transition types
 export type {
