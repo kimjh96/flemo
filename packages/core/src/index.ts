@@ -38,6 +38,19 @@ export {
   type NavigateOptions,
   type PopOptions
 } from "@navigate/createNavigationController";
+export {
+  default as createStepController,
+  readStepParams,
+  appendParamsQuery,
+  type StepControllerDeps
+} from "@navigate/createStepController";
+
+// Router-scope store bundle (one per Router mount; adopted when hosted above).
+export {
+  default as createRouterScope,
+  type FlemoStores,
+  type CreateRouterScopeInput
+} from "@core/createRouterScope";
 
 // Screen-scoped transition-UI state (drag / replace status + shared-bar registry)
 export {
@@ -93,6 +106,11 @@ export {
   type CssDecl
 } from "@transition/compileTransitionStyles";
 export { default as applyTransitionStyles } from "@transition/applyTransitionStyles";
+export { default as registerTransitionDefinitions } from "@transition/registerTransitionDefinitions";
+export {
+  default as enteringInitialStyle,
+  type EnteringInitialStyleInput
+} from "@transition/enteringInitialStyle";
 
 // Imperative swipe driver (framework-agnostic DOM helper). Mutates inline
 // styles during a drag; the runtime engine and custom transitions consume it.
@@ -121,6 +139,8 @@ export {
   ANIM_HOLD_RELEASE_BACKSTOP_MS,
   type AnimHoldInput
 } from "@screen/animStartAnchor";
+export { default as observeBarHeight } from "@screen/observeBarHeight";
+export { default as observeViewportScrollHeight } from "@screen/observeViewportScrollHeight";
 
 // Transition types
 export type {
@@ -155,6 +175,8 @@ export type {
 export { default as isServer } from "@utils/isServer";
 export { default as getParams } from "@utils/getParams";
 export { default as getMatchedPathPattern } from "@utils/getMatchedPathPattern";
+export { default as matchesPathname } from "@utils/matchesPathname";
+export { default as buildRoutePath } from "@utils/buildRoutePath";
 export {
   default as findScrollable,
   overflowsAxis,

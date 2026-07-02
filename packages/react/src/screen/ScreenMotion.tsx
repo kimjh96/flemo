@@ -12,6 +12,8 @@ import {
   createSwipeController,
   createTransitionEngine,
   decoratorMap,
+  enteringInitialStyle,
+  observeBarHeight,
   scheduleAnimHoldRelease,
   transitionMap
 } from "@flemo/core";
@@ -229,26 +231,15 @@ function ScreenMotion({
     [engine, status, isActive, prevTransitionName, transitionName]
   );
 
+  // Bar-height tracking (incl. the ignore-0-while-frozen WebKit gotcha) lives
+  // in @flemo/core's observeBarHeight; this binding only stores the height.
   useLayoutEffect(() => {
     const element = sharedTopBarRef.current;
     if (!element) {
       setSharedTopBarHeight(0);
       return;
     }
-    if (element.offsetHeight > 0) setSharedTopBarHeight(element.offsetHeight);
-    const observer = new ResizeObserver(([entry]) => {
-      // Ignore a measured height of 0: it happens when this screen is frozen
-      // (display:none) during a transition, not because the bar shrank. Letting
-      // the spacer collapse would grow the scroll area, and WebKit clamps
-      // scrollTop to the smaller max and does NOT restore it on unfreeze (scroll
-      // jumps up on short pages). Keep the last real height so the reserved space
-      // stays stable across freeze/unfreeze.
-      if (entry.contentRect.height > 0) setSharedTopBarHeight(entry.contentRect.height);
-    });
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-    };
+    return observeBarHeight(element, setSharedTopBarHeight);
   }, [sharedTopBar]);
 
   useLayoutEffect(() => {
@@ -257,20 +248,7 @@ function ScreenMotion({
       setSharedBottomBarHeight(0);
       return;
     }
-    if (element.offsetHeight > 0) setSharedBottomBarHeight(element.offsetHeight);
-    const observer = new ResizeObserver(([entry]) => {
-      // Ignore a measured height of 0: it happens when this screen is frozen
-      // (display:none) during a transition, not because the bar shrank. Letting
-      // the spacer collapse would grow the scroll area, and WebKit clamps
-      // scrollTop to the smaller max and does NOT restore it on unfreeze (scroll
-      // jumps up on short pages). Keep the last real height so the reserved space
-      // stays stable across freeze/unfreeze.
-      if (entry.contentRect.height > 0) setSharedBottomBarHeight(entry.contentRect.height);
-    });
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-    };
+    return observeBarHeight(element, setSharedBottomBarHeight);
   }, [sharedBottomBar]);
 
   // Register this screen's shared-bar presence so other screens can read it.
@@ -357,21 +335,7 @@ function ScreenMotion({
     );
   }, [animHold, holdKey]);
 
-  const initialStyle: { transform?: string; opacity?: string } = (() => {
-    // Only the actively entering screen needs the initial style; everything
-    // else either has a CSS rest rule applying (IDLE/COMPLETED) or is in the
-    // middle of an animation whose keyframe `from` block already enforces the
-    // entry value.
-    if (!isActive) return {};
-    if (status !== "PUSHING" && status !== "REPLACING") return {};
-    const initialDecls: { transform?: string; opacity?: string } = {};
-    if (typeof initial.x === "number") initialDecls.transform = `translateX(${initial.x}px)`;
-    if (typeof initial.x === "string") initialDecls.transform = `translateX(${initial.x})`;
-    if (typeof initial.y === "number") initialDecls.transform = `translateY(${initial.y}px)`;
-    if (typeof initial.y === "string") initialDecls.transform = `translateY(${initial.y})`;
-    if (typeof initial.opacity === "number") initialDecls.opacity = `${initial.opacity}`;
-    return initialDecls;
-  })();
+  const initialStyle = enteringInitialStyle({ initial, isActive, status });
 
   return (
     <div

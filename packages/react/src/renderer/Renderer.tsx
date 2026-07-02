@@ -1,8 +1,6 @@
 import { Children, type PropsWithChildren, type ReactElement } from "react";
 
-import { pathToRegexp } from "path-to-regexp";
-
-import { createScreenSelector, getMatchedPathPattern } from "@flemo/core";
+import { createScreenSelector, getMatchedPathPattern, matchesPathname } from "@flemo/core";
 
 import ScreenContext from "@screen/ScreenContext";
 
@@ -21,9 +19,7 @@ function Renderer({ children }: PropsWithChildren) {
   // child for `routePath` and mounts it.
   return createScreenSelector(histories, index).map((selection) => {
     const [child] = Children.toArray(children).filter((routeChild) =>
-      pathToRegexp((routeChild as ReactElement<RouteProps>).props.path as string).regexp.test(
-        selection.pathname
-      )
+      matchesPathname((routeChild as ReactElement<RouteProps>).props.path, selection.pathname)
     );
 
     return (

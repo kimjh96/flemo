@@ -1,42 +1,22 @@
 import { useEffect, useState } from "react";
 
-let initialViewportScrollHeight = 0;
+import { observeViewportScrollHeight } from "@flemo/core";
 
+// Thin React binding: the visualViewport measurement (rAF-coalesced, shared
+// app-wide baseline) is @flemo/core's observeViewportScrollHeight; this hook
+// only owns the reactive state and the effect lifecycle.
 export default function useViewportScrollHeight() {
   const [viewportScrollHeight, setViewportScrollHeight] = useState(0);
   const [changedViewportScrollHeight, setChangedViewportScrollHeight] = useState(0);
 
-  useEffect(() => {
-    let rafId = 0;
-
-    const handleResize = () => {
-      cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        let newViewportScrollHeight =
-          document.documentElement.scrollHeight - (window.visualViewport?.height || 0);
-        newViewportScrollHeight = newViewportScrollHeight < 0 ? 0 : newViewportScrollHeight;
-        let newChangedViewportScrollHeight = newViewportScrollHeight - initialViewportScrollHeight;
-        newChangedViewportScrollHeight =
-          newChangedViewportScrollHeight < 0 ? 0 : newChangedViewportScrollHeight;
-
-        if (!initialViewportScrollHeight) {
-          initialViewportScrollHeight = newViewportScrollHeight;
-        }
-
+  useEffect(
+    () =>
+      observeViewportScrollHeight((newViewportScrollHeight, newChangedViewportScrollHeight) => {
         setChangedViewportScrollHeight(newChangedViewportScrollHeight);
         setViewportScrollHeight(newViewportScrollHeight);
-      });
-    };
-
-    window.visualViewport?.addEventListener("resize", handleResize);
-    window.visualViewport?.addEventListener("scroll", handleResize);
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      window.visualViewport?.removeEventListener("resize", handleResize);
-      window.visualViewport?.removeEventListener("scroll", handleResize);
-    };
-  }, []);
+      }),
+    []
+  );
 
   return { viewportScrollHeight, changedViewportScrollHeight };
 }
