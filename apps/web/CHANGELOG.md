@@ -1,5 +1,15 @@
 # @flemo/web
 
+## 0.7.3
+
+### Patch Changes
+
+- [`15172f6`](https://github.com/kimjh96/flemo/commit/15172f6a9a882e64d86d36fc436ea828d938be00) Remove the header theme-toggle icon flicker on first load. The selected theme is mirrored to a cookie, read server-side, and used to render the matching icon on first paint, so the mount gate (and its empty placeholder) is gone.
+- Updated dependencies ([`4e54577`](https://github.com/kimjh96/flemo/commit/4e545777a41fa1dac7b23aba193cc85f3cf73c7f)):
+  - @flemo/core@1.8.0
+  - @flemo/react@1.5.3
+  - @flemo/react-layout@0.1.18
+
 ## 0.7.2
 
 ### Patch Changes
