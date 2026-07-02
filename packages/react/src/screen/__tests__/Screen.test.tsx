@@ -1,7 +1,7 @@
 import { createElement, type PropsWithChildren, type ReactNode } from "react";
 
-import { render } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { act, render } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { History, SharedBarPresence, TransitionName } from "@flemo/core";
 
@@ -251,5 +251,71 @@ describe("Screen", () => {
     );
 
     expect(getByTestId("content")).toBeDefined();
+  });
+
+  // The compiled hold rule pauses a freshly started transition animation;
+  // ScreenMotion renders the flag ON in the same commit as the status attribute
+  // and releases it two frames later, anchoring the animation's start to a
+  // frame where the entering screen is already painted (iOS otherwise lets the
+  // timeline run during the heavy first-frame raster and the opening of the
+  // transition is never displayed).
+  it("holds a fresh transition animation and releases it two frames later", async () => {
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi
+      .spyOn(globalThis, "requestAnimationFrame")
+      .mockImplementation((frameCallback) => {
+        frames.push(frameCallback);
+        return frames.length;
+      });
+    const caf = vi.spyOn(globalThis, "cancelAnimationFrame").mockImplementation(() => {});
+    try {
+      stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+      stores.history.setState({
+        index: 1,
+        histories: [historyEntry("below"), historyEntry("top")]
+      });
+
+      const { container } = render(
+        <Screen sharedBottomBar={<div>tabs</div>}>
+          <div>hello</div>
+        </Screen>,
+        { wrapper: buildHarness({ isActive: true, id: "top" }) }
+      );
+
+      const scope = container.querySelector("[data-flemo-screen]")!;
+      const bar = container.querySelector('[data-flemo-bar="nav"]')!;
+      expect(scope.getAttribute("data-flemo-anim-hold")).toBe("true");
+      expect(bar.getAttribute("data-flemo-anim-hold")).toBe("true");
+
+      // First frame: the heavy initial paint. Still held.
+      await act(async () => {
+        frames.splice(0).forEach((frameCallback) => frameCallback(0));
+      });
+      expect(scope.getAttribute("data-flemo-anim-hold")).toBe("true");
+
+      // Second frame: released — the animation starts against painted content.
+      await act(async () => {
+        frames.splice(0).forEach((frameCallback) => frameCallback(16));
+      });
+      expect(scope.getAttribute("data-flemo-anim-hold")).toBe("false");
+      expect(bar.getAttribute("data-flemo-anim-hold")).toBe("false");
+    } finally {
+      raf.mockRestore();
+      caf.mockRestore();
+    }
+  });
+
+  it("does not hold a screen at rest", () => {
+    stores.history.setState({ index: 0, histories: [] });
+
+    const { container } = render(
+      <Screen>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true }) }
+    );
+
+    const scope = container.querySelector("[data-flemo-screen]")!;
+    expect(scope.getAttribute("data-flemo-anim-hold")).toBe("false");
   });
 });

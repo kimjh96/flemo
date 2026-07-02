@@ -851,6 +851,18 @@ describe("compileTransitionStyles bar transitions", () => {
 
   it("is empty when no bar transitions are passed", () => {
     const css = compileTransitionStyles([], []);
-    expect(css).not.toContain("data-flemo-part-name");
+    expect(css).not.toContain("@keyframes flemo-part");
+    expect(css).not.toContain("[data-flemo-part-name][data-flemo-status");
+  });
+
+  it("always appends the animation-hold rule that pauses freshly started animations", () => {
+    const css = compileTransitionStyles([cupertino], []);
+    const holdIndex = css.indexOf('[data-flemo-anim-hold="true"]');
+    expect(holdIndex).toBeGreaterThan(-1);
+    const block = css.slice(holdIndex);
+    expect(block).toContain("animation-play-state: paused !important");
+    // Appended after every animation rule so the pause wins the cascade for
+    // the play-state longhand against the variant rules' animation shorthand.
+    expect(block).not.toContain("@keyframes");
   });
 });

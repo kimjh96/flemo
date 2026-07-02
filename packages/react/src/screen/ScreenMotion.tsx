@@ -7,10 +7,12 @@ import {
 } from "react";
 
 import {
+  animHoldKey,
   computeBarRiding,
   createSwipeController,
   createTransitionEngine,
   decoratorMap,
+  scheduleAnimHoldRelease,
   transitionMap
 } from "@flemo/core";
 
@@ -314,6 +316,47 @@ function ScreenMotion({
     partnerBars
   });
 
+  // Anchor the transition START to the first PAINTED frame. iOS WebKit anchors
+  // a CSS animation's timeline when the style change commits; when the entering
+  // screen's first frame is expensive (layout + raster of a heavy subtree on a
+  // mobile GPU, ~50ms on an iPhone), the timeline keeps running while nothing
+  // new is presented, so the opening of the transition is simply never
+  // displayed — measured on device as `animation.currentTime` already 25-50ms
+  // ahead on the second frame and `animationend` firing ~50ms early relative
+  // to first paint. A 200ms transition visibly loses its first quarter and
+  // reads as abbreviated. Hold every freshly started transition animation
+  // paused for the screen's first two frames (the compiled hold rule pins
+  // `animation-play-state`; `fill: both` keeps the keyframe's `from` value
+  // applied while paused, so the heavy raster happens AT the initial state),
+  // then release: the full duration now plays against already-rasterized
+  // layers. The decision (`animHoldKey`) and release scheduling
+  // (`scheduleAnimHoldRelease`, double-rAF + backstop) live in @flemo/core so
+  // other bindings anchor identically; this binding's own part is flipping the
+  // flag ON in the SAME render that changes the status attribute — computed in
+  // render, not an effect — so an Activity-unfrozen screen (whose effects
+  // reconnect as follow-up work) still holds from its very first frame.
+  const holdKey = animHoldKey({ status, isTopOrTopPrev, transitionName });
+  const [animRelease, setAnimRelease] = useState<{ key: string | null; released: boolean }>({
+    key: holdKey,
+    released: holdKey === null
+  });
+  if (animRelease.key !== holdKey) {
+    // Render-phase adjustment: React re-runs this component with the new state
+    // before committing, so the hold and status attributes always land in the
+    // same paint.
+    setAnimRelease({ key: holdKey, released: holdKey === null });
+  }
+  const animHold = holdKey !== null && animRelease.key === holdKey && !animRelease.released;
+
+  useEffect(() => {
+    if (!animHold) return undefined;
+    return scheduleAnimHoldRelease(() =>
+      setAnimRelease((current) =>
+        current.key === holdKey && !current.released ? { key: holdKey, released: true } : current
+      )
+    );
+  }, [animHold, holdKey]);
+
   const initialStyle: { transform?: string; opacity?: string } = (() => {
     // Only the actively entering screen needs the initial style; everything
     // else either has a CSS rest rule applying (IDLE/COMPLETED) or is in the
@@ -372,6 +415,7 @@ function ScreenMotion({
         data-flemo-transition={transitionName}
         data-flemo-status={status}
         data-flemo-active={isActive ? "true" : "false"}
+        data-flemo-anim-hold={animHold ? "true" : "false"}
         style={{
           display: "flex",
           flexDirection: "column",
@@ -497,6 +541,7 @@ function ScreenMotion({
           data-flemo-bar-status={status}
           data-flemo-bar-active={isActive ? "true" : "false"}
           data-flemo-bar-riding={rideTopBar ? "true" : "false"}
+          data-flemo-anim-hold={animHold ? "true" : "false"}
           style={{
             position: screenPosition,
             top: !hideStatusBar ? statusBarHeight : 0,
@@ -516,6 +561,7 @@ function ScreenMotion({
           data-flemo-bar-status={status}
           data-flemo-bar-active={isActive ? "true" : "false"}
           data-flemo-bar-riding={rideBottomBar ? "true" : "false"}
+          data-flemo-anim-hold={animHold ? "true" : "false"}
           style={{
             display: isKeyboardVisible ? "none" : undefined,
             position: screenPosition,
@@ -528,7 +574,9 @@ function ScreenMotion({
           {sharedBottomBar}
         </div>
       )}
-      {decorator && <ScreenDecorator ref={decoratorRef} />}
+      {decorator && (
+        <ScreenDecorator ref={decoratorRef} data-flemo-anim-hold={animHold ? "true" : "false"} />
+      )}
       <div
         data-swipe-at-edge-bar
         style={{
