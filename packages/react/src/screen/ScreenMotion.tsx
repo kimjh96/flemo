@@ -14,8 +14,8 @@ import {
   decoratorMap,
   enteringInitialStyle,
   observeBarHeight,
-  scheduleAnimHoldRelease,
-  transitionMap
+  resolveTransition,
+  scheduleAnimHoldRelease
 } from "@flemo/core";
 
 import LayerMountContext from "@screen/LayerMountContext";
@@ -88,7 +88,7 @@ function ScreenMotion({
   }
   const engine = engineRef.current;
 
-  const currentTransition = (transitionMap.get(transitionName) ?? transitionMap.get("none"))!;
+  const currentTransition = resolveTransition(transitionName);
   const { initial, swipeDirection, decoratorName } = currentTransition;
   const decorator = decoratorMap.get(decoratorName!);
 

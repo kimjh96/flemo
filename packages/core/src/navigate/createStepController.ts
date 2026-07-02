@@ -168,3 +168,22 @@ export default function createStepController(deps: StepControllerDeps) {
     popStep
   };
 }
+
+// Restores step params when a browser back/forward lands on a step frame: the
+// binding's params provider subscribes with this so the active screen reflects
+// the step it landed on. The apply runs through the task queue, ordered behind
+// whatever navigation work is already in flight.
+export function subscribeStepParamsRestore(
+  driver: HistoryDriver,
+  onParams: (params: object) => void
+): () => void {
+  return driver.subscribe((event) => {
+    const frame = event.state as { step?: boolean; params?: object } | null;
+
+    if (!frame?.step) return;
+
+    TaskManager.addTask(async () => {
+      onParams(frame.params ?? {});
+    });
+  });
+}
