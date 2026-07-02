@@ -1,5 +1,13 @@
 # @flemo/react-layout
 
+## 0.1.17
+
+### Patch Changes
+
+- Updated dependencies ([`deed72d`](https://github.com/kimjh96/flemo/commit/deed72d2765caefa970a99315b195a0751c83e19), [`deed72d`](https://github.com/kimjh96/flemo/commit/deed72d2765caefa970a99315b195a0751c83e19)):
+  - @flemo/core@1.7.0
+  - @flemo/react@1.5.2
+
 ## 0.1.16
 
 ### Patch Changes
