@@ -9,7 +9,8 @@ import type { History } from "@history/store";
 
 import createStepController, {
   appendParamsQuery,
-  readStepParams
+  readStepParams,
+  subscribeStepParamsRestore
 } from "@navigate/createStepController";
 import createNavigateStore from "@navigate/store";
 
@@ -205,5 +206,40 @@ describe("createStepController", () => {
     expect(applyParams).not.toHaveBeenCalled();
     expect(stores.navigate.getState().status).toBe("IDLE");
     expect(stores.history.getState().index).toBe(1);
+  });
+});
+
+describe("subscribeStepParamsRestore", () => {
+  it("restores params for step frames only, through the task queue", async () => {
+    const listeners = new Set<(event: { state: unknown; pathname: string }) => void>();
+    const driver = {
+      subscribe: (listener: (event: { state: unknown; pathname: string }) => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      }
+    } as unknown as HistoryDriver;
+    const onParams = vi.fn();
+
+    const dispose = subscribeStepParamsRestore(driver, onParams);
+
+    // A screen frame: ignored.
+    listeners.forEach((listener) => listener({ state: { step: false }, pathname: "/a" }));
+    await TaskManager.resolveAllPending();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(onParams).not.toHaveBeenCalled();
+
+    // A step frame: params restored (empty object when absent).
+    listeners.forEach((listener) =>
+      listener({ state: { step: true, params: { open: "menu" } }, pathname: "/a" })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(onParams).toHaveBeenCalledWith({ open: "menu" });
+
+    listeners.forEach((listener) => listener({ state: { step: true }, pathname: "/a" }));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(onParams).toHaveBeenLastCalledWith({});
+
+    dispose();
+    expect(listeners.size).toBe(0);
   });
 });
