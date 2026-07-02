@@ -1,5 +1,13 @@
 # @flemo/react
 
+## 1.5.4
+
+### Patch Changes
+
+- [`40d8584`](https://github.com/kimjh96/flemo/commit/40d8584c75291b96b10a3cda59c93d40acc3209c) Finish the framework-neutralization pass: `resolveTransition` (name → registered transition with the `none` fallback) and `subscribeStepParamsRestore` (step-frame param restore on back/forward) move into `@flemo/core`, and the React binding delegates to them. No behavior change.
+- Updated dependencies ([`40d8584`](https://github.com/kimjh96/flemo/commit/40d8584c75291b96b10a3cda59c93d40acc3209c)):
+  - @flemo/core@1.9.0
+
 ## 1.5.3
 
 ### Patch Changes
