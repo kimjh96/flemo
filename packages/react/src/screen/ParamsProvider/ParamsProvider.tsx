@@ -1,6 +1,6 @@
 import { type PropsWithChildren, useEffect, useReducer } from "react";
 
-import { TaskManger as TaskManager } from "@flemo/core";
+import { subscribeStepParamsRestore } from "@flemo/core";
 
 import useScreen from "@screen/useScreen";
 
@@ -18,18 +18,9 @@ function ParamsProvider({ children }: PropsWithChildren) {
     if (!isActive) return;
 
     // Subscribe through this Router's driver so the frame is keyed-extracted
-    // (nested / multi-Router) and a memory Router works too. A useStep entry
-    // carries its params inside the frame; on a back/forward onto a step entry,
-    // restore them so the active screen reflects the step it landed on.
-    return driver.subscribe((event) => {
-      const frame = event.state as { step?: boolean; params?: object } | null;
-
-      if (!frame?.step) return;
-
-      TaskManager.addTask(async () => {
-        dispatch({ type: "SET", params: frame.params ?? {} });
-      });
-    });
+    // (nested / multi-Router) and a memory Router works too. The step-frame
+    // filtering + task-queued apply is @flemo/core's subscribeStepParamsRestore.
+    return subscribeStepParamsRestore(driver, (params) => dispatch({ type: "SET", params }));
   }, [isActive, dispatch, driver]);
 
   return (

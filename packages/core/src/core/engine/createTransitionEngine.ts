@@ -2,7 +2,7 @@ import TaskManger from "@core/TaskManger";
 
 import { clearInlineAnimation } from "@transition/animateInline";
 import { animationName, variantHasAnimation } from "@transition/compileTransitionStyles";
-import { transitionMap } from "@transition/transition";
+import resolveTransition from "@transition/resolveTransition";
 
 import {
   SKIP_ANIMATION_ATTR,
@@ -69,7 +69,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       }
     };
 
-    const currentTransition = (transitionMap.get(transitionName) ?? transitionMap.get("none"))!;
+    const currentTransition = resolveTransition(transitionName);
     const variantKey = `${status}-true` as const;
     const skipAnimation = scope.getAttribute(SKIP_ANIMATION_ATTR) === "true";
     const hasAnimation = !skipAnimation && variantHasAnimation(currentTransition, variantKey);

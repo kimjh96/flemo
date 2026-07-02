@@ -1,6 +1,6 @@
 import { type ComponentPropsWithRef, useImperativeHandle, useRef } from "react";
 
-import { decoratorMap, transitionMap } from "@flemo/core";
+import { decoratorMap, resolveTransition } from "@flemo/core";
 
 import useScreen from "@screen/useScreen";
 
@@ -15,7 +15,7 @@ function ScreenDecorator({ ref, style, ...props }: ComponentPropsWithRef<"div">)
 
   const status = useNavigateStore((state) => state.status);
 
-  const currentTransition = (transitionMap.get(transitionName) ?? transitionMap.get("none"))!;
+  const currentTransition = resolveTransition(transitionName);
   const { decoratorName } = currentTransition;
   const decorator = decoratorMap.get(decoratorName!);
 

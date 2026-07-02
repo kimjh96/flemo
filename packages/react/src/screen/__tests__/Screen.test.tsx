@@ -237,8 +237,6 @@ describe("Screen", () => {
     expect(bar.getAttribute("data-flemo-bar-riding")).toBe("false");
   });
 
-  // A "none" transition doesn't hide the entering screen on its first frame, so
-  // deferring the content would flash an empty box — children render at once.
   it("renders an entering screen's content immediately when the transition has no initial offset", () => {
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
     stores.history.setState({ index: 0, histories: [] });

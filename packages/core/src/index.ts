@@ -42,6 +42,7 @@ export {
   default as createStepController,
   readStepParams,
   appendParamsQuery,
+  subscribeStepParamsRestore,
   type StepControllerDeps
 } from "@navigate/createStepController";
 
@@ -72,6 +73,7 @@ export {
 export { default as createTransition } from "@transition/createTransition";
 export { default as createRawTransition } from "@transition/createRawTransition";
 export { transitionMap } from "@transition/transition";
+export { default as resolveTransition } from "@transition/resolveTransition";
 export {
   default as createTransitionStore,
   type TransitionStore,
