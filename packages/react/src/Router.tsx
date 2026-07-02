@@ -13,18 +13,12 @@ import {
 
 import {
   createBrowserHistoryDriver,
-  createHistoryStore,
-  createMemoryHistoryDriver,
-  createNavigateStore,
-  createSelfPopGuard,
-  createTransitionStore,
+  createRouterScope,
   ensureWindowHistoryState,
   isServer,
-  seedInitialHistory,
   type HistoryDriver,
   type PartTransition,
   type Decorator,
-  type SelfPopGuard,
   type Transition,
   type TransitionName
 } from "@flemo/core";
@@ -34,7 +28,6 @@ import HistoryListener from "@history/HistoryListener";
 import Renderer from "@renderer/Renderer";
 
 import ScreenViewportContext from "@screen/ScreenViewportContext";
-import createScreenStore from "@screen/store";
 
 import useTransitionStyles from "@transition/styles";
 
@@ -92,10 +85,6 @@ interface RouterProps {
   className?: string;
   style?: CSSProperties;
 }
-
-// A no-op self-pop guard for a memory <Router>: it has no browser history sync
-// to coordinate with, so it never marks and never reports a self-induced pop.
-const NOOP_GUARD: SelfPopGuard = { mark: () => {}, consume: () => false };
 
 const EMPTY_TRANSITIONS: Transition[] = [];
 const EMPTY_DECORATORS: Decorator[] = [];
@@ -174,53 +163,23 @@ function Router({
       ? location.slice(queryIndex)
       : "";
 
-  // Create the request-scoped stores once per mount, seeding history with the root frame derived
-  // from initPath. Because the seed is the store's *initial* state, zustand hands it to React as
-  // the SSR snapshot, so the screen renders on the server and each request keeps its own stack.
+  // Create (or adopt) the request-scoped store bundle once per mount. The
+  // seeding / driver / guard logic is @flemo/core's createRouterScope (because
+  // the seed is the store's *initial* state, zustand hands it to React as the
+  // SSR snapshot); this binding only resolves the route declarations from its
+  // JSX children.
   const [stores] = useState<FlemoStores>(() => {
     const routeChildren = slotRoutes ?? (Children.toArray(children) as ReactElement<RouteProps>[]);
     const routePaths = routeChildren.map((child) => child.props.path).flat();
-    const rootHistory = seedInitialHistory(routePaths, pathname, search, defaultTransitionName);
-
-    // Hosted bundle: seed its history once (it starts empty at index -1). Seeding here rather than
-    // at creation means a hosted setup doesn't get the SSR snapshot, but the provider is for
-    // client-side devtools layouts, so that's fine.
-    if (hostedStores) {
-      if (hostedStores.history.getState().index === -1) {
-        hostedStores.history.setState({ index: 0, histories: [rootHistory] });
-      }
-      return hostedStores;
-    }
-
-    // A memory Router drives an in-memory history (seeded to match its root
-    // frame) and never marks a guard. A browser Router (root OR nested) drives
-    // the keyed browser History API and gets its OWN self-pop guard, so a
-    // sibling Router's traversal isn't mis-attributed to it.
-    const driver = useMemory
-      ? createMemoryHistoryDriver({
-          state: {
-            id: rootHistory.id,
-            index: 0,
-            status: "IDLE",
-            params: rootHistory.params,
-            transitionName: rootHistory.transitionName,
-            layoutId: rootHistory.layoutId
-          },
-          url: rootHistory.pathname
-        })
-      : browserDriver!;
-
-    const guard = useMemory ? NOOP_GUARD : createSelfPopGuard();
-
-    return {
-      history: createHistoryStore([rootHistory], 0),
-      navigate: createNavigateStore(),
-      transition: createTransitionStore(defaultTransitionName),
-      screen: createScreenStore(),
-      driver,
-      markSelfInduced: guard.mark,
-      consume: guard.consume
-    };
+    return createRouterScope({
+      routePaths,
+      pathname,
+      search,
+      defaultTransitionName,
+      memory: useMemory,
+      browserDriver,
+      hostedScope: hostedStores
+    });
   });
 
   // Keep the seeded default in sync if the prop changes across renders.

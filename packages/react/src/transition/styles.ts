@@ -1,12 +1,9 @@
 import { useInsertionEffect } from "react";
 
 import {
-  applyTransitionStyles,
-  partTransitionMap,
-  decoratorMap,
-  transitionMap,
-  type PartTransition,
+  registerTransitionDefinitions,
   type Decorator,
+  type PartTransition,
   type Transition
 } from "@flemo/core";
 
@@ -17,18 +14,10 @@ export default function useTransitionStyles(
 ) {
   // useInsertionEffect runs synchronously before any layout effect or paint,
   // so the stylesheet is in place by the time screens commit their data-* attrs.
-  // Registration/cleanup is the React lifecycle's job; compiling + writing the
-  // <style> tag is the framework-neutral applyTransitionStyles in @flemo/core.
-  useInsertionEffect(() => {
-    for (const t of transitions) transitionMap.set(t.name, t);
-    for (const d of decorators) decoratorMap.set(d.name, d);
-    for (const b of partTransitions) partTransitionMap.set(b.name, b);
-    applyTransitionStyles();
-    return () => {
-      for (const t of transitions) transitionMap.delete(t.name);
-      for (const d of decorators) decoratorMap.delete(d.name);
-      for (const b of partTransitions) partTransitionMap.delete(b.name);
-      applyTransitionStyles();
-    };
-  }, [transitions, decorators, partTransitions]);
+  // The React lifecycle only picks WHEN; registering the maps, compiling, and
+  // writing the <style> tag is @flemo/core's registerTransitionDefinitions.
+  useInsertionEffect(
+    () => registerTransitionDefinitions(transitions, decorators, partTransitions),
+    [transitions, decorators, partTransitions]
+  );
 }
