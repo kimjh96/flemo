@@ -7,10 +7,12 @@ import {
 } from "react";
 
 import {
+  animHoldKey,
+  computeBarRiding,
   createSwipeController,
   createTransitionEngine,
   decoratorMap,
-  driveBarRiding,
+  scheduleAnimHoldRelease,
   transitionMap
 } from "@flemo/core";
 
@@ -60,6 +62,16 @@ function ScreenMotion({
   const setDragStatus = stores.screen.getState().setDragStatus;
   const setReplaceTransitionStatus = stores.screen.getState().setReplaceTransitionStatus;
   const index = useHistoryStore((state) => state.index);
+  const histories = useHistoryStore((state) => state.histories);
+
+  // The partner screen this one would hand its shared bars to (the active top
+  // looks one below; a prev looks at the top). Subscribe to JUST that entry so
+  // bar-riding recomputes when the partner registers/unregisters its bars,
+  // without re-rendering on unrelated screens' bars.
+  const partnerId = isActive ? histories[index - 1]?.id : histories[index]?.id;
+  const partnerBars = useScreenStore((state) =>
+    partnerId ? state.sharedBars[partnerId] : undefined
+  );
 
   // Framework-neutral lifecycle engine, stable for this screen's lifetime.
   // It owns when the navigation task resolves and the COMPLETED cleanup; the
@@ -281,10 +293,13 @@ function ScreenMotion({
   //
   // 1. CSS-driven transitions (push / pop / replace). The compiled rule emits
   //    a sibling selector that targets `[data-flemo-bar][...riding="true"]`
-  //    with the same `@keyframes` the screen uses. We set the bar's data-
-  //    attributes here and toggle `data-flemo-bar-riding` based on partner
-  //    ownership. The compositor drives both elements off one keyframe. No
-  //    JS frame in the loop, no main-thread style read/write per frame.
+  //    with the same `@keyframes` the screen uses. `data-flemo-bar-riding` is
+  //    computed here in RENDER and set on the bar below, in the SAME commit as
+  //    the bar's `data-flemo-bar-status`. The compiled rule keys on both, so
+  //    rendering them together guarantees one paint — a bar can't carry the
+  //    POPPING status without its riding flag for a frame (which an imperative
+  //    effect write could, landing late on a genuine browser-back where React
+  //    reconnects the unfrozen subtree's effects as follow-up work).
   // 2. Swipe drag. Handled synchronously inside the core swipe controller,
   //    which mirrors every `animate(currentScreen, ...)` call to the riding
   //    bars in the SAME JS tick. No rAF loop, no `getComputedStyle` reads.
@@ -293,37 +308,54 @@ function ScreenMotion({
   const hasSharedTopBar = !!sharedTopBar;
   const hasSharedBottomBar = !!sharedBottomBar;
 
-  // (1) Toggle `data-flemo-bar-riding` on each bar based on partner ownership.
-  // `useLayoutEffect` so the attribute is set before the first transition frame
-  // paints; the core controller owns the toggle + re-subscription logic and
-  // stays framework-neutral (plain DOM + injected store reads).
-  useLayoutEffect(
-    () =>
-      driveBarRiding({
-        topBar: sharedTopBarRef.current,
-        navBar: sharedBottomBarRef.current,
-        isTopOrTopPrev,
-        isActive,
-        index,
-        hasTopBar: hasSharedTopBar,
-        hasNavBar: hasSharedBottomBar,
-        getStatus: () => stores.navigate.getState().status,
-        getHistories: () => stores.history.getState().histories,
-        getSharedBars: () => stores.screen.getState().sharedBars,
-        subscribeStatus: (listener) => stores.navigate.subscribe(listener),
-        subscribeSharedBars: (listener) => stores.screen.subscribe(listener)
-      }),
-    [
-      isTopOrTopPrev,
-      isActive,
-      index,
-      hasSharedTopBar,
-      hasSharedBottomBar,
-      stores.history,
-      stores.navigate,
-      stores.screen
-    ]
-  );
+  const { app: rideTopBar, nav: rideBottomBar } = computeBarRiding({
+    status,
+    isTopOrTopPrev,
+    hasTopBar: hasSharedTopBar,
+    hasNavBar: hasSharedBottomBar,
+    partnerBars
+  });
+
+  // Anchor the transition START to the first PAINTED frame. iOS WebKit anchors
+  // a CSS animation's timeline when the style change commits; when the entering
+  // screen's first frame is expensive (layout + raster of a heavy subtree on a
+  // mobile GPU, ~50ms on an iPhone), the timeline keeps running while nothing
+  // new is presented, so the opening of the transition is simply never
+  // displayed — measured on device as `animation.currentTime` already 25-50ms
+  // ahead on the second frame and `animationend` firing ~50ms early relative
+  // to first paint. A 200ms transition visibly loses its first quarter and
+  // reads as abbreviated. Hold every freshly started transition animation
+  // paused for the screen's first two frames (the compiled hold rule pins
+  // `animation-play-state`; `fill: both` keeps the keyframe's `from` value
+  // applied while paused, so the heavy raster happens AT the initial state),
+  // then release: the full duration now plays against already-rasterized
+  // layers. The decision (`animHoldKey`) and release scheduling
+  // (`scheduleAnimHoldRelease`, double-rAF + backstop) live in @flemo/core so
+  // other bindings anchor identically; this binding's own part is flipping the
+  // flag ON in the SAME render that changes the status attribute — computed in
+  // render, not an effect — so an Activity-unfrozen screen (whose effects
+  // reconnect as follow-up work) still holds from its very first frame.
+  const holdKey = animHoldKey({ status, isTopOrTopPrev, transitionName });
+  const [animRelease, setAnimRelease] = useState<{ key: string | null; released: boolean }>({
+    key: holdKey,
+    released: holdKey === null
+  });
+  if (animRelease.key !== holdKey) {
+    // Render-phase adjustment: React re-runs this component with the new state
+    // before committing, so the hold and status attributes always land in the
+    // same paint.
+    setAnimRelease({ key: holdKey, released: holdKey === null });
+  }
+  const animHold = holdKey !== null && animRelease.key === holdKey && !animRelease.released;
+
+  useEffect(() => {
+    if (!animHold) return undefined;
+    return scheduleAnimHoldRelease(() =>
+      setAnimRelease((current) =>
+        current.key === holdKey && !current.released ? { key: holdKey, released: true } : current
+      )
+    );
+  }, [animHold, holdKey]);
 
   const initialStyle: { transform?: string; opacity?: string } = (() => {
     // Only the actively entering screen needs the initial style; everything
@@ -383,6 +415,7 @@ function ScreenMotion({
         data-flemo-transition={transitionName}
         data-flemo-status={status}
         data-flemo-active={isActive ? "true" : "false"}
+        data-flemo-anim-hold={animHold ? "true" : "false"}
         style={{
           display: "flex",
           flexDirection: "column",
@@ -507,6 +540,8 @@ function ScreenMotion({
           data-flemo-bar-transition={transitionName}
           data-flemo-bar-status={status}
           data-flemo-bar-active={isActive ? "true" : "false"}
+          data-flemo-bar-riding={rideTopBar ? "true" : "false"}
+          data-flemo-anim-hold={animHold ? "true" : "false"}
           style={{
             position: screenPosition,
             top: !hideStatusBar ? statusBarHeight : 0,
@@ -525,6 +560,8 @@ function ScreenMotion({
           data-flemo-bar-transition={transitionName}
           data-flemo-bar-status={status}
           data-flemo-bar-active={isActive ? "true" : "false"}
+          data-flemo-bar-riding={rideBottomBar ? "true" : "false"}
+          data-flemo-anim-hold={animHold ? "true" : "false"}
           style={{
             display: isKeyboardVisible ? "none" : undefined,
             position: screenPosition,
@@ -537,7 +574,9 @@ function ScreenMotion({
           {sharedBottomBar}
         </div>
       )}
-      {decorator && <ScreenDecorator ref={decoratorRef} />}
+      {decorator && (
+        <ScreenDecorator ref={decoratorRef} data-flemo-anim-hold={animHold ? "true" : "false"} />
+      )}
       <div
         data-swipe-at-edge-bar
         style={{

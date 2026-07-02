@@ -114,7 +114,13 @@ export {
   type SwipeControllerElements,
   type SharedBarPresenceLike
 } from "@core/engine/createSwipeController";
-export { default as driveBarRiding, type BarRidingInput } from "@core/engine/barRiding";
+export { default as computeBarRiding, type BarRidingInput } from "@screen/computeBarRiding";
+export {
+  animHoldKey,
+  scheduleAnimHoldRelease,
+  ANIM_HOLD_RELEASE_BACKSTOP_MS,
+  type AnimHoldInput
+} from "@screen/animStartAnchor";
 
 // Transition types
 export type {
