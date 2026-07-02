@@ -503,8 +503,26 @@ export const compileTransitionStyles = (
     }
   }
 
-  return blocks.filter((b) => b.length > 0).join("\n\n");
+  return [...blocks.filter((b) => b.length > 0), ANIM_HOLD_RULE].join("\n\n");
 };
+
+// A freshly-started transition animation is held paused while the binding
+// paints the entering screen's first frame, then released. iOS WebKit anchors
+// a CSS animation's timeline when the style change commits, so when that first
+// frame is expensive (layout + raster of a heavy subtree on a mobile GPU) the
+// timeline keeps running while nothing new is presented and the opening of the
+// transition is never displayed — the transition reads as abbreviated. The
+// binding renders `data-flemo-anim-hold="true"` on the scope, shared bars, and
+// decorator for the hold window; `fill: both` keeps the keyframe's `from`
+// frame applied while paused. `!important` so this outranks the variant rules'
+// higher-specificity `animation` shorthand (which resets play-state to
+// running). The nested selector covers `<Part>` elements inside held bars.
+const ANIM_HOLD_RULE = [
+  `[data-flemo-anim-hold="true"],`,
+  `[data-flemo-anim-hold="true"] [data-flemo-part-name] {`,
+  `  animation-play-state: paused !important;`,
+  `}`
+].join("\n");
 
 export const variantHasAnimation = (
   transitionLike: Pick<Transition, "initial" | "variants">,
