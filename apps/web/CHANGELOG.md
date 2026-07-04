@@ -1,5 +1,15 @@
 # @flemo/web
 
+## 0.7.5
+
+### Patch Changes
+
+- [`5b17d4b`](https://github.com/kimjh96/flemo/commit/5b17d4bae35a7d765ba141009a773c63c59d7586) Soften the full-page shove easing so its velocity peak no longer concentrates where a late frame reads as a hitch, and shrink the header logo assets from 3000×3000 to 180×180 (they rendered at 26px and re-decoded 36MP on every return to the home screen).
+- Updated dependencies ([`5b17d4b`](https://github.com/kimjh96/flemo/commit/5b17d4bae35a7d765ba141009a773c63c59d7586)):
+  - @flemo/core@1.10.0
+  - @flemo/react@1.5.5
+  - @flemo/react-layout@0.1.20
+
 ## 0.7.4
 
 ### Patch Changes
