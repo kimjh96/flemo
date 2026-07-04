@@ -100,33 +100,13 @@ describe("Screen", () => {
     expect(freezeWrapper).not.toBeNull();
   });
 
-  // The content wrapper (the flexGrow box that holds {children}) is promoted to
-  // its own compositing layer while a transition is in flight, so a mid-transition
-  // re-render repaints that layer instead of the transform-animated scope layer
-  // (which would stall the transition's presentation on WebKit).
-  it("isolates the content onto its own layer while a transition is in flight", () => {
+  // The content wrapper must NOT be promoted or transformed: the old
+  // translateZ(0) isolation (#117 → #127) targeted a WebKit stall whose real
+  // cause was the animation-start anchoring (fixed via data-flemo-anim-hold),
+  // and the transform made this box a containing block that trapped consumer
+  // `position: fixed` overlays (the reason <Layer> had to exist).
+  it("keeps the content wrapper transform-free during a transition (no containing block)", () => {
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
-    stores.history.setState({ index: 0, histories: [] });
-
-    const { getByTestId } = render(
-      <Screen>
-        <div data-testid="content">hello</div>
-      </Screen>,
-      { wrapper: buildHarness({ isActive: true }) }
-    );
-
-    const contentWrapper = getByTestId("content").parentElement!;
-    // Promoted via `transform: translateZ(0)`, NOT `will-change: opacity`: a
-    // backdrop-root trigger would wash out a consumer `backdrop-filter` (frosted
-    // header) for the duration of the transition, and that breaks on every push
-    // of every frosted screen with no consumer-side workaround. A transform is
-    // not a backdrop root, so blur keeps rendering.
-    expect(contentWrapper.style.transform).toBe("translateZ(0)");
-    expect(contentWrapper.style.willChange).toBe("transform");
-  });
-
-  it("drops the content layer once the transition settles", () => {
-    // beforeEach leaves status COMPLETED.
     stores.history.setState({ index: 0, histories: [] });
 
     const { getByTestId } = render(

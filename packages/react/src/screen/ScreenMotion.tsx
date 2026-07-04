@@ -20,7 +20,6 @@ import {
   scheduleAnimHoldRelease
 } from "@flemo/core";
 
-import LayerMountContext from "@screen/LayerMountContext";
 import type { ScreenProps } from "@screen/Screen";
 import ScreenDecorator from "@screen/ScreenDecorator";
 
@@ -107,12 +106,6 @@ function ScreenMotion({
 
   const [sharedTopBarHeight, setSharedTopBarHeight] = useState(0);
   const [sharedBottomBarHeight, setSharedBottomBarHeight] = useState(0);
-
-  // The scope-level node <Layer> portals overlays to (set via ref callback so
-  // the context updates once it exists). It lives outside the content-isolation
-  // box, so a portaled overlay resolves against the full-screen scope and rides
-  // the transition instead of being trapped in the inset content box.
-  const [layerMount, setLayerMount] = useState<HTMLDivElement | null>(null);
 
   const screenRef = useRef<HTMLDivElement | null>(null);
   const scopeRef = useRef<HTMLDivElement | null>(null);
@@ -465,52 +458,19 @@ function ScreenMotion({
             display: "flex",
             flexDirection: "column",
             flexGrow: 1,
-            overflowY: contentScrollable ? "auto" : undefined,
-            // Promote the content onto its own compositing layer for the
-            // duration of any transition. The scope (`data-flemo-screen`) is the
-            // element the transition's keyframe animates, and `{children}` paint
-            // into it. When the content re-renders mid-transition (e.g. an async
-            // fetch resolving and swapping skeleton → content), it dirties the
-            // scope layer's backing store. WebKit runs the keyframe on the
-            // compositor — a pure main-thread block does NOT disturb it — but a
-            // repaint of the *animating layer itself* stalls that layer's
-            // presentation, so the transition visibly skips ahead and lands
-            // early. (Verified with a per-video-frame slit-scan: identical to a
-            // clean run once isolated; abbreviated without.) Giving the content
-            // its own layer means a mid-transition repaint hits THIS layer, not
-            // the scope's, so the scope keeps animating smoothly and the content
-            // fills in when ready — matching how Chromium already behaves.
-            //
-            // Transition-agnostic on purpose: it isolates the content's paint
-            // regardless of which property the scope animates (translate, scale,
-            // opacity, or anything a custom `createTransition` defines). Scoped
-            // to the in-flight window so the extra layer is dropped at rest.
-            //
-            // Promote with `transform: translateZ(0)`, NOT `will-change: opacity`.
-            // A backdrop-root trigger (opacity < 1, will-change: opacity, filter,
-            // isolation) re-renders this subtree into an isolated group, which
-            // changes how a consumer `backdrop-filter` (e.g. a frosted sticky
-            // header inside the content) samples its backdrop: the blur visibly
-            // washes out for the duration of the transition. A transform does not
-            // establish a backdrop root, so consumer blur keeps rendering. The
-            // WebKit isolation is statistically identical to `will-change: opacity`
-            // (slit-scan).
-            //
-            // A transform also makes this box a containing block for `position:
-            // fixed` descendants, so an overlay rendered INSIDE the scrolling
-            // body (an inline bottom sheet) would re-parent into this
-            // *content-height* box for the in-flight window and a closed sheet
-            // could flash. That's the structural escape <Layer> provides: it
-            // portals such overlays up to the scope level (outside this box), so
-            // they resolve against the full-screen scope and ride the transition.
-            // This is the trilemma resolved — backdrop keeps working here (a
-            // transform is not a backdrop root) AND overlays escape via <Layer>.
-            ...(status !== "IDLE" && status !== "COMPLETED"
-              ? { transform: "translateZ(0)", willChange: "transform" }
-              : null)
+            // No compositing-layer promotion here anymore. The translateZ(0)
+            // content isolation (#117 → #127) targeted a WebKit stall whose real
+            // root cause turned out to be the animation-start anchoring, fixed
+            // by data-flemo-anim-hold: with the anchor in place, isolated and
+            // non-isolated runs measure identical across desktop WebKit, the
+            // iOS simulator, and Chrome frame telemetry. Dropping the transform
+            // also stops this box from being a containing block, so a consumer
+            // `position: fixed` overlay works inside the content without any
+            // escape hatch (the former <Layer>).
+            overflowY: contentScrollable ? "auto" : undefined
           }}
         >
-          <LayerMountContext.Provider value={layerMount}>{children}</LayerMountContext.Provider>
+          {children}
         </div>
         {bottomBar}
         {sharedBottomBar && (
@@ -540,9 +500,6 @@ function ScreenMotion({
             />
           </div>
         )}
-        {/* <Layer> overlays portal here: scope level, outside the isolation box,
-            after the content so they stack above it. */}
-        <div ref={setLayerMount} data-flemo-layer-mount />
       </div>
       {sharedTopBar && (
         <div
