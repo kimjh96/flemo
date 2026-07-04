@@ -411,7 +411,43 @@ const compileVariantBlock = (
 
   const ruleBlock = `${selector} {\n  animation: ${animationProp};\n${willChangeDecl}${containmentDecl}}`;
 
-  return `${keyframeBlock}\n${ruleBlock}`;
+  // Destination pre-raster park. While a freshly started transition is held
+  // (see the hold rule appended to the sheet), a COVERED screen whose `from`
+  // frame hides it (fully off-screen or transparent) may park at its
+  // DESTINATION instead of pausing at the hidden `from`: the browser then
+  // genuinely rasterizes the tiles the animation is about to reveal, so the
+  // slide plays over pre-rastered content instead of chasing raster
+  // mid-animation (the dropped-frame hitch on heavy screens). Emitted only for
+  // the inactive ("-false") side — that screen sits UNDER the active one, so
+  // the park is invisible when the cover is opaque. The binding renders
+  // `data-flemo-anim-hold="park"` only after verifying the covering screen's
+  // opacity (see ScreenSurface); a translucent cover keeps the paused hold.
+  // Variants without a park rule fall back to the global paused rule even
+  // under the "park" attribute, so the attribute is always safe to render.
+  const parkBlock =
+    scope === "screen" &&
+    variant.endsWith("-false") &&
+    targetHidesScreen(fromValue) &&
+    toDecls.length > 0
+      ? `\n${screenSelector}[data-flemo-anim-hold="park"] {\n  animation: none;\n${declsToBlock(
+          toDecls
+        )}\n}`
+      : "";
+
+  return `${keyframeBlock}\n${ruleBlock}${parkBlock}`;
+};
+
+// Whether a variant's `from` target leaves the screen invisible on its first
+// frame: fully transparent, or translated fully off-screen (a percentage
+// offset >= 100%).
+const targetHidesScreen = (value: TransitionVariantValue["value"] | InitialTarget): boolean => {
+  if (!value) return false;
+  if (value.opacity === 0) return true;
+  const offscreen = (offset: string | number | undefined) =>
+    typeof offset === "string" &&
+    offset.trim().endsWith("%") &&
+    Math.abs(parseFloat(offset)) >= 100;
+  return offscreen(value.x) || offscreen(value.y);
 };
 
 const compileRestBlock = (
@@ -519,7 +555,9 @@ export const compileTransitionStyles = (
 // running). The nested selector covers `<Part>` elements inside held bars.
 const ANIM_HOLD_RULE = [
   `[data-flemo-anim-hold="true"],`,
-  `[data-flemo-anim-hold="true"] [data-flemo-part-name] {`,
+  `[data-flemo-anim-hold="park"],`,
+  `[data-flemo-anim-hold="true"] [data-flemo-part-name],`,
+  `[data-flemo-anim-hold="park"] [data-flemo-part-name] {`,
   `  animation-play-state: paused !important;`,
   `}`
 ].join("\n");

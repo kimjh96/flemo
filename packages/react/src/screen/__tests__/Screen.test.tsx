@@ -303,6 +303,77 @@ describe("Screen", () => {
     }
   });
 
+  // The destination park: a COVERED screen (inactive side) upgrades its hold
+  // to "park" only when the covering partner registered an opaque surface.
+  it("parks a covered held screen when its cover is opaque, pauses otherwise", () => {
+    stores.navigate.setState({ status: "POPPING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+    stores.screen.setState({
+      screenSurfaces: { top: { opaqueBackground: true } }
+    });
+
+    const { container } = render(
+      <Screen>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: false, isPrev: true, id: "below", zIndex: 0 }) }
+    );
+
+    const scope = container.querySelector("[data-flemo-screen]")!;
+    expect(scope.getAttribute("data-flemo-anim-hold")).toBe("park");
+  });
+
+  it("keeps the paused hold when the cover's surface is unknown or translucent", () => {
+    stores.navigate.setState({ status: "POPPING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+    stores.screen.setState({
+      screenSurfaces: { top: { opaqueBackground: false } }
+    });
+
+    const { container } = render(
+      <Screen>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: false, isPrev: true, id: "below", zIndex: 0 }) }
+    );
+
+    const scope = container.querySelector("[data-flemo-screen]")!;
+    expect(scope.getAttribute("data-flemo-anim-hold")).toBe("true");
+  });
+
+  it("never parks the active (covering) screen", () => {
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+    stores.screen.setState({
+      screenSurfaces: { below: { opaqueBackground: true } }
+    });
+
+    const { container } = render(
+      <Screen>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true, id: "top", zIndex: 1 }) }
+    );
+
+    const scope = container.querySelector("[data-flemo-screen]")!;
+    expect(scope.getAttribute("data-flemo-anim-hold")).toBe("true");
+  });
+
+  it("registers its scope surface opacity for screens beneath to read", () => {
+    stores.history.setState({ index: 0, histories: [] });
+
+    render(
+      <Screen backgroundColor="rgb(255, 255, 255)">
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true, id: "surface-test" }) }
+    );
+
+    expect(stores.screen.getState().screenSurfaces["surface-test"]).toEqual({
+      opaqueBackground: true
+    });
+  });
+
   it("does not hold a screen at rest", () => {
     stores.history.setState({ index: 0, histories: [] });
 

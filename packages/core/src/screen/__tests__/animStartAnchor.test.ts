@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { animHoldKey, scheduleAnimHoldRelease } from "@screen/animStartAnchor";
+import { animHoldKey, eagerlyDecodeImages, scheduleAnimHoldRelease } from "@screen/animStartAnchor";
 
 describe("animHoldKey", () => {
   const base = { isTopOrTopPrev: true, transitionName: "cupertino" };
@@ -89,5 +89,128 @@ describe("scheduleAnimHoldRelease", () => {
     flushFrame();
     vi.advanceTimersByTime(1000);
     expect(release).not.toHaveBeenCalled();
+  });
+});
+
+describe("scheduleAnimHoldRelease decode wait", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let frameId: number;
+
+  const flushFrame = () => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((frameCallback) => frameCallback(performance.now()));
+  };
+
+  beforeEach(() => {
+    frames = new Map();
+    frameId = 0;
+    vi.useFakeTimers();
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      frames.delete(id);
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  const fakeScope = (images: unknown[]) =>
+    ({ querySelectorAll: () => images }) as unknown as HTMLElement;
+
+  it("waits for the scope's loaded images to decode before releasing", async () => {
+    const release = vi.fn();
+    let resolveDecode!: () => void;
+    const image = {
+      complete: true,
+      decode: () => new Promise<void>((resolve) => (resolveDecode = resolve))
+    };
+    scheduleAnimHoldRelease(release, { scope: fakeScope([image]) });
+
+    flushFrame();
+    flushFrame();
+    await Promise.resolve();
+    expect(release).not.toHaveBeenCalled();
+
+    resolveDecode();
+    for (let hop = 0; hop < 8; hop++) await Promise.resolve();
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips images that have not loaded (decode would wait on the network)", async () => {
+    const release = vi.fn();
+    const pending = { complete: false, decode: vi.fn() };
+    scheduleAnimHoldRelease(release, { scope: fakeScope([pending]) });
+
+    flushFrame();
+    flushFrame();
+    await Promise.resolve();
+    expect(pending.decode).not.toHaveBeenCalled();
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("caps the decode wait so a pathological screen cannot stall the hold", async () => {
+    const release = vi.fn();
+    const stuck = { complete: true, decode: () => new Promise<void>(() => {}) };
+    scheduleAnimHoldRelease(release, { scope: fakeScope([stuck]) });
+
+    flushFrame();
+    flushFrame();
+    await Promise.resolve();
+    expect(release).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(150);
+    for (let hop = 0; hop < 8; hop++) await Promise.resolve();
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not release after cancellation even when a decode settles", async () => {
+    const release = vi.fn();
+    let resolveDecode!: () => void;
+    const image = {
+      complete: true,
+      decode: () => new Promise<void>((resolve) => (resolveDecode = resolve))
+    };
+    const cancel = scheduleAnimHoldRelease(release, { scope: fakeScope([image]) });
+
+    flushFrame();
+    flushFrame();
+    cancel();
+    resolveDecode();
+    await Promise.resolve();
+    await Promise.resolve();
+    vi.advanceTimersByTime(1000);
+    expect(release).not.toHaveBeenCalled();
+  });
+});
+
+describe("eagerlyDecodeImages", () => {
+  const fakeScope = (images: unknown[]) =>
+    ({ querySelectorAll: () => images }) as unknown as HTMLElement;
+
+  it("fires decode on loaded images and skips unloaded ones", () => {
+    const loaded = { complete: true, decode: vi.fn(() => Promise.resolve()) };
+    const pending = { complete: false, decode: vi.fn() };
+    eagerlyDecodeImages(fakeScope([loaded, pending]));
+
+    expect(loaded.decode).toHaveBeenCalledTimes(1);
+    expect(pending.decode).not.toHaveBeenCalled();
+  });
+
+  it("swallows decode rejections (broken images must not throw)", async () => {
+    const broken = { complete: true, decode: vi.fn(() => Promise.reject(new Error("x"))) };
+    eagerlyDecodeImages(fakeScope([broken]));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(broken.decode).toHaveBeenCalled();
+  });
+
+  it("is a no-op without a scope", () => {
+    expect(() => eagerlyDecodeImages(null)).not.toThrow();
   });
 });
