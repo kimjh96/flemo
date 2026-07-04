@@ -132,6 +132,12 @@ export default function createNavigationController(deps: NavigationControllerDep
   // in place when we never held it. Skipped when the present entry carries no
   // frame of ours (nothing to align to). Returns the present frame so pushes
   // chain their browser-space stamp from it.
+  // The browser timeline is being rewritten (push truncates the forward
+  // stack, replace swaps an entry): queued traversal events that predate this
+  // moment may reference destroyed entries — mark the epoch so the sync folds
+  // them instead of replaying corruption.
+  const markTimelineRewrite = () => stores.history.getState().bumpTruncationEpoch();
+
   const convergeToPresent = () => {
     const frame = driver.readState() as {
       id?: string;
@@ -224,6 +230,7 @@ export default function createNavigationController(deps: NavigationControllerDep
 
           if (remove === 0) {
             // Plain push. The new screen stacks on the current top, unchanged.
+            markTimelineRewrite();
             driver.pushState(
               { id, index: topStamp + 1, status: "PUSHING", params, transitionName, layoutId },
               pathname
@@ -244,6 +251,7 @@ export default function createNavigationController(deps: NavigationControllerDep
           addHistory({ ...newEntry, frameIndex: keptStamp + 1 });
 
           await syncCollapsedHistory(driver, markSelfInduced, remove, () => {
+            markTimelineRewrite();
             driver.pushState(
               {
                 id,
@@ -337,6 +345,7 @@ export default function createNavigationController(deps: NavigationControllerDep
 
           if (steps === 1) {
             // Single-screen replace. Unchanged from the original behavior.
+            markTimelineRewrite();
             driver.replaceState(
               { id, index: replacedStamp, status: "REPLACING", params, transitionName, layoutId },
               pathname
@@ -364,6 +373,7 @@ export default function createNavigationController(deps: NavigationControllerDep
             // A screen remains below the new one. Go to it and pushState the
             // new entry above (truncating the forward stack, no phantoms).
             await syncCollapsedHistory(driver, markSelfInduced, steps, () => {
+              markTimelineRewrite();
               driver.pushState(
                 {
                   id,
@@ -381,6 +391,7 @@ export default function createNavigationController(deps: NavigationControllerDep
             // would overshoot index 0, so go to the current root and
             // replaceState it.
             await syncCollapsedHistory(driver, markSelfInduced, index, () => {
+              markTimelineRewrite();
               driver.replaceState(
                 {
                   id,

@@ -78,14 +78,28 @@ export default function createRouterScope(input: CreateRouterScopeInput): FlemoS
   const { routePaths, pathname, search, defaultTransitionName, memory, browserDriver } = input;
 
   const seededHistory = seedInitialHistory(routePaths, pathname, search, defaultTransitionName);
-  // Stamp the seed with the CURRENT entry's browser-space frame index when one
-  // exists (a Router remounting onto an entry a previous incarnation wrote, or
-  // one the browser drifted to). A fresh entry starts its chain at 0.
-  const seedStamp =
+  // A Router remounting onto an entry a previous incarnation wrote adopts that
+  // entry's IDENTITY (id, params, browser-space stamp): the seed then IS the
+  // present entry, so a traversal back onto it matches by id instead of
+  // colliding with the generic "root" (which a reseed of a different entry
+  // would also carry — a same-id false positive that swallowed traversals).
+  // A virgin entry keeps the generic seed and starts its stamp chain at 0.
+  const presentFrame =
     browserDriver && !isServer()
-      ? ((browserDriver.readState() as { index?: number } | null)?.index ?? 0)
-      : 0;
-  const rootHistory = { ...seededHistory, frameIndex: seedStamp };
+      ? (browserDriver.readState() as {
+          id?: string;
+          index?: number;
+          params?: object;
+        } | null)
+      : null;
+  const rootHistory = presentFrame?.id
+    ? {
+        ...seededHistory,
+        id: presentFrame.id,
+        params: presentFrame.params ?? seededHistory.params,
+        frameIndex: presentFrame.index ?? 0
+      }
+    : { ...seededHistory, frameIndex: 0 };
 
   // Hosted bundle: seed its history once (it starts empty at index -1). Seeding
   // here rather than at creation means a hosted setup doesn't get the SSR

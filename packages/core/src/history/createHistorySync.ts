@@ -70,6 +70,9 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
     }
 
     const frame = event.state as PopStateFrame | null;
+    // The timeline epoch at the moment this traversal happened (see
+    // HistoryStore.truncationEpoch).
+    const eventEpoch = stores.history.getState().truncationEpoch;
     const taskId = TaskManager.generateTaskId();
 
     (
@@ -82,25 +85,27 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
             return;
           }
 
-          // Rapid navigation COALESCES: while one transition plays, further
-          // events pile up in the shared task queue, and replaying each one
-          // keeps the store seconds behind the browser (every user action
-          // taken meanwhile computes against stale state). An event is only
-          // materialized if it still describes the browser's PRESENT entry —
-          // anything that moved the browser since (a newer traversal, an
-          // in-app push that truncated the forward stack) makes it stale, and
-          // whatever moved the browser owns the convergence instead. A storm
-          // collapses into the in-flight transition plus ONE converging step,
-          // like a native stack.
-          const presentFrame = driver.readState() as PopStateFrame | null;
-          if (presentFrame?.id !== (event.state as PopStateFrame | null)?.id) {
-            abortController.abort();
-            return;
-          }
-
           const { setStatus, setTransitionTaskId } = stores.navigate.getState();
           const { index, histories, addHistory, popHistory, popHistories, setPendingIndex } =
             stores.history.getState();
+
+          // Every queued traversal REPLAYS with its full transition — late but
+          // complete — as long as the browser timeline it happened on is still
+          // intact. Only when this Router rewrote the timeline since the event
+          // fired (a push truncated the forward stack, a replace swapped an
+          // entry — the epoch moved) can a stale event reference a DESTROYED
+          // entry, and materializing it then would walk the store away from
+          // the browser (proven by the convergence property test). In that
+          // case only an event still describing the browser's present entry
+          // may materialize; the rest fold, and whatever moved the browser
+          // owns the convergence.
+          if (eventEpoch !== stores.history.getState().truncationEpoch) {
+            const presentFrame = driver.readState() as PopStateFrame | null;
+            if (presentFrame?.id !== (event.state as PopStateFrame | null)?.id) {
+              abortController.abort();
+              return;
+            }
+          }
 
           // Classification is IDENTITY-FIRST: local indexes live in this
           // store's compressed space while frame indexes live in the browser's,

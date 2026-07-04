@@ -43,6 +43,13 @@ export interface HistoryStore {
   // convergence step a queued navigation runs when the browser has moved to an
   // entry we hold below the top since the action was issued.
   truncateHistory: (position: number) => void;
+  // Bumped whenever this Router REWRITES the browser timeline (a push truncates
+  // the forward stack, a replace swaps an entry). Queued traversal events that
+  // predate the current epoch may reference destroyed entries and are folded;
+  // while the epoch is unchanged the timeline is intact, so every queued
+  // traversal replays with its full transition (late but complete).
+  truncationEpoch: number;
+  bumpTruncationEpoch: () => void;
   setTransitionName: (index: number, transitionName: TransitionName) => void;
 }
 
@@ -105,6 +112,8 @@ export default function createHistoryStore(histories: History[] = [], index = -1
         pendingIndex: position,
         histories: state.histories.slice(0, position + 1)
       })),
+    truncationEpoch: 0,
+    bumpTruncationEpoch: () => set((state) => ({ truncationEpoch: state.truncationEpoch + 1 })),
 
     // Override one entry's transition. Used by pop() to relabel the leaving top
     // before the POPPING flip so the back animation uses the caller's
