@@ -115,6 +115,9 @@ describe("HistoryListener", () => {
     const stop = fireSweeper();
 
     await act(async () => {
+      // A real traversal lands the browser ON the entry before popstate fires;
+      // the sync's coalescing verifies the event matches the present entry.
+      window.history.replaceState({ id: "root", index: 0, status: "COMPLETED" }, "", "/");
       window.dispatchEvent(
         new PopStateEvent("popstate", {
           state: { id: "root", index: 0, status: "COMPLETED" }
@@ -137,6 +140,7 @@ describe("HistoryListener", () => {
 
     await act(async () => {
       // Same index + no status, listener can't classify, aborts.
+      window.history.replaceState({ id: "noise", index: 0 }, "", "/");
       window.dispatchEvent(
         new PopStateEvent("popstate", {
           state: { id: "noise", index: 0 }

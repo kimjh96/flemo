@@ -199,6 +199,18 @@ function Router({
   // Keep the seeded default in sync if the prop changes across renders.
   stores.transition.setState({ defaultTransitionName });
 
+  // Router liveness for queued navigation tasks: a push/pop task can sit in
+  // the shared queue behind an in-flight transition and run after this Router
+  // unmounted — it must abort rather than move the browser history for screens
+  // that no longer exist. Set on every mount (strict-mode remounts and hosted
+  // re-adoption included), cleared on unmount.
+  useEffect(() => {
+    stores.life.alive = true;
+    return () => {
+      stores.life.alive = false;
+    };
+  }, [stores]);
+
   // Registers user-provided transitions/decorators with the global maps and
   // injects the compiled CSS keyframes into the document head. Runs in
   // useInsertionEffect so styles are committed before any screen paints.

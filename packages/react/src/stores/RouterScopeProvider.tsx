@@ -26,7 +26,8 @@ function RouterScopeProvider({ children }: PropsWithChildren) {
     screen: createScreenStore(),
     driver: createBrowserHistoryDriver(),
     markSelfInduced: markSelfInducedPop,
-    consume: consumeSelfInducedPop
+    consume: consumeSelfInducedPop,
+    life: { alive: true }
   }));
 
   return <StoreContext.Provider value={stores}>{children}</StoreContext.Provider>;

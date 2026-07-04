@@ -23,7 +23,8 @@ export function createTestStores(): FlemoStores {
     screen: createScreenStore(),
     driver: createBrowserHistoryDriver(),
     markSelfInduced: markSelfInducedPop,
-    consume: consumeSelfInducedPop
+    consume: consumeSelfInducedPop,
+    life: { alive: true }
   };
 }
 

@@ -22,6 +22,22 @@ const root: History = {
 };
 
 const setup = () => {
+  // Ground the browser's present entry to the seeded root: the controller
+  // converges the store to whatever entry the browser is ON before acting
+  // (a queued action may run after the browser moved), and jsdom's
+  // window.history keeps state across tests otherwise.
+  window.history.replaceState(
+    {
+      id: "root",
+      index: 0,
+      status: "IDLE",
+      params: {},
+      transitionName: "cupertino",
+      layoutId: null
+    },
+    "",
+    "/"
+  );
   const stores = {
     history: createHistoryStore([root], 0),
     navigate: createNavigateStore(),
@@ -103,6 +119,99 @@ const buildStack = async (controller: ReturnType<typeof setup>["controller"]) =>
   await controller.push("/a");
   await controller.push("/b");
 };
+
+describe("createNavigationController router liveness", () => {
+  const deadSetup = () => {
+    window.history.replaceState(
+      {
+        id: "root",
+        index: 0,
+        status: "IDLE",
+        params: {},
+        transitionName: "cupertino",
+        layoutId: null
+      },
+      "",
+      "/"
+    );
+    const life = { alive: true };
+    const stores = {
+      history: createHistoryStore([root], 0),
+      navigate: createNavigateStore(),
+      transition: createTransitionStore("cupertino"),
+      life
+    };
+    const controller = createNavigationController({
+      stores,
+      buildPathname: (path) => ({ pathname: path, toPathname: path })
+    });
+    return { stores, controller, life };
+  };
+
+  it("a queued replace aborts when the Router died before it ran", async () => {
+    const { stores, controller, life } = deadSetup();
+    life.alive = false;
+
+    await controller.replace("/replaced");
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(stores.history.getState().histories[0]!.pathname).toBe("/");
+    expect(stores.navigate.getState().status).toBe("IDLE");
+  });
+
+  it("a queued pop aborts when the Router died before it ran", async () => {
+    const { stores, controller, life } = deadSetup();
+    stores.history.setState({
+      index: 1,
+      pendingIndex: 1,
+      histories: [root, { ...root, id: "top", pathname: "/top" }]
+    });
+    life.alive = false;
+
+    await controller.pop();
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(stores.history.getState().index).toBe(1);
+    expect(stores.navigate.getState().status).toBe("IDLE");
+  });
+
+  it("a queued push converges to the browser's present entry before stacking", async () => {
+    // The user clicked while the store still showed an older entry, but by the
+    // time the queued push runs the browser sits on an entry we hold BELOW the
+    // top — the push must land on what the user saw, not on the stale top.
+    const { stores, controller } = deadSetup();
+    stores.history.setState({
+      index: 1,
+      pendingIndex: 1,
+      histories: [
+        { ...root, frameIndex: 0 },
+        { ...root, id: "stale-top", pathname: "/stale", frameIndex: 1 }
+      ]
+    });
+    // Browser present = the ROOT entry (the user navigated back meanwhile).
+    window.history.replaceState(
+      {
+        id: "root",
+        index: 0,
+        status: "IDLE",
+        params: {},
+        transitionName: "cupertino",
+        layoutId: null
+      },
+      "",
+      "/"
+    );
+
+    await controller.push("/fresh");
+    await new Promise((r) => setTimeout(r, 60));
+
+    const { histories, index } = stores.history.getState();
+    expect(histories.map((history) => history.pathname)).toEqual(["/", "/fresh"]);
+    expect(index).toBe(1);
+    // The new frame chains its browser-space stamp from the present entry.
+    expect(histories[1]!.frameIndex).toBe(1);
+  });
+});
 
 describe("createNavigationController distance options (skip / until / collapse)", () => {
   it("push { skip } collapses the skipped screen under the new top", async () => {
