@@ -12,7 +12,7 @@ module.exports = [
     // framework-neutral engine (lifecycle, swipe, bar-riding, screen store,
     // navigation controller, popstate bridge) now lives here, moved out of
     // @flemo/react.
-    limit: "13 KB",
+    limit: "14 KB",
     gzip: true
   },
   {
