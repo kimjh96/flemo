@@ -27,6 +27,8 @@ import HistoryListener from "@history/HistoryListener";
 
 import Renderer from "@renderer/Renderer";
 
+import ScreenContext from "@screen/ScreenContext";
+
 import ScreenViewportContext from "@screen/ScreenViewportContext";
 
 import useTransitionStyles from "@transition/styles";
@@ -120,7 +122,19 @@ function Router({
   // A stable per-Router id. The browser driver namespaces its `history.state`
   // under this key so multiple browser Routers on one page don't clobber each
   // other's frame or mis-handle each other's popstate.
-  const routerKey = useId();
+  //
+  // A NESTED Router derives the key from its enclosing screen's history-entry
+  // id instead of useId: the entry id is stored in the browser frame and
+  // restored verbatim when a traversal re-pushes the screen, so a remounted
+  // Router reads the frames its previous incarnation wrote. useId's client
+  // counter changes on every remount, which orphaned those frames — after a
+  // rapid back-across-the-boundary-then-forward, the reborn Router classified
+  // every traversal as foreign and the URL walked away from the screen. The
+  // root Router keeps useId (hydration-stable; a root remount is an app
+  // teardown, not a traversal).
+  const reactId = useId();
+  const parentScreen = useContext(ScreenContext);
+  const routerKey = isNested && parentScreen.id ? `_F_${parentScreen.id}_` : reactId;
 
   // When the layout marks a content region with <Slot>, the routes live inside
   // it and the rest of `children` is persistent chrome (rendered as-is, with the
@@ -196,6 +210,17 @@ function Router({
     // this Router still resolves its key. A memory Router never touches the
     // browser history. A hosted bundle keeps the legacy keyless (bare) seed.
     if (useMemory || isServer()) return;
+
+    // Whether the CURRENT entry already carries this Router's frame — read
+    // BEFORE the seed below creates one. A remounted Router (its screen
+    // re-entered by a traversal) can mount while the browser has already moved
+    // further ahead (a queued forward), and the entry under it then belongs to
+    // a PREVIOUS incarnation's navigation, not to this fresh seed. Reflecting
+    // the seed URL into that entry would corrupt it (a /playground/2 entry
+    // renamed to /playground/1 while still carrying the panel-2 frame).
+    const entryPredatesThisRouter =
+      isNested && !isHosted && browserDriver ? browserDriver.readState() == null : false;
+
     ensureWindowHistoryState(
       isHosted ? null : routerKey,
       defaultTransitionName,
@@ -206,8 +231,16 @@ function Router({
     // the URL shows the screen actually mounted (e.g. /playground/1, not the
     // host's bare /playground). Routed through the driver (not window directly)
     // so a locale-aware driver keeps its URL prefix; the keyed state is
-    // preserved. A deep link already matches its seed, so this is a no-op.
-    if (isNested && !isHosted && browserDriver && browserDriver.readPathname() !== pathname) {
+    // preserved. A deep link already matches its seed, so this is a no-op —
+    // and an entry a previous incarnation already wrote to is never renamed
+    // (see above).
+    if (
+      isNested &&
+      !isHosted &&
+      browserDriver &&
+      entryPredatesThisRouter &&
+      browserDriver.readPathname() !== pathname
+    ) {
       browserDriver.replaceState(browserDriver.readState(), pathname);
     }
   }, [

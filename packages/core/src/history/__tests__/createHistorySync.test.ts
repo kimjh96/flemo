@@ -137,6 +137,83 @@ describe("createHistorySync (headless, no React)", () => {
     dispose();
   });
 
+  it("adopts an unclassifiable entry that belongs to this router (URL and screen never diverge)", async () => {
+    // A forward jump into territory written before a remount: same index as the
+    // store, but a DIFFERENT entry id — no faithful animated reconstruction
+    // exists, so the sync rewrites the top in place without a transition.
+    const { stores } = setup([root, { ...root, id: "shown", pathname: "/shown" }], 1);
+
+    firePopState({
+      id: "orphaned",
+      index: 1,
+      status: "PUSHING",
+      params: { n: "3" },
+      transitionName: "cupertino",
+      layoutId: null
+    });
+    await settle();
+
+    const { histories, index } = stores.history.getState();
+    expect(index).toBe(1);
+    expect(histories[1]).toMatchObject({ id: "orphaned", params: { n: "3" } });
+    // No transition ran: the navigation status never left IDLE.
+    expect(stores.navigate.getState().status).toBe("IDLE");
+  });
+
+  it("does not adopt a same-id event (a nested router moving within our entry)", async () => {
+    const { stores } = setup([root, { ...root, id: "shown", pathname: "/shown" }], 1);
+
+    firePopState({
+      id: "shown",
+      index: 1,
+      status: "PUSHING",
+      params: {},
+      transitionName: "cupertino",
+      layoutId: null
+    });
+    await settle();
+
+    expect(stores.history.getState().histories[1]!.pathname).toBe("/shown");
+  });
+
+  it("a task queued before disposal aborts instead of deadlocking the queue", async () => {
+    // The zombie scenario: a traversal for router A queues behind an in-flight
+    // transition; router A unmounts (sync disposed) before the task runs. The
+    // task must abort on arrival — if it started a transition, no screen would
+    // ever fire animationend and the SHARED queue would stall forever.
+    const { stores, dispose } = setup([root, { ...root, id: "second", pathname: "/a" }], 1);
+
+    // Block the queue with an unrelated manual task so the popstate task queues.
+    let releaseBlocker!: () => void;
+    const blockerDone = TaskManager.addTask(
+      async () => {
+        await new Promise<void>((resolve) => (releaseBlocker = resolve));
+      },
+      { control: { manual: false } }
+    );
+
+    // A back traversal arrives while blocked, then the router dies.
+    firePopState({ id: "root", index: 0, status: "IDLE", params: {} });
+    await new Promise((r) => setTimeout(r, 10));
+    dispose();
+
+    releaseBlocker();
+    await blockerDone;
+    await settle();
+
+    // The dead router's stores were never touched...
+    expect(stores.navigate.getState().status).toBe("IDLE");
+    expect(stores.history.getState().index).toBe(1);
+
+    // ...and the queue kept flowing: a later task runs normally.
+    let ran = false;
+    await TaskManager.addTask(async () => {
+      ran = true;
+    });
+    await settle();
+    expect(ran).toBe(true);
+  });
+
   it("the disposer detaches the listener", async () => {
     const { stores, dispose } = setup();
     dispose();
