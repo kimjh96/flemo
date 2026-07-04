@@ -9,6 +9,8 @@ import useNavigate from "@navigate/useNavigate";
 
 import Screen from "@screen/Screen";
 
+import ScreenContext from "@screen/ScreenContext";
+
 import Route from "@Route";
 import useStores from "@stores/useStores";
 
@@ -44,6 +46,64 @@ afterEach(async () => {
 // A root <Router> renders full-viewport screens (no region wrapper); a <Router>
 // nested inside another (depth > 0) becomes a transition region: it wraps its
 // screens in a positioned, clipped box and contains them to it.
+
+describe("nested Router key stability", () => {
+  // The browser driver's state key must survive a remount: a re-pushed screen
+  // restores the same history-entry id, and the reborn nested Router must read
+  // the frames its previous incarnation wrote. useId regenerates per mount and
+  // orphaned them (the rapid back/forward "URL changes but the screen doesn't").
+  const screenValue = {
+    id: "entry-abc",
+    isActive: true,
+    isRoot: false,
+    isPrev: false,
+    zIndex: 1,
+    pathname: "/host",
+    params: {},
+    transitionName: "cupertino" as const,
+    prevTransitionName: "cupertino" as const,
+    layoutId: null,
+    routePath: "/host"
+  };
+
+  const captureKey = () => {
+    const keys: (string | undefined)[] = [];
+    const createDriver = (key?: string) => {
+      keys.push(key);
+      // A minimal in-memory HistoryDriver double.
+      return {
+        readPathname: () => "/nested",
+        readState: () => null,
+        pushState: () => {},
+        replaceState: () => {},
+        go: () => {},
+        back: () => {},
+        subscribe: () => () => {}
+      };
+    };
+    const ui = (
+      <ScreenContext.Provider value={screenValue}>
+        <RouterDepthContext.Provider value={1}>
+          <Router initPath="/nested" createDriver={createDriver}>
+            <Route path="/nested" element={<div>panel</div>} />
+          </Router>
+        </RouterDepthContext.Provider>
+      </ScreenContext.Provider>
+    );
+    return { keys, ui };
+  };
+
+  it("derives the same key across remounts from the enclosing screen's entry id", () => {
+    const { keys, ui } = captureKey();
+    const first = render(ui);
+    first.unmount();
+    render(ui);
+
+    expect(keys.length).toBeGreaterThanOrEqual(2);
+    expect(keys[0]).toBe("_F_entry-abc_");
+    expect(keys[keys.length - 1]).toBe("_F_entry-abc_");
+  });
+});
 
 describe("Router", () => {
   it("root: anchors screens to the viewport with no region wrapper", () => {

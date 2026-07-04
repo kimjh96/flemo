@@ -25,6 +25,11 @@ export interface HistoryStore {
   popHistories: (count: number) => void;
   // Point pendingIndex at a pop's destination before the transition resolves.
   setPendingIndex: (index: number) => void;
+  // Rewrite the CURRENT top entry (and drop anything stacked above it) to the
+  // given entry, without moving the index — the history-sync's no-animation
+  // adoption for a traversal it cannot faithfully classify (see
+  // createHistorySync). The renderer swaps the screen's content in place.
+  adoptHistory: (history: History) => void;
   setTransitionName: (index: number, transitionName: TransitionName) => void;
 }
 
@@ -77,6 +82,11 @@ export default function createHistoryStore(histories: History[] = [], index = -1
       });
     },
     setPendingIndex: (index) => set({ pendingIndex: index }),
+    adoptHistory: (history) =>
+      set((state) => ({
+        histories: state.histories.slice(0, state.index).concat(history)
+      })),
+
     // Override one entry's transition. Used by pop() to relabel the leaving top
     // before the POPPING flip so the back animation uses the caller's
     // `transitionName` from the first frame. Its original transition never
