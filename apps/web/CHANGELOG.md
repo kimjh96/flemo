@@ -1,5 +1,14 @@
 # @flemo/web
 
+## 0.7.9
+
+### Patch Changes
+
+- [`2553ce0`](https://github.com/kimjh96/flemo/commit/2553ce036c6656ee89317ebec6d6c83c8d28050c) Drop the Layer docs page and the unused SendSheet demo following the removal of `<Layer>` from @flemo/react.
+- Updated dependencies ([`2553ce0`](https://github.com/kimjh96/flemo/commit/2553ce036c6656ee89317ebec6d6c83c8d28050c)):
+  - @flemo/react@1.6.0
+  - @flemo/react-layout@0.1.24
+
 ## 0.7.8
 
 ### Patch Changes

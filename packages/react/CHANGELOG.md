@@ -1,5 +1,11 @@
 # @flemo/react
 
+## 1.6.0
+
+### Minor Changes
+
+- [`2553ce0`](https://github.com/kimjh96/flemo/commit/2553ce036c6656ee89317ebec6d6c83c8d28050c) Remove the translateZ(0) content isolation and the `<Layer>` component. The isolation targeted a WebKit stall whose real cause was the animation-start anchoring (fixed by `data-flemo-anim-hold`); with the anchor in place, isolated and non-isolated runs measure identical on WebKit and identical-or-better on Chrome frame telemetry. Without the transformed box there is no containing block trapping `position: fixed` overlays, so `<Layer>` — which existed only as the escape hatch — is gone too: a plain fixed overlay inside screen content now works directly, rides transitions with the screen, and stacks with ordinary z-index.
+
 ## 1.5.8
 
 ### Patch Changes
