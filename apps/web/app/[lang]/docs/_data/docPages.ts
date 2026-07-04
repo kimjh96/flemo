@@ -257,29 +257,6 @@ const EN: DocSection[] = [
         ]
       },
       {
-        slug: "layer",
-        title: "Layer",
-        blocks: [
-          {
-            type: "p",
-            text: "To transition smoothly, each `Screen` isolates its content in its own compositing layer. That layer is a transformed element, which makes it a containing block: a `position: fixed` overlay inside it resolves against the box, not the viewport, and the box also clips and scrolls. So a full-screen sheet, a dim backdrop, or a pinned FAB rendered in the content gets trapped, clipped, or mispositioned. `Layer` is the escape hatch: it portals its children up to the screen's scope level, outside that isolation box, so they position against the whole screen and are not clipped, while still riding the screen's transition."
-          },
-          {
-            type: "code",
-            lang: "tsx",
-            code: 'import { Layer } from "@flemo/react";\n\nfunction BottomSheet({ open, children }) {\n  return (\n    <Layer>\n      <div className={open ? "sheet sheet-open" : "sheet"}>{children}</div>\n    </Layer>\n  );\n}'
-          },
-          {
-            type: "p",
-            text: "It is a building block, not a wrapper you repeat. Put `Layer` inside a reusable overlay component once (a `BottomSheet`, a `Dialog`), and every call site gets the escape for free with no extra wrapping. Outside a `Screen` there is no mount node, so `Layer` renders its children in place and the component still works anywhere."
-          },
-          {
-            type: "note",
-            text: "Reach for `Layer` only when an overlay must escape the content box to cover or pin to the whole screen: a sheet, a dim backdrop, a FAB, a toast. Plain in-flow content does not need it."
-          }
-        ]
-      },
-      {
         slug: "navigation",
         title: "Navigation",
         blocks: [
@@ -532,7 +509,6 @@ const EN: DocSection[] = [
                 "Marks the transitioning region, keeping the surrounding layout persistent",
                 "`@flemo/react`"
               ],
-              ["`Layer`", "Portals an overlay out of the content isolation box", "`@flemo/react`"],
               [
                 "`LayoutScreen` / `LayoutConfig`",
                 "Shared `layoutId` morphs",
@@ -911,29 +887,6 @@ const KO: DocSection[] = [
         ]
       },
       {
-        slug: "layer",
-        title: "Layer",
-        blocks: [
-          {
-            type: "p",
-            text: "`Screen`은 부드러운 전환을 위해 본문을 각자의 합성 레이어로 격리해요. 그 레이어는 transform이 걸린 요소라 컨테이닝 블록이 돼요. 그래서 그 안의 `position: fixed` 오버레이는 뷰포트가 아니라 그 박스를 기준으로 잡혀요. 게다가 박스는 내용을 잘라내고 스크롤하는 영역이고요. 결국 본문 안에 그린 풀스크린 시트·딤 배경·고정 FAB는 갇히거나, 잘리거나, 엉뚱한 위치에 놓여요. `Layer`는 그 탈출구예요. 자식을 격리 박스 밖, 화면 scope 레벨로 portal해서 화면 전체 기준으로 잡히고 안 잘리게 하면서도 화면 전환엔 그대로 올라타요."
-          },
-          {
-            type: "code",
-            lang: "tsx",
-            code: 'import { Layer } from "@flemo/react";\n\nfunction BottomSheet({ open, children }) {\n  return (\n    <Layer>\n      <div className={open ? "sheet sheet-open" : "sheet"}>{children}</div>\n    </Layer>\n  );\n}'
-          },
-          {
-            type: "p",
-            text: "매번 감싸는 래퍼가 아니라 빌딩 블록이에요. 재사용 오버레이 컴포넌트(`BottomSheet`, `Dialog`) 안에 `Layer`를 한 번만 넣으면, 호출하는 쪽은 별도 래핑 없이 그 탈출을 공짜로 얻어요. `Screen` 밖에선 마운트 노드가 없어서 `Layer`가 자식을 제자리에 그대로 그려요. 그래서 어디서든 동작해요."
-          },
-          {
-            type: "note",
-            text: "오버레이가 content 박스를 벗어나 화면 전체를 덮거나 화면에 고정돼야 할 때만 `Layer`를 사용하세요. 시트, 딤 배경, FAB, 토스트 같은 것들이요. 일반 in-flow 콘텐츠엔 필요 없어요."
-          }
-        ]
-      },
-      {
         slug: "navigation",
         title: "Navigation",
         blocks: [
@@ -1172,7 +1125,6 @@ const KO: DocSection[] = [
               ["`Route`", "경로(들)를 엘리먼트에 연결", "`@flemo/react`"],
               ["`Screen`", "상단/하단 바와 세이프 에어리어 슬롯을 가진 화면", "`@flemo/react`"],
               ["`Slot`", "전환 영역 표시, 주변 레이아웃은 유지", "`@flemo/react`"],
-              ["`Layer`", "오버레이를 격리 박스 밖으로 portal", "`@flemo/react`"],
               ["`LayoutScreen` / `LayoutConfig`", "공유 `layoutId` 모핑", "`@flemo/react-layout`"]
             ]
           },
