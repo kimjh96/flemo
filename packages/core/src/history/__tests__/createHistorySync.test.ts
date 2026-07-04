@@ -20,12 +20,17 @@ const root: History = {
   layoutId: null
 };
 
+// Every live sync stays subscribed to window popstate; without disposal each
+// test's events would also fan out into all previous tests' syncs and stores.
+const activeDisposers: (() => void)[] = [];
+
 const setup = (histories: History[] = [root], index = 0) => {
   const stores = {
     history: createHistoryStore(histories, index),
     navigate: createNavigateStore()
   };
   const dispose = createHistorySync({ stores });
+  activeDisposers.push(dispose);
   return { stores, dispose };
 };
 
@@ -46,6 +51,7 @@ const startSweeper = () => {
 
 beforeEach(startSweeper);
 afterEach(async () => {
+  activeDisposers.splice(0).forEach((dispose) => dispose());
   await stopSweeper?.();
   stopSweeper = null;
 });
@@ -262,7 +268,7 @@ describe("createHistorySync (headless, no React)", () => {
     expect(ran).toBe(true);
   });
 
-  it("coalesces rapid traversals: only the newest queued event materializes", async () => {
+  it("replays every queued traversal in order (late but complete)", async () => {
     const { stores } = setup(
       [root, { ...root, id: "b", pathname: "/b" }, { ...root, id: "c", pathname: "/c" }],
       2
@@ -277,7 +283,11 @@ describe("createHistorySync (headless, no React)", () => {
       { control: { manual: false } }
     );
 
-    // Two rapid backs: c → b → root. Only the LAST should materialize.
+    // Two rapid backs: c → b → root. BOTH materialize in order — the product
+    // shows every defined transition even when it runs late (the user's call);
+    // correctness under replay is guaranteed by identity-first classification,
+    // converge-then-act, and the liveness guards, and proven by the
+    // convergence property suite.
     firePopState({
       id: "b",
       index: 1,
@@ -298,8 +308,11 @@ describe("createHistorySync (headless, no React)", () => {
 
     releaseBlocker();
     await blockerDone;
-    await settle();
-    await settle();
+    // Two sequential manual gates + the 100ms pending-poll between them.
+    for (let i = 0; i < 10; i++) {
+      await settle();
+      if (stores.history.getState().histories.at(-1)?.id === "root") break;
+    }
 
     const { histories, index } = stores.history.getState();
     expect(histories[index]!.id).toBe("root");
