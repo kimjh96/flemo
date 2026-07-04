@@ -9,6 +9,8 @@ import {
 import {
   animHoldKey,
   computeBarRiding,
+  eagerlyDecodeImages,
+  isOpaqueColor,
   createSwipeController,
   createTransitionEngine,
   decoratorMap,
@@ -73,6 +75,13 @@ function ScreenMotion({
   const partnerId = isActive ? histories[index - 1]?.id : histories[index]?.id;
   const partnerBars = useScreenStore((state) =>
     partnerId ? state.sharedBars[partnerId] : undefined
+  );
+  // The partner's scope surface: a prev screen entering on pop parks at its
+  // destination during the hold ONLY when the screen covering it (its partner,
+  // the current top) has an opaque background — otherwise the park would shine
+  // through and the paused hold is kept.
+  const partnerSurface = useScreenStore((state) =>
+    partnerId ? state.screenSurfaces[partnerId] : undefined
   );
 
   // Framework-neutral lifecycle engine, stable for this screen's lifetime.
@@ -186,6 +195,16 @@ function ScreenMotion({
   const handlePointerUp = (event: ReactPointerEvent) =>
     swipeController.pointerUp(event.nativeEvent);
 
+  // Warm the image-decode cache every time this screen becomes live. Activity
+  // unmounts a frozen screen's effects and remounts them on unfreeze, so a
+  // mount effect fires exactly at every unfreeze — including a SWIPE reveal,
+  // which no hold can cover (the finger drives the motion). Near-free when the
+  // decoded data is still cached; on first mount images are not complete yet
+  // and are skipped.
+  useEffect(() => {
+    eagerlyDecodeImages(scopeRef.current);
+  }, []);
+
   useEffect(() => {
     const scope = scopeRef.current;
 
@@ -261,6 +280,22 @@ function ScreenMotion({
     return () => unregisterSharedBars(id);
   }, [id, sharedTopBar, sharedBottomBar, stores.screen]);
 
+  // Register this screen's scope surface (is its background opaque?) so the
+  // screen beneath can decide between the destination park and the paused
+  // hold. Measured from the COMPUTED style so CSS variables and theme values
+  // resolve; re-measured pre-paint on every status flip (`status` dep) so a
+  // theme switch between navigations can't leave a stale answer — this runs on
+  // live screens only, and the covering screen during any transition is live.
+  useLayoutEffect(() => {
+    const scope = scopeRef.current;
+    if (!scope) return undefined;
+    const { registerScreenSurface, unregisterScreenSurface } = stores.screen.getState();
+    registerScreenSurface(id, {
+      opaqueBackground: isOpaqueColor(getComputedStyle(scope).backgroundColor)
+    });
+    return () => unregisterScreenSurface(id);
+  }, [id, backgroundColor, status, stores.screen]);
+
   // Shared bars render outside the animated scope (siblings inside screenRef),
   // so any transition the scope runs has no inherent effect on the bar. When
   // the partner screen owns the same bar, this is exactly what we want: the
@@ -326,6 +361,18 @@ function ScreenMotion({
   }
   const animHold = holdKey !== null && animRelease.key === holdKey && !animRelease.released;
 
+  // Three-state hold attribute. "park" upgrades the hold for a COVERED screen
+  // (inactive side of the transition) whose cover is verifiably opaque: the
+  // compiled park rules then pre-position it at its destination so its tiles
+  // rasterize during the hold. Everything else holds paused ("true"); variants
+  // without a park rule fall back to paused under "park" too, so this can
+  // never flash. The active screen is never parked — it is the cover.
+  const holdAttr = !animHold
+    ? "false"
+    : !isActive && partnerSurface?.opaqueBackground
+      ? "park"
+      : "true";
+
   useEffect(() => {
     if (!animHold) return undefined;
     return scheduleAnimHoldRelease(() =>
@@ -379,7 +426,7 @@ function ScreenMotion({
         data-flemo-transition={transitionName}
         data-flemo-status={status}
         data-flemo-active={isActive ? "true" : "false"}
-        data-flemo-anim-hold={animHold ? "true" : "false"}
+        data-flemo-anim-hold={holdAttr}
         style={{
           display: "flex",
           flexDirection: "column",
@@ -505,7 +552,7 @@ function ScreenMotion({
           data-flemo-bar-status={status}
           data-flemo-bar-active={isActive ? "true" : "false"}
           data-flemo-bar-riding={rideTopBar ? "true" : "false"}
-          data-flemo-anim-hold={animHold ? "true" : "false"}
+          data-flemo-anim-hold={holdAttr}
           style={{
             position: screenPosition,
             top: !hideStatusBar ? statusBarHeight : 0,
@@ -525,7 +572,7 @@ function ScreenMotion({
           data-flemo-bar-status={status}
           data-flemo-bar-active={isActive ? "true" : "false"}
           data-flemo-bar-riding={rideBottomBar ? "true" : "false"}
-          data-flemo-anim-hold={animHold ? "true" : "false"}
+          data-flemo-anim-hold={holdAttr}
           style={{
             display: isKeyboardVisible ? "none" : undefined,
             position: screenPosition,
@@ -538,9 +585,7 @@ function ScreenMotion({
           {sharedBottomBar}
         </div>
       )}
-      {decorator && (
-        <ScreenDecorator ref={decoratorRef} data-flemo-anim-hold={animHold ? "true" : "false"} />
-      )}
+      {decorator && <ScreenDecorator ref={decoratorRef} data-flemo-anim-hold={holdAttr} />}
       <div
         data-swipe-at-edge-bar
         style={{

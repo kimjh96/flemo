@@ -849,6 +849,56 @@ describe("compileTransitionStyles bar transitions", () => {
     expect(block).toContain("opacity: 0"); // to (enter)
   });
 
+  describe("destination park rules", () => {
+    // A full-shove transition: the prev screen exits fully off-screen, so on
+    // pop it re-enters from a hidden `from` — the park candidate.
+    const shove = createTransition({
+      name: "custom-slide-fade",
+      initial: { x: "100%" },
+      idle: { value: { x: 0 }, options: { duration: 0 } },
+      enter: { value: { x: 0 }, options: { duration: 0.4 } },
+      // The top leaves to the right on pop; the prev returns to rest (x: 0).
+      enterBack: { value: { x: "100%" }, options: { duration: 0.4 } },
+      exit: { value: { x: "-100%" }, options: { duration: 0.4 } },
+      exitBack: { value: { x: 0 }, options: { duration: 0.4 } }
+    });
+
+    it("emits a park rule for the covered entering side (POPPING-false) of a hidden-from variant", () => {
+      const css = compileTransitionStyles([shove], []);
+      const selector =
+        `[data-flemo-screen][data-flemo-transition="custom-slide-fade"]` +
+        `[data-flemo-status="POPPING"][data-flemo-active="false"][data-flemo-anim-hold="park"]`;
+      const parkIndex = css.indexOf(selector);
+      expect(parkIndex).toBeGreaterThan(-1);
+      const block = css.slice(parkIndex, css.indexOf("}", parkIndex));
+      expect(block).toContain("animation: none");
+      // Destination = the enterBack target (x: 0 → identity transform).
+      expect(block).toContain("transform: none");
+    });
+
+    it("never emits a park rule for the active (covering) side, even with a hidden from", () => {
+      const css = compileTransitionStyles([shove], []);
+      expect(css).not.toContain(
+        `[data-flemo-status="PUSHING"][data-flemo-active="true"][data-flemo-anim-hold="park"]`
+      );
+    });
+
+    it("does not emit a park rule when the from keeps the screen visible", () => {
+      const css = compileTransitionStyles([cupertino], []);
+      // cupertino's prev re-enters from x:-30% — visible, must not teleport.
+      expect(css).not.toContain(
+        `[data-flemo-transition="cupertino"][data-flemo-status="POPPING"][data-flemo-active="false"][data-flemo-anim-hold="park"]`
+      );
+    });
+
+    it("pauses the park attribute too in the global hold rule (safe fallback)", () => {
+      const css = compileTransitionStyles([cupertino], []);
+      const holdIndex = css.indexOf('[data-flemo-anim-hold="park"],');
+      expect(holdIndex).toBeGreaterThan(-1);
+      expect(css).toContain('[data-flemo-anim-hold="park"] [data-flemo-part-name]');
+    });
+  });
+
   it("is empty when no bar transitions are passed", () => {
     const css = compileTransitionStyles([], []);
     expect(css).not.toContain("@keyframes flemo-part");

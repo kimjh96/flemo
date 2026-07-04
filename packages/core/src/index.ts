@@ -58,7 +58,8 @@ export {
   default as createScreenStore,
   type ScreenStore,
   type ScreenStoreApi,
-  type SharedBarPresence
+  type SharedBarPresence,
+  type ScreenSurface
 } from "@screen/store";
 export {
   default as createScreenSelector,
@@ -138,6 +139,7 @@ export { default as computeBarRiding, type BarRidingInput } from "@screen/comput
 export {
   animHoldKey,
   scheduleAnimHoldRelease,
+  eagerlyDecodeImages,
   ANIM_HOLD_RELEASE_BACKSTOP_MS,
   type AnimHoldInput
 } from "@screen/animStartAnchor";
@@ -178,6 +180,7 @@ export { default as isServer } from "@utils/isServer";
 export { default as getParams } from "@utils/getParams";
 export { default as getMatchedPathPattern } from "@utils/getMatchedPathPattern";
 export { default as matchesPathname } from "@utils/matchesPathname";
+export { default as isOpaqueColor } from "@utils/isOpaqueColor";
 export { default as buildRoutePath } from "@utils/buildRoutePath";
 export {
   default as findScrollable,
