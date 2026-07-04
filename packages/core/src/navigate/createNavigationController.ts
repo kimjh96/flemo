@@ -37,6 +37,10 @@ export interface NavigationControllerDeps {
     history: HistoryStoreApi;
     navigate: NavigateStoreApi;
     transition: TransitionStoreApi;
+    // The owning Router's liveness (see FlemoStores.life). When present, a
+    // queued navigation task whose Router has unmounted aborts instead of
+    // moving the browser history on behalf of dead screens.
+    life?: { alive: boolean };
   };
   // Compile a route path + params into the pathname (with query) and the
   // resolved pathname stored on the history entry. Injected because the binding
@@ -120,6 +124,43 @@ export default function createNavigationController(deps: NavigationControllerDep
     markSelfInduced = markSelfInducedPop
   } = deps;
 
+  // A queued navigation runs LATER than the user's gesture, and the browser
+  // may have traversed elsewhere in between (its stale events coalesce away —
+  // see createHistorySync). The user acted on what they SAW: the browser's
+  // present entry. So before mutating anything, align the store to that entry
+  // — no-op when already there, truncate when we hold it below the top, adopt
+  // in place when we never held it. Skipped when the present entry carries no
+  // frame of ours (nothing to align to). Returns the present frame so pushes
+  // chain their browser-space stamp from it.
+  const convergeToPresent = () => {
+    const frame = driver.readState() as {
+      id?: string;
+      index?: number;
+      params?: object;
+      transitionName?: TransitionName;
+      layoutId?: string | number | null;
+    } | null;
+    if (!frame?.id) return null;
+
+    const { index, histories, adoptHistory, truncateHistory } = stores.history.getState();
+    if (histories[index]?.id === frame.id) return frame;
+
+    const position = histories.findIndex((history) => history.id === frame.id);
+    if (position >= 0) {
+      truncateHistory(position);
+    } else {
+      adoptHistory({
+        id: frame.id,
+        pathname: driver.readPathname(),
+        params: frame.params ?? {},
+        transitionName: frame.transitionName ?? "none",
+        layoutId: frame.layoutId ?? null,
+        frameIndex: frame.index
+      });
+    }
+    return frame;
+  };
+
   const push = async (path: string, params?: object, options?: NavigateOptions) => {
     const { status } = stores.navigate.getState();
 
@@ -134,7 +175,16 @@ export default function createNavigationController(deps: NavigationControllerDep
 
     (
       await TaskManager.addTask(
-        async () => {
+        async (abortController) => {
+          // Queued behind a transition and outlived the Router that created
+          // it: moving the browser now would strand the URL on entries no live
+          // screen represents.
+          if (stores.life && !stores.life.alive) {
+            abortController.abort();
+            return;
+          }
+
+          const presentFrame = convergeToPresent();
           const { index, histories, addHistory, popHistories } = stores.history.getState();
 
           // Screens to remove below the new top, reaching the target (`skip`
@@ -166,13 +216,19 @@ export default function createNavigationController(deps: NavigationControllerDep
             layoutId
           };
 
+          // The new frame's browser-space stamp chains from the entry it is
+          // created on top of (see History.frameIndex) — the browser's present
+          // frame when it has one, never the local index (this store's
+          // compressed space).
+          const topStamp = presentFrame?.index ?? histories[index]?.frameIndex ?? index;
+
           if (remove === 0) {
             // Plain push. The new screen stacks on the current top, unchanged.
             driver.pushState(
-              { id, index: index + 1, status: "PUSHING", params, transitionName, layoutId },
+              { id, index: topStamp + 1, status: "PUSHING", params, transitionName, layoutId },
               pathname
             );
-            addHistory(newEntry);
+            addHistory({ ...newEntry, frameIndex: topStamp + 1 });
 
             return () => {
               setStatus("COMPLETED");
@@ -184,13 +240,14 @@ export default function createNavigationController(deps: NavigationControllerDep
           // the `remove` screens now hidden below it, so the skipped screens
           // never flash. The browser goes back to the kept target and
           // pushState's the new screen, truncating the forward stack.
-          addHistory(newEntry);
+          const keptStamp = histories[index - remove]?.frameIndex ?? index - remove;
+          addHistory({ ...newEntry, frameIndex: keptStamp + 1 });
 
           await syncCollapsedHistory(driver, markSelfInduced, remove, () => {
             driver.pushState(
               {
                 id,
-                index: stores.history.getState().index - remove,
+                index: keptStamp + 1,
                 status: "PUSHING",
                 params,
                 transitionName,
@@ -230,6 +287,15 @@ export default function createNavigationController(deps: NavigationControllerDep
     (
       await TaskManager.addTask(
         async (abortController) => {
+          // Queued behind a transition and outlived the Router that created
+          // it: moving the browser now would strand the URL on entries no live
+          // screen represents.
+          if (stores.life && !stores.life.alive) {
+            abortController.abort();
+            return;
+          }
+
+          const presentFrame = convergeToPresent();
           const { index, histories, addHistory, replaceHistory, popHistories } =
             stores.history.getState();
 
@@ -267,13 +333,15 @@ export default function createNavigationController(deps: NavigationControllerDep
             layoutId
           };
 
+          const replacedStamp = presentFrame?.index ?? histories[index]?.frameIndex ?? index;
+
           if (steps === 1) {
             // Single-screen replace. Unchanged from the original behavior.
             driver.replaceState(
-              { id, index, status: "REPLACING", params, transitionName, layoutId },
+              { id, index: replacedStamp, status: "REPLACING", params, transitionName, layoutId },
               pathname
             );
-            addHistory(newEntry);
+            addHistory({ ...newEntry, frameIndex: replacedStamp });
 
             return async () => {
               replaceHistory(index);
@@ -285,8 +353,12 @@ export default function createNavigationController(deps: NavigationControllerDep
           // block as setStatus, before the browser can paint) so they never
           // appear. The leaving top stays mounted (REPLACING-false, exiting)
           // while the new screen enters over it (REPLACING-true).
+          const collapseKeptStamp =
+            steps <= index
+              ? (histories[index - steps]?.frameIndex ?? index - steps) + 1
+              : (histories[0]?.frameIndex ?? 0);
           popHistories(steps - 1);
-          addHistory(newEntry);
+          addHistory({ ...newEntry, frameIndex: collapseKeptStamp });
 
           if (steps <= index) {
             // A screen remains below the new one. Go to it and pushState the
@@ -295,7 +367,7 @@ export default function createNavigationController(deps: NavigationControllerDep
               driver.pushState(
                 {
                   id,
-                  index: stores.history.getState().index - 1,
+                  index: collapseKeptStamp,
                   status: "REPLACING",
                   params,
                   transitionName,
@@ -310,7 +382,14 @@ export default function createNavigationController(deps: NavigationControllerDep
             // replaceState it.
             await syncCollapsedHistory(driver, markSelfInduced, index, () => {
               driver.replaceState(
-                { id, index: 0, status: "REPLACING", params, transitionName, layoutId },
+                {
+                  id,
+                  index: collapseKeptStamp,
+                  status: "REPLACING",
+                  params,
+                  transitionName,
+                  layoutId
+                },
                 pathname
               );
             });
@@ -348,6 +427,15 @@ export default function createNavigationController(deps: NavigationControllerDep
     (
       await TaskManager.addTask(
         async (abortController) => {
+          // Queued behind a transition and outlived the Router that created
+          // it: moving the browser now would strand the URL on entries no live
+          // screen represents.
+          if (stores.life && !stores.life.alive) {
+            abortController.abort();
+            return;
+          }
+
+          convergeToPresent();
           const { index, histories, popHistory, popHistories, setPendingIndex, setTransitionName } =
             stores.history.getState();
 

@@ -1,6 +1,7 @@
 import type { HistoryDriver } from "@history/historyDriver";
 import createMemoryHistoryDriver from "@history/memoryHistoryDriver";
 import seedInitialHistory from "@history/seedInitialHistory";
+
 import createHistoryStore, { type HistoryStoreApi } from "@history/store";
 
 import { createSelfPopGuard, type SelfPopGuard } from "@navigate/selfPopGuard";
@@ -9,6 +10,8 @@ import createNavigateStore, { type NavigateStoreApi } from "@navigate/store";
 import createTransitionStore, { type TransitionStoreApi } from "@transition/store";
 
 import type { TransitionName } from "@transition/typing";
+
+import isServer from "@utils/isServer";
 
 import createScreenStore, { type ScreenStoreApi } from "@screen/store";
 
@@ -33,6 +36,13 @@ export interface FlemoStores {
   // skips it. A memory <Router> uses a no-op mark and a never-true consume.
   markSelfInduced: () => void;
   consume: () => boolean;
+  // The owning Router's liveness. A navigation task can sit queued behind an
+  // in-flight transition and outlive the Router that created it (its screen
+  // popped away in the meantime); running it would then move the BROWSER
+  // history while only a dead store hears about it, walking the URL away from
+  // every live screen. The binding flips this off on unmount; queued
+  // navigation and traversal tasks abort on arrival when their Router is gone.
+  life: { alive: boolean };
 }
 
 // A no-op self-pop guard for a memory Router: it has no browser history sync
@@ -67,13 +77,23 @@ export interface CreateRouterScopeInput {
 export default function createRouterScope(input: CreateRouterScopeInput): FlemoStores {
   const { routePaths, pathname, search, defaultTransitionName, memory, browserDriver } = input;
 
-  const rootHistory = seedInitialHistory(routePaths, pathname, search, defaultTransitionName);
+  const seededHistory = seedInitialHistory(routePaths, pathname, search, defaultTransitionName);
+  // Stamp the seed with the CURRENT entry's browser-space frame index when one
+  // exists (a Router remounting onto an entry a previous incarnation wrote, or
+  // one the browser drifted to). A fresh entry starts its chain at 0.
+  const seedStamp =
+    browserDriver && !isServer()
+      ? ((browserDriver.readState() as { index?: number } | null)?.index ?? 0)
+      : 0;
+  const rootHistory = { ...seededHistory, frameIndex: seedStamp };
 
   // Hosted bundle: seed its history once (it starts empty at index -1). Seeding
   // here rather than at creation means a hosted setup doesn't get the SSR
   // snapshot, but the provider is for client-side devtools layouts, so that's
   // fine.
   if (input.hostedScope) {
+    // A (re)adopting Router brings the hosted scope back to life.
+    input.hostedScope.life.alive = true;
     if (input.hostedScope.history.getState().index === -1) {
       input.hostedScope.history.setState({ index: 0, histories: [rootHistory] });
     }
@@ -107,6 +127,7 @@ export default function createRouterScope(input: CreateRouterScopeInput): FlemoS
     screen: createScreenStore(),
     driver,
     markSelfInduced: guard.mark,
-    consume: guard.consume
+    consume: guard.consume,
+    life: { alive: true }
   };
 }

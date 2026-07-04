@@ -82,70 +82,99 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
             return;
           }
 
-          const { setStatus, setTransitionTaskId } = stores.navigate.getState();
-          const { index, addHistory, popHistory, setPendingIndex } = stores.history.getState();
-
-          const nextIndex = frame?.index;
-          const isPop = nextIndex !== undefined && nextIndex < index;
-          const isPush =
-            frame?.status === "PUSHING" && nextIndex !== undefined && nextIndex > index;
-          const isReplace =
-            frame?.status === "REPLACING" && nextIndex !== undefined && nextIndex > index;
-
-          if (!isPop && !isPush && !isReplace) {
-            // Unclassifiable, but the entry verifiably belongs to this Router
-            // (it carries a frame under our key) and is NOT the entry we're
-            // showing: adopt it without a transition — rewrite the current top
-            // to the event's entry so the screen always matches the URL. This
-            // is the degraded-but-correct path for traversals whose
-            // intermediate entries this Router never saw (e.g. a forward jump
-            // into territory written before a remount): their data lives in
-            // other history entries we cannot read, so no faithful animated
-            // reconstruction exists — matching a browser's own non-animated
-            // restore is the honest behavior. A same-id event is a foreign
-            // sub-navigation (a nested Router moving within our entry) and
-            // stays a no-op.
-            const currentEntry = stores.history.getState().histories[index];
-            if (frame?.id && currentEntry && frame.id !== currentEntry.id) {
-              stores.history.getState().adoptHistory({
-                id: frame.id,
-                pathname: event.pathname,
-                params: frame.params,
-                transitionName: frame.transitionName,
-                layoutId: frame.layoutId
-              });
-            }
+          // Rapid navigation COALESCES: while one transition plays, further
+          // events pile up in the shared task queue, and replaying each one
+          // keeps the store seconds behind the browser (every user action
+          // taken meanwhile computes against stale state). An event is only
+          // materialized if it still describes the browser's PRESENT entry —
+          // anything that moved the browser since (a newer traversal, an
+          // in-app push that truncated the forward stack) makes it stale, and
+          // whatever moved the browser owns the convergence instead. A storm
+          // collapses into the in-flight transition plus ONE converging step,
+          // like a native stack.
+          const presentFrame = driver.readState() as PopStateFrame | null;
+          if (presentFrame?.id !== (event.state as PopStateFrame | null)?.id) {
             abortController.abort();
             return;
           }
 
-          setTransitionTaskId(taskId);
+          const { setStatus, setTransitionTaskId } = stores.navigate.getState();
+          const { index, histories, addHistory, popHistory, popHistories, setPendingIndex } =
+            stores.history.getState();
 
-          if (isPop) {
-            // Report the destination immediately; the actual index only moves
-            // when the transition resolves (popHistory below).
-            setPendingIndex(nextIndex);
-            setStatus("POPPING");
-          } else {
-            // A push or replace: the guard above ruled out everything else, so
-            // isPush/isReplace held, both of which require a frame.
-            const pushed = frame!;
-            setStatus(isPush ? "PUSHING" : "REPLACING");
-
-            addHistory({
-              id: pushed.id,
-              pathname: event.pathname,
-              params: pushed.params,
-              transitionName: pushed.transitionName,
-              layoutId: pushed.layoutId
-            });
+          // Classification is IDENTITY-FIRST: local indexes live in this
+          // store's compressed space while frame indexes live in the browser's,
+          // and after a jump into unread territory the two disagree forever —
+          // comparing them mis-reads normal traversals (a plain back looked
+          // "unclassifiable" and even duplicated entries). An entry we already
+          // hold is found by id; only entries we've NEVER held fall back to a
+          // browser-stamp direction test.
+          if (!frame?.id) {
+            // No frame under our key: a foreign entry (another Router's
+            // territory, or pre-flemo). Not ours to handle.
+            abortController.abort();
+            return;
           }
 
-          return async () => {
-            if (isPop && nextIndex !== undefined) {
-              popHistory(nextIndex + 1);
+          const targetPosition = histories.findIndex((history) => history.id === frame.id);
+
+          if (targetPosition === index) {
+            // The entry we're already showing — a child Router or a step
+            // navigation moving within it. Nothing to do at this level.
+            abortController.abort();
+            return;
+          }
+
+          const eventEntry = {
+            id: frame.id,
+            pathname: event.pathname,
+            params: frame.params,
+            transitionName: frame.transitionName,
+            layoutId: frame.layoutId,
+            frameIndex: frame.index
+          };
+
+          if (targetPosition === -1) {
+            const currentStamp = histories[index]?.frameIndex ?? index;
+            const movesForward =
+              frame.index > currentStamp &&
+              (frame.status === "PUSHING" || frame.status === "REPLACING");
+
+            if (!movesForward) {
+              // Backward (or lateral) into an entry we never held: its data
+              // lives in history entries we cannot read, so no faithful
+              // animated reconstruction exists. Adopt it in place — the screen
+              // always matches the URL, like a browser's own non-animated
+              // restore.
+              stores.history.getState().adoptHistory(eventEntry);
+              abortController.abort();
+              return;
             }
 
+            // Forward into an entry we never held: an animated (re)entry.
+            setTransitionTaskId(taskId);
+            setStatus(frame.status === "REPLACING" ? "REPLACING" : "PUSHING");
+            addHistory(eventEntry);
+
+            return async () => {
+              setStatus("COMPLETED");
+            };
+          }
+
+          // A pop to an entry we hold. Drop any skipped screens between the
+          // target and the top in the same synchronous block (they never
+          // paint), then animate top → target like a single-step pop.
+          const skipped = index - targetPosition - 1;
+
+          setTransitionTaskId(taskId);
+          if (skipped > 0) {
+            popHistories(skipped);
+          }
+          setPendingIndex(targetPosition);
+          setStatus("POPPING");
+
+          return async () => {
+            popHistory(targetPosition + 1);
             setStatus("COMPLETED");
           };
         },

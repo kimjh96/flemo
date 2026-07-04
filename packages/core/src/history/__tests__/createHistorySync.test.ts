@@ -50,8 +50,13 @@ afterEach(async () => {
   stopSweeper = null;
 });
 
-const firePopState = (state: Record<string, unknown>) =>
+// A real traversal lands the browser ON the entry before its popstate fires;
+// the sync verifies the event still describes the present entry (stale queued
+// events coalesce away), so the tests must move `history.state` the same way.
+const firePopState = (state: Record<string, unknown>) => {
+  window.history.replaceState(state, "", window.location.href);
   window.dispatchEvent(new PopStateEvent("popstate", { state }));
+};
 
 // Let the handler park its task, the sweeper resolve it, and the result run.
 const settle = () => new Promise((r) => setTimeout(r, 40));
@@ -137,6 +142,49 @@ describe("createHistorySync (headless, no React)", () => {
     dispose();
   });
 
+  it("REPRO: gap-jump then in-app push then single back must not duplicate entries", async () => {
+    // The user's crash chain. Browser entries (written by a previous
+    // incarnation): seed(0) p2(1) p3(2). A remounted router gap-jumps forward
+    // to p3, pushes p4 in-app, then the user presses back once.
+    const { stores } = setup([root], 0);
+
+    // Forward gap-jump to p3 (browser index 2, we only have the seed).
+    firePopState({
+      id: "p3",
+      index: 2,
+      status: "PUSHING",
+      params: {},
+      transitionName: "cupertino",
+      layoutId: null
+    });
+    await settle();
+
+    // In-app push of p4 (controller writes store-index+1 = 2 → collides with p3's frame index).
+    stores.history.getState().addHistory({
+      id: "p4",
+      pathname: "/p4",
+      params: {},
+      transitionName: "cupertino",
+      layoutId: null
+    });
+
+    // Single browser back onto p3.
+    firePopState({
+      id: "p3",
+      index: 2,
+      status: "PUSHING",
+      params: {},
+      transitionName: "cupertino",
+      layoutId: null
+    });
+    await settle();
+
+    const { histories, index } = stores.history.getState();
+    const ids = histories.map((h) => h.id);
+    expect(new Set(ids).size).toBe(ids.length); // ← 중복 없어야 함
+    expect(histories[index]!.id).toBe("p3"); // ← 화면은 p3
+  });
+
   it("adopts an unclassifiable entry that belongs to this router (URL and screen never diverge)", async () => {
     // A forward jump into territory written before a remount: same index as the
     // store, but a DIFFERENT entry id — no faithful animated reconstruction
@@ -212,6 +260,73 @@ describe("createHistorySync (headless, no React)", () => {
     });
     await settle();
     expect(ran).toBe(true);
+  });
+
+  it("coalesces rapid traversals: only the newest queued event materializes", async () => {
+    const { stores } = setup(
+      [root, { ...root, id: "b", pathname: "/b" }, { ...root, id: "c", pathname: "/c" }],
+      2
+    );
+
+    // Block the queue so both traversals sit queued together.
+    let releaseBlocker!: () => void;
+    const blockerDone = TaskManager.addTask(
+      async () => {
+        await new Promise<void>((resolve) => (releaseBlocker = resolve));
+      },
+      { control: { manual: false } }
+    );
+
+    // Two rapid backs: c → b → root. Only the LAST should materialize.
+    firePopState({
+      id: "b",
+      index: 1,
+      status: "PUSHING",
+      params: {},
+      transitionName: "cupertino",
+      layoutId: null
+    });
+    firePopState({
+      id: "root",
+      index: 0,
+      status: "IDLE",
+      params: {},
+      transitionName: "cupertino",
+      layoutId: null
+    });
+    await new Promise((r) => setTimeout(r, 10));
+
+    releaseBlocker();
+    await blockerDone;
+    await settle();
+    await settle();
+
+    const { histories, index } = stores.history.getState();
+    expect(histories[index]!.id).toBe("root");
+    expect(index).toBe(0);
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
+  });
+
+  it("ignores an event arriving after disposal (pre-task)", async () => {
+    const { stores, dispose } = setup([root, { ...root, id: "second", pathname: "/a" }], 1);
+    dispose();
+
+    firePopState({ id: "root", index: 0, status: "IDLE", params: {} });
+    await settle();
+
+    expect(stores.history.getState().index).toBe(1);
+    expect(stores.navigate.getState().status).toBe("IDLE");
+  });
+
+  it("ignores an entry that carries no frame of ours (foreign territory)", async () => {
+    const { stores } = setup([root, { ...root, id: "second", pathname: "/a" }], 1);
+
+    window.history.replaceState(null, "", "/");
+    window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+    await settle();
+
+    expect(stores.history.getState().index).toBe(1);
+    expect(stores.navigate.getState().status).toBe("IDLE");
   });
 
   it("the disposer detaches the listener", async () => {

@@ -78,7 +78,8 @@ describe("createRouterScope", () => {
       screen: createScreenStore(),
       driver: fakeBrowserDriver(),
       markSelfInduced: () => {},
-      consume: () => false
+      consume: () => false,
+      life: { alive: true }
     };
     expect(hostedScope.history.getState().index).toBe(-1);
 

@@ -8,6 +8,15 @@ export interface History {
   params: object;
   transitionName: TransitionName;
   layoutId: string | number | null;
+  // This entry's position stamp in the BROWSER's history line, chained from the
+  // entry it was created on top of (previous frame's stamp + 1) and mirrored
+  // into the keyed browser frame. The local `index` is this store's own
+  // compressed space (a traversal into unread territory adds one entry no
+  // matter how many the browser crossed), so after such a jump the two spaces
+  // disagree forever — direction judgments for entries we've never held MUST
+  // compare browser stamps, never local indexes. Optional: entries predating
+  // this field fall back to their local index.
+  frameIndex?: number;
 }
 
 export interface HistoryStore {
@@ -30,6 +39,10 @@ export interface HistoryStore {
   // adoption for a traversal it cannot faithfully classify (see
   // createHistorySync). The renderer swaps the screen's content in place.
   adoptHistory: (history: History) => void;
+  // Cut the stack down to `position` (inclusive) without a transition — the
+  // convergence step a queued navigation runs when the browser has moved to an
+  // entry we hold below the top since the action was issued.
+  truncateHistory: (position: number) => void;
   setTransitionName: (index: number, transitionName: TransitionName) => void;
 }
 
@@ -85,6 +98,12 @@ export default function createHistoryStore(histories: History[] = [], index = -1
     adoptHistory: (history) =>
       set((state) => ({
         histories: state.histories.slice(0, state.index).concat(history)
+      })),
+    truncateHistory: (position) =>
+      set((state) => ({
+        index: position,
+        pendingIndex: position,
+        histories: state.histories.slice(0, position + 1)
       })),
 
     // Override one entry's transition. Used by pop() to relabel the leaving top
