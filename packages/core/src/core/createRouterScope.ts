@@ -13,6 +13,7 @@ import createTransitionStore, { type TransitionStoreApi } from "@transition/stor
 import type { TransitionName } from "@transition/typing";
 
 import isServer from "@utils/isServer";
+import matchesPathname from "@utils/matchesPathname";
 
 import createScreenStore, { type ScreenStoreApi } from "@screen/store";
 
@@ -43,6 +44,11 @@ export interface FlemoStores {
   // The enclosing screen's entry id (a nested Router's zone identity); gates
   // the sync's missed-traversal replay to the zone the browser is still in.
   zoneEntryId?: string;
+  // Whether a pathname belongs to this Router's declared routes; the sync
+  // ignores traversals outside it (a copied frame under our key can ride on a
+  // foreign zone's entry — materializing it would create an entry no Route
+  // matches, which the renderer cannot mount).
+  ownsPathname?: (pathname: string) => boolean;
   // True for a scope held in the persistence registry (a nested browser
   // Router's). Its binding must keep the HISTORY SYNC alive across unmounts
   // too: a frozen/destroyed zone still hears traversals and applies them
@@ -217,6 +223,7 @@ export default function createRouterScope(input: CreateRouterScopeInput): FlemoS
     consume: guard.consume,
     routerKey: input.routerKey,
     zoneEntryId: input.zoneEntryId,
+    ownsPathname: (candidate) => matchesPathname(routePaths, candidate),
     persistent: !!persistKey,
     life: { alive: true }
   };

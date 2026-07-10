@@ -35,6 +35,13 @@ export interface HistorySyncDeps {
   // enqueue its transitions behind the shell's later crossings, playing them
   // out of order on a frozen screen.
   zoneEntryId?: string;
+  // Whether a pathname belongs to this Router's route space. Frames are COPIED
+  // across entries when another Router pushes (mergeKeyedState preserves every
+  // key), so an event for a FOREIGN entry can still carry a frame under our key
+  // — classifying it could materialize an entry whose pathname no Route of ours
+  // matches, which the renderer cannot mount. Events outside the route space
+  // are not ours to handle at all.
+  ownsPathname?: (pathname: string) => boolean;
 }
 
 // The flemo frame a back/forward event carries (stored by a prior push/replace).
@@ -109,6 +116,13 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
           // Queued before the Router died, running after: bail out before
           // touching the stores or starting an unfinishable transition.
           if (disposed) {
+            abortController.abort();
+            return;
+          }
+
+          // An entry outside this Router's route space — a foreign zone's, even
+          // if a copied frame under our key rides on it (see ownsPathname).
+          if (deps.ownsPathname && !deps.ownsPathname(event.pathname)) {
             abortController.abort();
             return;
           }
@@ -447,6 +461,7 @@ interface SyncScope {
   persistent?: boolean;
   routerKey?: string;
   zoneEntryId?: string;
+  ownsPathname?: (pathname: string) => boolean;
 }
 
 const scopeSyncs = new WeakMap<SyncScope, () => void>();
@@ -460,7 +475,8 @@ export function ensureScopeHistorySync(scope: SyncScope): void {
       driver: scope.driver,
       consume: scope.consume,
       routerKey: scope.routerKey,
-      zoneEntryId: scope.zoneEntryId
+      zoneEntryId: scope.zoneEntryId,
+      ownsPathname: scope.ownsPathname
     })
   );
 }

@@ -54,7 +54,7 @@ interface Task<T> {
 
 // The default gate backstop for flemo's transition-gated tasks (see
 // Control.maxLifetimeMs). Sits well above the slowest shipped transition.
-export const TRANSITION_GATE_BACKSTOP_MS = 2000;
+export const TRANSITION_GATE_BACKSTOP_MS = 1200;
 
 class TaskManager {
   private tasks: Map<string, Task<unknown>> = new Map();
@@ -146,21 +146,35 @@ class TaskManager {
     }
   }
 
-  // 모든 대기 중인 태스크가 완료될 때까지 대기
+  // Queued waiters woken the moment a gate opens (see onTaskStatusChange), so
+  // the next transition starts immediately instead of on the next poll tick.
+  private pendingWaiters: Set<() => void> = new Set();
+
+  private notifyPendingWaiters() {
+    for (const waiter of [...this.pendingWaiters]) waiter();
+  }
+
+  // 모든 대기 중인 태스크가 완료될 때까지 대기. Event-driven with a slow poll
+  // as the safety net (a waiter must never hang on a missed notification).
   private async waitForPendingTasks(): Promise<void> {
     return new Promise((resolve) => {
+      let timer: ReturnType<typeof setTimeout> | null = null;
       const checkPendingTasks = () => {
         const pendingTasks = this.pendingTaskQueue.filter(
           (task) => task.status === "MANUAL_PENDING" || task.status === "SIGNAL_PENDING"
         );
 
         if (pendingTasks.length === 0) {
+          this.pendingWaiters.delete(checkPendingTasks);
+          if (timer) clearTimeout(timer);
           resolve();
         } else {
-          setTimeout(checkPendingTasks, 100);
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(checkPendingTasks, 100);
         }
       };
 
+      this.pendingWaiters.add(checkPendingTasks);
       checkPendingTasks();
     });
   }
@@ -173,6 +187,7 @@ class TaskManager {
 
       // 대기 큐 처리 재시작
       await this.processPendingTasks();
+      this.notifyPendingWaiters();
     }
   }
 
