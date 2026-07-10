@@ -25,14 +25,6 @@ export interface HistorySyncDeps {
   // a keyed browser <Router> injects its OWN guard's `consume` so a sibling
   // Router's `go(-n)` isn't mis-attributed to this one.
   consume?: () => boolean;
-  // The owning Router's liveness (see FlemoStores.life). A PERSISTENT sync (one
-  // whose scope outlives its Router across zone exits — `alive` false while the
-  // zone is frozen offscreen or torn down) still processes every traversal, but
-  // applies the store move INSTANTLY instead of running a transition: nothing is
-  // visible to animate, no `animationend` can arrive, and by the time the zone
-  // is revealed again its content already sits on the right entry — the reveal
-  // never snaps and the visible steps that follow animate normally.
-  life?: { alive: boolean };
 }
 
 // The flemo frame a back/forward event carries (stored by a prior push/replace).
@@ -54,12 +46,7 @@ interface PopStateFrame {
 // neutral: subscribes through the injected driver and returns its disposer; a
 // binding calls it from its own effect.
 export default function createHistorySync(deps: HistorySyncDeps): () => void {
-  const {
-    stores,
-    driver = createBrowserHistoryDriver(),
-    consume = consumeSelfInducedPop,
-    life
-  } = deps;
+  const { stores, driver = createBrowserHistoryDriver(), consume = consumeSelfInducedPop } = deps;
 
   // Set when the binding disposes this sync (its Router unmounted). Traversal
   // tasks the sync already queued can still be sitting in the SHARED task
@@ -92,12 +79,6 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
             abortController.abort();
             return;
           }
-
-          // Liveness. The binding flips `alive` synchronously at commit (a
-          // layout-effect), BEFORE the reveal paints — so by the time any task
-          // runs, a visible zone always reads alive and an offscreen one dead.
-          // No settling delay is needed here.
-          const offscreen = life ? !life.alive : false;
 
           const { setStatus, setTransitionTaskId } = stores.navigate.getState();
           const { index, histories, addHistory, popHistory, setPendingIndex } =
@@ -170,18 +151,11 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
               return;
             }
 
-            // Forward into an entry we never held: an animated (re)entry — or,
-            // for a zone currently offscreen (frozen or torn down; see
-            // HistorySyncDeps.life), an INSTANT one: nothing is visible to
-            // animate and no animationend can arrive, so the store just lands on
-            // the entry. When the zone is revealed it's already correct, and the
-            // visible steps that follow animate normally.
-            if (offscreen) {
-              addHistory(eventEntry);
-              stores.history.getState().setPendingIndex(stores.history.getState().index);
-              abortController.abort();
-              return;
-            }
+            // Forward into an entry we never held: an animated (re)entry. The
+            // serial queue orders this task AFTER the crossing that reveals its
+            // zone, so it always runs with its screens visible — a zone-internal
+            // move never applies invisibly, and the LAST step of a rapid forward
+            // run plays its transition like every other.
             setTransitionTaskId(taskId);
             setStatus(frame.status === "REPLACING" ? "REPLACING" : "PUSHING");
             addHistory(eventEntry);
@@ -191,16 +165,7 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
             };
           }
 
-          // A pop to an entry we hold — offscreen zones land instantly (same
-          // reasoning as above): truncate straight to the target with no
-          // transition, so the eventual reveal shows the right screen at once.
-          if (offscreen) {
-            stores.history.getState().truncateHistory(targetPosition);
-            abortController.abort();
-            return;
-          }
-
-          // Visible: ONE screen per transition, chained. A coalesced browser
+          // A pop to an entry we hold: ONE screen per transition, chained. A coalesced browser
           // traversal (two rapid Back presses can arrive as a single -2 event)
           // must still show every intermediate screen — screens are never
           // skipped, the sequence just runs one full transition at a time. Pop a
@@ -340,11 +305,11 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
 // ── Scope-bound sync lifetime ───────────────────────────────────────────────
 // One live sync per Router scope. A PERSISTENT scope (a nested Router's, kept
 // for the session across zone exits) must keep hearing traversals while its
-// Router is frozen offscreen or torn down — the sync applies those moves
-// instantly (see `life` above), so the zone is already on the right entry
-// whenever it is revealed and nothing ever snaps or stops animating. So a
-// persistent scope's sync is created once and never disposed with the
-// component; a non-persistent (root) scope's sync follows its binding's
+// Router is frozen offscreen or torn down — the serial task queue orders each
+// zone-internal move AFTER the crossing that reveals its zone, so by the time
+// it runs the zone is visible and it animates in sequence like every other
+// step. So a persistent scope's sync is created once and never disposed with
+// the component; a non-persistent (root) scope's sync follows its binding's
 // mount/unmount as before. Framework-neutral policy: a binding calls `ensure`
 // from its mount lifecycle and `release` from its teardown, and this module
 // decides what those mean per scope.
@@ -354,7 +319,6 @@ interface SyncScope {
   driver: HistoryDriver;
   consume: () => boolean;
   persistent?: boolean;
-  life: { alive: boolean };
 }
 
 const scopeSyncs = new WeakMap<SyncScope, () => void>();
@@ -363,12 +327,7 @@ export function ensureScopeHistorySync(scope: SyncScope): void {
   if (scopeSyncs.has(scope)) return;
   scopeSyncs.set(
     scope,
-    createHistorySync({
-      stores: scope,
-      driver: scope.driver,
-      consume: scope.consume,
-      life: scope.life
-    })
+    createHistorySync({ stores: scope, driver: scope.driver, consume: scope.consume })
   );
 }
 

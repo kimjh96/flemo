@@ -448,99 +448,6 @@ describe("createHistorySync convergence pass", () => {
   }, 10000);
 });
 
-// Offscreen zones (life.alive=false: frozen by the host, or torn down between
-// zone visits) still hear traversals but apply them INSTANTLY — nothing is
-// visible to animate and no animationend can arrive — so the zone is already
-// on the right entry whenever it is revealed.
-describe("createHistorySync offscreen (life.alive=false)", () => {
-  const emittingDriver = (pathname: () => string) => {
-    let listener: ((event: { state: unknown; pathname: string }) => unknown) | null = null;
-    return {
-      driver: {
-        readState: () => null,
-        readPathname: pathname,
-        pushState: () => {},
-        replaceState: () => {},
-        go: () => {},
-        back: () => {},
-        subscribe: (l: (event: { state: unknown; pathname: string }) => unknown) => {
-          listener = l;
-          return () => {
-            listener = null;
-          };
-        }
-      },
-      emit: (state: unknown, eventPathname: string) =>
-        listener?.({ state, pathname: eventPathname })
-    };
-  };
-
-  it("applies a forward into an unheld entry instantly, with no transition", async () => {
-    const stores = { history: createHistoryStore([root], 0), navigate: createNavigateStore() };
-    const { driver, emit } = emittingDriver(() => "/p2");
-    const dispose = createHistorySync({
-      stores,
-      driver,
-      consume: () => false,
-      life: { alive: false }
-    });
-    activeDisposers.push(dispose);
-
-    emit(
-      {
-        id: "p2",
-        index: 2,
-        status: "PUSHING",
-        params: {},
-        transitionName: "cupertino",
-        layoutId: null
-      },
-      "/p2"
-    );
-    await settle();
-
-    const { histories, index, pendingIndex } = stores.history.getState();
-    expect(histories[index]!.id).toBe("p2");
-    expect(pendingIndex).toBe(index);
-    expect(stores.navigate.getState().status).toBe("IDLE"); // no transition ran
-  });
-
-  it("applies a pop to a held entry instantly (truncates straight to the target)", async () => {
-    const held: History[] = [
-      root,
-      { ...root, id: "a", pathname: "/a" },
-      { ...root, id: "b", pathname: "/b" }
-    ];
-    const stores = { history: createHistoryStore(held, 2), navigate: createNavigateStore() };
-    const { driver, emit } = emittingDriver(() => "/");
-    const dispose = createHistorySync({
-      stores,
-      driver,
-      consume: () => false,
-      life: { alive: false }
-    });
-    activeDisposers.push(dispose);
-
-    emit(
-      {
-        id: "root",
-        index: 0,
-        status: "PUSHING",
-        params: {},
-        transitionName: "cupertino",
-        layoutId: null
-      },
-      "/"
-    );
-    await settle();
-
-    const { histories, index } = stores.history.getState();
-    expect(index).toBe(0);
-    expect(histories).toHaveLength(1);
-    expect(stores.navigate.getState().status).toBe("IDLE");
-  });
-});
-
 // The per-scope sync lifetime policy: one live sync per scope; a persistent
 // scope's sync survives its binding's unmount (the zone keeps hearing
 // traversals while offscreen); a non-persistent (root) scope's does not.
@@ -566,8 +473,7 @@ describe("ensureScopeHistorySync / releaseScopeHistorySync", () => {
         }
       },
       consume: () => false,
-      persistent,
-      life: { alive: true }
+      persistent
     };
     return { scope, counts: () => ({ subscribes, disposals }) };
   };
