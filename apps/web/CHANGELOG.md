@@ -1,5 +1,14 @@
 # @flemo/web
 
+## 0.7.10
+
+### Patch Changes
+
+- Updated dependencies ([`1d2edf0`](https://github.com/kimjh96/flemo/commit/1d2edf012f5030fa8c834a59c9c49ee500d8a30f)):
+  - @flemo/core@1.12.1
+  - @flemo/react@1.6.1
+  - @flemo/react-layout@0.1.25
+
 ## 0.7.9
 
 ### Patch Changes
