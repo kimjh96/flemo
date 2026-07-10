@@ -497,8 +497,7 @@ describe("createHistorySync offscreen (life.alive=false)", () => {
       },
       "/p2"
     );
-    // The offscreen apply first waits ALIVE_SETTLE_MS to re-check liveness.
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await settle();
 
     const { histories, index, pendingIndex } = stores.history.getState();
     expect(histories[index]!.id).toBe("p2");
@@ -533,8 +532,7 @@ describe("createHistorySync offscreen (life.alive=false)", () => {
       },
       "/"
     );
-    // The offscreen apply first waits ALIVE_SETTLE_MS to re-check liveness.
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await settle();
 
     const { histories, index } = stores.history.getState();
     expect(index).toBe(0);

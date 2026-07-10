@@ -35,12 +35,6 @@ export interface HistorySyncDeps {
   life?: { alive: boolean };
 }
 
-// How long a dead-reading liveness flag gets to settle before it is believed
-// (see the task body). Spans an effect flush after a reveal commit, including
-// strict/dev-mode effect cycling, while an actually-offscreen zone's instant
-// apply is delayed imperceptibly.
-const ALIVE_SETTLE_MS = 80;
-
 // The flemo frame a back/forward event carries (stored by a prior push/replace).
 // A foreign (non-flemo) entry won't have these, so the classification below
 // rejects it.
@@ -99,22 +93,11 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
             return;
           }
 
-          // Liveness, SETTLED. A zone being revealed right now can read a stale
-          // `alive=false` for one beat — the binding flips the flag in an effect
-          // that flushes after the reveal commits, and strict/dev modes cycle
-          // effects besides. Believing that beat would apply the move INSTANTLY
-          // onto a screen the user is looking at: a visible, transition-less
-          // swap. So when the flag reads dead, wait one beat and read it again;
-          // only a zone still dead after the beat applies instantly.
-          let offscreen = life ? !life.alive : false;
-          if (offscreen) {
-            await new Promise((resolve) => setTimeout(resolve, ALIVE_SETTLE_MS));
-            offscreen = !life!.alive;
-            if (disposed) {
-              abortController.abort();
-              return;
-            }
-          }
+          // Liveness. The binding flips `alive` synchronously at commit (a
+          // layout-effect), BEFORE the reveal paints — so by the time any task
+          // runs, a visible zone always reads alive and an offscreen one dead.
+          // No settling delay is needed here.
+          const offscreen = life ? !life.alive : false;
 
           const { setStatus, setTransitionTaskId } = stores.navigate.getState();
           const { index, histories, addHistory, popHistory, setPendingIndex } =

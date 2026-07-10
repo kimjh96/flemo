@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useState,
   type CSSProperties,
   type PropsWithChildren,
@@ -87,6 +88,10 @@ interface RouterProps {
   className?: string;
   style?: CSSProperties;
 }
+
+// useLayoutEffect warns when rendered on the server; the server never needs the
+// flip anyway (scopes start alive), so fall back to useEffect there.
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 const EMPTY_TRANSITIONS: Transition[] = [];
 const EMPTY_DECORATORS: Decorator[] = [];
@@ -210,7 +215,15 @@ function Router({
   // unmounted — it must abort rather than move the browser history for screens
   // that no longer exist. Set on every mount (strict-mode remounts and hosted
   // re-adoption included), cleared on unmount.
-  useEffect(() => {
+  // Liveness must flip SYNCHRONOUSLY at commit, before paint: the history sync
+  // reads it to decide "animate (visible) vs apply instantly (offscreen)", and
+  // a passive effect flushes AFTER the reveal paints — a traversal task running
+  // in that window would see a VISIBLE zone as dead and swap its screen with no
+  // transition (a user-visible skip, frequent under dev/strict effect cycling).
+  // A layout effect closes the window: <Activity> mounts layout effects before
+  // the reveal paints, so a visible zone always reads alive. (Server render
+  // never runs layout effects; `alive` starts true from createRouterScope.)
+  useIsomorphicLayoutEffect(() => {
     stores.life.alive = true;
     return () => {
       stores.life.alive = false;
