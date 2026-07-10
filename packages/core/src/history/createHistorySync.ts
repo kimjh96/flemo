@@ -35,6 +35,12 @@ export interface HistorySyncDeps {
   life?: { alive: boolean };
 }
 
+// How long a dead-reading liveness flag gets to settle before it is believed
+// (see the task body). Spans an effect flush after a reveal commit, including
+// strict/dev-mode effect cycling, while an actually-offscreen zone's instant
+// apply is delayed imperceptibly.
+const ALIVE_SETTLE_MS = 80;
+
 // The flemo frame a back/forward event carries (stored by a prior push/replace).
 // A foreign (non-flemo) entry won't have these, so the classification below
 // rejects it.
@@ -91,6 +97,23 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
           if (disposed) {
             abortController.abort();
             return;
+          }
+
+          // Liveness, SETTLED. A zone being revealed right now can read a stale
+          // `alive=false` for one beat — the binding flips the flag in an effect
+          // that flushes after the reveal commits, and strict/dev modes cycle
+          // effects besides. Believing that beat would apply the move INSTANTLY
+          // onto a screen the user is looking at: a visible, transition-less
+          // swap. So when the flag reads dead, wait one beat and read it again;
+          // only a zone still dead after the beat applies instantly.
+          let offscreen = life ? !life.alive : false;
+          if (offscreen) {
+            await new Promise((resolve) => setTimeout(resolve, ALIVE_SETTLE_MS));
+            offscreen = !life!.alive;
+            if (disposed) {
+              abortController.abort();
+              return;
+            }
           }
 
           const { setStatus, setTransitionTaskId } = stores.navigate.getState();
@@ -170,7 +193,7 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
             // animate and no animationend can arrive, so the store just lands on
             // the entry. When the zone is revealed it's already correct, and the
             // visible steps that follow animate normally.
-            if (life && !life.alive) {
+            if (offscreen) {
               addHistory(eventEntry);
               stores.history.getState().setPendingIndex(stores.history.getState().index);
               abortController.abort();
@@ -188,7 +211,7 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
           // A pop to an entry we hold — offscreen zones land instantly (same
           // reasoning as above): truncate straight to the target with no
           // transition, so the eventual reveal shows the right screen at once.
-          if (life && !life.alive) {
+          if (offscreen) {
             stores.history.getState().truncateHistory(targetPosition);
             abortController.abort();
             return;
@@ -248,17 +271,23 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
   // - same-id: when the live frame under OUR key matches the active entry, the
   //   URL difference belongs to a NESTED Router's sub-path — a parent shell
   //   converging over it would tear the nested Router down (the duplicate-
-  //   screen regression). Skip.
-  // - no-frame: a foreign entry (not ours) — nothing to converge onto. Skip.
-  // - stall-stop: if two attempts change nothing, stop re-arming until a real
-  //   traversal arrives, so an unconvergeable state can't spin the queue.
+  //   screen regression). Never acted on.
+  // - no-frame: a foreign entry (not ours) — nothing to converge onto. Never
+  //   acted on.
+  // - stall-stop: consecutive idle checks that change nothing eventually stop
+  //   the chain until a real traversal re-arms it. CRUCIALLY the skip cases
+  //   above also go through the stall counter instead of dying immediately: a
+  //   sibling Router's convergence can be about to swap the zone under us (its
+  //   pass changes OUR live frame without any popstate ever firing), so one
+  //   transient same-id/no-frame reading must not kill the chain for good —
+  //   that was a permanent URL↔content mismatch after multi-generation storms.
   let healTimer: ReturnType<typeof setTimeout> | null = null;
   let lastEventAt = 0;
   let stallSignature = "";
   let stallCount = 0;
   const HEAL_DEBOUNCE_MS = 150;
   const HEAL_QUIET_MS = 400;
-  const HEAL_MAX_STALLS = 2;
+  const HEAL_MAX_STALLS = 4;
   const clock = () => (typeof performance !== "undefined" ? performance.now() : Number.MAX_VALUE);
 
   const scheduleHeal = () => {
@@ -269,6 +298,7 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
       if (disposed) return;
 
       // Still settling: a transition is running or a traversal just arrived.
+      // Not a stall — another Router's replay may be working towards us.
       if (TaskManager.pendingTaskIds.length > 0 || clock() - lastEventAt < HEAL_QUIET_MS) {
         healTimer = setTimeout(heal, HEAL_DEBOUNCE_MS);
         return;
@@ -282,21 +312,25 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
         return; // converged — done until the next traversal re-arms us
       }
 
+      // One re-arm attempt, stall-counted: identical consecutive idle readings
+      // eventually put the chain to sleep (a shell sitting over a nested
+      // sub-path is a steady state), while a changing state keeps it alive.
       const liveFrame = driver.readState() as PopStateFrame | null;
-      if (!liveFrame?.id || liveFrame.id === active.id) {
-        return; // foreign entry, or a nested Router's sub-path — not ours to converge
-      }
-
-      const signature = `${index}:${active.id}:${liveFrame.id}:${live}`;
+      const signature = `${index}:${active.id}:${liveFrame?.id ?? "-"}:${live}`;
       if (signature === stallSignature) {
         stallCount += 1;
-        if (stallCount > HEAL_MAX_STALLS) return; // no progress — wait for a real traversal
+        if (stallCount > HEAL_MAX_STALLS) return; // steady — wait for a real traversal
       } else {
         stallSignature = signature;
         stallCount = 0;
       }
 
-      void processTraversal({ state: liveFrame, pathname: live });
+      // Foreign entry, or a nested Router's sub-path: nothing for THIS Router
+      // to converge — but keep watching (stall-counted) in case a sibling's
+      // convergence is about to change what's under us.
+      if (liveFrame?.id && liveFrame.id !== active.id) {
+        void processTraversal({ state: liveFrame, pathname: live });
+      }
       healTimer = setTimeout(heal, HEAL_DEBOUNCE_MS);
     }, HEAL_DEBOUNCE_MS);
   };
