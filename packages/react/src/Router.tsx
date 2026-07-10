@@ -14,7 +14,7 @@ import {
 import {
   createBrowserHistoryDriver,
   createRouterScope,
-  ensureWindowHistoryState,
+  seedRouterEntry,
   isServer,
   type HistoryDriver,
   type PartTransition,
@@ -192,7 +192,13 @@ function Router({
       defaultTransitionName,
       memory: useMemory,
       browserDriver,
-      hostedScope: hostedStores
+      hostedScope: hostedStores,
+      // A NESTED browser Router persists its scope across destroy/re-create,
+      // keyed by its (entry-id-derived, re-entry-stable) router key: leaving
+      // its zone with browser Back destroys the Router, but the zone's history
+      // entries survive in the browser — traversing back into them must resume
+      // the same stack (animated pops), not reseed a blank one (silent adopts).
+      persistKey: isNested && !useMemory && !isHosted ? routerKey : undefined
     });
   });
 
@@ -217,44 +223,20 @@ function Router({
   useTransitionStyles(transitions, decorators, partTransitions);
 
   useEffect(() => {
-    // A browser Router (root OR nested) seeds its own keyed frame into the
-    // current entry without changing the URL, so a back into an entry predating
-    // this Router still resolves its key. A memory Router never touches the
-    // browser history. A hosted bundle keeps the legacy keyless (bare) seed.
-    if (useMemory || isServer()) return;
-
-    // Whether the CURRENT entry already carries this Router's frame — read
-    // BEFORE the seed below creates one. A remounted Router (its screen
-    // re-entered by a traversal) can mount while the browser has already moved
-    // further ahead (a queued forward), and the entry under it then belongs to
-    // a PREVIOUS incarnation's navigation, not to this fresh seed. Reflecting
-    // the seed URL into that entry would corrupt it (a /playground/2 entry
-    // renamed to /playground/1 while still carrying the panel-2 frame).
-    const entryPredatesThisRouter =
-      isNested && !isHosted && browserDriver ? browserDriver.readState() == null : false;
-
-    ensureWindowHistoryState(
-      isHosted ? null : routerKey,
+    // Stamp this Router's identity onto the entry it mounted on: seed its keyed
+    // frame and (nested) reflect the seed URL — fenced to its own zone so a
+    // late-flushing effect never touches a foreign entry. All of that decision
+    // logic is @flemo/core's seedRouterEntry; this effect only picks WHEN. A
+    // memory Router never touches the browser history.
+    if (useMemory || !browserDriver) return;
+    seedRouterEntry({
+      driver: browserDriver,
+      routerKey: isHosted ? null : routerKey,
+      nested: isNested && !isHosted,
+      seedPathname: pathname,
       defaultTransitionName,
-      stores.history.getState().histories[0]?.params ?? {}
-    );
-
-    // A NESTED browser Router reflects its own seed path in the address bar, so
-    // the URL shows the screen actually mounted (e.g. /playground/1, not the
-    // host's bare /playground). Routed through the driver (not window directly)
-    // so a locale-aware driver keeps its URL prefix; the keyed state is
-    // preserved. A deep link already matches its seed, so this is a no-op —
-    // and an entry a previous incarnation already wrote to is never renamed
-    // (see above).
-    if (
-      isNested &&
-      !isHosted &&
-      browserDriver &&
-      entryPredatesThisRouter &&
-      browserDriver.readPathname() !== pathname
-    ) {
-      browserDriver.replaceState(browserDriver.readState(), pathname);
-    }
+      rootParams: stores.history.getState().histories[0]?.params ?? {}
+    });
   }, [
     useMemory,
     isHosted,

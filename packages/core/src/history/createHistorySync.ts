@@ -1,4 +1,4 @@
-import TaskManager from "@core/TaskManger";
+import TaskManager, { TRANSITION_GATE_BACKSTOP_MS } from "@core/TaskManger";
 
 import createBrowserHistoryDriver, {
   type HistoryDriver,
@@ -25,6 +25,14 @@ export interface HistorySyncDeps {
   // a keyed browser <Router> injects its OWN guard's `consume` so a sibling
   // Router's `go(-n)` isn't mis-attributed to this one.
   consume?: () => boolean;
+  // The owning Router's liveness (see FlemoStores.life). A PERSISTENT sync (one
+  // whose scope outlives its Router across zone exits — `alive` false while the
+  // zone is frozen offscreen or torn down) still processes every traversal, but
+  // applies the store move INSTANTLY instead of running a transition: nothing is
+  // visible to animate, no `animationend` can arrive, and by the time the zone
+  // is revealed again its content already sits on the right entry — the reveal
+  // never snaps and the visible steps that follow animate normally.
+  life?: { alive: boolean };
 }
 
 // The flemo frame a back/forward event carries (stored by a prior push/replace).
@@ -46,7 +54,12 @@ interface PopStateFrame {
 // neutral: subscribes through the injected driver and returns its disposer; a
 // binding calls it from its own effect.
 export default function createHistorySync(deps: HistorySyncDeps): () => void {
-  const { stores, driver = createBrowserHistoryDriver(), consume = consumeSelfInducedPop } = deps;
+  const {
+    stores,
+    driver = createBrowserHistoryDriver(),
+    consume = consumeSelfInducedPop,
+    life
+  } = deps;
 
   // Set when the binding disposes this sync (its Router unmounted). Traversal
   // tasks the sync already queued can still be sitting in the SHARED task
@@ -59,16 +72,11 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
   // abort on arrival instead, and the queue drains.
   let disposed = false;
 
-  const handlePopState = async (event: HistoryNavEvent) => {
-    if (disposed) {
-      return;
-    }
-
-    // A traversal flemo triggered itself. The navigation queue already owns it.
-    if (consume()) {
-      return;
-    }
-
+  // Queue one traversal for replay. Split from the popstate listener so the
+  // convergence pass below can re-drive the browser's present entry through the
+  // SAME classifier without touching the self-pop guard (a heal must never eat
+  // a `consume()` mark that belongs to a real flemo-induced popstate).
+  const processTraversal = async (event: HistoryNavEvent) => {
     const frame = event.state as PopStateFrame | null;
     // The timeline epoch at the moment this traversal happened (see
     // HistoryStore.truncationEpoch).
@@ -86,7 +94,7 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
           }
 
           const { setStatus, setTransitionTaskId } = stores.navigate.getState();
-          const { index, histories, addHistory, popHistory, popHistories, setPendingIndex } =
+          const { index, histories, addHistory, popHistory, setPendingIndex } =
             stores.history.getState();
 
           // Every queued traversal REPLAYS with its full transition — late but
@@ -156,7 +164,18 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
               return;
             }
 
-            // Forward into an entry we never held: an animated (re)entry.
+            // Forward into an entry we never held: an animated (re)entry — or,
+            // for a zone currently offscreen (frozen or torn down; see
+            // HistorySyncDeps.life), an INSTANT one: nothing is visible to
+            // animate and no animationend can arrive, so the store just lands on
+            // the entry. When the zone is revealed it's already correct, and the
+            // visible steps that follow animate normally.
+            if (life && !life.alive) {
+              addHistory(eventEntry);
+              stores.history.getState().setPendingIndex(stores.history.getState().index);
+              abortController.abort();
+              return;
+            }
             setTransitionTaskId(taskId);
             setStatus(frame.status === "REPLACING" ? "REPLACING" : "PUSHING");
             addHistory(eventEntry);
@@ -166,36 +185,178 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
             };
           }
 
-          // A pop to an entry we hold. Drop any skipped screens between the
-          // target and the top in the same synchronous block (they never
-          // paint), then animate top → target like a single-step pop.
-          const skipped = index - targetPosition - 1;
+          // A pop to an entry we hold — offscreen zones land instantly (same
+          // reasoning as above): truncate straight to the target with no
+          // transition, so the eventual reveal shows the right screen at once.
+          if (life && !life.alive) {
+            stores.history.getState().truncateHistory(targetPosition);
+            abortController.abort();
+            return;
+          }
+
+          // Visible: ONE screen per transition, chained. A coalesced browser
+          // traversal (two rapid Back presses can arrive as a single -2 event)
+          // must still show every intermediate screen — screens are never
+          // skipped, the sequence just runs one full transition at a time. Pop a
+          // single level now; if the event's target lies further down, the
+          // completion re-drives the same event, which classifies against the
+          // new top and pops the next level — sequential, in order, until the
+          // target is reached.
+          const stepTarget = index - 1;
 
           setTransitionTaskId(taskId);
-          if (skipped > 0) {
-            popHistories(skipped);
-          }
-          setPendingIndex(targetPosition);
+          setPendingIndex(stepTarget);
           setStatus("POPPING");
 
           return async () => {
-            popHistory(targetPosition + 1);
+            popHistory(stepTarget + 1);
             setStatus("COMPLETED");
+            if (stepTarget > targetPosition && !disposed) {
+              void processTraversal(event);
+            }
           };
         },
         {
           id: taskId,
           control: {
-            manual: true
+            manual: true,
+            // Drain the gate even if this transition's animationend is lost
+            // (screen frozen/torn down mid-storm) — see Control.maxLifetimeMs.
+            maxLifetimeMs: TRANSITION_GATE_BACKSTOP_MS
           }
         }
       )
     ).result?.();
   };
 
-  const unsubscribe = driver.subscribe(handlePopState);
+  // ── Convergence guarantee ─────────────────────────────────────────────────
+  // The serial queue replays each traversal behind the previous transition's
+  // animationend gate — intentionally sequential. But a rapid storm can leave
+  // the CONTENT permanently behind the URL in two ways: a gate whose resolve
+  // signal was lost (drained by the task backstop), and events the epoch check
+  // folded whose target then never materializes — nothing arrives afterwards to
+  // move the store, so the mismatch would persist until a remount. This pass
+  // runs only when the queue is idle AND no traversal has arrived for a quiet
+  // beat (an active human sequence is never interrupted), compares the store's
+  // active entry against the address bar, and re-drives the browser's PRESENT
+  // entry through the normal classifier: it lands as an animated forward/pop
+  // onto a held entry, or a browser-style in-place adopt for one we never held.
+  // It re-arms until the store reaches the URL, so the content always catches
+  // up — and it's a no-op on every ordinary navigation.
+  //
+  // Guards, each one load-bearing:
+  // - same-id: when the live frame under OUR key matches the active entry, the
+  //   URL difference belongs to a NESTED Router's sub-path — a parent shell
+  //   converging over it would tear the nested Router down (the duplicate-
+  //   screen regression). Skip.
+  // - no-frame: a foreign entry (not ours) — nothing to converge onto. Skip.
+  // - stall-stop: if two attempts change nothing, stop re-arming until a real
+  //   traversal arrives, so an unconvergeable state can't spin the queue.
+  let healTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastEventAt = 0;
+  let stallSignature = "";
+  let stallCount = 0;
+  const HEAL_DEBOUNCE_MS = 150;
+  const HEAL_QUIET_MS = 400;
+  const HEAL_MAX_STALLS = 2;
+  const clock = () => (typeof performance !== "undefined" ? performance.now() : Number.MAX_VALUE);
+
+  const scheduleHeal = () => {
+    if (disposed || typeof setTimeout === "undefined") return;
+    if (healTimer) clearTimeout(healTimer);
+    healTimer = setTimeout(function heal() {
+      healTimer = null;
+      if (disposed) return;
+
+      // Still settling: a transition is running or a traversal just arrived.
+      if (TaskManager.pendingTaskIds.length > 0 || clock() - lastEventAt < HEAL_QUIET_MS) {
+        healTimer = setTimeout(heal, HEAL_DEBOUNCE_MS);
+        return;
+      }
+
+      const live = driver.readPathname();
+      const { histories, index } = stores.history.getState();
+      const active = histories[index];
+      if (!active || active.pathname === live) {
+        stallCount = 0;
+        return; // converged — done until the next traversal re-arms us
+      }
+
+      const liveFrame = driver.readState() as PopStateFrame | null;
+      if (!liveFrame?.id || liveFrame.id === active.id) {
+        return; // foreign entry, or a nested Router's sub-path — not ours to converge
+      }
+
+      const signature = `${index}:${active.id}:${liveFrame.id}:${live}`;
+      if (signature === stallSignature) {
+        stallCount += 1;
+        if (stallCount > HEAL_MAX_STALLS) return; // no progress — wait for a real traversal
+      } else {
+        stallSignature = signature;
+        stallCount = 0;
+      }
+
+      void processTraversal({ state: liveFrame, pathname: live });
+      healTimer = setTimeout(heal, HEAL_DEBOUNCE_MS);
+    }, HEAL_DEBOUNCE_MS);
+  };
+
+  const unsubscribe = driver.subscribe((event) => {
+    if (disposed) return;
+    lastEventAt = clock();
+    scheduleHeal();
+    // A traversal flemo triggered itself. The navigation queue already owns it.
+    if (consume()) return;
+    return processTraversal(event);
+  });
+  // Also arm once at mount: a Router (re)mounting behind the address bar — a
+  // host rebuilt it mid-storm — converges without needing another traversal.
+  scheduleHeal();
+
   return () => {
     disposed = true;
+    if (healTimer) clearTimeout(healTimer);
     unsubscribe();
   };
+}
+
+// ── Scope-bound sync lifetime ───────────────────────────────────────────────
+// One live sync per Router scope. A PERSISTENT scope (a nested Router's, kept
+// for the session across zone exits) must keep hearing traversals while its
+// Router is frozen offscreen or torn down — the sync applies those moves
+// instantly (see `life` above), so the zone is already on the right entry
+// whenever it is revealed and nothing ever snaps or stops animating. So a
+// persistent scope's sync is created once and never disposed with the
+// component; a non-persistent (root) scope's sync follows its binding's
+// mount/unmount as before. Framework-neutral policy: a binding calls `ensure`
+// from its mount lifecycle and `release` from its teardown, and this module
+// decides what those mean per scope.
+interface SyncScope {
+  history: HistoryStoreApi;
+  navigate: NavigateStoreApi;
+  driver: HistoryDriver;
+  consume: () => boolean;
+  persistent?: boolean;
+  life: { alive: boolean };
+}
+
+const scopeSyncs = new WeakMap<SyncScope, () => void>();
+
+export function ensureScopeHistorySync(scope: SyncScope): void {
+  if (scopeSyncs.has(scope)) return;
+  scopeSyncs.set(
+    scope,
+    createHistorySync({
+      stores: scope,
+      driver: scope.driver,
+      consume: scope.consume,
+      life: scope.life
+    })
+  );
+}
+
+export function releaseScopeHistorySync(scope: SyncScope): void {
+  if (scope.persistent) return;
+  scopeSyncs.get(scope)?.();
+  scopeSyncs.delete(scope);
 }

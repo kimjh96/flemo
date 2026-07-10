@@ -21,6 +21,15 @@ interface Control {
   delay?: number; // 지연 시간 (ms)
   condition?: () => Promise<boolean>; // 조건부 resolve
   signal?: string; // 특정 신호 대기
+  // Force-resolve a parked manual/signal task after this many ms. A transition
+  // task normally resolves on its `animationend`, but a screen frozen (React
+  // <Activity>) or torn down mid-storm fires NO animationend — the gate never
+  // opens and the whole serial queue deadlocks behind it: the URL keeps moving
+  // while the content stays frozen on an old screen, permanently. Callers whose
+  // resolve signal can be lost this way (every transition-gated task) pass a
+  // lifetime comfortably above their longest real animation, so a live
+  // transition is never cut short and a dead gate always drains.
+  maxLifetimeMs?: number;
 }
 
 interface Task<T> {
@@ -35,12 +44,17 @@ interface Task<T> {
   dependencies: string[];
   instanceId: string;
   abortController?: AbortController;
+  backstopTimer?: ReturnType<typeof setTimeout>;
   manualResolver?: {
     resolve: (value: TaskResult<T>) => void;
     reject: (error: Error) => void;
     result: T;
   };
 }
+
+// The default gate backstop for flemo's transition-gated tasks (see
+// Control.maxLifetimeMs). Sits well above the slowest shipped transition.
+export const TRANSITION_GATE_BACKSTOP_MS = 2000;
 
 class TaskManager {
   private tasks: Map<string, Task<unknown>> = new Map();
@@ -50,6 +64,13 @@ class TaskManager {
   private taskQueue: Promise<void> = Promise.resolve();
   private signalListeners: Map<string, Set<string>> = new Map();
   private pendingTaskQueue: Task<unknown>[] = [];
+
+  // Ids of the queued tasks (INCLUDING the currently-running one). The transition
+  // engine subtracts its own id to detect a replay chain.
+  get pendingTaskIds(): string[] {
+    return this.pendingTaskQueue.map((task) => task.id);
+  }
+
   private isProcessingPending: boolean = false;
 
   private async acquireLock(taskId: string) {
@@ -267,6 +288,7 @@ class TaskManager {
 
                     // 대기 큐에 추가하고 상태 변경 알림
                     this.pendingTaskQueue.push(task as Task<unknown>);
+                    this.armBackstop(task as Task<unknown>);
                     await this.onTaskStatusChange(task.id, "MANUAL_PENDING");
                     return;
                   }
@@ -284,6 +306,7 @@ class TaskManager {
 
                     // 대기 큐에 추가하고 상태 변경 알림
                     this.pendingTaskQueue.push(task as Task<unknown>);
+                    this.armBackstop(task as Task<unknown>);
                     await this.onTaskStatusChange(task.id, "SIGNAL_PENDING");
                     return;
                   }
@@ -297,6 +320,7 @@ class TaskManager {
 
                       // 대기 큐에 추가하고 상태 변경 알림
                       this.pendingTaskQueue.push(task as Task<unknown>);
+                      this.armBackstop(task as Task<unknown>);
                       await this.onTaskStatusChange(task.id, "MANUAL_PENDING");
                       return;
                     }
@@ -344,8 +368,23 @@ class TaskManager {
     });
   }
 
+  // Arm the parked task's gate backstop (see Control.maxLifetimeMs). Cleared the
+  // moment the task resolves normally, so it only ever fires for a lost gate.
+  private armBackstop(task: Task<unknown>) {
+    const lifetime = task.control?.maxLifetimeMs;
+    if (!lifetime || lifetime <= 0 || typeof setTimeout === "undefined") return;
+    task.backstopTimer = setTimeout(() => {
+      delete task.backstopTimer;
+      void this.resolveTask(task.id);
+    }, lifetime);
+  }
+
   public async resolveTask(taskId: string) {
     const task = this.tasks.get(taskId);
+    if (task?.backstopTimer) {
+      clearTimeout(task.backstopTimer);
+      delete task.backstopTimer;
+    }
 
     // Both MANUAL_PENDING (control.manual / control.condition) and
     // SIGNAL_PENDING (control.signal) park the same `manualResolver` and

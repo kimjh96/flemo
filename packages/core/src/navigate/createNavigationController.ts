@@ -1,6 +1,6 @@
 import { pathToRegexp } from "path-to-regexp";
 
-import TaskManager from "@core/TaskManger";
+import TaskManager, { TRANSITION_GATE_BACKSTOP_MS } from "@core/TaskManger";
 
 import createBrowserHistoryDriver, { type HistoryDriver } from "@history/historyDriver";
 import type { History, HistoryStoreApi } from "@history/store";
@@ -273,7 +273,10 @@ export default function createNavigationController(deps: NavigationControllerDep
         {
           id,
           control: {
-            manual: true
+            manual: true,
+            // Drain the gate even if this transition's animationend is lost
+            // (screen frozen/torn down mid-storm) — see Control.maxLifetimeMs.
+            maxLifetimeMs: TRANSITION_GATE_BACKSTOP_MS
           }
         }
       )
@@ -416,7 +419,10 @@ export default function createNavigationController(deps: NavigationControllerDep
         {
           id,
           control: {
-            manual: true
+            manual: true,
+            // Drain the gate even if this transition's animationend is lost
+            // (screen frozen/torn down mid-storm) — see Control.maxLifetimeMs.
+            maxLifetimeMs: TRANSITION_GATE_BACKSTOP_MS
           }
         }
       )
@@ -509,7 +515,10 @@ export default function createNavigationController(deps: NavigationControllerDep
         {
           id,
           control: {
-            manual: true
+            manual: true,
+            // Drain the gate even if this transition's animationend is lost
+            // (screen frozen/torn down mid-storm) — see Control.maxLifetimeMs.
+            maxLifetimeMs: TRANSITION_GATE_BACKSTOP_MS
           }
         }
       )

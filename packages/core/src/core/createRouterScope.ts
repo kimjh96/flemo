@@ -36,6 +36,11 @@ export interface FlemoStores {
   // skips it. A memory <Router> uses a no-op mark and a never-true consume.
   markSelfInduced: () => void;
   consume: () => boolean;
+  // True for a scope held in the persistence registry (a nested browser
+  // Router's). Its binding must keep the HISTORY SYNC alive across unmounts
+  // too: a frozen/destroyed zone still hears traversals and applies them
+  // instantly, so it is already on the right entry whenever it is revealed.
+  persistent?: boolean;
   // The owning Router's liveness. A navigation task can sit queued behind an
   // in-flight transition and outlive the Router that created it (its screen
   // popped away in the meantime); running it would then move the BROWSER
@@ -48,6 +53,19 @@ export interface FlemoStores {
 // A no-op self-pop guard for a memory Router: it has no browser history sync
 // to coordinate with, so it never marks and never reports a self-induced pop.
 const NOOP_GUARD: SelfPopGuard = { mark: () => {}, consume: () => false };
+
+// Scopes of DESTROYED nested Routers, keyed by their stable router key. When
+// its enclosing screen is popped away (leaving a zone with browser Back), a
+// nested Router unmounts and its in-memory stack would die with it — but the
+// BROWSER still holds that zone's history entries, and the user can traverse
+// back into them at any time. A fresh reseed knows only one entry, so every
+// further Back inside the zone would degrade to a non-animated in-place adopt:
+// the "after bouncing between zones, back/forward stops transitioning" bug.
+// Keeping the scope here lets a re-created Router resume the stack its previous
+// incarnation held, so traversals into old sub-entries stay ANIMATED pops.
+// Session-scoped on purpose: the entries it serves live exactly as long as the
+// tab's history does. Client-only (module state never runs on the server).
+const persistedScopes = new Map<string, FlemoStores>();
 
 export interface CreateRouterScopeInput {
   // The declared route patterns; the seed matches `pathname` against them to
@@ -66,6 +84,12 @@ export interface CreateRouterScopeInput {
   // When present it is adopted: its empty history is seeded once and the
   // bundle is returned as-is.
   hostedScope: FlemoStores | null;
+  // Persist this scope across destroy/re-create under this key (see the
+  // registry above). Set by the binding for a NESTED browser Router, using its
+  // stable router key — the enclosing screen's entry id, which a zone re-entry
+  // restores verbatim, so the reborn Router resolves the same key. Absent for
+  // root (an app teardown is final), memory (isolated), and hosted scopes.
+  persistKey?: string;
 }
 
 // Creates (or adopts) the store bundle for a Router scope, seeding history
@@ -76,6 +100,24 @@ export interface CreateRouterScopeInput {
 // creation, and context distribution around it.
 export default function createRouterScope(input: CreateRouterScopeInput): FlemoStores {
   const { routePaths, pathname, search, defaultTransitionName, memory, browserDriver } = input;
+  const persistKey = !isServer() ? input.persistKey : undefined;
+
+  // A re-created Router resumes its previous incarnation's scope instead of
+  // reseeding (see the registry above). The scope may have died mid-transition,
+  // so bring it to rest; if the browser re-entered the zone on a different
+  // entry than the resumed top, the sync's convergence pass walks the content
+  // there with full transitions right after mount.
+  if (persistKey) {
+    const persisted = persistedScopes.get(persistKey);
+    if (persisted) {
+      persisted.life.alive = true;
+      persisted.navigate.getState().setStatus("IDLE");
+      persisted.navigate.getState().setTransitionTaskId(null);
+      const history = persisted.history.getState();
+      history.setPendingIndex(history.index);
+      return persisted;
+    }
+  }
 
   const seededHistory = seedInitialHistory(routePaths, pathname, search, defaultTransitionName);
   // A Router remounting onto an entry a previous incarnation wrote adopts that
@@ -134,7 +176,7 @@ export default function createRouterScope(input: CreateRouterScopeInput): FlemoS
 
   const guard = memory ? NOOP_GUARD : createSelfPopGuard();
 
-  return {
+  const scope: FlemoStores = {
     history: createHistoryStore([rootHistory], 0),
     navigate: createNavigateStore(),
     transition: createTransitionStore(defaultTransitionName),
@@ -142,6 +184,17 @@ export default function createRouterScope(input: CreateRouterScopeInput): FlemoS
     driver,
     markSelfInduced: guard.mark,
     consume: guard.consume,
+    persistent: !!persistKey,
     life: { alive: true }
   };
+
+  // Keep a nested browser scope for the session so a zone re-entry resumes it
+  // (see the registry above). The live scope sits in the map too, which also
+  // makes a same-key remount (strict mode, host re-render) resolve to the same
+  // instance instead of clobbering a live stack.
+  if (persistKey) {
+    persistedScopes.set(persistKey, scope);
+  }
+
+  return scope;
 }
