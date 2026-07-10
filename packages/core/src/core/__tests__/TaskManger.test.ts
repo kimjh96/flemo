@@ -347,3 +347,35 @@ describe("TaskManger: pre-resolve delay (control.delay)", () => {
     expect(Date.now() - start).toBeGreaterThanOrEqual(70);
   });
 });
+
+describe("TaskManger: gate backstop (control.maxLifetimeMs)", () => {
+  it("force-resolves a parked manual task whose resolve signal never arrives", async () => {
+    const start = Date.now();
+    // Nobody calls resolveTask — the lost-animationend scenario. Without the
+    // backstop this await would hang forever and deadlock the serial queue.
+    const outcome = await TaskManger.addTask(async () => "gated", {
+      control: { manual: true, maxLifetimeMs: 120 }
+    });
+
+    expect(outcome.success).toBe(true);
+    expect(outcome.result).toBe("gated");
+    expect(Date.now() - start).toBeGreaterThanOrEqual(100);
+  });
+
+  it("a normal resolve clears the backstop (no double resolution afterwards)", async () => {
+    const id = TaskManger.generateTaskId();
+    const pending = TaskManger.addTask(async () => "gated", {
+      id,
+      control: { manual: true, maxLifetimeMs: 150 }
+    });
+    // Resolve promptly, then wait past the lifetime: the timer must be gone.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await TaskManger.resolveTask(id);
+    const outcome = await pending;
+    expect(outcome.result).toBe("gated");
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    // A second (backstop) resolution attempt on a completed task is a no-op.
+    expect(await TaskManger.resolveTask(id)).toBe(false);
+  });
+});

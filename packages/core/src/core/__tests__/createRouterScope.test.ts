@@ -95,3 +95,46 @@ describe("createRouterScope", () => {
     expect(readopted.history.getState().index).toBe(1);
   });
 });
+
+describe("createRouterScope persistence (persistKey)", () => {
+  it("a re-created Router resumes its previous incarnation's scope, brought to rest", () => {
+    const browserDriver = fakeBrowserDriver();
+    const key = `persist-${Math.random().toString(36).slice(2)}`;
+    const first = createRouterScope({ ...baseInput, browserDriver, persistKey: key });
+    expect(first.persistent).toBe(true);
+
+    // The zone lives on: entries pushed, then destroyed mid-transition.
+    first.history.getState().addHistory({
+      id: "deep",
+      pathname: "/posts/9",
+      params: { id: "9" },
+      transitionName: "cupertino",
+      layoutId: null
+    });
+    first.navigate.getState().setStatus("POPPING");
+    first.life.alive = false;
+
+    // A zone re-entry re-creates the Router — the SAME scope comes back,
+    // stack intact, sanitized to rest.
+    const second = createRouterScope({ ...baseInput, browserDriver, persistKey: key });
+    expect(second).toBe(first);
+    expect(second.history.getState().histories).toHaveLength(2);
+    expect(second.navigate.getState().status).toBe("IDLE");
+    expect(second.life.alive).toBe(true);
+    expect(second.history.getState().pendingIndex).toBe(second.history.getState().index);
+  });
+
+  it("scopes with different keys stay isolated", () => {
+    const a = createRouterScope({
+      ...baseInput,
+      browserDriver: fakeBrowserDriver(),
+      persistKey: "iso-a"
+    });
+    const b = createRouterScope({
+      ...baseInput,
+      browserDriver: fakeBrowserDriver(),
+      persistKey: "iso-b"
+    });
+    expect(a).not.toBe(b);
+  });
+});

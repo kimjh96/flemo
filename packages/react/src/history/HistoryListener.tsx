@@ -1,18 +1,20 @@
 import { useEffect } from "react";
 
-import { createHistorySync } from "@flemo/core";
+import { ensureScopeHistorySync, releaseScopeHistorySync } from "@flemo/core";
 
 import useStores from "@stores/useStores";
 
-// Thin React binding: the popstate-to-navigation bridge lives in @flemo/core's
-// createHistorySync; this component owns only the effect lifecycle.
+// Thin React binding: the popstate-to-navigation bridge AND its per-scope
+// lifetime policy (a persistent scope's sync outlives the component; a root
+// scope's follows the effect) live in @flemo/core; this component only maps
+// them onto React's mount/unmount.
 function HistoryListener() {
   const stores = useStores();
 
-  useEffect(
-    () => createHistorySync({ stores, driver: stores.driver, consume: stores.consume }),
-    [stores]
-  );
+  useEffect(() => {
+    ensureScopeHistorySync(stores);
+    return () => releaseScopeHistorySync(stores);
+  }, [stores]);
 
   return null;
 }

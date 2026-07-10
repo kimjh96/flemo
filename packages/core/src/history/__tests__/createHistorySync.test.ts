@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import TaskManager from "@core/TaskManger";
 
-import createHistorySync from "@history/createHistorySync";
+import createHistorySync, {
+  ensureScopeHistorySync,
+  releaseScopeHistorySync
+} from "@history/createHistorySync";
 import createHistoryStore, { type History } from "@history/store";
 
 import { markSelfInducedPop } from "@navigate/selfPopGuard";
@@ -82,6 +85,23 @@ describe("createHistorySync (headless, no React)", () => {
 
     expect(stores.history.getState().index).toBe(1);
     expect(stores.history.getState().histories.at(-1)?.id).toBe("a");
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
+    dispose();
+  });
+
+  it("a coalesced multi-step back replays EVERY intermediate screen (chained pops)", async () => {
+    // Two rapid Back presses can reach the sync as a single -2 event. The pop
+    // path must not drop the middle screen: it pops one level per transition
+    // and re-drives the event until the target is reached.
+    const a: History = { ...root, id: "a", pathname: "/a" };
+    const bEntry: History = { ...root, id: "b", pathname: "/b" };
+    const { stores, dispose } = setup([root, a, bEntry], 2);
+    firePopState({ id: "root", index: 0, status: "POPPING" });
+    await settle();
+    await settle();
+
+    expect(stores.history.getState().index).toBe(0);
+    expect(stores.history.getState().histories).toHaveLength(1);
     expect(stores.navigate.getState().status).toBe("COMPLETED");
     dispose();
   });
@@ -350,5 +370,131 @@ describe("createHistorySync (headless, no React)", () => {
 
     expect(stores.history.getState().index).toBe(0);
     expect(stores.history.getState().histories).toHaveLength(1);
+  });
+});
+
+// The convergence pass: when a storm leaves the store's active entry behind the
+// address bar (the traversal's event was folded, or its gate was drained by the
+// backstop) and NO further popstate will arrive, the sync itself must re-drive
+// the browser's present entry until content and URL agree.
+describe("createHistorySync convergence pass", () => {
+  const mockDriver = (pathname: string, frame: object | null) => ({
+    readState: () => frame,
+    readPathname: () => pathname,
+    pushState: () => {},
+    replaceState: () => {},
+    go: () => {},
+    back: () => {},
+    subscribe: () => () => {}
+  });
+
+  it("converges the store onto the browser's present entry once traversals go quiet", async () => {
+    const stores = {
+      history: createHistoryStore([root], 0),
+      navigate: createNavigateStore()
+    };
+    // The browser sits on /p2 (a forward whose event was lost mid-storm); the
+    // store still shows the root. No popstate will ever arrive.
+    const dispose = createHistorySync({
+      stores,
+      driver: mockDriver("/p2", {
+        id: "p2",
+        index: 2,
+        status: "PUSHING",
+        params: {},
+        transitionName: "cupertino",
+        layoutId: null
+      }),
+      consume: () => false
+    });
+    activeDisposers.push(dispose);
+
+    // Wait past the quiet window; the sweeper opens the animated forward's gate.
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    const { histories, index } = stores.history.getState();
+    expect(histories[index]!.pathname).toBe("/p2");
+    expect(histories[index]!.id).toBe("p2");
+  }, 10000);
+
+  it("never converges over a nested Router's sub-path (same-id live frame)", async () => {
+    const shellEntry: History = { ...root, id: "shell", pathname: "/docs" };
+    const stores = {
+      history: createHistoryStore([shellEntry], 0),
+      navigate: createNavigateStore()
+    };
+    // The URL moved to /docs/slot but the frame under OUR key is still the
+    // shell's own entry — the sub-path belongs to a nested Router. A parent
+    // that converged over it would tear the nested Router down.
+    const dispose = createHistorySync({
+      stores,
+      driver: mockDriver("/docs/slot", {
+        id: "shell",
+        index: 0,
+        status: "PUSHING",
+        params: {},
+        transitionName: "cupertino",
+        layoutId: null
+      }),
+      consume: () => false
+    });
+    activeDisposers.push(dispose);
+
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    const { histories, index } = stores.history.getState();
+    expect(histories[index]!.pathname).toBe("/docs");
+    expect(histories).toHaveLength(1);
+  }, 10000);
+});
+
+// The per-scope sync lifetime policy: one live sync per scope; a persistent
+// scope's sync survives its binding's unmount (the zone keeps hearing
+// traversals while offscreen); a non-persistent (root) scope's does not.
+describe("ensureScopeHistorySync / releaseScopeHistorySync", () => {
+  const scopeWith = (persistent: boolean) => {
+    let subscribes = 0;
+    let disposals = 0;
+    const scope = {
+      history: createHistoryStore([root], 0),
+      navigate: createNavigateStore(),
+      driver: {
+        readState: () => null,
+        readPathname: () => "/",
+        pushState: () => {},
+        replaceState: () => {},
+        go: () => {},
+        back: () => {},
+        subscribe: () => {
+          subscribes += 1;
+          return () => {
+            disposals += 1;
+          };
+        }
+      },
+      consume: () => false,
+      persistent
+    };
+    return { scope, counts: () => ({ subscribes, disposals }) };
+  };
+
+  it("creates one sync per scope, however many times ensure runs", () => {
+    const { scope, counts } = scopeWith(false);
+    ensureScopeHistorySync(scope);
+    ensureScopeHistorySync(scope);
+    expect(counts().subscribes).toBe(1);
+    releaseScopeHistorySync(scope);
+  });
+
+  it("keeps a persistent scope's sync across release; disposes a plain one", () => {
+    const persistentScope = scopeWith(true);
+    ensureScopeHistorySync(persistentScope.scope);
+    releaseScopeHistorySync(persistentScope.scope);
+    expect(persistentScope.counts().disposals).toBe(0);
+
+    const plain = scopeWith(false);
+    ensureScopeHistorySync(plain.scope);
+    releaseScopeHistorySync(plain.scope);
+    expect(plain.counts().disposals).toBe(1);
   });
 });

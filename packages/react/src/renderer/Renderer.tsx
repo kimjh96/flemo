@@ -22,6 +22,12 @@ function Renderer({ children }: PropsWithChildren) {
       matchesPathname((routeChild as ReactElement<RouteProps>).props.path, selection.pathname)
     );
 
+    // An entry no declared Route matches cannot mount a screen. It should not
+    // exist (the sync fences traversals to the Router's route space), but a
+    // corrupted or foreign entry must degrade to "not rendered", never crash
+    // the whole stack on `child.props` of undefined.
+    if (!child) return null;
+
     return (
       <ScreenContext.Provider
         key={selection.id}
