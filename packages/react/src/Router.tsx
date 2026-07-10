@@ -198,6 +198,8 @@ function Router({
       memory: useMemory,
       browserDriver,
       hostedScope: hostedStores,
+      routerKey: isHosted ? undefined : routerKey,
+      zoneEntryId: isNested && !isHosted ? parentScreen.id || undefined : undefined,
       // A NESTED browser Router persists its scope across destroy/re-create,
       // keyed by its (entry-id-derived, re-entry-stable) router key: leaving
       // its zone with browser Back destroys the Router, but the zone's history

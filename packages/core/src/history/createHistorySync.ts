@@ -25,6 +25,16 @@ export interface HistorySyncDeps {
   // a keyed browser <Router> injects its OWN guard's `consume` so a sibling
   // Router's `go(-n)` isn't mis-attributed to this one.
   consume?: () => boolean;
+  // The key this Router's frames live under in `history.state`. When present,
+  // a freshly-attached sync replays the recorded traversals its zone missed
+  // while no sync existed for it (see the traversal recorder below).
+  routerKey?: string;
+  // The enclosing screen's history-entry id (a NESTED Router's zone identity).
+  // The missed-traversal replay only runs when the browser's LIVE entry still
+  // belongs to this zone — replaying a zone the walk has already left would
+  // enqueue its transitions behind the shell's later crossings, playing them
+  // out of order on a frozen screen.
+  zoneEntryId?: string;
 }
 
 // The flemo frame a back/forward event carries (stored by a prior push/replace).
@@ -59,6 +69,15 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
   // abort on arrival instead, and the queue drains.
   let disposed = false;
 
+  // Traversals of THIS sync currently queued or replaying. The convergence pass
+  // below must stay silent while this is non-zero: the global task queue can
+  // read as momentarily empty in the gap between one transition resolving and
+  // the next parking, and a convergence firing in that gap would jump the store
+  // to the browser's (far-ahead) live entry — every queued in-between event then
+  // arrives "already passed" and its screen never shows. That was the "middle
+  // transitions skipped on a rapid forward run" bug.
+  let inFlight = 0;
+
   // Queue one traversal for replay. Split from the popstate listener so the
   // convergence pass below can re-drive the browser's present entry through the
   // SAME classifier without touching the self-pop guard (a heal must never eat
@@ -70,6 +89,20 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
     const eventEpoch = stores.history.getState().truncationEpoch;
     const taskId = TaskManager.generateTaskId();
 
+    inFlight += 1;
+    try {
+      await runTraversalTask(event, frame, eventEpoch, taskId);
+    } finally {
+      inFlight -= 1;
+    }
+  };
+
+  const runTraversalTask = async (
+    event: HistoryNavEvent,
+    frame: PopStateFrame | null,
+    eventEpoch: number,
+    taskId: string
+  ) => {
     (
       await TaskManager.addTask(
         async (abortController) => {
@@ -110,8 +143,6 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
           // hold is found by id; only entries we've NEVER held fall back to a
           // browser-stamp direction test.
           if (!frame?.id) {
-            // No frame under our key: a foreign entry (another Router's
-            // territory, or pre-flemo). Not ours to handle.
             abortController.abort();
             return;
           }
@@ -119,8 +150,6 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
           const targetPosition = histories.findIndex((history) => history.id === frame.id);
 
           if (targetPosition === index) {
-            // The entry we're already showing — a child Router or a step
-            // navigation moving within it. Nothing to do at this level.
             abortController.abort();
             return;
           }
@@ -245,9 +274,16 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
       healTimer = null;
       if (disposed) return;
 
-      // Still settling: a transition is running or a traversal just arrived.
-      // Not a stall — another Router's replay may be working towards us.
-      if (TaskManager.pendingTaskIds.length > 0 || clock() - lastEventAt < HEAL_QUIET_MS) {
+      // Still settling: our own traversals are queued or replaying (inFlight —
+      // the global queue can read empty in the gap between one transition
+      // resolving and the next parking, so it alone is NOT enough), a
+      // transition is running, or a traversal just arrived. Not a stall —
+      // the replay may still be working towards the live entry.
+      if (
+        inFlight > 0 ||
+        TaskManager.pendingTaskIds.length > 0 ||
+        clock() - lastEventAt < HEAL_QUIET_MS
+      ) {
         healTimer = setTimeout(heal, HEAL_DEBOUNCE_MS);
         return;
       }
@@ -287,10 +323,34 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
     if (disposed) return;
     lastEventAt = clock();
     scheduleHeal();
+    recordTraversal(event.pathname);
     // A traversal flemo triggered itself. The navigation queue already owns it.
     if (consume()) return;
     return processTraversal(event);
   });
+
+  // Replay the traversals this Router MISSED. A zone Router created mid-walk (a
+  // rapid forward run crossing into its zone, or a fresh page whose zones are
+  // recreated as the walk reaches them) mounts AFTER some of its own zone's
+  // events already fired — nothing was subscribed under its key yet, so without
+  // this the middles those events carried would simply never show, and only a
+  // convergence jump would land the zone at the live entry. The module recorder
+  // below heard them all (any live sync records every traversal, raw); replay
+  // everything after this scope's seed entry through the normal classifier — in
+  // order, each with its full transition, exactly as if the Router had been
+  // alive when they fired.
+  if (deps.routerKey && deps.zoneEntryId && liveEntryBelongsToZone(driver, deps.zoneEntryId)) {
+    const seedPathname =
+      stores.history.getState().histories[stores.history.getState().index]?.pathname;
+    const tail = recordedTraversalsAfter(seedPathname);
+    for (const recorded of tail) {
+      void processTraversal({
+        state: (recorded.raw as Record<string, unknown> | null)?.[deps.routerKey] ?? null,
+        pathname: recorded.pathname
+      });
+    }
+  }
+
   // Also arm once at mount: a Router (re)mounting behind the address bar — a
   // host rebuilt it mid-storm — converges without needing another traversal.
   scheduleHeal();
@@ -300,6 +360,72 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
     if (healTimer) clearTimeout(healTimer);
     unsubscribe();
   };
+}
+
+// ── Traversal recorder ───────────────────────────────────────────────────────
+// The ordered stream of every back/forward traversal since the app booted, with
+// the RAW `history.state` (all Routers' keyed frames). Fed by every live sync's
+// popstate wrapper — a traversal is recorded once even though every sync's
+// wrapper fires for it (the microtask flag dedupes the synchronous fan-out).
+// This is what lets a Router created mid-walk replay the events of its own zone
+// that fired before it existed (see above). Session-lifetime; entries are tiny.
+interface RecordedTraversal {
+  raw: unknown;
+  pathname: string;
+}
+
+const recordedTraversals: RecordedTraversal[] = [];
+let traversalTickRecorded = false;
+
+const recordTraversal = (pathname: string) => {
+  if (traversalTickRecorded || typeof window === "undefined") return;
+  traversalTickRecorded = true;
+  queueMicrotask(() => {
+    traversalTickRecorded = false;
+  });
+  recordedTraversals.push({ raw: window.history.state, pathname });
+};
+
+// The recorded traversals AFTER the most recent occurrence of `pathname` — the
+// events a Router seeded on that entry has not seen. An unrecorded seed (a
+// fresh boot, a first visit) has no tail.
+const recordedTraversalsAfter = (pathname: string | undefined): RecordedTraversal[] => {
+  if (!pathname) return [];
+  for (let i = recordedTraversals.length - 1; i >= 0; i -= 1) {
+    if (recordedTraversals[i].pathname === pathname) {
+      return recordedTraversals.slice(i + 1);
+    }
+  }
+  return [];
+};
+
+// Whether the browser's CURRENT entry belongs to the zone identified by its
+// enclosing screen's entry id: some Router's frame on the live entry carries
+// that id (the shell's frame inside a zone is the zone's own shell entry, and
+// it is copied across the zone's sub-entries). Read from the raw state so no
+// specific key needs to be known.
+const liveEntryBelongsToZone = (driver: HistoryDriver, zoneEntryId: string): boolean => {
+  if (typeof window === "undefined") return false;
+  void driver;
+  const raw = window.history.state as Record<string, unknown> | null;
+  if (!raw) return false;
+  return Object.values(raw).some(
+    (value) => !!value && typeof value === "object" && (value as { id?: string }).id === zoneEntryId
+  );
+};
+
+// The most recent recorded frame for `routerKey` on the entry at `pathname` —
+// the identity a Router being created on that entry should seed with, so its
+// stack lines up with the frames already written to the browser's timeline
+// (reading the LIVE entry instead would adopt a position the walk has already
+// moved past, folding every event in between).
+export function readRecordedFrame(routerKey: string, pathname: string): unknown {
+  for (let i = recordedTraversals.length - 1; i >= 0; i -= 1) {
+    if (recordedTraversals[i].pathname === pathname) {
+      return (recordedTraversals[i].raw as Record<string, unknown> | null)?.[routerKey] ?? null;
+    }
+  }
+  return null;
 }
 
 // ── Scope-bound sync lifetime ───────────────────────────────────────────────
@@ -319,6 +445,8 @@ interface SyncScope {
   driver: HistoryDriver;
   consume: () => boolean;
   persistent?: boolean;
+  routerKey?: string;
+  zoneEntryId?: string;
 }
 
 const scopeSyncs = new WeakMap<SyncScope, () => void>();
@@ -327,7 +455,13 @@ export function ensureScopeHistorySync(scope: SyncScope): void {
   if (scopeSyncs.has(scope)) return;
   scopeSyncs.set(
     scope,
-    createHistorySync({ stores: scope, driver: scope.driver, consume: scope.consume })
+    createHistorySync({
+      stores: scope,
+      driver: scope.driver,
+      consume: scope.consume,
+      routerKey: scope.routerKey,
+      zoneEntryId: scope.zoneEntryId
+    })
   );
 }
 
