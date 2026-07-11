@@ -1,5 +1,19 @@
 # @flemo/core
 
+## 1.13.0
+
+### Minor Changes
+
+- [`8c084ba`](https://github.com/kimjh96/flemo/commit/8c084ba038f9e8f445844f9e108bcf15faa3c713) Retune the cupertino preset: 0.6s both ways (was 0.7s enter / 0.6s back), a deeper -35% parallax on the receding screen (was -30%, mirrored in the swipe-back handlers), and a lighter rgba(0,0,0,0.2) dim (was 0.3), with the overlay decorator kept in lockstep at 0.6s.
+
+- [`8c084ba`](https://github.com/kimjh96/flemo/commit/8c084ba038f9e8f445844f9e108bcf15faa3c713) Pre-rasterize the PUSH-entering screen during the anim-hold ("park-under"): a screen entering from fully off-screen has no rasterized tiles, and Chromium then rasterizes them as the slide reveals — on raster-heavy content that froze a presentation frame mid-motion (a visible "tick"). The entering screen now parks at its destination beneath the previous screen for the hold window (container-level stacking demotion, gated on that screen's verifiably opaque surface, with the paused hold as fallback) and then replays its animation over the already-rasterized layer. Also restores the decode-wait wiring in the React binding — the scope was accidentally dropped in a refactor, shipping the image decode-wait dormant.
+
+- [`8c084ba`](https://github.com/kimjh96/flemo/commit/8c084ba038f9e8f445844f9e108bcf15faa3c713) Drive transition motion with a single-timeline rAF player instead of compiled CSS animations. Chromium's compositor-driven animations (CSS keyframes and WAAPI alike) intermittently miss presentation deadlines on raster-heavy layers — invisible to every JS metric and unfixable from CSS — while main-thread-driven transforms stay smooth (screen-recorded, single-variable A/B). All participants of one navigation (entering and exiting screens, dim decorator, riding bars) now step off one shared clock, x/y values snap to device pixels while moving at least one device pixel per frame (crisp leading edge without the compositor's erratic snapping) and glide unsnapped below that speed (snapping sub-pixel motion quantizes it into the end-of-transition shivering), and the anim-hold/park/decode pipeline gates the start exactly as before. Variants the player cannot provably interpolate (mismatched value templates such as clip-path morphs) keep the compiled CSS animation path unchanged, and a device whose main thread chronically starves the player (measured by its own frame gaps) earns a persisted demotion back to the CSS path — the library observes and decides; there is no consumer API.
+
+### Patch Changes
+
+- [`8c084ba`](https://github.com/kimjh96/flemo/commit/8c084ba038f9e8f445844f9e108bcf15faa3c713) Compile x/y offsets to translate3d instead of translateX/translateY (keyframes, entering initial styles, and inline swipe animations alike). Chromium pixel-snaps a 2D-transform-animated layer when its content rasters heavily, repeating a frame roughly every six and catching up with a double-length jump — a visible stutter across the whole transition on gradient-heavy screens. The 3D form routes the layer through texture-filtered compositing, which glass-recorded A/B shows sliding monotonically to rest. WebKit behaves identically for both forms; curves, timings, and the API are unchanged.
+
 ## 1.12.1
 
 ### Patch Changes

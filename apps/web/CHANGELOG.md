@@ -1,5 +1,15 @@
 # @flemo/web
 
+## 0.7.11
+
+### Patch Changes
+
+- [`8c084ba`](https://github.com/kimjh96/flemo/commit/8c084ba038f9e8f445844f9e108bcf15faa3c713) Declare the playground panels' screen background as opaque (they are visually opaque via their gradient fill) so the pre-raster parks engage; no visual change.
+- Updated dependencies ([`8c084ba`](https://github.com/kimjh96/flemo/commit/8c084ba038f9e8f445844f9e108bcf15faa3c713), [`8c084ba`](https://github.com/kimjh96/flemo/commit/8c084ba038f9e8f445844f9e108bcf15faa3c713), [`8c084ba`](https://github.com/kimjh96/flemo/commit/8c084ba038f9e8f445844f9e108bcf15faa3c713), [`8c084ba`](https://github.com/kimjh96/flemo/commit/8c084ba038f9e8f445844f9e108bcf15faa3c713)):
+  - @flemo/core@1.13.0
+  - @flemo/react@1.6.2
+  - @flemo/react-layout@0.1.26
+
 ## 0.7.10
 
 ### Patch Changes

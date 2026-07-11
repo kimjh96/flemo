@@ -1,6 +1,0 @@
----
-"@flemo/core": minor
-"@flemo/react": patch
----
-
-Drive transition motion with a single-timeline rAF player instead of compiled CSS animations. Chromium's compositor-driven animations (CSS keyframes and WAAPI alike) intermittently miss presentation deadlines on raster-heavy layers — invisible to every JS metric and unfixable from CSS — while main-thread-driven transforms stay smooth (screen-recorded, single-variable A/B). All participants of one navigation (entering and exiting screens, dim decorator, riding bars) now step off one shared clock, x/y values snap to device pixels while moving at least one device pixel per frame (crisp leading edge without the compositor's erratic snapping) and glide unsnapped below that speed (snapping sub-pixel motion quantizes it into the end-of-transition shivering), and the anim-hold/park/decode pipeline gates the start exactly as before. Variants the player cannot provably interpolate (mismatched value templates such as clip-path morphs) keep the compiled CSS animation path unchanged, and a device whose main thread chronically starves the player (measured by its own frame gaps) earns a persisted demotion back to the CSS path — the library observes and decides; there is no consumer API.
