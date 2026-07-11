@@ -353,12 +353,20 @@ test.describe("motion perception", () => {
           })
         );
 
+      // The previous screen's <Part> must recover WITH the drag (progress-
+      // driven hooks), not sit frozen at its receded state.
+      const prevTitle = document.querySelector<HTMLElement>(
+        '[data-flemo-part-name="panel-title"][data-flemo-active="false"]'
+      );
+      const titleOpacities = new Set<string>();
+
       // Drag 40px (below the 50px trigger) and release: the screen settles
       // back to rest.
       pointer("pointerdown", 8);
       for (let x = 12; x <= 48; x += 6) {
         pointer("pointermove", x);
         await new Promise((resolve) => requestAnimationFrame(resolve));
+        if (prevTitle) titleOpacities.add(getComputedStyle(prevTitle).opacity);
       }
       pointer("pointerup", 48);
 
@@ -379,7 +387,12 @@ test.describe("motion perception", () => {
         };
         requestAnimationFrame(loop);
       });
-      return { transforms: transforms.size, cssTransitionFrames, scrubAnimationFrames };
+      return {
+        transforms: transforms.size,
+        cssTransitionFrames,
+        scrubAnimationFrames,
+        titleOpacities: titleOpacities.size
+      };
     });
 
     expect(result.transforms, "the settle must move across frames").toBeGreaterThan(4);
@@ -388,6 +401,7 @@ test.describe("motion perception", () => {
       result.scrubAnimationFrames,
       "the scrub animation must drive the settle"
     ).toBeGreaterThan(3);
+    expect(result.titleOpacities, "the part must recover with the drag").toBeGreaterThan(3);
   });
 
   // The compositor defect the player routes around is Blink-specific: on

@@ -316,9 +316,12 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         bar.style.removeProperty("will-change");
       }
       ridingBars = { current: [], prev: [] };
-      // Current-side part-transition elements unmount with the screen; clear the
-      // previous side's inline writes so they don't shadow the next rule.
-      for (const element of partEls.prev) clearInlineAnimation(element);
+      // Current-side part elements unmount with the screen. The previous
+      // side's inline values are the swipe hooks' LANDING state — the same
+      // values its post-commit rest rules resolve to — so they stay put
+      // (stripping here would flash the pre-swipe state for a frame); the
+      // engine's COMPLETED cleanup strips them once the rest rules own the
+      // element.
       partEls = { current: [], prev: [] };
       config.back();
     } else {

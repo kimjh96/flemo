@@ -286,13 +286,18 @@ describe("createSwipeController", () => {
       expect(btStart).toHaveBeenCalled();
     });
 
-    it("clears the previous side's inline writes when the swipe commits", async () => {
+    it("keeps the previous side's landing values at commit (COMPLETED strips them)", async () => {
       onSwipeEnd.mockImplementation(
         async (_e: unknown, _i: unknown, o: { onStart?: (t: boolean) => void }) => {
           o.onStart?.(true);
           return true;
         }
       );
+      // The hook's landing write: the same values the post-commit rest rules
+      // resolve to. Stripping it at commit would flash the pre-swipe state.
+      btEnd.mockImplementation((_t: boolean, o: { element: HTMLElement; active: boolean }) => {
+        if (!o.active) o.element.style.opacity = "1";
+      });
       const c = createSwipeController(config);
       c.pointerDown(event({ target: dom.scope }));
       c.pointerMove(event({ clientX: 40 }));
@@ -301,6 +306,7 @@ describe("createSwipeController", () => {
       await flush();
       expect(vi.mocked(back)).toHaveBeenCalledTimes(1);
       expect(btEnd).toHaveBeenCalled();
+      expect(prevBar.style.opacity).toBe("1");
     });
   });
 });
