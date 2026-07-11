@@ -7,6 +7,8 @@ import { transitionMap } from "@transition/transition";
 
 import createTransitionEngine from "@core/engine/createTransitionEngine";
 import { SKIP_ANIMATION_ATTR } from "@core/engine/types";
+import createPartTransition from "@transition/partTransition/createPartTransition";
+import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 const deps = () => ({
   getTransitionTaskId: vi.fn(() => null),
@@ -200,6 +202,115 @@ describe("createTransitionEngine branches", () => {
     scope.remove();
     decorator.remove();
     transitionMap.delete("branches-active-deco" as never);
+  });
+
+  it("this screen's <Part> elements join the player; nested screens' parts do not", () => {
+    const container = document.createElement("div");
+    const scope = document.createElement("div");
+    scope.setAttribute("data-flemo-screen", "true");
+    // A part on this screen (in a bar, outside the scope), mirroring the
+    // passive push variant.
+    const part = document.createElement("div");
+    part.setAttribute("data-flemo-part-name", "title-fade");
+    part.setAttribute("data-flemo-status", "PUSHING");
+    part.setAttribute("data-flemo-active", "false");
+    // A nested screen's part with identical attributes: owned by another
+    // engine, must be excluded.
+    const nestedScreen = document.createElement("div");
+    nestedScreen.setAttribute("data-flemo-screen", "true");
+    const nestedPart = document.createElement("div");
+    nestedPart.setAttribute("data-flemo-part-name", "title-fade");
+    nestedPart.setAttribute("data-flemo-status", "PUSHING");
+    nestedPart.setAttribute("data-flemo-active", "false");
+    nestedScreen.appendChild(nestedPart);
+    scope.appendChild(nestedScreen);
+    container.append(scope, part);
+    document.body.appendChild(container);
+
+    partTransitionMap.set(
+      "title-fade" as never,
+      createPartTransition({
+        name: "title-fade" as never,
+        initial: { opacity: 1 },
+        idle: { value: { opacity: 1 }, options: { duration: 0 } },
+        enter: { value: { opacity: 0 }, options: { duration: 0.3 } },
+        exit: { value: { opacity: 1 }, options: { duration: 0.3 } }
+      })
+    );
+    transitionMap.set(
+      "branches-parts" as never,
+      createTransition({
+        name: "branches-parts" as never,
+        initial: { x: "100%" },
+        idle: { value: { x: 0 }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 0.3 } },
+        enterBack: { value: { x: "100%" }, options: { duration: 0.3 } },
+        exit: { value: { x: "-35%" }, options: { duration: 0.3 } },
+        exitBack: { value: { x: 0 }, options: { duration: 0.3 } }
+      })
+    );
+
+    const d = {
+      getTransitionTaskId: vi.fn(() => "part-task"),
+      setDragStatus: vi.fn(),
+      setReplaceTransitionStatus: vi.fn()
+    };
+    const engine = createTransitionEngine(d);
+    const cleanup = engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "branches-parts" as never,
+      prevTransitionName: "branches-parts" as never,
+      status: "PUSHING",
+      isActive: false,
+      animHoldReleased: true
+    });
+
+    // The part joined (compiled animation suppressed, from-frame pinned);
+    // the nested screen's part did not.
+    expect(part.style.animation).toBe("none");
+    expect(part.style.opacity).toBe("1");
+    expect(nestedPart.style.animation).toBe("");
+
+    cleanup();
+    expect(part.style.animation).toBe("");
+
+    container.remove();
+    partTransitionMap.delete("title-fade" as never);
+    transitionMap.delete("branches-parts" as never);
+  });
+
+  it("COMPLETED strips this screen's part writes but not a nested screen's", () => {
+    const container = document.createElement("div");
+    const scope = document.createElement("div");
+    scope.setAttribute("data-flemo-screen", "true");
+    const part = document.createElement("div");
+    part.setAttribute("data-flemo-part-name", "title-fade");
+    part.style.opacity = "0.4";
+    const nestedScreen = document.createElement("div");
+    nestedScreen.setAttribute("data-flemo-screen", "true");
+    const nestedPart = document.createElement("div");
+    nestedPart.setAttribute("data-flemo-part-name", "title-fade");
+    nestedPart.style.opacity = "0.4";
+    nestedScreen.appendChild(nestedPart);
+    scope.appendChild(nestedScreen);
+    container.append(scope, part);
+    document.body.appendChild(container);
+
+    const d = deps();
+    const engine = createTransitionEngine(d);
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "COMPLETED",
+      isActive: false,
+      animHoldReleased: true
+    });
+
+    expect(part.style.opacity).toBe("");
+    expect(nestedPart.style.opacity).toBe("0.4"); // the nested engine's job
+
+    container.remove();
   });
 
   it("a passive transitional screen joins its riding bars and decorator to the player", () => {

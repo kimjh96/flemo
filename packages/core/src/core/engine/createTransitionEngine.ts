@@ -16,8 +16,35 @@ import {
   type TransitionEngineDeps
 } from "@core/engine/types";
 import { decoratorMap } from "@transition/decorator/decorator";
+import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 const noop = () => {};
+
+const PART_NAME_ATTR = "data-flemo-part-name";
+
+// This screen's <Part> elements. The container (the scope's parent) hosts
+// bar-mounted parts too; parts owned by a NESTED screen inside the container
+// belong to that screen's own engine and are excluded.
+const collectScreenParts = (scope: HTMLElement): HTMLElement[] => {
+  const container = scope.parentElement ?? scope;
+  return Array.from(container.querySelectorAll<HTMLElement>(`[${PART_NAME_ATTR}]`)).filter(
+    (part) => {
+      const owner = part.closest("[data-flemo-screen]");
+      return !owner || owner === scope || !container.contains(owner);
+    }
+  );
+};
+
+// The subset currently mirroring this join's variant (parts self-carry their
+// screen's status/active, which the compiled part selectors match on).
+const collectVariantParts = (scope: HTMLElement, variant: TransitionVariant): HTMLElement[] => {
+  const [status, active] = variant.split("-");
+  return collectScreenParts(scope).filter(
+    (part) =>
+      part.getAttribute("data-flemo-status") === status &&
+      part.getAttribute("data-flemo-active") === active
+  );
+};
 
 // Framework-neutral transition engine. Created once per router scope with a
 // minimal set of injected store callbacks; the binding (React, etc.) feeds it
@@ -110,6 +137,25 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         }
       }
 
+      // <Part> elements join too, each with its OWN registered motion, so the
+      // whole navigation — screen, dim, bars, and every part — steps off one
+      // clock. Parts mirror their screen's status/active onto themselves, so
+      // selecting by this join's variant scopes the query to THIS screen's
+      // parts (a nested screen's parts carry a different status). Parts that
+      // mount mid-transition miss the join and keep their compiled CSS
+      // animation — correct motion, just not clock-unified.
+      for (const part of collectVariantParts(scope, variant)) {
+        const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
+        const partMotion = definition ? resolveVariantMotion(definition, variant) : null;
+        if (!partMotion) continue;
+        const partDetach = transitionPlayers.join(taskId, {
+          element: part,
+          motion: partMotion,
+          role: "passive"
+        });
+        if (partDetach) detachers.push(partDetach);
+      }
+
       return () => detachers.forEach((detach) => detach());
     };
 
@@ -123,7 +169,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // baseline for the next transition).
       if (status === "COMPLETED") {
         const { scope, decorator, bars } = getElements();
-        if (scope) clearInlineAnimation(scope);
+        if (scope) {
+          clearInlineAnimation(scope);
+          for (const part of collectScreenParts(scope)) clearInlineAnimation(part);
+        }
         if (decorator) clearInlineAnimation(decorator);
         for (const bar of bars ?? []) {
           if (bar) clearInlineAnimation(bar);
@@ -159,6 +208,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (scope) {
         clearInlineAnimation(scope);
         scope.removeAttribute(SKIP_ANIMATION_ATTR);
+        for (const part of collectScreenParts(scope)) clearInlineAnimation(part);
       }
       if (decorator) {
         clearInlineAnimation(decorator);

@@ -84,6 +84,59 @@ describe("animateInline", () => {
     expect(el.style.backgroundColor).toBe("");
   });
 
+  it("a timed write settles through the scrubbed Web Animation when WAAPI exists", async () => {
+    const animation = {
+      currentTime: null as number | null,
+      paused: false,
+      canceled: false,
+      pause() {
+        this.paused = true;
+      },
+      cancel() {
+        this.canceled = true;
+      }
+    };
+    el.animate = vi.fn(() => animation as unknown as Animation);
+
+    const promise = animateInline(el, { x: 0, opacity: 1 }, { duration: 0.03, ease: "linear" });
+    expect(animation.paused).toBe(true);
+    expect(el.style.transition).toBe(""); // no CSS transition on the scrub path
+
+    await promise;
+    // Destination committed inline (same end-state contract as the CSS path)
+    // and the animation dropped, so clearInlineAnimation keeps working.
+    expect(el.style.transform).toBe("none");
+    expect(el.style.opacity).toBe("1");
+    expect(animation.canceled).toBe(true);
+    clearInlineAnimation(el);
+    expect(el.style.transform).toBe("");
+    expect(el.style.opacity).toBe("");
+  });
+
+  it("an instant write takes over a live settle (re-grab semantics)", () => {
+    const animation = {
+      currentTime: null as number | null,
+      paused: false,
+      canceled: false,
+      pause() {
+        this.paused = true;
+      },
+      cancel() {
+        this.canceled = true;
+      }
+    };
+    el.animate = vi.fn(() => animation as unknown as Animation);
+
+    void animateInline(el, { x: 0 }, { duration: 0.3 });
+    expect(animation.canceled).toBe(false);
+
+    // The finger comes back down: duration-0 follow writes must not be
+    // overridden by the lingering settle animation.
+    void animateInline(el, { x: 120 }, { duration: 0 });
+    expect(animation.canceled).toBe(true);
+    expect(el.style.transform).toContain("120");
+  });
+
   it("clearInlineAnimation falls back to transform + opacity for untracked elements", () => {
     // Element that animateInline never touched. Defensive fallback.
     el.style.transform = "translate3d(50px, 0, 0)";

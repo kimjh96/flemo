@@ -278,6 +278,107 @@ test.describe("motion perception", () => {
     expect(errors).toEqual([]);
   });
 
+  // INCIDENT: <Part> elements ran their compiled CSS animations on the
+  // compositor clock while their screen ran on the player — the mixed-clock
+  // class, per part. Parts must join the shared player.
+  test("a <Part> rides the player clock with its screen", async ({ page }) => {
+    await openPlaygroundWithCupertino(page);
+
+    const sample = page.evaluate(() => {
+      return new Promise<{ suppressedFrames: number; opacityValues: number }>((resolve) => {
+        const seen = new Set<string>();
+        let suppressedFrames = 0;
+        const start = performance.now();
+        const loop = () => {
+          for (const part of document.querySelectorAll<HTMLElement>(
+            '[data-flemo-part-name="panel-title"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
+          )) {
+            if (part.style.animation !== "") suppressedFrames += 1;
+            seen.add(getComputedStyle(part).opacity);
+          }
+          if (performance.now() - start < 900) requestAnimationFrame(loop);
+          else resolve({ suppressedFrames, opacityValues: seen.size });
+        };
+        requestAnimationFrame(loop);
+      });
+    });
+    await page.getByRole("button", { name: "Next" }).click();
+    const { suppressedFrames, opacityValues } = await sample;
+
+    expect(suppressedFrames, "the part's compiled animation must be suppressed").toBeGreaterThan(5);
+    expect(opacityValues, "the part must advance on the player clock").toBeGreaterThan(4);
+    await page.waitForTimeout(800);
+    expect(
+      await page.$$eval("[data-flemo-part-name]", (parts) =>
+        parts.map((part) => (part as HTMLElement).style.transform || "").filter((t) => t !== "")
+      ),
+      "no inline part writes may survive completion"
+    ).toEqual([]);
+  });
+
+  // INCIDENT: the release settle (the motion after a swipe lets go) ran as an
+  // inline CSS transition — compositor-clocked, the last flemo-driven motion
+  // outside the player. It must scrub on the settle clock.
+  test("a swipe release settles on the scrubbed clock, not a CSS transition", async ({ page }) => {
+    await openPlaygroundWithCupertino(page);
+    await page.getByRole("button", { name: "Next" }).click();
+    await page.waitForTimeout(900); // land on a non-root, swipeable screen
+
+    const result = await page.evaluate(async () => {
+      // The innermost (lab) screen: nested routers mean several active
+      // screens exist; the swipeable one carries the cupertino transition.
+      const scope = document.querySelector<HTMLElement>(
+        '[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-active="true"]'
+      )!;
+      const pointer = (type: string, x: number) =>
+        scope.dispatchEvent(
+          new PointerEvent(type, {
+            pointerId: 1,
+            pointerType: "touch",
+            isPrimary: true,
+            clientX: x,
+            clientY: 300,
+            bubbles: true
+          })
+        );
+
+      // Drag 40px (below the 50px trigger) and release: the screen settles
+      // back to rest.
+      pointer("pointerdown", 8);
+      for (let x = 12; x <= 48; x += 6) {
+        pointer("pointermove", x);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+      pointer("pointerup", 48);
+
+      // Sample the settle window.
+      const transforms = new Set<string>();
+      let cssTransitionFrames = 0;
+      let scrubAnimationFrames = 0;
+      const start = performance.now();
+      await new Promise<void>((resolve) => {
+        const loop = () => {
+          transforms.add(getComputedStyle(scope).transform);
+          if (scope.style.transition !== "" && scope.style.transition !== "none") {
+            cssTransitionFrames += 1;
+          }
+          if (scope.getAnimations().length > 0) scrubAnimationFrames += 1;
+          if (performance.now() - start < 400) requestAnimationFrame(loop);
+          else resolve();
+        };
+        requestAnimationFrame(loop);
+      });
+      return { transforms: transforms.size, cssTransitionFrames, scrubAnimationFrames };
+    });
+
+    expect(result.transforms, "the settle must move across frames").toBeGreaterThan(4);
+    expect(result.cssTransitionFrames, "no inline CSS transition may drive the settle").toBe(0);
+    expect(
+      result.scrubAnimationFrames,
+      "the scrub animation must drive the settle"
+    ).toBeGreaterThan(3);
+  });
+
   // INCIDENT: field diagnosis needed a REAL driver pin (the plain
   // flemo:motion-driver key is probation and self-heals on a clean probe, so
   // an A/B built on it silently kept measuring the player). The force key is

@@ -1,6 +1,6 @@
 "use client";
 
-import { Screen, useParams, useStep } from "@flemo/react";
+import { Part, Screen, useParams, useStep } from "@flemo/react";
 
 import LabCodePanel from "../../_components/LabCodePanel";
 import { gradientForHue, LAB_ITEMS } from "../../_data/labItems";
@@ -42,7 +42,9 @@ function LabPanelScreen() {
         >
           {n}
         </span>
-        <span className="mt-1 text-2xl font-bold">{item.title}</span>
+        <Part name="panel-title">
+          <span className="mt-1 block text-2xl font-bold">{item.title}</span>
+        </Part>
 
         {open ? null : (
           <button

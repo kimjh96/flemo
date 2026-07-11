@@ -14,6 +14,7 @@ import labFade from "../../_transitions/labFade";
 import labZoom from "../../_transitions/labZoom";
 import reveal from "../../_transitions/reveal";
 import ripple, { ripples } from "../../_transitions/ripple";
+import panelTitle from "../../_transitions/panelTitle";
 import spring from "../../_transitions/spring";
 import wipe from "../../_transitions/wipe";
 
@@ -39,6 +40,7 @@ function LabRouter({ initPath }: LabRouterProps) {
       initPath={initPath}
       createDriver={(key) => createLocaleHistoryDriver(key, getLocale)}
       transitions={[labFade, labZoom, blur, reveal, dive, ripple, cardStack, spring, wipe]}
+      partTransitions={[panelTitle]}
       decorators={[tunnel, ripples]}
       className="relative h-full w-full bg-[var(--color-bg)]"
     >
