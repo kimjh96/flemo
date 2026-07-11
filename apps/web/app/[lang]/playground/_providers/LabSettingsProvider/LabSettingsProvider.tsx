@@ -13,6 +13,7 @@ export type LabTransition =
   | "ripple"
   | "card-stack"
   | "spring"
+  | "wipe"
   | "fade"
   | "zoom"
   | "none";
