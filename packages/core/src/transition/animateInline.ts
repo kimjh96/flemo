@@ -33,6 +33,10 @@ export const trackInlineWrite = (el: HTMLElement, property: string) => {
 // after a swipe is cancelled, the CSS rest rule resumes). Pass an explicit
 // `properties` list to override.
 export const clearInlineAnimation = (el: HTMLElement, properties?: string[]) => {
+  // An in-flight settle would out-rank the rest rules this handoff enables
+  // (animations override inline and cascade styles) AND write its final
+  // values back after the strip — drop it first, writing nothing.
+  settleScrubber.cancel(el);
   el.style.transition = "";
   if (properties) {
     const tracked = inlineWrites.get(el);

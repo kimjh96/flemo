@@ -119,6 +119,30 @@ describe("animateInline", () => {
     expect(el.style.opacity).toBe("");
   });
 
+  it("clearInlineAnimation drops an in-flight settle without late writes", async () => {
+    const animation = {
+      currentTime: null as number | null,
+      paused: false,
+      canceled: false,
+      pause() {
+        this.paused = true;
+      },
+      cancel() {
+        this.canceled = true;
+      }
+    };
+    el.animate = vi.fn(() => animation as unknown as Animation);
+
+    const promise = animateInline(el, { opacity: 0 }, { duration: 0.3 });
+    // A cleanup (COMPLETED strip, unmount) hands the element to its rest
+    // rules: the settle must die with it — no fill outranking the rest rule,
+    // no final value written back after the strip.
+    clearInlineAnimation(el);
+    await promise;
+    expect(animation.canceled).toBe(true);
+    expect(el.style.opacity).toBe("");
+  });
+
   it("keeps the CSS transition settle where the policy disallows the player", () => {
     const animate = vi.fn();
     el.animate = animate;

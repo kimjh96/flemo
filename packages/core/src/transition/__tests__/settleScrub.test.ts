@@ -244,6 +244,33 @@ describe("settleScrub", () => {
     expect(second.canceled).toBe(false);
   });
 
+  it("cancel drops a settle without writing anything", async () => {
+    const { scheduler, pump, pendingCount } = createFakeScheduler();
+    const scrubber = createSettleScrubber(scheduler);
+    const el = element();
+    const animation = fakeAnimation();
+    withAnimate(el, animation);
+    const writes: CssDecl[] = [];
+
+    const promise = scrubber.settle(
+      el,
+      [{ property: "opacity", value: "0" }],
+      { durationMs: 300, delayMs: 0, easing: "linear" },
+      (decl) => writes.push(decl)
+    )!;
+    pump(0);
+    pump(100);
+
+    scrubber.cancel(el);
+    await promise; // resolves so a swipe handler's await never hangs
+    expect(writes).toEqual([]);
+    expect(animation.canceled).toBe(true);
+    expect(pendingCount()).toBe(0);
+
+    // No-op on non-settling elements.
+    expect(() => scrubber.cancel(element())).not.toThrow();
+  });
+
   it("returns null without WAAPI or when the keyframe is rejected", () => {
     const { scheduler } = createFakeScheduler();
     const scrubber = createSettleScrubber(scheduler);

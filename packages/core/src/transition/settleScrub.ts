@@ -72,6 +72,10 @@ export interface SettleScrubber {
   // an immediate write (a re-grab's duration-0 follow) is not overridden by a
   // lingering animation. No-op for elements that aren't settling.
   takeover: (element: HTMLElement) => void;
+  // Drop a settle WITHOUT writing anything: a cleanup is handing the element
+  // to its rest rules, and a late settle write would shadow them. No-op for
+  // elements that aren't settling.
+  cancel: (element: HTMLElement) => void;
 }
 
 export const createSettleScrubber = (
@@ -93,13 +97,15 @@ export const createSettleScrubber = (
   // "end" commits the DESTINATION values inline (the same end-state the CSS
   // transition path left behind, so every existing cleanup contract keeps
   // working); "current" pins the values WHERE THEY ARE (CSS transition
-  // overwrite semantics for a re-grab). Either way the animation is dropped.
-  const conclude = (element: HTMLElement, at: "end" | "current") => {
+  // overwrite semantics for a re-grab); "drop" writes NOTHING (a cleanup is
+  // handing the element to its rest rules and a late write would shadow
+  // them). Every way the animation is dropped and the promise resolves.
+  const conclude = (element: HTMLElement, at: "end" | "current" | "drop") => {
     const settle = active.get(element);
     if (!settle) return;
     active.delete(element);
     clearTimeout(settle.backstop);
-    if (element.isConnected) {
+    if (element.isConnected && at !== "drop") {
       if (at === "end") {
         for (const decl of settle.decls) settle.writeFinal(decl);
       } else {
@@ -173,7 +179,8 @@ export const createSettleScrubber = (
         if (frameHandle === null) frameHandle = scheduler.request(step);
       });
     },
-    takeover: (element) => conclude(element, "current")
+    takeover: (element) => conclude(element, "current"),
+    cancel: (element) => conclude(element, "drop")
   };
 };
 
