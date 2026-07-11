@@ -1,6 +1,6 @@
 {
   "name": "@flemo/core",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "description": "Framework-agnostic primitives for flemo: history, navigation, transitions, task manager.",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
