@@ -1,27 +1,15 @@
 import type { AnimationOptions, InitialTarget } from "@transition/cssTypes";
 import type { Transition, TransitionVariant, TransitionVariantValue } from "@transition/typing";
 
+import {
+  FROM_VARIANT,
+  TRANSITION_VARIANTS,
+  variantDelay,
+  variantDuration
+} from "@transition/variantMotion";
+
 import type { Decorator } from "@transition/decorator/typing";
 import type { PartTransition } from "@transition/partTransition/typing";
-
-// Where the screen physically sits before each variant's animation begins.
-// Resolved against the variant value table for the same transition, except
-// "initial" which reads `transition.initial`. "self" means the variant
-// already represents a rest state and no animation is generated.
-const FROM_VARIANT: Record<TransitionVariant, "initial" | TransitionVariant | "self"> = {
-  "IDLE-true": "self",
-  "IDLE-false": "self",
-  "PUSHING-true": "initial",
-  "PUSHING-false": "IDLE-true",
-  "REPLACING-true": "initial",
-  "REPLACING-false": "IDLE-true",
-  "POPPING-true": "IDLE-true",
-  "POPPING-false": "PUSHING-false",
-  "COMPLETED-true": "self",
-  "COMPLETED-false": "self"
-};
-
-const TRANSITION_VARIANTS = Object.keys(FROM_VARIANT) as TransitionVariant[];
 
 const DECORATOR_VARIANTS = TRANSITION_VARIANTS;
 
@@ -137,10 +125,18 @@ const isIdentityTransformValue = (prop: string, raw: unknown): boolean => {
 
 const transformPart = (prop: string, value: string): string => {
   switch (prop) {
+    // 3D translate functions on purpose, NOT translateX/translateY: Chromium
+    // pixel-snaps a 2D-transform-animated layer when its content rasters
+    // heavily (gradient surfaces), turning the slow deceleration tail into a
+    // visible hold-then-step stutter, and re-snapping ~1px at completion. The
+    // 3D form routes the layer through direct texture-filtered compositing,
+    // which slides sub-pixel smoothly — glass-recorded A/B on identical
+    // content: 2D shows repeated mid-motion stalls, 3D is monotonic to rest.
+    // WebKit behaves identically for both forms.
     case "x":
-      return `translateX(${value})`;
+      return `translate3d(${value}, 0, 0)`;
     case "y":
-      return `translateY(${value})`;
+      return `translate3d(0, ${value}, 0)`;
     case "z":
       return `translateZ(${value})`;
     case "scale":
@@ -168,20 +164,30 @@ const transformPart = (prop: string, value: string): string => {
 // properties a transition can write, so a ride-along shared bar tracks
 // arbitrary author-defined CSS, not just transform/opacity.
 export const collectAnimatedProperties = (transition: Transition): string[] => {
-  const props = new Set<string>();
-  let hasTransform = false;
+  // A property held CONSTANT across every target (same formatted value in
+  // `initial` and all variants — e.g. cupertino's leading-edge shadow) never
+  // interpolates, so it must not appear here: it would leak into `will-change`
+  // and the ride-along property lists for no reason.
+  const values = new Map<string, Set<string>>();
+  let transformVaries = false;
+  const transformSignatures = new Set<string>();
 
   const visit = (target: unknown) => {
     if (!isPlainObject(target)) return;
+    const signature: string[] = [];
     for (const key of Object.keys(target)) {
       const raw = (target as Record<string, unknown>)[key];
-      if (formatValue(key, raw) === "") continue;
+      const formatted = formatValue(key, raw);
+      if (formatted === "") continue;
       if (TRANSFORM_PROPS.has(key)) {
-        hasTransform = true;
+        signature.push(`${key}:${formatted}`);
       } else {
-        props.add(camelToKebab(key));
+        const set = values.get(camelToKebab(key)) ?? new Set<string>();
+        set.add(formatted);
+        values.set(camelToKebab(key), set);
       }
     }
+    transformSignatures.add(signature.sort().join("|"));
   };
 
   visit(transition.initial);
@@ -189,8 +195,15 @@ export const collectAnimatedProperties = (transition: Transition): string[] => {
     visit(variant.value);
   }
 
-  if (hasTransform) props.add("transform");
-  return Array.from(props);
+  // Distinct signatures across targets (including the empty one for targets
+  // with no transform) mean the transform actually interpolates somewhere.
+  transformVaries = transformSignatures.size > 1;
+
+  const props = Array.from(values.entries())
+    .filter(([, set]) => set.size > 1)
+    .map(([prop]) => prop);
+  if (transformVaries) props.push("transform");
+  return props;
 };
 
 export const targetToDecls = (
@@ -252,17 +265,6 @@ export const easingToCss = (ease: AnimationOptions["ease"] | undefined): string 
     return map[ease] ?? "ease";
   }
   return "ease";
-};
-
-const variantDuration = (options: AnimationOptions | undefined): number => {
-  if (!options) return 0;
-  const candidate = (options as { duration?: number }).duration;
-  return typeof candidate === "number" && candidate >= 0 ? candidate : 0;
-};
-
-const variantDelay = (options: TransitionVariantValue["options"] | undefined): number => {
-  if (!options) return 0;
-  return typeof options.delay === "number" && options.delay > 0 ? options.delay : 0;
 };
 
 const restAttrSelector = (transitionName: string, variant: TransitionVariant): string => {
@@ -382,8 +384,14 @@ const compileVariantBlock = (
   // moment the status flips to IDLE/COMPLETED. Keeps the animation off the
   // main-thread style/layout/paint path for sustained 60fps regardless of
   // which CSS properties the transition actually animates.
-  const animatedProperties = Array.from(
-    new Set([...fromDecls.map((d) => d.property), ...toDecls.map((d) => d.property)])
+  // Constant properties (identical formatted value on both ends — e.g.
+  // cupertino's leading-edge shadow) never interpolate and must not be
+  // promoted: will-change on a paint property like box-shadow only bloats
+  // the layer for nothing.
+  const fromByProp = new Map(fromDecls.map((d) => [d.property, d.value]));
+  const toByProp = new Map(toDecls.map((d) => [d.property, d.value]));
+  const animatedProperties = Array.from(new Set([...fromByProp.keys(), ...toByProp.keys()])).filter(
+    (property) => fromByProp.get(property) !== toByProp.get(property)
   );
   const willChangeDecl =
     animatedProperties.length > 0 ? `  will-change: ${animatedProperties.join(", ")};\n` : "";
@@ -434,7 +442,30 @@ const compileVariantBlock = (
         )}\n}`
       : "";
 
-  return `${keyframeBlock}\n${ruleBlock}${parkBlock}`;
+  // The push-side mirror of the park: an ACTIVE entering screen starts fully
+  // off-screen, so none of its tiles are rasterized during the hold, and the
+  // slide then rasterizes them as it reveals — on raster-heavy content
+  // (gradients) that stalls presentation frames mid-motion and near landing.
+  // Parking it at its DESTINATION but UNDER the previous screen (z-index
+  // below; the binding gates on that screen's opaque surface) rasterizes the
+  // whole layer while the user still sees the covering screen; rasterization
+  // lives in layer space, so the tiles stay valid when the release snaps the
+  // screen back to its hidden `from` and the animation replays over them.
+  // The stacking demotion itself lives on the OUTER screen container in the
+  // binding (siblings stack by DOM order; only the container can sink below
+  // the previous screen).
+  const parkUnderBlock =
+    scope === "screen" &&
+    variant.endsWith("-true") &&
+    (variant.startsWith("PUSHING") || variant.startsWith("REPLACING")) &&
+    targetHidesScreen(fromValue) &&
+    toDecls.length > 0
+      ? `\n${screenSelector}[data-flemo-anim-hold="park-under"] {\n  animation: none;\n${declsToBlock(
+          toDecls
+        )}\n}`
+      : "";
+
+  return `${keyframeBlock}\n${ruleBlock}${parkBlock}${parkUnderBlock}`;
 };
 
 // Whether a variant's `from` target leaves the screen invisible on its first
@@ -556,8 +587,10 @@ export const compileTransitionStyles = (
 const ANIM_HOLD_RULE = [
   `[data-flemo-anim-hold="true"],`,
   `[data-flemo-anim-hold="park"],`,
+  `[data-flemo-anim-hold="park-under"],`,
   `[data-flemo-anim-hold="true"] [data-flemo-part-name],`,
-  `[data-flemo-anim-hold="park"] [data-flemo-part-name] {`,
+  `[data-flemo-anim-hold="park"] [data-flemo-part-name],`,
+  `[data-flemo-anim-hold="park-under"] [data-flemo-part-name] {`,
   `  animation-play-state: paused !important;`,
   `}`
 ].join("\n");

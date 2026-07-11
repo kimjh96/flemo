@@ -23,10 +23,14 @@ export default function enteringInitialStyle(input: EnteringInitialStyleInput): 
   if (!isActive) return {};
   if (status !== "PUSHING" && status !== "REPLACING") return {};
   const initialDecls: { transform?: string; opacity?: string } = {};
-  if (typeof initial.x === "number") initialDecls.transform = `translateX(${initial.x}px)`;
-  if (typeof initial.x === "string") initialDecls.transform = `translateX(${initial.x})`;
-  if (typeof initial.y === "number") initialDecls.transform = `translateY(${initial.y}px)`;
-  if (typeof initial.y === "string") initialDecls.transform = `translateY(${initial.y})`;
+  // 3D forms to match the compiled keyframes (see transformPart in
+  // compileTransitionStyles): a 2D-transformed layer pixel-snaps under
+  // Chromium, and the initial frame must sit on the same compositing path the
+  // animation will run on.
+  if (typeof initial.x === "number") initialDecls.transform = `translate3d(${initial.x}px, 0, 0)`;
+  if (typeof initial.x === "string") initialDecls.transform = `translate3d(${initial.x}, 0, 0)`;
+  if (typeof initial.y === "number") initialDecls.transform = `translate3d(0, ${initial.y}px, 0)`;
+  if (typeof initial.y === "string") initialDecls.transform = `translate3d(0, ${initial.y}, 0)`;
   if (typeof initial.opacity === "number") initialDecls.opacity = `${initial.opacity}`;
   return initialDecls;
 }

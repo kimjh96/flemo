@@ -26,7 +26,7 @@ const cupertino = createTransition({
       x: 0
     },
     options: {
-      duration: 0.7,
+      duration: 0.6,
       ease: [0.32, 0.72, 0, 1]
     }
   },
@@ -41,10 +41,10 @@ const cupertino = createTransition({
   },
   exit: {
     value: {
-      x: "-30%"
+      x: "-35%"
     },
     options: {
-      duration: 0.7,
+      duration: 0.6,
       ease: [0.32, 0.72, 0, 1]
     }
   },
@@ -82,7 +82,7 @@ const cupertino = createTransition({
       animate(
         prevScreen,
         {
-          x: `${-30 + progress * 0.3}%`
+          x: `${-35 + progress * 0.35}%`
         },
         {
           duration: 0
@@ -112,7 +112,7 @@ const cupertino = createTransition({
         animate(
           prevScreen,
           {
-            x: isTriggered ? 0 : "-30%"
+            x: isTriggered ? 0 : "-35%"
           },
           {
             duration: 0.3,

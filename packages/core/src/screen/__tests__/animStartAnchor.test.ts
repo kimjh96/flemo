@@ -60,6 +60,21 @@ describe("scheduleAnimHoldRelease", () => {
     expect(release).toHaveBeenCalledTimes(1);
   });
 
+  it("holds the requested extra vsyncs (parked screen) before releasing", () => {
+    const release = vi.fn();
+    scheduleAnimHoldRelease(release, { extraFrames: 2 });
+
+    flushFrame(); // first frame (pre-paint)
+    flushFrame(); // second frame → enters the extra-frame chain
+    expect(release).not.toHaveBeenCalled();
+
+    flushFrame(); // extra frame 1
+    expect(release).not.toHaveBeenCalled();
+
+    flushFrame(); // extra frame 2 → release
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
   it("falls back to a timeout when frames never come (backgrounded tab)", () => {
     const release = vi.fn();
     scheduleAnimHoldRelease(release);

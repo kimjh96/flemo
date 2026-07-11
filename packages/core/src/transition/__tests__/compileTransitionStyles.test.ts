@@ -39,7 +39,7 @@ describe("compileTransitionStyles", () => {
     const css = compileTransitionStyles([cupertino], []);
 
     expect(css).toContain(`@keyframes ${animationName("screen", "cupertino", "PUSHING-true")}`);
-    expect(css).toContain("transform: translateX(100%)");
+    expect(css).toContain("transform: translate3d(100%, 0, 0)");
     // Identity target collapses to `transform: none` so the resting scope
     // doesn't create a containing block / stacking context.
     expect(css).toContain("transform: none");
@@ -47,7 +47,7 @@ describe("compileTransitionStyles", () => {
       '[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
     );
     expect(css).toContain("cubic-bezier(0.32, 0.72, 0, 1)");
-    expect(css).toContain("0.7s");
+    expect(css).toContain("0.6s");
   });
 
   it("uses the previous-exit position as the from-state for POPPING-false", () => {
@@ -63,7 +63,7 @@ describe("compileTransitionStyles", () => {
 
     expect(popInactive).toBeDefined();
     // returning screen comes from the exit position (x: -30%) back to identity
-    expect(popInactive).toContain("transform: translateX(-30%)");
+    expect(popInactive).toContain("transform: translate3d(-35%, 0, 0)");
     expect(popInactive).toContain("transform: none");
   });
 
@@ -82,7 +82,7 @@ describe("compileTransitionStyles", () => {
     // outgoing screen lifts to -56px while fading from opaque to transparent
     expect(pushInactive).toContain("opacity: 1");
     expect(pushInactive).toContain("opacity: 0");
-    expect(pushInactive).toContain("transform: translateY(-56px)");
+    expect(pushInactive).toContain("transform: translate3d(0, -56px, 0)");
   });
 
   it("emits `transform: none` (not an identity matrix) in rest rules so the scope creates no stacking context", () => {
@@ -142,7 +142,7 @@ describe("compileTransitionStyles", () => {
   it("animates translateY for material", () => {
     const css = compileTransitionStyles([material], []);
 
-    expect(css).toContain("transform: translateY(100%)");
+    expect(css).toContain("transform: translate3d(0, 100%, 0)");
     // material's enter/exitBack/idle targets are y: 0 (identity) → collapses
     // to `transform: none` so the resting scope stays free of stacking-context.
     expect(css).toContain("transform: none");
@@ -164,7 +164,7 @@ describe("compileTransitionStyles", () => {
   it("emits camelCase CSS props as kebab-case", () => {
     const css = compileTransitionStyles([], [overlay]);
 
-    expect(css).toContain("background-color: rgba(0, 0, 0, 0.3)");
+    expect(css).toContain("background-color: rgba(0, 0, 0, 0.2)");
     expect(css).not.toContain("backgroundColor");
   });
 
@@ -244,7 +244,7 @@ describe("compileTransitionStyles", () => {
     expect(keyframe).not.toContain("--brand: 0px");
     expect(keyframe).not.toContain("--brand: 1px");
     // Transform shortcuts collapse into a single `transform` decl on `to`.
-    expect(keyframe).toContain("transform: translateX(-10px) scale(0.98) rotate(2deg)");
+    expect(keyframe).toContain("transform: translate3d(-10px, 0, 0) scale(0.98) rotate(2deg)");
 
     // will-change lists exactly the properties the decorator writes. The
     // compiler emits the keyframe block + the selector rule joined by a single
@@ -891,11 +891,32 @@ describe("compileTransitionStyles bar transitions", () => {
       );
     });
 
+    it("emits a park-under rule for the active entering side of a hidden-from push", () => {
+      const css = compileTransitionStyles([shove], []);
+      const selector =
+        `[data-flemo-screen][data-flemo-transition="custom-slide-fade"]` +
+        `[data-flemo-status="PUSHING"][data-flemo-active="true"][data-flemo-anim-hold="park-under"]`;
+      const index = css.indexOf(selector);
+      expect(index).toBeGreaterThan(-1);
+      const block = css.slice(index, css.indexOf("}", index));
+      expect(block).toContain("animation: none");
+      // Destination = the enter target (x: 0).
+      expect(block).toContain("transform: none");
+    });
+
+    it("never emits park-under for a pop variant (the leaving screen is visible)", () => {
+      const css = compileTransitionStyles([shove], []);
+      expect(css).not.toContain(
+        `[data-flemo-status="POPPING"][data-flemo-active="true"][data-flemo-anim-hold="park-under"]`
+      );
+    });
+
     it("pauses the park attribute too in the global hold rule (safe fallback)", () => {
       const css = compileTransitionStyles([cupertino], []);
       const holdIndex = css.indexOf('[data-flemo-anim-hold="park"],');
       expect(holdIndex).toBeGreaterThan(-1);
       expect(css).toContain('[data-flemo-anim-hold="park"] [data-flemo-part-name]');
+      expect(css).toContain('[data-flemo-anim-hold="park-under"] [data-flemo-part-name]');
     });
   });
 

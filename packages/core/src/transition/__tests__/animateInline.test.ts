@@ -20,7 +20,7 @@ describe("animateInline", () => {
 
   it("resolves immediately with duration 0 + no inline transition", async () => {
     await animateInline(el, { x: 100, opacity: 0.5 }, { duration: 0 });
-    expect(el.style.transform).toContain("translateX(100px)");
+    expect(el.style.transform).toContain("translate3d(100px, 0, 0)");
     expect(el.style.opacity).toBe("0.5");
     expect(el.style.transition).toBe("none");
   });
@@ -32,7 +32,7 @@ describe("animateInline", () => {
     // target value applied.
     await Promise.resolve();
     expect(el.style.transition).toContain("transform 0.3s");
-    expect(el.style.transform).toContain("translateX(200px)");
+    expect(el.style.transform).toContain("translate3d(200px, 0, 0)");
 
     // Dispatch transitionend manually to settle the promise.
     el.dispatchEvent(new Event("transitionend", { bubbles: true }));
@@ -59,7 +59,7 @@ describe("animateInline", () => {
     // Only the properties it actually touched come off.
     el.style.color = "rgb(255, 0, 0)";
     await animateInline(el, { x: 50, opacity: 0.5 }, { duration: 0 });
-    expect(el.style.transform).toContain("translateX(50px)");
+    expect(el.style.transform).toContain("translate3d(50px, 0, 0)");
     expect(el.style.opacity).toBe("0.5");
 
     clearInlineAnimation(el);
@@ -86,7 +86,7 @@ describe("animateInline", () => {
 
   it("clearInlineAnimation falls back to transform + opacity for untracked elements", () => {
     // Element that animateInline never touched. Defensive fallback.
-    el.style.transform = "translateX(50px)";
+    el.style.transform = "translate3d(50px, 0, 0)";
     el.style.opacity = "0.5";
     el.style.transition = "transform 0.3s ease";
     clearInlineAnimation(el);
@@ -96,7 +96,7 @@ describe("animateInline", () => {
   });
 
   it("clearInlineAnimation with an explicit property list strips only those", () => {
-    el.style.transform = "translateX(50px)";
+    el.style.transform = "translate3d(50px, 0, 0)";
     el.style.opacity = "0.5";
     clearInlineAnimation(el, ["transform"]);
     expect(el.style.transform).toBe("");

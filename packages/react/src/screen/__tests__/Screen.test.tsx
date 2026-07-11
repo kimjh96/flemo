@@ -321,12 +321,45 @@ describe("Screen", () => {
     expect(scope.getAttribute("data-flemo-anim-hold")).toBe("true");
   });
 
-  it("never parks the active (covering) screen", () => {
+  it("parks the active entering screen UNDER an opaque previous screen (push pre-raster)", () => {
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
     stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
     stores.screen.setState({
       screenSurfaces: { below: { opaqueBackground: true } }
     });
+
+    const { container } = render(
+      <Screen>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true, id: "top", zIndex: 1 }) }
+    );
+
+    const scope = container.querySelector("[data-flemo-screen]")!;
+    expect(scope.getAttribute("data-flemo-anim-hold")).toBe("park-under");
+  });
+
+  it("never park-unders the leaving top on POP (it would expose the returning screen)", () => {
+    stores.navigate.setState({ status: "POPPING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+    stores.screen.setState({
+      screenSurfaces: { below: { opaqueBackground: true } }
+    });
+
+    const { container } = render(
+      <Screen>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true, id: "top", zIndex: 1 }) }
+    );
+
+    const scope = container.querySelector("[data-flemo-screen]")!;
+    expect(scope.getAttribute("data-flemo-anim-hold")).toBe("true");
+  });
+
+  it("keeps the paused hold for the active screen when the previous surface is unknown", () => {
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
 
     const { container } = render(
       <Screen>

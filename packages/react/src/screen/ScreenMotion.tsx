@@ -222,27 +222,6 @@ function ScreenMotion({
     };
   }, [swipeController]);
 
-  // Drive the navigation-task lifecycle through the framework-neutral engine.
-  // It resolves the active screen's task on its animationend (or a microtask
-  // for no-animation variants) and runs the COMPLETED cleanup on the scope,
-  // decorator, and shared bars. `useLayoutEffect` so the listener attaches and
-  // the cleanup runs pre-paint, before the first animation frame.
-  useLayoutEffect(
-    () =>
-      engine.driveScreenLifecycle({
-        getElements: () => ({
-          scope: scopeRef.current,
-          decorator: decoratorRef.current,
-          bars: [sharedTopBarRef.current, sharedBottomBarRef.current]
-        }),
-        transitionName,
-        prevTransitionName,
-        status,
-        isActive
-      }),
-    [engine, status, isActive, prevTransitionName, transitionName]
-  );
-
   // Bar-height tracking (incl. the ignore-0-while-frozen WebKit gotcha) lives
   // in @flemo/core's observeBarHeight; this binding only stores the height.
   useLayoutEffect(() => {
@@ -354,28 +333,78 @@ function ScreenMotion({
   }
   const animHold = holdKey !== null && animRelease.key === holdKey && !animRelease.released;
 
-  // Three-state hold attribute. "park" upgrades the hold for a COVERED screen
-  // (inactive side of the transition) whose cover is verifiably opaque: the
-  // compiled park rules then pre-position it at its destination so its tiles
-  // rasterize during the hold. Everything else holds paused ("true"); variants
-  // without a park rule fall back to paused under "park" too, so this can
-  // never flash. The active screen is never parked — it is the cover.
+  // Four-state hold attribute. "park" pre-positions a COVERED entering screen
+  // (pop) at its destination so its tiles rasterize during the hold;
+  // "park-under" is the push-side mirror — the ACTIVE ENTERING screen (push/
+  // replace only: on pop the active screen is the LEAVING top, and sinking it
+  // would expose the returning screen — a back-navigation flash) parks at its
+  // destination but z-ordered BENEATH the previous screen, which covers it
+  // for the hold window (gated on that screen's verifiably opaque surface).
+  // Everything else holds paused ("true"); variants without a matching park
+  // rule fall back to paused under either park value, so this can never
+  // flash.
   const holdAttr = !animHold
     ? "false"
     : !isActive && partnerSurface?.opaqueBackground
       ? "park"
-      : "true";
+      : isActive &&
+          (status === "PUSHING" || status === "REPLACING") &&
+          partnerSurface?.opaqueBackground
+        ? "park-under"
+        : "true";
+
+  // Drive the navigation-task lifecycle through the framework-neutral engine.
+  // It resolves the active screen's task on its animationend (or a microtask
+  // for no-animation variants) and runs the COMPLETED cleanup on the scope,
+  // decorator, and shared bars. `useLayoutEffect` so the listener attaches and
+  // the cleanup runs pre-paint, before the first animation frame.
+  useLayoutEffect(
+    () =>
+      engine.driveScreenLifecycle({
+        getElements: () => ({
+          scope: scopeRef.current,
+          decorator: decoratorRef.current,
+          bars: [sharedTopBarRef.current, sharedBottomBarRef.current]
+        }),
+        transitionName,
+        prevTransitionName,
+        status,
+        isActive,
+        // The rAF player starts exactly at hold release; the compiled
+        // hold/park rules own every frame before it. Included in the deps so
+        // the release re-runs this effect and hands the motion to the player.
+        animHoldReleased: !animHold
+      }),
+    [engine, status, isActive, prevTransitionName, transitionName, animHold]
+  );
 
   useEffect(() => {
     if (!animHold) return undefined;
-    return scheduleAnimHoldRelease(() =>
-      setAnimRelease((current) =>
-        current.key === holdKey && !current.released ? { key: holdKey, released: true } : current
-      )
+    return scheduleAnimHoldRelease(
+      () =>
+        setAnimRelease((current) =>
+          current.key === holdKey && !current.released ? { key: holdKey, released: true } : current
+        ),
+      {
+        // Decode-wait: a frozen screen's discarded image bitmaps re-decode
+        // during the hold instead of dropping the first animated frames.
+        // (This wiring was accidentally dropped in a refactor and shipped
+        // dormant — the core option existed but never received the scope.)
+        scope: scopeRef.current
+      }
     );
-  }, [animHold, holdKey]);
+  }, [animHold, holdKey, holdAttr]);
 
-  const initialStyle = enteringInitialStyle({ initial, isActive, status });
+  const initialStyle =
+    holdAttr === "park-under"
+      ? // The compiled park-under rule holds this screen at its DESTINATION
+        // beneath the previous screen so its tiles pre-rasterize; the inline
+        // entering style (the hidden `from`) would override that stylesheet
+        // rule and defeat the park. On release the attribute drops, this
+        // inline style returns in the same commit, and the animation replays
+        // from its own `from` keyframe over the already-rasterized layer.
+        {}
+      : enteringInitialStyle({ initial, isActive, status });
 
   return (
     <div
@@ -387,6 +416,13 @@ function ScreenMotion({
         width: "100%",
         height: "100%",
         display: "flex",
+        // Sibling screens stack by DOM order (no z-index) — the newest screen
+        // naturally paints on top. During park-under the ENTERING screen must
+        // sink BENEATH the previous screen while its destination tiles
+        // pre-rasterize, and that stacking decision lives HERE on the outer
+        // container: a z-index on the inner scope only reorders within this
+        // box and leaks the park (a full-screen flash of the next screen).
+        zIndex: holdAttr === "park-under" ? -1 : undefined,
         // `contain: layout style` keeps layout/style scoped without `paint`,
         // which would make this element the containing block for `position:
         // fixed` descendants and trap consumer overlays (e.g. bottom sheets)
