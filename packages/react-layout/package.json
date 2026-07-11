@@ -1,6 +1,6 @@
 {
   "name": "@flemo/react-layout",
-  "version": "0.1.29",
+  "version": "0.1.30",
   "description": "layoutId / shared-element morphs for flemo. Wraps a Screen with motion's AnimatePresence + MotionConfig so children with matching layoutId animate between screens.",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
