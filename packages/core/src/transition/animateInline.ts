@@ -4,6 +4,8 @@ import settleScrubber from "@transition/settleScrub";
 
 import type { SwipeAnimate } from "@transition/typing";
 
+import driverPolicy from "@core/engine/driverPolicy";
+
 const isHTMLElement = (target: unknown): target is HTMLElement =>
   typeof HTMLElement !== "undefined" && target instanceof HTMLElement;
 
@@ -85,15 +87,21 @@ const animateInline: SwipeAnimate = (target, value, options = {}) => {
     return Promise.resolve();
   }
 
-  const scrubbed = settleScrubber.settle(
-    el,
-    decls,
-    { durationMs: duration * 1000, delayMs: delay * 1000, easing },
-    (decl) => {
-      el.style.setProperty(decl.property, decl.value);
-      trackInlineWrite(el, decl.property);
-    }
-  );
+  // The settle rides the scrub clock only where the player itself is the
+  // driver of choice (Blink by default, and never on a demoted device): on
+  // engines whose compositor is healthy, the CSS transition below IS the
+  // right settle.
+  const scrubbed = driverPolicy.playerAllowed()
+    ? settleScrubber.settle(
+        el,
+        decls,
+        { durationMs: duration * 1000, delayMs: delay * 1000, easing },
+        (decl) => {
+          el.style.setProperty(decl.property, decl.value);
+          trackInlineWrite(el, decl.property);
+        }
+      )
+    : null;
   if (scrubbed) return scrubbed;
 
   // No WAAPI: the CSS transition path, exactly as before.

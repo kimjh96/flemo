@@ -9,6 +9,15 @@
 // persisted demotion to the compiled-CSS animation path, which is preserved
 // intact as the fallback driver. No consumer API: the library observes and
 // decides.
+//
+// The default is ENGINE-SCOPED. The compositor defect the player routes
+// around was measured on Blink specifically; WebKit's compositor never showed
+// it (its historical failure — content-update stalls — is solved in the
+// hold/park/decode pipeline), while WebKit's mobile main threads are exactly
+// where a main-thread player starves, eye-confirmed janky on Safari and worse
+// on iOS. So the player is the default only where its evidence lives; on
+// every other engine the compiled compositor paths stay in charge, with the
+// measured policy and the force key still supreme on both sides.
 
 export interface DriverPolicyStorage {
   read: () => string | null;
@@ -94,8 +103,16 @@ export interface DriverPolicy {
   stats: () => { runGaps: number[]; strikes: number; demoted: boolean };
 }
 
+// Engine probe, not a brand sniff: navigator.userAgentData ships with Blink
+// and nothing else — including iOS Chrome, which is WebKit underneath and
+// correctly reads as non-Blink here. Blink builds too old to have it predate
+// the measured defect profile and are better served by the compositor anyway.
+export const detectBlinkEngine = (): boolean =>
+  typeof navigator !== "undefined" && !!(navigator as { userAgentData?: unknown }).userAgentData;
+
 export const createDriverPolicy = (
-  storage: DriverPolicyStorage = defaultStorage()
+  storage: DriverPolicyStorage = defaultStorage(),
+  playerByDefault: boolean = detectBlinkEngine()
 ): DriverPolicy => {
   // A persisted demotion is PROBATION, not a life sentence: each new session
   // the player gets one probe transition. A clean probe clears the record —
@@ -114,7 +131,7 @@ export const createDriverPolicy = (
     playerAllowed: () => {
       const forced = readForcedDriver();
       if (forced) return forced === "raf";
-      return !demoted;
+      return playerByDefault && !demoted;
     },
     beginRun: () => {
       runLongGaps = 0;

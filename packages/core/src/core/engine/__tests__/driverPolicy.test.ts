@@ -29,7 +29,7 @@ const cleanRun = (policy: ReturnType<typeof createDriverPolicy>) => {
 describe("driverPolicy", () => {
   it("allows the player by default and after clean runs", () => {
     const { storage } = memoryStorage();
-    const policy = createDriverPolicy(storage);
+    const policy = createDriverPolicy(storage, true);
     expect(policy.playerAllowed()).toBe(true);
     cleanRun(policy);
     cleanRun(policy);
@@ -38,7 +38,7 @@ describe("driverPolicy", () => {
 
   it("demotes after two stalled transitions and persists the decision", () => {
     const { storage, value } = memoryStorage();
-    const policy = createDriverPolicy(storage);
+    const policy = createDriverPolicy(storage, true);
     stalledRun(policy);
     expect(policy.playerAllowed()).toBe(true); // one strike = cold-start grace
     stalledRun(policy);
@@ -48,7 +48,7 @@ describe("driverPolicy", () => {
 
   it("a persisted demotion becomes probation: one clean probe promotes back", () => {
     const { storage, value } = memoryStorage("css");
-    const policy = createDriverPolicy(storage);
+    const policy = createDriverPolicy(storage, true);
     // Probation: the player gets one probe transition.
     expect(policy.playerAllowed()).toBe(true);
     cleanRun(policy);
@@ -58,7 +58,7 @@ describe("driverPolicy", () => {
 
   it("a stalling probe re-confirms the demotion for the session", () => {
     const { storage } = memoryStorage("css");
-    const policy = createDriverPolicy(storage);
+    const policy = createDriverPolicy(storage, true);
     expect(policy.playerAllowed()).toBe(true);
     stalledRun(policy);
     expect(policy.playerAllowed()).toBe(false);
@@ -66,7 +66,7 @@ describe("driverPolicy", () => {
 
   it("a few merely-late frames (sub-30ms) never count as a stall", () => {
     const { storage } = memoryStorage();
-    const policy = createDriverPolicy(storage);
+    const policy = createDriverPolicy(storage, true);
     for (let i = 0; i < 5; i++) {
       policy.beginRun();
       policy.reportGap(18.5);
@@ -79,7 +79,7 @@ describe("driverPolicy", () => {
 
   it("exposes the current run's diagnostics through stats()", () => {
     const { storage } = memoryStorage();
-    const policy = createDriverPolicy(storage);
+    const policy = createDriverPolicy(storage, true);
     policy.beginRun();
     policy.reportGap(65);
     policy.reportGap(49);
@@ -88,10 +88,37 @@ describe("driverPolicy", () => {
   });
 });
 
+describe("driverPolicy engine default", () => {
+  it("keeps the player off where the Blink evidence does not apply", () => {
+    const { storage } = memoryStorage();
+    // jsdom has no navigator.userAgentData -> detectBlinkEngine() is false,
+    // the same read a WebKit browser produces.
+    const policy = createDriverPolicy(storage);
+    expect(policy.playerAllowed()).toBe(false);
+  });
+
+  it("the force key overrides the engine default in both directions, warning once", () => {
+    const { storage } = memoryStorage();
+    const nonBlink = createDriverPolicy(storage, false);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    localStorage.setItem("flemo:motion-driver-force", "raf");
+    expect(nonBlink.playerAllowed()).toBe(true);
+    // An active pin is never silent (a forgotten key reads as a mysterious
+    // perf regression) — but it warns once per session, not per transition.
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain("flemo:motion-driver-force");
+    expect(nonBlink.playerAllowed()).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    localStorage.removeItem("flemo:motion-driver-force");
+    expect(nonBlink.playerAllowed()).toBe(false);
+    warn.mockRestore();
+  });
+});
+
 describe("driverPolicy default storage", () => {
   it("round-trips through localStorage and tolerates absence", () => {
     localStorage.removeItem("flemo:motion-driver");
-    const policy = createDriverPolicy();
+    const policy = createDriverPolicy(undefined, true);
     expect(policy.playerAllowed()).toBe(true);
     stalledRun(policy);
     stalledRun(policy);
@@ -102,31 +129,24 @@ describe("driverPolicy default storage", () => {
 
   it("the force key pins the driver, bypassing strikes and probation, and warns", () => {
     const { storage } = memoryStorage("css"); // persisted demotion...
-    const policy = createDriverPolicy(storage);
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const policy = createDriverPolicy(storage, true);
 
     localStorage.setItem("flemo:motion-driver-force", "raf");
     expect(policy.playerAllowed()).toBe(true); // ...overridden to the player
-    // An active pin is never silent (a forgotten key reads as a mysterious
-    // perf regression) — but it warns once, not per transition.
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0]![0]).toContain("flemo:motion-driver-force");
 
     localStorage.setItem("flemo:motion-driver-force", "css");
     expect(policy.playerAllowed()).toBe(false); // pinned to CSS live
-    expect(warn).toHaveBeenCalledTimes(1);
 
     localStorage.setItem("flemo:motion-driver-force", "garbage");
     expect(policy.playerAllowed()).toBe(true); // invalid value = no override
     localStorage.removeItem("flemo:motion-driver-force");
-    warn.mockRestore();
   });
 
   it("tolerates a throwing localStorage (embedder storage policies)", () => {
     const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("storage disabled");
     });
-    const policy = createDriverPolicy();
+    const policy = createDriverPolicy(undefined, true);
     expect(policy.playerAllowed()).toBe(true);
     getItem.mockRestore();
   });
