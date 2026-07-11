@@ -12,7 +12,10 @@ const isHTMLElement = (target: unknown): target is HTMLElement =>
 // animated property (e.g., `filter` on the playground's `blur` transition).
 const inlineWrites = new WeakMap<HTMLElement, Set<string>>();
 
-const trackInlineWrite = (el: HTMLElement, property: string) => {
+// Exported for the rAF transition player: its per-frame writes register here
+// so the COMPLETED cleanup (`clearInlineAnimation` with no property list)
+// strips them and the compiled rest rules take back over.
+export const trackInlineWrite = (el: HTMLElement, property: string) => {
   let set = inlineWrites.get(el);
   if (!set) {
     set = new Set<string>();

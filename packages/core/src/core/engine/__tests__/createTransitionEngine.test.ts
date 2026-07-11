@@ -11,11 +11,14 @@ import { SKIP_ANIMATION_ATTR, type TransitionEngineDeps } from "@core/engine/typ
 
 // A transition whose enter variant actually animates (duration > 0), so
 // `PUSHING-true` reports an animation and the engine waits for animationend.
+// The mismatched clipPath templates ("inset(0 0 0 100%)" vs "inset(0)") make
+// this variant non-player-drivable on purpose: these tests exercise the CSS
+// animation path (animationend contract), which such variants keep.
 const animated = createTransition({
   name: "engine-test" as never,
-  initial: { x: "100%" },
+  initial: { x: "100%", clipPath: "inset(0 0 0 100%)" },
   idle: { value: { x: 0 }, options: { duration: 0 } },
-  enter: { value: { x: 0 }, options: { duration: 0.3 } },
+  enter: { value: { x: 0, clipPath: "inset(0)" }, options: { duration: 0.3 } },
   enterBack: { value: { x: "100%" }, options: { duration: 0.3 } },
   exit: { value: { x: "-30%" }, options: { duration: 0.3 } },
   exitBack: { value: { x: 0 }, options: { duration: 0.3 } }
@@ -76,6 +79,7 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
       prevTransitionName: "engine-test" as never,
       status: "PUSHING",
       isActive: true,
+      animHoldReleased: true,
       ...rest
     });
   };
@@ -143,6 +147,17 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     expect(resolveSpy).not.toHaveBeenCalled();
     await Promise.resolve();
     expect(resolveSpy).toHaveBeenCalledWith("task-1");
+  });
+
+  it("the liveness floor resolves the captured task when nothing else ever fires", () => {
+    vi.useFakeTimers();
+    const dispose = drive({ status: "PUSHING" });
+    expect(resolveSpy).not.toHaveBeenCalled();
+
+    // settleMs = (delay 0 + duration 0.3) * 1000 + the 1500ms margin.
+    vi.advanceTimersByTime(1800);
+    expect(resolveSpy).toHaveBeenCalledWith("task-1");
+    dispose();
   });
 
   it("disposer detaches the animationend listener", () => {

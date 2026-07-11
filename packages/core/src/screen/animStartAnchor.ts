@@ -65,6 +65,11 @@ export function eagerlyDecodeImages(scope: HTMLElement | null): void {
 }
 
 export interface AnimHoldReleaseOptions {
+  // Extra vsyncs to hold beyond the standard two-frame anchor. A PARKED screen
+  // (pre-rasterizing at its destination under a cover) needs more than one
+  // frame for heavy tiles to actually rasterize; two extra frames measured
+  // sufficient without a perceptible start delay.
+  extraFrames?: number;
   // The screen scope. When provided, the release also waits (bounded) for the
   // scope's loaded images to DECODE: a browser discards the decoded bitmaps of
   // a frozen (display:none) screen, and re-decoding a large image on the first
@@ -91,6 +96,7 @@ export function scheduleAnimHoldRelease(
 ): () => void {
   let cancelled = false;
   let secondFrame = 0;
+  const chainedFrames: number[] = [];
   const releaseAfterDecodes = () => {
     const scope = options.scope;
     if (!scope || typeof scope.querySelectorAll !== "function") {
@@ -110,14 +116,22 @@ export function scheduleAnimHoldRelease(
       if (!cancelled) release();
     });
   };
+  const chain = (remaining: number) => {
+    if (remaining <= 0) {
+      releaseAfterDecodes();
+      return;
+    }
+    chainedFrames.push(requestAnimationFrame(() => chain(remaining - 1)));
+  };
   const firstFrame = requestAnimationFrame(() => {
-    secondFrame = requestAnimationFrame(releaseAfterDecodes);
+    secondFrame = requestAnimationFrame(() => chain(options.extraFrames ?? 0));
   });
   const fallback = setTimeout(release, ANIM_HOLD_RELEASE_BACKSTOP_MS);
   return () => {
     cancelled = true;
     cancelAnimationFrame(firstFrame);
     if (secondFrame) cancelAnimationFrame(secondFrame);
+    chainedFrames.forEach((frame) => cancelAnimationFrame(frame));
     clearTimeout(fallback);
   };
 }

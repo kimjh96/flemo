@@ -10,16 +10,16 @@ describe("enteringInitialStyle", () => {
         isActive: true,
         status: "PUSHING"
       })
-    ).toEqual({ transform: "translateX(100%)", opacity: "0" });
+    ).toEqual({ transform: "translate3d(100%, 0, 0)", opacity: "0" });
   });
 
   it("appends px to numeric offsets", () => {
     expect(
       enteringInitialStyle({ initial: { x: 300 }, isActive: true, status: "REPLACING" })
-    ).toEqual({ transform: "translateX(300px)" });
+    ).toEqual({ transform: "translate3d(300px, 0, 0)" });
     expect(enteringInitialStyle({ initial: { y: 40 }, isActive: true, status: "PUSHING" })).toEqual(
       {
-        transform: "translateY(40px)"
+        transform: "translate3d(0, 40px, 0)"
       }
     );
   });
@@ -27,7 +27,7 @@ describe("enteringInitialStyle", () => {
   it("supports a vertical string offset", () => {
     expect(
       enteringInitialStyle({ initial: { y: "-20%" }, isActive: true, status: "PUSHING" })
-    ).toEqual({ transform: "translateY(-20%)" });
+    ).toEqual({ transform: "translate3d(0, -20%, 0)" });
   });
 
   it("is empty for an inactive screen", () => {

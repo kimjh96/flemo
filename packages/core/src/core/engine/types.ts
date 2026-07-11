@@ -29,6 +29,10 @@ export interface ScreenLifecycleInput {
   prevTransitionName: TransitionName;
   status: NavigateStatus;
   isActive: boolean;
+  // Whether the binding's anim-hold has released for this transition. The rAF
+  // player starts exactly at release (the compiled hold/park rules own the
+  // pre-release frames); pass true when the binding has no hold concept.
+  animHoldReleased: boolean;
 }
 
 export interface TransitionEngine {

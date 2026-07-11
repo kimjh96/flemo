@@ -30,7 +30,7 @@ function LabPanelScreen() {
   };
 
   return (
-    <Screen statusBarHeight="0px" systemNavigationBarHeight="0px" backgroundColor="transparent">
+    <Screen statusBarHeight="0px" systemNavigationBarHeight="0px" backgroundColor="var(--color-bg)">
       <div
         className="relative flex h-full w-full flex-col items-center justify-center text-white"
         style={{ background: gradientForHue(item.hue) }}

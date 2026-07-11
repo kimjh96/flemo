@@ -43,10 +43,10 @@ const makeContext = () => {
 const event = {} as PointerEvent;
 
 describe("cupertino swipe handlers", () => {
-  it("mirrors the previous screen from -30% to 0% across the drag", () => {
+  it("mirrors the previous screen from -35% to 0% across the drag", () => {
     const { animate, onProgress, currentScreen, prevScreen } = makeContext();
 
-    // No drag yet: previous screen rests at its -30% parallax position.
+    // No drag yet: previous screen rests at its -35% parallax position.
     cup.onSwipe(event, makeInfo({ offset: { x: 0, y: 0 } }), {
       animate,
       currentScreen,
@@ -54,7 +54,7 @@ describe("cupertino swipe handlers", () => {
       onProgress
     });
     expect(animate).toHaveBeenCalledWith(currentScreen, { x: 0 }, { duration: 0 });
-    expect(animate).toHaveBeenCalledWith(prevScreen, { x: "-30%" }, { duration: 0 });
+    expect(animate).toHaveBeenCalledWith(prevScreen, { x: "-35%" }, { duration: 0 });
     expect(onProgress).toHaveBeenCalledWith(true, 0);
 
     animate.mockClear();
@@ -112,7 +112,7 @@ describe("cupertino swipe handlers", () => {
     expect(triggered).toBe(false);
     expect(onStart).toHaveBeenCalledWith(false);
     expect(animate).toHaveBeenCalledWith(currentScreen, { x: 0 }, expect.anything());
-    expect(animate).toHaveBeenCalledWith(prevScreen, { x: "-30%" }, expect.anything());
+    expect(animate).toHaveBeenCalledWith(prevScreen, { x: "-35%" }, expect.anything());
   });
 });
 

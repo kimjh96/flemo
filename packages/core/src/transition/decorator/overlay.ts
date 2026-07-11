@@ -1,14 +1,13 @@
 import createDecorator from "@transition/decorator/createDecorator";
 
 // `backgroundColor` is held at the target dim across every variant so only
-// `opacity` actually animates. Effective dim is `opacity × 0.3`, which gives
+// `opacity` actually animates. Effective dim is `opacity × 0.2`, which gives
 // a linear perceived ramp instead of the non-linear `opacity × bg_alpha`
-// product the previous setup produced (0.5 × 0.15 ≈ 0.075 at midpoint vs
-// 0.5 × 0.3 = 0.15 now). It also keeps the keyframe single-property:
+// product the previous setup produced (midpoint 0.5 × 0.2 = 0.10). It also keeps the keyframe single-property:
 // `opacity` is compositor-friendly on every browser, while animating
 // `background-color` on a transformed ancestor has historically tripped
 // color-space interpolation quirks in iOS Safari.
-const DIM_COLOR = "rgba(0, 0, 0, 0.3)";
+const DIM_COLOR = "rgba(0, 0, 0, 0.2)";
 
 const overlay = createDecorator({
   name: "overlay",
@@ -42,7 +41,7 @@ const overlay = createDecorator({
       backgroundColor: DIM_COLOR
     },
     options: {
-      duration: 0.7
+      duration: 0.6
     }
   },
   // POPPING-false target: the previously-behind screen is returning to active.
