@@ -1,5 +1,7 @@
 import { easingToCss, targetToDecls } from "@transition/compileTransitionStyles";
 
+import settleScrubber from "@transition/settleScrub";
+
 import type { SwipeAnimate } from "@transition/typing";
 
 const isHTMLElement = (target: unknown): target is HTMLElement =>
@@ -54,10 +56,11 @@ export const clearInlineAnimation = (el: HTMLElement, properties?: string[]) => 
 };
 
 // Imperative replacement for Motion's `animate()` inside transition swipe
-// handlers. Mutates inline `transform`/`opacity`/etc. and the inline
-// `transition` string. Returns a Promise that resolves on transitionend or a
-// duration-based timeout (safety net for transitionend that never fires,
-// e.g., when the property value didn't actually change).
+// handlers. Instant writes (duration 0 — the drag-follow path) mutate inline
+// styles directly. Timed writes (the release settle) run on the settle
+// scrubber's shared main-thread clock (see settleScrub.ts), falling back to
+// an inline CSS `transition` where WAAPI is unavailable. Returns a Promise
+// that resolves when the motion lands (never rejects).
 const animateInline: SwipeAnimate = (target, value, options = {}) => {
   if (!isHTMLElement(target)) return Promise.resolve();
   const el = target;
@@ -70,6 +73,10 @@ const animateInline: SwipeAnimate = (target, value, options = {}) => {
   const easing = easingToCss(options.ease);
 
   if (duration <= 0 && delay <= 0) {
+    // A re-grab writes through here every pointermove: a lingering settle
+    // animation would override the inline values, so it hands over first
+    // (pinning its current position — the finger takes it from there).
+    settleScrubber.takeover(el);
     el.style.transition = "none";
     for (const d of decls) {
       el.style.setProperty(d.property, d.value);
@@ -78,6 +85,18 @@ const animateInline: SwipeAnimate = (target, value, options = {}) => {
     return Promise.resolve();
   }
 
+  const scrubbed = settleScrubber.settle(
+    el,
+    decls,
+    { durationMs: duration * 1000, delayMs: delay * 1000, easing },
+    (decl) => {
+      el.style.setProperty(decl.property, decl.value);
+      trackInlineWrite(el, decl.property);
+    }
+  );
+  if (scrubbed) return scrubbed;
+
+  // No WAAPI: the CSS transition path, exactly as before.
   const transitionList = decls
     .map((d) => `${d.property} ${duration}s ${easing} ${delay}s`)
     .join(", ");

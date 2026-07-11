@@ -22,6 +22,10 @@ declare module "@flemo/react" {
     wipe: "wipe";
   }
 
+  interface RegisterPartTransition {
+    "panel-title": "panel-title";
+  }
+
   interface RegisterDecorator {
     tunnel: "tunnel";
     ripples: "ripples";
