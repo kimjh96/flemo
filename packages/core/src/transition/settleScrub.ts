@@ -53,7 +53,6 @@ interface ActiveSettle {
   writeFinal: SettleWrite;
   resolve: () => void;
   backstop: ReturnType<typeof setTimeout>;
-  settled: boolean;
 }
 
 const kebabToCamel = (property: string) =>
@@ -88,35 +87,27 @@ export const createSettleScrubber = (
     }
   };
 
-  // End a settle at its DESTINATION: the final values become inline styles
-  // (the same end-state the CSS transition path left behind, so every
-  // existing cleanup contract keeps working) and the animation is dropped.
-  const finalize = (settle: ActiveSettle) => {
-    if (settle.settled) return;
-    settle.settled = true;
-    clearTimeout(settle.backstop);
-    active.delete(settle.element);
-    if (settle.element.isConnected) {
-      for (const decl of settle.decls) settle.writeFinal(decl);
-    }
-    settle.animation.cancel();
-    settle.resolve();
-    stopClockIfIdle();
-  };
-
-  // End a settle WHERE IT IS: pin the current animated values inline (CSS
-  // transition overwrite semantics), then drop the animation.
-  const takeover = (element: HTMLElement) => {
+  // End a settle. Membership in `active` is the ONLY liveness state — it is
+  // removed before any callback runs, so the clock, the backstop, and a
+  // reentrant write can never conclude the same settle twice.
+  // "end" commits the DESTINATION values inline (the same end-state the CSS
+  // transition path left behind, so every existing cleanup contract keeps
+  // working); "current" pins the values WHERE THEY ARE (CSS transition
+  // overwrite semantics for a re-grab). Either way the animation is dropped.
+  const conclude = (element: HTMLElement, at: "end" | "current") => {
     const settle = active.get(element);
-    if (!settle || settle.settled) return;
-    settle.settled = true;
-    clearTimeout(settle.backstop);
+    if (!settle) return;
     active.delete(element);
+    clearTimeout(settle.backstop);
     if (element.isConnected) {
-      const computed = getComputedStyle(element);
-      for (const decl of settle.decls) {
-        const current = computed.getPropertyValue(decl.property);
-        if (current !== "") settle.writeFinal({ property: decl.property, value: current });
+      if (at === "end") {
+        for (const decl of settle.decls) settle.writeFinal(decl);
+      } else {
+        const computed = getComputedStyle(element);
+        for (const decl of settle.decls) {
+          const current = computed.getPropertyValue(decl.property);
+          if (current !== "") settle.writeFinal({ property: decl.property, value: current });
+        }
       }
     }
     settle.animation.cancel();
@@ -130,7 +121,7 @@ export const createSettleScrubber = (
       if (settle.startTime === null) settle.startTime = time;
       const elapsed = time - settle.startTime;
       if (elapsed >= settle.totalMs) {
-        finalize(settle);
+        conclude(settle.element, "end");
       } else {
         settle.animation.currentTime = Math.max(0, elapsed);
       }
@@ -143,7 +134,7 @@ export const createSettleScrubber = (
       if (typeof element.animate !== "function") return null;
       // A re-settle replaces the previous one, departing from its current
       // position (the previous animation still holds the pixels here).
-      takeover(element);
+      conclude(element, "current");
 
       const keyframe: Record<string, string> = {};
       for (const decl of decls) keyframe[kebabToCamel(decl.property)] = decl.value;
@@ -155,7 +146,7 @@ export const createSettleScrubber = (
           delay: Math.max(0, timing.delayMs),
           easing: timing.easing,
           // Holds the destination on the frame the clock lands exactly at the
-          // end, until finalize commits it inline and cancels.
+          // end, until conclude commits it inline and cancels.
           fill: "forwards"
         });
         animation.pause();
@@ -176,14 +167,13 @@ export const createSettleScrubber = (
           resolve,
           // Insurance, not the wait: rAF suspends in background tabs, and an
           // unresolved settle would hang the swipe handler's await.
-          backstop: setTimeout(() => finalize(record), totalMs + 60),
-          settled: false
+          backstop: setTimeout(() => conclude(element, "end"), totalMs + 60)
         };
         active.set(element, record);
         if (frameHandle === null) frameHandle = scheduler.request(step);
       });
     },
-    takeover
+    takeover: (element) => conclude(element, "current")
   };
 };
 

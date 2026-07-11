@@ -121,6 +121,21 @@ describe("createTransitionEngine branches", () => {
     expect(bar.style.transform).toBe("");
   });
 
+  it("passive COMPLETED with no elements is a safe no-op", () => {
+    const d = deps();
+    const engine = createTransitionEngine(d);
+    expect(() =>
+      engine.driveScreenLifecycle({
+        getElements: () => ({ scope: null, decorator: null, bars: [null] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: "COMPLETED",
+        isActive: false,
+        animHoldReleased: true
+      })
+    ).not.toThrow();
+  });
+
   it("a passive variant that animates nothing joins no player (motionless exit)", () => {
     const { scope } = elements();
     document.body.append(scope);
@@ -277,6 +292,85 @@ describe("createTransitionEngine branches", () => {
     container.remove();
     partTransitionMap.delete("title-fade" as never);
     transitionMap.delete("branches-parts" as never);
+  });
+
+  it("parts with no registered definition, a motionless variant, or a declined join stay on CSS", () => {
+    const container = document.createElement("div");
+    const scope = document.createElement("div");
+    scope.setAttribute("data-flemo-screen", "true");
+    const partOf = (name: string) => {
+      const part = document.createElement("div");
+      part.setAttribute("data-flemo-part-name", name);
+      part.setAttribute("data-flemo-status", "PUSHING");
+      part.setAttribute("data-flemo-active", "false");
+      return part;
+    };
+    const ghost = partOf("ghost"); // never registered
+    const still = partOf("still-part"); // registered, but this variant is motionless
+    const scrubless = partOf("scrubless-part"); // motion the player can't take in jsdom (no WAAPI)
+    container.append(scope, ghost, still, scrubless);
+    document.body.appendChild(container);
+
+    partTransitionMap.set(
+      "still-part" as never,
+      createPartTransition({
+        name: "still-part" as never,
+        initial: { opacity: 1 },
+        idle: { value: { opacity: 1 }, options: { duration: 0 } },
+        enter: { value: { opacity: 0 }, options: { duration: 0 } },
+        exit: { value: { opacity: 1 }, options: { duration: 0 } }
+      })
+    );
+    partTransitionMap.set(
+      "scrubless-part" as never,
+      createPartTransition({
+        name: "scrubless-part" as never,
+        initial: { clipPath: "inset(0 0 0 100%)" },
+        idle: { value: { clipPath: "inset(0)" }, options: { duration: 0 } },
+        enter: { value: { clipPath: "inset(0 0 0 100%)" }, options: { duration: 0.3 } },
+        exit: { value: { clipPath: "inset(0)" }, options: { duration: 0.3 } }
+      })
+    );
+    transitionMap.set(
+      "branches-part-edges" as never,
+      createTransition({
+        name: "branches-part-edges" as never,
+        initial: { x: "100%" },
+        idle: { value: { x: 0 }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 0.3 } },
+        enterBack: { value: { x: "100%" }, options: { duration: 0.3 } },
+        exit: { value: { x: "-35%" }, options: { duration: 0.3 } },
+        exitBack: { value: { x: 0 }, options: { duration: 0.3 } }
+      })
+    );
+
+    const d = {
+      getTransitionTaskId: vi.fn(() => "part-edge-task"),
+      setDragStatus: vi.fn(),
+      setReplaceTransitionStatus: vi.fn()
+    };
+    const engine = createTransitionEngine(d);
+    const cleanup = engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "branches-part-edges" as never,
+      prevTransitionName: "branches-part-edges" as never,
+      status: "PUSHING",
+      isActive: false,
+      animHoldReleased: true
+    });
+
+    // The screen joined; none of the three parts did (their compiled CSS
+    // animations stay in charge), and none of them crashed the join.
+    expect(scope.style.animation).toBe("none");
+    expect(ghost.style.animation).toBe("");
+    expect(still.style.animation).toBe("");
+    expect(scrubless.style.animation).toBe("");
+
+    cleanup();
+    container.remove();
+    partTransitionMap.delete("still-part" as never);
+    partTransitionMap.delete("scrubless-part" as never);
+    transitionMap.delete("branches-part-edges" as never);
   });
 
   it("COMPLETED strips this screen's part writes but not a nested screen's", () => {

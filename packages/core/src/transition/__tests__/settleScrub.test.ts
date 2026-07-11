@@ -166,6 +166,56 @@ describe("settleScrub", () => {
     expect(writes).toEqual([{ property: "opacity", value: "0.5" }]);
   });
 
+  it("takeover skips properties the computed style cannot report", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const scrubber = createSettleScrubber(scheduler);
+    const el = element();
+    el.style.opacity = "0.5";
+    const animation = fakeAnimation();
+    withAnimate(el, animation);
+    const writes: CssDecl[] = [];
+
+    // An unset custom property has no computed value (""): the pin must
+    // write what it can read and silently skip the rest.
+    scrubber.settle(
+      el,
+      [
+        { property: "opacity", value: "0" },
+        { property: "--flemo-probe", value: "1" }
+      ],
+      { durationMs: 300, delayMs: 0, easing: "linear" },
+      (decl) => writes.push(decl)
+    );
+    pump(0);
+    pump(100);
+
+    scrubber.takeover(el);
+    expect(writes).toEqual([{ property: "opacity", value: "0.5" }]);
+  });
+
+  it("takeover on a disconnected settling element concludes without writing", async () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const scrubber = createSettleScrubber(scheduler);
+    const el = element();
+    const animation = fakeAnimation();
+    withAnimate(el, animation);
+    const writes: CssDecl[] = [];
+
+    const promise = scrubber.settle(
+      el,
+      [{ property: "opacity", value: "0" }],
+      { durationMs: 300, delayMs: 0, easing: "linear" },
+      (decl) => writes.push(decl)
+    )!;
+    pump(0);
+    el.remove();
+
+    scrubber.takeover(el);
+    await promise;
+    expect(writes).toEqual([]);
+    expect(animation.canceled).toBe(true);
+  });
+
   it("a re-settle on the same element replaces the previous one", async () => {
     const { scheduler, pump } = createFakeScheduler();
     const scrubber = createSettleScrubber(scheduler);
