@@ -1,5 +1,11 @@
 # @flemo/core
 
+## 1.12.1
+
+### Patch Changes
+
+- [`1d2edf0`](https://github.com/kimjh96/flemo/commit/1d2edf012f5030fa8c834a59c9c49ee500d8a30f) Make rapid and cross-zone back/forward bulletproof. Transition-gated tasks now carry a gate backstop, so a transition whose `animationend` is lost (screen frozen or torn down mid-storm) can no longer deadlock the navigation queue. The history sync gains a convergence pass that replays the browser's present entry through the normal classifier once traversals go quiet, so the content always reaches the URL. A traversal landing multiple entries below replays each screen as its own transition instead of dropping the ones in between. Transition definitions are reference-counted, so a frozen Router instance cleaning up no longer strips the definitions a sibling zone is still animating with (the "screens stop transitioning until something remounts" bug). And a nested Router's scope AND history sync now persist for the session across zone exits: a zone that is offscreen still hears traversals and applies them instantly, so it is already on the right entry whenever it is revealed — re-entering a zone resumes animated navigation instead of degrading to instant restores. A nested Router's URL-reflection is also fenced to its own zone: an effect flushing after the browser has already traversed to a foreign entry (backing to home mid-storm) can no longer rename that entry to the zone's seed URL — the permanent "address bar says one zone, screen shows another" corruption.
+
 ## 1.12.0
 
 ### Minor Changes
