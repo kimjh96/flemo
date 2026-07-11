@@ -1,6 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import animateInline, { clearInlineAnimation } from "@transition/animateInline";
+
+// jsdom reads as non-Blink (no navigator.userAgentData), where the player
+// defaults OFF; these suites exercise the player paths, so pin it on via
+// the diagnostic force key.
+beforeAll(() => localStorage.setItem("flemo:motion-driver-force", "raf"));
+afterAll(() => localStorage.removeItem("flemo:motion-driver-force"));
 
 const newDiv = () => {
   const el = document.createElement("div");
@@ -111,6 +117,20 @@ describe("animateInline", () => {
     clearInlineAnimation(el);
     expect(el.style.transform).toBe("");
     expect(el.style.opacity).toBe("");
+  });
+
+  it("keeps the CSS transition settle where the policy disallows the player", () => {
+    const animate = vi.fn();
+    el.animate = animate;
+    // Engine default / demotion territory (e.g. WebKit): the compositor
+    // drives the settle even though WAAPI exists.
+    localStorage.setItem("flemo:motion-driver-force", "css");
+
+    void animateInline(el, { x: 0 }, { duration: 0.3 });
+    expect(animate).not.toHaveBeenCalled();
+    expect(el.style.transition).toContain("transform");
+
+    localStorage.setItem("flemo:motion-driver-force", "raf");
   });
 
   it("an instant write takes over a live settle (re-grab semantics)", () => {

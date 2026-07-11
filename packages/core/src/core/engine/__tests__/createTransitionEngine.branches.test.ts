@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { animationName } from "@transition/compileTransitionStyles";
 
@@ -9,6 +9,12 @@ import createTransitionEngine from "@core/engine/createTransitionEngine";
 import { SKIP_ANIMATION_ATTR } from "@core/engine/types";
 import createPartTransition from "@transition/partTransition/createPartTransition";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
+
+// jsdom reads as non-Blink (no navigator.userAgentData), where the player
+// defaults OFF; these suites exercise the player paths, so pin it on via
+// the diagnostic force key.
+beforeAll(() => localStorage.setItem("flemo:motion-driver-force", "raf"));
+afterAll(() => localStorage.removeItem("flemo:motion-driver-force"));
 
 const deps = () => ({
   getTransitionTaskId: vi.fn(() => null),

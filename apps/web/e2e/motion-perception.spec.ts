@@ -81,7 +81,11 @@ test.describe("motion perception", () => {
   // INCIDENT: a one-sided variant property silently kept the exiting screen
   // on the CSS driver while the entering screen ran on the player — two
   // clocks, visibly disharmonious, and green across every unit suite.
-  test("a single navigation drives every participant off the player", async ({ page }) => {
+  test("a single navigation drives every participant off the player", async ({
+    page,
+    browserName
+  }) => {
+    test.skip(browserName === "webkit", "WebKit defaults to the compositor driver");
     const { errors } = trackConsoleErrors(page);
     await openPlaygroundWithCupertino(page);
 
@@ -232,8 +236,10 @@ test.describe("motion perception", () => {
   // judder class for exactly the custom transitions users author themselves.
   // The scrubbed-WAAPI tier must drive them on the player's clock.
   test("a template-mismatched custom transition is scrubbed on the player clock", async ({
-    page
+    page,
+    browserName
   }) => {
+    test.skip(browserName === "webkit", "WebKit defaults to the compositor driver");
     const { errors } = trackConsoleErrors(page);
     await page.goto("/playground");
     await expect(page.getByText("1", { exact: true }).first()).toBeVisible();
@@ -281,7 +287,8 @@ test.describe("motion perception", () => {
   // INCIDENT: <Part> elements ran their compiled CSS animations on the
   // compositor clock while their screen ran on the player — the mixed-clock
   // class, per part. Parts must join the shared player.
-  test("a <Part> rides the player clock with its screen", async ({ page }) => {
+  test("a <Part> rides the player clock with its screen", async ({ page, browserName }) => {
+    test.skip(browserName === "webkit", "WebKit defaults to the compositor driver");
     await openPlaygroundWithCupertino(page);
 
     const sample = page.evaluate(() => {
@@ -319,7 +326,11 @@ test.describe("motion perception", () => {
   // INCIDENT: the release settle (the motion after a swipe lets go) ran as an
   // inline CSS transition — compositor-clocked, the last flemo-driven motion
   // outside the player. It must scrub on the settle clock.
-  test("a swipe release settles on the scrubbed clock, not a CSS transition", async ({ page }) => {
+  test("a swipe release settles on the scrubbed clock, not a CSS transition", async ({
+    page,
+    browserName
+  }) => {
+    test.skip(browserName === "webkit", "WebKit defaults to the compositor driver");
     await openPlaygroundWithCupertino(page);
     await page.getByRole("button", { name: "Next" }).click();
     await page.waitForTimeout(900); // land on a non-root, swipeable screen
@@ -379,6 +390,40 @@ test.describe("motion perception", () => {
     ).toBeGreaterThan(3);
   });
 
+  // The compositor defect the player routes around is Blink-specific: on
+  // WebKit the compiled CSS driver must stay the default (eye-confirmed: the
+  // main-thread player starves Safari, worst on iOS, while WebKit's
+  // compositor is healthy).
+  test("WebKit defaults to the compositor driver", async ({ page, browserName }) => {
+    test.skip(browserName !== "webkit", "engine-default assertion for WebKit");
+    const { errors } = trackConsoleErrors(page);
+    await openPlaygroundWithCupertino(page);
+
+    const sample = page.evaluate(() => {
+      return new Promise<{ transitional: number; suppressed: number }>((resolve) => {
+        let transitional = 0;
+        let suppressed = 0;
+        const start = performance.now();
+        const loop = () => {
+          for (const element of document.querySelectorAll<HTMLElement>("[data-flemo-screen]")) {
+            if (element.getAttribute("data-flemo-status") !== "PUSHING") continue;
+            transitional += 1;
+            if (element.style.animation !== "") suppressed += 1;
+          }
+          if (performance.now() - start < 900) requestAnimationFrame(loop);
+          else resolve({ transitional, suppressed });
+        };
+        requestAnimationFrame(loop);
+      });
+    });
+    await page.getByRole("button", { name: "Next" }).click();
+    const { transitional, suppressed } = await sample;
+
+    expect(transitional, "the transition must run").toBeGreaterThan(5);
+    expect(suppressed, "the compiled animation must stay in charge").toBe(0);
+    expect(errors).toEqual([]);
+  });
+
   // INCIDENT: field diagnosis needed a REAL driver pin (the plain
   // flemo:motion-driver key is probation and self-heals on a clean probe, so
   // an A/B built on it silently kept measuring the player). The force key is
@@ -409,7 +454,8 @@ test.describe("motion perception", () => {
   // screen's mount commits land mid-flight), and the driver policy read that
   // as a slow device — a persisted, silent demotion that put the user's
   // whole session back on the janky compositor path.
-  test("a back/forward storm never demotes the motion driver", async ({ page }) => {
+  test("a back/forward storm never demotes the motion driver", async ({ page, browserName }) => {
+    test.skip(browserName === "webkit", "WebKit defaults to the compositor driver");
     await openPlaygroundWithCupertino(page);
 
     for (let i = 0; i < 3; i++) {
