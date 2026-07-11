@@ -1,5 +1,11 @@
 # @flemo/core
 
+## 1.16.1
+
+### Patch Changes
+
+- [`15ab16b`](https://github.com/kimjh96/flemo/commit/15ab16b5c2dc0e8b015f965c8871358a9fc26532) Make <Part> motion natural across a swipe. Cleanups (COMPLETED strips, unmounts) now drop any in-flight settle without writing, so a late settle can never shadow the rest rules, and a committed swipe keeps the previous side's part landing values in place instead of stripping them a frame early (the engine's COMPLETED cleanup owns the strip). The playground's panel-title Part gains the reference swipe hooks: the returning screen's title recovers with the drag progress and settles the remainder on release, matching how the screens themselves move.
+
 ## 1.16.0
 
 ### Minor Changes
