@@ -226,6 +226,32 @@ test.describe("motion perception", () => {
     expect(leaks, "a parked screen above its cover is a fullscreen flash").toBe(0);
   });
 
+  // INCIDENT: field diagnosis needed a REAL driver pin (the plain
+  // flemo:motion-driver key is probation and self-heals on a clean probe, so
+  // an A/B built on it silently kept measuring the player). The force key is
+  // the diagnostic tool that isolation now depends on — it must keep working
+  // against the shipped build, and it must never be silent while active.
+  test("the diagnostic force key pins the compiled-CSS driver", async ({ page }) => {
+    await openPlaygroundWithCupertino(page);
+    const warnings: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "warning") warnings.push(message.text());
+    });
+    await page.evaluate(() => localStorage.setItem("flemo:motion-driver-force", "css"));
+
+    const sample = sampleTransition(page, 900);
+    await page.getByRole("button", { name: "Next" }).click();
+    const counts = await sample;
+
+    expect(counts.activeDriven, "a pinned CSS driver must keep the player off").toBe(0);
+    expect(counts.transitionalFrames, "the transition itself must still run").toBeGreaterThan(5);
+    expect(
+      warnings.some((text) => text.includes("flemo:motion-driver-force")),
+      "an active pin must announce itself in the console"
+    ).toBe(true);
+    await page.evaluate(() => localStorage.removeItem("flemo:motion-driver-force"));
+  });
+
   // INCIDENT: replay chains inherently stall a main-thread player (the next
   // screen's mount commits land mid-flight), and the driver policy read that
   // as a slow device — a persisted, silent demotion that put the user's

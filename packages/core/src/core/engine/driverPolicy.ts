@@ -17,6 +17,40 @@ export interface DriverPolicyStorage {
 
 const STORAGE_KEY = "flemo:motion-driver";
 
+// Diagnostic hard override for field debugging (same spirit as
+// window.__flemoPlayerGaps): "css" pins the compiled-CSS path, "raf" pins the
+// player, bypassing measurement, strikes, and probation entirely. Read live on
+// every decision so a DevTools toggle takes effect on the next transition.
+// Not a consumer API — intentionally undocumented.
+const FORCE_KEY = "flemo:motion-driver-force";
+
+// Warn once per session while the pin is active: a forgotten force key reads
+// as a mysterious cross-site perf regression (it pins EVERY transition), so
+// it must never be silent.
+let warnedForcedDriver = false;
+
+const readForcedDriver = (): "css" | "raf" | null => {
+  try {
+    if (typeof localStorage === "undefined") return null;
+    const value = localStorage.getItem(FORCE_KEY);
+    if (value !== "css" && value !== "raf") return null;
+    if (!warnedForcedDriver && typeof console !== "undefined") {
+      warnedForcedDriver = true;
+      // The console IS the destination here: this fires only while a
+      // deliberately-set diagnostic key is active, and its whole purpose is
+      // that a forgotten pin can never be silent.
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[flemo] motion driver pinned to "${value}" by localStorage "${FORCE_KEY}" — ` +
+          "diagnostic override; remove the key to restore automatic driver selection."
+      );
+    }
+    return value;
+  } catch {
+    return null;
+  }
+};
+
 const defaultStorage = (): DriverPolicyStorage => ({
   read: () => {
     try {
@@ -77,7 +111,11 @@ export const createDriverPolicy = (
   let runGaps: number[] = [];
 
   return {
-    playerAllowed: () => !demoted,
+    playerAllowed: () => {
+      const forced = readForcedDriver();
+      if (forced) return forced === "raf";
+      return !demoted;
+    },
     beginRun: () => {
       runLongGaps = 0;
       runGaps = [];

@@ -100,6 +100,28 @@ describe("driverPolicy default storage", () => {
     localStorage.removeItem("flemo:motion-driver");
   });
 
+  it("the force key pins the driver, bypassing strikes and probation, and warns", () => {
+    const { storage } = memoryStorage("css"); // persisted demotion...
+    const policy = createDriverPolicy(storage);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    localStorage.setItem("flemo:motion-driver-force", "raf");
+    expect(policy.playerAllowed()).toBe(true); // ...overridden to the player
+    // An active pin is never silent (a forgotten key reads as a mysterious
+    // perf regression) — but it warns once, not per transition.
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain("flemo:motion-driver-force");
+
+    localStorage.setItem("flemo:motion-driver-force", "css");
+    expect(policy.playerAllowed()).toBe(false); // pinned to CSS live
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    localStorage.setItem("flemo:motion-driver-force", "garbage");
+    expect(policy.playerAllowed()).toBe(true); // invalid value = no override
+    localStorage.removeItem("flemo:motion-driver-force");
+    warn.mockRestore();
+  });
+
   it("tolerates a throwing localStorage (embedder storage policies)", () => {
     const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("storage disabled");
