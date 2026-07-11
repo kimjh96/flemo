@@ -119,6 +119,89 @@ describe("createTransitionEngine branches", () => {
     expect(bar.style.transform).toBe("");
   });
 
+  it("a passive variant that animates nothing joins no player (motionless exit)", () => {
+    const { scope } = elements();
+    document.body.append(scope);
+    const d = {
+      getTransitionTaskId: vi.fn(() => "player-task"),
+      setDragStatus: vi.fn(),
+      setReplaceTransitionStatus: vi.fn()
+    };
+    const engine = createTransitionEngine(d);
+
+    // exit (PUSHING-false) has zero duration: resolveVariantMotion yields
+    // null, so joinPlayer must decline instead of joining an empty track.
+    transitionMap.set(
+      "branches-still-exit" as never,
+      createTransition({
+        name: "branches-still-exit" as never,
+        initial: { x: "100%" },
+        idle: { value: { x: 0 }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 0.3 } },
+        enterBack: { value: { x: "100%" }, options: { duration: 0.3 } },
+        exit: { value: { x: "-35%" }, options: { duration: 0 } },
+        exitBack: { value: { x: 0 }, options: { duration: 0 } }
+      })
+    );
+
+    const cleanup = engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "branches-still-exit" as never,
+      prevTransitionName: "branches-still-exit" as never,
+      status: "PUSHING",
+      isActive: false,
+      animHoldReleased: true
+    });
+
+    expect(scope.style.animation).toBe("");
+    cleanup();
+    scope.remove();
+    transitionMap.delete("branches-still-exit" as never);
+  });
+
+  it("an active screen with a motionless decorator variant joins only its scope", () => {
+    const { scope, decorator } = elements();
+    document.body.append(scope, decorator);
+    const d = {
+      getTransitionTaskId: vi.fn(() => "player-task"),
+      setDragStatus: vi.fn(),
+      setReplaceTransitionStatus: vi.fn()
+    };
+    const engine = createTransitionEngine(d);
+
+    // The overlay decorator's PUSHING-true variant is idle (zero duration):
+    // the decorator resolves no motion and must simply not join.
+    transitionMap.set(
+      "branches-active-deco" as never,
+      createTransition({
+        name: "branches-active-deco" as never,
+        initial: { x: "100%" },
+        idle: { value: { x: 0 }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 0.3 } },
+        enterBack: { value: { x: "100%" }, options: { duration: 0.3 } },
+        exit: { value: { x: "-35%" }, options: { duration: 0.3 } },
+        exitBack: { value: { x: 0 }, options: { duration: 0.3 } },
+        options: { decoratorName: "overlay" }
+      })
+    );
+
+    const cleanup = engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator, bars: [] }),
+      transitionName: "branches-active-deco" as never,
+      prevTransitionName: "branches-active-deco" as never,
+      status: "PUSHING",
+      isActive: true,
+      animHoldReleased: true
+    });
+
+    expect(scope.style.animation).toBe("none");
+    expect(decorator.style.animation).toBe("");
+    cleanup();
+    scope.remove();
+    decorator.remove();
+    transitionMap.delete("branches-active-deco" as never);
+  });
+
   it("a passive transitional screen joins its riding bars and decorator to the player", () => {
     const { scope, decorator, bar } = elements();
     const ridingBar = document.createElement("div");
