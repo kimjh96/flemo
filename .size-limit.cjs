@@ -8,11 +8,16 @@ module.exports = [
     name: "@flemo/core",
     path: "packages/core/dist/index.mjs",
     // Measured with all dependencies bundled (zustand + path-to-regexp).
-    // That's the real wire cost for a fresh consumer. ~11.2 KB current — the
+    // That's the real wire cost for a fresh consumer. On top of the
     // framework-neutral engine (lifecycle, swipe, bar-riding, screen store,
-    // navigation controller, popstate bridge) now lives here, moved out of
-    // @flemo/react.
-    limit: "14 KB",
+    // navigation controller, popstate bridge), core now also carries the rAF
+    // motion engine (transition player, driver policy, cubic-bezier solver,
+    // variant motion). Current baseline: ~15.0 KB by CI's size-limit run,
+    // ~18.2 KB by a local run on a byte-identical dist (measurement-toolchain
+    // variance, cause unresolved) — the budget leaves headroom above the
+    // LARGER ruler so the gate can't flap across environments while still
+    // tripping on a multi-KB accidental balloon.
+    limit: "22 KB",
     gzip: true
   },
   {

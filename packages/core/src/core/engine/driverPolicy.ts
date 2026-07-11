@@ -41,8 +41,8 @@ const readForcedDriver = (): "css" | "raf" | null => {
       // that a forgotten pin can never be silent.
       // eslint-disable-next-line no-console
       console.warn(
-        `[flemo] motion driver pinned to "${value}" by localStorage "${FORCE_KEY}" — ` +
-          "diagnostic override; remove the key to restore automatic driver selection."
+        `[flemo] motion driver pinned to "${value}" via localStorage ${FORCE_KEY}; ` +
+          "remove the key to restore automatic selection."
       );
     }
     return value;
