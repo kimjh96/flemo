@@ -8,7 +8,7 @@ import type { TransitionVariant } from "@transition/typing";
 import { resolveVariantMotion } from "@transition/variantMotion";
 
 import driverPolicy from "@core/engine/driverPolicy";
-import transitionPlayers, { isPlayerDrivable } from "@core/engine/transitionPlayer";
+import transitionPlayers from "@core/engine/transitionPlayer";
 import {
   SKIP_ANIMATION_ATTR,
   type ScreenLifecycleInput,
@@ -41,8 +41,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const isTransitional = status === "PUSHING" || status === "POPPING" || status === "REPLACING";
 
     // Join this screen's participants (scope, riding bars, decorator) to the
-    // navigation's shared player. Returns a combined detach, or null when the
-    // scope's motion isn't player-drivable (CSS path stays in charge).
+    // navigation's shared player. The player covers every motion — numeric
+    // interpolation or a scrubbed Web Animation — so a null here means the
+    // player must not or cannot run (replay chain, demoted device, no WAAPI)
+    // and the compiled CSS path stays in charge.
     const joinPlayer = (
       variant: TransitionVariant,
       role: "active" | "passive",
@@ -69,7 +71,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
 
       const transition = resolveTransition(transitionName);
       const motion = resolveVariantMotion(transition, variant);
-      if (!motion || !isPlayerDrivable(motion)) return null;
+      if (!motion) return null;
 
       const detachers: (() => void)[] = [];
       const scopeDetach = transitionPlayers.join(taskId, {
@@ -98,7 +100,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         const decoratorMotion = decoratorDefinition
           ? resolveVariantMotion(decoratorDefinition, variant)
           : null;
-        if (decoratorMotion && isPlayerDrivable(decoratorMotion)) {
+        if (decoratorMotion) {
           const decoratorDetach = transitionPlayers.join(taskId, {
             element: decorator,
             motion: decoratorMotion,
@@ -195,7 +197,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     }
 
     const activeMotion = resolveVariantMotion(currentTransition, variantKey);
-    const playerCanDrive = !skipAnimation && !!activeMotion && isPlayerDrivable(activeMotion);
+    const playerCanDrive = !skipAnimation && !!activeMotion;
 
     // The `animationend` listener is the ALWAYS-WIRED resolver — attached from
     // the first transitional render, whatever the driver. This is what

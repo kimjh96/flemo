@@ -19,6 +19,7 @@ declare module "@flemo/react" {
     ripple: "ripple";
     "card-stack": "card-stack";
     spring: "spring";
+    wipe: "wipe";
   }
 
   interface RegisterDecorator {

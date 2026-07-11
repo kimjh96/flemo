@@ -226,6 +226,58 @@ test.describe("motion perception", () => {
     expect(leaks, "a parked screen above its cover is a fullscreen flash").toBe(0);
   });
 
+  // INCIDENT: motion the numeric player could not parse (mismatched value
+  // templates — clip-path across shorthand forms, calc(), mixed units)
+  // silently stayed on the compositor-clocked CSS path, reintroducing the
+  // judder class for exactly the custom transitions users author themselves.
+  // The scrubbed-WAAPI tier must drive them on the player's clock.
+  test("a template-mismatched custom transition is scrubbed on the player clock", async ({
+    page
+  }) => {
+    const { errors } = trackConsoleErrors(page);
+    await page.goto("/playground");
+    await expect(page.getByText("1", { exact: true }).first()).toBeVisible();
+    await page.getByRole("button", { name: "Wipe" }).first().click();
+
+    const sample = page.evaluate(() => {
+      return new Promise<{ suppressedFrames: number; clipValues: number }>((resolve) => {
+        const seen = new Set<string>();
+        let suppressedFrames = 0;
+        const start = performance.now();
+        const loop = () => {
+          for (const element of document.querySelectorAll<HTMLElement>("[data-flemo-screen]")) {
+            if (element.getAttribute("data-flemo-status") !== "PUSHING") continue;
+            if (element.getAttribute("data-flemo-active") !== "true") continue;
+            // Scrub signature: the compiled animation is suppressed (the
+            // player owns the motion) while the COMPUTED clip-path advances
+            // frame over frame via the browser's own interpolation.
+            if (element.style.animation !== "") suppressedFrames += 1;
+            seen.add(getComputedStyle(element).clipPath);
+          }
+          if (performance.now() - start < 900) requestAnimationFrame(loop);
+          else resolve({ suppressedFrames, clipValues: seen.size });
+        };
+        requestAnimationFrame(loop);
+      });
+    });
+    await page.getByRole("button", { name: "Next" }).click();
+    const { suppressedFrames, clipValues } = await sample;
+
+    expect(
+      suppressedFrames,
+      "the player must own the motion (animation suppressed)"
+    ).toBeGreaterThan(5);
+    expect(
+      clipValues,
+      "the clip must advance per frame (browser-interpolated scrub)"
+    ).toBeGreaterThan(8);
+    // The scrub's fill must not outlive the transition: at rest the computed
+    // clip-path is the compiled rest rule's, not a stuck animation value.
+    await page.waitForTimeout(800);
+    expect(await inlineLeftovers(page)).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
   // INCIDENT: field diagnosis needed a REAL driver pin (the plain
   // flemo:motion-driver key is probation and self-heals on a clean probe, so
   // an A/B built on it silently kept measuring the player). The force key is

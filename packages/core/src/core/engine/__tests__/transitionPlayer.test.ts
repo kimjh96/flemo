@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { VariantMotion } from "@transition/variantMotion";
 
@@ -47,6 +47,29 @@ const linearMotion = (from: object, to: object, duration = 1): VariantMotion => 
   duration,
   delay: 0,
   ease: "linear"
+});
+
+// Installs a WAAPI stub on the element (jsdom has none) and returns the spy.
+const withAnimate = (el: HTMLElement, animation: ReturnType<typeof fakeAnimation>) => {
+  const animate = vi.fn(
+    (_keyframes: Keyframe[], _options: KeyframeAnimationOptions) =>
+      animation as unknown as Animation
+  );
+  el.animate = animate;
+  return animate;
+};
+
+// Minimal Web Animation stand-in for the scrub tier (jsdom has no WAAPI).
+const fakeAnimation = () => ({
+  currentTime: null as number | null,
+  paused: false,
+  canceled: false,
+  pause() {
+    this.paused = true;
+  },
+  cancel() {
+    this.canceled = true;
+  }
 });
 
 describe("isPlayerDrivable", () => {
@@ -288,10 +311,10 @@ describe("transitionPlayer", () => {
     expect(exiting.style.transform).toBe("translate3d(-70px, 0px, 0)");
   });
 
-  it("returns null (CSS path) for non-drivable motion", () => {
+  it("returns null (CSS path) for non-parseable motion when WAAPI is absent", () => {
     const { scheduler } = createFakeScheduler();
     const registry = createTransitionPlayerRegistry(scheduler);
-    const el = element();
+    const el = element(); // jsdom: no element.animate
 
     const detach = registry.join("task-1", {
       element: el,
@@ -300,6 +323,134 @@ describe("transitionPlayer", () => {
     });
     expect(detach).toBeNull();
     expect(el.style.animation).toBe("");
+  });
+
+  it("scrubs non-parseable motion through a paused Web Animation on the shared clock", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const animation = fakeAnimation();
+    const animate = withAnimate(el, animation);
+    let completed = 0;
+
+    const detach = registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }),
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    })!;
+    expect(detach).not.toBeNull();
+
+    // Keyframes carry the raw endpoints (browser-exact interpolation), the
+    // easing lives in the animation's own timing, and the compiled CSS
+    // animation is suppressed while the paused fill-"both" animation pins
+    // the from-state.
+    expect(animate).toHaveBeenCalledWith(
+      [{ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }],
+      {
+        duration: 1000,
+        delay: 0,
+        easing: "linear",
+        fill: "both"
+      }
+    );
+    expect(animation.paused).toBe(true);
+    expect(animation.currentTime).toBe(0);
+    expect(el.style.animation).toBe("none");
+
+    pump(0);
+    pump(500); // the player advances the browser's clock, raw (uneased) time
+    expect(animation.currentTime).toBe(500);
+    expect(completed).toBe(0);
+
+    pump(1000);
+    expect(animation.currentTime).toBe(1000);
+    expect(completed).toBe(1);
+    expect(animation.canceled).toBe(false); // end-state holds until detach
+
+    detach();
+    expect(animation.canceled).toBe(true); // rest rules take back over
+    expect(el.style.animation).toBe("");
+  });
+
+  it("composes transform shortcuts into scrub keyframes (calc() and friends)", () => {
+    const { scheduler } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const animation = fakeAnimation();
+    const animate = withAnimate(el, animation);
+
+    registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ x: "calc(100% - 20px)", opacity: "0.5" }, { x: 0, opacity: "1" }),
+      role: "active"
+    });
+
+    const keyframes = animate.mock.calls[0]![0] as Record<string, string>[];
+    expect(keyframes[0]!.transform).toContain("calc(100% - 20px)");
+    expect(keyframes[0]!.opacity).toBe("0.5");
+    expect(keyframes[1]!.transform).toBe("none");
+  });
+
+  it("numeric and scrub tracks of one navigation step off the same clock", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const numericEl = element();
+    const scrubEl = element();
+    const animation = fakeAnimation();
+    withAnimate(scrubEl, animation);
+
+    registry.join("task-1", {
+      element: numericEl,
+      motion: linearMotion({ x: "100%" }, { x: 0 }),
+      role: "active"
+    });
+    registry.join("task-1", {
+      element: scrubEl,
+      motion: linearMotion({ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }),
+      role: "passive"
+    });
+
+    pump(0);
+    pump(500);
+    expect(numericEl.style.transform).toBe("translate3d(200px, 0px, 0)");
+    expect(animation.currentTime).toBe(500);
+  });
+
+  it("keeps the CSS path when WAAPI rejects the keyframes", () => {
+    const { scheduler } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    el.animate = vi.fn(() => {
+      throw new Error("unsupported keyframes");
+    });
+
+    const detach = registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }),
+      role: "active"
+    });
+    expect(detach).toBeNull();
+    expect(el.style.animation).toBe("");
+  });
+
+  it("dispose cancels a scrub so its fill cannot outlive the player", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const animation = fakeAnimation();
+    withAnimate(el, animation);
+
+    registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }),
+      role: "active"
+    });
+    pump(0);
+    registry.dispose("task-1");
+    expect(animation.canceled).toBe(true);
   });
 
   it("dispose cancels the loop and drops the player", () => {
