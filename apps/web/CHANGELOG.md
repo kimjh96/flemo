@@ -1,5 +1,11 @@
 # @flemo/web
 
+## 0.9.0
+
+### Minor Changes
+
+- [`7be3e36`](https://github.com/kimjh96/flemo/commit/7be3e3616dc49943cc089b63f44e49768b1bf522) Document screen-level swipe hooks on the Transitions page (swipeDirection, onSwipeStart/onSwipe/onSwipeEnd, cupertino's wiring as the worked example) and slim the Part page's swipe section down to its per-element differences.
+
 ## 0.8.0
 
 ### Minor Changes
