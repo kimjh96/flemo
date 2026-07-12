@@ -1,5 +1,11 @@
 # @flemo/web
 
+## 0.8.0
+
+### Minor Changes
+
+- [`6013bf5`](https://github.com/kimjh96/flemo/commit/6013bf582c3e2649ba43666760c38dfcfb9a01c8) Document the `<Part>` element transition end to end (part transitions, swipe hooks, the playground's panel-title as reference), add the custom-transition value coverage guarantee with the Wipe clip-path example, and sweep the docs for stale statements.
+
 ## 0.7.15
 
 ### Patch Changes
