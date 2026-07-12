@@ -44,9 +44,11 @@ const EN: DocSection[] = [
             items: [
               "`Getting started` install through your first push and pop",
               "`Router & Route` path matching, registration, defaults",
+              "`Slot` keep part of the layout still while screens transition",
               "`Screen` top bar, bottom bar, safe areas",
               "`Navigation` useNavigate, useParams, useStep",
-              "`Transitions` built-in presets, custom transitions, gestures"
+              "`Transitions` built-in presets, custom transitions, gestures",
+              "`Part` give one element its own transition inside a screen"
             ]
           }
         ]
@@ -161,6 +163,7 @@ const EN: DocSection[] = [
               ["`defaultTransitionName`", "`cupertino`", "Transition used when a push names none"],
               ["`transitions`", "`[]`", "Custom transitions to register"],
               ["`decorators`", "`[]`", "Custom decorators (overlays) to register"],
+              ["`partTransitions`", "`[]`", "Custom part transitions to register"],
               [
                 "`history`",
                 "`browser`",
@@ -376,6 +379,10 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
+            text: "Each phase's `options` sets the timing. `duration` and `delay` are in seconds, and `ease` takes a keyword (`linear`, `easeIn`, `easeOut`, `easeInOut`, `circIn`, `circOut`, `backIn`, `backOut`, `anticipate`) or a four-number cubic-bezier array like `[0.32, 0.72, 0, 1]`."
+          },
+          {
+            type: "p",
             text: "Augment `RegisterTransition` so `transitionName` autocompletes (the same module augmentation as `RegisterRoute`), then register it on the `Router`."
           },
           {
@@ -387,6 +394,36 @@ const EN: DocSection[] = [
             type: "code",
             lang: "tsx",
             code: '<Router transitions={[myFade]} defaultTransitionName="myFade">\n  ...\n</Router>'
+          },
+          { type: "h", text: "What you can animate" },
+          {
+            type: "p",
+            text: "A transition target is not limited to `transform` and `opacity`. It accepts any animatable CSS property, `clipPath`, `filter`, `borderRadius`, `boxShadow`, `color`, custom properties, the whole CSS surface, with TypeScript autocomplete. On top of that it adds transform shortcuts, `x`, `y`, `z`, `scale`, `scaleX`, `scaleY`, `rotate`, `rotateX`, `rotateY`, `rotateZ`, so you can write `{ x: 16 }` instead of the full `translateX`. Bare numbers get sensible units: `px` for lengths, `deg` for rotations, unitless where CSS is unitless."
+          },
+          {
+            type: "p",
+            text: "The two endpoints of a value do not have to share the same shape. A `clip-path` can morph between different templates (`inset(0 0 0 100%)` to `inset(0)`), a value can be a `calc()` expression (`calc(100% - 20px)`), and endpoints can mix units (`50%` to `200px`). The library picks the best path to run each value for you; there is no mode to configure."
+          },
+          {
+            type: "p",
+            text: "You can also leave a property off one end. `transform` channels and `opacity` fall back to their neutral value (identity, fully opaque); any other property animates from the element's current on-screen value."
+          },
+          {
+            type: "note",
+            text: "Values animate with the browser's own CSS interpolation, so a pair that CSS can only change discretely snaps at the midpoint instead of tweening, exactly as native CSS would. A `clip-path` tweens between two `inset()` values, but jumps if the shape function itself changes (`inset()` to `circle()`). Keep both endpoints valid CSS of the same kind."
+          },
+          {
+            type: "p",
+            text: "The playground's `wipe` transition puts this to work. It is a custom transition you author yourself, not a preset. The entering screen is revealed by a `clip-path` that opens left to right, while the screen underneath recedes with a little scale and opacity."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'import { createTransition } from "@flemo/react";\n\nconst EASE = [0.65, 0, 0.35, 1] as const;\n\nconst wipe = createTransition({\n  name: "wipe",\n  initial: { clipPath: "inset(0 0 0 100%)" },\n  idle: { value: { clipPath: "inset(0)", scale: 1, opacity: 1 }, options: { duration: 0 } },\n  enter: { value: { clipPath: "inset(0)" }, options: { duration: 0.45, ease: EASE } },\n  enterBack: { value: { clipPath: "inset(0 0 0 100%)" }, options: { duration: 0.38, ease: EASE } },\n  exit: { value: { scale: 0.96, opacity: 0.8 }, options: { duration: 0.45, ease: EASE } },\n  exitBack: { value: { scale: 1, opacity: 1 }, options: { duration: 0.38, ease: EASE } }\n});'
+          },
+          {
+            type: "p",
+            text: "The two `clip-path` endpoints deliberately use different templates, the four-value `inset(0 0 0 100%)` against the `inset(0)` shorthand, and it still tweens smoothly. This exact transition is live in the playground."
           },
           { type: "h", text: "Raw transitions and swipe" },
           {
@@ -443,21 +480,43 @@ const EN: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "`Part` gives one element inside a screen its own animation, driven by the screen's lifecycle and timed with its transition, but applied to just that one element. The classic use is a pinned shared bar whose title cross-fades from screen to screen."
+            text: "`Part` gives one element inside a screen its own animation, driven by the screen's lifecycle and timed with its transition, but applied to just that one element. The classic use is a pinned shared bar whose title drifts and fades as you move between screens, while the rest of the bar stays put."
           },
           {
             type: "p",
-            text: "First author the transition with `createPartTransition`, then augment `RegisterPartTransition` for a typed `name` (the same module augmentation as `RegisterRoute`). For a title, it is visible at rest (`idle`), fades as the screen moves into the background (`enter`), and comes back when it returns (`exit`)."
+            text: "`Part` renders a wrapper `<div>` around its children. Its one own prop is `name`, the registered part transition to run; everything else is a normal `div` prop (`className`, `style`, `ref`, children), so you style and position it like any element. Only the wrapped element animates. Everything else on the bar or the screen stays where it is."
+          },
+          { type: "h", text: "Author the part transition" },
+          {
+            type: "p",
+            text: "Create the transition with `createPartTransition`, then augment `RegisterPartTransition` for a typed `name` (the same module augmentation as `RegisterRoute`). A part collapses the screen lifecycle to three rest states."
+          },
+          {
+            type: "table",
+            headers: ["State", "When it applies"],
+            rows: [
+              ["`initial`", "The element's style before any animation"],
+              ["`idle`", "The screen is active and at rest, or entering as the new top screen"],
+              [
+                "`enter`",
+                "The screen is moving into the background during a push or replace, and staying there"
+              ],
+              ["`exit`", "The previously-behind screen returning to active during a pop"]
+            ]
+          },
+          {
+            type: "p",
+            text: "Where `createTransition` spells out five states (`idle`, `enter`, `enterBack`, `exit`, `exitBack`), a part collapses to three. On a programmatic push, replace, or pop the part animates in lockstep with its screen's transition automatically, with no per-frame code from you."
           },
           {
             type: "code",
             lang: "ts",
-            code: 'import { createPartTransition } from "@flemo/react";\n\nconst titleFade = createPartTransition({\n  name: "titleFade",\n  initial: { opacity: 1 },\n  idle: { value: { opacity: 1 }, options: { duration: 0.3 } },\n  enter: { value: { opacity: 0 }, options: { duration: 0.3 } },\n  exit: { value: { opacity: 1 }, options: { duration: 0.3 } }\n});'
+            code: 'import { createPartTransition } from "@flemo/react";\n\nconst EASE = [0.32, 0.72, 0, 1] as const;\n\nconst panelTitle = createPartTransition({\n  name: "panel-title",\n  initial: { opacity: 1, y: 0 },\n  idle: { value: { opacity: 1, y: 0 }, options: { duration: 0 } },\n  enter: { value: { opacity: 0.35, y: -10 }, options: { duration: 0.6, ease: EASE } },\n  exit: { value: { opacity: 1, y: 0 }, options: { duration: 0.6, ease: EASE } }\n});'
           },
           {
             type: "code",
             lang: "ts",
-            code: 'declare module "@flemo/react" {\n  interface RegisterPartTransition {\n    titleFade: "titleFade";\n  }\n}'
+            code: 'declare module "@flemo/react" {\n  interface RegisterPartTransition {\n    "panel-title": "panel-title";\n  }\n}'
           },
           {
             type: "p",
@@ -466,7 +525,7 @@ const EN: DocSection[] = [
           {
             type: "code",
             lang: "tsx",
-            code: "<Router partTransitions={[titleFade]}>\n  ...\n</Router>"
+            code: "<Router partTransitions={[panelTitle]}>\n  ...\n</Router>"
           },
           {
             type: "p",
@@ -475,11 +534,54 @@ const EN: DocSection[] = [
           {
             type: "code",
             lang: "tsx",
-            code: 'import { Part, Screen } from "@flemo/react";\n\nfunction Inbox() {\n  return (\n    <Screen sharedTopBar={<header><Part name="titleFade">Inbox</Part></header>}>\n      <MailList />\n    </Screen>\n  );\n}'
+            code: 'import { Part, Screen } from "@flemo/react";\n\nfunction Panel() {\n  return (\n    <Screen sharedTopBar={<header><Part name="panel-title">Inbox</Part></header>}>\n      <MailList />\n    </Screen>\n  );\n}'
+          },
+          { type: "h", text: "Follow the swipe" },
+          {
+            type: "p",
+            text: "That is the resting animation, and it is all a programmatic push or pop needs. During an interactive swipe (like cupertino's edge swipe-back) a part without swipe hooks still lands correctly when the swipe commits, but it only settles at the end instead of tracking the finger. To make it follow the drag, add swipe hooks in `options`."
+          },
+          {
+            type: "p",
+            text: "The `options` block takes three imperative callbacks. Each fires with the element being dragged and lets you write styles to it directly."
+          },
+          {
+            type: "table",
+            headers: ["Hook", "Signature", "When it fires"],
+            rows: [
+              ["`onSwipeStart`", "`(triggered, { animate, element, active })`", "The drag begins"],
+              [
+                "`onSwipe`",
+                "`(triggered, progress, { animate, element, active })`",
+                "Every drag frame, `progress` running 0 to 100"
+              ],
+              [
+                "`onSwipeEnd`",
+                "`(triggered, { animate, element, active })`",
+                "The drag releases; `triggered` is `true` if it committed, `false` if it was cancelled"
+              ]
+            ]
+          },
+          {
+            type: "list",
+            items: [
+              "`progress` is the drag progress from 0 to 100",
+              "`active` is `true` when the element sits on the current top screen, and `false` when it sits on the previous screen being revealed",
+              "`animate(element, target, options?)` writes values to the element. Pass `{ duration: 0 }` inside `onSwipe` to follow the finger, and a short duration with an ease in `onSwipeEnd` to settle"
+            ]
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'const panelTitle = createPartTransition({\n  name: "panel-title",\n  initial: { opacity: 1, y: 0 },\n  idle: { value: { opacity: 1, y: 0 }, options: { duration: 0 } },\n  enter: { value: { opacity: 0.35, y: -10 }, options: { duration: 0.6, ease: EASE } },\n  exit: { value: { opacity: 1, y: 0 }, options: { duration: 0.6, ease: EASE } },\n  options: {\n    onSwipe: (_, progress, { animate, element, active }) => {\n      if (active) return;\n      const recovered = Math.min(1, Math.max(0, progress / 100));\n      animate(\n        element,\n        { opacity: 0.35 + 0.65 * recovered, y: -10 * (1 - recovered) },\n        { duration: 0 }\n      );\n    },\n    onSwipeEnd: (triggered, { animate, element, active }) => {\n      if (active) return;\n      animate(element, triggered ? { opacity: 1, y: 0 } : { opacity: 0.35, y: -10 }, {\n        duration: 0.3,\n        ease: EASE\n      });\n    }\n  }\n});'
+          },
+          {
+            type: "p",
+            text: "The `if (active) return;` at the top of each hook is the key move. During a swipe-back the top screen is leaving and the previous screen is coming back, so only the previous screen's part needs to recover with the drag. The active side just rides its own screen untouched, so its hooks bail out early. `onSwipe` maps the drag `progress` onto the title's opacity and offset every frame, and `onSwipeEnd` settles the rest based on whether the swipe committed. This exact motion is live in the playground."
           },
           {
             type: "note",
-            text: "For finer control over each operation, `createRawPartTransition` exposes every status, the way `createRawTransition` does."
+            text: "For finer control over each operation, `createRawPartTransition` exposes every status the way `createRawTransition` does: `idle`, `pushOnEnter` / `pushOnExit`, `replaceOnEnter` / `replaceOnExit`, `popOnEnter` / `popOnExit`, and `completedOnEnter` / `completedOnExit`."
           }
         ]
       }
@@ -510,6 +612,11 @@ const EN: DocSection[] = [
                 "`@flemo/react`"
               ],
               [
+                "`Part`",
+                "Runs a named part transition on one element inside a screen",
+                "`@flemo/react`"
+              ],
+              [
                 "`LayoutScreen` / `LayoutConfig`",
                 "Shared `layoutId` morphs",
                 "`@flemo/react-layout`"
@@ -533,6 +640,7 @@ const EN: DocSection[] = [
             headers: ["Field", "What it is"],
             rows: [
               ["`isActive`", "Whether this is the current (top) screen"],
+              ["`isRoot`", "Whether this is the root screen of its stack"],
               ["`isPrev`", "Whether this screen sits below the previous one (frozen)"],
               ["`zIndex`", "Stacking depth; `0` is the root, higher is newer"],
               ["`pathname` / `params`", "The resolved pathname and route params"],
@@ -546,6 +654,7 @@ const EN: DocSection[] = [
             items: [
               "`createTransition` / `createRawTransition` author transitions",
               "`createDecorator` / `createRawDecorator` author decorators",
+              "`createPartTransition` / `createRawPartTransition` author part transitions",
               "Built-in transitions: `cupertino`, `material`, `layout`, `none`",
               "Built-in decorator: `overlay`"
             ]
@@ -557,7 +666,8 @@ const EN: DocSection[] = [
             rows: [
               ["`RegisterRoute`", "Register routes for type-safe `push` and `useParams`"],
               ["`RegisterTransition`", "Register custom transition names"],
-              ["`RegisterDecorator`", "Register custom decorator names"]
+              ["`RegisterDecorator`", "Register custom decorator names"],
+              ["`RegisterPartTransition`", "Register custom part transition names"]
             ]
           },
           { type: "h", text: "Peer dependencies" },
@@ -670,9 +780,11 @@ const KO: DocSection[] = [
             items: [
               "`빠르게 시작하기` 설치부터 첫 push/pop까지",
               "`Router와 Route` 경로 매칭, 등록, 기본값",
+              "`Slot` 화면이 전환되는 동안 레이아웃 일부는 그대로 두기",
               "`Screen` 상단 바, 하단 바, 세이프 에어리어",
               "`Navigation` useNavigate, useParams, useStep",
-              "`Transitions` 내장 프리셋, 커스텀 트랜지션, 제스처"
+              "`Transitions` 내장 프리셋, 커스텀 트랜지션, 제스처",
+              "`Part` 화면 안 한 요소에 자기만의 전환 주기"
             ]
           }
         ]
@@ -791,6 +903,7 @@ const KO: DocSection[] = [
               ],
               ["`transitions`", "`[]`", "등록할 커스텀 트랜지션"],
               ["`decorators`", "`[]`", "등록할 커스텀 데코레이터(오버레이)"],
+              ["`partTransitions`", "`[]`", "등록할 커스텀 파트 트랜지션"],
               [
                 "`history`",
                 "`browser`",
@@ -1000,6 +1113,10 @@ const KO: DocSection[] = [
           },
           {
             type: "p",
+            text: "각 단계의 `options`가 타이밍을 정해요. `duration`과 `delay`는 초 단위이고, `ease`는 키워드(`linear`, `easeIn`, `easeOut`, `easeInOut`, `circIn`, `circOut`, `backIn`, `backOut`, `anticipate`) 또는 `[0.32, 0.72, 0, 1]` 같은 4-숫자 cubic-bezier 배열을 받아요."
+          },
+          {
+            type: "p",
             text: "`RegisterTransition`을 확장하면 `transitionName` 자동완성이 돼요(`RegisterRoute`와 같은 모듈 확장이에요). 그다음 `Router`에 등록해요."
           },
           {
@@ -1011,6 +1128,36 @@ const KO: DocSection[] = [
             type: "code",
             lang: "tsx",
             code: '<Router transitions={[myFade]} defaultTransitionName="myFade">\n  ...\n</Router>'
+          },
+          { type: "h", text: "무엇을 애니메이션할 수 있나요" },
+          {
+            type: "p",
+            text: "트랜지션 타깃은 `transform`과 `opacity`에 국한되지 않아요. 애니메이션 가능한 CSS 속성이면 뭐든 받아요. `clipPath`, `filter`, `borderRadius`, `boxShadow`, `color`, 커스텀 프로퍼티까지 CSS 전 영역을 TypeScript 자동완성과 함께 쓸 수 있어요. 여기에 transform 단축키 `x`, `y`, `z`, `scale`, `scaleX`, `scaleY`, `rotate`, `rotateX`, `rotateY`, `rotateZ`가 더해져서, 전체 `translateX` 대신 `{ x: 16 }`처럼 쓸 수 있어요. 숫자만 쓰면 알맞은 단위가 붙어요. 길이엔 `px`, 회전엔 `deg`, CSS가 단위 없는 값엔 단위 없이요."
+          },
+          {
+            type: "p",
+            text: "한 값의 두 끝점이 같은 형태일 필요는 없어요. `clip-path`가 서로 다른 템플릿 사이를 모핑하거나(`inset(0 0 0 100%)`에서 `inset(0)`으로), 값이 `calc()` 식이거나(`calc(100% - 20px)`), 두 끝점이 단위를 섞어도(`50%`에서 `200px`으로) 돼요. 각 값을 어떻게 굴릴지 가장 좋은 경로는 라이브러리가 알아서 골라요. 따로 설정할 모드는 없어요."
+          },
+          {
+            type: "p",
+            text: "한쪽 끝에서 속성을 빼도 돼요. `transform` 채널과 `opacity`는 중립값(원형 그대로, 완전 불투명)으로 되돌아가고, 그 밖의 속성은 요소의 현재 화면 값에서 시작해요."
+          },
+          {
+            type: "note",
+            text: "값은 브라우저 자체의 CSS 보간으로 움직여요. 그래서 CSS가 불연속으로만 바꿀 수 있는 쌍은 트위닝 대신 중간 지점에서 툭 바뀌어요. 네이티브 CSS와 똑같이요. `clip-path`는 두 `inset()` 값 사이는 트위닝하지만, 도형 함수 자체가 바뀌면(`inset()`에서 `circle()`으로) 건너뛰어요. 두 끝점을 같은 종류의 유효한 CSS로 유지하세요."
+          },
+          {
+            type: "p",
+            text: "플레이그라운드의 `wipe` 트랜지션이 이걸 실제로 보여줘요. 프리셋이 아니라 직접 만드는 커스텀 트랜지션이에요. 들어오는 화면이 왼쪽에서 오른쪽으로 열리는 `clip-path`로 드러나고, 그 아래 화면은 살짝 축소되고 흐려지며 물러나요."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'import { createTransition } from "@flemo/react";\n\nconst EASE = [0.65, 0, 0.35, 1] as const;\n\nconst wipe = createTransition({\n  name: "wipe",\n  initial: { clipPath: "inset(0 0 0 100%)" },\n  idle: { value: { clipPath: "inset(0)", scale: 1, opacity: 1 }, options: { duration: 0 } },\n  enter: { value: { clipPath: "inset(0)" }, options: { duration: 0.45, ease: EASE } },\n  enterBack: { value: { clipPath: "inset(0 0 0 100%)" }, options: { duration: 0.38, ease: EASE } },\n  exit: { value: { scale: 0.96, opacity: 0.8 }, options: { duration: 0.45, ease: EASE } },\n  exitBack: { value: { scale: 1, opacity: 1 }, options: { duration: 0.38, ease: EASE } }\n});'
+          },
+          {
+            type: "p",
+            text: "두 `clip-path` 끝점은 일부러 다른 템플릿을 써요. 네 값짜리 `inset(0 0 0 100%)`과 `inset(0)` 단축형인데도 매끄럽게 트위닝돼요. 이 트랜지션 그대로가 플레이그라운드에 살아 있어요."
           },
           { type: "h", text: "Raw 트랜지션과 스와이프" },
           {
@@ -1067,21 +1214,40 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "`Part`는 화면 안의 한 요소에 자기만의 애니메이션을 줘요. 화면 생명주기로 구동되고 화면 전환에 맞춰 함께 동작하되, 화면 전체가 아니라 감싼 그 요소만 움직여요. 대표적인 예는 고정된 공유 바에서 타이틀만 화면마다 크로스페이드 되는 거예요."
+            text: "`Part`는 화면 안의 한 요소에 자기만의 애니메이션을 줘요. 화면 생명주기로 구동되고 화면 전환에 맞춰 함께 동작하되, 화면 전체가 아니라 감싼 그 요소만 움직여요. 대표적인 예는 고정된 공유 바에서 타이틀만 화면을 오갈 때 떠오르며 흐려지고, 나머지 바는 제자리에 그대로 있는 거예요."
           },
           {
             type: "p",
-            text: "먼저 `createPartTransition`으로 트랜지션을 만들고, `RegisterPartTransition`을 확장해 `name`을 타입 안전하게 해요(`RegisterRoute`와 같은 모듈 확장이에요). 타이틀이라면 평소엔 보이고(`idle`), 화면이 뒤로 밀릴 때 사라지고(`enter`), 돌아올 때 다시 보여요(`exit`)."
+            text: "`Part`는 자식을 감싸는 `<div>`를 그려요. 고유 prop은 실행할 파트 트랜지션 이름인 `name` 하나뿐이고, 나머지는 전부 일반 `div` prop(`className`, `style`, `ref`, children)이라 여느 요소처럼 스타일과 위치를 줄 수 있어요. 움직이는 건 감싼 요소뿐이에요. 바나 화면의 나머지는 제자리에 그대로 있어요."
+          },
+          { type: "h", text: "파트 트랜지션 만들기" },
+          {
+            type: "p",
+            text: "`createPartTransition`으로 트랜지션을 만들고, `RegisterPartTransition`을 확장해 `name`을 타입 안전하게 해요(`RegisterRoute`와 같은 모듈 확장이에요). 파트는 화면 생명주기를 세 가지 정지 상태로 줄여요."
+          },
+          {
+            type: "table",
+            headers: ["상태", "적용 시점"],
+            rows: [
+              ["`initial`", "애니메이션 전 요소의 스타일"],
+              ["`idle`", "화면이 활성 상태로 정지해 있거나, 새 맨 위 화면으로 들어올 때"],
+              ["`enter`", "push·replace로 화면이 뒤 배경으로 물러나 그대로 머무를 때"],
+              ["`exit`", "pop으로 뒤에 있던 화면이 다시 활성으로 돌아올 때"]
+            ]
+          },
+          {
+            type: "p",
+            text: "`createTransition`이 상태를 다섯 개(`idle`, `enter`, `enterBack`, `exit`, `exitBack`) 늘어놓는다면, 파트는 세 개로 줄여요. 프로그래밍 방식 push·replace·pop에서는 파트가 화면 전환에 맞춰 자동으로 함께 움직여요. 그 경로엔 프레임 단위 코드가 전혀 필요 없어요."
           },
           {
             type: "code",
             lang: "ts",
-            code: 'import { createPartTransition } from "@flemo/react";\n\nconst titleFade = createPartTransition({\n  name: "titleFade",\n  initial: { opacity: 1 },\n  idle: { value: { opacity: 1 }, options: { duration: 0.3 } },\n  enter: { value: { opacity: 0 }, options: { duration: 0.3 } },\n  exit: { value: { opacity: 1 }, options: { duration: 0.3 } }\n});'
+            code: 'import { createPartTransition } from "@flemo/react";\n\nconst EASE = [0.32, 0.72, 0, 1] as const;\n\nconst panelTitle = createPartTransition({\n  name: "panel-title",\n  initial: { opacity: 1, y: 0 },\n  idle: { value: { opacity: 1, y: 0 }, options: { duration: 0 } },\n  enter: { value: { opacity: 0.35, y: -10 }, options: { duration: 0.6, ease: EASE } },\n  exit: { value: { opacity: 1, y: 0 }, options: { duration: 0.6, ease: EASE } }\n});'
           },
           {
             type: "code",
             lang: "ts",
-            code: 'declare module "@flemo/react" {\n  interface RegisterPartTransition {\n    titleFade: "titleFade";\n  }\n}'
+            code: 'declare module "@flemo/react" {\n  interface RegisterPartTransition {\n    "panel-title": "panel-title";\n  }\n}'
           },
           {
             type: "p",
@@ -1090,7 +1256,7 @@ const KO: DocSection[] = [
           {
             type: "code",
             lang: "tsx",
-            code: "<Router partTransitions={[titleFade]}>\n  ...\n</Router>"
+            code: "<Router partTransitions={[panelTitle]}>\n  ...\n</Router>"
           },
           {
             type: "p",
@@ -1099,11 +1265,58 @@ const KO: DocSection[] = [
           {
             type: "code",
             lang: "tsx",
-            code: 'import { Part, Screen } from "@flemo/react";\n\nfunction Inbox() {\n  return (\n    <Screen sharedTopBar={<header><Part name="titleFade">Inbox</Part></header>}>\n      <MailList />\n    </Screen>\n  );\n}'
+            code: 'import { Part, Screen } from "@flemo/react";\n\nfunction Panel() {\n  return (\n    <Screen sharedTopBar={<header><Part name="panel-title">Inbox</Part></header>}>\n      <MailList />\n    </Screen>\n  );\n}'
+          },
+          { type: "h", text: "스와이프 따라가기" },
+          {
+            type: "p",
+            text: "여기까지가 정지 애니메이션이고, 프로그래밍 방식 push·pop엔 이것만으로 충분해요. 인터랙티브 스와이프(cupertino의 엣지 스와이프 뒤로 같은) 중에는, 스와이프 훅이 없는 파트도 스와이프가 커밋되면 제자리에 잘 안착하지만 손가락을 따라가지 않고 끝에서만 정리돼요. 드래그를 따라가게 하려면 `options`에 스와이프 훅을 더하세요."
+          },
+          {
+            type: "p",
+            text: "`options` 블록은 명령형 콜백 세 개를 받아요. 각각 드래그 중인 요소와 함께 호출되고, 그 요소에 직접 스타일을 쓸 수 있어요."
+          },
+          {
+            type: "table",
+            headers: ["훅", "시그니처", "호출 시점"],
+            rows: [
+              [
+                "`onSwipeStart`",
+                "`(triggered, { animate, element, active })`",
+                "드래그가 시작될 때"
+              ],
+              [
+                "`onSwipe`",
+                "`(triggered, progress, { animate, element, active })`",
+                "드래그하는 매 프레임, `progress`는 0에서 100까지"
+              ],
+              [
+                "`onSwipeEnd`",
+                "`(triggered, { animate, element, active })`",
+                "드래그를 놓을 때. 커밋됐으면 `triggered`가 `true`, 취소됐으면 `false`"
+              ]
+            ]
+          },
+          {
+            type: "list",
+            items: [
+              "`progress`는 0에서 100까지의 드래그 진행도예요",
+              "`active`는 요소가 현재 맨 위 화면에 있으면 `true`, 드러나는 이전 화면에 있으면 `false`예요",
+              "`animate(element, target, options?)`는 요소에 값을 써요. `onSwipe` 안에서 `{ duration: 0 }`을 주면 손가락을 따라가고, `onSwipeEnd`에서 짧은 duration과 ease를 주면 안착해요"
+            ]
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'const panelTitle = createPartTransition({\n  name: "panel-title",\n  initial: { opacity: 1, y: 0 },\n  idle: { value: { opacity: 1, y: 0 }, options: { duration: 0 } },\n  enter: { value: { opacity: 0.35, y: -10 }, options: { duration: 0.6, ease: EASE } },\n  exit: { value: { opacity: 1, y: 0 }, options: { duration: 0.6, ease: EASE } },\n  options: {\n    onSwipe: (_, progress, { animate, element, active }) => {\n      if (active) return;\n      const recovered = Math.min(1, Math.max(0, progress / 100));\n      animate(\n        element,\n        { opacity: 0.35 + 0.65 * recovered, y: -10 * (1 - recovered) },\n        { duration: 0 }\n      );\n    },\n    onSwipeEnd: (triggered, { animate, element, active }) => {\n      if (active) return;\n      animate(element, triggered ? { opacity: 1, y: 0 } : { opacity: 0.35, y: -10 }, {\n        duration: 0.3,\n        ease: EASE\n      });\n    }\n  }\n});'
+          },
+          {
+            type: "p",
+            text: "각 훅 맨 위의 `if (active) return;`이 핵심이에요. 스와이프 뒤로 중에는 맨 위 화면이 나가고 이전 화면이 돌아오므로, 드래그에 맞춰 회복해야 하는 건 이전 화면의 파트뿐이에요. 활성 쪽은 자기 화면을 따라 움직이면 그만이라 훅에서 일찍 빠져나와요. `onSwipe`는 드래그 `progress`를 타이틀의 opacity와 위치에 매 프레임 매핑하고, `onSwipeEnd`는 스와이프가 커밋됐는지에 따라 나머지를 안착시켜요. 이 움직임 그대로가 플레이그라운드에 살아 있어요."
           },
           {
             type: "note",
-            text: "작업별로 더 세밀히 제어하려면 `createRawPartTransition`이 `createRawTransition`처럼 모든 status를 열어줘요."
+            text: "작업별로 더 세밀히 제어하려면 `createRawPartTransition`이 `createRawTransition`처럼 모든 status를 열어줘요: `idle`, `pushOnEnter`·`pushOnExit`, `replaceOnEnter`·`replaceOnExit`, `popOnEnter`·`popOnExit`, `completedOnEnter`·`completedOnExit`요."
           }
         ]
       }
@@ -1125,6 +1338,7 @@ const KO: DocSection[] = [
               ["`Route`", "경로(들)를 엘리먼트에 연결", "`@flemo/react`"],
               ["`Screen`", "상단/하단 바와 세이프 에어리어 슬롯을 가진 화면", "`@flemo/react`"],
               ["`Slot`", "전환 영역 표시, 주변 레이아웃은 유지", "`@flemo/react`"],
+              ["`Part`", "화면 안 한 요소에 이름 붙인 파트 트랜지션을 실행", "`@flemo/react`"],
               ["`LayoutScreen` / `LayoutConfig`", "공유 `layoutId` 모핑", "`@flemo/react-layout`"]
             ]
           },
@@ -1145,6 +1359,7 @@ const KO: DocSection[] = [
             headers: ["필드", "의미"],
             rows: [
               ["`isActive`", "지금 활성(맨 위) 화면인지"],
+              ["`isRoot`", "자기 스택의 루트(첫) 화면인지"],
               ["`isPrev`", "이전 화면 아래에 있는지(frozen)"],
               ["`zIndex`", "쌓임 깊이. `0`이 루트, 클수록 최신"],
               ["`pathname` / `params`", "해석된 pathname과 라우트 파라미터"],
@@ -1158,6 +1373,7 @@ const KO: DocSection[] = [
             items: [
               "`createTransition` / `createRawTransition` 트랜지션 제작",
               "`createDecorator` / `createRawDecorator` 데코레이터 제작",
+              "`createPartTransition` / `createRawPartTransition` 파트 트랜지션 제작",
               "내장 트랜지션: `cupertino`, `material`, `layout`, `none`",
               "내장 데코레이터: `overlay`"
             ]
@@ -1169,7 +1385,8 @@ const KO: DocSection[] = [
             rows: [
               ["`RegisterRoute`", "타입 안전한 `push`·`useParams`를 위한 라우트 등록"],
               ["`RegisterTransition`", "커스텀 트랜지션 이름 등록"],
-              ["`RegisterDecorator`", "커스텀 데코레이터 이름 등록"]
+              ["`RegisterDecorator`", "커스텀 데코레이터 이름 등록"],
+              ["`RegisterPartTransition`", "커스텀 파트 트랜지션 이름 등록"]
             ]
           },
           { type: "h", text: "Peer 의존성" },
