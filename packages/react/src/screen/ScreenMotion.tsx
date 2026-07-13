@@ -9,6 +9,7 @@ import {
 import {
   animHoldKey,
   computeBarRiding,
+  computeScreenFreeze,
   eagerlyDecodeImages,
   isOpaqueColor,
   createSwipeController,
@@ -51,7 +52,7 @@ function ScreenMotion({
   contentScrollable = true,
   ...props
 }: ScreenProps) {
-  const { id, isActive, isRoot, zIndex, transitionName, prevTransitionName } = useScreen();
+  const { id, isActive, isRoot, isPrev, zIndex, transitionName, prevTransitionName } = useScreen();
 
   // A root <Router> renders screens fixed to the viewport; a nested <Router>
   // (a transition region inside a persistent layout) contains them, so the
@@ -64,6 +65,7 @@ function ScreenMotion({
 
   const status = useNavigateStore((state) => state.status);
   const dragStatus = useScreenStore((state) => state.dragStatus);
+  const replaceTransitionStatus = useScreenStore((state) => state.replaceTransitionStatus);
   const setDragStatus = stores.screen.getState().setDragStatus;
   const setReplaceTransitionStatus = stores.screen.getState().setReplaceTransitionStatus;
   const index = useHistoryStore((state) => state.index);
@@ -333,6 +335,38 @@ function ScreenMotion({
   // in render, not an effect — so an Activity-unfrozen screen (whose effects
   // reconnect as follow-up work) still holds from its very first frame.
   const holdKey = animHoldKey({ status, isTopOrTopPrev, transitionName });
+
+  // This screen's freeze state, recomputed from the SAME framework-neutral
+  // predicate Screen.tsx feeds <ScreenFreeze> (computeScreenFreeze). Tracked
+  // here only so the anim-hold can tell whether the screen is WAKING from a
+  // freeze for this transition.
+  const isFrozen = computeScreenFreeze({
+    isActive,
+    isPrev,
+    zIndex,
+    index,
+    status,
+    dragStatus,
+    replaceTransitionStatus
+  });
+
+  // Whether this screen was frozen (Activity-hidden) in the PREVIOUS commit.
+  // Tracked in RENDER, never an effect: <Activity> disconnects a hidden
+  // screen's effects, so an effect never observes the frozen commit — but the
+  // render function still runs (at offscreen priority) while hidden, so this
+  // ref always reflects the last committed freeze.
+  const wasFrozenRef = useRef(isFrozen);
+  // decodeWait for the transition currently held, captured when the hold
+  // (re)arms. True only when this screen was frozen just before the transition
+  // and is now revealed (pop destination, traversal reveal): only a screen
+  // waking from a freeze has discarded bitmaps to re-decode. A visible exit
+  // side, the exiting top, and a fresh mount capture false, so they skip the
+  // decode wait — which is what makes pair-gating push/replace free. The
+  // initializer covers the mount-into-transition case (a screen mounted already
+  // holding, so the hold key never "changes"): use this commit's freeze, since
+  // there is no prior commit to compare against.
+  const decodeWaitRef = useRef(holdKey !== null && isFrozen);
+
   const [animRelease, setAnimRelease] = useState<{ key: string | null; released: boolean }>({
     key: holdKey,
     released: holdKey === null
@@ -342,7 +376,11 @@ function ScreenMotion({
     // before committing, so the hold and status attributes always land in the
     // same paint.
     setAnimRelease({ key: holdKey, released: holdKey === null });
+    // Capture the wake-from-freeze signal for this hold BEFORE the tracker
+    // below advances to the current commit's freeze value.
+    decodeWaitRef.current = holdKey !== null && wasFrozenRef.current;
   }
+  wasFrozenRef.current = isFrozen;
   const animHold = holdKey !== null && animRelease.key === holdKey && !animRelease.released;
 
   // Four-state hold attribute. "park" pre-positions a COVERED entering screen
@@ -415,8 +453,12 @@ function ScreenMotion({
         ),
       {
         // Decode-wait: a frozen screen's discarded image bitmaps re-decode
-        // during the hold instead of dropping the first animated frames.
-        scope: scopeRef.current
+        // during the hold instead of dropping the first animated frames. Scoped
+        // to screens actually waking from a freeze (decodeWaitRef) so a visible
+        // or freshly-mounted screen never pays the wait, which is what keeps a
+        // paired push/replace release free.
+        scope: scopeRef.current,
+        decodeWait: decodeWaitRef.current
       }
     );
   }, [animHold, holdKey, holdAttr, stores.navigate]);

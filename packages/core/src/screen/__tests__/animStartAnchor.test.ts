@@ -305,6 +305,43 @@ describe("scheduleAnimHoldReadiness", () => {
     flushFrame();
     expect(onReady).not.toHaveBeenCalled();
   });
+
+  it("decodeWait:false skips the decode wait entirely (ready after 2 frames despite a loaded image)", () => {
+    const onReady = vi.fn();
+    // A loaded image whose decode never settles: with the wait it would hang;
+    // decodeWait:false must ignore it and never even call decode().
+    const decode = vi.fn(() => new Promise<void>(() => {}));
+    const scope = {
+      querySelectorAll: () => [{ complete: true, decode }]
+    } as unknown as HTMLElement;
+    scheduleAnimHoldReadiness(onReady, { scope, decodeWait: false });
+
+    flushFrame();
+    expect(onReady).not.toHaveBeenCalled();
+    flushFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+    expect(decode).not.toHaveBeenCalled();
+  });
+
+  it("waits on the scope's decodes by default (decodeWait omitted)", async () => {
+    const onReady = vi.fn();
+    let resolveDecode!: () => void;
+    const scope = {
+      querySelectorAll: () => [
+        { complete: true, decode: () => new Promise<void>((resolve) => (resolveDecode = resolve)) }
+      ]
+    } as unknown as HTMLElement;
+    scheduleAnimHoldReadiness(onReady, { scope });
+
+    flushFrame();
+    flushFrame();
+    await Promise.resolve();
+    expect(onReady).not.toHaveBeenCalled();
+
+    resolveDecode();
+    for (let hop = 0; hop < 8; hop++) await Promise.resolve();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("createAnimHoldCoordinator", () => {
@@ -380,7 +417,7 @@ describe("createAnimHoldCoordinator", () => {
     expect(slow).toHaveBeenCalledTimes(1);
   });
 
-  it("does not group non-POPPING keys — each releases at its own readiness", async () => {
+  it("groups a PUSHING pair: held until BOTH are ready, then released together", async () => {
     const coordinator = createAnimHoldCoordinator();
     const first = vi.fn();
     const second = vi.fn();
@@ -391,14 +428,56 @@ describe("createAnimHoldCoordinator", () => {
 
     flushPaintAnchor();
     await flushMicrotasks();
-    // Push timing is byte-identical to before: `first` starts the moment it is
-    // ready, without waiting on `second`'s decode.
-    expect(first).toHaveBeenCalledTimes(1);
+    // Push now pair-gates exactly like pop (the crossfade-desync fix): `first`
+    // is ready in two frames but must wait on `second`'s in-flight decode
+    // instead of starting ~100ms ahead of it.
+    expect(first).not.toHaveBeenCalled();
     expect(second).not.toHaveBeenCalled();
 
     secondScope.resolveDecode();
     await flushMicrotasks();
+    expect(first).toHaveBeenCalledTimes(1);
     expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  it("groups a REPLACING pair the same way", async () => {
+    const coordinator = createAnimHoldCoordinator();
+    const first = vi.fn();
+    const second = vi.fn();
+    const secondScope = controllableScope();
+
+    coordinator.join("REPLACING:cupertino", first);
+    coordinator.join("REPLACING:cupertino", second, { scope: secondScope.scope });
+
+    flushPaintAnchor();
+    await flushMicrotasks();
+    expect(first).not.toHaveBeenCalled();
+    expect(second).not.toHaveBeenCalled();
+
+    secondScope.resolveDecode();
+    await flushMicrotasks();
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  it("a push/replace pair with decodeWait:false releases at the paint anchor (no decode wait)", async () => {
+    const coordinator = createAnimHoldCoordinator();
+    const enter = vi.fn();
+    const exit = vi.fn();
+    // Both members carry a loaded image whose decode NEVER settles, but pass
+    // decodeWait:false (visible exit side + fresh enter side). The pair must
+    // still release on the two-frame anchor — the "pairing is free" property.
+    const stuck = () => {
+      const image = { complete: true, decode: () => new Promise<void>(() => {}) };
+      return { querySelectorAll: () => [image] } as unknown as HTMLElement;
+    };
+    coordinator.join("PUSHING:cupertino", enter, { scope: stuck(), decodeWait: false });
+    coordinator.join("PUSHING:cupertino", exit, { scope: stuck(), decodeWait: false });
+
+    flushPaintAnchor();
+    await flushMicrotasks();
+    expect(enter).toHaveBeenCalledTimes(1);
+    expect(exit).toHaveBeenCalledTimes(1);
   });
 
   it("releases the whole pair together at the ONE group backstop when frames never come", () => {

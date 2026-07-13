@@ -78,6 +78,16 @@ export interface AnimHoldReleaseOptions {
   // thread, so waiting during the hold converts dropped frames into a few
   // milliseconds of extra stillness before the animation starts.
   scope?: HTMLElement | null;
+  // Whether to wait on the scope's image decodes before releasing (default
+  // true). The decode wait exists ONLY to cover a browser re-decoding bitmaps
+  // it discarded while the screen was FROZEN. A screen that is currently
+  // visible (a push/replace exit side, the exiting top) or freshly mounted
+  // (any enter side) never had its bitmaps discarded, so there is nothing to
+  // re-decode and waiting is pure latency. Set false for those screens. Doing
+  // so is also what makes pairing push/replace free: with both members of the
+  // pair skipping the wait, the group releases at max(2rAF, 2rAF) — the barrier
+  // adds no time over releasing each alone (see createAnimHoldCoordinator).
+  decodeWait?: boolean;
 }
 
 // Schedules the READINESS of a held animation after the screen's first painted
@@ -101,7 +111,12 @@ export function scheduleAnimHoldReadiness(
   const chainedFrames: number[] = [];
   const readyAfterDecodes = () => {
     const scope = options.scope;
-    if (!scope || typeof scope.querySelectorAll !== "function") {
+    // decodeWait === false: release right after the paint anchor, exactly as if
+    // the scope had no images. The wait only pays off for a screen waking from
+    // a freeze; a visible or freshly-mounted screen has nothing to re-decode,
+    // so skipping it removes pure latency (and keeps a push/replace pair free —
+    // see AnimHoldReleaseOptions.decodeWait / createAnimHoldCoordinator).
+    if (options.decodeWait === false || !scope || typeof scope.querySelectorAll !== "function") {
       onReady();
       return;
     }
@@ -174,31 +189,34 @@ interface AnimHoldGroup {
   backstop: ReturnType<typeof setTimeout>;
 }
 
-// Only pop is pair-gated; its hold keys are `POPPING:${transitionName}` (see
-// animHoldKey). Push/replace hide the same per-screen readiness lag behind the
-// entering cover, so they are never grouped.
-const PAIRED_STATUS_PREFIX = "POPPING";
-
 // A transition-scoped barrier that releases the anim-hold of every screen in
-// ONE pop together.
+// ONE navigation together — push, replace, AND pop.
 //
 // WHY: the per-screen readiness gate above is correct for a screen in
-// isolation, but a POP moves TWO screens as a visual pair — the exiting top and
-// the screen revealed beneath it. Their readiness is asymmetric: the exiting
-// top usually has no undecoded images and releases in ~2 frames, while the
-// revealed screen (an image-heavy list whose decoded bitmaps were discarded
-// while it was frozen) waits out its decode. Releasing each at its OWN
-// readiness lets the exiting top start ~100ms before the revealed screen, so
-// Cupertino's paired slide visibly desyncs (measured on device: the top slides
-// while the screen below sits parked at its offset pose, then jumps into a late
-// ease). This barrier holds the whole pair until max(readiness) — bounded by
-// the SAME 300ms backstop a lone screen gets — so the pair always starts on one
-// clock. The per-screen gates themselves are unchanged, and push/replace timing
-// stays byte-identical (they delegate straight to scheduleAnimHoldRelease).
+// isolation, but a navigation moves TWO screens as a visual pair — the exiting
+// screen and the entering one. Their readiness is asymmetric: a screen waking
+// from a freeze (a pop destination, image-heavy, whose decoded bitmaps were
+// discarded while frozen) waits out its decode, while its visible partner is
+// ready in ~2 frames. Releasing each at its OWN readiness lets the fast one
+// start ~100ms before the slow one, so a paired slide visibly desyncs (measured
+// on device: one screen slides while the other sits parked at its offset pose,
+// then jumps into a late ease). This barrier holds the whole pair until
+// max(readiness) — bounded by the SAME 300ms backstop a lone screen gets — so
+// the pair always starts on one clock. The per-screen gates are unchanged.
+//
+// Every status groups. An earlier policy pair-gated only POP, on the theory
+// that a push/replace entering screen COVERS the exiting one and so hides its
+// release lag. That masking assumption is false for non-covering transitions
+// (a fade, or a small-shift crossfade, shows both layers at once): there the
+// exiting screen's decode-gated late release destroys the crossfade — the exact
+// desync this barrier removes. Pairing push/replace costs ~nothing because the
+// decode wait is scoped to screens actually waking from a freeze (see
+// AnimHoldReleaseOptions.decodeWait): both members of a push/replace pair skip
+// the wait and the group releases at max(2rAF, 2rAF).
 //
 // One instance per Router scope (the binding wires that): nested Routers, and
-// two scopes popping at once, never share a group. No window/document access at
-// module scope, so this is SSR-safe like the rest of the file.
+// two scopes navigating at once, never share a group. No window/document access
+// at module scope, so this is SSR-safe like the rest of the file.
 export function createAnimHoldCoordinator(): AnimHoldCoordinator {
   const groups = new Map<string, AnimHoldGroup>();
 
@@ -223,12 +241,6 @@ export function createAnimHoldCoordinator(): AnimHoldCoordinator {
   const allReady = (group: AnimHoldGroup) => [...group.members].every((member) => member.ready);
 
   const join: AnimHoldCoordinator["join"] = (key, release, options) => {
-    // Non-pop transitions keep their exact former timing: each screen releases
-    // at its own readiness with its own backstop.
-    if (!key.startsWith(PAIRED_STATUS_PREFIX)) {
-      return scheduleAnimHoldRelease(release, options);
-    }
-
     let group = groups.get(key);
     if (!group) {
       // ONE backstop for the whole group: if any member's decode never settles,
