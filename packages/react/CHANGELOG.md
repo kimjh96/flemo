@@ -1,5 +1,13 @@
 # @flemo/react
 
+## 1.6.7
+
+### Patch Changes
+
+- [`980af25`](https://github.com/kimjh96/flemo/commit/980af254371f322d1a7bdbbc657d449e6be464ed) Release the anim-hold of both screens of a pop together: a transition-scoped barrier (`createAnimHoldCoordinator`) waits for the pair's slowest readiness gate, so the revealed screen's image-decode wait no longer lets the exiting screen start first and the pop pair always moves on one clock, still bounded by the existing 300ms backstop. Push and replace timing is unchanged.
+- Updated dependencies ([`980af25`](https://github.com/kimjh96/flemo/commit/980af254371f322d1a7bdbbc657d449e6be464ed)):
+  - @flemo/core@1.17.0
+
 ## 1.6.6
 
 ### Patch Changes
