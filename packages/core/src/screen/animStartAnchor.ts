@@ -80,32 +80,34 @@ export interface AnimHoldReleaseOptions {
   scope?: HTMLElement | null;
 }
 
-// Schedules the release of a held animation after the screen's first painted
-// frame: the first rAF fires before that (heavy) paint, the second after it,
-// so releasing on the second frame starts the animation against painted,
-// rasterized content — adaptively costing ~2 frames on a fast engine and
-// exactly "one heavy frame + one tick" on a slow one. With a `scope`, the
-// release additionally waits for the scope's image decodes (see
-// AnimHoldReleaseOptions). The timeout is insurance, not a wait: rAF suspends
-// in background tabs, and a paused animation left behind would never fire
-// `animationend`, hanging the navigation queue. `release` must be idempotent.
-// Returns a canceller.
-export function scheduleAnimHoldRelease(
-  release: () => void,
+// Schedules the READINESS of a held animation after the screen's first painted
+// frame, with NO backstop: the first rAF fires before that (heavy) paint, the
+// second after it, so `onReady` fires against painted, rasterized content —
+// adaptively costing ~2 frames on a fast engine and exactly "one heavy frame +
+// one tick" on a slow one. With a `scope`, it additionally waits (bounded by
+// ANIM_HOLD_DECODE_CAP_MS) for the scope's image decodes (see
+// AnimHoldReleaseOptions). This is the per-screen readiness gate shared by both
+// release paths — `scheduleAnimHoldRelease` (a lone screen, its own backstop)
+// and `createAnimHoldCoordinator` (a pop's pair, one shared backstop). Backstop
+// policy lives with the caller, never here, so the pair barrier can bound the
+// whole group with a single timeout. `onReady` must be idempotent. Returns a
+// canceller that stops the frame chain and suppresses a late decode.
+export function scheduleAnimHoldReadiness(
+  onReady: () => void,
   options: AnimHoldReleaseOptions = {}
 ): () => void {
   let cancelled = false;
   let secondFrame = 0;
   const chainedFrames: number[] = [];
-  const releaseAfterDecodes = () => {
+  const readyAfterDecodes = () => {
     const scope = options.scope;
     if (!scope || typeof scope.querySelectorAll !== "function") {
-      release();
+      onReady();
       return;
     }
     const images = collectDecodableImages(scope);
     if (images.length === 0) {
-      release();
+      onReady();
       return;
     }
     const decodes = Promise.allSettled(images.map((image) => image.decode()));
@@ -113,12 +115,12 @@ export function scheduleAnimHoldRelease(
       setTimeout(resolve, ANIM_HOLD_DECODE_CAP_MS);
     });
     void Promise.race([decodes, cap]).then(() => {
-      if (!cancelled) release();
+      if (!cancelled) onReady();
     });
   };
   const chain = (remaining: number) => {
     if (remaining <= 0) {
-      releaseAfterDecodes();
+      readyAfterDecodes();
       return;
     }
     chainedFrames.push(requestAnimationFrame(() => chain(remaining - 1)));
@@ -126,12 +128,157 @@ export function scheduleAnimHoldRelease(
   const firstFrame = requestAnimationFrame(() => {
     secondFrame = requestAnimationFrame(() => chain(options.extraFrames ?? 0));
   });
-  const fallback = setTimeout(release, ANIM_HOLD_RELEASE_BACKSTOP_MS);
   return () => {
     cancelled = true;
     cancelAnimationFrame(firstFrame);
     if (secondFrame) cancelAnimationFrame(secondFrame);
     chainedFrames.forEach((frame) => cancelAnimationFrame(frame));
+  };
+}
+
+// Schedules the release of a held animation for a LONE screen (push / replace,
+// or a pop with no participating partner): the screen's own readiness (above)
+// releases it, and the 300ms backstop is insurance, not a wait — rAF suspends
+// in background tabs, and a paused animation left behind would never fire
+// `animationend`, hanging the navigation queue. `release` must be idempotent.
+// Returns a canceller. Its signature, semantics, and timing are unchanged from
+// before the readiness extraction; the pair coordinator layers on top of the
+// same readiness gate without altering this path.
+export function scheduleAnimHoldRelease(
+  release: () => void,
+  options: AnimHoldReleaseOptions = {}
+): () => void {
+  const cancelReadiness = scheduleAnimHoldReadiness(release, options);
+  const fallback = setTimeout(release, ANIM_HOLD_RELEASE_BACKSTOP_MS);
+  return () => {
+    cancelReadiness();
     clearTimeout(fallback);
   };
+}
+
+export interface AnimHoldCoordinator {
+  // Join the release group for `key` (an `animHoldKey` value). `release` must be
+  // idempotent. Returns a canceller for the caller's teardown (React effect
+  // cleanup / unmount / interrupt).
+  join(key: string, release: () => void, options?: AnimHoldReleaseOptions): () => void;
+}
+
+interface AnimHoldGroupMember {
+  release: () => void;
+  ready: boolean;
+  cancelReadiness: () => void;
+}
+
+interface AnimHoldGroup {
+  members: Set<AnimHoldGroupMember>;
+  backstop: ReturnType<typeof setTimeout>;
+}
+
+// Only pop is pair-gated; its hold keys are `POPPING:${transitionName}` (see
+// animHoldKey). Push/replace hide the same per-screen readiness lag behind the
+// entering cover, so they are never grouped.
+const PAIRED_STATUS_PREFIX = "POPPING";
+
+// A transition-scoped barrier that releases the anim-hold of every screen in
+// ONE pop together.
+//
+// WHY: the per-screen readiness gate above is correct for a screen in
+// isolation, but a POP moves TWO screens as a visual pair — the exiting top and
+// the screen revealed beneath it. Their readiness is asymmetric: the exiting
+// top usually has no undecoded images and releases in ~2 frames, while the
+// revealed screen (an image-heavy list whose decoded bitmaps were discarded
+// while it was frozen) waits out its decode. Releasing each at its OWN
+// readiness lets the exiting top start ~100ms before the revealed screen, so
+// Cupertino's paired slide visibly desyncs (measured on device: the top slides
+// while the screen below sits parked at its offset pose, then jumps into a late
+// ease). This barrier holds the whole pair until max(readiness) — bounded by
+// the SAME 300ms backstop a lone screen gets — so the pair always starts on one
+// clock. The per-screen gates themselves are unchanged, and push/replace timing
+// stays byte-identical (they delegate straight to scheduleAnimHoldRelease).
+//
+// One instance per Router scope (the binding wires that): nested Routers, and
+// two scopes popping at once, never share a group. No window/document access at
+// module scope, so this is SSR-safe like the rest of the file.
+export function createAnimHoldCoordinator(): AnimHoldCoordinator {
+  const groups = new Map<string, AnimHoldGroup>();
+
+  // Release EVERY member in one synchronous batch, then dissolve the group:
+  // clear its shared backstop, drop it from the registry, cancel any still-
+  // pending readiness, and empty the member set so a late canceller is a safe
+  // no-op. Only ever runs on the group currently registered under `key`:
+  // `join` reuses a still-registered group instead of creating a rival, and
+  // releaseGroup cancels every member's readiness, so no readiness of a dead
+  // group can fire into the registry afterwards.
+  const releaseGroup = (key: string, group: AnimHoldGroup) => {
+    clearTimeout(group.backstop);
+    groups.delete(key);
+    const members = [...group.members];
+    group.members.clear();
+    for (const member of members) {
+      member.cancelReadiness();
+      member.release();
+    }
+  };
+
+  const allReady = (group: AnimHoldGroup) => [...group.members].every((member) => member.ready);
+
+  const join: AnimHoldCoordinator["join"] = (key, release, options) => {
+    // Non-pop transitions keep their exact former timing: each screen releases
+    // at its own readiness with its own backstop.
+    if (!key.startsWith(PAIRED_STATUS_PREFIX)) {
+      return scheduleAnimHoldRelease(release, options);
+    }
+
+    let group = groups.get(key);
+    if (!group) {
+      // ONE backstop for the whole group: if any member's decode never settles,
+      // the pair still releases together at the bound (the lone-screen insurance
+      // applied group-wide).
+      const created: AnimHoldGroup = {
+        members: new Set(),
+        backstop: setTimeout(() => releaseGroup(key, created), ANIM_HOLD_RELEASE_BACKSTOP_MS)
+      };
+      groups.set(key, created);
+      group = created;
+    }
+    const currentGroup = group;
+
+    // The readiness callback closes over `member` from its own initializer —
+    // safe because readiness always fires at least one frame later, never
+    // synchronously during construction.
+    const member: AnimHoldGroupMember = {
+      release,
+      ready: false,
+      cancelReadiness: scheduleAnimHoldReadiness(() => {
+        member.ready = true;
+        // Release the instant every CURRENT member is ready. Both screens of a
+        // pop join within the transition's first effect flushes — well inside
+        // the two-frame paint anchor — so by the time the first readiness lands
+        // the group holds both. If a binding ever joined one screen so late
+        // that the other already released alone, each degrades to today's
+        // independent release; the barrier can only remove desync, never add a
+        // stall.
+        if (allReady(currentGroup)) releaseGroup(key, currentGroup);
+      }, options)
+    };
+    currentGroup.members.add(member);
+
+    return () => {
+      // No-op once the group has released (its member set was emptied) or this
+      // member already left.
+      if (!currentGroup.members.has(member)) return;
+      member.cancelReadiness();
+      currentGroup.members.delete(member);
+      if (currentGroup.members.size === 0) {
+        // Last member gone: dissolve the group so no stray backstop survives.
+        clearTimeout(currentGroup.backstop);
+        groups.delete(key);
+        return;
+      }
+      // Never strand a ready remainder waiting on a departed member.
+      if (allReady(currentGroup)) releaseGroup(key, currentGroup);
+    };
+  };
+
+  return { join };
 }

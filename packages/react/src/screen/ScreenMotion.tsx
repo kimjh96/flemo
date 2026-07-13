@@ -17,8 +17,10 @@ import {
   enteringInitialStyle,
   observeBarHeight,
   resolveTransition,
-  scheduleAnimHoldRelease
+  type AnimHoldCoordinator
 } from "@flemo/core";
+
+import getScopeAnimHoldCoordinator from "@screen/scopeAnimHoldCoordinator";
 
 import type { ScreenProps } from "@screen/Screen";
 import ScreenDecorator from "@screen/ScreenDecorator";
@@ -95,6 +97,15 @@ function ScreenMotion({
     });
   }
   const engine = engineRef.current;
+
+  // The pop pair-release barrier for THIS Router scope, resolved once per screen
+  // and shared across every screen in the scope (keyed by the scope's navigate
+  // store — see getScopeAnimHoldCoordinator). Read like engineRef above: a
+  // stable per-scope object looked up during the first render.
+  const coordinatorRef = useRef<AnimHoldCoordinator | null>(null);
+  if (!coordinatorRef.current) {
+    coordinatorRef.current = getScopeAnimHoldCoordinator(stores.navigate);
+  }
 
   const currentTransition = resolveTransition(transitionName);
   const { initial, swipeDirection, decoratorName } = currentTransition;
@@ -314,11 +325,12 @@ function ScreenMotion({
   // `animation-play-state`; `fill: both` keeps the keyframe's `from` value
   // applied while paused, so the heavy raster happens AT the initial state),
   // then release: the full duration now plays against already-rasterized
-  // layers. The decision (`animHoldKey`) and release scheduling
-  // (`scheduleAnimHoldRelease`, double-rAF + backstop) live in @flemo/core so
-  // other bindings anchor identically; this binding's own part is flipping the
-  // flag ON in the SAME render that changes the status attribute — computed in
-  // render, not an effect — so an Activity-unfrozen screen (whose effects
+  // layers. The decision (`animHoldKey`) and release scheduling (the
+  // double-rAF + decode readiness gate, and the pop pair barrier that releases
+  // both screens together — see createAnimHoldCoordinator) live in @flemo/core
+  // so other bindings anchor identically; this binding's own part is flipping
+  // the flag ON in the SAME render that changes the status attribute — computed
+  // in render, not an effect — so an Activity-unfrozen screen (whose effects
   // reconnect as follow-up work) still holds from its very first frame.
   const holdKey = animHoldKey({ status, isTopOrTopPrev, transitionName });
   const [animRelease, setAnimRelease] = useState<{ key: string | null; released: boolean }>({
@@ -379,21 +391,35 @@ function ScreenMotion({
   );
 
   useEffect(() => {
-    if (!animHold) return undefined;
-    return scheduleAnimHoldRelease(
+    if (!animHold || holdKey === null) return undefined;
+    const key = holdKey;
+    // Join this screen's release to the scope's coordinator instead of releasing
+    // it in isolation. For a POP the coordinator holds this screen paused until
+    // its partner is also ready, so the pair starts on one clock (see
+    // createAnimHoldCoordinator); for push/replace it delegates straight to
+    // scheduleAnimHoldRelease, so their timing is unchanged. The release
+    // callback and the decode-wait scope are exactly as before.
+    //
+    // The group key appends the transition task id so consecutive pops reusing
+    // the same hold key can never blend into one group. Safe to read
+    // imperatively: the controller sets the status and the task id in the same
+    // synchronous block (see createNavigationController), so when this effect
+    // observes the transition both participants read the same id.
+    const transitionTaskId = stores.navigate.getState().transitionTaskId;
+    const groupKey = transitionTaskId === null ? key : `${key}#${transitionTaskId}`;
+    return coordinatorRef.current!.join(
+      groupKey,
       () =>
         setAnimRelease((current) =>
-          current.key === holdKey && !current.released ? { key: holdKey, released: true } : current
+          current.key === key && !current.released ? { key, released: true } : current
         ),
       {
         // Decode-wait: a frozen screen's discarded image bitmaps re-decode
         // during the hold instead of dropping the first animated frames.
-        // (This wiring was accidentally dropped in a refactor and shipped
-        // dormant — the core option existed but never received the scope.)
         scope: scopeRef.current
       }
     );
-  }, [animHold, holdKey, holdAttr]);
+  }, [animHold, holdKey, holdAttr, stores.navigate]);
 
   const initialStyle =
     holdAttr === "park-under"

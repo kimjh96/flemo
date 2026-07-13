@@ -145,9 +145,11 @@ export { default as computeBarRiding, type BarRidingInput } from "@screen/comput
 export {
   animHoldKey,
   scheduleAnimHoldRelease,
+  createAnimHoldCoordinator,
   eagerlyDecodeImages,
   ANIM_HOLD_RELEASE_BACKSTOP_MS,
-  type AnimHoldInput
+  type AnimHoldInput,
+  type AnimHoldCoordinator
 } from "@screen/animStartAnchor";
 export { default as observeBarHeight } from "@screen/observeBarHeight";
 export { default as observeViewportScrollHeight } from "@screen/observeViewportScrollHeight";
