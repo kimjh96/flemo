@@ -313,7 +313,13 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // a genuinely stranded one hits the floor. `resolveTask` is a no-op on an
     // already-resolved id.
     const flooredTaskId = deps.getTransitionTaskId();
-    const settleMs = ((activeMotion?.delay ?? 0) + (activeMotion?.duration ?? 0.6)) * 1000 + 1500;
+    // Past the `hasAnimation` early return the motion ALWAYS resolves:
+    // variantHasAnimation and resolveVariantMotion share the same gate (a
+    // non-rest variant with duration or delay > 0 — see variantMotion.ts), so
+    // the assertion can never fire. One span, shared by the liveness floor and
+    // the recovery watchdog below.
+    const motionSpanMs = (activeMotion!.delay + activeMotion!.duration) * 1000;
+    const settleMs = motionSpanMs + 1500;
     const floor = flooredTaskId
       ? setTimeout(() => void TaskManger.resolveTask(flooredTaskId), settleMs)
       : undefined;
@@ -330,8 +336,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // with no transition. The ladder: restart the animation ONCE, then let the
     // watchdog resolve if the restart is lost too. The liveness floor above and
     // the 1.2s task gate remain as untouched last resorts.
-    const restartWatchdogMs =
-      ((activeMotion?.delay ?? 0) + (activeMotion?.duration ?? 0.6)) * 1000 + 250;
+    const restartWatchdogMs = motionSpanMs + 250;
 
     const armWatchdog = () => {
       clearWatchdog();
