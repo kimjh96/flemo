@@ -61,6 +61,14 @@ const collectVariantParts = (scope: HTMLElement, variant: TransitionVariant): HT
 // - Anything the player can't provably interpolate keeps the compiled CSS
 //   animation exactly as before.
 export default function createTransitionEngine(deps: TransitionEngineDeps): TransitionEngine {
+  // Restart budget for the compiled-CSS liveness recovery (see the active path
+  // below): task ids that have already spent their one animation restart. Keyed
+  // by task id, NOT by effect run — the anim-hold release re-runs the driver
+  // effect, and a per-run flag would hand the same transition a fresh restart
+  // each re-run. Only a genuinely-recovered transition is ever recorded, so this
+  // set tracks the (rare) signal-loss defect, not healthy navigations.
+  const restartedTaskIds = new Set<string>();
+
   const driveScreenLifecycle = (input: ScreenLifecycleInput): (() => void) => {
     const { getElements, transitionName, prevTransitionName, status, isActive, animHoldReleased } =
       input;
@@ -264,10 +272,22 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // the player's onComplete resolves instead — never a double, and never a
     // gap where nothing is wired to resolve.
     const expectedName = animationName("screen", transitionName, variantKey);
+
+    // Compiled-CSS liveness recovery state (see the recovery block below the
+    // player join). Declared up here so the always-wired `animationend`
+    // resolver clears the watchdog the instant the animation finishes cleanly.
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    const clearWatchdog = () => {
+      if (watchdog === undefined) return;
+      clearTimeout(watchdog);
+      watchdog = undefined;
+    };
+
     const onEnd = (event: AnimationEvent) => {
       if (event.target !== scope) return;
       if (event.animationName !== expectedName) return;
       scope.removeEventListener("animationend", onEnd);
+      clearWatchdog();
       resolve();
     };
     scope.addEventListener("animationend", onEnd);
@@ -298,9 +318,76 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       ? setTimeout(() => void TaskManger.resolveTask(flooredTaskId), settleMs)
       : undefined;
 
+    // Animation-signal loss recovery for the COMPILED-CSS path only. When the
+    // rAF player drives, its own onComplete resolves and the join's
+    // `animation: none` would itself fire a spurious `animationcancel`, so this
+    // arms only when the player is NOT the driver AND the hold has released (a
+    // paused, held animation is not lost — nothing to recover, and the watchdog
+    // must never fire against a legitimate pause). On WebKit a screen animation
+    // the browser silently cancels mid-flight (a data/suspense commit racing
+    // the transition) fires NEITHER `animationend` nor a player onComplete;
+    // without this the task hangs until the 1.2s gate and the screen snaps in
+    // with no transition. The ladder: restart the animation ONCE, then let the
+    // watchdog resolve if the restart is lost too. The liveness floor above and
+    // the 1.2s task gate remain as untouched last resorts.
+    const restartWatchdogMs =
+      ((activeMotion?.delay ?? 0) + (activeMotion?.duration ?? 0.6)) * 1000 + 250;
+
+    const armWatchdog = () => {
+      clearWatchdog();
+      watchdog = setTimeout(runRecovery, restartWatchdogMs);
+    };
+
+    const runRecovery = () => {
+      clearWatchdog();
+      // No task to gate: nothing to recover or resolve.
+      if (!flooredTaskId) return;
+      const canRestart =
+        // Still THIS transition (a newer navigation captured a new id).
+        deps.getTransitionTaskId() === flooredTaskId &&
+        scope.isConnected &&
+        // A swipe that committed the exit sets SKIP_ANIMATION — no restart.
+        scope.getAttribute(SKIP_ANIMATION_ATTR) !== "true" &&
+        // The variant genuinely animates (guards a def with no motion).
+        variantHasAnimation(currentTransition, variantKey) &&
+        // Budget: at most one restart per task id (survives effect re-runs).
+        !restartedTaskIds.has(flooredTaskId);
+      if (canRestart) {
+        restartedTaskIds.add(flooredTaskId);
+        // Standard restart trick: drop the animation, force a reflow so the
+        // removal takes, then restore it — the compiled rule replays from its
+        // own `from` keyframe. Re-arm the watchdog for the restarted run.
+        scope.style.animation = "none";
+        void scope.offsetWidth;
+        scope.style.removeProperty("animation");
+        armWatchdog();
+        return;
+      }
+      // Precondition failed or the restart was already spent: resolve now
+      // rather than strand the task until the 1.2s gate.
+      resolve();
+    };
+
+    const onCancel = (event: AnimationEvent) => {
+      if (event.target !== scope) return;
+      if (event.animationName !== expectedName) return;
+      runRecovery();
+    };
+
+    const recovering = !detachPlayer && animHoldReleased;
+    if (recovering) {
+      scope.addEventListener("animationcancel", onCancel);
+      // Arm on the transition INTO released (this effect re-runs when the hold
+      // releases; a hold-free variant attaches with animHoldReleased already
+      // true and arms here immediately).
+      armWatchdog();
+    }
+
     return () => {
       if (floor !== undefined) clearTimeout(floor);
       scope.removeEventListener("animationend", onEnd);
+      if (recovering) scope.removeEventListener("animationcancel", onCancel);
+      clearWatchdog();
       detachPlayer?.();
     };
   };

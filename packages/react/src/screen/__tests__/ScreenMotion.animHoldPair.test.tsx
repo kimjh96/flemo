@@ -208,7 +208,9 @@ describe("ScreenMotion pop pair release", () => {
   it("never couples two Router scopes: a sibling scope's pop releases on its own clock", async () => {
     // Two scopes popping simultaneously with IDENTICAL group keys (same status,
     // transition, and task id) — isolation must come from the per-scope
-    // coordinator, not from key luck.
+    // coordinator, not from key luck. The slow scope's held screen is the
+    // revealed destination (waking from a freeze), the only kind that waits on
+    // its decode now that the wait is scoped to wake-from-freeze screens.
     const otherStores = createTestStores();
     otherStores.navigate.setState({ status: "POPPING", transitionTaskId: "task-1" });
     otherStores.history.setState({
@@ -219,7 +221,9 @@ describe("ScreenMotion pop pair release", () => {
     const { getByTestId } = render(
       <>
         <StoreContext.Provider value={stores}>
-          <ScreenContext.Provider value={screenContext({ id: "top", isActive: true, zIndex: 1 })}>
+          <ScreenContext.Provider
+            value={screenContext({ id: "below", isActive: false, isPrev: true, zIndex: 0 })}
+          >
             <ScreenMotion data-testid="slow-scope">
               <img data-testid="slow-hero" alt="" />
             </ScreenMotion>
@@ -244,6 +248,42 @@ describe("ScreenMotion pop pair release", () => {
     // decode holds only its own screen.
     expect(getByTestId("fast-scope").getAttribute("data-flemo-anim-hold")).toBe("false");
     expect(getByTestId("slow-scope").getAttribute("data-flemo-anim-hold")).not.toBe("false");
+  });
+
+  it("releases a REPLACING pair together in the same flush", async () => {
+    // Replace now pair-gates too. Both members skip the decode wait (a visible
+    // exit side, a fresh entering side), so the group releases on the two-frame
+    // paint anchor with no decode dependency.
+    stores.navigate.setState({ status: "REPLACING", transitionTaskId: "task-replace" });
+
+    const { getByTestId } = render(
+      <StoreContext.Provider value={stores}>
+        <ScreenContext.Provider
+          value={screenContext({ id: "below", isActive: false, isPrev: false, zIndex: 0 })}
+        >
+          <ScreenMotion data-testid="exit">
+            <div>exit</div>
+          </ScreenMotion>
+        </ScreenContext.Provider>
+        <ScreenContext.Provider value={screenContext({ id: "top", isActive: true, zIndex: 1 })}>
+          <ScreenMotion data-testid="enter">
+            <div>enter</div>
+          </ScreenMotion>
+        </ScreenContext.Provider>
+      </StoreContext.Provider>
+    );
+    const exit = getByTestId("exit");
+    const enter = getByTestId("enter");
+
+    expect(enter.getAttribute("data-flemo-anim-hold")).not.toBe("false");
+    expect(exit.getAttribute("data-flemo-anim-hold")).not.toBe("false");
+
+    await flushFrames(0);
+    await flushFrames(16);
+    await flushMicrotasks();
+
+    expect(enter.getAttribute("data-flemo-anim-hold")).toBe("false");
+    expect(exit.getAttribute("data-flemo-anim-hold")).toBe("false");
   });
 });
 
