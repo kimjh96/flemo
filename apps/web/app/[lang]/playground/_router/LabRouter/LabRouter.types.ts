@@ -29,6 +29,7 @@ declare module "@flemo/react" {
 
   interface RegisterPartTransition {
     "panel-title": "panel-title";
+    "stress-entry": "stress-entry";
   }
 
   interface RegisterDecorator {
