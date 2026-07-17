@@ -18,11 +18,19 @@ import { useNavigate, type TransitionName } from "@flemo/react";
 
 const MARKER_ID = "__spikeTapMarker";
 
-// The harness only renders when the measurement script opts in (it sets this
-// key via addInitScript before navigation). A fixed overlay of trigger buttons
-// must never sit over the real playground UI for users or the regular e2e
-// suite — on the mobile viewport it covers the panel's own buttons.
+// The harness only renders when opted in: the measurement script sets this key
+// via addInitScript before navigation, OR a maintainer appends `?spike=1` to the
+// URL to eyeball the behavior on a device where DevTools (and thus localStorage
+// editing) is unavailable. A fixed overlay of trigger buttons must never sit
+// over the real playground UI for users or the regular e2e suite — on the mobile
+// viewport it covers the panel's own buttons — so the default (no key, no query)
+// stays fully hidden.
 const ENABLE_KEY = "flemo:spike-harness";
+
+// URL opt-in: `?spike=1` also enables the harness, and is persisted to the
+// localStorage key so later in-app client navigations (which drop the query
+// string) keep it visible.
+const ENABLE_QUERY_PARAM = "spike";
 
 const BLOCKS = [0, 200, 400, 800] as const;
 const TRANSITIONS: { name: TransitionName; key: string }[] = [
@@ -38,7 +46,17 @@ function LabSpikeHarness() {
   const [enabled, setEnabled] = useState(false);
 
   useEffect(() => {
-    setEnabled(localStorage.getItem(ENABLE_KEY) === "1");
+    // Enabled by the measurement script's persisted flag OR a `?spike=1` query
+    // parameter. When the query enables it, persist the flag so subsequent
+    // client navigations keep the harness up without the query string. The
+    // addInitScript path is untouched: it writes the same localStorage key.
+    const storedEnabled = localStorage.getItem(ENABLE_KEY) === "1";
+    const queryEnabled =
+      new URLSearchParams(window.location.search).get(ENABLE_QUERY_PARAM) === "1";
+    if (queryEnabled && !storedEnabled) {
+      localStorage.setItem(ENABLE_KEY, "1");
+    }
+    setEnabled(storedEnabled || queryEnabled);
   }, []);
 
   const handleTrigger = (transition: TransitionName, block: number) => {
