@@ -405,24 +405,24 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           const transition = resolveTransition(transitionName);
           const detachers: (() => void)[] = [];
           if (variantHasAnimation(transition, variant)) {
-            const motion = resolveVariantMotion(transition, variant);
-            if (motion) {
-              let used = 0;
-              const controller = wireCancelResume({
-                element: scope,
-                expectedName: animationName("screen", transitionName, variant),
-                motion,
-                isLive: () =>
-                  scope.isConnected && scope.getAttribute(SKIP_ANIMATION_ATTR) !== "true",
-                budgetUsed: () => used,
-                spendBudget: () => {
-                  used += 1;
-                },
-                onTerminal: noop
-              });
-              controller.attach();
-              detachers.push(controller.detach);
-            }
+            // variantHasAnimation and resolveVariantMotion share the same gate
+            // (a non-rest variant with duration or delay > 0 — see
+            // variantMotion.ts), so the assertion can never fire.
+            const motion = resolveVariantMotion(transition, variant)!;
+            let used = 0;
+            const controller = wireCancelResume({
+              element: scope,
+              expectedName: animationName("screen", transitionName, variant),
+              motion,
+              isLive: () => scope.isConnected && scope.getAttribute(SKIP_ANIMATION_ATTR) !== "true",
+              budgetUsed: () => used,
+              spendBudget: () => {
+                used += 1;
+              },
+              onTerminal: noop
+            });
+            controller.attach();
+            detachers.push(controller.detach);
           }
           detachers.push(...wireParticipantRecovery(scope, variant));
           if (detachers.length > 0) return () => detachers.forEach((detach) => detach());

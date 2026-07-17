@@ -539,4 +539,107 @@ describe("createTransitionEngine cancel-resume liveness", () => {
     removeSpy.mockRestore();
     dispose();
   });
+
+  // ── Re-entrancy: synchronous compositor events mid-restart ───────────────
+  // A real compositor may emit animation events SYNCHRONOUSLY while the
+  // restart trick mutates the element (the reflow read is a style flush).
+  // jsdom never does this on its own, so these tests inject the events from an
+  // `offsetWidth` getter override — firing exactly inside the mutation window
+  // the `midRestart` guard protects.
+
+  // Fires `inject` synchronously from the restart trick's reflow read, once.
+  const injectDuringNextReflow = (element: HTMLElement, inject: () => void) => {
+    let fired = false;
+    Object.defineProperty(element, "offsetWidth", {
+      configurable: true,
+      get() {
+        if (!fired) {
+          fired = true;
+          inject();
+        }
+        return 0;
+      }
+    });
+  };
+
+  it("an animationstart emitted mid-restart does not corrupt the original clock", () => {
+    const scope = newDiv();
+    const dispose = driveActive(scope);
+
+    // First cancel arrives before any observed start (plain restart path).
+    // Mid-restart, the "compositor" emits a start — the guard must ignore it,
+    // leaving the clock unset.
+    injectDuringNextReflow(scope, () => {
+      nowSpy.mockReturnValue(1500);
+      scope.dispatchEvent(startEvent(ACTIVE(CROSSFADE)));
+    });
+    nowSpy.mockReturnValue(1000);
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
+
+    // The genuine start after the restart sets the clock; a later cancel's
+    // rejoin math must reference IT (2000), not the mid-restart event (1500).
+    nowSpy.mockReturnValue(2000);
+    scope.dispatchEvent(startEvent(ACTIVE(CROSSFADE)));
+    nowSpy.mockReturnValue(2060);
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
+    expect(scope.style.animationDelay).toBe("-0.06s");
+    expect(resolveSpy).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it("an animationcancel emitted mid-restart is ignored, not treated as another loss", () => {
+    const scope = newDiv();
+    const dispose = driveActive(scope);
+
+    nowSpy.mockReturnValue(1000);
+    scope.dispatchEvent(startEvent(ACTIVE(CROSSFADE)));
+
+    // Spend three of the four resumes on genuine cancels.
+    for (const at of [1010, 1020, 1030]) {
+      nowSpy.mockReturnValue(at);
+      scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
+    }
+
+    // The fourth genuine cancel spends the last budget; the mid-restart cancel
+    // it triggers must be swallowed — processed, it would read as a FIFTH loss
+    // and resolve the task out from under the running animation.
+    injectDuringNextReflow(scope, () => {
+      scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
+    });
+    nowSpy.mockReturnValue(1040);
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
+
+    expect(scope.style.animationDelay).toBe("-0.04s"); // the 4th resume landed
+    expect(resolveSpy).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it("a bubbling animation event from a descendant (foreign target) is ignored", () => {
+    const scope = newDiv();
+    const child = document.createElement("div");
+    scope.appendChild(child);
+    const dispose = driveActive(scope);
+
+    const bubbling = (type: string) => {
+      const event = new Event(type, { bubbles: true });
+      Object.defineProperty(event, "animationName", { value: ACTIVE(CROSSFADE) });
+      return event as AnimationEvent;
+    };
+
+    // A child's start must not set the clock, and a child's cancel must not
+    // trigger recovery, even with the expected animation name.
+    nowSpy.mockReturnValue(1500);
+    child.dispatchEvent(bubbling("animationstart"));
+    child.dispatchEvent(bubbling("animationcancel"));
+    expect(scope.style.animationDelay).toBe("");
+    expect(resolveSpy).not.toHaveBeenCalled();
+
+    // The scope's own start still records the clock cleanly afterwards.
+    nowSpy.mockReturnValue(2000);
+    scope.dispatchEvent(startEvent(ACTIVE(CROSSFADE)));
+    nowSpy.mockReturnValue(2090);
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
+    expect(scope.style.animationDelay).toBe("-0.09s");
+    dispose();
+  });
 });
