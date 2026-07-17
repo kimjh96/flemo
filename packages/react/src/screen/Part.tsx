@@ -1,10 +1,12 @@
 import { type ComponentPropsWithRef, type PropsWithChildren } from "react";
 
+import { useStore } from "zustand";
+
 import type { PartTransitionName } from "@flemo/core";
 
 import useScreen from "@screen/useScreen";
 
-import useNavigateStore from "@stores/useNavigateStore";
+import useStores from "@stores/useStores";
 
 export interface PartProps extends PropsWithChildren<ComponentPropsWithRef<"div">> {
   // The registered createPartTransition `name` to run on this element.
@@ -18,9 +20,14 @@ export interface PartProps extends PropsWithChildren<ComponentPropsWithRef<"div"
 // right variant matches. Selective by design: only the wrapped child animates,
 // the rest of the bar stays put.
 function Part({ ref, name, style, children, ...props }: PartProps) {
-  const { isActive } = useScreen();
+  const { isActive, navigateStore } = useScreen();
 
-  const status = useNavigateStore((state) => state.status);
+  // The status must come from the Router that OWNS the enclosing screen. Inside
+  // a nested <Router>'s chrome the nearest bundle is the inner Router's, so a
+  // Part there would otherwise follow the wrong scope's transitions. The
+  // nearest bundle stays as the fallback for a Part outside any screen.
+  const stores = useStores();
+  const status = useStore(navigateStore ?? stores.navigate, (state) => state.status);
 
   return (
     <div

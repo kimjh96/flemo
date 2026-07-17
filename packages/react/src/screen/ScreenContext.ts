@@ -1,6 +1,6 @@
 import { createContext } from "react";
 
-import type { History, TransitionName } from "@flemo/core";
+import type { FlemoStores, History, TransitionName } from "@flemo/core";
 
 import type { Path } from "path-to-regexp";
 
@@ -12,6 +12,12 @@ export interface ScreenContextProps extends History {
   zIndex: number;
   prevTransitionName: TransitionName;
   routePath: Path;
+  // The navigate store of the Router that OWNS this screen. Screen-scoped
+  // consumers (e.g. <Part>) must read their screen's status from here rather
+  // than the nearest StoreContext: inside a nested <Router>'s chrome the
+  // nearest bundle is the inner Router's, while the enclosing screen still
+  // belongs to the outer one. Absent outside any screen.
+  navigateStore?: FlemoStores["navigate"];
 }
 
 const ScreenContext = createContext<ScreenContextProps>({
