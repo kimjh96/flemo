@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type History, type TransitionName } from "@flemo/core";
 
+import getScopeMidFlightCommitLatch from "@screen/scopeMidFlightCommitLatch";
 import ScreenContext, { type ScreenContextProps } from "@screen/ScreenContext";
 import ScreenMotion from "@screen/ScreenMotion";
 
@@ -163,6 +164,41 @@ describe("ScreenMotion shell-first children deferral", () => {
     );
 
     expect(queryByTestId("content")).not.toBeNull();
+  });
+
+  // The shell-first deferral also drives the per-transition compositor
+  // takeover: a deferring entering screen ARMS the scope's shared latch, from
+  // which the exiting (passive) screen — a different ScreenMotion instance that
+  // can't know the entering side deferred — learns to decline the rAF player
+  // too, so both sides stay on one driver. These assert the hint is wired
+  // through to the engine (which arms the latch) exactly for the deferring case.
+  it("passes the hint: a deferring entering screen arms the scope's shell-first latch", () => {
+    enteringPush(<div data-testid="content">heavy</div>);
+    // The active entering screen's engine armed the latch for the live task in
+    // its first (held) commit — before any release, so the exiting side always
+    // reads the takeover in time.
+    expect(getScopeMidFlightCommitLatch(stores.navigate).isArmed("task-1")).toBe(true);
+  });
+
+  it("passes no hint from a NON-deferring active transition (POP): latch stays unarmed", () => {
+    stores.navigate.setState({ status: "POPPING", transitionTaskId: "task-pop" });
+    stores.history.setState({
+      index: 1,
+      histories: [historyEntry("below"), historyEntry("leaving")]
+    });
+    render(
+      <StoreContext.Provider value={stores}>
+        <ScreenContext.Provider value={screenContext({ id: "leaving", isActive: true, zIndex: 1 })}>
+          <ScreenMotion>
+            <div data-testid="content">leaving</div>
+          </ScreenMotion>
+        </ScreenContext.Provider>
+      </StoreContext.Provider>
+    );
+    // A pop's active screen never shell-first defers (shouldMountShellFirst is
+    // false outside push/replace), so midFlightCommitExpected is false and the
+    // engine arms nothing — the pop keeps the player as before.
+    expect(getScopeMidFlightCommitLatch(stores.navigate).isArmed("task-pop")).toBe(false);
   });
 
   it("does not re-defer a screen that mounted at rest and is later revealed (no remount)", async () => {

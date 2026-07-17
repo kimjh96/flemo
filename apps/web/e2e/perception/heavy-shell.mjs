@@ -70,10 +70,22 @@ const TRANSITIONS = [
 ];
 // engine + forced driver. webkit default is css; chromium default is the rAF
 // player. We pin explicitly so the driverPolicy probation never adds variance.
+//
+// `driver: "default"` pins NOTHING (no force key) — it measures chromium's real
+// production path, where the driver is auto-selected. This is the row that
+// proves the shell-first compositor takeover: the fixture's heavy screen always
+// defers, so under automatic selection the transition DECLINES the rAF player
+// and the compiled-CSS compositor drives both sides (freeze collapses to the
+// css numbers). The forced "raf" row does NOT collapse — the diagnostic pin
+// deliberately OVERRIDES the takeover (a debugger can still force the player
+// onto a heavy transition to reproduce the snap), so it stays the diseased
+// baseline. Compare "default" vs "raf" to see the fix; "raf" documents that the
+// pin wins.
 const CONFIGS = [
   { engine: "webkit", driver: "css" },
   { engine: "chromium", driver: "css" },
-  { engine: "chromium", driver: "raf" }
+  { engine: "chromium", driver: "raf" },
+  { engine: "chromium", driver: "default" }
 ];
 
 // ── server ────────────────────────────────────────────────────────────────
@@ -198,7 +210,15 @@ async function runScenario(browser, cfg, transition, block, tag) {
   });
   await context.addInitScript((driver) => {
     try {
-      localStorage.setItem("flemo:motion-driver-force", driver);
+      // "default" = no pin: measure automatic driver selection (the production
+      // path). Clear any persisted demotion too so probation never adds
+      // variance to the auto-selected run.
+      if (driver === "default") {
+        localStorage.removeItem("flemo:motion-driver-force");
+        localStorage.removeItem("flemo:motion-driver");
+      } else {
+        localStorage.setItem("flemo:motion-driver-force", driver);
+      }
     } catch {
       // ignore
     }

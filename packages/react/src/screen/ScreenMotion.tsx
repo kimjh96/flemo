@@ -24,6 +24,7 @@ import {
 } from "@flemo/core";
 
 import getScopeAnimHoldCoordinator from "@screen/scopeAnimHoldCoordinator";
+import getScopeMidFlightCommitLatch from "@screen/scopeMidFlightCommitLatch";
 
 import type { ScreenProps } from "@screen/Screen";
 import ScreenDecorator from "@screen/ScreenDecorator";
@@ -97,7 +98,12 @@ function ScreenMotion({
     engineRef.current = createTransitionEngine({
       getTransitionTaskId: () => stores.navigate.getState().transitionTaskId,
       setDragStatus,
-      setReplaceTransitionStatus
+      setReplaceTransitionStatus,
+      // The shell-first coherence latch shared by every screen in this scope
+      // (keyed by the navigate store — see getScopeMidFlightCommitLatch). The
+      // active entering screen arms it; the passive screen reads it, so both
+      // sides decline the rAF player together for a shell-first transition.
+      midFlightCommitLatch: getScopeMidFlightCommitLatch(stores.navigate)
     });
   }
   const engine = engineRef.current;
@@ -489,9 +495,17 @@ function ScreenMotion({
         // The rAF player starts exactly at hold release; the compiled
         // hold/park rules own every frame before it. Included in the deps so
         // the release re-runs this effect and hands the motion to the player.
-        animHoldReleased: !animHold
+        animHoldReleased: !animHold,
+        // This active entering screen deferred its (heavy) children to a
+        // post-release commit (shell-first). The engine declines the rAF player
+        // for this transition and drives both participants on the compiled-CSS
+        // compositor — a mid-flight heavy commit would starve the main-thread
+        // player and snap the motion. False on every non-deferring screen
+        // (including this transition's passive/exiting side, which learns the
+        // takeover from the shared latch instead).
+        midFlightCommitExpected: deferChildren
       }),
-    [engine, status, isActive, prevTransitionName, transitionName, animHold]
+    [engine, status, isActive, prevTransitionName, transitionName, animHold, deferChildren]
   );
 
   useEffect(() => {
