@@ -1,5 +1,15 @@
 # @flemo/web
 
+## 0.10.1
+
+### Patch Changes
+
+- [`d979a33`](https://github.com/kimjh96/flemo/commit/d979a33db7642e70bb3687cd12593b789c7dcc39) Revert the shell-first children deferral and re-anchor the transition gate to the motion start. Screens enter with their real content in the first frame again — no blank shell, no late content pop-in, no perceived double render. A heavy mount commit now delays the transition start by exactly its cost instead of snapping the transition away: the gate backstop re-arms while the hold is pending and restarts with a full window when the motion actually begins.
+- Updated dependencies ([`d979a33`](https://github.com/kimjh96/flemo/commit/d979a33db7642e70bb3687cd12593b789c7dcc39)):
+  - @flemo/react@1.7.1
+  - @flemo/core@1.19.1
+  - @flemo/react-layout@0.1.35
+
 ## 0.10.0
 
 ### Minor Changes
