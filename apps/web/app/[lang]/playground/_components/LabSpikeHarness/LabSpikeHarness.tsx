@@ -77,7 +77,7 @@ function LabSpikeHarness() {
         aria-hidden="true"
         className="pointer-events-none fixed top-0 left-0 z-50 size-16 bg-transparent"
       />
-      <div className="pointer-events-auto fixed top-4 left-1/2 z-40 flex -translate-x-1/2 flex-col gap-1 rounded-2xl border border-white/15 bg-black/70 p-2 backdrop-blur-md">
+      <div className="pointer-events-auto fixed top-[calc(env(safe-area-inset-top)+16px)] left-1/2 z-40 flex -translate-x-1/2 flex-col gap-1 rounded-2xl border border-white/15 bg-black/70 p-2 backdrop-blur-md">
         {TRANSITIONS.map(({ name, key }) => (
           <div key={key} className="flex gap-1">
             {BLOCKS.map((block) => (
