@@ -47,16 +47,28 @@ function LabControls() {
     navigate.push("/playground/stress", {}, { transitionName: "cupertino" });
   };
 
-  // Not a panel-browser context — let the stress lab / heavy fixture present
-  // full-bleed without the dock over them.
-  if (segment === "stress" || segment === "heavy") return null;
+  // Not a panel-browser context: on the stress lab / heavy fixture the dock's
+  // controls (panel picker, Next/Back) don't apply. The dock lives OUTSIDE the
+  // transitioning <Slot>, so it can't ride the screen transition — an unmount
+  // would vanish it in one frame while the screens glide, which reads broken in
+  // a transition showcase. Instead it stays mounted and animates itself out
+  // (slide down + fade on its own clock), mirroring the screens' motion.
+  const dockHidden = segment === "stress" || segment === "heavy";
 
   return (
     <div
       ref={dockRef}
-      className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center px-4"
+      aria-hidden={dockHidden || undefined}
+      // `inert` blocks focus/AT while hidden; the inner container drops its
+      // pointer-events-auto so the invisible dock can never intercept taps.
+      inert={dockHidden || undefined}
+      className={`pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center px-4 transition-[opacity,transform] duration-300 ease-out ${
+        dockHidden ? "translate-y-6 opacity-0" : ""
+      }`}
     >
-      <div className="pointer-events-auto flex w-full max-w-md flex-col gap-2.5 rounded-3xl border border-white/15 bg-[var(--color-bg)]/70 p-3 shadow-[0_20px_50px_-18px_rgba(0,0,0,0.6)] backdrop-blur-2xl">
+      <div
+        className={`${dockHidden ? "" : "pointer-events-auto"} flex w-full max-w-md flex-col gap-2.5 rounded-3xl border border-white/15 bg-[var(--color-bg)]/70 p-3 shadow-[0_20px_50px_-18px_rgba(0,0,0,0.6)] backdrop-blur-2xl`}
+      >
         <button
           type="button"
           onClick={handleOpenStressLab}
