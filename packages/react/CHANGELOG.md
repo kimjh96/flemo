@@ -1,5 +1,13 @@
 # @flemo/react
 
+## 1.6.9
+
+### Patch Changes
+
+- [`c2ddae3`](https://github.com/kimjh96/flemo/commit/c2ddae3e4ea6ade5cc5ee2c9651c152bb2f2232d) Survive browser-cancelled transition animations on every participant: when a mid-transition commit makes WebKit silently cancel a running screen, decorator, bar, or part animation, the engine now resumes it on its original timeline (negative-delay rejoin) instead of losing the exiting screen's fade or cutting the whole transition to a single-frame swap after one retry.
+- Updated dependencies ([`c2ddae3`](https://github.com/kimjh96/flemo/commit/c2ddae3e4ea6ade5cc5ee2c9651c152bb2f2232d)):
+  - @flemo/core@1.18.1
+
 ## 1.6.8
 
 ### Patch Changes
