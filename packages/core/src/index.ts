@@ -134,10 +134,6 @@ export {
   type TransitionEngineDeps,
   type ScreenLifecycleInput
 } from "@core/engine/types";
-export {
-  createMidFlightCommitLatch,
-  type MidFlightCommitLatch
-} from "@core/engine/midFlightCommitLatch";
 export { default as createSwipeController } from "@core/engine/createSwipeController";
 export {
   type SwipeController,

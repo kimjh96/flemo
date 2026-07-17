@@ -38,33 +38,26 @@ const FORCE_KEY = "flemo:motion-driver-force";
 // it must never be silent.
 let warnedForcedDriver = false;
 
-// Pure read of the diagnostic pin — no warning side effect, so predicates that
-// consult it every transition (driverPolicy.pinned) don't have to launder the
-// warn-once through their call path.
-const readForceKey = (): "css" | "raf" | null => {
+const readForcedDriver = (): "css" | "raf" | null => {
   try {
     if (typeof localStorage === "undefined") return null;
     const value = localStorage.getItem(FORCE_KEY);
-    return value === "css" || value === "raf" ? value : null;
+    if (value !== "css" && value !== "raf") return null;
+    if (!warnedForcedDriver && typeof console !== "undefined") {
+      warnedForcedDriver = true;
+      // The console IS the destination here: this fires only while a
+      // deliberately-set diagnostic key is active, and its whole purpose is
+      // that a forgotten pin can never be silent.
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[flemo] motion driver pinned to "${value}" via localStorage ${FORCE_KEY}; ` +
+          "remove the key to restore automatic selection."
+      );
+    }
+    return value;
   } catch {
     return null;
   }
-};
-
-const readForcedDriver = (): "css" | "raf" | null => {
-  const value = readForceKey();
-  if (value && !warnedForcedDriver && typeof console !== "undefined") {
-    warnedForcedDriver = true;
-    // The console IS the destination here: this fires only while a
-    // deliberately-set diagnostic key is active, and its whole purpose is
-    // that a forgotten pin can never be silent.
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[flemo] motion driver pinned to "${value}" via localStorage ${FORCE_KEY}; ` +
-        "remove the key to restore automatic selection."
-    );
-  }
-  return value;
 };
 
 const defaultStorage = (): DriverPolicyStorage => ({
@@ -102,15 +95,6 @@ const DEMOTION_STRIKES = 2;
 export interface DriverPolicy {
   // Whether the rAF player may drive motion on this device.
   playerAllowed: () => boolean;
-  // Whether a diagnostic hard pin (the FORCE_KEY, "css" or "raf") is active.
-  // The pin bypasses every AUTOMATIC driver decision — measurement, strikes,
-  // probation, AND the engine's per-transition shell-first takeover — so a
-  // field debugger can force either path unconditionally and reproduce its
-  // behavior (including the diseased mid-flight snap on the player). The
-  // engine consults this so its takeover yields to the pin, exactly as the
-  // device-demotion policy already does. Read live, so a DevTools toggle takes
-  // effect on the next transition.
-  pinned: () => boolean;
   // Player run lifecycle: the registry reports gaps; the policy aggregates.
   beginRun: () => void;
   reportGap: (gapMs: number) => void;
@@ -149,7 +133,6 @@ export const createDriverPolicy = (
       if (forced) return forced === "raf";
       return playerByDefault && !demoted;
     },
-    pinned: () => readForceKey() !== null,
     beginRun: () => {
       runLongGaps = 0;
       runGaps = [];

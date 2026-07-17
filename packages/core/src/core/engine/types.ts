@@ -2,8 +2,6 @@ import type { NavigateStatus } from "@navigate/store";
 
 import type { TransitionName } from "@transition/typing";
 
-import type { MidFlightCommitLatch } from "@core/engine/midFlightCommitLatch";
-
 // Attribute that suppresses the next compiled keyframe for an element whose
 // swipe already animated it all the way out (set by the swipe-commit path).
 export const SKIP_ANIMATION_ATTR = "data-flemo-skip-animation";
@@ -16,13 +14,6 @@ export interface TransitionEngineDeps {
   getTransitionTaskId: () => string | null;
   setDragStatus: (status: "IDLE" | "PENDING") => void;
   setReplaceTransitionStatus: (status: "IDLE" | "PENDING") => void;
-  // The Router scope's shell-first coherence latch (see midFlightCommitLatch).
-  // The active entering screen arms it; the passive screen reads it so both
-  // sides make the same driver decision. Optional so a binding that never
-  // defers children (or a single-screen test) can omit it; a binding that
-  // drives real push/replace transitions with shell-first MUST provide the one
-  // shared per-scope instance, or the two sides could split across drivers.
-  midFlightCommitLatch?: MidFlightCommitLatch;
 }
 
 export interface ScreenLifecycleInput {
@@ -42,16 +33,6 @@ export interface ScreenLifecycleInput {
   // player starts exactly at release (the compiled hold/park rules own the
   // pre-release frames); pass true when the binding has no hold concept.
   animHoldReleased: boolean;
-  // The binding has deferred THIS screen's children to a commit that will land
-  // mid-transition (shell-first — see shouldMountShellFirst). True only on the
-  // ACTIVE entering screen of a push/replace it deferred. For such a transition
-  // a heavy mid-flight commit is EXPECTED, which starves a main-thread rAF
-  // player and snaps the motion, so the engine declines the player and lets the
-  // compiled-CSS compositor drive both participants (block-immune, Safari-like
-  // on Blink). The active side uses this directly; it also publishes it to the
-  // per-scope latch so the PASSIVE side — a different binding instance that
-  // cannot know the entering screen deferred — makes the same decision.
-  midFlightCommitExpected?: boolean;
 }
 
 export interface TransitionEngine {

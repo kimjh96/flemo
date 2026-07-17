@@ -192,15 +192,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   const activeResumeCounts = new Map<string, number>();
 
   const driveScreenLifecycle = (input: ScreenLifecycleInput): (() => void) => {
-    const {
-      getElements,
-      transitionName,
-      prevTransitionName,
-      status,
-      isActive,
-      animHoldReleased,
-      midFlightCommitExpected
-    } = input;
+    const { getElements, transitionName, prevTransitionName, status, isActive, animHoldReleased } =
+      input;
 
     const isTransitional = status === "PUSHING" || status === "POPPING" || status === "REPLACING";
 
@@ -398,18 +391,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // charge, exactly as before.
       if (isTransitional && animHoldReleased) {
         const variant = `${status}-false` as TransitionVariant;
-        // Shell-first compositor takeover, PASSIVE side. The entering screen
-        // deferred its children to a mid-flight commit; the engine drives BOTH
-        // participants on the compiled-CSS compositor for this transition. This
-        // binding instance can't know the entering screen deferred — it learns
-        // it from the per-scope latch, keyed by the SAME task id the active side
-        // armed. Kept in lockstep with the active gate below (same latch, same
-        // pin override) so the pair never splits across drivers. The diagnostic
-        // driver pin overrides the takeover, exactly as on the active side.
-        const taskId = deps.getTransitionTaskId();
-        const midFlightTakeover =
-          !!taskId && !driverPolicy.pinned() && deps.midFlightCommitLatch?.isArmed(taskId) === true;
-        const detach = midFlightTakeover ? null : joinPlayer(variant, "passive");
+        const detach = joinPlayer(variant, "passive");
         if (detach) return detach;
 
         // Player declined (replay chain, demoted device, or a variant it can't
@@ -452,12 +434,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     if (status === "COMPLETED") {
       deps.setDragStatus("IDLE");
       deps.setReplaceTransitionStatus("IDLE");
-      // Release the shell-first latch for the just-finished transition (the
-      // task id is still the completed one until the next navigation). Hygiene
-      // only — the latch is single-slot and every read is keyed by task id, so
-      // a missed disarm on an interrupt can never bleed into a later transition.
-      const completedTaskId = deps.getTransitionTaskId();
-      if (completedTaskId) deps.midFlightCommitLatch?.disarm(completedTaskId);
       // Strip inline styles a swipe, the rAF player, or an interleaved
       // navigation may have left on this screen and its related elements, so
       // the next push/pop runs against the compiled CSS rest rule on a clean
@@ -491,17 +467,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // budget.
     const flooredTaskId = deps.getTransitionTaskId();
 
-    // Shell-first compositor takeover, ACTIVE side. This entering screen
-    // deferred its children to a commit that will land mid-transition, so
-    // publish that to the per-scope latch keyed by THIS task — armed from the
-    // FIRST transitional render (during the hold, before release), well before
-    // the passive side reaches its release-gated join, so sibling effect order
-    // never matters. Arm unconditionally on the fact; the pin override is
-    // applied at decision time on both sides, keeping the two symmetrical.
-    if (midFlightCommitExpected && flooredTaskId) {
-      deps.midFlightCommitLatch?.arm(flooredTaskId);
-    }
-
     const resolve = () => {
       const transitionTaskId = deps.getTransitionTaskId();
       if (transitionTaskId) {
@@ -525,18 +490,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     }
 
     const activeMotion = resolveVariantMotion(currentTransition, variantKey);
-    // Shell-first compositor takeover, ACTIVE side. When this entering screen
-    // deferred its children (midFlightCommitExpected), a heavy mid-flight commit
-    // is EXPECTED — it starves a main-thread rAF player and snaps the motion, so
-    // the compiled-CSS compositor drives both participants instead (block-immune,
-    // Safari-like on Blink). For these transitions the judder-mitigation trade
-    // the player exists for inverts: a certain block-length freeze outweighs a
-    // possible cosmetic judder. Light transitions keep the player. A diagnostic
-    // driver pin overrides this, like it overrides measurement and demotion —
-    // so a debugger can still force the player onto a heavy transition and see
-    // the diseased snap. The passive side mirrors this exactly via the latch.
-    const midFlightTakeover = !!midFlightCommitExpected && !driverPolicy.pinned();
-    const playerCanDrive = !skipAnimation && !!activeMotion && !midFlightTakeover;
+    const playerCanDrive = !skipAnimation && !!activeMotion;
 
     // The `animationend` listener is the ALWAYS-WIRED resolver — attached from
     // the first transitional render, whatever the driver. This is what
