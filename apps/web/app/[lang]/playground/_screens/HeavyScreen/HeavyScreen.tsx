@@ -22,6 +22,49 @@ interface HeavyContentProps {
   blockMs: number;
 }
 
+// One slice of the DIVISIBLE heavy shape: burns ~SLICE_MS in its own render.
+// Real heavy screens are lists of components, so React's transition-lane
+// renderer can YIELD between them; a wall of these reproduces that shape,
+// where the atomic HeavyContent below reproduces the unsliceable worst case.
+const SLICE_MS = 3;
+
+function HeavySlice() {
+  const spentRef = useRef(false);
+  if (!spentRef.current) {
+    spentRef.current = true;
+    const end = performance.now() + SLICE_MS;
+    while (performance.now() < end) {
+      // busy-wait one slice
+    }
+  }
+  return null;
+}
+
+interface SlicedHeavyContentProps {
+  blockMs: number;
+}
+
+// The DIVISIBLE variant: ~blockMs of total render cost split into 3ms
+// component slices (a 30-row list on device is exactly this shape). Under the
+// shell-first startTransition lane React can yield between slices, so this
+// measures what real content does to each driver, where HeavyContent measures
+// the adversarial atomic bound.
+function SlicedHeavyContent({ blockMs }: SlicedHeavyContentProps) {
+  const slices = Math.max(1, Math.round(blockMs / SLICE_MS));
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center bg-[#0b1220] text-white">
+      {Array.from({ length: slices }, (_, index) => (
+        <HeavySlice key={index} />
+      ))}
+      <span className="text-xs font-bold tracking-[0.3em] uppercase opacity-60">Heavy screen</span>
+      <span className="mt-2 text-[clamp(3rem,12vw,8rem)] leading-none font-extrabold">
+        {blockMs}ms
+      </span>
+      <span className="mt-2 text-sm font-semibold opacity-70">sliced children render</span>
+    </div>
+  );
+}
+
 // The heavy child. Its FIRST render spins the main thread for `blockMs`, then
 // paints a high-contrast panel (distinct from the light gradient panels it
 // enters over, so the transition's cross-fade / slide produces a large,
@@ -54,10 +97,11 @@ function HeavyContent({ blockMs }: HeavyContentProps) {
 function HeavyScreen() {
   const params = useParams<"/playground/heavy">();
   const blockMs = Number(params?.block ?? "400") || 0;
+  const sliced = params?.sliced === "1";
 
   return (
     <Screen hideStatusBar hideSystemNavigationBar backgroundColor="#0b1220">
-      <HeavyContent blockMs={blockMs} />
+      {sliced ? <SlicedHeavyContent blockMs={blockMs} /> : <HeavyContent blockMs={blockMs} />}
     </Screen>
   );
 }

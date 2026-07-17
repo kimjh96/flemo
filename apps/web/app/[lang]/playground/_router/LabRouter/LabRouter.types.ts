@@ -9,7 +9,7 @@ declare module "@flemo/react" {
   interface RegisterRoute {
     "/playground/:n": { n: string; code?: LabTransition };
     // SPIKE fixture: the heavy screen, entered with a chosen synchronous block.
-    "/playground/heavy": { block?: string };
+    "/playground/heavy": { block?: string; sliced?: string };
   }
 
   interface RegisterTransition {

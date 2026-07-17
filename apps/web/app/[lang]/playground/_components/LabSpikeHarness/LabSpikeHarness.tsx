@@ -59,12 +59,16 @@ function LabSpikeHarness() {
     setEnabled(storedEnabled || queryEnabled);
   }, []);
 
-  const handleTrigger = (transition: TransitionName, block: number) => {
+  const handleTrigger = (transition: TransitionName, block: number, sliced = false) => {
     // Flash the marker white in the SAME synchronous tick as the navigation, so
     // the video's tap anchor and the transition's start share one clock. The
     // marker stays white (a single on-blip, no off-blip to confuse clustering).
     if (markerRef.current) markerRef.current.style.background = "#ffffff";
-    navigate.push("/playground/heavy", { block: String(block) }, { transitionName: transition });
+    navigate.push(
+      "/playground/heavy",
+      sliced ? { block: String(block), sliced: "1" } : { block: String(block) },
+      { transitionName: transition }
+    );
   };
 
   if (!enabled) return null;
@@ -89,6 +93,24 @@ function LabSpikeHarness() {
                 className="cursor-pointer rounded-lg bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-white/20"
               >
                 {key} {block}
+              </button>
+            ))}
+          </div>
+        ))}
+        {/* Divisible variant: same total cost split into 3ms component slices —
+            the shape of a real list screen, where the rows above are the
+            adversarial atomic bound. */}
+        {TRANSITIONS.map(({ name, key }) => (
+          <div key={`${key}-sliced`} className="flex gap-1">
+            {BLOCKS.map((block) => (
+              <button
+                key={block}
+                type="button"
+                data-testid={`spike-${key}-sliced-${block}`}
+                onClick={() => handleTrigger(name, block, true)}
+                className="cursor-pointer rounded-lg bg-emerald-400/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-400/25"
+              >
+                {key}·s {block}
               </button>
             ))}
           </div>
