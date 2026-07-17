@@ -144,13 +144,11 @@ export {
 export { default as computeBarRiding, type BarRidingInput } from "@screen/computeBarRiding";
 export {
   animHoldKey,
-  shouldMountShellFirst,
   scheduleAnimHoldRelease,
   createAnimHoldCoordinator,
   eagerlyDecodeImages,
   ANIM_HOLD_RELEASE_BACKSTOP_MS,
   type AnimHoldInput,
-  type ShellFirstInput,
   type AnimHoldCoordinator
 } from "@screen/animStartAnchor";
 export { default as observeBarHeight } from "@screen/observeBarHeight";

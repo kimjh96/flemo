@@ -489,6 +489,22 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       return noop;
     }
 
+    // Report the transition gate's phase for this task. The gate backstop's
+    // clock starts at the PARK (tap time), but a long entering-commit block can
+    // eat that whole window before the motion begins — firing then would flip
+    // the store to COMPLETED and snap the transition away (the "delay then
+    // transition-less cut"). While the hold is still on, the backstop re-arms
+    // instead of firing; the release anchors a FRESH window so a late-starting
+    // transition always gets its full motion span. Both calls are idempotent
+    // and safe pre-park (TaskManger keeps the phase until the task settles).
+    if (flooredTaskId) {
+      if (animHoldReleased) {
+        TaskManger.anchorGate(flooredTaskId);
+      } else {
+        TaskManger.markGateHeld(flooredTaskId);
+      }
+    }
+
     const activeMotion = resolveVariantMotion(currentTransition, variantKey);
     const playerCanDrive = !skipAnimation && !!activeMotion;
 

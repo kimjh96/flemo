@@ -5,15 +5,16 @@ import { useRef } from "react";
 
 import { Screen, useNavigate, useParams } from "@flemo/react";
 
-// The stress lab's destination fixture — the disease shape shell-first fixes. The
+// The stress lab's destination fixture — the adversarial mount shape. The
 // screen's CONSUMER CHILDREN (everything inside <Screen>) block the main thread
 // on their FIRST render: a heavy tab that costs hundreds of ms to render/commit
 // on device, reproduced here as a deterministic wall-clock busy-loop so it blocks
 // identically on any machine (no CPU throttle needed). The block lands in the
-// children render path on mount, exactly where a real heavy screen's cost lands,
-// so a navigation that commits this screen while a transition is in flight is the
-// exact case shell-first defers. Kept as the permanent reproduction the
-// perception harness (apps/web/e2e/perception) drives.
+// children render path on mount, exactly where a real heavy screen's cost lands.
+// The contract under test: the block DELAYS the transition start (the anim-hold
+// anchors to the painted content and the task gate re-arms while held), and the
+// motion then plays in full — never cut short or skipped. Kept as the permanent
+// reproduction the perception harness (apps/web/e2e/perception) drives.
 //
 // `"use no memo"` opts this out of React Compiler memoization so the busy-loop
 // runs as written on every fresh mount, never elided.
@@ -45,10 +46,10 @@ interface SlicedHeavyContentProps {
 }
 
 // The DIVISIBLE variant: ~blockMs of total render cost split into 3ms
-// component slices (a 30-row list on device is exactly this shape). Under the
-// shell-first startTransition lane React can yield between slices, so this
-// measures what real content does to each driver, where HeavyContent measures
-// the adversarial atomic bound.
+// component slices (a 30-row list on device is exactly this shape). React can
+// yield between component slices, so this measures what real, divisible content
+// does to each driver, where HeavyContent measures the adversarial atomic
+// bound.
 function SlicedHeavyContent({ blockMs }: SlicedHeavyContentProps) {
   const slices = Math.max(1, Math.round(blockMs / SLICE_MS));
   return (
@@ -99,11 +100,10 @@ function HeavyContent({ blockMs }: HeavyContentProps) {
   );
 }
 
-// The screen frame (the shell: background band + safe-area) is what flemo owns
-// and renders in the FIRST commit; `HeavyContent` is the consumer child
-// shell-first withholds until after the transition has started. The Back control
-// is a consumer child too, so it lands with the content — swipe-back and the
-// browser Back button both return during the block regardless.
+// `HeavyContent` is a consumer child, so its block lands in the screen's mount
+// commit — delaying the transition start by exactly that cost while the motion
+// still plays in full. The Back control is a consumer child too; swipe-back and
+// the browser Back button both return during the block regardless.
 function HeavyScreen() {
   const params = useParams<"/playground/heavy">();
   const navigate = useNavigate();

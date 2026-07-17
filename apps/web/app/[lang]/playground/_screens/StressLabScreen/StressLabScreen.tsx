@@ -7,11 +7,13 @@ import { Screen, useNavigate } from "@flemo/react";
 import { flashTapMarker } from "../../_components/LabTapMarker";
 
 // The stress lab: the playground's demonstration of flemo's core guarantee —
-// heavy destination content can't freeze or swallow a transition. You choose how
-// expensive the next screen is to render, then run it; the shell slides in
-// immediately and the content pops in the moment it's ready. It reaches the
-// HeavyScreen fixture (a deterministic busy-render) with the chosen combination,
-// so what visitors watch is exactly what the perception harness measures.
+// heavy destination content can't break a transition. You choose how expensive
+// the next screen is to render, then run it; the screen enters with its real
+// content in the first frame, and a heavy render delays the start by that work
+// while the motion still plays in full (never cut short or skipped). It reaches
+// the HeavyScreen fixture (a deterministic busy-render) with the chosen
+// combination, so what visitors watch is exactly what the perception harness
+// measures.
 //
 // A first-class, self-explanatory screen that reads as a sibling of the
 // transition panels. The measurement script drives these same controls.
@@ -162,11 +164,12 @@ function StressLabScreen() {
                 Stress lab
               </span>
               <h1 className="mt-2 text-2xl leading-tight font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
-                Heavy content can&rsquo;t freeze a transition
+                Heavy content can&rsquo;t break a transition
               </h1>
               <p className="mt-2.5 text-[15px] leading-relaxed text-[var(--color-text-secondary)]">
-                Pick how expensive the next screen is to render, then run it. The transition plays
-                immediately anyway; the content pops in the moment it&rsquo;s ready, never before.
+                Pick how expensive the next screen is to render, then run it. The screen enters with
+                its real content in the first frame; a heavy render delays the start by that work,
+                but the motion always plays in full. It is never cut short or skipped.
               </p>
 
               <div className="mt-6 flex flex-col gap-5">

@@ -17,20 +17,25 @@ import { createTestStores } from "@stores/__tests__/testUtils";
 import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shell-first NEUTRALIZES the suspended-mount hold artifact.
+// CHARACTERIZATION (jsdom, not the device defect): what a suspended-mount
+// commit does to the anim-hold in the test environment.
 //
-// Before shell-first, an entering screen's child that suspended during the mount
-// commit withheld that whole commit's passive effects (a jsdom + `act`
-// artifact), so ScreenMotion's readiness rAF was never scheduled and the hold
-// never released. Shell-first changes the shape: the entering screen's consumer
-// `children` are DEFERRED out of the first commit, so the first commit is the
-// SHELL alone — no suspending child, its passive effects run, the readiness rAF
-// is scheduled, and the hold releases. Any suspense now lives in the LATER,
-// deferred children commit, after the transition has already started.
+// The anim-hold ATTRIBUTE is rendered in-commit, but its RELEASE runs from a
+// passive `useEffect` (ScreenMotion's coordinator.join, which schedules the
+// readiness rAF). This suite shows that when the entering screen's child
+// suspends during the mount commit, jsdom + `act` withhold that whole commit's
+// passive effects — for BOTH the suspending screen and its non-suspending
+// leftover sibling — so the readiness rAF is never even scheduled and the hold
+// never releases.
 //
-// These tests drive the entering screen (active, REPLACING) beside a
-// non-deferring leftover sibling (inactive) and show the hold releasing whether
-// or not the deferred child suspends.
+// IMPORTANT: this is an `act`/scheduler artifact of the TEST harness, NOT the
+// on-device cause. On the real browser React flushes passive effects a few ms
+// after paint regardless of a suspended sibling, so the hold DOES release
+// (device evidence: "no 1.2s hang anymore, recovery is firing" — recovery only
+// arms after release). The genuine defect lives in the engine's resolution path
+// (see createTransitionEngine.replaceSuspenseCut.test.ts). This suite is kept to
+// document the harness behavior so a future suspended-mount test doesn't chase
+// the artifact.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TAB = "diag-suspend" as TransitionName;
@@ -119,45 +124,38 @@ describe("suspended-mount anim-hold (jsdom characterization)", () => {
     );
 
   const runFrames = async () => {
-    for (let round = 0; round < 6; round++) {
-      await act(async () => {
-        frames.splice(0).forEach((cb) => cb(round * 16));
-      });
-      await act(async () => {
-        for (let hop = 0; hop < 8; hop++) await Promise.resolve();
-      });
-    }
+    await act(async () => {
+      frames.splice(0).forEach((cb) => cb(0));
+    });
+    await act(async () => {
+      frames.splice(0).forEach((cb) => cb(16));
+    });
+    await act(async () => {
+      for (let hop = 0; hop < 8; hop++) await Promise.resolve();
+    });
   };
 
-  it("control (no suspense): the shell commits, the readiness rAF is scheduled, and the pair releases", async () => {
-    const { getByTestId, queryByTestId } = renderPair(<div data-testid="feed">feed</div>);
+  it("control (no suspense): passive effects run, rAF is scheduled, the pair releases", async () => {
+    const { getByTestId } = renderPair(<div>feed</div>);
     const enter = getByTestId("enter");
     const exit = getByTestId("exit");
 
-    // The entering screen deferred its children, so neither the Probe nor the
-    // feed is in the first commit — but the shell's passive effects ran and
-    // scheduled the readiness rAF.
-    expect(queryByTestId("feed")).toBeNull();
-    expect(effectRan).toBe(0);
-    expect(frames.length).toBeGreaterThan(0);
+    expect(effectRan).toBe(1); // Probe's passive effect ran
+    expect(frames.length).toBeGreaterThan(0); // readiness rAF scheduled
 
     await runFrames();
 
-    // The hold released and the deferred children mounted: Probe's effect ran
-    // and the feed is in.
     expect(enter.getAttribute("data-flemo-anim-hold")).toBe("false");
     expect(exit.getAttribute("data-flemo-anim-hold")).toBe("false");
-    expect(queryByTestId("feed")).not.toBeNull();
-    expect(effectRan).toBe(1);
   });
 
-  it("suspending deferred child: the hold still releases against the shell", async () => {
+  it("suspending child: the WHOLE commit's passive effects are withheld, so the hold never releases", async () => {
     const pending = new Promise<void>(() => {});
     function Feed() {
       use(pending);
-      return <div data-testid="feed">feed</div>;
+      return <div>feed</div>;
     }
-    const { getByTestId, queryByTestId } = renderPair(
+    const { getByTestId } = renderPair(
       <Suspense fallback={<div data-testid="sk" />}>
         <Feed />
       </Suspense>
@@ -165,18 +163,19 @@ describe("suspended-mount anim-hold (jsdom characterization)", () => {
     const enter = getByTestId("enter");
     const exit = getByTestId("exit");
 
-    // The suspense is deferred out of the first commit, so the first commit is
-    // the shell alone: no skeleton, no Probe effect, but the readiness rAF IS
-    // scheduled — exactly what the old artifact used to withhold.
-    expect(queryByTestId("sk")).toBeNull();
+    // The entering screen committed its chrome + the blank skeleton.
+    expect(getByTestId("sk")).toBeTruthy();
+
+    // No passive effect ran (not even the non-suspending Probe, nor the wholly
+    // separate leftover), and no readiness rAF was scheduled.
     expect(effectRan).toBe(0);
-    expect(frames.length).toBeGreaterThan(0);
+    expect(frames.length).toBe(0);
 
     await runFrames();
 
-    // Shell-first decouples the suspense from the hold: the pair releases
-    // against the shell even though the deferred child suspends forever.
-    expect(enter.getAttribute("data-flemo-anim-hold")).toBe("false");
-    expect(exit.getAttribute("data-flemo-anim-hold")).toBe("false");
+    // Both screens are stuck at the paused hold.
+    expect(enter.getAttribute("data-flemo-anim-hold")).not.toBe("false");
+    expect(exit.getAttribute("data-flemo-anim-hold")).not.toBe("false");
+    expect(effectRan).toBe(0);
   });
 });
