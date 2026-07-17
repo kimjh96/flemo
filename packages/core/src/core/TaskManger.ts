@@ -56,6 +56,24 @@ interface Task<T> {
 // Control.maxLifetimeMs). Sits well above the slowest shipped transition.
 export const TRANSITION_GATE_BACKSTOP_MS = 1200;
 
+// How many extra backstop windows a HELD gate may claim before the backstop
+// force-resolves it anyway. A held gate is a transition whose motion has not
+// started yet — typically because the entering screen's mount commit blocked
+// the main thread past the first window, with the anim-hold release still
+// scheduled right behind it (the hold machinery bounds release at ~300ms once
+// the thread is free). The bound keeps a zone torn down while held from ever
+// wedging the serial queue: worst case (1 + MAX) windows, then force-resolve.
+const MAX_HELD_GATE_REARMS = 2;
+
+// The transition gate's phase for a task, reported by the transition engine:
+// "held" — a hold exists for this task but its motion has NOT started (firing
+// the backstop now would snap the transition to COMPLETED before it played);
+// "anchored" — the hold released and the motion is running on a fresh window.
+interface GatePhaseEntry {
+  phase: "held" | "anchored";
+  rearms: number;
+}
+
 class TaskManager {
   private tasks: Map<string, Task<unknown>> = new Map();
   private readonly instanceId = Date.now().toString();
@@ -182,6 +200,8 @@ class TaskManager {
   // 태스크 상태 변경 시 대기 큐 처리
   private async onTaskStatusChange(taskId: string, newStatus: TaskStatus) {
     if (newStatus === "COMPLETED" || newStatus === "FAILED" || newStatus === "ROLLEDBACK") {
+      // A terminal task can never defer its gate again.
+      this.gatePhases.delete(taskId);
       // 완료된 태스크가 대기 큐에 있다면 제거
       this.pendingTaskQueue = this.pendingTaskQueue.filter((task) => task.id !== taskId);
 
@@ -383,13 +403,58 @@ class TaskManager {
     });
   }
 
+  // The transition gate phases, keyed by taskId. Written by the transition
+  // engine (markGateHeld / anchorGate) — set unconditionally so a phase report
+  // that lands before the task parks (binding commit racing the serial queue)
+  // is not lost. Pruned when the task resolves.
+  private gatePhases: Map<string, GatePhaseEntry> = new Map();
+
+  // The transition engine saw a hold for this task whose motion has NOT started
+  // yet. While held, the gate backstop re-arms (bounded) instead of firing: the
+  // backstop clock started at the PARK, but a long entering-commit block eats
+  // that window before the animation even begins — force-resolving then flips
+  // the compiled selectors to COMPLETED and snaps the transition away. Never
+  // downgrades an anchored gate.
+  public markGateHeld(taskId: string) {
+    const entry = this.gatePhases.get(taskId);
+    if (entry?.phase === "anchored") return;
+    this.gatePhases.set(taskId, { phase: "held", rearms: entry?.rearms ?? 0 });
+  }
+
+  // The hold released — the motion is actually starting NOW. Restart the gate
+  // backstop so the transition gets its full window from its real start, not
+  // from the park. Idempotent: only the first anchor re-arms, so repeated
+  // engine passes cannot extend the gate indefinitely.
+  public anchorGate(taskId: string) {
+    const entry = this.gatePhases.get(taskId);
+    if (entry?.phase === "anchored") return;
+    this.gatePhases.set(taskId, { phase: "anchored", rearms: entry?.rearms ?? 0 });
+    const task = this.tasks.get(taskId);
+    if (!task || (task.status !== "MANUAL_PENDING" && task.status !== "SIGNAL_PENDING")) return;
+    if (task.backstopTimer) {
+      clearTimeout(task.backstopTimer);
+      delete task.backstopTimer;
+    }
+    this.armBackstop(task);
+  }
+
   // Arm the parked task's gate backstop (see Control.maxLifetimeMs). Cleared the
-  // moment the task resolves normally, so it only ever fires for a lost gate.
+  // moment the task resolves normally, so it only ever fires for a lost gate. A
+  // gate the engine reports as HELD (motion not started) re-arms instead of
+  // firing, bounded by MAX_HELD_GATE_REARMS; an anchored or unreported gate
+  // resolves — the unreported case is the storm safety net (a zone torn down
+  // before any transition wired up must not wedge the serial queue).
   private armBackstop(task: Task<unknown>) {
     const lifetime = task.control?.maxLifetimeMs;
     if (!lifetime || lifetime <= 0 || typeof setTimeout === "undefined") return;
     task.backstopTimer = setTimeout(() => {
       delete task.backstopTimer;
+      const entry = this.gatePhases.get(task.id);
+      if (entry?.phase === "held" && entry.rearms < MAX_HELD_GATE_REARMS) {
+        entry.rearms += 1;
+        this.armBackstop(task);
+        return;
+      }
       void this.resolveTask(task.id);
     }, lifetime);
   }
@@ -420,6 +485,7 @@ class TaskManager {
       }
 
       task.status = "COMPLETED";
+      this.gatePhases.delete(taskId);
       const manualResolver = task.manualResolver as {
         resolve: (value: TaskResult<unknown>) => void;
         reject: (error: Error) => void;

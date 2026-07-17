@@ -1,14 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { NavigateStatus } from "@navigate/store";
-
 import {
   animHoldKey,
   createAnimHoldCoordinator,
   eagerlyDecodeImages,
   scheduleAnimHoldReadiness,
-  scheduleAnimHoldRelease,
-  shouldMountShellFirst
+  scheduleAnimHoldRelease
 } from "@screen/animStartAnchor";
 
 describe("animHoldKey", () => {
@@ -28,84 +25,6 @@ describe("animHoldKey", () => {
   it("is null for a screen that is neither the top nor the top's prev", () => {
     expect(animHoldKey({ ...base, status: "PUSHING", isTopOrTopPrev: false })).toBeNull();
   });
-});
-
-describe("shouldMountShellFirst", () => {
-  const HELD = "PUSHING:cupertino";
-
-  // Every combination of the three inputs. Only the ACTIVE screen mounting into
-  // a PUSH or REPLACE with a live hold key defers; everything else renders its
-  // children immediately.
-  const cases: {
-    holdKey: string | null;
-    isActive: boolean;
-    status: NavigateStatus;
-    expected: boolean;
-    why: string;
-  }[] = [
-    {
-      holdKey: HELD,
-      isActive: true,
-      status: "PUSHING",
-      expected: true,
-      why: "active push entrant"
-    },
-    {
-      holdKey: "REPLACING:cupertino",
-      isActive: true,
-      status: "REPLACING",
-      expected: true,
-      why: "active replace entrant"
-    },
-    {
-      holdKey: "POPPING:cupertino",
-      isActive: true,
-      status: "POPPING",
-      expected: false,
-      why: "pop introduces no fresh screen; the revealed screen shows content at once"
-    },
-    {
-      holdKey: HELD,
-      isActive: false,
-      status: "PUSHING",
-      expected: false,
-      why: "the covered/leaving side never withholds its content"
-    },
-    {
-      holdKey: null,
-      isActive: true,
-      status: "COMPLETED",
-      expected: false,
-      why: "rest mount: no hold, children render immediately"
-    },
-    {
-      holdKey: null,
-      isActive: true,
-      status: "IDLE",
-      expected: false,
-      why: "hydration/SSR: children render into the HTML in place"
-    },
-    {
-      holdKey: null,
-      isActive: true,
-      status: "PUSHING",
-      expected: false,
-      why: "no hold key means this screen is not participating; nothing to defer against"
-    },
-    {
-      holdKey: HELD,
-      isActive: false,
-      status: "POPPING",
-      expected: false,
-      why: "revealed frozen screen: inactive and not push/replace"
-    }
-  ];
-
-  for (const { holdKey, isActive, status, expected, why } of cases) {
-    it(`${expected} — ${why} (holdKey=${holdKey}, isActive=${isActive}, status=${status})`, () => {
-      expect(shouldMountShellFirst({ holdKey, isActive, status })).toBe(expected);
-    });
-  }
 });
 
 describe("scheduleAnimHoldRelease", () => {

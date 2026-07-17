@@ -223,14 +223,14 @@ describe("Screen", () => {
     expect(bar.getAttribute("data-flemo-bar-riding")).toBe("false");
   });
 
-  it("defers an entering screen's content by a frame even for a no-offset transition, then mounts it", async () => {
-    const frames: FrameRequestCallback[] = [];
-    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((frameCallback) => {
-      frames.push(frameCallback);
-      return frames.length;
-    });
-    vi.spyOn(globalThis, "cancelAnimationFrame").mockImplementation(() => {});
-
+  it("mounts an entering screen's content in its FIRST commit (no shell-first deferral)", () => {
+    // Regression guard for the reverted shell-first experiment: deferring
+    // children unconditionally made every light screen enter as a blank shell
+    // with its content popping in after the transition started (flicker /
+    // perceived double render on real apps). Children must be present in the
+    // very first commit; the anim-hold anchors the motion to their paint, and
+    // a heavy commit delays the start instead of losing the window (the task
+    // gate re-arms while held — see TaskManger.markGateHeld / anchorGate).
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
     stores.history.setState({ index: 0, histories: [] });
 
@@ -241,18 +241,6 @@ describe("Screen", () => {
       { wrapper: buildHarness({ isActive: true, transitionName: "none" as TransitionName }) }
     );
 
-    // Shell-first withholds the children from the first commit even when the
-    // transition has no offset/animation (a harmless ~2-frame defer).
-    expect(queryByTestId("content")).toBeNull();
-
-    for (let round = 0; round < 6; round++) {
-      await act(async () => {
-        frames.splice(0).forEach((frameCallback) => frameCallback(round * 16));
-      });
-      await act(async () => {
-        for (let hop = 0; hop < 8; hop++) await Promise.resolve();
-      });
-    }
     expect(queryByTestId("content")).not.toBeNull();
   });
 

@@ -1,14 +1,18 @@
-// Heavy-screen shell-first perception harness (MANUAL — not wired into CI).
+// Heavy-screen perception harness (MANUAL — not wired into CI).
 //
-// Reproduces the disease shell-first + the rAF-player re-anchor fix: a
-// destination screen whose consumer children block the main thread on mount,
-// entered mid-transition. Drives the playground heavy fixture on chromium +
-// webkit, records a Playwright video per run, and measures
-// { intermediateFrames, freezeMs } via the tblend-difference motion-energy
-// method (ffmpeg). The freeze is anchored on the WALL-CLOCK click tick, because
-// in the diseased baseline the synchronous block runs in the same JS task as the
-// click, so nothing paints (not even a tap marker) until the block ends — only
-// wall-clock captures the true freeze.
+// Measures the content-first contract under mount load: a destination screen
+// whose consumer children block the main thread on mount, entered
+// mid-transition. The contract — the screen enters with its REAL content in the
+// first frame (no blank shell, so blockMs=0 must show no content pop-in), a
+// heavy mount DELAYS the transition start by exactly its cost (freezeMs ≈
+// blockMs), and the motion then plays IN FULL (intermediateFrames must match the
+// blockMs=0 row; the gate re-arm makes a late start immune to the task
+// backstop). Drives the playground heavy fixture on chromium + webkit, records a
+// Playwright video per run, and measures { intermediateFrames, freezeMs } via
+// the tblend-difference motion-energy method (ffmpeg). The freeze is anchored on
+// the WALL-CLOCK click tick, because the synchronous block runs in the same JS
+// task as the click, so nothing paints (not even a tap marker) until the block
+// ends — only wall-clock captures the true delay.
 //
 // It drives the always-visible playground stress lab (/playground/stress): it
 // sets the transition / content-shape / render-cost controls, then clicks the
@@ -19,10 +23,7 @@
 // Matrix: config (webkit+css, chromium+css, chromium+raf) × transition
 // (fade, cupertino) × blockMs. css/raf pin flemo's motion driver via the
 // diagnostic `flemo:motion-driver-force` localStorage key so both the compositor
-// path (the disease's production reality on WebKit) and the branch's rAF player
-// are measured on demand. Shell-first is unconditional in the shipped build, so
-// there is no on/off flag here — compare the printed table against the recorded
-// baseline numbers.
+// path (production reality on WebKit) and the rAF player are measured on demand.
 //
 // Usage (from the repo root, after a production build so `next start` serves the
 // optimized bundle — dev/Turbopack adds main-thread work that skews timing):

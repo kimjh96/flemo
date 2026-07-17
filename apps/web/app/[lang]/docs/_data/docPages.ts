@@ -243,10 +243,10 @@ const EN: DocSection[] = [
             lang: "tsx",
             code: '<Screen\n  statusBarHeight="env(safe-area-inset-top)"\n  systemNavigationBarHeight="env(safe-area-inset-bottom)"\n>\n  ...\n</Screen>'
           },
-          { type: "h", text: "Shell first" },
+          { type: "h", text: "Content and the transition" },
           {
             type: "note",
-            text: "During a navigation, a newly mounting screen renders its frame first, its background, bars, and safe areas, and mounts its `children` a beat later. So the transition starts right away no matter how heavy the content is, and a slow first render can never freeze or swallow it. Effects and data fetching inside `children` begin at that deferred mount, one frame after the transition has started."
+            text: "A newly mounting screen commits its `children` together with its frame, and the transition anchors its start to that painted first frame — so what slides in is your real content, never an empty shell. If a first render is genuinely heavy, the start is delayed by that work but the motion always plays in full; it is never cut short or skipped."
           },
           { type: "h", text: "All props" },
           {
@@ -1003,10 +1003,10 @@ const KO: DocSection[] = [
             lang: "tsx",
             code: '<Screen\n  statusBarHeight="env(safe-area-inset-top)"\n  systemNavigationBarHeight="env(safe-area-inset-bottom)"\n>\n  ...\n</Screen>'
           },
-          { type: "h", text: "셸 먼저" },
+          { type: "h", text: "콘텐츠와 전환" },
           {
             type: "note",
-            text: "내비게이션 중에 새로 마운트되는 화면은 프레임(배경, 바, 세이프 에어리어)을 먼저 그리고, `children`은 한 박자 뒤에 마운트해요. 그래서 콘텐츠가 아무리 무거워도 전환이 곧바로 시작하고, 느린 첫 렌더가 전환을 막거나 삼킬 수 없어요. `children` 안의 이펙트와 데이터 페칭은 전환이 시작된 다음 프레임, 이 미뤄진 마운트에서 시작해요."
+            text: "새로 마운트되는 화면은 `children`을 프레임과 같은 커밋에 그리고, 전환은 그 콘텐츠가 그려진 첫 프레임에 시작을 앵커해요. 그래서 밀려 들어오는 건 언제나 실제 콘텐츠이고, 빈 껍데기가 먼저 보이는 일은 없어요. 첫 렌더가 정말 무거우면 그만큼 시작이 늦어질 뿐, 모션은 항상 처음부터 끝까지 온전히 재생돼요. 중간에 잘리거나 생략되지 않아요."
           },
           { type: "h", text: "전체 props" },
           {

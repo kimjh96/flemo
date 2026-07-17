@@ -518,3 +518,44 @@ describe("createTransitionEngine branches", () => {
     cleanup();
   });
 });
+
+describe("createTransitionEngine gate-phase reporting", () => {
+  // The gate backstop's clock starts at the park; the engine must report the
+  // hold ("motion not started — don't snap") and the release ("motion starting
+  // — fresh window") so a long entering-commit block delays the transition
+  // instead of losing it. See TaskManger.markGateHeld / anchorGate.
+  it("reports HELD before the hold releases and ANCHORS on release", async () => {
+    const TaskManger = (await import("@core/TaskManger")).default;
+    const held = vi.spyOn(TaskManger, "markGateHeld");
+    const anchored = vi.spyOn(TaskManger, "anchorGate");
+    const { scope } = elements();
+    const d = { ...deps(), getTransitionTaskId: vi.fn(() => "task-gate-1") };
+    const engine = createTransitionEngine(d);
+
+    const preRelease = engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "PUSHING",
+      isActive: true,
+      animHoldReleased: false
+    });
+    expect(held).toHaveBeenCalledWith("task-gate-1");
+    expect(anchored).not.toHaveBeenCalled();
+    preRelease();
+
+    const postRelease = engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "PUSHING",
+      isActive: true,
+      animHoldReleased: true
+    });
+    expect(anchored).toHaveBeenCalledWith("task-gate-1");
+    postRelease();
+
+    held.mockRestore();
+    anchored.mockRestore();
+  });
+});

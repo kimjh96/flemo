@@ -379,3 +379,128 @@ describe("TaskManger: gate backstop (control.maxLifetimeMs)", () => {
     expect(await TaskManger.resolveTask(id)).toBe(false);
   });
 });
+
+describe("TaskManger: gate phases (markGateHeld / anchorGate)", () => {
+  it("a HELD gate re-arms past its window instead of force-resolving", async () => {
+    const id = TaskManger.generateTaskId();
+    const resolvedAt: number[] = [];
+    const start = Date.now();
+    const pending = TaskManger.addTask(async () => "held", {
+      id,
+      control: { manual: true, maxLifetimeMs: 80 }
+    });
+    // The engine saw a hold whose motion has not started (a long entering
+    // commit is still blocking). The 80ms backstop must NOT snap the task.
+    TaskManger.markGateHeld(id);
+
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    // Past the first window: still parked (re-armed, not force-resolved).
+    void pending.then(() => resolvedAt.push(Date.now() - start));
+    expect(resolvedAt).toEqual([]);
+
+    // The hold releases — motion starts on a FRESH window, then resolves
+    // normally (animationend in production; explicit here).
+    TaskManger.anchorGate(id);
+    await TaskManger.resolveTask(id);
+    const outcome = await pending;
+    expect(outcome.result).toBe("held");
+  });
+
+  it("a held gate that never anchors still force-resolves at the re-arm bound", async () => {
+    const id = TaskManger.generateTaskId();
+    const start = Date.now();
+    const pending = TaskManger.addTask(async () => "wedged", {
+      id,
+      control: { manual: true, maxLifetimeMs: 60 }
+    });
+    TaskManger.markGateHeld(id);
+
+    // Nobody ever anchors or resolves (zone torn down while held). The bound
+    // (1 + MAX_HELD_GATE_REARMS windows) must still free the serial queue.
+    const outcome = await pending;
+    expect(outcome.success).toBe(true);
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeGreaterThanOrEqual(150);
+    expect(elapsed).toBeLessThan(1000);
+  });
+
+  it("anchoring restarts the gate with a full window from the motion start", async () => {
+    const id = TaskManger.generateTaskId();
+    const events: string[] = [];
+    const pending = TaskManger.addTask(async () => "anchored", {
+      id,
+      control: { manual: true, maxLifetimeMs: 100 }
+    });
+    TaskManger.markGateHeld(id);
+    // Release lands 70ms after the park: the original window had 30ms left,
+    // but the anchor must grant a fresh 100ms from HERE.
+    await new Promise((resolve) => setTimeout(resolve, 70));
+    TaskManger.anchorGate(id);
+    void pending.then(() => events.push("resolved"));
+
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    // 130ms after park (past the original window) but only 60ms after the
+    // anchor: still parked.
+    expect(events).toEqual([]);
+
+    // The re-anchored backstop is still the lost-gate net: with no
+    // animationend ever arriving it fires at the anchor + lifetime.
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(events).toEqual(["resolved"]);
+  });
+
+  it("anchorGate is idempotent: repeated anchors cannot extend the gate", async () => {
+    const id = TaskManger.generateTaskId();
+    const pending = TaskManger.addTask(async () => "once", {
+      id,
+      control: { manual: true, maxLifetimeMs: 80 }
+    });
+    TaskManger.anchorGate(id);
+    const start = Date.now();
+    // Spam anchors while the window runs down — none may restart it.
+    const spam = setInterval(() => TaskManger.anchorGate(id), 20);
+    const outcome = await pending;
+    clearInterval(spam);
+    expect(outcome.success).toBe(true);
+    expect(Date.now() - start).toBeLessThan(400);
+  });
+
+  it("markGateHeld never downgrades an anchored gate", async () => {
+    const id = TaskManger.generateTaskId();
+    const pending = TaskManger.addTask(async () => "no-downgrade", {
+      id,
+      control: { manual: true, maxLifetimeMs: 60 }
+    });
+    TaskManger.anchorGate(id);
+    TaskManger.markGateHeld(id);
+    // Anchored stays anchored: the backstop fires at the (single) fresh
+    // window instead of deferring as held.
+    const start = Date.now();
+    const outcome = await pending;
+    expect(outcome.success).toBe(true);
+    expect(Date.now() - start).toBeLessThan(300);
+  });
+
+  it("a settled task's phase is pruned: a reused id starts unreported", async () => {
+    const id = TaskManger.generateTaskId();
+    const first = TaskManger.addTask(async () => "first", {
+      id,
+      control: { manual: true, maxLifetimeMs: 60 }
+    });
+    TaskManger.markGateHeld(id);
+    TaskManger.anchorGate(id);
+    await TaskManger.resolveTask(id);
+    await first;
+
+    // Phase reports for ids without a live task are kept (a report may land
+    // before the park) — but a SETTLED task's phase must be gone, so this
+    // fresh park force-resolves on its first window like any unreported gate.
+    const start = Date.now();
+    const second = await TaskManger.addTask(async () => "second", {
+      id: `${id}-next`,
+      control: { manual: true, maxLifetimeMs: 60 }
+    });
+    expect(second.success).toBe(true);
+    expect(Date.now() - start).toBeLessThan(250);
+  });
+});

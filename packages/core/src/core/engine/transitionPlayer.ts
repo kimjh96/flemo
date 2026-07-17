@@ -556,14 +556,13 @@ export const createTransitionPlayerRegistry = (
       // main thread was blocked (a heavy consumer commit landed mid-flight), so
       // the shared clock jumped far ahead; stepping motion straight off it would
       // fast-forward progress to near the end and SNAP the transition to a
-      // single frame — the exact regression shell-first alone caused on the
-      // player, and a latent player defect for any mid-flight block. Instead
+      // single frame — a latent player defect for any mid-flight block. Instead
       // push the anchor forward by (gap − one nominal frame) so progress RESUMES
       // one frame past where it stalled rather than leaping to the end: the
       // animation still plays every value, just late, matching the compiled-CSS
-      // path's post-block semantics (motion completes fully; content lands late
-      // and clean). Scrub-WAAPI tracks derive currentTime from this same
-      // startTime, so they re-anchor with it automatically.
+      // path's post-block semantics (motion completes fully, late and clean).
+      // Scrub-WAAPI tracks derive currentTime from this same startTime, so they
+      // re-anchor with it automatically.
       if (gap >= FRAME_GAP_REANCHOR_MS) {
         startTime += gap - NOMINAL_FRAME_MS;
       }
