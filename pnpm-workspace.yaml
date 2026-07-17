@@ -5,5 +5,10 @@ packages:
 allowBuilds:
   '@swc/core': true
   esbuild: true
+  # ffmpeg-static's postinstall downloads a large binary. It is only needed by
+  # the manual perception harness (apps/web/e2e/perception), never by CI, so we
+  # keep the download OUT of `pnpm install`. Fetch it on demand before running
+  # the harness: `pnpm --filter @flemo/web exec node node_modules/ffmpeg-static/install.js`.
+  ffmpeg-static: false
   sharp: true
   unrs-resolver: true

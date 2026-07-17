@@ -8,6 +8,8 @@ import type { LabTransition } from "../../_providers/LabSettingsProvider";
 declare module "@flemo/react" {
   interface RegisterRoute {
     "/playground/:n": { n: string; code?: LabTransition };
+    // SPIKE fixture: the heavy screen, entered with a chosen synchronous block.
+    "/playground/heavy": { block?: string };
   }
 
   interface RegisterTransition {
@@ -20,6 +22,7 @@ declare module "@flemo/react" {
     "card-stack": "card-stack";
     spring: "spring";
     wipe: "wipe";
+    "tab-forward": "tab-forward";
   }
 
   interface RegisterPartTransition {

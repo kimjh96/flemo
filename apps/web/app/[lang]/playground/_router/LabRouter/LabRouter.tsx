@@ -6,6 +6,8 @@ import { useShellLocaleGetter } from "@/app/[lang]/_providers/ShellIntlProvider"
 import createLocaleHistoryDriver from "@/lib/localeHistoryDriver";
 
 import LabControls from "../../_components/LabControls";
+import LabSpikeHarness from "../../_components/LabSpikeHarness";
+import HeavyScreen from "../../_screens/HeavyScreen";
 import LabPanelScreen from "../../_screens/LabPanelScreen";
 import blur from "../../_transitions/blur";
 import cardStack from "../../_transitions/cardStack";
@@ -16,6 +18,7 @@ import reveal from "../../_transitions/reveal";
 import ripple, { ripples } from "../../_transitions/ripple";
 import panelTitle from "../../_transitions/panelTitle";
 import spring from "../../_transitions/spring";
+import tabForward from "../../_transitions/tabForward";
 import wipe from "../../_transitions/wipe";
 
 import "./LabRouter.types";
@@ -39,15 +42,30 @@ function LabRouter({ initPath }: LabRouterProps) {
     <Router
       initPath={initPath}
       createDriver={(key) => createLocaleHistoryDriver(key, getLocale)}
-      transitions={[labFade, labZoom, blur, reveal, dive, ripple, cardStack, spring, wipe]}
+      transitions={[
+        labFade,
+        labZoom,
+        blur,
+        reveal,
+        dive,
+        ripple,
+        cardStack,
+        spring,
+        wipe,
+        tabForward
+      ]}
       partTransitions={[panelTitle]}
       decorators={[tunnel, ripples]}
       className="relative h-full w-full bg-[var(--color-bg)]"
     >
       <Slot className="h-full w-full">
+        {/* SPIKE fixture: the static heavy route wins over `/playground/:n`
+            because the Renderer takes the first matching Route in order. */}
+        <Route path="/playground/heavy" element={<HeavyScreen />} />
         <Route path="/playground/:n" element={<LabPanelScreen />} />
       </Slot>
       <LabControls />
+      <LabSpikeHarness />
     </Router>
   );
 }
