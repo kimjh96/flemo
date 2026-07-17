@@ -29,6 +29,45 @@ export function animHoldKey(input: AnimHoldInput): string | null {
   return `${input.status}:${input.transitionName}`;
 }
 
+export interface ShellFirstInput {
+  // The screen's anim-hold key on its FIRST render — the mount-into-transition
+  // signal. Non-null exactly when the screen mounts already participating in a
+  // transition segment (see animHoldKey).
+  holdKey: string | null;
+  isActive: boolean;
+  status: NavigateStatus;
+}
+
+// Whether a screen mounting with this state should render its shell first and
+// mount consumer children in a deferred commit: the ACTIVE screen mounting
+// straight into a PUSH or REPLACE — the only case where a brand-new top commits
+// (possibly heavy) children into a transition's first frames.
+//
+// A heavy first render of the entering screen's `children` (a big tab, a
+// suspense-less subtree) lands INSIDE the transition's first commit, so the
+// anim-hold can neither paint nor release and the transition is lost — on device
+// the block can eat the whole animation window and snap it to one frame. Scoping
+// the rule to `holdKey !== null && isActive && (PUSHING || REPLACING)` matches
+// the exact disease shape and nothing more, because only push/replace introduce
+// a brand-new top that commits its children straight into a transition:
+//  - A POP introduces no fresh screen: the revealed screen was already mounted
+//    and must show its content AT ONCE (its decode-wait even needs that content
+//    present); neither the revealed nor the leaving screen ever remounts.
+//  - A REST mount and HYDRATION/SSR are IDLE, so holdKey is null and this is
+//    false — children render into the SSR HTML and hydrate in place.
+//  - A FROZEN screen being REVEALED is inactive (and never remounts), so it is
+//    false on both counts and reveals with its content intact.
+// A binding captures this ONCE on the first render (a mount-time decision that
+// never re-arms mid-life); Strict-mode's double render reads the same inputs and
+// so the same answer.
+export function shouldMountShellFirst(input: ShellFirstInput): boolean {
+  return (
+    input.holdKey !== null &&
+    input.isActive &&
+    (input.status === "PUSHING" || input.status === "REPLACING")
+  );
+}
+
 export const ANIM_HOLD_RELEASE_BACKSTOP_MS = 300;
 
 // How long the release will wait on image decodes at most. Decoding is

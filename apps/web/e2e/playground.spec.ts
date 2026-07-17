@@ -72,6 +72,29 @@ test.describe("playground", () => {
     await expect(page.getByTestId("lab-panel-number")).toHaveText("3");
   });
 
+  // The stress lab is reachable from the dock and runs the heavy fixture. A
+  // zero-cost run keeps CI deterministic (no busy-loop wall time) while still
+  // exercising the entry → controls → navigate → back path end to end.
+  test("the stress lab runs a zero-cost heavy navigation and returns", async ({ page }) => {
+    const { errors } = trackConsoleErrors(page);
+    await page.goto("/playground");
+
+    await page.getByTestId("lab-stress-entry").click();
+    await expect(page).toHaveURL(/\/playground\/stress$/);
+    await expect(page.getByRole("button", { name: "Run transition" })).toBeVisible();
+
+    await page.getByTestId("stress-cost-0").click();
+    await page.getByTestId("stress-run").click();
+
+    await expect(page).toHaveURL(/\/playground\/heavy/);
+    await expect(page.getByTestId("heavy-back")).toBeVisible();
+
+    await page.getByTestId("heavy-back").click();
+    await expect(page).toHaveURL(/\/playground\/stress$/);
+
+    expect(errors).toEqual([]);
+  });
+
   // Every transition (built-ins + the authored ones, dive/ripple carry
   // decorators) drives a Next without throwing or wedging the queue.
   test("every transition runs without errors", async ({ page }) => {

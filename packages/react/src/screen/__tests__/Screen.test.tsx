@@ -1,7 +1,7 @@
 import { createElement, type PropsWithChildren, type ReactNode } from "react";
 
 import { act, render } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { History, SharedBarPresence, TransitionName } from "@flemo/core";
 
@@ -21,6 +21,10 @@ let stores: FlemoStores;
 beforeEach(() => {
   stores = createTestStores();
   stores.navigate.setState({ status: "COMPLETED", transitionTaskId: null });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 function buildHarness(overrides: Partial<ScreenContextProps> = {}) {
@@ -109,14 +113,16 @@ describe("Screen", () => {
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
     stores.history.setState({ index: 0, histories: [] });
 
-    const { getByTestId } = render(
+    // The content wrapper is a shell element (rendered in the first commit even
+    // while shell-first defers the consumer children), so query it directly.
+    const { container } = render(
       <Screen>
         <div data-testid="content">hello</div>
       </Screen>,
       { wrapper: buildHarness({ isActive: true }) }
     );
 
-    const contentWrapper = getByTestId("content").parentElement!;
+    const contentWrapper = container.querySelector<HTMLElement>('div[style*="flex-grow: 1"]')!;
     expect(contentWrapper.style.transform).toBe("");
     expect(contentWrapper.style.willChange).toBe("");
   });
@@ -217,18 +223,37 @@ describe("Screen", () => {
     expect(bar.getAttribute("data-flemo-bar-riding")).toBe("false");
   });
 
-  it("renders an entering screen's content immediately when the transition has no initial offset", () => {
+  it("defers an entering screen's content by a frame even for a no-offset transition, then mounts it", async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((frameCallback) => {
+      frames.push(frameCallback);
+      return frames.length;
+    });
+    vi.spyOn(globalThis, "cancelAnimationFrame").mockImplementation(() => {});
+
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
     stores.history.setState({ index: 0, histories: [] });
 
-    const { getByTestId } = render(
+    const { queryByTestId } = render(
       <Screen>
         <div data-testid="content">hello</div>
       </Screen>,
       { wrapper: buildHarness({ isActive: true, transitionName: "none" as TransitionName }) }
     );
 
-    expect(getByTestId("content")).toBeDefined();
+    // Shell-first withholds the children from the first commit even when the
+    // transition has no offset/animation (a harmless ~2-frame defer).
+    expect(queryByTestId("content")).toBeNull();
+
+    for (let round = 0; round < 6; round++) {
+      await act(async () => {
+        frames.splice(0).forEach((frameCallback) => frameCallback(round * 16));
+      });
+      await act(async () => {
+        for (let hop = 0; hop < 8; hop++) await Promise.resolve();
+      });
+    }
+    expect(queryByTestId("content")).not.toBeNull();
   });
 
   // The compiled hold rule pauses a freshly started transition animation;

@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 
-import { useNavigate, usePathname } from "@flemo/react";
+import { Part, useNavigate, usePathname } from "@flemo/react";
 
 import { TRANSITION_GROUPS } from "../../_data/transitions";
 import useHeightToCssVariable from "../../_hooks/useHeightToCssVariable";
@@ -12,16 +12,32 @@ import { useLabSettings, type LabTransition } from "../../_providers/LabSettings
 // height and never let code scroll behind it (see LabCodePanel).
 const DOCK_HEIGHT_VARIABLE = "--lab-dock-height";
 
-// The floating control bar over the full-page stage. Pick a transition, then
-// Next pushes the following panel using it (experienced full-screen); Back pops.
+export interface LabControlsProps {
+  // Pushes the stress lab on the OUTER lab Router. The stress route lives one
+  // level above the panels sub-app this dock belongs to, so the handler is
+  // wired by LabPanelsScreen (which holds the outer navigate).
+  onOpenStressLab: () => void;
+}
+
+// The floating control dock over the panel stage. Pick a transition, then Next
+// pushes the following panel using it (experienced full-screen); Back pops.
 // Chips are grouped into "Built-in" (ship with flemo) and "Custom" (authored in
 // this app); the two combos that also run a decorator carry a "+decorator" tag.
-function LabControls() {
+// A compact bolt button on the action row opens the stress lab (kept small so
+// the dock covers as little of the stage as possible); it wears
+// <Part name="stress-entry"> so the registered part transition choreographs it
+// with the panels screen's lifecycle and the swipe drag. The dock is the panels
+// Router's persistent chrome (outside its Slot): it holds still across panel
+// moves, and because the panels Router nests inside the outer LabRouter's
+// panels screen, a push to the stress lab carries the whole screen — dock
+// included — out of the stage. No per-route hiding of its own.
+function LabControls({ onOpenStressLab }: LabControlsProps) {
   const navigate = useNavigate();
   // The current panel comes from the route, not a separate counter, so it can't
   // drift from the panel screen (e.g. after a useStep source step pops).
   const pathname = usePathname();
-  const step = Number(pathname.split("/")[2] ?? "1") || 1;
+  const segment = pathname.split("/")[2]?.split("?")[0];
+  const step = Number(segment ?? "1") || 1;
   const { transition, setTransition } = useLabSettings();
   const dockRef = useRef<HTMLDivElement>(null);
   useHeightToCssVariable(dockRef, DOCK_HEIGHT_VARIABLE);
@@ -37,6 +53,10 @@ function LabControls() {
   const handleBack = () => {
     if (step <= 1) return;
     navigate.pop();
+  };
+
+  const handleOpenStressLab = () => {
+    onOpenStressLab();
   };
 
   return (
@@ -106,10 +126,29 @@ function LabControls() {
           <span className="text-[13px] font-semibold text-[var(--color-text-secondary)]">
             Screen {step}
           </span>
+          <Part name="stress-entry" className="ml-auto shrink-0">
+            <button
+              type="button"
+              onClick={handleOpenStressLab}
+              data-testid="lab-stress-entry"
+              aria-label="Stress lab"
+              title="Stress lab — can heavy content freeze a transition?"
+              className="grid size-10 cursor-pointer place-items-center rounded-full bg-[var(--color-primary)]/12 text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary)]/22"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M13 2L4.5 13.5H11l-1 8.5L19.5 10H13l0-8z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </Part>
           <button
             type="button"
             onClick={handleNext}
-            className="ml-auto flex h-10 cursor-pointer items-center gap-1.5 rounded-full bg-[var(--color-primary)] pr-4 pl-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
+            className="flex h-10 cursor-pointer items-center gap-1.5 rounded-full bg-[var(--color-primary)] pr-4 pl-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
           >
             Next
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">

@@ -1,4 +1,5 @@
 import {
+  startTransition,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -18,6 +19,7 @@ import {
   enteringInitialStyle,
   observeBarHeight,
   resolveTransition,
+  shouldMountShellFirst,
   type AnimHoldCoordinator
 } from "@flemo/core";
 
@@ -383,6 +385,70 @@ function ScreenMotion({
   wasFrozenRef.current = isFrozen;
   const animHold = holdKey !== null && animRelease.key === holdKey && !animRelease.released;
 
+  // --- Shell-first children deferral -----------------------------------------
+  // The disease: an entering screen whose consumer `children` block the main
+  // thread on first render (a heavy tab, a suspense-less big subtree) push that
+  // block INTO the transition's first commit, so the anim-hold can't paint or
+  // release and the transition is lost (on device the block can eat the whole
+  // animation window, snapping it to one frame). The fix: a screen that mounts
+  // STRAIGHT INTO a transition renders its SHELL first and REVEALS its `children`
+  // a commit later, after the transition's first frame.
+  //
+  // The DECISION is policy and lives in @flemo/core (shouldMountShellFirst),
+  // next to animHoldKey, so every binding defers on identical inputs; this
+  // binding only wires the React MECHANISM around it. The predicate is captured
+  // ONCE, at mount, through a useState INITIALIZER (a render-pure computation,
+  // no ref write during render): a mount-time decision that never re-arms
+  // mid-life, and Strict-mode's double invoke reads the same inputs. `holdKey`
+  // is the mount-into-transition signal; see shouldMountShellFirst for why the
+  // rule is exactly the active push/replace entrant (rest/hydration mounts and
+  // revealed frozen screens are all false there). Variants with zero animation
+  // still defer (~2 frames, imperceptible); kept unconditional for simplicity.
+  //
+  // The MECHANISM is a release-gated mount: the deferred children are absent
+  // from the render output until the anim-hold releases, then mount once and
+  // stay (never unmounted, no state ever destroyed — the gate is one-way).
+  //
+  // An <Activity mode="hidden"> wrapper was built and MEASURED as the
+  // alternative, precisely because withholding the consumer's tree is a real
+  // contract cost. It failed: hidden Activity withholds paint (display:none)
+  // but still RENDERS the subtree, and a render-bound heavy child (an atomic
+  // synchronous render) blocks the main thread in whatever lane it runs,
+  // starving the hold release exactly like the disease this exists to fix
+  // (perception harness, 800ms block: freeze 0-15ms gated vs 717-778ms under
+  // Activity, and the rAF path regressed to a snap). Physics leaves one
+  // correct ordering — release and paint the transition's first frame, THEN
+  // let the children render — and only a gated mount guarantees it. The gate
+  // is the deferred-initial-render idiom (what useDeferredValue's
+  // initialValue does), applied once per screen lifetime.
+  //
+  // The shell — background, bars, safe-area bands, decorator, swipe edge zones —
+  // all renders in the first commit; only the consumer `children` wait. Note
+  // this decouples content pop-in from the transition: park-under (the
+  // push-side pre-raster of the entering screen's destination tiles) now
+  // pre-rasters the SHELL only, consistent with that philosophy.
+  const [deferChildren] = useState(() => shouldMountShellFirst({ holdKey, isActive, status }));
+  const [childrenRevealed, setChildrenRevealed] = useState(false);
+
+  useEffect(() => {
+    if (!deferChildren || childrenRevealed) return undefined;
+    // Wait for the anim-hold to RELEASE (animHold false) before mounting the
+    // children — that is the instant the transition's first frame is committed
+    // and the compositor (or the rAF player) owns the motion.
+    if (animHold) return undefined;
+    // The rAF AFTER release is load-bearing (spike-measured): it lets the
+    // release commit actually PAINT the transition's first frame before the
+    // (heavy) children mount can land, so the block always falls after the
+    // animation has started, never inside its opening frame. startTransition
+    // keeps that reveal off the urgent path so it can never preempt the
+    // release/first-frame paint. Both together are what turn an 800ms child
+    // render from a swallowed transition into a clean, late content pop-in.
+    const frame = requestAnimationFrame(() => {
+      startTransition(() => setChildrenRevealed(true));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [deferChildren, childrenRevealed, animHold]);
+
   // Four-state hold attribute. "park" pre-positions a COVERED entering screen
   // (pop) at its destination so its tiles rasterize during the hold;
   // "park-under" is the push-side mirror — the ACTIVE ENTERING screen (push/
@@ -574,7 +640,10 @@ function ScreenMotion({
             overflowY: contentScrollable ? "auto" : undefined
           }}
         >
-          {children}
+          {/* Release-gated mount: absent until the transition's first frame is
+              painted, then mounted once for good. A hidden <Activity> wrapper
+              was measured and rejected here — see the shell-first block above. */}
+          {deferChildren && !childrenRevealed ? null : children}
         </div>
         {bottomBar}
         {sharedBottomBar && (

@@ -12,6 +12,8 @@ import Screen from "@screen/Screen";
 import ScreenContext from "@screen/ScreenContext";
 
 import Route from "@Route";
+import { createTestStores } from "@stores/__tests__/testUtils";
+import StoreContext from "@stores/StoreContext";
 import useStores from "@stores/useStores";
 
 import Router from "../Router";
@@ -102,6 +104,21 @@ describe("nested Router key stability", () => {
     expect(keys.length).toBeGreaterThanOrEqual(2);
     expect(keys[0]).toBe("_F_entry-abc_");
     expect(keys[keys.length - 1]).toBe("_F_entry-abc_");
+  });
+
+  // Entry ids are only unique within one Router (every stack starts at "root"),
+  // so a nested Router chains its parent Router's key into its own. Without the
+  // chain, a Router nested inside another nested Router's ROOT screen collides
+  // with its parent's key and the persistence registry hands it the parent's
+  // scope (one push then walks both levels at once).
+  it("chains the parent Router's key so nesting levels never collide", () => {
+    const parentStores = createTestStores();
+    parentStores.routerKey = "_F_outer-key_";
+
+    const { keys, ui } = captureKey();
+    render(<StoreContext.Provider value={parentStores}>{ui}</StoreContext.Provider>);
+
+    expect(keys[0]).toBe("_F__F_outer-key_entry-abc_");
   });
 });
 

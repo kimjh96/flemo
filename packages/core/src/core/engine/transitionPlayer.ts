@@ -344,6 +344,20 @@ const createScrubAnimation = (element: HTMLElement, motion: VariantMotion): Anim
   }
 };
 
+// One nominal 60Hz frame. Used as the amount of progress a re-anchored clock
+// is allowed to advance across a stall (one frame, not the whole gap).
+const NOMINAL_FRAME_MS = 1000 / 60;
+
+// A frame arriving later than this means the main thread was BLOCKED between
+// our frames (a heavy consumer commit landed mid-transition), not merely a
+// dropped vsync or two. Past this the shared clock has jumped far enough that
+// stepping motion straight off it fast-forwards the transition to (near) its
+// end — a single-frame snap. At/under it the gap is ordinary jitter and the
+// clock advances normally (the driver policy still counts it as a stall via its
+// own, lower LONG_GAP_MS). Chosen well above a few dropped frames (~50ms) and
+// below the shortest transition, so only a genuine block re-anchors.
+const FRAME_GAP_REANCHOR_MS = 100;
+
 export interface PlayerScheduler {
   request: (callback: (time: number) => void) => number;
   cancel: (handle: number) => void;
@@ -525,11 +539,36 @@ export const createTransitionPlayerRegistry = (
   }
 
   function stepPlayer(taskId: string, player: Player, time: number) {
-    if (player.startTime === null) player.startTime = time;
+    // This frame's anchor. `??` (not `||`) so a legitimate t0 of 0 stays 0.
+    let startTime = player.startTime ?? time;
+
     if (player.lastTime !== null) {
-      driverPolicy.reportGap(time - player.lastTime);
-      registry.onFrameGap?.(time - player.lastTime);
+      const gap = time - player.lastTime;
+      // Report the RAW gap — the true time since our last frame — to the driver
+      // policy and the diagnostic hook BEFORE any re-anchor. The policy demotes
+      // a device off its OWN measured stalls (driverPolicy.ts); re-anchoring
+      // must never launder that evidence. Re-anchoring shifts startTime, never
+      // lastTime, so the reported gap is identical either way — reporting first
+      // makes that guarantee structural, not incidental.
+      driverPolicy.reportGap(gap);
+      registry.onFrameGap?.(gap);
+      // Re-anchor across a long main-thread stall. A gap this large means the
+      // main thread was blocked (a heavy consumer commit landed mid-flight), so
+      // the shared clock jumped far ahead; stepping motion straight off it would
+      // fast-forward progress to near the end and SNAP the transition to a
+      // single frame — the exact regression shell-first alone caused on the
+      // player, and a latent player defect for any mid-flight block. Instead
+      // push the anchor forward by (gap − one nominal frame) so progress RESUMES
+      // one frame past where it stalled rather than leaping to the end: the
+      // animation still plays every value, just late, matching the compiled-CSS
+      // path's post-block semantics (motion completes fully; content lands late
+      // and clean). Scrub-WAAPI tracks derive currentTime from this same
+      // startTime, so they re-anchor with it automatically.
+      if (gap >= FRAME_GAP_REANCHOR_MS) {
+        startTime += gap - NOMINAL_FRAME_MS;
+      }
     }
+    player.startTime = startTime;
     player.lastTime = time;
 
     let allDone = true;
@@ -537,7 +576,7 @@ export const createTransitionPlayerRegistry = (
       if (track.completed || track.detached) continue;
       const durationMs = track.motion.duration * 1000;
       const delayMs = track.motion.delay * 1000;
-      const elapsed = time - player.startTime;
+      const elapsed = time - startTime;
 
       if (track.scrub) {
         // The browser interpolates; we only advance its clock. Raw (uneased)

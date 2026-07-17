@@ -128,18 +128,28 @@ function Router({
   // under this key so multiple browser Routers on one page don't clobber each
   // other's frame or mis-handle each other's popstate.
   //
-  // A NESTED Router derives the key from its enclosing screen's history-entry
-  // id instead of useId: the entry id is stored in the browser frame and
-  // restored verbatim when a traversal re-pushes the screen, so a remounted
-  // Router reads the frames its previous incarnation wrote. useId's client
-  // counter changes on every remount, which orphaned those frames — after a
-  // rapid back-across-the-boundary-then-forward, the reborn Router classified
-  // every traversal as foreign and the URL walked away from the screen. The
-  // root Router keeps useId (hydration-stable; a root remount is an app
-  // teardown, not a traversal).
+  // A NESTED Router derives the key from its OWNING chain — the parent Router's
+  // key plus its enclosing screen's history-entry id — instead of useId: both
+  // halves are restored verbatim across traversals (the root's useId is
+  // hydration-stable; entry ids ride the browser frames), so a remounted Router
+  // reads the frames its previous incarnation wrote. useId's client counter
+  // changes on every remount, which orphaned those frames — after a rapid
+  // back-across-the-boundary-then-forward, the reborn Router classified every
+  // traversal as foreign and the URL walked away from the screen. The parent
+  // key half matters because entry ids are only unique WITHIN one Router —
+  // every stack's first entry is "root", so two nesting LEVELS both sitting on
+  // their root entries would otherwise share one key, and the scope-persistence
+  // registry would hand the inner Router the outer Router's stores. The root
+  // Router keeps bare useId (a root remount is an app teardown, not a
+  // traversal).
   const reactId = useId();
   const parentScreen = useContext(ScreenContext);
-  const routerKey = isNested && parentScreen.id ? `_F_${parentScreen.id}_` : reactId;
+  // The parent Router's bundle (also read below for the hosted-adoption path).
+  const parentStores = useContext(StoreContext);
+  const routerKey =
+    isNested && parentScreen.id
+      ? `_F_${parentStores?.routerKey ?? ""}${parentScreen.id}_`
+      : reactId;
 
   // When the layout marks a content region with <Slot>, the routes live inside
   // it and the rest of `children` is persistent chrome (rendered as-is, with the
@@ -151,7 +161,6 @@ function Router({
   // A <RouterScopeProvider> above the Router hosts the bundle so siblings outside the Router (an
   // inspector/devtools panel) can read it. Adopt it when present; otherwise own the bundle here.
   // Ignored when nested: a nested Router always owns its own (local) bundle.
-  const parentStores = useContext(StoreContext);
   const hostedStores = isNested ? null : parentStores;
   const isHosted = hostedStores !== null;
 

@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { VariantMotion } from "@transition/variantMotion";
 
+import driverPolicy from "@core/engine/driverPolicy";
 import {
   createTransitionPlayerRegistry,
   isPlayerDrivable,
@@ -30,6 +31,20 @@ const createFakeScheduler = (devicePixelRatio = 1) => {
     callbacks.forEach((callback) => callback(time));
   };
   return { scheduler, pump, pendingCount: () => pending.size };
+};
+
+// Advance the fake clock from `from` to `to` in sub-threshold (<100ms) steps,
+// landing exactly on `to`. Real rAF fires every ~16ms, so reaching a given
+// progress means many small frames — a single 250/500ms jump would now read as
+// a main-thread STALL and re-anchor. This walks the clock at frame cadence so
+// the player advances linearly, exactly as it does under a real rAF stream.
+const climbTo = (pump: (time: number) => void, from: number, to: number) => {
+  let t = from;
+  while (to - t > 80) {
+    t += 80;
+    pump(t);
+  }
+  pump(to);
 };
 
 const element = () => {
@@ -146,11 +161,11 @@ describe("transitionPlayer", () => {
     });
 
     pump(0); // t0 anchor
-    pump(500); // halfway (linear, 1s duration)
+    climbTo(pump, 0, 500); // halfway (linear, 1s duration) at frame cadence
     expect(entering.style.transform).toBe("translate3d(200px, 0px, 0)");
     expect(exiting.style.transform).toBe("translate3d(-70px, 0px, 0)");
 
-    pump(1000);
+    climbTo(pump, 500, 1000);
     // Identity collapses to "none", mirroring the compiler's rest semantics
     // (no lingering containing block at the destination).
     expect(entering.style.transform).toBe("none");
@@ -189,7 +204,7 @@ describe("transitionPlayer", () => {
     });
 
     pump(0);
-    pump(500); // 50px since the pin: fast → snapped
+    climbTo(pump, 0, 500); // 50px in at frame cadence: fast → snapped
     expect(el.style.transform).toBe("translate3d(-50px, 0px, 0)");
 
     pump(504); // 0.4px this frame = 0.8 device px < 1 → raw value, no step
@@ -223,13 +238,13 @@ describe("transitionPlayer", () => {
     });
 
     pump(0);
-    pump(500); // halfway: y is 100% of offsetHeight 800 → 400px remaining
+    climbTo(pump, 0, 500); // halfway: y is 100% of offsetHeight 800 → 400px remaining
     expect(el.style.transform).toBe(
       "translate3d(0px, 400px, 0) translateZ(4px) scale(0.75) scaleX(0.625) scaleY(0.5) " +
         "rotate(22.5deg) rotateX(5deg) rotateY(10deg)"
     );
 
-    pump(1000); // every channel lands on identity
+    climbTo(pump, 500, 1000); // every channel lands on identity
     expect(el.style.transform).toBe("none");
   });
 
@@ -245,7 +260,7 @@ describe("transitionPlayer", () => {
     });
 
     pump(0);
-    pump(500);
+    climbTo(pump, 0, 500);
     expect(el.style.getPropertyValue("filter")).toBe("blur(4px)");
   });
 
@@ -298,7 +313,7 @@ describe("transitionPlayer", () => {
       role: "active"
     });
     pump(0);
-    pump(250);
+    climbTo(pump, 0, 250);
 
     // Joins mid-flight: progress computes from the SHARED t0, so its first
     // stepped frame catches up to 50% rather than starting from 0.
@@ -307,7 +322,7 @@ describe("transitionPlayer", () => {
       motion: linearMotion({ x: 0 }, { x: "-35%" }),
       role: "passive"
     });
-    pump(500);
+    climbTo(pump, 250, 500);
     expect(exiting.style.transform).toBe("translate3d(-70px, 0px, 0)");
   });
 
@@ -361,11 +376,11 @@ describe("transitionPlayer", () => {
     expect(el.style.animation).toBe("none");
 
     pump(0);
-    pump(500); // the player advances the browser's clock, raw (uneased) time
+    climbTo(pump, 0, 500); // the player advances the browser's clock, raw (uneased) time
     expect(animation.currentTime).toBe(500);
     expect(completed).toBe(0);
 
-    pump(1000);
+    climbTo(pump, 500, 1000);
     expect(animation.currentTime).toBe(1000);
     expect(completed).toBe(1);
     expect(animation.canceled).toBe(false); // end-state holds until detach
@@ -414,7 +429,7 @@ describe("transitionPlayer", () => {
     });
 
     pump(0);
-    pump(500);
+    climbTo(pump, 0, 500);
     expect(numericEl.style.transform).toBe("translate3d(200px, 0px, 0)");
     expect(animation.currentTime).toBe(500);
   });
@@ -484,6 +499,129 @@ describe("transitionPlayer", () => {
     pump(16.7);
     pump(83.7); // a 67ms stall
     expect(gaps.map(Math.round)).toEqual([17, 67]);
+  });
+});
+
+describe("transitionPlayer block-resilient re-anchor", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  // opacity has no pixel snapping, so its written value is a clean, exact
+  // window into progress (opacity = 1 − linear progress).
+  const fadeOut = (durationSeconds: number) =>
+    linearMotion({ opacity: 1 }, { opacity: 0 }, durationSeconds);
+  const progressOf = (el: HTMLElement) => 1 - parseFloat(el.style.opacity);
+  const ONE_FRAME_MS = 1000 / 60;
+
+  it("advances normally when the frame gap is below the re-anchor threshold", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+
+    registry.join("task-1", { element: el, motion: fadeOut(1), role: "active" });
+
+    pump(0);
+    pump(90); // 90ms < 100ms threshold → elapsed IS the gap, no shift
+    expect(progressOf(el)).toBeCloseTo(90 / 1000, 5);
+  });
+
+  it("re-anchors across a long stall: progress resumes one frame past the stall, not fast-forwarded", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    let completed = 0;
+
+    registry.join("task-1", {
+      element: el,
+      motion: fadeOut(0.1), // 100ms
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+
+    pump(0);
+    pump(30); // normal frame → progress 0.30
+    const preProgress = progressOf(el);
+    expect(preProgress).toBeCloseTo(0.3, 5);
+
+    pump(400); // 370ms stall: without re-anchor a 100ms motion would be DONE
+    const postProgress = progressOf(el);
+    // Resumes one nominal frame past where it stalled, not at the end.
+    expect(postProgress).toBeCloseTo(preProgress + ONE_FRAME_MS / 100, 5);
+    expect(postProgress).toBeLessThan(0.6);
+    expect(completed).toBe(0);
+
+    pump(454); // 100ms of RE-ANCHORED elapsed reaches the true end
+    expect(el.style.opacity).toBe("0");
+    expect(completed).toBe(1);
+
+    // Player torn down at completion: no late second onComplete.
+    pump(999);
+    expect(completed).toBe(1);
+  });
+
+  it("reports the RAW stall gap to the driver policy even when it re-anchors", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const reportGap = vi.spyOn(driverPolicy, "reportGap");
+
+    registry.join("task-1", { element: el, motion: fadeOut(1), role: "active" });
+
+    pump(0);
+    pump(30);
+    pump(400); // re-anchors, but the policy must still see the raw 370ms gap
+
+    expect(reportGap.mock.calls.map(([gap]) => Math.round(gap))).toEqual([30, 370]);
+  });
+
+  it("re-anchors a scrub-WAAPI track's clock too (one shared startTime)", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const animation = fakeAnimation();
+    withAnimate(el, animation);
+
+    registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }, 1),
+      role: "active"
+    });
+
+    pump(0);
+    pump(40);
+    expect(animation.currentTime).toBe(40);
+
+    pump(500); // 460ms stall → the scrub clock resumes near 40 + one frame, not 500
+    expect(animation.currentTime as number).toBeCloseTo(40 + ONE_FRAME_MS, 5);
+  });
+
+  it("stops cleanly when detached mid-re-anchor (task resolved by the liveness floor)", () => {
+    const { scheduler, pump, pendingCount } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    let completed = 0;
+
+    const detach = registry.join("task-1", {
+      element: el,
+      motion: fadeOut(1),
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    })!;
+
+    pump(0);
+    pump(400); // long stall → re-anchored, still mid-flight
+    expect(completed).toBe(0);
+    expect(pendingCount()).toBe(1);
+
+    // The engine's liveness floor resolved the task and its effect cleanup
+    // detaches the player; the loop must stop and never complete late.
+    detach();
+    expect(pendingCount()).toBe(0);
+    pump(9999);
+    expect(completed).toBe(0);
   });
 });
 

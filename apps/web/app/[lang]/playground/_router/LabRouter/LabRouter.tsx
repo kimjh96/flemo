@@ -5,33 +5,30 @@ import { Route, Router, Slot } from "@flemo/react";
 import { useShellLocaleGetter } from "@/app/[lang]/_providers/ShellIntlProvider";
 import createLocaleHistoryDriver from "@/lib/localeHistoryDriver";
 
-import LabControls from "../../_components/LabControls";
-import LabPanelScreen from "../../_screens/LabPanelScreen";
-import blur from "../../_transitions/blur";
-import cardStack from "../../_transitions/cardStack";
-import dive, { tunnel } from "../../_transitions/dive";
+import LabTapMarker from "../../_components/LabTapMarker";
+import HeavyScreen from "../../_screens/HeavyScreen";
+import LabPanelsScreen from "../../_screens/LabPanelsScreen";
+import StressLabScreen from "../../_screens/StressLabScreen";
 import labFade from "../../_transitions/labFade";
-import labZoom from "../../_transitions/labZoom";
-import reveal from "../../_transitions/reveal";
-import ripple, { ripples } from "../../_transitions/ripple";
-import panelTitle from "../../_transitions/panelTitle";
-import spring from "../../_transitions/spring";
-import wipe from "../../_transitions/wipe";
+import stressEntry from "../../_transitions/stressEntry";
 
 import "./LabRouter.types";
 
 export interface LabRouterProps {
   // Seeded from the shell's matched panel number (PlaygroundScreen), so the
-  // server and client agree on the first panel even on a deep link.
+  // server and client agree on the first screen even on a deep link.
   initPath: string;
 }
 
-// The full-page playground stage: a nested Router whose single panel route fills
-// the area, with the floating control bar pinned over it (outside the Slot, so
-// it persists across every transition). Registers the custom transitions the
-// bar can pick (blur, reveal, dive, ripple, ...); cupertino/material/none are
-// built in. dive and ripple also carry decorators (the tunnel vignette and the
-// water ripples between the screens).
+// The playground stage's OUTER Router: it navigates between the panel browser
+// (LabPanelsScreen — a nested Router with the floating control dock as its
+// persistent chrome) and the full-bleed lab screens (stress lab, heavy
+// fixture). Splitting the levels gives the dock both behaviors for free: panel
+// moves happen INSIDE the panels screen, so the dock holds still over them,
+// while a push to the stress lab transitions the whole panels screen — dock
+// included — out of the stage. Registers `fade` (the stress lab offers it) and
+// the stressEntry part transition that sinks the dock's stress-lab entry row
+// as the panels screen recedes.
 function LabRouter({ initPath }: LabRouterProps) {
   const getLocale = useShellLocaleGetter();
 
@@ -39,15 +36,22 @@ function LabRouter({ initPath }: LabRouterProps) {
     <Router
       initPath={initPath}
       createDriver={(key) => createLocaleHistoryDriver(key, getLocale)}
-      transitions={[labFade, labZoom, blur, reveal, dive, ripple, cardStack, spring, wipe]}
-      partTransitions={[panelTitle]}
-      decorators={[tunnel, ripples]}
+      transitions={[labFade]}
+      partTransitions={[stressEntry]}
       className="relative h-full w-full bg-[var(--color-bg)]"
     >
       <Slot className="h-full w-full">
-        <Route path="/playground/:n" element={<LabPanelScreen />} />
+        {/* The static heavy + stress routes win over the panels catch-all
+            because the Renderer takes the first matching Route in order. Both
+            are reached under the shell's `/playground/:n` catch-all so deep
+            links resolve on the server. */}
+        <Route path="/playground/heavy" element={<HeavyScreen />} />
+        <Route path="/playground/stress" element={<StressLabScreen />} />
+        <Route path={["/playground", "/playground/:n"]} element={<LabPanelsScreen />} />
       </Slot>
-      <LabControls />
+      {/* Hidden perception anchor for the stress lab (outside the <Slot> so it
+          stays spatially still while the transition moves). */}
+      <LabTapMarker />
     </Router>
   );
 }

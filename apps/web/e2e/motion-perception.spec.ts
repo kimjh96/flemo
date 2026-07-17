@@ -336,11 +336,14 @@ test.describe("motion perception", () => {
     await page.waitForTimeout(900); // land on a non-root, swipeable screen
 
     const result = await page.evaluate(async () => {
-      // The innermost (lab) screen: nested routers mean several active
-      // screens exist; the swipeable one carries the cupertino transition.
-      const scope = document.querySelector<HTMLElement>(
+      // The innermost (panels) screen: nested routers mean several active
+      // screens can carry the cupertino transition (the panels-host screen
+      // seeds it too), and an ancestor precedes its descendants in document
+      // order — so take the LAST match, the innermost swipeable panel.
+      const scopes = document.querySelectorAll<HTMLElement>(
         '[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-active="true"]'
-      )!;
+      );
+      const scope = scopes[scopes.length - 1]!;
       const pointer = (type: string, x: number) =>
         scope.dispatchEvent(
           new PointerEvent(type, {

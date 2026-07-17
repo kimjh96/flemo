@@ -243,6 +243,11 @@ const EN: DocSection[] = [
             lang: "tsx",
             code: '<Screen\n  statusBarHeight="env(safe-area-inset-top)"\n  systemNavigationBarHeight="env(safe-area-inset-bottom)"\n>\n  ...\n</Screen>'
           },
+          { type: "h", text: "Shell first" },
+          {
+            type: "note",
+            text: "During a navigation, a newly mounting screen renders its frame first, its background, bars, and safe areas, and mounts its `children` a beat later. So the transition starts right away no matter how heavy the content is, and a slow first render can never freeze or swallow it. Effects and data fetching inside `children` begin at that deferred mount, one frame after the transition has started."
+          },
           { type: "h", text: "All props" },
           {
             type: "table",
@@ -997,6 +1002,11 @@ const KO: DocSection[] = [
             type: "code",
             lang: "tsx",
             code: '<Screen\n  statusBarHeight="env(safe-area-inset-top)"\n  systemNavigationBarHeight="env(safe-area-inset-bottom)"\n>\n  ...\n</Screen>'
+          },
+          { type: "h", text: "셸 먼저" },
+          {
+            type: "note",
+            text: "내비게이션 중에 새로 마운트되는 화면은 프레임(배경, 바, 세이프 에어리어)을 먼저 그리고, `children`은 한 박자 뒤에 마운트해요. 그래서 콘텐츠가 아무리 무거워도 전환이 곧바로 시작하고, 느린 첫 렌더가 전환을 막거나 삼킬 수 없어요. `children` 안의 이펙트와 데이터 페칭은 전환이 시작된 다음 프레임, 이 미뤄진 마운트에서 시작해요."
           },
           { type: "h", text: "전체 props" },
           {
