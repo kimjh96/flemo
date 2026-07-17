@@ -5,7 +5,7 @@ import { animationName, variantHasAnimation } from "@transition/compileTransitio
 import resolveTransition from "@transition/resolveTransition";
 
 import type { TransitionVariant } from "@transition/typing";
-import { resolveVariantMotion } from "@transition/variantMotion";
+import { resolveVariantMotion, type VariantMotion } from "@transition/variantMotion";
 
 import driverPolicy from "@core/engine/driverPolicy";
 import transitionPlayers from "@core/engine/transitionPlayer";
@@ -46,6 +46,124 @@ const collectVariantParts = (scope: HTMLElement, variant: TransitionVariant): HT
   );
 };
 
+// Cancel-resume budget: how many browser-cancels of one element's compiled
+// animation the engine will resume before conceding (the active scope then
+// resolves its task; a pure-resume participant simply stops). Bounds the churn
+// of a suspended-mount commit re-invalidating the layer repeatedly.
+const RESUME_BUDGET = 4;
+
+// Whole-millisecond CSS time string. Guards against float noise in the inline
+// `animation-delay` (e.g. -0.075 instead of -0.07500000000000001).
+const cssSeconds = (seconds: number) => `${Math.round(seconds * 1000) / 1000}s`;
+
+interface CancelResumeConfig {
+  element: HTMLElement;
+  // The compiled animation name this element runs; cancels of any other name
+  // (a decorator's, a foreign transition's) are ignored.
+  expectedName: string;
+  // The variant's timing, for the resume clamp and the rejoin delay.
+  motion: VariantMotion;
+  // Whether recovery may still act: the transition is current, the element is
+  // live, and no swipe committed it out. A dead participant terminates.
+  isLive: () => boolean;
+  budgetUsed: () => number;
+  spendBudget: () => void;
+  // Budget spent, clock past the end, or not live. The active scope resolves
+  // its task; a pure-resume participant does nothing.
+  onTerminal: () => void;
+}
+
+// Wire cancel-resume liveness on ONE compiled-CSS participant. WebKit silently
+// cancels a running compositor animation when a sibling commit churns the
+// layer (a Suspense fallback mounting mid-transition); the animation fires
+// `animationcancel` and NEVER `animationend`. Rather than replay from the
+// start (a visible jump) or resolve early (a single-frame cut), this
+// re-establishes the compiled animation rejoined to its ORIGINAL timeline: the
+// standard drop-reflow-restore trick plus an inline `animation-delay` that
+// rewinds the clock to where the cancel landed (negative past the delay phase,
+// so the resume picks up mid-flight and ends on the original schedule).
+const wireCancelResume = (config: CancelResumeConfig) => {
+  const { element, expectedName, motion } = config;
+  // The original start on the compiled timeline, set once at the FIRST
+  // `animationstart`. A resume's negative-delay replay fires a fresh
+  // `animationstart` that must NOT move it; only a watchdog full-restart resets
+  // it (fullRestart below).
+  let originalStart: number | null = null;
+  // True only during our own drop-reflow-restore mutation, so a synchronous
+  // cancel/start the real compositor emits from it is ignored (jsdom fires
+  // neither, but the guard keeps the browser path re-entrancy-safe).
+  let midRestart = false;
+
+  // Standard restart trick (drop → reflow → restore the compiled rule), with
+  // one of three treatments for the inline rejoin delay:
+  //   "keep"  — leave it untouched (a plain restart of an animation that never
+  //             started on the clock, so there's no rejoin delay to manage);
+  //   "set"   — write the negative/positive delay that rejoins the clock;
+  //   "clear" — strip any rejoin delay (a watchdog full-restart from `from`).
+  const restart = (delay: { mode: "keep" | "clear" } | { mode: "set"; seconds: number }) => {
+    midRestart = true;
+    element.style.animation = "none";
+    void element.offsetWidth;
+    element.style.removeProperty("animation");
+    if (delay.mode === "clear") element.style.removeProperty("animation-delay");
+    else if (delay.mode === "set") element.style.animationDelay = cssSeconds(delay.seconds);
+    midRestart = false;
+  };
+
+  const onStart = (event: AnimationEvent) => {
+    if (midRestart) return;
+    if (event.target !== element || event.animationName !== expectedName) return;
+    if (originalStart !== null) return; // a resumed animation's fresh start
+    originalStart = performance.now();
+  };
+
+  const onCancel = (event: AnimationEvent) => {
+    if (midRestart) return;
+    if (event.target !== element || event.animationName !== expectedName) return;
+    if (!config.isLive() || config.budgetUsed() >= RESUME_BUDGET) {
+      config.onTerminal();
+      return;
+    }
+    if (originalStart === null) {
+      // Never observed on the compiled clock: plain restart, no delay change.
+      config.spendBudget();
+      restart({ mode: "keep" });
+      return;
+    }
+    const elapsedMs = performance.now() - originalStart;
+    const spanMs = (motion.delay + motion.duration) * 1000;
+    if (elapsedMs >= spanMs) {
+      // Past the end — the compiled rest rule owns the pose, nothing to resume.
+      config.onTerminal();
+      return;
+    }
+    config.spendBudget();
+    // delay - elapsed: negative once past the delay phase (rejoin mid-flight),
+    // positive if cancelled while still delaying (wait out the remainder).
+    restart({ mode: "set", seconds: motion.delay - elapsedMs / 1000 });
+  };
+
+  return {
+    // Attach is explicit so the active scope can construct the controller (the
+    // watchdog needs its fullRestart) without wiring listeners on the
+    // player-driven path, where they'd catch the join's own `animation: none`.
+    attach: () => {
+      element.addEventListener("animationstart", onStart);
+      element.addEventListener("animationcancel", onCancel);
+    },
+    detach: () => {
+      element.removeEventListener("animationstart", onStart);
+      element.removeEventListener("animationcancel", onCancel);
+    },
+    // Watchdog full-restart: replay from the compiled `from` on a FRESH clock
+    // (the next `animationstart` re-records it), dropping any rejoin delay.
+    fullRestart: () => {
+      originalStart = null;
+      restart({ mode: "clear" });
+    }
+  };
+};
+
 // Framework-neutral transition engine. Created once per router scope with a
 // minimal set of injected store callbacks; the binding (React, etc.) feeds it
 // plain DOM elements and the current transition state. The engine owns the
@@ -61,13 +179,17 @@ const collectVariantParts = (scope: HTMLElement, variant: TransitionVariant): HT
 // - Anything the player can't provably interpolate keeps the compiled CSS
 //   animation exactly as before.
 export default function createTransitionEngine(deps: TransitionEngineDeps): TransitionEngine {
-  // Restart budget for the compiled-CSS liveness recovery (see the active path
-  // below): task ids that have already spent their one animation restart. Keyed
-  // by task id, NOT by effect run — the anim-hold release re-runs the driver
-  // effect, and a per-run flag would hand the same transition a fresh restart
-  // each re-run. Only a genuinely-recovered transition is ever recorded, so this
-  // set tracks the (rare) signal-loss defect, not healthy navigations.
-  const restartedTaskIds = new Set<string>();
+  // Cancel-resume budget for the ACTIVE scope's compiled-CSS liveness recovery
+  // (see the active path below): how many resumes each in-flight task has spent
+  // on its screen animation. Keyed by task id, NOT by effect run — the anim-hold
+  // release re-runs the driver effect, and a per-run counter would hand the same
+  // transition a fresh budget each re-run. Pruned on task resolution and on
+  // stale teardown (a resolved or superseded task's entry is dropped), so it
+  // tracks only the handful of genuinely-recovering in-flight tasks and never
+  // grows unbounded the way the old add-only Set did. Pure-resume participants
+  // (decorator, bars, parts, the passive scope) budget per drive-run instead —
+  // their counters live and die with the wiring closure.
+  const activeResumeCounts = new Map<string, number>();
 
   const driveScreenLifecycle = (input: ScreenLifecycleInput): (() => void) => {
     const { getElements, transitionName, prevTransitionName, status, isActive, animHoldReleased } =
@@ -167,6 +289,75 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       return () => detachers.forEach((detach) => detach());
     };
 
+    // Pure-resume wiring for a screen's NON-scope compiled-CSS participants:
+    // its riding shared bars (which mirror the screen keyframes), its decorator,
+    // and its <Part> elements — each against ITS OWN compiled animation name and
+    // timing. No task coupling: a cancel resumes on the original clock, and an
+    // exhausted budget or dead element simply stops (the COMPLETED cleanup and
+    // rest rules own the pose afterwards). Budgets are per drive-run (a local
+    // counter per element), matching the passive scope. Returns the detachers.
+    const wireParticipantRecovery = (
+      scopeEl: HTMLElement,
+      variant: TransitionVariant
+    ): (() => void)[] => {
+      const detachers: (() => void)[] = [];
+      const { decorator, bars } = getElements();
+      const transition = resolveTransition(transitionName);
+
+      const wirePure = (element: HTMLElement, expectedName: string, motion: VariantMotion) => {
+        let used = 0;
+        const controller = wireCancelResume({
+          element,
+          expectedName,
+          motion,
+          isLive: () => element.isConnected,
+          budgetUsed: () => used,
+          spendBudget: () => {
+            used += 1;
+          },
+          onTerminal: noop
+        });
+        controller.attach();
+        detachers.push(controller.detach);
+      };
+
+      // Riding bars run the screen's own keyframes (the compiler pairs the bar
+      // selector with the screen rule), so they share the screen animation name
+      // and motion.
+      const screenName = animationName("screen", transitionName, variant);
+      const screenMotion = resolveVariantMotion(transition, variant);
+      if (screenMotion) {
+        for (const bar of bars ?? []) {
+          if (!bar || bar.getAttribute("data-flemo-bar-riding") !== "true") continue;
+          wirePure(bar, screenName, screenMotion);
+        }
+      }
+
+      if (decorator && transition.decoratorName) {
+        const decoratorDefinition = decoratorMap.get(transition.decoratorName);
+        const decoratorMotion = decoratorDefinition
+          ? resolveVariantMotion(decoratorDefinition, variant)
+          : null;
+        if (decoratorMotion) {
+          wirePure(
+            decorator,
+            animationName("decorator", transition.decoratorName, variant),
+            decoratorMotion
+          );
+        }
+      }
+
+      for (const part of collectVariantParts(scopeEl, variant)) {
+        const partName = part.getAttribute(PART_NAME_ATTR)!;
+        const definition = partTransitionMap.get(partName);
+        const partMotion = definition ? resolveVariantMotion(definition, variant) : null;
+        if (!partMotion) continue;
+        wirePure(part, animationName("part", partName, variant), partMotion);
+      }
+
+      return detachers;
+    };
+
     if (!isActive) {
       // The rAF player writes inline styles on PASSIVE participants too (the
       // exiting screen's parallax, its decorator); the CSS era never needed a
@@ -199,8 +390,43 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // can't drive — the compiled CSS (hold/park rules included) stays in
       // charge, exactly as before.
       if (isTransitional && animHoldReleased) {
-        const detach = joinPlayer(`${status}-false` as TransitionVariant, "passive");
+        const variant = `${status}-false` as TransitionVariant;
+        const detach = joinPlayer(variant, "passive");
         if (detach) return detach;
+
+        // Player declined (replay chain, demoted device, or a variant it can't
+        // interpolate): the compiled CSS drives this exit. Wire cancel-resume on
+        // every participant so a WebKit-cancelled fade rejoins its timeline
+        // instead of dying silently under the incoming top. Pure resume — the
+        // passive side has no task to resolve; when a budget or the element's
+        // life is exhausted it just stops.
+        const { scope } = getElements();
+        if (scope) {
+          const transition = resolveTransition(transitionName);
+          const detachers: (() => void)[] = [];
+          if (variantHasAnimation(transition, variant)) {
+            const motion = resolveVariantMotion(transition, variant);
+            if (motion) {
+              let used = 0;
+              const controller = wireCancelResume({
+                element: scope,
+                expectedName: animationName("screen", transitionName, variant),
+                motion,
+                isLive: () =>
+                  scope.isConnected && scope.getAttribute(SKIP_ANIMATION_ATTR) !== "true",
+                budgetUsed: () => used,
+                spendBudget: () => {
+                  used += 1;
+                },
+                onTerminal: noop
+              });
+              controller.attach();
+              detachers.push(controller.detach);
+            }
+          }
+          detachers.push(...wireParticipantRecovery(scope, variant));
+          if (detachers.length > 0) return () => detachers.forEach((detach) => detach());
+        }
       }
       return noop;
     }
@@ -235,11 +461,20 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const { scope } = getElements();
     if (!scope) return noop;
 
+    // The task this transition gates, captured HERE (never the live one — a
+    // late resolver must not cut a NEWER transition). Shared by the resolver,
+    // the liveness floor, the recovery watchdog, and the active-scope resume
+    // budget.
+    const flooredTaskId = deps.getTransitionTaskId();
+
     const resolve = () => {
       const transitionTaskId = deps.getTransitionTaskId();
       if (transitionTaskId) {
         void TaskManger.resolveTask(transitionTaskId);
       }
+      // The task is settling — drop its resume-budget entry so the map only
+      // ever holds the handful of genuinely in-flight tasks.
+      if (flooredTaskId) activeResumeCounts.delete(flooredTaskId);
     };
 
     const currentTransition = resolveTransition(transitionName);
@@ -283,11 +518,16 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       watchdog = undefined;
     };
 
+    // Detaches the scope's own cancel-resume + watchdog. Set once the recovery
+    // is wired (below); a no-op until then and when the player drives. Called
+    // on a clean end so a late stray cancel can't resolve a second time.
+    let stopScopeRecovery = noop;
     const onEnd = (event: AnimationEvent) => {
       if (event.target !== scope) return;
       if (event.animationName !== expectedName) return;
       scope.removeEventListener("animationend", onEnd);
       clearWatchdog();
+      stopScopeRecovery();
       resolve();
     };
     scope.addEventListener("animationend", onEnd);
@@ -312,7 +552,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // healthy transition always resolves via animationend/player first and only
     // a genuinely stranded one hits the floor. `resolveTask` is a no-op on an
     // already-resolved id.
-    const flooredTaskId = deps.getTransitionTaskId();
     // Past the `hasAnimation` early return the motion ALWAYS resolves:
     // variantHasAnimation and resolveVariantMotion share the same gate (a
     // non-rest variant with duration or delay > 0 — see variantMotion.ts), so
@@ -331,71 +570,106 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // paused, held animation is not lost — nothing to recover, and the watchdog
     // must never fire against a legitimate pause). On WebKit a screen animation
     // the browser silently cancels mid-flight (a data/suspense commit racing
-    // the transition) fires NEITHER `animationend` nor a player onComplete;
-    // without this the task hangs until the 1.2s gate and the screen snaps in
-    // with no transition. The ladder: restart the animation ONCE, then let the
-    // watchdog resolve if the restart is lost too. The liveness floor above and
-    // the 1.2s task gate remain as untouched last resorts.
+    // the transition) fires NEITHER `animationend` nor a player onComplete.
+    //
+    // Two independent mechanisms cover the two ways the signal is lost:
+    //   1. CANCEL-RESUME: the browser fired `animationcancel`. We resume the
+    //      animation on its ORIGINAL timeline (wireCancelResume), up to
+    //      RESUME_BUDGET times, so a suspended-mount commit re-invalidating the
+    //      layer can't kill the transition — it keeps rejoining and ends on
+    //      schedule via `animationend`. Only when the budget is spent (or the
+    //      element goes dead) does it concede and resolve.
+    //   2. WATCHDOG full-restart: NO signal at all arrived by the deadline (the
+    //      animation never started, or a resume's own end was lost too). One
+    //      full replay from `from` on a fresh clock, re-armed once, then
+    //      resolve — the two-window semantics unchanged from before. A
+    //      cancel-resume must NOT touch the watchdog: a resumed animation ends
+    //      on the original schedule, so the original deadline stays valid and
+    //      `animationend` clears it.
+    // The liveness floor above and the 1.2s task gate remain untouched last
+    // resorts.
     const restartWatchdogMs = motionSpanMs + 250;
 
+    // Whether this scope's recovery may still act. Requires a live task id (no
+    // task → nothing to gate or resolve), THIS transition still current, the
+    // element connected, no committed swipe, and a genuinely animating variant.
+    const scopeIsLive = () =>
+      flooredTaskId !== null &&
+      deps.getTransitionTaskId() === flooredTaskId &&
+      scope.isConnected &&
+      scope.getAttribute(SKIP_ANIMATION_ATTR) !== "true" &&
+      variantHasAnimation(currentTransition, variantKey);
+
+    const scopeResume = wireCancelResume({
+      element: scope,
+      expectedName,
+      motion: activeMotion!,
+      isLive: scopeIsLive,
+      // Both callbacks run only past `isLive` (wireCancelResume consults the
+      // budget after the short-circuit), and scopeIsLive requires a live task
+      // id — so the assertions can never fire.
+      budgetUsed: () => activeResumeCounts.get(flooredTaskId!) ?? 0,
+      spendBudget: () => {
+        activeResumeCounts.set(flooredTaskId!, (activeResumeCounts.get(flooredTaskId!) ?? 0) + 1);
+      },
+      onTerminal: resolve
+    });
+    stopScopeRecovery = scopeResume.detach;
+
+    let watchdogRestarted = false;
     const armWatchdog = () => {
       clearWatchdog();
-      watchdog = setTimeout(runRecovery, restartWatchdogMs);
+      watchdog = setTimeout(onWatchdog, restartWatchdogMs);
     };
-
-    const runRecovery = () => {
+    const onWatchdog = () => {
       clearWatchdog();
-      // No task to gate: nothing to recover or resolve.
-      if (!flooredTaskId) return;
-      const canRestart =
-        // Still THIS transition (a newer navigation captured a new id).
-        deps.getTransitionTaskId() === flooredTaskId &&
-        scope.isConnected &&
-        // A swipe that committed the exit sets SKIP_ANIMATION — no restart.
-        scope.getAttribute(SKIP_ANIMATION_ATTR) !== "true" &&
-        // The variant genuinely animates (guards a def with no motion).
-        variantHasAnimation(currentTransition, variantKey) &&
-        // Budget: at most one restart per task id (survives effect re-runs).
-        !restartedTaskIds.has(flooredTaskId);
-      if (canRestart) {
-        restartedTaskIds.add(flooredTaskId);
-        // Standard restart trick: drop the animation, force a reflow so the
-        // removal takes, then restore it — the compiled rule replays from its
-        // own `from` keyframe. Re-arm the watchdog for the restarted run.
-        scope.style.animation = "none";
-        void scope.offsetWidth;
-        scope.style.removeProperty("animation");
+      if (scopeIsLive() && !watchdogRestarted) {
+        // Nothing ever ended: replay once from `from` on a fresh clock (the
+        // resume's original-clock tracking is reset by fullRestart) and re-arm.
+        watchdogRestarted = true;
+        scopeResume.fullRestart();
         armWatchdog();
         return;
       }
-      // Precondition failed or the restart was already spent: resolve now
-      // rather than strand the task until the 1.2s gate.
+      // Restart already spent, or nothing to gate: resolve rather than strand
+      // the task until the 1.2s gate.
       resolve();
     };
 
-    const onCancel = (event: AnimationEvent) => {
-      if (event.target !== scope) return;
-      if (event.animationName !== expectedName) return;
-      runRecovery();
-    };
-
     const recovering = !detachPlayer && animHoldReleased;
+    // The active screen's non-scope participants (riding bars, decorator,
+    // parts) recover too, each on its OWN name/clock — pure resume, no task.
+    const participantDetachers = recovering ? wireParticipantRecovery(scope, variantKey) : [];
     if (recovering) {
-      scope.addEventListener("animationcancel", onCancel);
+      scopeResume.attach();
       // Arm on the transition INTO released (this effect re-runs when the hold
       // releases; a hold-free variant attaches with animHoldReleased already
-      // true and arms here immediately).
-      armWatchdog();
+      // true and arms here immediately). Only with a task to resolve.
+      if (flooredTaskId) armWatchdog();
     }
 
     return () => {
       if (floor !== undefined) clearTimeout(floor);
       scope.removeEventListener("animationend", onEnd);
-      if (recovering) scope.removeEventListener("animationcancel", onCancel);
+      if (recovering) {
+        scopeResume.detach();
+        for (const detach of participantDetachers) detach();
+      }
       clearWatchdog();
       detachPlayer?.();
+      // Prune a stale budget entry: if this transition is no longer current the
+      // task is done, so its entry is dead. A re-run while the task is STILL
+      // current keeps it, so the per-task budget survives effect re-runs.
+      if (flooredTaskId && deps.getTransitionTaskId() !== flooredTaskId) {
+        activeResumeCounts.delete(flooredTaskId);
+      }
     };
   };
 
-  return { driveScreenLifecycle };
+  return {
+    driveScreenLifecycle,
+    // Internal, for the leak-regression test: how many in-flight tasks hold an
+    // active-scope resume-budget entry. Not part of the binding contract.
+    activeResumeEntryCount: () => activeResumeCounts.size
+  };
 }

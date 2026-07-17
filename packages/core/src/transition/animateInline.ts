@@ -38,6 +38,12 @@ export const clearInlineAnimation = (el: HTMLElement, properties?: string[]) => 
   // values back after the strip — drop it first, writing nothing.
   settleScrubber.cancel(el);
   el.style.transition = "";
+  // The compiled-CSS liveness recovery rejoins a browser-cancelled animation
+  // on its original clock via an inline `animation-delay` (negative to resume
+  // mid-flight). That property is written by the engine, not tracked in the
+  // animateInline write surface, so strip it unconditionally here: COMPLETED
+  // cleanup and the next transition start must begin with no leftover delay.
+  el.style.removeProperty("animation-delay");
   if (properties) {
     const tracked = inlineWrites.get(el);
     for (const property of properties) {

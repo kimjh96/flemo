@@ -205,16 +205,23 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     dispose();
   });
 
-  it("resolves immediately when the animation is cancelled again (restart budget spent)", () => {
+  it("resumes up to the budget, then resolves when cancelled once more", () => {
     const dispose = drive({ status: "PUSHING" });
     const removeSpy = vi.spyOn(scope.style, "removeProperty");
 
-    scope.dispatchEvent(animationCancelEvent(SCREEN_ANIM)); // 1st: restart
-    expect(resolveSpy).not.toHaveBeenCalled();
-    expect(removeSpy).toHaveBeenCalledTimes(1);
+    // With no animationstart observed, each cancel is a plain restart (no
+    // rejoin delay). The budget is 4 resumes per task; every one restarts and
+    // none resolves.
+    for (let i = 0; i < 4; i++) {
+      scope.dispatchEvent(animationCancelEvent(SCREEN_ANIM));
+      expect(resolveSpy).not.toHaveBeenCalled();
+    }
+    expect(removeSpy).toHaveBeenCalledTimes(4); // 4 restart tricks
+    expect(removeSpy).toHaveBeenCalledWith("animation");
 
-    scope.dispatchEvent(animationCancelEvent(SCREEN_ANIM)); // 2nd: budget spent
-    expect(removeSpy).toHaveBeenCalledTimes(1); // no second restart
+    // The 5th cancel finds the budget spent → resolve rather than restart again.
+    scope.dispatchEvent(animationCancelEvent(SCREEN_ANIM));
+    expect(removeSpy).toHaveBeenCalledTimes(4); // no fifth restart
     expect(resolveSpy).toHaveBeenCalledWith("task-1");
 
     removeSpy.mockRestore();

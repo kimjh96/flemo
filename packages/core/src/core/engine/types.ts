@@ -41,4 +41,9 @@ export interface TransitionEngine {
   // inputs change; the returned disposer detaches any pending listener (call
   // it before the next invocation and on teardown), mirroring a React effect.
   driveScreenLifecycle: (input: ScreenLifecycleInput) => () => void;
+  // Internal. Number of in-flight tasks currently holding an active-scope
+  // cancel-resume budget entry. Exposed only for the leak-regression test that
+  // asserts the bookkeeping never grows unbounded; not part of the binding
+  // contract, and bindings must not depend on it.
+  activeResumeEntryCount: () => number;
 }
