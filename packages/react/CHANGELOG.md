@@ -1,5 +1,19 @@
 # @flemo/react
 
+## 1.7.0
+
+### Minor Changes
+
+- [`b7096b0`](https://github.com/kimjh96/flemo/commit/b7096b04e4d181389db5f2af7bd9c6f76688e3a8) Start transitions against the screen shell: a screen mounting into a push or replace now renders its frame first and mounts consumer children in a deferred commit once the transition's first frame has painted, so heavy content can no longer freeze or swallow the animation. The rAF player also re-anchors its clock across long main-thread stalls, resuming motion instead of fast-forwarding to the end. `@flemo/core` gains a `shouldMountShellFirst` export so the shell-first decision stays framework-neutral, a new public API that lifts core to a minor bump.
+
+### Patch Changes
+
+- [`b7096b0`](https://github.com/kimjh96/flemo/commit/b7096b04e4d181389db5f2af7bd9c6f76688e3a8) Fix nested Router key collisions across nesting levels: a nested Router now chains its parent Router's key into its own history-state key. Previously two nesting levels both sitting on their root entries derived the same key, and the scope-persistence registry handed the inner Router the outer Router's stores, so one push navigated both levels at once.
+
+- [`b7096b0`](https://github.com/kimjh96/flemo/commit/b7096b04e4d181389db5f2af7bd9c6f76688e3a8) Fix `<Part>` to read its status from the Router that owns its screen. A Part placed in a nested Router's chrome previously followed the inner Router's transitions instead of its enclosing screen's, so it never animated with the outer navigation.
+- Updated dependencies ([`b7096b0`](https://github.com/kimjh96/flemo/commit/b7096b04e4d181389db5f2af7bd9c6f76688e3a8)):
+  - @flemo/core@1.19.0
+
 ## 1.6.9
 
 ### Patch Changes

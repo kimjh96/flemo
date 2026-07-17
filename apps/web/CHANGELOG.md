@@ -1,5 +1,19 @@
 # @flemo/web
 
+## 0.10.0
+
+### Minor Changes
+
+- [`b7096b0`](https://github.com/kimjh96/flemo/commit/b7096b04e4d181389db5f2af7bd9c6f76688e3a8) Add a first-class "Stress lab" to the playground: an explained screen (reached from the control dock) where you pick a transition, content shape, and render cost, then run a heavy screen to watch the transition play immediately while its content pops in only once ready. Replaces the hidden debug overlay. The panel browser is now its own nested Router with the control dock as persistent chrome, so the dock holds still across panel moves but rides the transition out with the panels screen when entering the stress lab, its entry row choreographed by a part transition.
+
+### Patch Changes
+
+- [`b7096b0`](https://github.com/kimjh96/flemo/commit/b7096b04e4d181389db5f2af7bd9c6f76688e3a8) Start transitions against the screen shell: a screen mounting into a push or replace now renders its frame first and mounts consumer children in a deferred commit once the transition's first frame has painted, so heavy content can no longer freeze or swallow the animation. The rAF player also re-anchors its clock across long main-thread stalls, resuming motion instead of fast-forwarding to the end. `@flemo/core` gains a `shouldMountShellFirst` export so the shell-first decision stays framework-neutral, a new public API that lifts core to a minor bump.
+- Updated dependencies ([`b7096b0`](https://github.com/kimjh96/flemo/commit/b7096b04e4d181389db5f2af7bd9c6f76688e3a8), [`b7096b0`](https://github.com/kimjh96/flemo/commit/b7096b04e4d181389db5f2af7bd9c6f76688e3a8), [`b7096b0`](https://github.com/kimjh96/flemo/commit/b7096b04e4d181389db5f2af7bd9c6f76688e3a8)):
+  - @flemo/react@1.7.0
+  - @flemo/core@1.19.0
+  - @flemo/react-layout@0.1.34
+
 ## 0.9.3
 
 ### Patch Changes
