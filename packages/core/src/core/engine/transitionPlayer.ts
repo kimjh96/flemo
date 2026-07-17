@@ -358,6 +358,24 @@ const NOMINAL_FRAME_MS = 1000 / 60;
 // below the shortest transition, so only a genuine block re-anchors.
 const FRAME_GAP_REANCHOR_MS = 100;
 
+// Health-gated takeover. The player is a MAIN-THREAD driver: when consumer
+// work (a query-refetch commit, a heavy list render) occupies the thread
+// during a transition, the player's frames starve and the motion staggers or
+// snaps — while the compiled CSS animation, running on the compositor, would
+// have sailed through (measured on production: under 20x CPU throttle the
+// player collapsed each fade into 1-2 video frames; the compositor played all
+// of them on time). So the player no longer assumes control at the release:
+// the compiled animation drives first, a short rAF probe measures whether the
+// main thread can actually feed frames, and only a healthy probe hands the
+// motion to the player (back-dated, so the swap is seamless). A contended
+// probe declines for THIS transition and the compositor keeps driving to
+// `animationend` — per-transition, evidence-first, no persisted state, and it
+// protects the very first transition after load (where the driver policy's
+// demotion has no history yet). A "raf" diagnostic pin skips the probe: a pin
+// means no automatic decisions.
+export const TAKEOVER_PROBE_FRAMES = 3;
+export const TAKEOVER_HEALTHY_GAP_MS = 40;
+
 export interface PlayerScheduler {
   request: (callback: (time: number) => void) => number;
   cancel: (handle: number) => void;
@@ -384,6 +402,9 @@ interface Track extends TrackInput {
   parsed: ParsedMotion | null;
   // Universal tier: a paused Web Animation scrubbed off the shared clock.
   scrub: Animation | null;
+  // Whether the player owns this element (compiled animation suppressed,
+  // inline/scrub driving). False while dormant under the takeover probe.
+  activated: boolean;
   completed: boolean;
   detached: boolean;
   snapMemory: SnapMemory;
@@ -406,7 +427,19 @@ export const createTransitionPlayerRegistry = (
 ): TransitionPlayerRegistry => {
   interface Player {
     tracks: Track[];
-    started: boolean;
+    // "probing": the compiled CSS animation is driving while the takeover
+    // probe measures main-thread health. "driving": the player took over.
+    // "declined": a contended probe left the compositor in charge for good
+    // (this transition); dormant tracks just wait for their detach.
+    phase: "probing" | "driving" | "declined";
+    probeStarted: boolean;
+    probeHandle: number | null;
+    probeLast: number | null;
+    probeGaps: number;
+    // The back-dated motion origin (≈ the release commit): captured on the
+    // probe's first frame so a takeover continues the compiled animation's
+    // progress instead of restarting from 0.
+    origin: number | null;
     startTime: number | null;
     lastTime: number | null;
     frameHandle: number | null;
@@ -414,17 +447,103 @@ export const createTransitionPlayerRegistry = (
 
   const players = new Map<string, Player>();
 
+  // Suppress the compiled animation and put the player in charge of one
+  // element, AT the motion's current progress — the compiled animation has
+  // been driving since the release, so the swap must not jump. Registered
+  // inline writes are stripped by the track cleanup / COMPLETED cleanup as
+  // before. A track whose scrub creation fails here stays dormant on the
+  // compiled animation (never suppressed), resolving via `animationend`.
+  const activateTrack = (player: Player, track: Track, time: number) => {
+    if (track.activated) return;
+    track.activated = true;
+    if (!track.parsed) {
+      track.scrub = createScrubAnimation(track.element, track.motion);
+      if (!track.scrub) return;
+    }
+    track.element.style.animation = "none";
+    trackInlineWrite(track.element, "animation");
+    const elapsed = Math.max(0, time - (player.startTime ?? time));
+    const durationMs = track.motion.duration * 1000;
+    const delayMs = track.motion.delay * 1000;
+    if (track.parsed) {
+      const { parsed } = track;
+      if (parsed.transforms.length > 0) trackInlineWrite(track.element, "transform");
+      if (parsed.opacity) trackInlineWrite(track.element, "opacity");
+      for (const channel of parsed.strings) trackInlineWrite(track.element, channel.property);
+      for (const constant of parsed.constants) trackInlineWrite(track.element, constant.property);
+      const local =
+        durationMs <= 0 ? 1 : Math.min(1, Math.max(0, (elapsed - delayMs) / durationMs));
+      writeTrack(track, trackEasing(track)(local));
+    } else if (track.scrub) {
+      track.scrub.currentTime = Math.min(Math.max(0, elapsed), delayMs + durationMs);
+    }
+  };
+
+  const activate = (taskId: string, player: Player, time: number) => {
+    player.phase = "driving";
+    player.startTime = player.origin;
+    for (const track of player.tracks) {
+      if (!track.detached) activateTrack(player, track, time);
+    }
+    driverPolicy.beginRun();
+    scheduleFrame(taskId, player);
+  };
+
+  // The takeover probe: TAKEOVER_PROBE_FRAMES consecutive frame gaps under
+  // TAKEOVER_HEALTHY_GAP_MS hand the motion to the player; the first late
+  // frame declines it — which is also why a hard block declines FAST (the
+  // very first post-block frame carries the whole gap).
+  const startProbe = (taskId: string, player: Player) => {
+    const probe = (time: number) => {
+      player.probeHandle = null;
+      if (!players.has(taskId) || player.phase !== "probing") return;
+      if (player.origin === null) {
+        player.origin = time - NOMINAL_FRAME_MS;
+        player.probeLast = time;
+        player.probeHandle = scheduler.request(probe);
+        return;
+      }
+      const gap = time - (player.probeLast ?? time);
+      player.probeLast = time;
+      if (gap >= TAKEOVER_HEALTHY_GAP_MS) {
+        player.phase = "declined";
+        return;
+      }
+      player.probeGaps += 1;
+      if (player.probeGaps >= TAKEOVER_PROBE_FRAMES) {
+        activate(taskId, player, time);
+        return;
+      }
+      player.probeHandle = scheduler.request(probe);
+    };
+    player.probeHandle = scheduler.request(probe);
+  };
+
   const registry: TransitionPlayerRegistry = {
     join: (taskId, input) => {
       const parsed = parseMotion(input.motion, input.element);
-      const scrub = parsed ? null : createScrubAnimation(input.element, input.motion);
-      if (!parsed && !scrub) return null;
+      // The scrub tier is validated HERE (the join's null return tells the
+      // engine to keep the compiled CSS + its recovery wiring), but the live
+      // animation is created only at ACTIVATION: a paused fill-"both" WAAPI
+      // outranks the compiled animation in the cascade, so keeping one around
+      // during the probe would pin the element while the compositor is
+      // supposed to be driving.
+      if (!parsed) {
+        const scrubProbe = createScrubAnimation(input.element, input.motion);
+        if (!scrubProbe) return null;
+        scrubProbe.cancel();
+      }
 
       let player = players.get(taskId);
       if (!player) {
         player = {
           tracks: [],
-          started: false,
+          phase: "probing",
+          probeStarted: false,
+          probeHandle: null,
+          probeLast: null,
+          probeGaps: 0,
+          origin: null,
           startTime: null,
           lastTime: null,
           frameHandle: null
@@ -435,34 +554,33 @@ export const createTransitionPlayerRegistry = (
       const track: Track = {
         ...input,
         parsed,
-        scrub,
+        scrub: null,
+        activated: false,
         completed: false,
         detached: false,
         snapMemory: { x: null, y: null }
       };
       player.tracks.push(track);
 
-      // Pin the first frame synchronously in the same commit that joined the
-      // track: the compiled animation is suppressed here, so without this
-      // write the element would show its REST styles for one frame. Every
-      // inline write is registered with the animateInline tracker so the
-      // COMPLETED cleanup (clearInlineAnimation) strips them and the compiled
-      // rest rules take back over. A scrub track pins via the paused
-      // animation itself (fill "both" at currentTime 0).
-      track.element.style.animation = "none";
-      trackInlineWrite(track.element, "animation");
-      if (parsed) {
-        if (parsed.transforms.length > 0) trackInlineWrite(track.element, "transform");
-        if (parsed.opacity) trackInlineWrite(track.element, "opacity");
-        for (const channel of parsed.strings) trackInlineWrite(track.element, channel.property);
-        for (const constant of parsed.constants) trackInlineWrite(track.element, constant.property);
-        writeTrack(track, 0);
-      }
-
-      if (input.role === "active" && !player.started) {
-        player.started = true;
-        driverPolicy.beginRun();
-        scheduleFrame(taskId, player);
+      if (player.phase === "driving") {
+        // A participant joining after the takeover (a later commit) activates
+        // in place, aligned to the shared clock.
+        activateTrack(player, track, player.lastTime ?? player.startTime ?? 0);
+      } else if (driverPolicy.pinnedDriver() === "raf") {
+        // A diagnostic pin means "this exact driver, no automatic decisions":
+        // the pre-gate behavior exactly — every participant suppresses its
+        // compiled animation at join (from-frame pinned), and the frame loop
+        // starts on the first ACTIVE join.
+        activateTrack(player, track, 0);
+        if (input.role === "active" && !player.probeStarted) {
+          player.probeStarted = true;
+          player.phase = "driving";
+          driverPolicy.beginRun();
+          scheduleFrame(taskId, player);
+        }
+      } else if (input.role === "active" && !player.probeStarted) {
+        player.probeStarted = true;
+        startProbe(taskId, player);
       }
 
       return () => {
@@ -473,7 +591,9 @@ export const createTransitionPlayerRegistry = (
         // runs this cleanup on the way into the freeze. Idempotent with the
         // engine's COMPLETED cleanup for unfrozen screens. A scrub's
         // fill-"both" end-state outranks the compiled rest rules (animation
-        // origin), so it must be cancelled here for the handoff.
+        // origin), so it must be cancelled here for the handoff. A dormant
+        // (probing/declined) track registered no inline writes, so both
+        // calls are no-ops for it.
         track.scrub?.cancel();
         clearInlineAnimation(track.element);
         const current = players.get(taskId);
@@ -481,6 +601,7 @@ export const createTransitionPlayerRegistry = (
         current.tracks = current.tracks.filter((t) => t !== track);
         if (current.tracks.length === 0) {
           if (current.frameHandle !== null) scheduler.cancel(current.frameHandle);
+          if (current.probeHandle !== null) scheduler.cancel(current.probeHandle);
           players.delete(taskId);
         }
       };
@@ -489,6 +610,7 @@ export const createTransitionPlayerRegistry = (
       const player = players.get(taskId);
       if (!player) return;
       if (player.frameHandle !== null) scheduler.cancel(player.frameHandle);
+      if (player.probeHandle !== null) scheduler.cancel(player.probeHandle);
       for (const track of player.tracks) track.scrub?.cancel();
       players.delete(taskId);
     }

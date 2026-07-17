@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { VariantMotion } from "@transition/variantMotion";
 
@@ -6,8 +6,18 @@ import driverPolicy from "@core/engine/driverPolicy";
 import {
   createTransitionPlayerRegistry,
   isPlayerDrivable,
+  TAKEOVER_HEALTHY_GAP_MS,
+  TAKEOVER_PROBE_FRAMES,
   type PlayerScheduler
 } from "@core/engine/transitionPlayer";
+
+// These suites exercise the player's DRIVING mechanics, so they pin the
+// diagnostic force key: a pin skips the health-gated takeover probe (a pin
+// means no automatic decisions), giving every join the immediate takeover the
+// assertions were written against. The gate itself is tested un-pinned in the
+// "health-gated takeover" suite below.
+beforeAll(() => localStorage.setItem("flemo:motion-driver-force", "raf"));
+afterAll(() => localStorage.removeItem("flemo:motion-driver-force"));
 
 // A hand-cranked scheduler: frames fire only when the test pumps them, with
 // explicit timestamps — the player's whole clock becomes deterministic.
@@ -64,14 +74,20 @@ const linearMotion = (from: object, to: object, duration = 1): VariantMotion => 
   ease: "linear"
 });
 
-// Installs a WAAPI stub on the element (jsdom has none) and returns the spy.
-const withAnimate = (el: HTMLElement, animation: ReturnType<typeof fakeAnimation>) => {
-  const animate = vi.fn(
-    (_keyframes: Keyframe[], _options: KeyframeAnimationOptions) =>
-      animation as unknown as Animation
-  );
+// Installs a WAAPI stub on the element (jsdom has none). Mints a FRESH
+// animation per call, matching the real element.animate: the registry
+// validates the scrub tier at join with a throwaway creation (cancelled
+// immediately) and creates the LIVE animation at activation — assertions about
+// the driving animation target `live()`, the last instance.
+const withAnimate = (el: HTMLElement) => {
+  const animations: ReturnType<typeof fakeAnimation>[] = [];
+  const animate = vi.fn((_keyframes: Keyframe[], _options: KeyframeAnimationOptions) => {
+    const animation = fakeAnimation();
+    animations.push(animation);
+    return animation as unknown as Animation;
+  });
   el.animate = animate;
-  return animate;
+  return { animate, live: () => animations[animations.length - 1]! };
 };
 
 // Minimal Web Animation stand-in for the scrub tier (jsdom has no WAAPI).
@@ -344,8 +360,7 @@ describe("transitionPlayer", () => {
     const { scheduler, pump } = createFakeScheduler();
     const registry = createTransitionPlayerRegistry(scheduler);
     const el = element();
-    const animation = fakeAnimation();
-    const animate = withAnimate(el, animation);
+    const { animate, live } = withAnimate(el);
     let completed = 0;
 
     const detach = registry.join("task-1", {
@@ -371,22 +386,22 @@ describe("transitionPlayer", () => {
         fill: "both"
       }
     );
-    expect(animation.paused).toBe(true);
-    expect(animation.currentTime).toBe(0);
+    expect(live().paused).toBe(true);
+    expect(live().currentTime).toBe(0);
     expect(el.style.animation).toBe("none");
 
     pump(0);
     climbTo(pump, 0, 500); // the player advances the browser's clock, raw (uneased) time
-    expect(animation.currentTime).toBe(500);
+    expect(live().currentTime).toBe(500);
     expect(completed).toBe(0);
 
     climbTo(pump, 500, 1000);
-    expect(animation.currentTime).toBe(1000);
+    expect(live().currentTime).toBe(1000);
     expect(completed).toBe(1);
-    expect(animation.canceled).toBe(false); // end-state holds until detach
+    expect(live().canceled).toBe(false); // end-state holds until detach
 
     detach();
-    expect(animation.canceled).toBe(true); // rest rules take back over
+    expect(live().canceled).toBe(true); // rest rules take back over
     expect(el.style.animation).toBe("");
   });
 
@@ -394,8 +409,7 @@ describe("transitionPlayer", () => {
     const { scheduler } = createFakeScheduler();
     const registry = createTransitionPlayerRegistry(scheduler);
     const el = element();
-    const animation = fakeAnimation();
-    const animate = withAnimate(el, animation);
+    const { animate } = withAnimate(el);
 
     registry.join("task-1", {
       element: el,
@@ -414,8 +428,7 @@ describe("transitionPlayer", () => {
     const registry = createTransitionPlayerRegistry(scheduler);
     const numericEl = element();
     const scrubEl = element();
-    const animation = fakeAnimation();
-    withAnimate(scrubEl, animation);
+    const { live } = withAnimate(scrubEl);
 
     registry.join("task-1", {
       element: numericEl,
@@ -431,7 +444,7 @@ describe("transitionPlayer", () => {
     pump(0);
     climbTo(pump, 0, 500);
     expect(numericEl.style.transform).toBe("translate3d(200px, 0px, 0)");
-    expect(animation.currentTime).toBe(500);
+    expect(live().currentTime).toBe(500);
   });
 
   it("keeps the CSS path when WAAPI rejects the keyframes", () => {
@@ -455,8 +468,7 @@ describe("transitionPlayer", () => {
     const { scheduler, pump } = createFakeScheduler();
     const registry = createTransitionPlayerRegistry(scheduler);
     const el = element();
-    const animation = fakeAnimation();
-    withAnimate(el, animation);
+    const { live } = withAnimate(el);
 
     registry.join("task-1", {
       element: el,
@@ -465,7 +477,7 @@ describe("transitionPlayer", () => {
     });
     pump(0);
     registry.dispose("task-1");
-    expect(animation.canceled).toBe(true);
+    expect(live().canceled).toBe(true);
   });
 
   it("dispose cancels the loop and drops the player", () => {
@@ -579,8 +591,7 @@ describe("transitionPlayer block-resilient re-anchor", () => {
     const { scheduler, pump } = createFakeScheduler();
     const registry = createTransitionPlayerRegistry(scheduler);
     const el = element();
-    const animation = fakeAnimation();
-    withAnimate(el, animation);
+    const { live } = withAnimate(el);
 
     registry.join("task-1", {
       element: el,
@@ -590,10 +601,10 @@ describe("transitionPlayer block-resilient re-anchor", () => {
 
     pump(0);
     pump(40);
-    expect(animation.currentTime).toBe(40);
+    expect(live().currentTime).toBe(40);
 
     pump(500); // 460ms stall → the scrub clock resumes near 40 + one frame, not 500
-    expect(animation.currentTime as number).toBeCloseTo(40 + ONE_FRAME_MS, 5);
+    expect(live().currentTime as number).toBeCloseTo(40 + ONE_FRAME_MS, 5);
   });
 
   it("stops cleanly when detached mid-re-anchor (task resolved by the liveness floor)", () => {
@@ -668,5 +679,115 @@ describe("app-wide registry glue", () => {
     detach();
     expect(el.style.transform).toBe("");
     expect(el.style.animation).toBe("");
+  });
+});
+
+describe("health-gated takeover (un-pinned)", () => {
+  // Without a diagnostic pin, the player must EARN the takeover: the compiled
+  // CSS animation drives from the release, a short rAF probe measures the
+  // main thread, and only TAKEOVER_PROBE_FRAMES healthy gaps hand over the
+  // motion. A contended probe declines and the compositor keeps driving.
+  const unpin = () => localStorage.removeItem("flemo:motion-driver-force");
+  const repin = () => localStorage.setItem("flemo:motion-driver-force", "raf");
+
+  it("declines on a contended probe: the compiled animation is never touched", () => {
+    unpin();
+    try {
+      const { scheduler, pump, pendingCount } = createFakeScheduler();
+      const registry = createTransitionPlayerRegistry(scheduler);
+      const el = element();
+
+      registry.join("gate-decline", {
+        element: el,
+        motion: linearMotion({ x: 100 }, { x: 0 }, 0.6),
+        role: "active"
+      });
+      // Join must NOT suppress the compiled animation while probing.
+      expect(el.style.animation).toBe("");
+      expect(el.style.transform).toBe("");
+
+      pump(0); // origin frame
+      // One frame past the health bound = a main-thread block: decline.
+      pump(TAKEOVER_HEALTHY_GAP_MS + 20);
+      expect(el.style.animation).toBe("");
+      expect(el.style.transform).toBe("");
+      // Declined for good: no further frames are scheduled.
+      expect(pendingCount()).toBe(0);
+    } finally {
+      repin();
+    }
+  });
+
+  it("takes over after healthy probe frames, continuing the motion's progress", () => {
+    unpin();
+    try {
+      const { scheduler, pump } = createFakeScheduler();
+      const registry = createTransitionPlayerRegistry(scheduler);
+      const el = element();
+
+      registry.join("gate-takeover", {
+        element: el,
+        // 1s linear x: 100 -> 0.
+        motion: linearMotion({ x: 100 }, { x: 0 }, 1),
+        role: "active"
+      });
+
+      pump(0); // origin frame (origin back-dated one nominal frame)
+      for (let i = 1; i <= TAKEOVER_PROBE_FRAMES; i++) pump(i * 16);
+      // Activated: compiled animation suppressed, and the first write lands at
+      // the CURRENT progress (~48+16ms elapsed of 1000ms), never back at 100px.
+      expect(el.style.animation).toBe("none");
+      const x = parseFloat(/translate3d\(([-\d.]+)px/.exec(el.style.transform)?.[1] ?? "NaN");
+      expect(x).toBeLessThan(100);
+      expect(x).toBeGreaterThan(85);
+    } finally {
+      repin();
+    }
+  });
+
+  it("activates a passive participant that joined while probing", () => {
+    unpin();
+    try {
+      const { scheduler, pump } = createFakeScheduler();
+      const registry = createTransitionPlayerRegistry(scheduler);
+      const active = element();
+      const passive = element();
+
+      registry.join("gate-pair", {
+        element: active,
+        motion: linearMotion({ x: 100 }, { x: 0 }, 1),
+        role: "active"
+      });
+      registry.join("gate-pair", {
+        element: passive,
+        motion: linearMotion({ x: 0 }, { x: -30 }, 1),
+        role: "passive"
+      });
+      expect(passive.style.animation).toBe("");
+
+      pump(0);
+      for (let i = 1; i <= TAKEOVER_PROBE_FRAMES; i++) pump(i * 16);
+      expect(active.style.animation).toBe("none");
+      expect(passive.style.animation).toBe("none");
+    } finally {
+      repin();
+    }
+  });
+
+  it("a pinned 'raf' driver skips the probe and takes over at join", () => {
+    // (The surrounding suites run pinned; this asserts the fast path shape.)
+    const { scheduler, pendingCount } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+
+    registry.join("gate-pinned", {
+      element: el,
+      motion: linearMotion({ x: 100 }, { x: 0 }, 1),
+      role: "active"
+    });
+    // Immediate suppression + from-frame pin + a scheduled step frame.
+    expect(el.style.animation).toBe("none");
+    expect(el.style.transform).toContain("100px");
+    expect(pendingCount()).toBe(1);
   });
 });

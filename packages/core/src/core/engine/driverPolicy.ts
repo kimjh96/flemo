@@ -95,6 +95,10 @@ const DEMOTION_STRIKES = 2;
 export interface DriverPolicy {
   // Whether the rAF player may drive motion on this device.
   playerAllowed: () => boolean;
+  // The active diagnostic pin (localStorage force key), or null. A pin means
+  // "this exact driver, no automatic decisions" — the player registry reads it
+  // to skip the health-gated takeover probe when pinned to "raf".
+  pinnedDriver: () => "css" | "raf" | null;
   // Player run lifecycle: the registry reports gaps; the policy aggregates.
   beginRun: () => void;
   reportGap: (gapMs: number) => void;
@@ -105,14 +109,28 @@ export interface DriverPolicy {
 
 // Engine probe, not a brand sniff: navigator.userAgentData ships with Blink
 // and nothing else — including iOS Chrome, which is WebKit underneath and
-// correctly reads as non-Blink here. Blink builds too old to have it predate
-// the measured defect profile and are better served by the compositor anyway.
+// correctly reads as non-Blink here. Kept for diagnostics; the DEFAULT driver
+// no longer branches on it (see below).
 export const detectBlinkEngine = (): boolean =>
   typeof navigator !== "undefined" && !!(navigator as { userAgentData?: unknown }).userAgentData;
 
+// The COMPOSITOR (compiled CSS) is the default screen-transition driver on
+// EVERY engine. The rAF player was Blink's default for a while (it routes
+// around a measured compositor judder on specific hardware), but any
+// main-thread driver shares its thread with the consumer's work — and a real
+// app's transition window routinely carries a query-refetch or suspense data
+// commit. Measured on production under 20x CPU throttle: the player collapsed
+// each 150ms tab fade into 1-2 video frames (stagger/snap), a takeover health
+// probe could not help (bursty load passes the probe then blocks — a probe
+// certifies only the past), while the compositor played every fade ON TIME
+// through 300ms main-thread stalls. Short transitions leave no room to
+// recover: one mid-flight block outlasts the remainder. So the player is now
+// an explicitly-pinned tier (`flemo:motion-driver-force = "raf"`) for
+// judder-afflicted setups, plus embedders that opt in programmatically — both
+// of which keep the demotion machinery and the takeover health gate.
 export const createDriverPolicy = (
   storage: DriverPolicyStorage = defaultStorage(),
-  playerByDefault: boolean = detectBlinkEngine()
+  playerByDefault: boolean = false
 ): DriverPolicy => {
   // A persisted demotion is PROBATION, not a life sentence: each new session
   // the player gets one probe transition. A clean probe clears the record —
@@ -133,6 +151,7 @@ export const createDriverPolicy = (
       if (forced) return forced === "raf";
       return playerByDefault && !demoted;
     },
+    pinnedDriver: () => readForcedDriver(),
     beginRun: () => {
       runLongGaps = 0;
       runGaps = [];
