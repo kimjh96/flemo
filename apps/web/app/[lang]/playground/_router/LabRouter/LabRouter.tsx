@@ -6,9 +6,10 @@ import { useShellLocaleGetter } from "@/app/[lang]/_providers/ShellIntlProvider"
 import createLocaleHistoryDriver from "@/lib/localeHistoryDriver";
 
 import LabControls from "../../_components/LabControls";
-import LabSpikeHarness from "../../_components/LabSpikeHarness";
+import LabTapMarker from "../../_components/LabTapMarker";
 import HeavyScreen from "../../_screens/HeavyScreen";
 import LabPanelScreen from "../../_screens/LabPanelScreen";
+import StressLabScreen from "../../_screens/StressLabScreen";
 import blur from "../../_transitions/blur";
 import cardStack from "../../_transitions/cardStack";
 import dive, { tunnel } from "../../_transitions/dive";
@@ -59,13 +60,19 @@ function LabRouter({ initPath }: LabRouterProps) {
       className="relative h-full w-full bg-[var(--color-bg)]"
     >
       <Slot className="h-full w-full">
-        {/* SPIKE fixture: the static heavy route wins over `/playground/:n`
-            because the Renderer takes the first matching Route in order. */}
+        {/* The static heavy + stress routes win over `/playground/:n` because the
+            Renderer takes the first matching Route in order. `stress` is the
+            stress lab entry (its controls run the `heavy` fixture); both are
+            reached under the shell's `/playground/:n` catch-all so deep links
+            resolve on the server. */}
         <Route path="/playground/heavy" element={<HeavyScreen />} />
+        <Route path="/playground/stress" element={<StressLabScreen />} />
         <Route path="/playground/:n" element={<LabPanelScreen />} />
       </Slot>
       <LabControls />
-      <LabSpikeHarness />
+      {/* Hidden perception anchor for the stress lab (outside the <Slot> so it
+          stays spatially still while the transition moves). */}
+      <LabTapMarker />
     </Router>
   );
 }

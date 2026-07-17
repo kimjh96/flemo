@@ -8,7 +8,9 @@ import type { LabTransition } from "../../_providers/LabSettingsProvider";
 declare module "@flemo/react" {
   interface RegisterRoute {
     "/playground/:n": { n: string; code?: LabTransition };
-    // SPIKE fixture: the heavy screen, entered with a chosen synchronous block.
+    // The stress lab entry — a first-class playground screen (no params).
+    "/playground/stress": Record<string, never>;
+    // The heavy fixture the stress lab enters, with a chosen synchronous block.
     "/playground/heavy": { block?: string; sliced?: string };
   }
 

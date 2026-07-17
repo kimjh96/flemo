@@ -10,13 +10,19 @@
 // click, so nothing paints (not even a tap marker) until the block ends — only
 // wall-clock captures the true freeze.
 //
+// It drives the always-visible playground stress lab (/playground/stress): it
+// sets the transition / content-shape / render-cost controls, then clicks the
+// primary "Run transition" action, which enters the heavy fixture and flashes the
+// perception tap marker in the same tick. The stress lab is first-class,
+// always-visible UI, so no gate or opt-in flag is set here.
+//
 // Matrix: config (webkit+css, chromium+css, chromium+raf) × transition
-// (tab-forward / fade, cupertino) × blockMs. css/raf pin flemo's motion driver
-// via the diagnostic `flemo:motion-driver-force` localStorage key so both the
-// compositor path (the disease's production reality on WebKit) and the branch's
-// rAF player are measured on demand. Shell-first is unconditional in the shipped
-// build, so there is no on/off flag here — compare the printed table against the
-// spike's recorded baseline numbers.
+// (fade, cupertino) × blockMs. css/raf pin flemo's motion driver via the
+// diagnostic `flemo:motion-driver-force` localStorage key so both the compositor
+// path (the disease's production reality on WebKit) and the branch's rAF player
+// are measured on demand. Shell-first is unconditional in the shipped build, so
+// there is no on/off flag here — compare the printed table against the recorded
+// baseline numbers.
 //
 // Usage (from the repo root, after a production build so `next start` serves the
 // optimized bundle — dev/Turbopack adds main-thread work that skews timing):
@@ -24,6 +30,12 @@
 //   pnpm --filter @flemo/web build
 //   node apps/web/e2e/perception/heavy-shell.mjs            # blocks 0,400,800
 //   node apps/web/e2e/perception/heavy-shell.mjs 0 200 800  # custom blocks
+//
+// Trim the matrix for a single-row spot check with env filters (matched
+// case-insensitively):
+//
+//   FLEMO_ENGINE=webkit FLEMO_DRIVER=css FLEMO_TRANSITION=fade \
+//     node apps/web/e2e/perception/heavy-shell.mjs 400
 //
 // Requires the webkit + chromium Playwright browsers installed
 // (`pnpm --filter @flemo/web exec playwright install webkit chromium`). ffmpeg
@@ -64,17 +76,29 @@ const BLOCKS = (() => {
     .filter((n) => Number.isFinite(n));
   return args.length > 0 ? args : [0, 400, 800];
 })();
-const TRANSITIONS = [
-  { name: "tab-forward", key: "fade" },
-  { name: "cupertino", key: "cupertino" }
-];
+// `key` is both the stress-lab transition control id (stress-transition-<key>)
+// and the printed row label. The lab maps fade → the authored cross-fade and
+// cupertino → the built-in slide; the harness only needs the key.
+const ALL_TRANSITIONS = [{ key: "fade" }, { key: "cupertino" }];
 // engine + forced driver. webkit default is css; chromium default is the rAF
 // player. We pin explicitly so the driverPolicy probation never adds variance.
-const CONFIGS = [
+const ALL_CONFIGS = [
   { engine: "webkit", driver: "css" },
   { engine: "chromium", driver: "css" },
   { engine: "chromium", driver: "raf" }
 ];
+
+// Optional single-row filters for spot checks (see usage note above).
+const ENGINE_FILTER = process.env.FLEMO_ENGINE?.toLowerCase();
+const DRIVER_FILTER = process.env.FLEMO_DRIVER?.toLowerCase();
+const TRANSITION_FILTER = process.env.FLEMO_TRANSITION?.toLowerCase();
+const CONFIGS = ALL_CONFIGS.filter(
+  (c) =>
+    (!ENGINE_FILTER || c.engine === ENGINE_FILTER) && (!DRIVER_FILTER || c.driver === DRIVER_FILTER)
+);
+const TRANSITIONS = ALL_TRANSITIONS.filter(
+  (t) => !TRANSITION_FILTER || t.key === TRANSITION_FILTER
+);
 
 // ── server ────────────────────────────────────────────────────────────────
 async function startServer() {
@@ -193,9 +217,6 @@ async function runScenario(browser, cfg, transition, block, tag) {
     recordVideo: { dir: videoDir, size: VIEWPORT }
   });
   const contextStart = Date.now();
-  await context.addInitScript(() => {
-    localStorage.setItem("flemo:spike-harness", "1");
-  });
   await context.addInitScript((driver) => {
     try {
       localStorage.setItem("flemo:motion-driver-force", driver);
@@ -208,16 +229,20 @@ async function runScenario(browser, cfg, transition, block, tag) {
   const video = page.video();
   let result;
   try {
-    await page.goto(`${BASE}/playground`, { waitUntil: "load", timeout: 30000 });
-    await page.waitForSelector(`[data-testid="spike-${transition.key}-${block}"]`, {
-      timeout: 15000
-    });
+    // Deep-link the stress lab (served through the shell's /playground/:n
+    // catch-all), then set the transition / atomic-shape / render-cost controls
+    // before the timed run so only the final click carries the tap anchor.
+    await page.goto(`${BASE}/playground/stress`, { waitUntil: "load", timeout: 30000 });
+    await page.waitForSelector(`[data-testid="stress-run"]`, { timeout: 15000 });
+    await page.click(`[data-testid="stress-transition-${transition.key}"]`);
+    await page.click(`[data-testid="stress-shape-atomic"]`);
+    await page.click(`[data-testid="stress-cost-${block}"]`);
     await sleep(SETTLE_MS);
 
     const tapWallSec = (Date.now() - contextStart) / 1000;
-    await page.evaluate((sel) => {
-      document.querySelector(sel).click();
-    }, `[data-testid="spike-${transition.key}-${block}"]`);
+    await page.evaluate(() => {
+      document.querySelector(`[data-testid="stress-run"]`).click();
+    });
     await sleep(POST_MS);
 
     await context.close();
