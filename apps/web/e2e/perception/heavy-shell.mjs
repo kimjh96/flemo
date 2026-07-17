@@ -193,6 +193,9 @@ async function runScenario(browser, cfg, transition, block, tag) {
     recordVideo: { dir: videoDir, size: VIEWPORT }
   });
   const contextStart = Date.now();
+  await context.addInitScript(() => {
+    localStorage.setItem("flemo:spike-harness", "1");
+  });
   await context.addInitScript((driver) => {
     try {
       localStorage.setItem("flemo:motion-driver-force", driver);

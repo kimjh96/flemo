@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useNavigate, type TransitionName } from "@flemo/react";
 
@@ -18,6 +18,12 @@ import { useNavigate, type TransitionName } from "@flemo/react";
 
 const MARKER_ID = "__spikeTapMarker";
 
+// The harness only renders when the measurement script opts in (it sets this
+// key via addInitScript before navigation). A fixed overlay of trigger buttons
+// must never sit over the real playground UI for users or the regular e2e
+// suite — on the mobile viewport it covers the panel's own buttons.
+const ENABLE_KEY = "flemo:spike-harness";
+
 const BLOCKS = [0, 200, 400, 800] as const;
 const TRANSITIONS: { name: TransitionName; key: string }[] = [
   { name: "tab-forward", key: "fade" },
@@ -27,6 +33,13 @@ const TRANSITIONS: { name: TransitionName; key: string }[] = [
 function LabSpikeHarness() {
   const navigate = useNavigate();
   const markerRef = useRef<HTMLDivElement>(null);
+  // Post-mount read keeps SSR markup and the first client render identical
+  // (the harness is measurement-only UI; appearing a frame late is free).
+  const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    setEnabled(localStorage.getItem(ENABLE_KEY) === "1");
+  }, []);
 
   const handleTrigger = (transition: TransitionName, block: number) => {
     // Flash the marker white in the SAME synchronous tick as the navigation, so
@@ -35,6 +48,8 @@ function LabSpikeHarness() {
     if (markerRef.current) markerRef.current.style.background = "#ffffff";
     navigate.push("/playground/heavy", { block: String(block) }, { transitionName: transition });
   };
+
+  if (!enabled) return null;
 
   return (
     <>
