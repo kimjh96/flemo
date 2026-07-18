@@ -570,7 +570,9 @@ export const compileTransitionStyles = (
     }
   }
 
-  return [...blocks.filter((b) => b.length > 0), ANIM_HOLD_RULE].join("\n\n");
+  return [...blocks.filter((b) => b.length > 0), ANIM_HOLD_RULE, TRANSITION_QUARANTINE_RULE].join(
+    "\n\n"
+  );
 };
 
 // A freshly-started transition animation is held paused while the binding
@@ -592,6 +594,48 @@ const ANIM_HOLD_RULE = [
   `[data-flemo-anim-hold="park"] [data-flemo-part-name],`,
   `[data-flemo-anim-hold="park-under"] [data-flemo-part-name] {`,
   `  animation-play-state: paused !important;`,
+  `}`
+].join("\n");
+
+// Consumer-animation quarantine: while a navigation runs, no CSS animation
+// exists inside its COLD screens (their own <Part> elements excepted — that
+// choreography belongs to the transition). Profiled on device (iPhone, Safari
+// timeline): a cold first entry mounted ~380 skeleton shimmer animations, each
+// an accelerated `transform` loop — ~380 compositor layers inside the entering
+// screen. The release-time restructure (park z-order restored + the screen's
+// own animation promoting its layer) then re-committed that whole subtree:
+// one 65ms composite pass plus ~70ms of render-server backpressure, swallowing
+// a 150ms fade wholesale — zero intermediate frames presented. Three hard-won
+// details of this rule:
+// - COLD subtrees only: the freshly-mounted entering screen (push/replace) and
+//   the unfreezing pop destination — the screens whose animations would all
+//   START in the transition commit; suppressing them costs no visible state.
+//   The WARM exiting side keeps its animations untouched: its layers are
+//   already built (no storm to prevent), and killing an infinite ambient
+//   animation there snaps it to its base pose and restarts its phase —
+//   observed on a hero card-roll that visibly flipped to the wrong card on
+//   every navigation.
+// - `animation: none`, NOT `animation-play-state: paused`. A paused animation
+//   still exists, so WebKit still builds and commits its compositor layer;
+//   only a non-existent animation prevents the layer storm. Everything starts
+//   when the status flips to COMPLETED — on a fresh subtree that is the
+//   natural begin-at-arrival, not a restart.
+// - `::before`/`::after` variants. The descendant selector alone matches real
+//   elements only, and shimmer-style effects live on pseudo-elements.
+const QUARANTINE_COLD_VARIANTS = [
+  ["PUSHING", "true"],
+  ["REPLACING", "true"],
+  ["POPPING", "false"]
+];
+const TRANSITION_QUARANTINE_RULE = [
+  ...QUARANTINE_COLD_VARIANTS.flatMap(([status, active], variantIndex) =>
+    ["", "::before", "::after"].map((pseudo, pseudoIndex) => {
+      const last =
+        variantIndex === QUARANTINE_COLD_VARIANTS.length - 1 && pseudoIndex === 2 ? " {" : ",";
+      return `[data-flemo-screen][data-flemo-status="${status}"][data-flemo-active="${active}"] :not([data-flemo-part-name])${pseudo}${last}`;
+    })
+  ),
+  `  animation: none !important;`,
   `}`
 ].join("\n");
 
