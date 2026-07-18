@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import TaskManger from "@core/TaskManger";
+
 import { animationName } from "@transition/compileTransitionStyles";
 
 import createTransition from "@transition/createTransition";
@@ -632,6 +634,53 @@ describe("reveal-shaped transitions (active no-op, passive animated)", () => {
     } finally {
       resolveSpy.mockRestore();
       transitionMap.delete("reveal-branch" as never);
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("perceptual completion cut", () => {
+  it("resolves the task once remaining motion is sub-pixel, before animationend", async () => {
+    vi.useFakeTimers();
+    // The cut is compiled-CSS-path only; this file pins the raf player in
+    // beforeAll, so pin css for this test.
+    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    try {
+      const { scope } = elements();
+      // jsdom boxes measure 0: give the scope a real width so percentage
+      // distances resolve.
+      Object.defineProperty(scope, "clientWidth", { value: 390, configurable: true });
+      Object.defineProperty(scope, "clientHeight", { value: 720, configurable: true });
+      document.body.appendChild(scope);
+      const resolveSpy = vi
+        .spyOn(TaskManger, "resolveTask")
+        .mockImplementation(() => Promise.resolve(true));
+      const d = deps();
+      d.getTransitionTaskId.mockReturnValue("cut-task" as never);
+      const engine = createTransitionEngine(d);
+      const cleanup = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: "PUSHING",
+        isActive: true,
+        animHoldReleased: true
+      });
+
+      // Well inside the visible motion: no cut yet.
+      vi.advanceTimersByTime(420);
+      expect(resolveSpy).not.toHaveBeenCalled();
+
+      // Past the sub-pixel point (but before the 600ms animationend, which
+      // jsdom never fires): the cut resolves the task.
+      vi.advanceTimersByTime(200);
+      expect(resolveSpy).toHaveBeenCalledWith("cut-task");
+
+      cleanup();
+      resolveSpy.mockRestore();
+      scope.remove();
+    } finally {
+      sessionStorage.setItem("flemo:motion-driver-force", "raf");
       vi.useRealTimers();
     }
   });

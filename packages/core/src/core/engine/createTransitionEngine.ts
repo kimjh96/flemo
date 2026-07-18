@@ -9,6 +9,7 @@ import { resolveVariantMotion, type VariantMotion } from "@transition/variantMot
 
 import createArrivalHold from "@core/engine/arrivalHold";
 import driverPolicy from "@core/engine/driverPolicy";
+import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import transitionPlayers from "@core/engine/transitionPlayer";
 import {
   SKIP_ANIMATION_ATTR,
@@ -637,6 +638,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // is wired (below); a no-op until then and when the player drives. Called
     // on a clean end so a late stray cancel can't resolve a second time.
     let stopScopeRecovery = noop;
+    // Disarms the perceptual completion cut (wired below): any recovery event
+    // shifts real presentation later than the wall clock, so the cut must
+    // yield to animationend.
+    let disarmPerceptualCut = noop;
     const onEnd = (event: AnimationEvent) => {
       if (event.target !== scope) return;
       if (event.animationName !== expectedName) return;
@@ -725,6 +730,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // id — so the assertions can never fire.
       budgetUsed: () => activeResumeCounts.get(flooredTaskId!) ?? 0,
       spendBudget: () => {
+        disarmPerceptualCut();
         activeResumeCounts.set(flooredTaskId!, (activeResumeCounts.get(flooredTaskId!) ?? 0) + 1);
       },
       onTerminal: resolve
@@ -742,6 +748,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // Nothing ever ended: replay once from `from` on a fresh clock (the
         // resume's original-clock tracking is reset by fullRestart) and re-arm.
         watchdogRestarted = true;
+        disarmPerceptualCut();
         scopeResume.fullRestart();
         armWatchdog();
         return;
@@ -763,8 +770,51 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (flooredTaskId) armWatchdog();
     }
 
+    // Perceptual completion cut (see perceptualSpan.ts): once every animated
+    // channel of BOTH sides has permanently entered its imperceptibility band
+    // (< 1 device pixel / < one opacity step remaining), the rest of the
+    // clock presents nothing — resolve there and skip the sub-pixel shimmer
+    // window. Compiled-CSS path only (the player owns its own tail), armed at
+    // the release (the same commit that unpauses the animation), and DISARMED
+    // the moment recovery touches the clock (a cancel-resume or watchdog
+    // restart shifts presentation later than the wall-clock cut). <Part>
+    // choreography runs on its own registered timings this analysis cannot
+    // see, so any participating part vetoes the cut.
+    let perceptualCut: ReturnType<typeof setTimeout> | undefined;
+    const clearPerceptualCut = () => {
+      if (perceptualCut === undefined) return;
+      clearTimeout(perceptualCut);
+      perceptualCut = undefined;
+    };
+    disarmPerceptualCut = clearPerceptualCut;
+    if (recovering && flooredTaskId && collectVariantParts(scope, variantKey).length === 0) {
+      const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+      const activeCut = perceptualCutMs(activeMotion!, scope, dpr);
+      const passiveVariant = `${status}-false` as TransitionVariant;
+      const passiveMotion = variantHasAnimation(currentTransition, passiveVariant)
+        ? resolveVariantMotion(currentTransition, passiveVariant)
+        : null;
+      // Both sides must be inside their bands before the COMPLETED flip cuts
+      // them; an unanalyzable passive side vetoes. (Passive % distances
+      // resolve against this scope's box — sibling screens share the
+      // viewport.)
+      const passiveCut = passiveMotion ? perceptualCutMs(passiveMotion, scope, dpr) : 0;
+      if (activeCut !== null && passiveCut !== null) {
+        const cutMs = Math.max(activeCut, passiveCut);
+        perceptualCut = setTimeout(() => {
+          perceptualCut = undefined;
+          if (!scopeIsLive()) return;
+          scope.removeEventListener("animationend", onEnd);
+          clearWatchdog();
+          stopScopeRecovery();
+          resolve();
+        }, cutMs + 17);
+      }
+    }
+
     return () => {
       if (floor !== undefined) clearTimeout(floor);
+      clearPerceptualCut();
       scope.removeEventListener("animationend", onEnd);
       if (recovering) {
         scopeResume.detach();
