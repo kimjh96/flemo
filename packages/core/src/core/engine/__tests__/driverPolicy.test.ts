@@ -89,10 +89,10 @@ describe("driverPolicy", () => {
 });
 
 describe("driverPolicy engine default", () => {
-  it("keeps the player off where the Blink evidence does not apply", () => {
+  it("keeps the player off by default on every engine", () => {
     const { storage } = memoryStorage();
-    // jsdom has no navigator.userAgentData -> detectBlinkEngine() is false,
-    // the same read a WebKit browser produces.
+    // The compiled compositor drives by default everywhere; the player is a
+    // pinned diagnostic tier (see the driverPolicy file header).
     const policy = createDriverPolicy(storage);
     expect(policy.playerAllowed()).toBe(false);
   });
