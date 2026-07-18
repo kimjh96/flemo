@@ -483,8 +483,34 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const hasAnimation = !skipAnimation && variantHasAnimation(currentTransition, variantKey);
 
     if (!hasAnimation) {
-      // No animation will run for this variant. Resolve in a microtask so the
-      // binding's commit lands first and the navigation queue keeps advancing.
+      // A REVEAL-shaped transition: the active entering screen stands still
+      // (its enter is visually a no-op) while the PASSIVE side animates out
+      // above it — the transition's whole visible motion lives on the exit.
+      // Resolving on a microtask here would complete the task instantly and
+      // cut that exit off, so the task spans the passive variant's motion
+      // instead: armed at the hold release (a heavy pre-release commit then
+      // DELAYS the span, never truncates it), plus a small margin so the exit
+      // lands its final frame before the COMPLETED flip re-renders both
+      // screens. The engine watchdogs still net a lost exit animation.
+      if (!skipAnimation) {
+        const passiveVariant = `${status}-false` as TransitionVariant;
+        if (variantHasAnimation(currentTransition, passiveVariant)) {
+          if (!animHoldReleased) {
+            // Wait for the release commit; this effect re-runs with
+            // animHoldReleased=true and arms the span then.
+            if (flooredTaskId) TaskManger.markGateHeld(flooredTaskId);
+            return noop;
+          }
+          if (flooredTaskId) TaskManger.anchorGate(flooredTaskId);
+          const passiveMotion = resolveVariantMotion(currentTransition, passiveVariant)!;
+          const spanMs = (passiveMotion.delay + passiveMotion.duration) * 1000 + 50;
+          const spanTimer = setTimeout(resolve, spanMs);
+          return () => clearTimeout(spanTimer);
+        }
+      }
+      // No animation anywhere in this variant pair. Resolve in a microtask so
+      // the binding's commit lands first and the navigation queue keeps
+      // advancing.
       queueMicrotask(resolve);
       return noop;
     }

@@ -559,3 +559,80 @@ describe("createTransitionEngine gate-phase reporting", () => {
     anchored.mockRestore();
   });
 });
+
+describe("reveal-shaped transitions (active no-op, passive animated)", () => {
+  // The transition's whole visible motion lives on the EXIT side (the old
+  // screen animates out above the standing new one). A microtask resolve
+  // would flip COMPLETED instantly and cut that exit off — the task must span
+  // the passive variant's motion, armed at the hold release.
+  it("spans the passive exit instead of resolving on a microtask", async () => {
+    vi.useFakeTimers();
+    const TaskManger = (await import("@core/TaskManger")).default;
+    const resolveSpy = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
+    transitionMap.set(
+      "reveal-branch" as never,
+      createTransition({
+        name: "reveal-branch" as never,
+        initial: { x: 0 },
+        idle: { value: { x: 0 }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 0 } },
+        enterBack: { value: { x: 0 }, options: { duration: 0 } },
+        exit: { value: { opacity: 0 }, options: { duration: 0.15 } },
+        exitBack: { value: { opacity: 0 }, options: { duration: 0.15 } }
+      })
+    );
+    try {
+      const { scope } = elements();
+      const d = { ...deps(), getTransitionTaskId: vi.fn(() => "reveal-task") };
+      const engine = createTransitionEngine(d);
+
+      // Pre-release: the span must not arm yet (a heavy pre-release commit
+      // delays the exit; resolving on the original clock would truncate it).
+      const preRelease = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "reveal-branch" as never,
+        prevTransitionName: "reveal-branch" as never,
+        status: "REPLACING",
+        isActive: true,
+        animHoldReleased: false
+      });
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(resolveSpy).not.toHaveBeenCalled();
+      preRelease();
+
+      // Released: the task resolves after the passive motion span (+margin),
+      // never on a microtask.
+      const released = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "reveal-branch" as never,
+        prevTransitionName: "reveal-branch" as never,
+        status: "REPLACING",
+        isActive: true,
+        animHoldReleased: true
+      });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(resolveSpy).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(150);
+      expect(resolveSpy).toHaveBeenCalledWith("reveal-task");
+      released();
+
+      // Cleanup cancels a pending span (interrupt safety).
+      const interrupted = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "reveal-branch" as never,
+        prevTransitionName: "reveal-branch" as never,
+        status: "REPLACING",
+        isActive: true,
+        animHoldReleased: true
+      });
+      interrupted();
+      resolveSpy.mockClear();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(resolveSpy).not.toHaveBeenCalled();
+    } finally {
+      resolveSpy.mockRestore();
+      transitionMap.delete("reveal-branch" as never);
+      vi.useRealTimers();
+    }
+  });
+});
