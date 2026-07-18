@@ -791,3 +791,122 @@ describe("health-gated takeover (un-pinned)", () => {
     expect(pendingCount()).toBe(1);
   });
 });
+
+describe("health-gated takeover: scrub tier and edge branches", () => {
+  const unpin = () => localStorage.removeItem("flemo:motion-driver-force");
+  const repin = () => localStorage.setItem("flemo:motion-driver-force", "raf");
+
+  it("takes over a scrub track at the motion's current time, not zero", () => {
+    unpin();
+    try {
+      const { scheduler, pump } = createFakeScheduler();
+      const registry = createTransitionPlayerRegistry(scheduler);
+      const el = element();
+      const { live } = withAnimate(el);
+
+      registry.join("gate-scrub", {
+        element: el,
+        motion: linearMotion({ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }, 1),
+        role: "active"
+      });
+      // Validation created and cancelled a throwaway; the element is untouched.
+      expect(el.style.animation).toBe("");
+
+      pump(0);
+      for (let i = 1; i <= TAKEOVER_PROBE_FRAMES; i++) pump(i * 16);
+      // Activation created the LIVE scrub and aligned it with the back-dated
+      // clock: the compiled animation has been running since the release, so
+      // the scrub starts at the elapsed time, never back at 0.
+      expect(el.style.animation).toBe("none");
+      expect(live().currentTime).toBeGreaterThan(0);
+      expect(live().currentTime).toBeLessThan(200);
+    } finally {
+      repin();
+    }
+  });
+
+  it("leaves a track on the compositor when scrub creation fails at activation", () => {
+    unpin();
+    try {
+      const { scheduler, pump } = createFakeScheduler();
+      const registry = createTransitionPlayerRegistry(scheduler);
+      const el = element();
+      // Validation (call 1) succeeds; the activation-time creation (call 2)
+      // throws — WAAPI can reject at any construction.
+      let calls = 0;
+      el.animate = vi.fn(() => {
+        calls += 1;
+        if (calls > 1) throw new Error("rejected at activation");
+        return fakeAnimation() as unknown as Animation;
+      });
+
+      registry.join("gate-scrub-fail", {
+        element: el,
+        motion: linearMotion({ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }, 0.1),
+        role: "active"
+      });
+      pump(0);
+      for (let i = 1; i <= TAKEOVER_PROBE_FRAMES; i++) pump(i * 16);
+      // The failed track was never suppressed: the compiled animation stays in
+      // charge and resolves via animationend, and the player loop it rides in
+      // completes without crashing.
+      expect(el.style.animation).toBe("");
+      climbTo(pump, TAKEOVER_PROBE_FRAMES * 16, 300);
+    } finally {
+      repin();
+    }
+  });
+
+  it("a probe frame after the last participant detached is a no-op", () => {
+    unpin();
+    try {
+      const { scheduler, pump } = createFakeScheduler();
+      const registry = createTransitionPlayerRegistry(scheduler);
+      const el = element();
+
+      const detach = registry.join("gate-detach", {
+        element: el,
+        motion: linearMotion({ x: 100 }, { x: 0 }, 1),
+        role: "active"
+      })!;
+      pump(0);
+      detach();
+      // The detach cancelled the pending probe frame; a stray pump must not
+      // resurrect the player or touch the element.
+      pump(16);
+      pump(32);
+      expect(el.style.animation).toBe("");
+      expect(el.style.transform).toBe("");
+    } finally {
+      repin();
+    }
+  });
+
+  it("a zero-duration motion activates straight at its end state", () => {
+    unpin();
+    try {
+      const { scheduler, pump } = createFakeScheduler();
+      const registry = createTransitionPlayerRegistry(scheduler);
+      const el = element();
+      let completed = 0;
+
+      registry.join("gate-zero", {
+        element: el,
+        motion: linearMotion({ x: 100 }, { x: 0 }, 0),
+        role: "active",
+        onComplete: () => {
+          completed += 1;
+        }
+      });
+      pump(0);
+      for (let i = 1; i <= TAKEOVER_PROBE_FRAMES; i++) pump(i * 16);
+      // duration 0 → activation writes the final frame (identity collapses to
+      // "none"), and the first step completes the track.
+      expect(el.style.transform).toBe("none");
+      pump(TAKEOVER_PROBE_FRAMES * 16 + 16);
+      expect(completed).toBe(1);
+    } finally {
+      repin();
+    }
+  });
+});
