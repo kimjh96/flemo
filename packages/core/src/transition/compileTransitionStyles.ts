@@ -570,9 +570,12 @@ export const compileTransitionStyles = (
     }
   }
 
-  return [...blocks.filter((b) => b.length > 0), ANIM_HOLD_RULE, TRANSITION_QUARANTINE_RULE].join(
-    "\n\n"
-  );
+  return [
+    ...blocks.filter((b) => b.length > 0),
+    ANIM_HOLD_RULE,
+    TRANSITION_QUARANTINE_RULE,
+    ARRIVAL_HOLD_RULE
+  ].join("\n\n");
 };
 
 // A freshly-started transition animation is held paused while the binding
@@ -638,6 +641,15 @@ const TRANSITION_QUARANTINE_RULE = [
   `  animation: none !important;`,
   `}`
 ].join("\n");
+
+// In-flight commit hold (see core/engine/arrivalHold.ts): content that
+// arrives inside a screen DURING its transition is held off-glass and
+// reflected in one commit at rest, so a mid-flight Suspense swap can never
+// punch through a decelerating motion. The engine stamps the attribute; this
+// rule is the entire visual mechanism.
+const ARRIVAL_HOLD_RULE = [`[data-flemo-held-arrival] {`, `  display: none !important;`, `}`].join(
+  "\n"
+);
 
 export const variantHasAnimation = (
   transitionLike: Pick<Transition, "initial" | "variants">,

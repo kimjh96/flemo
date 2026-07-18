@@ -636,3 +636,149 @@ describe("reveal-shaped transitions (active no-op, passive animated)", () => {
     }
   });
 });
+
+describe("in-flight arrival hold wiring", () => {
+  const observerFlush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  // The landing is deferred two frames past COMPLETED (off the convergence
+  // commit); tests flush both rAFs plus a macrotask.
+  const landingFlush = () =>
+    new Promise((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 0)))
+    );
+
+  it("holds a mid-flight swap on the entering screen and reflects it at COMPLETED", async () => {
+    const { scope } = elements();
+    document.body.appendChild(scope);
+    const skeleton = document.createElement("div");
+    scope.appendChild(skeleton);
+    const engine = createTransitionEngine(deps());
+
+    // Pre-release run: the screen is parked under a cover, landings are
+    // invisible — no hold yet.
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "PUSHING",
+      isActive: true,
+      animHoldReleased: false
+    });
+    const early = document.createElement("aside");
+    scope.appendChild(early);
+    await observerFlush();
+    expect(early.hasAttribute("data-flemo-held-arrival")).toBe(false);
+
+    // Post-release run arms the hold; a Suspense-style swap parks.
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "PUSHING",
+      isActive: true,
+      animHoldReleased: true
+    });
+    const content = document.createElement("article");
+    scope.replaceChild(content, skeleton);
+    await observerFlush();
+    expect(content.hasAttribute("data-flemo-held-arrival")).toBe(true);
+    expect(skeleton.parentNode).toBe(scope);
+
+    // COMPLETED lands the swap two frames later, off the convergence commit.
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "COMPLETED",
+      isActive: true,
+      animHoldReleased: true
+    });
+    expect(content.hasAttribute("data-flemo-held-arrival")).toBe(true);
+    await landingFlush();
+    expect(skeleton.parentNode).toBe(null);
+    expect(content.hasAttribute("data-flemo-held-arrival")).toBe(false);
+    scope.remove();
+  });
+
+  it("holds on the pop destination (passive cold side) and releases on its COMPLETED", async () => {
+    const { scope } = elements();
+    document.body.appendChild(scope);
+    const engine = createTransitionEngine(deps());
+
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "POPPING",
+      isActive: false,
+      animHoldReleased: true
+    });
+    const refreshed = document.createElement("article");
+    scope.appendChild(refreshed);
+    await observerFlush();
+    expect(refreshed.hasAttribute("data-flemo-held-arrival")).toBe(true);
+
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "COMPLETED",
+      isActive: false,
+      animHoldReleased: true
+    });
+    await landingFlush();
+    expect(refreshed.hasAttribute("data-flemo-held-arrival")).toBe(false);
+    scope.remove();
+  });
+
+  it("lands a pending deferred landing before a new transition's first frame", async () => {
+    const { scope } = elements();
+    document.body.appendChild(scope);
+    const skeleton = document.createElement("div");
+    scope.appendChild(skeleton);
+    const engine = createTransitionEngine(deps());
+    const drive = (status: "PUSHING" | "COMPLETED", isActive: boolean) =>
+      engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status,
+        isActive,
+        animHoldReleased: true
+      });
+
+    drive("PUSHING", true);
+    const content = document.createElement("article");
+    scope.replaceChild(content, skeleton);
+    await observerFlush();
+    expect(content.hasAttribute("data-flemo-held-arrival")).toBe(true);
+
+    // COMPLETED schedules the landing; a new navigation starts immediately,
+    // BEFORE the two-frame window elapses.
+    drive("COMPLETED", true);
+    drive("PUSHING", true);
+    // The pending landing must have been applied synchronously at re-arm.
+    expect(skeleton.parentNode).toBe(null);
+    expect(content.hasAttribute("data-flemo-held-arrival")).toBe(false);
+    scope.remove();
+  });
+
+  it("never holds on the warm exiting side", async () => {
+    const { scope } = elements();
+    document.body.appendChild(scope);
+    const engine = createTransitionEngine(deps());
+
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "PUSHING",
+      isActive: false,
+      animHoldReleased: true
+    });
+    const live = document.createElement("article");
+    scope.appendChild(live);
+    await observerFlush();
+    expect(live.hasAttribute("data-flemo-held-arrival")).toBe(false);
+    scope.remove();
+  });
+});

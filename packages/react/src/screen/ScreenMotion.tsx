@@ -63,13 +63,25 @@ function ScreenMotion({
 
   const stores = useStores();
 
-  const status = useNavigateStore((state) => state.status);
+  const index = useHistoryStore((state) => state.index);
+  const histories = useHistoryStore((state) => state.histories);
+
+  // Only the top screen and the one beneath it ever take part in a
+  // transition. A RESTING screen deeper in the stack pins its status
+  // subscription to a constant, so the store's transitional flips never
+  // re-render it — measured at depth ~20, the un-pinned subscription turned
+  // every navigation's status flip into an O(depth) re-render plus an
+  // attribute-write storm landing exactly on the convergence frames. Role
+  // changes (a pop making this screen top again) arrive through the
+  // history subscription above, which re-renders and re-evaluates the pin.
+  const participatesInTransition = isActive || zIndex === index - 1;
+  const status = useNavigateStore((state) =>
+    participatesInTransition ? state.status : "COMPLETED"
+  );
   const dragStatus = useScreenStore((state) => state.dragStatus);
   const replaceTransitionStatus = useScreenStore((state) => state.replaceTransitionStatus);
   const setDragStatus = stores.screen.getState().setDragStatus;
   const setReplaceTransitionStatus = stores.screen.getState().setReplaceTransitionStatus;
-  const index = useHistoryStore((state) => state.index);
-  const histories = useHistoryStore((state) => state.histories);
 
   // The partner screen this one would hand its shared bars to (the active top
   // looks one below; a prev looks at the top). Subscribe to JUST that entry so
@@ -302,7 +314,7 @@ function ScreenMotion({
   //    which mirrors every `animate(currentScreen, ...)` call to the riding
   //    bars in the SAME JS tick. No rAF loop, no `getComputedStyle` reads.
   //    The bars and the screen commit in the same paint pass.
-  const isTopOrTopPrev = isActive || zIndex === index - 1;
+  const isTopOrTopPrev = participatesInTransition;
   const hasSharedTopBar = !!sharedTopBar;
   const hasSharedBottomBar = !!sharedBottomBar;
 

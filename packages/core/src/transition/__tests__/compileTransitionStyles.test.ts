@@ -970,3 +970,12 @@ describe("transition quarantine rule", () => {
     expect(rule).not.toContain('data-flemo-status="IDLE"');
   });
 });
+
+describe("in-flight arrival hold rule", () => {
+  it("holds stamped arrivals off-glass", () => {
+    const css = compileTransitionStyles([], [], []);
+    const idx = css.indexOf("[data-flemo-held-arrival]");
+    expect(idx).toBeGreaterThan(-1);
+    expect(css.slice(idx)).toContain("display: none !important;");
+  });
+});

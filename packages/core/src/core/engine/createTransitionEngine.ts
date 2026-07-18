@@ -7,6 +7,7 @@ import resolveTransition from "@transition/resolveTransition";
 import type { TransitionVariant } from "@transition/typing";
 import { resolveVariantMotion, type VariantMotion } from "@transition/variantMotion";
 
+import createArrivalHold from "@core/engine/arrivalHold";
 import driverPolicy from "@core/engine/driverPolicy";
 import transitionPlayers from "@core/engine/transitionPlayer";
 import {
@@ -191,11 +192,83 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   // their counters live and die with the wiring closure.
   const activeResumeCounts = new Map<string, number>();
 
+  // The in-flight commit hold for this screen's CURRENT transition (see
+  // arrivalHold.ts). Engine-level, not per drive-run: the driver effect
+  // re-runs mid-transition (the anim-hold release), and the hold must span
+  // those re-runs and release only at COMPLETED or on an interrupt.
+  let releaseArrivalHold: (() => void) | null = null;
+  // A landing scheduled two frames past COMPLETED (see below). Tracked so a
+  // navigation starting inside that window can land it immediately instead of
+  // letting it punch into the new flight.
+  let pendingLanding: { land: () => void; cancel: () => void } | null = null;
+
+  const landNow = () => {
+    if (!pendingLanding) return;
+    const { land, cancel } = pendingLanding;
+    pendingLanding = null;
+    cancel();
+    land();
+  };
+
+  // The COMPLETED flip's commit is already the convergence frame's busiest
+  // moment (status re-renders, freeze of the covered screen, quarantine
+  // release); landing the held content there stacks a large reveal commit
+  // onto the exact frames the eye is watching settle. Two rAFs put the
+  // landing just past the last presented motion frame — visually still "at
+  // rest", but off the convergence commit. Without rAF (SSR/jsdom edge) the
+  // landing is immediate, which is the old behavior.
+  const scheduleLanding = (land: () => void) => {
+    if (typeof requestAnimationFrame !== "function") {
+      land();
+      return;
+    }
+    let handle = 0;
+    const cancel = () => cancelAnimationFrame(handle);
+    handle = requestAnimationFrame(() => {
+      handle = requestAnimationFrame(() => {
+        pendingLanding = null;
+        land();
+      });
+    });
+    pendingLanding = { land, cancel };
+  };
+
   const driveScreenLifecycle = (input: ScreenLifecycleInput): (() => void) => {
     const { getElements, transitionName, prevTransitionName, status, isActive, animHoldReleased } =
       input;
 
     const isTransitional = status === "PUSHING" || status === "POPPING" || status === "REPLACING";
+
+    // No content landing while the screen is in motion: the COLD side of a
+    // navigation (freshly-mounted enter on push/replace, unfreezing pop
+    // destination — the screens whose async data can resolve mid-flight)
+    // holds in-flight DOM swaps and reflects them at rest. Armed only once
+    // the anim-hold has released: before that the screen is parked under a
+    // cover, so a landing is invisible and reflecting it immediately is
+    // strictly better (content is ready earlier at zero visual cost).
+    const holdsArrivals =
+      isTransitional &&
+      animHoldReleased &&
+      (isActive ? status === "PUSHING" || status === "REPLACING" : status === "POPPING");
+    if (!holdsArrivals && releaseArrivalHold) {
+      // COMPLETED, IDLE, or an interrupt that flipped this screen's role.
+      const release = releaseArrivalHold;
+      releaseArrivalHold = null;
+      if (isTransitional) {
+        // Interrupt: a new transition owns the glass right now — land
+        // everything immediately, before its first frame.
+        release();
+      } else {
+        scheduleLanding(release);
+      }
+    }
+    if (holdsArrivals && !releaseArrivalHold) {
+      // A navigation starting inside a still-pending landing window: land it
+      // now so the deferred reveal can never punch into the new flight.
+      landNow();
+      const { scope } = getElements();
+      if (scope) releaseArrivalHold = createArrivalHold(scope);
+    }
 
     // Join this screen's participants (scope, riding bars, decorator) to the
     // navigation's shared player. The player covers every motion — numeric
