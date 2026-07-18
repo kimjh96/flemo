@@ -34,7 +34,11 @@ const STORAGE_KEY = "flemo:motion-driver";
 // window.__flemoPlayerGaps): "css" pins the compiled-CSS path, "raf" pins the
 // player, bypassing measurement, strikes, and probation entirely. Read live on
 // every decision so a DevTools toggle takes effect on the next transition.
-// Not a consumer API — intentionally undocumented.
+// Not a consumer API — intentionally undocumented. SESSION storage on
+// purpose: a diagnostic pin must die with its debugging session. It once
+// lived in localStorage, where one forgotten toggle silently pinned every
+// future session — a stale "raf" pin kept reintroducing the player's
+// deceleration-tail shiver long after the default had moved on.
 const FORCE_KEY = "flemo:motion-driver-force";
 
 // Warn once per session while the pin is active: a forgotten force key reads
@@ -44,8 +48,16 @@ let warnedForcedDriver = false;
 
 const readForcedDriver = (): "css" | "raf" | null => {
   try {
-    if (typeof localStorage === "undefined") return null;
-    const value = localStorage.getItem(FORCE_KEY);
+    // Strip the legacy localStorage pin (see FORCE_KEY note) on every read:
+    // never honored, only removed, so an old profile self-heals on its next
+    // decision even if a stale tab rewrites it.
+    try {
+      if (typeof localStorage !== "undefined") localStorage.removeItem(FORCE_KEY);
+    } catch {
+      // Storage unavailable: nothing to heal.
+    }
+    if (typeof sessionStorage === "undefined") return null;
+    const value = sessionStorage.getItem(FORCE_KEY);
     if (value !== "css" && value !== "raf") return null;
     if (!warnedForcedDriver && typeof console !== "undefined") {
       warnedForcedDriver = true;
@@ -54,7 +66,7 @@ const readForcedDriver = (): "css" | "raf" | null => {
       // that a forgotten pin can never be silent.
       // eslint-disable-next-line no-console
       console.warn(
-        `[flemo] motion driver pinned to "${value}" via localStorage ${FORCE_KEY}; ` +
+        `[flemo] motion driver pinned to "${value}" via sessionStorage ${FORCE_KEY}; ` +
           "remove the key to restore automatic selection."
       );
     }

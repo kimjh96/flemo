@@ -22,7 +22,7 @@
 //
 // Matrix: config (webkit+css, chromium+css, chromium+raf) × transition
 // (fade, cupertino) × blockMs. css/raf pin flemo's motion driver via the
-// diagnostic `flemo:motion-driver-force` localStorage key so both the compositor
+// diagnostic `flemo:motion-driver-force` sessionStorage key so both the compositor
 // path (production reality on WebKit) and the rAF player are measured on demand.
 //
 // Usage (from the repo root, after a production build so `next start` serves the
@@ -220,7 +220,7 @@ async function runScenario(browser, cfg, transition, block, tag) {
   const contextStart = Date.now();
   await context.addInitScript((driver) => {
     try {
-      localStorage.setItem("flemo:motion-driver-force", driver);
+      sessionStorage.setItem("flemo:motion-driver-force", driver);
     } catch {
       // ignore
     }
