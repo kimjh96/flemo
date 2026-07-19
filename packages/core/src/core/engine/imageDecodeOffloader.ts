@@ -104,6 +104,15 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
   const jobs = new Map<string, PendingJob>();
   const processed = new WeakSet<HTMLImageElement>();
   const objectUrls = new Set<string>();
+  // Verdict per original URL: an object URL to swap to, or "skip". THIS is
+  // what makes the offloader win the race after its first encounter with a
+  // source: screens unmount and remount on every navigation, and without a
+  // memo each remount would re-download, re-decode (seconds on a phone for a
+  // 37MP original), and lose to the original's first paint every time —
+  // measured on device as the stall surviving per entry. With the memo, a
+  // remounted image swaps SYNCHRONOUSLY at insertion, before any paint or
+  // network request of the original.
+  const verdicts = new Map<string, string>();
 
   const ensureWorker = (): Worker | null => {
     if (worker) return worker;
@@ -123,9 +132,15 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
       };
       const job = jobs.get(url);
       jobs.delete(url);
-      if (!job || error || skip || !blob) return;
+      if (!job) return;
+      if (error || skip || !blob) {
+        // Cache the skip so remounts stop re-probing this source.
+        verdicts.set(url, "skip");
+        return;
+      }
       const objectUrl = URL.createObjectURL(blob);
       objectUrls.add(objectUrl);
+      verdicts.set(url, objectUrl);
       for (const image of job.targets) {
         // The author may have re-pointed the element mid-flight; only swap
         // when it still shows the source we downscaled.
@@ -160,6 +175,14 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     // own swaps) stay as they are.
     if (!/^https?:/.test(url)) return;
     processed.add(image);
+    const verdict = verdicts.get(url);
+    if (verdict === "skip") return;
+    if (verdict) {
+      // Known-oversized source: swap before its first paint or download.
+      image.setAttribute(OFFLOADED_SRC_ATTR, url);
+      image.src = verdict;
+      return;
+    }
     // The layout box may not exist yet at insertion time; measure one frame
     // later — still far ahead of a large original's download, which is the
     // whole point of probing at insertion instead of at load.
@@ -201,6 +224,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     worker?.terminate();
     worker = null;
     jobs.clear();
+    verdicts.clear();
     for (const url of objectUrls) URL.revokeObjectURL(url);
     objectUrls.clear();
   };

@@ -170,6 +170,103 @@ describe("createImageDecodeOffloader", () => {
   });
 });
 
+describe("createImageDecodeOffloader verdict cache", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
+  });
+
+  it("a remounted image with a known-oversized source swaps synchronously at insertion", async () => {
+    let workerHandler: ((e: MessageEvent) => void) | null = null;
+    const posted: unknown[] = [];
+    class FakeWorker {
+      set onmessage(handler: (e: MessageEvent) => void) {
+        workerHandler = handler;
+      }
+      postMessage(message: unknown) {
+        posted.push(message);
+      }
+      terminate() {}
+    }
+    vi.stubGlobal("Worker", FakeWorker);
+    vi.stubGlobal("OffscreenCanvas", class {});
+    vi.stubGlobal("createImageBitmap", () => Promise.resolve());
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:memo", revokeObjectURL: vi.fn() });
+
+    const makeImage = () => {
+      const image = document.createElement("img");
+      Object.defineProperty(image, "currentSrc", { get: () => image.getAttribute("src") ?? "" });
+      image.setAttribute("src", "https://example.test/raw.jpg");
+      image.getBoundingClientRect = () => ({ width: 44, height: 44 }) as DOMRect;
+      return image;
+    };
+
+    const first = makeImage();
+    document.body.appendChild(first);
+    const dispose = createImageDecodeOffloader(document.body);
+    await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    expect(posted).toHaveLength(1);
+    workerHandler!({
+      data: { url: "https://example.test/raw.jpg", blob: new Blob(["x"]) }
+    } as MessageEvent);
+    expect(first.getAttribute("src")).toBe("blob:memo");
+
+    // The screen unmounts and remounts (a later navigation): the fresh
+    // element must swap at insertion — no new worker job, no original paint.
+    first.remove();
+    const second = makeImage();
+    document.body.appendChild(second);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(second.getAttribute("src")).toBe("blob:memo");
+    expect(second.getAttribute(OFFLOADED_SRC_ATTR)).toBe("https://example.test/raw.jpg");
+    expect(posted).toHaveLength(1); // still just the one job
+
+    dispose();
+  });
+
+  it("a cached skip verdict stops re-probing on remount", async () => {
+    let workerHandler: ((e: MessageEvent) => void) | null = null;
+    const posted: unknown[] = [];
+    class FakeWorker {
+      set onmessage(handler: (e: MessageEvent) => void) {
+        workerHandler = handler;
+      }
+      postMessage(message: unknown) {
+        posted.push(message);
+      }
+      terminate() {}
+    }
+    vi.stubGlobal("Worker", FakeWorker);
+    vi.stubGlobal("OffscreenCanvas", class {});
+    vi.stubGlobal("createImageBitmap", () => Promise.resolve());
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:x", revokeObjectURL: vi.fn() });
+
+    const image = document.createElement("img");
+    Object.defineProperty(image, "currentSrc", { get: () => image.getAttribute("src") ?? "" });
+    image.setAttribute("src", "https://example.test/fitted.jpg");
+    image.getBoundingClientRect = () => ({ width: 44, height: 44 }) as DOMRect;
+    document.body.appendChild(image);
+
+    const dispose = createImageDecodeOffloader(document.body);
+    await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    workerHandler!({
+      data: { url: "https://example.test/fitted.jpg", skip: true }
+    } as MessageEvent);
+
+    image.remove();
+    const again = document.createElement("img");
+    Object.defineProperty(again, "currentSrc", { get: () => again.getAttribute("src") ?? "" });
+    again.setAttribute("src", "https://example.test/fitted.jpg");
+    again.getBoundingClientRect = () => ({ width: 44, height: 44 }) as DOMRect;
+    document.body.appendChild(again);
+    await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    expect(posted).toHaveLength(1); // no second probe
+    expect(again.getAttribute("src")).toBe("https://example.test/fitted.jpg");
+
+    dispose();
+  });
+});
+
 describe("ensureImageDecodeOffloader", () => {
   it("refcounts a single document-wide offloader across mounts", () => {
     const first = ensureImageDecodeOffloader();
