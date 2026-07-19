@@ -68,6 +68,39 @@ describe("createArrivalHold", () => {
     scope.remove();
   });
 
+  it("prepareLanding decodes every held image off-main before the reveal", async () => {
+    // WebKit paints an undecoded image by synchronously decoding the FULL
+    // original on the main thread (profiled: RenderImage::paint → AppleJPEG,
+    // ~380ms for one production list's photos). The landing decodes first,
+    // bounded, so the reveal frame never carries that work.
+    const { scope, section, skeleton } = buildScreen();
+    const release = createArrivalHold(scope);
+
+    const arrival = document.createElement("div");
+    const image = document.createElement("img");
+    image.setAttribute("loading", "eager");
+    const decode = vi.fn(() => Promise.resolve());
+    (image as unknown as { decode: () => Promise<void> }).decode = decode;
+    Object.defineProperty(image, "complete", { value: true, configurable: true });
+    arrival.appendChild(image);
+    section.replaceChild(arrival, skeleton);
+    await observerFlush();
+    decode.mockClear(); // the hold-time warm-up decode is separate
+
+    await release.prepareLanding();
+    expect(decode).toHaveBeenCalledTimes(1);
+    release();
+    scope.remove();
+  });
+
+  it("prepareLanding resolves immediately with nothing decodable held", async () => {
+    const { scope } = buildScreen();
+    const release = createArrivalHold(scope);
+    await expect(release.prepareLanding()).resolves.toBeUndefined();
+    release();
+    scope.remove();
+  });
+
   it("decodes a held lazy image once its pending load completes", async () => {
     const { scope, section, skeleton } = buildScreen();
     const release = createArrivalHold(scope);

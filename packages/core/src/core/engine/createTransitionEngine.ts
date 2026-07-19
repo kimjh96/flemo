@@ -8,7 +8,7 @@ import type { TransitionVariant } from "@transition/typing";
 import { resolveVariantMotion, type VariantMotion } from "@transition/variantMotion";
 
 import createAnimationQuarantine from "@core/engine/animationQuarantine";
-import createArrivalHold from "@core/engine/arrivalHold";
+import createArrivalHold, { type ArrivalHoldRelease } from "@core/engine/arrivalHold";
 import driverPolicy, { detectBlinkEngine } from "@core/engine/driverPolicy";
 import guardOpeningClock, { type OpeningClockGuardResult } from "@core/engine/openingClockGuard";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
@@ -212,7 +212,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   // arrivalHold.ts). Engine-level, not per drive-run: the driver effect
   // re-runs mid-transition (the anim-hold release), and the hold must span
   // those re-runs and release only at COMPLETED or on an interrupt.
-  let releaseArrivalHold: (() => void) | null = null;
+  let releaseArrivalHold: ArrivalHoldRelease | null = null;
   // The consumer-animation quarantine for the current transition's cold
   // entering screen (see animationQuarantine.ts). Same lifetime rules as the
   // arrival hold, except it arms on the FIRST drive (the mount commit,
@@ -247,20 +247,34 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   // landing just past the last presented motion frame — visually still "at
   // rest", but off the convergence commit. Without rAF (SSR/jsdom edge) the
   // landing is immediate, which is the old behavior.
-  const scheduleLanding = (land: () => void) => {
+  const scheduleLanding = (land: () => void, prepare?: (() => Promise<void>) | null) => {
     if (typeof requestAnimationFrame !== "function") {
       land();
       return;
     }
     let handle = 0;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      pendingLanding = null;
+      land();
+    };
     const cancel = () => cancelAnimationFrame(handle);
     handle = requestAnimationFrame(() => {
       handle = requestAnimationFrame(() => {
-        pendingLanding = null;
-        land();
+        if (!prepare) {
+          finish();
+          return;
+        }
+        // Bounded decode-wait before the reveal (see prepareLanding): the
+        // window stays interruptible — a navigation starting mid-wait lands
+        // everything immediately via landNow.
+        pendingLanding = { land: finish, cancel: () => {} };
+        void prepare().then(finish);
       });
     });
-    pendingLanding = { land, cancel };
+    pendingLanding = { land: finish, cancel };
   };
 
   const driveScreenLifecycle = (input: ScreenLifecycleInput): (() => void) => {
@@ -287,9 +301,11 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const quarantinesAnimations =
       isTransitional && isActive && (status === "PUSHING" || status === "REPLACING");
     const pendingReleases: (() => void)[] = [];
+    let landingPrepare: (() => Promise<void>) | null = null;
     if (!holdsArrivals && releaseArrivalHold) {
       // COMPLETED, IDLE, or an interrupt that flipped this screen's role.
       pendingReleases.push(releaseArrivalHold);
+      landingPrepare = releaseArrivalHold.prepareLanding;
       releaseArrivalHold = null;
     }
     // Release only at rest (any screen's COMPLETED/IDLE drive lands it), on
@@ -314,7 +330,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // everything immediately, before its first frame.
         releaseAll();
       } else {
-        scheduleLanding(releaseAll);
+        scheduleLanding(releaseAll, landingPrepare);
       }
     }
     if (quarantinesAnimations && releaseQuarantine && !quarantineOwner?.isConnected) {

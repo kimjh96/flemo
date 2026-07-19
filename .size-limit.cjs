@@ -15,14 +15,14 @@ module.exports = [
     // variant motion) and the in-flight glass-integrity machinery (commit
     // hold, perceptual completion cut) — the latter pushed the local ruler to
     // ~22.3 KB, a deliberate +0.6 KB for measured judder mechanisms. The
-    // pose-preserving quarantine, opening-clock guard, and learned
-    // mount-cost policy (tap-freeze deferral) added another deliberate
-    // ~1.7 KB of measured-defect machinery, putting the local ruler at
-    // ~24.2 KB. Baselines still differ by toolchain (~19.4 KB by CI's
-    // size-limit run vs ~24.2 KB locally on a byte-identical dist, cause
-    // unresolved) — the budget leaves headroom above the LARGER ruler so the
-    // gate can't flap across environments while still tripping on a multi-KB
-    // accidental balloon.
+    // pose-preserving quarantine, the full-flight opening-clock guard, and
+    // the hold's image load/decode handling added another deliberate ~1.5 KB
+    // of measured-defect machinery, putting the local ruler at ~24 KB.
+    // Baselines still differ by toolchain (CI's size-limit run reads several
+    // KB lower than a local run on a byte-identical dist, cause unresolved)
+    // — the budget leaves headroom above the LARGER ruler so the gate can't
+    // flap across environments while still tripping on a multi-KB accidental
+    // balloon.
     limit: "26 KB",
     gzip: true
   },
