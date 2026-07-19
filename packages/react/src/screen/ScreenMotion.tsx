@@ -1,4 +1,5 @@
 import {
+  Activity,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -16,6 +17,7 @@ import {
   createTransitionEngine,
   decoratorMap,
   enteringInitialStyle,
+  mountCostPolicy,
   observeBarHeight,
   resolveTransition,
   type AnimHoldCoordinator
@@ -52,7 +54,8 @@ function ScreenMotion({
   contentScrollable = true,
   ...props
 }: ScreenProps) {
-  const { id, isActive, isRoot, isPrev, zIndex, transitionName, prevTransitionName } = useScreen();
+  const { id, isActive, isRoot, isPrev, zIndex, transitionName, prevTransitionName, routePath } =
+    useScreen();
 
   // A root <Router> renders screens fixed to the viewport; a nested <Router>
   // (a transition region inside a persistent layout) contains them, so the
@@ -82,6 +85,65 @@ function ScreenMotion({
   const replaceTransitionStatus = useScreenStore((state) => state.replaceTransitionStatus);
   const setDragStatus = stores.screen.getState().setDragStatus;
   const setReplaceTransitionStatus = stores.screen.getState().setReplaceTransitionStatus;
+
+  // ── Learned content deferral (@flemo/core mountCostPolicy) ──
+  // A route whose full-content mount previously blocked past the threshold
+  // (measured ~380ms on a production members list: the tap freezes, because
+  // nothing preempts a running synchronous commit) enters as a SHELL: its
+  // consumer content renders inside a hidden <Activity> — background
+  // priority, time-sliced, main thread free for the motion — and reveals at
+  // rest, through the app's own loading states. Light routes keep the
+  // shipped content-first mount untouched (the unconditional version of this
+  // was reverted for exactly that regression). Decided ONCE at this screen's
+  // first render; it never flips mid-flight.
+  const renderStartRef = useRef(
+    typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : 0
+  );
+  const routeKey = String(routePath);
+  const coldEntryRef = useRef(isActive && (status === "PUSHING" || status === "REPLACING"));
+  const deferContentRef = useRef(
+    coldEntryRef.current && mountCostPolicy.shouldDeferContent(routeKey)
+  );
+  const [contentRevealed, setContentRevealed] = useState(!deferContentRef.current);
+
+  // Learn: measure the full-content mount block on UN-deferred cold entries —
+  // render start → end of this subtree's commit (this layout effect runs
+  // after the children's). A deferred (shell) mount is cheap by construction
+  // and must not erase the record that earned the deferral.
+  const mountCostRecordedRef = useRef(false);
+  useLayoutEffect(() => {
+    if (mountCostRecordedRef.current) return;
+    mountCostRecordedRef.current = true;
+    if (!coldEntryRef.current || deferContentRef.current || renderStartRef.current === 0) return;
+    mountCostPolicy.record(routeKey, performance.now() - renderStartRef.current);
+  }, [routeKey]);
+
+  // Reveal the deferred content at rest, two frames past the COMPLETED flip
+  // (off the convergence commit, alongside the arrival hold's landing) — or
+  // immediately when the flight is interrupted (a screen must never sit
+  // contentless under a new transition). The timeout is the liveness
+  // backstop: content can never be stranded hidden.
+  useEffect(() => {
+    if (!deferContentRef.current || contentRevealed) return;
+    if (status === "PUSHING" || status === "REPLACING") {
+      const backstop = setTimeout(() => setContentRevealed(true), 3000);
+      return () => clearTimeout(backstop);
+    }
+    if (typeof requestAnimationFrame !== "function") {
+      setContentRevealed(true);
+      return;
+    }
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setContentRevealed(true));
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      if (second) cancelAnimationFrame(second);
+    };
+  }, [status, contentRevealed]);
 
   // The partner screen this one would hand its shared bars to (the active top
   // looks one below; a prev looks at the top). Subscribe to JUST that entry so
@@ -597,7 +659,11 @@ function ScreenMotion({
             overflowY: contentScrollable ? "auto" : undefined
           }}
         >
-          {children}
+          {deferContentRef.current ? (
+            <Activity mode={contentRevealed ? "visible" : "hidden"}>{children}</Activity>
+          ) : (
+            children
+          )}
         </div>
         {bottomBar}
         {sharedBottomBar && (

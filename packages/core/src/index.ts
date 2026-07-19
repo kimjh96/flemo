@@ -154,6 +154,17 @@ export {
 export { default as observeBarHeight } from "@screen/observeBarHeight";
 export { default as observeViewportScrollHeight } from "@screen/observeViewportScrollHeight";
 
+// Learned mount-cost policy: routes whose full-content mount measurably
+// froze the tap get their content deferred out of the entering commit on the
+// next visit (the binding renders it hidden and reveals at rest).
+export {
+  default as mountCostPolicy,
+  createMountCostPolicy,
+  CONTENT_DEFER_THRESHOLD_MS,
+  type MountCostPolicy,
+  type MountCostStorage
+} from "@core/engine/mountCostPolicy";
+
 // Transition types
 export type {
   RegisterTransition,

@@ -284,6 +284,66 @@ test.describe("motion perception", () => {
     expect(errors).toEqual([]);
   });
 
+  // INCIDENT: a content-dense screen's mount commit (measured ~380ms on a
+  // production members list: full list + cached images in one synchronous
+  // commit) froze the tap — the transition anchors to that commit's first
+  // paint, and nothing preempts a running synchronous task. Routes that
+  // measured past the threshold now enter as a SHELL: content renders inside
+  // a hidden <Activity> (background priority) and reveals at rest.
+  test("a learned-heavy route enters as a shell and reveals its content at rest", async ({
+    page
+  }) => {
+    const { errors } = trackConsoleErrors(page);
+    await page.addInitScript(() =>
+      localStorage.setItem(
+        "flemo:mount-cost",
+        JSON.stringify({ "/playground/:n": { ms: 380, at: Date.now() } })
+      )
+    );
+    await openPlaygroundWithCupertino(page);
+
+    const flightSample = page.evaluate(
+      () =>
+        new Promise<{ flightFrames: number; shellFrames: number }>((resolve) => {
+          const out = { flightFrames: 0, shellFrames: 0 };
+          const start = performance.now();
+          const loop = () => {
+            const entering = [
+              ...document.querySelectorAll<HTMLElement>("[data-flemo-screen]")
+            ].find(
+              (el) =>
+                el.getAttribute("data-flemo-status") === "PUSHING" &&
+                el.getAttribute("data-flemo-active") === "true"
+            );
+            if (entering) {
+              out.flightFrames += 1;
+              const content = entering.querySelector<HTMLElement>(
+                '[data-testid="lab-panel-number"]'
+              );
+              // Hidden <Activity> content has no rendered box.
+              if (!content || content.offsetParent === null) out.shellFrames += 1;
+            }
+            if (performance.now() - start < 1500 && !(out.flightFrames > 0 && !entering)) {
+              requestAnimationFrame(loop);
+              return;
+            }
+            resolve(out);
+          };
+          requestAnimationFrame(loop);
+        })
+    );
+    await page.getByRole("button", { name: "Next" }).click();
+    const flight = await flightSample;
+
+    expect(flight.flightFrames, "the flight must be sampled").toBeGreaterThan(3);
+    expect(flight.shellFrames, "content must stay off the entering commit").toBe(
+      flight.flightFrames
+    );
+    // ...and the content reveals at rest through the same screen.
+    await expect(page.getByTestId("lab-panel-number").nth(1)).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
   test("no inline transform survives completed transitions", async ({ page }) => {
     await openPlaygroundWithCupertino(page);
 
