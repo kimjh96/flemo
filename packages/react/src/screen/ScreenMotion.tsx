@@ -118,13 +118,26 @@ function ScreenMotion({
   // render start → end of this subtree's commit (this layout effect runs
   // after the children's). A deferred (shell) mount is cheap by construction
   // and must not erase the record that earned the deferral.
-  const mountCostRecordedRef = useRef(false);
+  const mountBlockMsRef = useRef<number | null>(null);
   useLayoutEffect(() => {
+    if (mountBlockMsRef.current !== null || renderStartRef.current === 0) return;
+    mountBlockMsRef.current = performance.now() - renderStartRef.current;
+  }, []);
+
+  // ...but RECORD it only once this entry's transition actually completed. An
+  // interrupted flight must not persist a half-story, and an environment
+  // where transitions never run (jsdom test harnesses — no animation events,
+  // no COMPLETED) must never learn from its meaningless mount timings: on
+  // CI's slower runners those crossed the threshold and gated unrelated
+  // mounts sharing a route key.
+  const mountCostRecordedRef = useRef(false);
+  useEffect(() => {
     if (mountCostRecordedRef.current) return;
+    if (!coldEntryRef.current || deferContentRef.current) return;
+    if (status !== "COMPLETED" || mountBlockMsRef.current === null) return;
     mountCostRecordedRef.current = true;
-    if (!coldEntryRef.current || deferContentRef.current || renderStartRef.current === 0) return;
-    mountCostPolicy.record(routeKey, performance.now() - renderStartRef.current);
-  }, [routeKey]);
+    mountCostPolicy.record(routeKey, mountBlockMsRef.current);
+  }, [status, routeKey]);
 
   // Reveal the deferred content at rest, two frames past the COMPLETED flip
   // (off the convergence commit, alongside the arrival hold's landing) — or
