@@ -15,6 +15,18 @@ import { SKIP_ANIMATION_ATTR, type TransitionEngineDeps } from "@core/engine/typ
 beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`));
 afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
 
+// The compositor-trail grace defers CLEAN non-Blink landings (see
+// createTransitionEngine's COMPOSITOR_TRAIL_GRACE_MS); these suites assert
+// the resolve-at-end contracts themselves, so they run as Blink
+// (userAgentData present → grace 0). The dedicated trailGrace suite covers
+// the non-Blink deferral.
+beforeAll(() =>
+  Object.defineProperty(navigator, "userAgentData", { configurable: true, value: {} })
+);
+afterAll(() => {
+  delete (navigator as { userAgentData?: unknown }).userAgentData;
+});
+
 // A transition whose enter variant actually animates (duration > 0), so
 // `PUSHING-true` reports an animation and the engine waits for animationend.
 // The mismatched clipPath templates ("inset(0 0 0 100%)" vs "inset(0)") make

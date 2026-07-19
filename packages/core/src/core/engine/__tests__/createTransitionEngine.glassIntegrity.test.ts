@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import TaskManger from "@core/TaskManger";
 
@@ -17,6 +17,18 @@ const landingFlush = () =>
   new Promise((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 0)))
   );
+
+// The compositor-trail grace defers CLEAN non-Blink landings (see
+// createTransitionEngine's COMPOSITOR_TRAIL_GRACE_MS); these suites assert
+// the resolve-at-end contracts themselves, so they run as Blink
+// (userAgentData present → grace 0). The dedicated trailGrace suite covers
+// the non-Blink deferral.
+beforeAll(() =>
+  Object.defineProperty(navigator, "userAgentData", { configurable: true, value: {} })
+);
+afterAll(() => {
+  delete (navigator as { userAgentData?: unknown }).userAgentData;
+});
 
 describe("animation quarantine wiring", () => {
   let deps: TransitionEngineDeps;
