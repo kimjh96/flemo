@@ -169,6 +169,46 @@ describe("createAnimationQuarantine", () => {
     release();
   });
 
+  it("pins a no-delay short one-shot to its END pose (ran-instantly), delayed reveals to FROM", () => {
+    const entrance = document.createElement("div");
+    scope.appendChild(entrance);
+    const gated = document.createElement("div");
+    scope.appendChild(gated);
+    const withTiming = (
+      init: Parameters<typeof fakeAnimation>[0],
+      timing: object,
+      lastFrame?: object
+    ) => {
+      const animation = fakeAnimation(init);
+      const effect = (animation as unknown as { effect: Record<string, unknown> }).effect;
+      effect.getTiming = () => timing;
+      if (lastFrame) {
+        const firstFrame = (effect.getKeyframes as () => object[])()[0];
+        effect.getKeyframes = () => [firstFrame, lastFrame];
+      }
+      return animation;
+    };
+    stubAnimations(scope, [
+      [
+        withTiming(
+          { animationName: "instant-fade", target: entrance, firstKeyframe: { opacity: "0" } },
+          { delay: 0, duration: 180, iterations: 1 },
+          { offset: 1, computedOffset: 1, easing: "ease", opacity: "1" }
+        ),
+        withTiming(
+          { animationName: "delayed-reveal", target: gated, firstKeyframe: { opacity: "0" } },
+          { delay: 500, duration: 180, iterations: 1 }
+        )
+      ],
+      []
+    ]);
+
+    const release = createAnimationQuarantine(scope);
+    expect(entrance.style.getPropertyValue("opacity")).toBe("1"); // end pose
+    expect(gated.style.getPropertyValue("opacity")).toBe("0"); // authored hidden
+    release();
+  });
+
   it("rejoins every snapshotted animation to its original clock at the release", () => {
     const nowSpy = vi.spyOn(performance, "now");
     nowSpy.mockReturnValue(1000);

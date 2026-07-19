@@ -87,6 +87,16 @@ const animationTargets = (
 // CamelCased keyframe keys that are not CSS properties.
 const KEYFRAME_META_KEYS = new Set(["offset", "computedOffset", "easing", "composite"]);
 
+// A short no-delay one-shot would have COMPLETED during any flight; pinning
+// it to its FROM pose would freeze authored entrance fades invisible for the
+// whole flight (measured on device as a white content area where an
+// instant-skeleton fade-in was authored). Those pin to their END pose
+// instead — "ran instantly" — and the landing rejoin (already past the end)
+// lands on the identical pose, seamlessly. Delayed reveals and infinite
+// loops keep the FROM pose: their authored t≈0 state IS the hidden/start
+// frame, and the rejoin continues their schedule.
+const ONE_SHOT_COMPLETES_MS = 600;
+
 const hyphenate = (property: string) =>
   property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 
@@ -120,13 +130,25 @@ export default function createAnimationQuarantine(scope: HTMLElement): () => voi
       });
 
       // Pose pin: real elements only (pseudo-elements can't take inline
-      // styles). The first keyframe is the animation's t≈0 pose; implicit
-      // keyframes come back as computed values, so a from-less animation pins
-      // to its base pose — a no-op by construction.
+      // styles). Implicit keyframes come back as computed values, so a
+      // from-less animation pins to its base pose — a no-op by construction.
       if (pseudoElement !== null || !(target instanceof HTMLElement)) continue;
-      const keyframes = (animation.effect as KeyframeEffect).getKeyframes();
-      const first = keyframes[0];
-      if (!first || (first.offset ?? first.computedOffset ?? 0) !== 0) continue;
+      const effect = animation.effect as KeyframeEffect;
+      const keyframes = effect.getKeyframes();
+      const timing = typeof effect.getTiming === "function" ? effect.getTiming() : null;
+      const delayMs = typeof timing?.delay === "number" ? timing.delay : 0;
+      const durationMs = typeof timing?.duration === "number" ? timing.duration : 0;
+      const iterations = typeof timing?.iterations === "number" ? timing.iterations : 1;
+      const finishesInFlight =
+        delayMs === 0 &&
+        iterations !== Infinity &&
+        durationMs * iterations > 0 &&
+        durationMs * iterations <= ONE_SHOT_COMPLETES_MS;
+      const pinFrame = finishesInFlight ? keyframes[keyframes.length - 1] : keyframes[0];
+      const expectedOffset = finishesInFlight ? 1 : 0;
+      const first = pinFrame;
+      if (!first || (first.offset ?? first.computedOffset ?? expectedOffset) !== expectedOffset)
+        continue;
       const previous = new Map<string, string>();
       for (const [key, value] of Object.entries(first)) {
         if (KEYFRAME_META_KEYS.has(key)) continue;
