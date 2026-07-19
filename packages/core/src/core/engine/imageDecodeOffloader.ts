@@ -115,9 +115,12 @@ const WORKER_SOURCE = `onmessage = async (e) => {
 // makes even the FIRST-EVER encounter stall-free — the original never gets
 // a full-resolution paint at all. The photo then appears when its scaled
 // version (or a skip verdict) is ready, which is when its bytes would have
-// arrived anyway. The safety timeout restores the authored state no matter
-// what happens to the worker.
-const PROBE_REVEAL_TIMEOUT_MS = 4000;
+// arrived anyway. The safety timeout exists ONLY for a truly wedged worker:
+// it must comfortably exceed a slow origin's fetch (a government image
+// server was measured at 5s for one original — a 4s timeout revealed the
+// full-resolution original mid-probe, repainting the stall AND a live-swap
+// flicker when the verdict landed a second later).
+const PROBE_REVEAL_TIMEOUT_MS = 15000;
 
 const supported = (): boolean =>
   typeof Worker !== "undefined" &&
@@ -148,7 +151,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     if (heldPaints.has(image)) return;
     heldPaints.set(image, {
       previousVisibility: image.style.visibility,
-      timeout: setTimeout(() => releasePaint(image), PROBE_REVEAL_TIMEOUT_MS)
+      timeout: setTimeout(() => releasePaintAndAbandon(image), PROBE_REVEAL_TIMEOUT_MS)
     });
     image.style.visibility = "hidden";
   };
@@ -160,6 +163,14 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     clearTimeout(held.timeout);
     if (held.previousVisibility) image.style.visibility = held.previousVisibility;
     else image.style.removeProperty("visibility");
+  };
+
+  // A timeout-released element has shown the authored original; a verdict
+  // arriving later must NOT live-swap it (a visible src change reads as a
+  // flicker). Dropping it from the job keeps the verdict for future mounts.
+  const releasePaintAndAbandon = (image: HTMLImageElement) => {
+    releasePaint(image);
+    for (const job of jobs.values()) job.targets.delete(image);
   };
   const objectUrls = new Set<string>();
   // Verdict per original URL: an object URL to swap to, or "skip". THIS is
