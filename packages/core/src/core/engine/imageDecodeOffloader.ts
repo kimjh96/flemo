@@ -7,33 +7,59 @@
 // RenderImage::paint → ShareableBitmap::createFromImagePixels → AppleJPEG
 // full decode). A production members list painted 44px avatars from raw
 // press originals (up to 4971×7456 — 37 megapixels, a ~148MB decoded
-// bitmap, ~2100× the pixels the slot needs), and the engine's periodic
-// bitmap purge turned that into a RECURRING ~380ms main-thread stall that
-// froze taps landing near it. Ten in-page mitigations failed — the decode
-// itself is unreachable from script. Blink never has this problem: it
-// decodes on raster workers, scaled to the destination.
+// bitmap, 16.7MB on the wire), and the engine's periodic bitmap purge
+// turned that into a RECURRING ~380ms main-thread stall that froze taps.
+// Ten in-page mitigations failed; the decode is unreachable from script.
 //
-// This module gives WebKit the same deal, with the one door the platform
-// does leave open: when an image's source is CORS-readable, fetch its bytes
-// in a WORKER, decode + downscale there (createImageBitmap on a worker
-// thread never touches the main thread), and swap the element's source to
-// the display-sized result. After the swap the engine's re-decodes cost
-// ~1ms instead of ~380ms — measured: recurring stalls 4/4 → 0/4. Images
-// that are not oversized, not CORS-readable, or on engines without the
-// needed APIs are left exactly as authored.
+// The one door the platform leaves open: when a source is CORS-readable,
+// fetch its bytes in a WORKER, read the dimensions THERE (waiting for the
+// element's own load would mean the original had already painted), and
+// downscale oversized sources to display size.
+//
+// The element lifecycle has exactly ONE intervention point — INSERTION,
+// before the element has ever painted:
+// - Fresh insert, verdict unknown → the element is HELD (hidden, its own
+//   request parked on a transparent pixel so the original isn't downloaded
+//   twice) while the worker probes. It then shows the scaled result — or
+//   the authored original on a skip — as its FIRST appearance. Even the
+//   first-ever encounter never paints the full-resolution original.
+// - Fresh insert, verdict known (this session or the Cache API from a prior
+//   one) → swapped synchronously before any paint or download.
+// - An element that has ALREADY painted (offloader started late, authored
+//   src changes on a live element) is NEVER touched: re-pointing or hiding
+//   a visible image is a blink (measured on device). Its source is probed
+//   for future mounts only.
+// Well-sized, non-CORS, data:/blob: sources and engines without the needed
+// APIs are left exactly as authored.
 
 // An image is "oversized" when it carries more than this many times the
 // pixels its layout box (at device resolution) can show. 8× area is far
 // beyond any retina/quality headroom an author could intend.
 export const OVERSIZE_AREA_RATIO = 8;
 
-// The downscale target keeps 2× the box's device pixels per axis, so later
-// moderate box growth still has headroom and the swap is visually lossless.
+// The downscale keeps 2× the box's device pixels per axis (headroom for
+// moderate box growth; visually lossless), and never targets below 96px.
 const TARGET_SCALE_HEADROOM = 2;
-
-// Never downscale below this many CSS px per axis (tiny boxes still get a
-// crisp, zoomable-ish bitmap).
 const MIN_TARGET_PX = 96;
+
+// The hold's safety timeout exists ONLY for a truly wedged worker. It must
+// comfortably exceed a slow origin's fetch (a government image server was
+// measured at 5s for one original; a 4s timeout revealed the original
+// mid-probe — repainting the stall AND flickering when the verdict landed).
+const PROBE_REVEAL_TIMEOUT_MS = 15000;
+
+// While held, the element's own request is parked on a transparent pixel so
+// the worker's fetch is the single download of the original.
+const PARKED_PIXEL =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+// The authored source is preserved here for the whole time this module owns
+// the element's src, so nothing authored is ever lost.
+export const OFFLOADED_SRC_ATTR = "data-flemo-image-src";
+
+// Scaled results persist in the Cache API so a reloaded session also swaps
+// at insertion instead of re-paying the original once per load.
+const SCALED_CACHE_NAME = "flemo-image-scale-v1";
 
 export interface OversizeInput {
   naturalWidth: number;
@@ -51,41 +77,8 @@ export const shouldOffloadImage = (input: OversizeInput): boolean => {
   return input.naturalWidth * input.naturalHeight > neededArea * OVERSIZE_AREA_RATIO;
 };
 
-// The original source is preserved here so nothing authored is lost and
-// diagnostics can see what was replaced.
-export const OFFLOADED_SRC_ATTR = "data-flemo-image-src";
-
-// Downscaled results persist in the Cache API so a RELOADED session swaps
-// oversized sources at insertion too — without this, every page load would
-// pay the original's download + first full-resolution paint once more.
-const SCALED_CACHE_NAME = "flemo-image-scale-v1";
-
-const persistScaled = async (url: string, blob: Blob): Promise<void> => {
-  try {
-    if (typeof caches === "undefined") return;
-    const cache = await caches.open(SCALED_CACHE_NAME);
-    await cache.put(url, new Response(blob, { headers: { "content-type": blob.type } }));
-  } catch {
-    // Storage unavailable: the in-memory verdict still covers this session.
-  }
-};
-
-const readScaled = async (url: string): Promise<Blob | null> => {
-  try {
-    if (typeof caches === "undefined") return null;
-    const cache = await caches.open(SCALED_CACHE_NAME);
-    const hit = await cache.match(url);
-    return hit ? await hit.blob() : null;
-  } catch {
-    return null;
-  }
-};
-
-// The oversize decision lives IN the worker: waiting for the element's
-// natural dimensions on the main thread would mean waiting for the original
-// download — by which time the full-resolution first paint (the stall) has
-// already happened. The worker reads the dimensions from the bytes itself
-// and answers "skip" for well-sized sources.
+// The oversize decision runs IN the worker, from the fetched bytes' own
+// dimensions, and answers "skip" for well-sized sources.
 const WORKER_SOURCE = `onmessage = async (e) => {
   const { url, targetWidth, neededArea, ratio } = e.data;
   try {
@@ -111,17 +104,6 @@ const WORKER_SOURCE = `onmessage = async (e) => {
   }
 };`;
 
-// While a source is being probed, its element stays unpainted: this is what
-// makes even the FIRST-EVER encounter stall-free — the original never gets
-// a full-resolution paint at all. The photo then appears when its scaled
-// version (or a skip verdict) is ready, which is when its bytes would have
-// arrived anyway. The safety timeout exists ONLY for a truly wedged worker:
-// it must comfortably exceed a slow origin's fetch (a government image
-// server was measured at 5s for one original — a 4s timeout revealed the
-// full-resolution original mid-probe, repainting the stall AND a live-swap
-// flicker when the verdict landed a second later).
-const PROBE_REVEAL_TIMEOUT_MS = 15000;
-
 const supported = (): boolean =>
   typeof Worker !== "undefined" &&
   typeof OffscreenCanvas !== "undefined" &&
@@ -130,11 +112,29 @@ const supported = (): boolean =>
   typeof URL !== "undefined" &&
   typeof URL.createObjectURL === "function";
 
-interface PendingJob {
-  targets: Set<HTMLImageElement>;
-}
+const persistScaled = async (url: string, blob: Blob): Promise<void> => {
+  try {
+    if (typeof caches === "undefined") return;
+    const cache = await caches.open(SCALED_CACHE_NAME);
+    await cache.put(url, new Response(blob, { headers: { "content-type": blob.type } }));
+  } catch {
+    // Storage unavailable: the in-memory verdict still covers this session.
+  }
+};
 
-interface HeldPaint {
+const readScaled = async (url: string): Promise<Blob | null> => {
+  try {
+    if (typeof caches === "undefined") return null;
+    const cache = await caches.open(SCALED_CACHE_NAME);
+    const hit = await cache.match(url);
+    return hit ? await hit.blob() : null;
+  } catch {
+    return null;
+  }
+};
+
+interface HeldElement {
+  url: string;
   previousVisibility: string;
   timeout: ReturnType<typeof setTimeout>;
 }
@@ -143,45 +143,17 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
   if (!supported()) return () => {};
 
   let worker: Worker | null = null;
-  const jobs = new Map<string, PendingJob>();
-  const processed = new WeakSet<HTMLImageElement>();
-  const heldPaints = new Map<HTMLImageElement, HeldPaint>();
-
-  const holdPaint = (image: HTMLImageElement) => {
-    if (heldPaints.has(image)) return;
-    heldPaints.set(image, {
-      previousVisibility: image.style.visibility,
-      timeout: setTimeout(() => releasePaintAndAbandon(image), PROBE_REVEAL_TIMEOUT_MS)
-    });
-    image.style.visibility = "hidden";
-  };
-
-  const releasePaint = (image: HTMLImageElement) => {
-    const held = heldPaints.get(image);
-    if (!held) return;
-    heldPaints.delete(image);
-    clearTimeout(held.timeout);
-    if (held.previousVisibility) image.style.visibility = held.previousVisibility;
-    else image.style.removeProperty("visibility");
-  };
-
-  // A timeout-released element has shown the authored original; a verdict
-  // arriving later must NOT live-swap it (a visible src change reads as a
-  // flicker). Dropping it from the job keeps the verdict for future mounts.
-  const releasePaintAndAbandon = (image: HTMLImageElement) => {
-    releasePaint(image);
-    for (const job of jobs.values()) job.targets.delete(image);
-  };
-  const objectUrls = new Set<string>();
-  // Verdict per original URL: an object URL to swap to, or "skip". THIS is
-  // what makes the offloader win the race after its first encounter with a
-  // source: screens unmount and remount on every navigation, and without a
-  // memo each remount would re-download, re-decode (seconds on a phone for a
-  // 37MP original), and lose to the original's first paint every time —
-  // measured on device as the stall surviving per entry. With the memo, a
-  // remounted image swaps SYNCHRONOUSLY at insertion, before any paint or
-  // network request of the original.
+  let disposed = false;
+  // Per original URL: an object URL to swap to, or "skip".
   const verdicts = new Map<string, string>();
+  // URLs with a worker probe in flight.
+  const probing = new Set<string>();
+  // Elements currently held (hidden + parked) awaiting their URL's verdict.
+  const held = new Map<HTMLImageElement, HeldElement>();
+  const seen = new WeakSet<HTMLImageElement>();
+  const objectUrls = new Set<string>();
+
+  const dpr = () => (typeof devicePixelRatio === "number" ? devicePixelRatio : 1);
 
   const ensureWorker = (): Worker | null => {
     if (worker) return worker;
@@ -199,94 +171,117 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
         error?: string;
         skip?: boolean;
       };
-      const job = jobs.get(url);
-      jobs.delete(url);
-      if (!job) return;
+      probing.delete(url);
       if (error || skip || !blob) {
-        // Cache the skip so remounts stop re-probing this source, and let
-        // the original show whenever it loads — the authored behavior.
-        verdicts.set(url, "skip");
-        for (const image of job.targets) releasePaint(image);
+        settle(url, "skip");
         return;
       }
       const objectUrl = URL.createObjectURL(blob);
       objectUrls.add(objectUrl);
-      verdicts.set(url, objectUrl);
       void persistScaled(url, blob);
-      for (const image of job.targets) {
-        if (!image.isConnected || image.currentSrc !== url) {
-          releasePaint(image);
-          continue;
-        }
-        // The element was held unpainted for the whole probe, so this swap
-        // is its FIRST appearance — no flicker, and the full-resolution
-        // original never painted at all.
-        image.setAttribute(OFFLOADED_SRC_ATTR, url);
-        image.src = objectUrl;
-        releasePaint(image);
-      }
+      settle(url, objectUrl);
     };
     return worker;
   };
 
-  const submit = (image: HTMLImageElement, url: string, boxWidth: number, boxHeight: number) => {
-    const dpr = typeof devicePixelRatio === "number" ? devicePixelRatio : 1;
-    const targetWidth = Math.round(Math.max(MIN_TARGET_PX, boxWidth * dpr) * TARGET_SCALE_HEADROOM);
-    const neededArea = Math.max(boxWidth * boxHeight, MIN_TARGET_PX * MIN_TARGET_PX) * dpr * dpr;
+  // Record the verdict and give every held element of this URL its FIRST
+  // appearance: the scaled result, or the authored original on a skip.
+  const settle = (url: string, verdict: string) => {
+    if (!verdicts.has(url)) verdicts.set(url, verdict);
+    for (const [image, info] of [...held]) {
+      if (info.url !== url) continue;
+      release(image, verdicts.get(url)!);
+    }
+  };
+
+  const release = (image: HTMLImageElement, verdict: string | null) => {
+    const info = held.get(image);
+    if (!info) return;
+    held.delete(image);
+    clearTimeout(info.timeout);
+    // Only touch the element if our parking is still in place — an authored
+    // src write while held wins untouched.
+    const parked = image.getAttribute("src") === PARKED_PIXEL;
+    if (parked) {
+      if (verdict && verdict !== "skip") {
+        image.src = verdict; // OFFLOADED_SRC_ATTR keeps the authored source
+      } else {
+        image.removeAttribute(OFFLOADED_SRC_ATTR);
+        image.src = info.url;
+      }
+    }
+    if (info.previousVisibility) image.style.visibility = info.previousVisibility;
+    else image.style.removeProperty("visibility");
+  };
+
+  const probe = (url: string, boxWidth: number, boxHeight: number) => {
+    if (verdicts.has(url) || probing.has(url)) return;
     const activeWorker = ensureWorker();
     if (!activeWorker) return;
-    let job = jobs.get(url);
-    if (!job) {
-      job = { targets: new Set() };
-      jobs.set(url, job);
-      activeWorker.postMessage({ url, targetWidth, neededArea, ratio: OVERSIZE_AREA_RATIO });
-    }
-    job.targets.add(image);
+    probing.add(url);
+    const targetWidth = Math.round(
+      Math.max(MIN_TARGET_PX, boxWidth * dpr()) * TARGET_SCALE_HEADROOM
+    );
+    const neededArea = Math.max(boxWidth * boxHeight, MIN_TARGET_PX * MIN_TARGET_PX) * dpr() ** 2;
+    activeWorker.postMessage({ url, targetWidth, neededArea, ratio: OVERSIZE_AREA_RATIO });
   };
 
   const consider = (image: HTMLImageElement) => {
-    if (processed.has(image)) return;
+    if (disposed || seen.has(image)) return;
     if (image.getAttribute(OFFLOADED_SRC_ATTR) !== null) return;
-    const url = image.currentSrc || image.src;
+    const url = image.getAttribute("src") ?? "";
     // Only network sources are refetchable; blob/data results (including our
-    // own swaps) stay as they are.
+    // own swaps) stay as authored.
     if (!/^https?:/.test(url)) return;
-    processed.add(image);
+    seen.add(image);
+
+    // An element that has ALREADY painted is untouchable — re-pointing or
+    // hiding a visible image is a blink (measured on device as intermittent
+    // avatar flicker). Probe its source for FUTURE mounts only.
+    if (image.complete && image.naturalWidth > 0) {
+      const box = image.getBoundingClientRect();
+      probe(url, box.width || MIN_TARGET_PX, box.height || MIN_TARGET_PX);
+      return;
+    }
+
     const verdict = verdicts.get(url);
     if (verdict === "skip") return;
     if (verdict) {
-      // Known-oversized source: swap before its first paint or download.
+      // Known-oversized source: swap before any paint or download.
       image.setAttribute(OFFLOADED_SRC_ATTR, url);
       image.src = verdict;
       return;
     }
-    // A prior session may have scaled this source already; the Cache API
-    // read is a few ms — far ahead of the original's network load.
-    void readScaled(url).then((blob) => {
-      if (!blob || verdicts.has(url)) return;
-      const objectUrl = URL.createObjectURL(blob);
-      objectUrls.add(objectUrl);
-      verdicts.set(url, objectUrl);
-      jobs.delete(url);
-      if (!image.isConnected || (image.currentSrc || image.src) !== url) return;
-      image.setAttribute(OFFLOADED_SRC_ATTR, url);
-      image.src = objectUrl;
-      releasePaint(image);
+
+    // Verdict unknown: hold (hidden + parked) until the probe settles.
+    held.set(image, {
+      url,
+      previousVisibility: image.style.visibility,
+      timeout: setTimeout(() => release(image, null), PROBE_REVEAL_TIMEOUT_MS)
     });
-    // The layout box may not exist yet at insertion time; measure one frame
-    // later — still far ahead of a large original's download, which is the
-    // whole point of probing at insertion instead of at load.
-    holdPaint(image);
-    const measureAndSubmit = () => {
-      if (!image.isConnected) {
-        releasePaint(image);
+    image.style.visibility = "hidden";
+    image.setAttribute(OFFLOADED_SRC_ATTR, url);
+    image.src = PARKED_PIXEL;
+
+    // A prior session's scaled result settles the URL without the worker;
+    // otherwise probe. The box may have no layout yet at insertion — measure
+    // a frame later, still far ahead of any network arrival.
+    void readScaled(url).then((blob) => {
+      if (disposed || verdicts.has(url)) return;
+      if (blob) {
+        const objectUrl = URL.createObjectURL(blob);
+        objectUrls.add(objectUrl);
+        settle(url, objectUrl);
         return;
       }
-      const box = image.getBoundingClientRect();
-      submit(image, url, box.width || MIN_TARGET_PX, box.height || MIN_TARGET_PX);
-    };
-    if (typeof requestAnimationFrame === "function") requestAnimationFrame(measureAndSubmit);
-    else measureAndSubmit();
+      const measure = () => {
+        if (disposed) return;
+        const box = image.getBoundingClientRect();
+        probe(url, box.width || MIN_TARGET_PX, box.height || MIN_TARGET_PX);
+      };
+      if (typeof requestAnimationFrame === "function") requestAnimationFrame(measure);
+      else measure();
+    });
   };
 
   const sweep = (node: ParentNode) => {
@@ -294,13 +289,6 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     if (typeof (node as Element).querySelectorAll !== "function") return;
     for (const image of Array.from((node as Element).querySelectorAll("img"))) consider(image);
   };
-
-  // A load-complete image (fresh network arrival or cache hit) is the
-  // decision point: only then are its natural dimensions known.
-  const onLoad = (event: Event) => {
-    if (event.target instanceof HTMLImageElement) consider(event.target);
-  };
-  root.addEventListener("load", onLoad, true);
 
   const observer = new MutationObserver((records) => {
     for (const record of records) {
@@ -313,13 +301,13 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
   sweep(root);
 
   return () => {
-    root.removeEventListener("load", onLoad, true);
+    disposed = true;
     observer.disconnect();
     worker?.terminate();
     worker = null;
-    jobs.clear();
+    for (const image of [...held.keys()]) release(image, null);
+    probing.clear();
     verdicts.clear();
-    for (const image of [...heldPaints.keys()]) releasePaint(image);
     for (const url of objectUrls) URL.revokeObjectURL(url);
     objectUrls.clear();
   };
