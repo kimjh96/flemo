@@ -14,13 +14,16 @@ module.exports = [
     // motion engine (transition player, driver policy, cubic-bezier solver,
     // variant motion) and the in-flight glass-integrity machinery (commit
     // hold, perceptual completion cut) — the latter pushed the local ruler to
-    // ~22.3 KB, a deliberate +0.6 KB for measured judder mechanisms. Current
-    // baseline: ~18.7 KB by CI's size-limit run, ~22.3 KB by a local run on a
-    // byte-identical dist (measurement-toolchain variance, cause unresolved)
-    // — the budget leaves headroom above the LARGER ruler so the gate can't
-    // flap across environments while still tripping on a multi-KB accidental
-    // balloon.
-    limit: "24 KB",
+    // ~22.3 KB, a deliberate +0.6 KB for measured judder mechanisms. The
+    // pose-preserving quarantine, opening-clock guard, and learned
+    // mount-cost policy (tap-freeze deferral) added another deliberate
+    // ~1.7 KB of measured-defect machinery, putting the local ruler at
+    // ~24.2 KB. Baselines still differ by toolchain (~19.4 KB by CI's
+    // size-limit run vs ~24.2 KB locally on a byte-identical dist, cause
+    // unresolved) — the budget leaves headroom above the LARGER ruler so the
+    // gate can't flap across environments while still tripping on a multi-KB
+    // accidental balloon.
+    limit: "26 KB",
     gzip: true
   },
   {

@@ -101,8 +101,14 @@ function ScreenMotion({
       ? performance.now()
       : 0
   );
+  // A screen outside a proper route (empty routePath: bare mounts, test
+  // harnesses) has no stable identity to learn under — every such mount
+  // would share one record and gate each other. It neither records nor
+  // defers.
   const routeKey = String(routePath);
-  const coldEntryRef = useRef(isActive && (status === "PUSHING" || status === "REPLACING"));
+  const coldEntryRef = useRef(
+    routeKey !== "" && isActive && (status === "PUSHING" || status === "REPLACING")
+  );
   const deferContentRef = useRef(
     coldEntryRef.current && mountCostPolicy.shouldDeferContent(routeKey)
   );
