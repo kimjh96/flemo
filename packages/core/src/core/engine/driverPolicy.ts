@@ -31,15 +31,21 @@ export interface DriverPolicyStorage {
 const STORAGE_KEY = "flemo:motion-driver";
 
 // Diagnostic hard override for field debugging (same spirit as
-// window.__flemoPlayerGaps): "css" pins the compiled-CSS path, "raf" pins the
-// player, bypassing measurement, strikes, and probation entirely. Read live on
-// every decision so a DevTools toggle takes effect on the next transition.
-// Not a consumer API — intentionally undocumented. SESSION storage on
-// purpose: a diagnostic pin must die with its debugging session. It once
-// lived in localStorage, where one forgotten toggle silently pinned every
-// future session — a stale "raf" pin kept reintroducing the player's
-// deceleration-tail shiver long after the default had moved on.
+// window.__flemoPlayerGaps): "css@<epoch-ms>" pins the compiled-CSS path,
+// "raf@<epoch-ms>" pins the player, bypassing measurement, strikes, and
+// probation entirely. Read live on every decision so a DevTools toggle takes
+// effect on the next transition. Not a consumer API — intentionally
+// undocumented. SESSION storage AND a freshness stamp, both learned the hard
+// way: the pin once lived in localStorage, where one forgotten toggle
+// silently pinned every future session; moved to sessionStorage, it STILL
+// outlived its debugging session, because mobile tab restoration resurrects
+// sessionStorage across days — a stale plain "raf" pin on a restored Safari
+// tab reproduced the player's whole delay/mid-start profile on every tab
+// switch while a pristine private window ran clean. A pin now expires after
+// FORCE_PIN_TTL_MS, and anything unstamped or stale is REMOVED on sight so
+// an old profile self-heals on its next decision.
 const FORCE_KEY = "flemo:motion-driver-force";
+export const FORCE_PIN_TTL_MS = 24 * 60 * 60 * 1000;
 
 // Warn once per session while the pin is active: a forgotten force key reads
 // as a mysterious cross-site perf regression (it pins EVERY transition), so
@@ -58,7 +64,20 @@ const readForcedDriver = (): "css" | "raf" | null => {
     }
     if (typeof sessionStorage === "undefined") return null;
     const value = sessionStorage.getItem(FORCE_KEY);
-    if (value !== "css" && value !== "raf") return null;
+    if (value === null) return null;
+    const [driver, stamp] = value.split("@");
+    const stampMs = Number(stamp);
+    const fresh =
+      (driver === "css" || driver === "raf") &&
+      stamp !== undefined &&
+      Number.isFinite(stampMs) &&
+      Math.abs(Date.now() - stampMs) < FORCE_PIN_TTL_MS;
+    if (!fresh) {
+      // Unstamped (legacy plain "raf"/"css"), malformed, or expired: never
+      // honored, only removed.
+      sessionStorage.removeItem(FORCE_KEY);
+      return null;
+    }
     if (!warnedForcedDriver && typeof console !== "undefined") {
       warnedForcedDriver = true;
       // The console IS the destination here: this fires only while a
@@ -66,11 +85,11 @@ const readForcedDriver = (): "css" | "raf" | null => {
       // that a forgotten pin can never be silent.
       // eslint-disable-next-line no-console
       console.warn(
-        `[flemo] motion driver pinned to "${value}" via sessionStorage ${FORCE_KEY}; ` +
-          "remove the key to restore automatic selection."
+        `[flemo] motion driver pinned to "${driver}" via sessionStorage ${FORCE_KEY}; ` +
+          "remove the key to restore automatic selection (pins expire after 24h)."
       );
     }
-    return value;
+    return driver as "css" | "raf";
   } catch {
     return null;
   }

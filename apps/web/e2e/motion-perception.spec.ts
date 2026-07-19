@@ -82,7 +82,9 @@ const openPlaygroundWithCupertino = async (page: Page) => {
 // explicitly-pinned tier. Player-mechanics guardrails opt in with the
 // diagnostic force key before the app boots.
 const openPlaygroundWithPinnedPlayer = async (page: Page) => {
-  await page.addInitScript(() => sessionStorage.setItem("flemo:motion-driver-force", "raf"));
+  await page.addInitScript(() =>
+    sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`)
+  );
   await openPlaygroundWithCupertino(page);
 };
 
@@ -421,7 +423,9 @@ test.describe("motion perception", () => {
   }) => {
     test.skip(browserName === "webkit", "the player tier is exercised on Blink");
     const { errors } = trackConsoleErrors(page);
-    await page.addInitScript(() => sessionStorage.setItem("flemo:motion-driver-force", "raf"));
+    await page.addInitScript(() =>
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`)
+    );
     await page.goto("/playground");
     await expect(page.getByText("1", { exact: true }).first()).toBeVisible();
     await page.getByRole("button", { name: "Wipe" }).first().click();
@@ -633,7 +637,9 @@ test.describe("motion perception", () => {
     page.on("console", (message) => {
       if (message.type() === "warning") warnings.push(message.text());
     });
-    await page.evaluate(() => sessionStorage.setItem("flemo:motion-driver-force", "css"));
+    await page.evaluate(() =>
+      sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`)
+    );
 
     const sample = sampleTransition(page, 900);
     await page.getByRole("button", { name: "Next" }).click();
