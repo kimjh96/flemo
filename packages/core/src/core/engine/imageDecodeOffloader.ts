@@ -233,6 +233,11 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     // Only network sources are refetchable; blob/data results (including our
     // own swaps) stay as authored.
     if (!/^https?:/.test(url)) return;
+    // Responsive markup (srcset / <picture>) IS the author already solving
+    // sizing — next/image and its kin serve pre-scaled candidates. And the
+    // browser's candidate selection outranks `src`, so a src-level park or
+    // swap would be inert on these elements anyway. Stay out entirely.
+    if (image.getAttribute("srcset") !== null || image.closest("picture") !== null) return;
     seen.add(image);
 
     // An element that has ALREADY painted is untouchable — re-pointing or
