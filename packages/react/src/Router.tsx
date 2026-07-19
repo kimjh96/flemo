@@ -15,6 +15,7 @@ import {
 import {
   createBrowserHistoryDriver,
   createRouterScope,
+  ensureImageDecodeOffloader,
   seedRouterEntry,
   isServer,
   type HistoryDriver,
@@ -245,6 +246,13 @@ function Router({
   // injects the compiled CSS keyframes into the document head. Runs in
   // useInsertionEffect so styles are committed before any screen paints.
   useTransitionStyles(transitions, decorators, partTransitions);
+
+  // Off-main decode-to-scale for oversized images (see @flemo/core
+  // imageDecodeOffloader): WebKit re-decodes full-resolution originals
+  // synchronously on the main thread on a recurring purge cycle, and a
+  // single raw-original avatar was measured freezing taps for ~380ms.
+  // Document-wide and refcounted, so nested Routers share one observer.
+  useEffect(() => ensureImageDecodeOffloader(), []);
 
   useEffect(() => {
     // Stamp this Router's identity onto the entry it mounted on: seed its keyed
