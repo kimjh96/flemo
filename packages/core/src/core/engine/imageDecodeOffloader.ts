@@ -55,6 +55,32 @@ export const shouldOffloadImage = (input: OversizeInput): boolean => {
 // diagnostics can see what was replaced.
 export const OFFLOADED_SRC_ATTR = "data-flemo-image-src";
 
+// Downscaled results persist in the Cache API so a RELOADED session swaps
+// oversized sources at insertion too — without this, every page load would
+// pay the original's download + first full-resolution paint once more.
+const SCALED_CACHE_NAME = "flemo-image-scale-v1";
+
+const persistScaled = async (url: string, blob: Blob): Promise<void> => {
+  try {
+    if (typeof caches === "undefined") return;
+    const cache = await caches.open(SCALED_CACHE_NAME);
+    await cache.put(url, new Response(blob, { headers: { "content-type": blob.type } }));
+  } catch {
+    // Storage unavailable: the in-memory verdict still covers this session.
+  }
+};
+
+const readScaled = async (url: string): Promise<Blob | null> => {
+  try {
+    if (typeof caches === "undefined") return null;
+    const cache = await caches.open(SCALED_CACHE_NAME);
+    const hit = await cache.match(url);
+    return hit ? await hit.blob() : null;
+  } catch {
+    return null;
+  }
+};
+
 // The oversize decision lives IN the worker: waiting for the element's
 // natural dimensions on the main thread would mean waiting for the original
 // download — by which time the full-resolution first paint (the stall) has
@@ -141,10 +167,15 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
       const objectUrl = URL.createObjectURL(blob);
       objectUrls.add(objectUrl);
       verdicts.set(url, objectUrl);
+      void persistScaled(url, blob);
       for (const image of job.targets) {
-        // The author may have re-pointed the element mid-flight; only swap
-        // when it still shows the source we downscaled.
+        // NEVER swap an image the viewer can currently see: a live src
+        // change repaints and reads as a flicker (measured on device as
+        // intermittent avatar blinking). Swap only elements that are not
+        // rendered right now (frozen/hidden screens); everything else picks
+        // the verdict up at its NEXT insertion, before any paint.
         if (!image.isConnected || image.currentSrc !== url) continue;
+        if (image.getClientRects().length > 0) continue;
         image.setAttribute(OFFLOADED_SRC_ATTR, url);
         image.src = objectUrl;
       }
@@ -183,6 +214,19 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
       image.src = verdict;
       return;
     }
+    // A prior session may have scaled this source already; the Cache API
+    // read is a few ms — far ahead of the original's network load.
+    void readScaled(url).then((blob) => {
+      if (!blob || verdicts.has(url)) return;
+      const objectUrl = URL.createObjectURL(blob);
+      objectUrls.add(objectUrl);
+      verdicts.set(url, objectUrl);
+      jobs.delete(url);
+      if (!image.isConnected || (image.currentSrc || image.src) !== url) return;
+      if (image.getClientRects().length > 0 && image.complete && image.naturalWidth > 0) return;
+      image.setAttribute(OFFLOADED_SRC_ATTR, url);
+      image.src = objectUrl;
+    });
     // The layout box may not exist yet at insertion time; measure one frame
     // later — still far ahead of a large original's download, which is the
     // whole point of probing at insertion instead of at load.
