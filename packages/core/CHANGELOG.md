@@ -1,5 +1,25 @@
 # @flemo/core
 
+## 1.20.0
+
+### Minor Changes
+
+- [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6) Hold in-flight content changes until the screen is at rest. A cold navigation's async data can land mid-flight — section swaps, streamed additions, and in-place text/attribute updates — while the screen is still decelerating, which reads as mid-transition stutter. The engine now parks departing nodes, holds arrivals off-glass, and reverts in-place writes during the flight, reflecting everything in one commit at COMPLETED (or the instant the transition is interrupted) — the shipped delayed-but-complete contract extended from mount time to flight time.
+
+- [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6) Suspend consumer CSS animations (pseudo-elements included) inside a navigation's freshly mounted entering screen (push/replace), starting them when the screen arrives; `<Part>` elements are exempt, and the visible exiting screen and the pop destination are untouched (a pop destination's animations restart at the unfreeze commit under the flight's own motion). A cold first entry can mount hundreds of animated placeholder shimmer layers whose compositor commit swallows the whole transition window — measured on an iPhone as a fade presenting zero intermediate frames. With the quarantine, a first entry plays the intended transition identically to re-entries.
+
+### Patch Changes
+
+- [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6) Complete a navigation when its whole choreography completes: a passive side or `<Part>` whose registered motion outlives the active screen's animation was truncated mid-flight by the COMPLETED flip at the active animationend (visible as the part snapping right at the convergence). A clean end now defers the task resolution by the difference, bounded, so the full choreography plays; the perceptual cut composes with it (a part resolves at its own sub-perceptual point).
+
+- [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6) Make the compiled compositor animation the default screen-transition driver on every engine, with no automatic or mid-flight driver switching. Per-frame screencast diffing on real Chrome showed the rAF player's px-snapped writes shiver at the deceleration tail (hold/1px-step alternation) while translate3d-compiled keyframes decay monotonically to rest — the Blink judder the player was built to route around no longer exists — and under CPU throttle the compositor plays every fade on time while a main-thread player collapses. The player remains available behind the `flemo:motion-driver-force` pin for diagnostics; the pin is now session-scoped (sessionStorage), and a legacy localStorage pin is removed and never honored.
+
+- [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6) Keep the convergence frames light. Resting screens deeper than the transition pair no longer re-render on status flips (previously an O(depth) re-render plus attribute-write storm landed exactly on the final frames of every navigation), and the in-flight landing now presents two frames after COMPLETED instead of inside the convergence commit — with an immediate land if a new navigation starts first.
+
+- [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6) Resolve reveal-shaped transitions (static enter over an animated exit) on the passive side's motion span, keeping the navigation task anchored to the visible motion instead of resolving on a microtask.
+
+- [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6) End a transition the moment its remaining motion drops below one device pixel (and one opacity step) on every animated channel, computed analytically from the easing curve. The asymptotic tail of a deceleration curve spends 150ms+ moving sub-pixel distances, which presents nothing but forces per-frame text re-rasterization at shifting anti-aliasing phases — visible as a fine shimmer at the convergence on scaled display pipelines. The cut presents pixels identical to the authored motion, includes every participating `<Part>`'s registered timing in its ceiling, stays inside the natural animation span, and yields to the recovery machinery (cancel-resume, watchdog) whenever the clock shifts.
+
 ## 1.19.1
 
 ### Patch Changes
