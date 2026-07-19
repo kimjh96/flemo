@@ -62,6 +62,33 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
 
   const heldArrivals = new Set<Element>();
   const parkedDepartures = new Set<Node>();
+  // The hold defers VISIBILITY, never LOADING. A held subtree is
+  // `display: none`, and a lazy image inside it stops loading entirely (no
+  // viewport intersection) — so the landing's one-commit reveal used to push
+  // every image into the viewport simultaneously: dozens of (cache-warm)
+  // loads + layouts synchronized into a single main-thread task. Measured on
+  // a production members list as a ~370ms stall right after the reveal — a
+  // stall the pre-hold library never had, because mid-flight commits loaded
+  // their images spread across the flight's frames. While held, lazy images
+  // flip to eager and decode off-glass; the landing restores the authored
+  // attribute in the same commit, with everything already fetched.
+  const eagerizedImages = new Set<HTMLImageElement>();
+  const warmHeldImages = (root: Element) => {
+    const images: HTMLImageElement[] = [];
+    if (root instanceof HTMLImageElement) images.push(root);
+    for (const image of Array.from(root.querySelectorAll("img"))) images.push(image);
+    for (const image of images) {
+      if (eagerizedImages.has(image)) continue;
+      if (image.getAttribute("loading") !== "lazy") continue;
+      eagerizedImages.add(image);
+      image.setAttribute("loading", "eager");
+      const decode = () => {
+        if (typeof image.decode === "function") image.decode().catch(() => {});
+      };
+      if (image.complete) decode();
+      else image.addEventListener("load", decode, { once: true });
+    }
+  };
   // Nodes this module re-inserted itself: their childList records must not be
   // re-processed as consumer arrivals when the observer delivers them.
   const selfInserted = new Set<Node>();
@@ -156,6 +183,7 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
         if (!(added instanceof Element)) continue;
         added.setAttribute(HELD_ARRIVAL_ATTR, "");
         heldArrivals.add(added);
+        warmHeldImages(added);
         batchOf(record.target).added.push(added);
       }
     }
@@ -232,6 +260,12 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
       held.removeAttribute(HELD_ARRIVAL_ATTR);
     }
     heldArrivals.clear();
+    // Give the images their authored attribute back in the same commit; the
+    // fetches the eager flip started are done (or in flight) either way.
+    for (const image of eagerizedImages) {
+      image.setAttribute("loading", "lazy");
+    }
+    eagerizedImages.clear();
     // Replay the latest in-place values the flight reverted, in this same
     // commit, so the DOM converges on what React last wrote.
     for (const [node, freeze] of textFreeze) {
