@@ -190,6 +190,98 @@ test.describe("motion perception", () => {
     expect(errors).toEqual([]);
   });
 
+  // INCIDENT: the flight-time quarantine (`animation: none` on the cold
+  // entering side) erased consumer animations' POSE along with their cost. A
+  // delayed-reveal (skeleton-gating) animation fell back to its VISIBLE base
+  // styles for the whole flight, then blinked out at the landing when the
+  // rule lifted and the reveal restarted its 500ms delay from zero —
+  // measured on a production tab switch as a content flash plus an entry
+  // delay. The engine now pins each animated element to its first-keyframe
+  // pose for the flight and rejoins the animation to its original clock at
+  // the landing. LabPanelScreen carries a 1×1 probe with the exact pattern.
+  test("a delayed reveal holds its authored hidden pose in flight and keeps its clock at the landing", async ({
+    page
+  }) => {
+    const { errors } = trackConsoleErrors(page);
+    await openPlaygroundWithCupertino(page);
+
+    const flightSample = page.evaluate(
+      () =>
+        new Promise<{ frames: number; visibleFrames: number; pinnedFrames: number }>((resolve) => {
+          const flight = { frames: 0, visibleFrames: 0, pinnedFrames: 0 };
+          const start = performance.now();
+          const loop = () => {
+            const entering = [
+              ...document.querySelectorAll<HTMLElement>("[data-flemo-screen]")
+            ].find(
+              (el) =>
+                el.getAttribute("data-flemo-status") === "PUSHING" &&
+                el.getAttribute("data-flemo-active") === "true"
+            );
+            const probe = entering?.querySelector<HTMLElement>('[data-testid="lab-reveal-probe"]');
+            if (probe) {
+              // Keep the entering screen reachable for the landing read: a
+              // descendant query at rest would hit the shell screen's or the
+              // frozen prior panel's probe instead.
+              (window as unknown as { __probeScreen?: HTMLElement }).__probeScreen = entering;
+              flight.frames += 1;
+              const computed = getComputedStyle(probe);
+              // The authored pose for the whole 500ms delay window is
+              // transparent; any visible frame is the quarantine leaking the
+              // base styles.
+              if (Number(computed.opacity) > 0.01) flight.visibleFrames += 1;
+              if (computed.animationName === "none" && Number(computed.opacity) <= 0.01) {
+                flight.pinnedFrames += 1;
+              }
+            }
+            if (performance.now() - start < 1200 && !(flight.frames > 0 && !entering)) {
+              requestAnimationFrame(loop);
+              return;
+            }
+            resolve(flight);
+          };
+          requestAnimationFrame(loop);
+        })
+    );
+    await page.getByRole("button", { name: "Next" }).click();
+    const flight = await flightSample;
+
+    expect(flight.frames, "the flight must be sampled").toBeGreaterThan(3);
+    expect(flight.visibleFrames, "the authored hidden pose must hold in flight").toBe(0);
+    expect(flight.pinnedFrames, "the quarantine must pin, not just suppress").toBeGreaterThan(3);
+
+    // After the landing (+ the two-frame deferred lift), the reveal exists
+    // again AND continues on its original clock: its currentTime reads as
+    // time since the screen's MOUNT, not since the landing — no restart, no
+    // doubled delay.
+    await page.waitForTimeout(200);
+    const landing = await page.evaluate(() => {
+      const screen = (window as unknown as { __probeScreen?: HTMLElement }).__probeScreen;
+      const probe =
+        screen?.getAttribute("data-flemo-status") === "COMPLETED"
+          ? screen.querySelector<HTMLElement>('[data-testid="lab-reveal-probe"]')
+          : null;
+      const animation = probe
+        ?.getAnimations()
+        .find(
+          (candidate) =>
+            (candidate as Animation & { animationName?: string }).animationName ===
+            "lab-reveal-probe-in"
+        );
+      return {
+        animationName: probe ? getComputedStyle(probe).animationName : "missing",
+        currentTime:
+          animation && typeof animation.currentTime === "number" ? animation.currentTime : null
+      };
+    });
+    expect(landing.animationName).toBe("lab-reveal-probe-in");
+    expect(landing.currentTime, "the reveal must rejoin its original clock").not.toBeNull();
+    // Cupertino's flight alone is ~350ms+; a landing-restarted clock would
+    // read far lower than the elapsed-since-mount the rejoin restores.
+    expect(landing.currentTime!).toBeGreaterThan(250);
+    expect(errors).toEqual([]);
+  });
+
   test("no inline transform survives completed transitions", async ({ page }) => {
     await openPlaygroundWithCupertino(page);
 

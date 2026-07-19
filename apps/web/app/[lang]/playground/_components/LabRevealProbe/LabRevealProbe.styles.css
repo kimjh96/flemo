@@ -1,0 +1,22 @@
+/* The delayed-reveal pattern under probe: transparent through a 500ms delay
+ * (backwards fill), then a 180ms fade-in. Zero visual footprint — 1×1,
+ * non-interactive, out of flow. */
+.lab-reveal-probe {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+  background: currentColor;
+  animation: lab-reveal-probe-in 180ms ease 500ms both;
+}
+
+@keyframes lab-reveal-probe-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

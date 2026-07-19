@@ -7,8 +7,10 @@ import resolveTransition from "@transition/resolveTransition";
 import type { TransitionVariant } from "@transition/typing";
 import { resolveVariantMotion, type VariantMotion } from "@transition/variantMotion";
 
+import createAnimationQuarantine from "@core/engine/animationQuarantine";
 import createArrivalHold from "@core/engine/arrivalHold";
 import driverPolicy from "@core/engine/driverPolicy";
+import guardOpeningClock, { type OpeningClockGuardResult } from "@core/engine/openingClockGuard";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import transitionPlayers from "@core/engine/transitionPlayer";
 import {
@@ -70,6 +72,10 @@ interface CancelResumeConfig {
   isLive: () => boolean;
   budgetUsed: () => number;
   spendBudget: () => void;
+  // Milliseconds the opening-clock guard rewound this navigation's shared
+  // clock (see openingClockGuard.ts). Subtracted from the wall-clock elapsed
+  // so a resume rejoins the PRESENTED timeline, not the wall.
+  getClockRewindMs?: () => number;
   // Budget spent, clock past the end, or not live. The active scope resolves
   // its task; a pure-resume participant does nothing.
   onTerminal: () => void;
@@ -132,7 +138,7 @@ const wireCancelResume = (config: CancelResumeConfig) => {
       restart({ mode: "keep" });
       return;
     }
-    const elapsedMs = performance.now() - originalStart;
+    const elapsedMs = performance.now() - originalStart - (config.getClockRewindMs?.() ?? 0);
     const spanMs = (motion.delay + motion.duration) * 1000;
     if (elapsedMs >= spanMs) {
       // Past the end — the compiled rest rule owns the pose, nothing to resume.
@@ -198,6 +204,20 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   // re-runs mid-transition (the anim-hold release), and the hold must span
   // those re-runs and release only at COMPLETED or on an interrupt.
   let releaseArrivalHold: (() => void) | null = null;
+  // The consumer-animation quarantine for the current transition's cold
+  // entering screen (see animationQuarantine.ts). Same lifetime rules as the
+  // arrival hold, except it arms on the FIRST drive (the mount commit,
+  // pre-paint — the pose pins must land before anything presents) rather
+  // than at the anim-hold release. `quarantineOwner` is the stamped scope:
+  // because it arms a commit EARLIER than the hold, the passive screen's
+  // mid-flight drive re-runs while the slot is set, and without the owner
+  // check they would release the active side's quarantine mid-flight.
+  let releaseQuarantine: (() => void) | null = null;
+  let quarantineOwner: HTMLElement | null = null;
+  // One opening-clock correction per (task, side) — the drive re-runs
+  // mid-flight, and a re-armed guard would "correct" motion the viewer
+  // already watched. Pruned with the resume budgets.
+  const openingGuardSpent = new Set<string>();
   // A landing scheduled two frames past COMPLETED (see below). Tracked so a
   // navigation starting inside that window can land it immediately instead of
   // letting it punch into the new flight.
@@ -251,21 +271,62 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       isTransitional &&
       animHoldReleased &&
       (isActive ? status === "PUSHING" || status === "REPLACING" : status === "POPPING");
+    // The quarantine covers the same cold sides as the arrival hold on
+    // push/replace, but never a pop (the compiled rule documents why), and it
+    // must exist from the mount commit — not the release — so the pose pins
+    // present from the screen's very first frame.
+    const quarantinesAnimations =
+      isTransitional && isActive && (status === "PUSHING" || status === "REPLACING");
+    const pendingReleases: (() => void)[] = [];
     if (!holdsArrivals && releaseArrivalHold) {
       // COMPLETED, IDLE, or an interrupt that flipped this screen's role.
-      const release = releaseArrivalHold;
+      pendingReleases.push(releaseArrivalHold);
       releaseArrivalHold = null;
+    }
+    // Release only at rest (any screen's COMPLETED/IDLE drive lands it), on
+    // the OWNING screen's role flip (it started popping back out), or when
+    // the owner is gone (interrupted navigation unmounted it). A passive
+    // screen's mid-flight drive must never touch the active side's slot.
+    if (
+      !quarantinesAnimations &&
+      releaseQuarantine &&
+      (!isTransitional || getElements().scope === quarantineOwner || !quarantineOwner?.isConnected)
+    ) {
+      // Ordered after the hold's release: the quarantine lift forces a style
+      // recalc for the phase rejoin, which must see the landed DOM.
+      pendingReleases.push(releaseQuarantine);
+      releaseQuarantine = null;
+      quarantineOwner = null;
+    }
+    if (pendingReleases.length > 0) {
+      const releaseAll = () => pendingReleases.forEach((release) => release());
       if (isTransitional) {
         // Interrupt: a new transition owns the glass right now — land
         // everything immediately, before its first frame.
-        release();
+        releaseAll();
       } else {
-        scheduleLanding(release);
+        scheduleLanding(releaseAll);
+      }
+    }
+    if (quarantinesAnimations && releaseQuarantine && !quarantineOwner?.isConnected) {
+      // A stale slot whose owner an interrupt unmounted: land it so this
+      // fresh cold screen can arm.
+      const release = releaseQuarantine;
+      releaseQuarantine = null;
+      quarantineOwner = null;
+      release();
+    }
+    if (quarantinesAnimations && !releaseQuarantine) {
+      // A navigation starting inside a still-pending landing window: land it
+      // now so the deferred reveal can never punch into the new flight.
+      landNow();
+      const { scope } = getElements();
+      if (scope) {
+        releaseQuarantine = createAnimationQuarantine(scope);
+        quarantineOwner = scope;
       }
     }
     if (holdsArrivals && !releaseArrivalHold) {
-      // A navigation starting inside a still-pending landing window: land it
-      // now so the deferred reveal can never punch into the new flight.
       landNow();
       const { scope } = getElements();
       if (scope) releaseArrivalHold = createArrivalHold(scope);
@@ -363,6 +424,34 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       return () => detachers.forEach((detach) => detach());
     };
 
+    // Every compiled-CSS participant of this screen for `variant`, paired
+    // with the compiled animation name it runs. The opening-clock guard
+    // corrects them as one group — they all unpaused in the same commit, so
+    // they share one clock and one lost opening.
+    const collectCompiledParticipants = (scopeEl: HTMLElement, variant: TransitionVariant) => {
+      const transition = resolveTransition(transitionName);
+      const screenName = animationName("screen", transitionName, variant);
+      const participants = [{ element: scopeEl, expectedName: screenName }];
+      const { decorator, bars } = getElements();
+      for (const bar of bars ?? []) {
+        if (!bar || bar.getAttribute("data-flemo-bar-riding") !== "true") continue;
+        participants.push({ element: bar, expectedName: screenName });
+      }
+      if (decorator && transition.decoratorName) {
+        participants.push({
+          element: decorator,
+          expectedName: animationName("decorator", transition.decoratorName, variant)
+        });
+      }
+      for (const part of collectVariantParts(scopeEl, variant)) {
+        participants.push({
+          element: part,
+          expectedName: animationName("part", part.getAttribute(PART_NAME_ATTR)!, variant)
+        });
+      }
+      return participants;
+    };
+
     // Pure-resume wiring for a screen's NON-scope compiled-CSS participants:
     // its riding shared bars (which mirror the screen keyframes), its decorator,
     // and its <Part> elements — each against ITS OWN compiled animation name and
@@ -372,7 +461,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // counter per element), matching the passive scope. Returns the detachers.
     const wireParticipantRecovery = (
       scopeEl: HTMLElement,
-      variant: TransitionVariant
+      variant: TransitionVariant,
+      getClockRewindMs?: () => number
     ): (() => void)[] => {
       const detachers: (() => void)[] = [];
       const { decorator, bars } = getElements();
@@ -389,6 +479,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           spendBudget: () => {
             used += 1;
           },
+          getClockRewindMs,
           onTerminal: noop
         });
         controller.attach();
@@ -478,6 +569,23 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         if (scope) {
           const transition = resolveTransition(transitionName);
           const detachers: (() => void)[] = [];
+          // Opening-clock guard for the exit side (see openingClockGuard.ts):
+          // its fade unpauses in the same release commit as the enter side's,
+          // so a post-release block eats its opening identically.
+          const passiveTaskId = deps.getTransitionTaskId();
+          let passiveGuard: OpeningClockGuardResult | null = null;
+          if (passiveTaskId && !openingGuardSpent.has(`${passiveTaskId}:passive`)) {
+            openingGuardSpent.add(`${passiveTaskId}:passive`);
+            const guard = guardOpeningClock(collectCompiledParticipants(scope, variant));
+            passiveGuard = guard;
+            detachers.push(() => {
+              guard.cancel();
+              // Torn down before the correction frame ran: the opening is
+              // still unpresented, so a re-wired drive may guard it again.
+              if (!guard.settled()) openingGuardSpent.delete(`${passiveTaskId}:passive`);
+            });
+          }
+          const getPassiveRewind = () => passiveGuard?.appliedRewindMs() ?? 0;
           if (variantHasAnimation(transition, variant)) {
             // variantHasAnimation and resolveVariantMotion share the same gate
             // (a non-rest variant with duration or delay > 0 — see
@@ -493,12 +601,13 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
               spendBudget: () => {
                 used += 1;
               },
+              getClockRewindMs: getPassiveRewind,
               onTerminal: noop
             });
             controller.attach();
             detachers.push(controller.detach);
           }
-          detachers.push(...wireParticipantRecovery(scope, variant));
+          detachers.push(...wireParticipantRecovery(scope, variant, getPassiveRewind));
           if (detachers.length > 0) return () => detachers.forEach((detach) => detach());
         }
       }
@@ -548,7 +657,11 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       }
       // The task is settling — drop its resume-budget entry so the map only
       // ever holds the handful of genuinely in-flight tasks.
-      if (flooredTaskId) activeResumeCounts.delete(flooredTaskId);
+      if (flooredTaskId) {
+        activeResumeCounts.delete(flooredTaskId);
+        openingGuardSpent.delete(`${flooredTaskId}:active`);
+        openingGuardSpent.delete(`${flooredTaskId}:passive`);
+      }
     };
 
     const currentTransition = resolveTransition(transitionName);
@@ -657,6 +770,12 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // is wired (below); a no-op until then and when the player drives. Called
     // on a clean end so a late stray cancel can't resolve a second time.
     let stopScopeRecovery = noop;
+    // The opening-clock guard for this navigation's enter side (armed below,
+    // once per task). Wall-clock consumers (cancel-resume, the perceptual
+    // cut, the watchdog) read its applied rewind so their arithmetic tracks
+    // the PRESENTED timeline.
+    let openingGuard: OpeningClockGuardResult | null = null;
+    const openingRewindMs = () => openingGuard?.appliedRewindMs() ?? 0;
     // Disarms the perceptual completion cut (wired below): any recovery event
     // shifts real presentation later than the wall clock, so the cut must
     // yield to animationend.
@@ -775,6 +894,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       expectedName,
       motion: activeMotion!,
       isLive: scopeIsLive,
+      getClockRewindMs: openingRewindMs,
       // Both callbacks run only past `isLive` (wireCancelResume consults the
       // budget after the short-circuit), and scopeIsLive requires a live task
       // id — so the assertions can never fire.
@@ -811,13 +931,26 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const recovering = !detachPlayer && animHoldReleased;
     // The active screen's non-scope participants (riding bars, decorator,
     // parts) recover too, each on its OWN name/clock — pure resume, no task.
-    const participantDetachers = recovering ? wireParticipantRecovery(scope, variantKey) : [];
+    const participantDetachers = recovering
+      ? wireParticipantRecovery(scope, variantKey, openingRewindMs)
+      : [];
     if (recovering) {
       scopeResume.attach();
       // Arm on the transition INTO released (this effect re-runs when the hold
       // releases; a hold-free variant attaches with animHoldReleased already
       // true and arms here immediately). Only with a task to resolve.
       if (flooredTaskId) armWatchdog();
+      // Opening-clock guard (see openingClockGuard.ts): one correction, on
+      // the first frame after the release, once per task — a re-armed guard
+      // on a drive re-run would rewind motion the viewer already watched.
+      if (flooredTaskId && !openingGuardSpent.has(`${flooredTaskId}:active`)) {
+        openingGuardSpent.add(`${flooredTaskId}:active`);
+        openingGuard = guardOpeningClock(collectCompiledParticipants(scope, variantKey), () => {
+          // The presented timeline just shifted later than the wall clock —
+          // give the watchdog its full window against the corrected clock.
+          if (watchdog !== undefined) armWatchdog();
+        });
+      }
     }
 
     // Perceptual completion cut (see perceptualSpan.ts): once every animated
@@ -866,14 +999,27 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           ? Math.max(activeCut, passiveCut, partsCut)
           : null;
       if (cutMs !== null && cutMs + 17 < motionSpanMs + choreographyExtraMs) {
-        perceptualCut = setTimeout(() => {
+        // The cut's clock starts at the release, but an opening-clock rewind
+        // shifts presentation later than the wall — re-defer by exactly the
+        // rewound span so the cut still lands inside the imperceptibility
+        // band of what was actually PRESENTED.
+        let cutRewindConsumed = 0;
+        const fireCut = () => {
           perceptualCut = undefined;
+          const rewind = openingRewindMs();
+          if (rewind > cutRewindConsumed) {
+            const defer = rewind - cutRewindConsumed;
+            cutRewindConsumed = rewind;
+            perceptualCut = setTimeout(fireCut, defer);
+            return;
+          }
           if (!scopeIsLive()) return;
           scope.removeEventListener("animationend", onEnd);
           clearWatchdog();
           stopScopeRecovery();
           resolve();
-        }, cutMs + 17);
+        };
+        perceptualCut = setTimeout(fireCut, cutMs + 17);
       }
     }
 
@@ -881,6 +1027,14 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (floor !== undefined) clearTimeout(floor);
       if (choreographyTimer !== undefined) clearTimeout(choreographyTimer);
       clearPerceptualCut();
+      if (openingGuard) {
+        openingGuard.cancel();
+        // Torn down before the correction frame ran: the opening is still
+        // unpresented, so a re-run of this drive may guard it again.
+        if (!openingGuard.settled() && flooredTaskId) {
+          openingGuardSpent.delete(`${flooredTaskId}:active`);
+        }
+      }
       scope.removeEventListener("animationend", onEnd);
       if (recovering) {
         scopeResume.detach();
@@ -893,6 +1047,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // current keeps it, so the per-task budget survives effect re-runs.
       if (flooredTaskId && deps.getTransitionTaskId() !== flooredTaskId) {
         activeResumeCounts.delete(flooredTaskId);
+        openingGuardSpent.delete(`${flooredTaskId}:active`);
+        openingGuardSpent.delete(`${flooredTaskId}:passive`);
       }
     };
   };
