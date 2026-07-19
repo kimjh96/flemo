@@ -9,7 +9,7 @@ import { resolveVariantMotion, type VariantMotion } from "@transition/variantMot
 
 import createAnimationQuarantine from "@core/engine/animationQuarantine";
 import createArrivalHold, { type ArrivalHoldRelease } from "@core/engine/arrivalHold";
-import driverPolicy, { detectBlinkEngine } from "@core/engine/driverPolicy";
+import driverPolicy from "@core/engine/driverPolicy";
 import guardOpeningClock, { type OpeningClockGuardResult } from "@core/engine/openingClockGuard";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import transitionPlayers from "@core/engine/transitionPlayer";
@@ -29,13 +29,6 @@ const PART_NAME_ATTR = "data-flemo-part-name";
 // The opening-clock guard corrects exactly one frame — the first rendering
 // update after the release commit (see openingClockGuard.ts for why any
 // wider window rewinds compositor-presented motion into visible blinks).
-
-// How long a CLEAN landing waits past the main thread's animationend on
-// non-Blink engines before the COMPLETED restructure, so a compositor whose
-// copy of the animation started a few frames late can finish presenting the
-// tail (measured trail ~100ms on a loaded device; see
-// resolveAfterChoreography). Well below the liveness floor's margin.
-const COMPOSITOR_TRAIL_GRACE_MS = 160;
 
 // This screen's <Part> elements. The container (the scope's parent) hosts
 // bar-mounted parts too; parts owned by a NESTED screen inside the container
@@ -786,26 +779,11 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     let choreographyExtraMs = 0;
     let choreographyTimer: ReturnType<typeof setTimeout> | undefined;
     const resolveAfterChoreography = () => {
-      // Compositor-trail grace (non-Blink): the arm commit can reach the
-      // compositor a few frames late on a loaded device, so the compositor's
-      // copy of the fade TRAILS the main-thread clock by up to ~100ms.
-      // Resolving at the main thread's animationend then rips the compiled
-      // animation out mid-presentation — captured on device glass as the
-      // landed screen sitting washed-out (~55% presented progress) for a
-      // beat, then SNAPPING to full contrast: the reported whole-screen
-      // blink. The animation's fill holds its end pose through the grace, so
-      // the trailing compositor finishes the fade smoothly and the COMPLETED
-      // restructure lands 1 → 1, invisible. Blink reports compositor-synced
-      // start times, so nothing trails there and the grace stays 0. Failure
-      // paths (watchdog, floor, recovery) still resolve immediately —
-      // presentation is already broken there.
-      const graceMs = detectBlinkEngine() ? 0 : COMPOSITOR_TRAIL_GRACE_MS;
-      const extraMs = choreographyExtraMs + graceMs;
-      if (extraMs <= 0) {
+      if (choreographyExtraMs <= 0) {
         resolve();
         return;
       }
-      choreographyTimer = setTimeout(resolve, extraMs);
+      choreographyTimer = setTimeout(resolve, choreographyExtraMs);
     };
 
     // Detaches the scope's own cancel-resume + watchdog. Set once the recovery
@@ -1016,11 +994,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       perceptualCut = undefined;
     };
     disarmPerceptualCut = clearPerceptualCut;
-    // The cut trims what the COMMAND clock says is imperceptible; on
-    // non-Blink a trailing compositor can still be presenting well inside
-    // the perceptible range at that moment (the compositor-trail evidence
-    // above), so the early cut would amputate visible motion. Blink-only.
-    if (recovering && flooredTaskId && detectBlinkEngine()) {
+    if (recovering && flooredTaskId) {
       const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
       const activeCut = perceptualCutMs(activeMotion!, scope, dpr);
       // Both sides must be inside their bands before the COMPLETED flip cuts

@@ -27,18 +27,6 @@ import { partTransitionMap } from "@transition/partTransition/partTransition";
 beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`));
 afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
 
-// The compositor-trail grace defers CLEAN non-Blink landings (see
-// createTransitionEngine's COMPOSITOR_TRAIL_GRACE_MS); these suites assert
-// the resolve-at-end contracts themselves, so they run as Blink
-// (userAgentData present → grace 0). The dedicated trailGrace suite covers
-// the non-Blink deferral.
-beforeAll(() =>
-  Object.defineProperty(navigator, "userAgentData", { configurable: true, value: {} })
-);
-afterAll(() => {
-  delete (navigator as { userAgentData?: unknown }).userAgentData;
-});
-
 // delay 0, duration 0.15 → span 150ms, watchdog deadline 400ms. Mismatched
 // clipPath templates ("inset(0)" vs "inset(0 0 0 100%)") keep both sides on the
 // compiled-CSS path.
