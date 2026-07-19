@@ -36,6 +36,14 @@ import useNavigateStore from "@stores/useNavigateStore";
 import useScreenStore from "@stores/useScreenStore";
 import useStores from "@stores/useStores";
 
+// While an entering screen is parked UNDER the previous one (see the
+// container style below), its glass exposure is capped at this compositor
+// opacity so a compositor-level z-order leak can never flash it. Low enough
+// to be imperceptible over any opaque cover, non-zero so WebKit still paints
+// (and therefore pre-rasterizes) the subtree — opacity: 0 subtrees skip
+// paint entirely, which would defeat the park.
+const PARK_UNDER_GLASS_SHIELD_OPACITY = 0.02;
+
 function ScreenMotion({
   children,
   statusBarHeight,
@@ -514,6 +522,17 @@ function ScreenMotion({
         // container: a z-index on the inner scope only reorders within this
         // box and leaks the park (a full-screen flash of the next screen).
         zIndex: holdAttr === "park-under" ? -1 : undefined,
+        // Glass shield for the park: the cover is a Z-ORDER promise, and iOS
+        // WebKit's compositor can hoist a negative-z sibling's layers above
+        // their CSS stacking order — reported on device as the DESTINATION
+        // screen flashing fully for the park window on every entry, then
+        // snapping back to fade in. A 2% compositor-applied opacity makes any
+        // such leak imperceptible while keeping the park's whole point: with
+        // `will-change` the container owns its layer, so the tiles rasterize
+        // at FULL color (opacity blends at composite time) and the release's
+        // return to 1 is compositing-only — zero repaint.
+        opacity: holdAttr === "park-under" ? PARK_UNDER_GLASS_SHIELD_OPACITY : undefined,
+        willChange: holdAttr === "park-under" ? "opacity" : undefined,
         // `contain: layout style` keeps layout/style scoped without `paint`,
         // which would make this element the containing block for `position:
         // fixed` descendants and trap consumer overlays (e.g. bottom sheets)

@@ -352,6 +352,32 @@ describe("Screen", () => {
     expect(scope.getAttribute("data-flemo-anim-hold")).toBe("park-under");
   });
 
+  it("caps a parked-under screen's glass exposure with the compositor opacity shield", () => {
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+    stores.screen.setState({
+      screenSurfaces: { below: { opaqueBackground: true } }
+    });
+
+    const { container } = render(
+      <Screen>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true, id: "top", zIndex: 1 }) }
+    );
+
+    // The cover is a z-order promise; a compositor-level leak must never be
+    // able to flash the parked destination. The shield lives on the OUTER
+    // container (the z-index owner), stays non-zero so the subtree still
+    // paints (pre-raster), and owns its layer so the release is
+    // compositing-only.
+    const outer = container.querySelector("[data-flemo-screen]")!.parentElement!;
+    expect(outer.style.zIndex).toBe("-1");
+    expect(Number(outer.style.opacity)).toBeGreaterThan(0);
+    expect(Number(outer.style.opacity)).toBeLessThanOrEqual(0.05);
+    expect(outer.style.willChange).toBe("opacity");
+  });
+
   it("never park-unders the leaving top on POP (it would expose the returning screen)", () => {
     stores.navigate.setState({ status: "POPPING", transitionTaskId: null });
     stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
