@@ -111,6 +111,14 @@ const WORKER_SOURCE = `onmessage = async (e) => {
   }
 };`;
 
+// While a source is being probed, its element stays unpainted: this is what
+// makes even the FIRST-EVER encounter stall-free — the original never gets
+// a full-resolution paint at all. The photo then appears when its scaled
+// version (or a skip verdict) is ready, which is when its bytes would have
+// arrived anyway. The safety timeout restores the authored state no matter
+// what happens to the worker.
+const PROBE_REVEAL_TIMEOUT_MS = 4000;
+
 const supported = (): boolean =>
   typeof Worker !== "undefined" &&
   typeof OffscreenCanvas !== "undefined" &&
@@ -123,12 +131,36 @@ interface PendingJob {
   targets: Set<HTMLImageElement>;
 }
 
+interface HeldPaint {
+  previousVisibility: string;
+  timeout: ReturnType<typeof setTimeout>;
+}
+
 export function createImageDecodeOffloader(root: HTMLElement): () => void {
   if (!supported()) return () => {};
 
   let worker: Worker | null = null;
   const jobs = new Map<string, PendingJob>();
   const processed = new WeakSet<HTMLImageElement>();
+  const heldPaints = new Map<HTMLImageElement, HeldPaint>();
+
+  const holdPaint = (image: HTMLImageElement) => {
+    if (heldPaints.has(image)) return;
+    heldPaints.set(image, {
+      previousVisibility: image.style.visibility,
+      timeout: setTimeout(() => releasePaint(image), PROBE_REVEAL_TIMEOUT_MS)
+    });
+    image.style.visibility = "hidden";
+  };
+
+  const releasePaint = (image: HTMLImageElement) => {
+    const held = heldPaints.get(image);
+    if (!held) return;
+    heldPaints.delete(image);
+    clearTimeout(held.timeout);
+    if (held.previousVisibility) image.style.visibility = held.previousVisibility;
+    else image.style.removeProperty("visibility");
+  };
   const objectUrls = new Set<string>();
   // Verdict per original URL: an object URL to swap to, or "skip". THIS is
   // what makes the offloader win the race after its first encounter with a
@@ -160,8 +192,10 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
       jobs.delete(url);
       if (!job) return;
       if (error || skip || !blob) {
-        // Cache the skip so remounts stop re-probing this source.
+        // Cache the skip so remounts stop re-probing this source, and let
+        // the original show whenever it loads — the authored behavior.
         verdicts.set(url, "skip");
+        for (const image of job.targets) releasePaint(image);
         return;
       }
       const objectUrl = URL.createObjectURL(blob);
@@ -169,15 +203,16 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
       verdicts.set(url, objectUrl);
       void persistScaled(url, blob);
       for (const image of job.targets) {
-        // NEVER swap an image the viewer can currently see: a live src
-        // change repaints and reads as a flicker (measured on device as
-        // intermittent avatar blinking). Swap only elements that are not
-        // rendered right now (frozen/hidden screens); everything else picks
-        // the verdict up at its NEXT insertion, before any paint.
-        if (!image.isConnected || image.currentSrc !== url) continue;
-        if (image.getClientRects().length > 0) continue;
+        if (!image.isConnected || image.currentSrc !== url) {
+          releasePaint(image);
+          continue;
+        }
+        // The element was held unpainted for the whole probe, so this swap
+        // is its FIRST appearance — no flicker, and the full-resolution
+        // original never painted at all.
         image.setAttribute(OFFLOADED_SRC_ATTR, url);
         image.src = objectUrl;
+        releasePaint(image);
       }
     };
     return worker;
@@ -223,15 +258,19 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
       verdicts.set(url, objectUrl);
       jobs.delete(url);
       if (!image.isConnected || (image.currentSrc || image.src) !== url) return;
-      if (image.getClientRects().length > 0 && image.complete && image.naturalWidth > 0) return;
       image.setAttribute(OFFLOADED_SRC_ATTR, url);
       image.src = objectUrl;
+      releasePaint(image);
     });
     // The layout box may not exist yet at insertion time; measure one frame
     // later — still far ahead of a large original's download, which is the
     // whole point of probing at insertion instead of at load.
+    holdPaint(image);
     const measureAndSubmit = () => {
-      if (!image.isConnected) return;
+      if (!image.isConnected) {
+        releasePaint(image);
+        return;
+      }
       const box = image.getBoundingClientRect();
       submit(image, url, box.width || MIN_TARGET_PX, box.height || MIN_TARGET_PX);
     };
@@ -269,6 +308,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     worker = null;
     jobs.clear();
     verdicts.clear();
+    for (const image of [...heldPaints.keys()]) releasePaint(image);
     for (const url of objectUrls) URL.revokeObjectURL(url);
     objectUrls.clear();
   };
