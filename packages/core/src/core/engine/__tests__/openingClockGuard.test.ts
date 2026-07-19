@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import guardOpeningClock from "@core/engine/openingClockGuard";
 
-// The guard is an rAF ticker; the queue and the clock are manual so each test
-// scripts the exact frame cadence it wants to model.
+// The guard is a SINGLE-frame corrector: its rAF runs inside the first
+// rendering update after the release commit, before that update paints.
+// The queue and the clock are manual so each test scripts the exact frame
+// it wants to model.
 
 let frameQueue: Map<number, FrameRequestCallback>;
 let nextFrameId: number;
@@ -54,9 +56,10 @@ describe("guardOpeningClock", () => {
   });
 
   it("rewinds an eaten opening across every participant, on one shared clock", () => {
-    // Measured WebKit shape: the release commit unpauses the fade, a refetch
-    // commit blocks the main thread, and the first frame arrives with the
-    // clock already deep into the motion — that span was never presented.
+    // The swallowed-opening shape: the release unpauses the fade, a blocked
+    // commit starves rAF, and the first rendering update arrives with the
+    // clock already deep into the motion. Nothing has been committed to the
+    // compositor yet, so the rewind lands before anything paints.
     const screen = fakeAnimation(NAME, 90);
     const bar = fakeAnimation(NAME, 80);
     const onRewind = vi.fn();
@@ -78,7 +81,7 @@ describe("guardOpeningClock", () => {
     expect(guard.settled()).toBe(true);
   });
 
-  it("leaves a healthy clock alone (Blink defers the start; there is nothing to rewind)", () => {
+  it("leaves a healthy clock alone (nothing was eaten; there is nothing to rewind)", () => {
     const screen = fakeAnimation(NAME, 20);
     const onRewind = vi.fn();
     const guard = guardOpeningClock([{ element: withAnimations([screen]), expectedName: NAME }], {
@@ -92,79 +95,38 @@ describe("guardOpeningClock", () => {
     expect(guard.settled()).toBe(true);
   });
 
-  it("first-frame-only by default: a later mid-flight gap is not watched without watchMs", () => {
-    const screen = fakeAnimation(NAME, 10);
-    guardOpeningClock([{ element: withAnimations([screen]), expectedName: NAME }]);
-
-    runFrame(10);
-    // No further frame scheduled: the queue is empty.
-    expect(frameQueue.size).toBe(0);
-  });
-
-  it("watches the whole flight: a mid-flight block is rewound at the next frame", () => {
-    const screen = fakeAnimation(NAME, 16);
+  it("corrects exactly one frame: later gaps belong to the compositor and never rewind", () => {
+    // Once the first rendering update has committed the animation, the
+    // compositor owns it and presents straight through a main-thread gap —
+    // measured on a production device as a tab fade committed with clock 0,
+    // a 65ms rAF gap the compositor presented through, then a (since
+    // removed) rewind from 65ms to 17ms blinking the whole screen. The
+    // guard therefore never schedules a second frame.
+    const screen = fakeAnimation(NAME, 2);
     const onRewind = vi.fn();
     const guard = guardOpeningClock([{ element: withAnimations([screen]), expectedName: NAME }], {
-      watchMs: 600,
       onRewind
     });
 
-    // Healthy opening.
-    runFrame(16);
-    expect(screen.currentTime).toBe(16);
-    screen.currentTime = 33;
-    runFrame(33);
-    expect(screen.currentTime).toBe(33);
+    runFrame(2);
+    expect(frameQueue.size).toBe(0); // no ticker — the window is one frame
 
-    // A 70ms refetch-commit block: nothing presented, clock ran to 103.
-    screen.currentTime = 103;
-    runFrame(103);
-    // Rewound to one frame past the last PRESENTED clock (33 + 17 = 50).
-    expect(screen.currentTime).toBe(50);
-    expect(guard.appliedRewindMs()).toBe(53);
-    expect(onRewind).toHaveBeenLastCalledWith(53);
-
-    // Rewinds accumulate: a second isolated block later in the flight.
-    screen.currentTime = 66;
-    runFrame(119);
-    screen.currentTime = 146;
-    runFrame(199);
-    expect(screen.currentTime).toBe(83);
-    expect(guard.appliedRewindMs()).toBe(116);
+    // The later gap: the clock lands wherever the wall put it, untouched.
+    screen.currentTime = 65;
+    expect(guard.appliedRewindMs()).toBe(0);
+    expect(onRewind).not.toHaveBeenCalled();
   });
 
-  it("never rewinds a chronically slow cadence into slow motion", () => {
-    // A 50ms-cadence device presents EVERY frame — motion on schedule, just
-    // choppy. Only the first slow frame may rewind (the healthy→gap edge);
-    // after that the guard must leave the clock alone.
+  it("a slow first frame corrects once, before anything has painted", () => {
+    // A 50ms-cadence device: the first update since the release runs at
+    // 50ms. Nothing presented before it, so the one correction is invisible
+    // and the motion starts whole; afterwards the guard is done.
     const screen = fakeAnimation(NAME, 50);
-    const guard = guardOpeningClock([{ element: withAnimations([screen]), expectedName: NAME }], {
-      watchMs: 600
-    });
+    const guard = guardOpeningClock([{ element: withAnimations([screen]), expectedName: NAME }]);
 
     runFrame(50);
-    const afterFirst = screen.currentTime!;
-    expect(afterFirst).toBe(17); // the one healthy→gap rewind
-    screen.currentTime = afterFirst + 50;
-    runFrame(100);
-    expect(screen.currentTime).toBe(afterFirst + 50);
-    screen.currentTime = afterFirst + 100;
-    runFrame(150);
-    expect(screen.currentTime).toBe(afterFirst + 100);
+    expect(screen.currentTime).toBe(17);
     expect(guard.appliedRewindMs()).toBe(33);
-  });
-
-  it("stops watching at the window's end", () => {
-    const screen = fakeAnimation(NAME, 16);
-    guardOpeningClock([{ element: withAnimations([screen]), expectedName: NAME }], {
-      watchMs: 100
-    });
-
-    runFrame(16);
-    expect(frameQueue.size).toBe(1);
-    runFrame(80);
-    expect(frameQueue.size).toBe(1);
-    runFrame(150);
     expect(frameQueue.size).toBe(0);
   });
 
@@ -178,6 +140,22 @@ describe("guardOpeningClock", () => {
     expect(unresolved.currentTime).toBeNull();
   });
 
+  it("survives an animation that rejects the seek", () => {
+    const brittle = fakeAnimation(NAME, 90);
+    Object.defineProperty(brittle, "currentTime", {
+      get: () => 90,
+      set: () => {
+        throw new DOMException("InvalidState");
+      }
+    });
+    const guard = guardOpeningClock([{ element: withAnimations([brittle]), expectedName: NAME }]);
+
+    expect(() => runFrame(90)).not.toThrow();
+    // The rewind is still reported: the group's presented-timeline shift is
+    // what downstream arithmetic (perceptual cut, cancel-resume) consumes.
+    expect(guard.appliedRewindMs()).toBe(73);
+  });
+
   it("cancel prevents the correction and reports unsettled", () => {
     const screen = fakeAnimation(NAME, 90);
     const guard = guardOpeningClock([{ element: withAnimations([screen]), expectedName: NAME }]);
@@ -186,17 +164,6 @@ describe("guardOpeningClock", () => {
     runFrame(90);
     expect(screen.currentTime).toBe(90);
     expect(guard.settled()).toBe(false);
-  });
-
-  it("cancel mid-watch stops the ticker", () => {
-    const screen = fakeAnimation(NAME, 16);
-    const guard = guardOpeningClock([{ element: withAnimations([screen]), expectedName: NAME }], {
-      watchMs: 600
-    });
-    runFrame(16);
-    expect(frameQueue.size).toBe(1);
-    guard.cancel();
-    expect(frameQueue.size).toBe(0);
   });
 
   it("degrades to a no-op without rAF or per-element getAnimations", () => {

@@ -9,7 +9,7 @@ import { resolveVariantMotion, type VariantMotion } from "@transition/variantMot
 
 import createAnimationQuarantine from "@core/engine/animationQuarantine";
 import createArrivalHold, { type ArrivalHoldRelease } from "@core/engine/arrivalHold";
-import driverPolicy, { detectBlinkEngine } from "@core/engine/driverPolicy";
+import driverPolicy from "@core/engine/driverPolicy";
 import guardOpeningClock, { type OpeningClockGuardResult } from "@core/engine/openingClockGuard";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import transitionPlayers from "@core/engine/transitionPlayer";
@@ -26,14 +26,9 @@ const noop = () => {};
 
 const PART_NAME_ATTR = "data-flemo-part-name";
 
-// How long the opening-clock guard watches a flight (see openingClockGuard).
-// Blink's compositor genuinely presents through main-thread rAF starvation
-// (the glide), so watching past the first frame there would rewind motion
-// the viewer already saw: first-frame-only. Non-Blink engines present these
-// screen animations from the main thread — measured freeze-then-jump on
-// every blocked span — so the guard covers the whole motion.
-const openingGuardWatchMs = (motionSpanMs: number) =>
-  detectBlinkEngine() ? 0 : motionSpanMs + 250;
+// The opening-clock guard corrects exactly one frame — the first rendering
+// update after the release commit (see openingClockGuard.ts for why any
+// wider window rewinds compositor-presented motion into visible blinks).
 
 // This screen's <Part> elements. The container (the scope's parent) hosts
 // bar-mounted parts too; parts owned by a NESTED screen inside the container
@@ -601,15 +596,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           let passiveGuard: OpeningClockGuardResult | null = null;
           if (passiveTaskId && !openingGuardSpent.has(`${passiveTaskId}:passive`)) {
             openingGuardSpent.add(`${passiveTaskId}:passive`);
-            const passiveVariantMotion = variantHasAnimation(transition, variant)
-              ? resolveVariantMotion(transition, variant)!
-              : null;
-            const passiveSpanMs = passiveVariantMotion
-              ? (passiveVariantMotion.delay + passiveVariantMotion.duration) * 1000
-              : 0;
-            const guard = guardOpeningClock(collectCompiledParticipants(scope, variant), {
-              watchMs: openingGuardWatchMs(passiveSpanMs)
-            });
+            const guard = guardOpeningClock(collectCompiledParticipants(scope, variant));
             passiveGuard = guard;
             detachers.push(() => {
               guard.cancel();
@@ -979,7 +966,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (flooredTaskId && !openingGuardSpent.has(`${flooredTaskId}:active`)) {
         openingGuardSpent.add(`${flooredTaskId}:active`);
         openingGuard = guardOpeningClock(collectCompiledParticipants(scope, variantKey), {
-          watchMs: openingGuardWatchMs(motionSpanMs),
           onRewind: () => {
             // The presented timeline just shifted later than the wall clock —
             // give the watchdog its full window against the corrected clock.
