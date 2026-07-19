@@ -113,8 +113,9 @@ const flush = async () => {
 const freshImage = (src: string) => {
   const image = document.createElement("img");
   // Fresh = inserted but not yet painted: the browser has fetched nothing.
-  Object.defineProperty(image, "complete", { value: false });
-  Object.defineProperty(image, "naturalWidth", { value: 0 });
+  // configurable so responsive tests can re-define dimensions "at load".
+  Object.defineProperty(image, "complete", { value: false, configurable: true });
+  Object.defineProperty(image, "naturalWidth", { value: 0, configurable: true });
   image.setAttribute("src", src);
   image.getBoundingClientRect = () => ({ width: 44, height: 44 }) as DOMRect;
   return image;
@@ -207,32 +208,88 @@ describe("createImageDecodeOffloader", () => {
     dispose();
   });
 
-  it("stays out of responsive markup (srcset / <picture>) — next/image and its kin", async () => {
+  it("responsive well-sized (next/image and its kin): revealed as authored at load, zero worker cost", async () => {
     const { posted } = installWorkerStubs();
     // next/image shape: an optimizer src plus pre-scaled srcset candidates.
-    const responsive = freshImage("https://example.test/_next/image?url=raw.jpg&w=3840");
+    const responsive = freshImage("https://example.test/_next/image?url=raw.jpg&w=88");
     responsive.setAttribute(
       "srcset",
       "https://example.test/_next/image?url=raw.jpg&w=44 44w, https://example.test/_next/image?url=raw.jpg&w=88 88w"
     );
-    // <picture> with <source> children: same declaration, different markup.
-    const picture = document.createElement("picture");
-    const inPicture = freshImage("https://example.test/fallback.jpg");
-    picture.appendChild(inPicture);
-    document.body.append(responsive, picture);
+    document.body.append(responsive);
 
     const dispose = createImageDecodeOffloader(document.body);
-    await flush();
-    // The author already solved sizing (and the browser's candidate selection
-    // outranks src, so parking/swapping would be inert here anyway): never
-    // held, never probed, zero cost.
+    // Held (visibility only — the browser's own selection/download proceeds;
+    // an img shows nothing before its resource anyway, so this adds nothing).
+    expect(responsive.style.visibility).toBe("hidden");
     expect(responsive.getAttribute("src")).toBe(
-      "https://example.test/_next/image?url=raw.jpg&w=3840"
+      "https://example.test/_next/image?url=raw.jpg&w=88"
     );
+
+    // The chosen candidate loads well-sized: revealed as authored, no probe.
+    Object.defineProperty(responsive, "currentSrc", {
+      value: "https://example.test/_next/image?url=raw.jpg&w=88"
+    });
+    Object.defineProperty(responsive, "naturalWidth", { value: 88, configurable: true });
+    Object.defineProperty(responsive, "naturalHeight", { value: 88, configurable: true });
+    responsive.dispatchEvent(new Event("load"));
+    await flush();
     expect(responsive.style.visibility).toBe("");
-    expect(inPicture.getAttribute("src")).toBe("https://example.test/fallback.jpg");
-    expect(inPicture.style.visibility).toBe("");
+    expect(responsive.getAttribute("srcset")).not.toBeNull();
     expect(posted).toHaveLength(0);
+
+    dispose();
+  });
+
+  it("responsive oversized (degenerate srcset around a raw original): scaled and pinned", async () => {
+    const { posted, reply } = installWorkerStubs();
+    const raw = "https://example.test/raw-original.jpg";
+    const picture = document.createElement("picture");
+    const source = document.createElement("source");
+    source.setAttribute("srcset", raw);
+    const image = freshImage(raw);
+    image.setAttribute("srcset", `${raw} 1x`);
+    picture.append(source, image);
+    document.body.append(picture);
+
+    const dispose = createImageDecodeOffloader(document.body);
+    expect(image.style.visibility).toBe("hidden");
+
+    // The browser picked the raw original; its REAL dimensions arrive at load.
+    Object.defineProperty(image, "currentSrc", { value: raw });
+    Object.defineProperty(image, "naturalWidth", { value: 4971, configurable: true });
+    Object.defineProperty(image, "naturalHeight", { value: 7456, configurable: true });
+    image.dispatchEvent(new Event("load"));
+    await flush();
+    // Still hidden through the probe — the original never paints.
+    expect(image.style.visibility).toBe("hidden");
+    expect(posted).toHaveLength(1);
+    expect(posted[0].url).toBe(raw);
+
+    reply({ url: raw, blob: new Blob(["x"]) });
+    // First appearance = the scaled result, candidate markup stripped so the
+    // swap wins (img srcset/sizes AND <picture> <source> siblings).
+    expect(image.getAttribute("src")).toContain("blob:scaled");
+    expect(image.getAttribute("srcset")).toBeNull();
+    expect(source.getAttribute("srcset")).toBeNull();
+    expect(image.getAttribute(OFFLOADED_SRC_ATTR)).toBe(raw);
+    expect(image.style.visibility).toBe("");
+
+    dispose();
+  });
+
+  it("responsive load error reveals the authored element untouched", async () => {
+    installWorkerStubs();
+    const image = freshImage("https://example.test/broken.jpg");
+    image.setAttribute("srcset", "https://example.test/broken.jpg 1x");
+    document.body.append(image);
+
+    const dispose = createImageDecodeOffloader(document.body);
+    expect(image.style.visibility).toBe("hidden");
+    image.dispatchEvent(new Event("error"));
+    // The authored error path (consumer onError fallbacks) proceeds visibly.
+    expect(image.style.visibility).toBe("");
+    expect(image.getAttribute("srcset")).not.toBeNull();
 
     dispose();
   });

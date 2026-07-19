@@ -137,6 +137,10 @@ interface HeldElement {
   url: string;
   previousVisibility: string;
   timeout: ReturnType<typeof setTimeout>;
+  // Responsive elements (srcset / <picture>) are never src-parked; their
+  // release swaps src AND strips the candidate markup so the swap wins.
+  responsive?: boolean;
+  detachListeners?: () => void;
 }
 
 export function createImageDecodeOffloader(root: HTMLElement): () => void {
@@ -199,15 +203,36 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     if (!info) return;
     held.delete(image);
     clearTimeout(info.timeout);
-    // Only touch the element if our parking is still in place — an authored
-    // src write while held wins untouched.
-    const parked = image.getAttribute("src") === PARKED_PIXEL;
-    if (parked) {
+    info.detachListeners?.();
+    if (info.responsive) {
+      // The candidate the browser chose was oversized; pin the scaled result
+      // by stripping the candidate markup (srcset/sizes on the img and any
+      // <picture> <source> siblings — they outrank src). Responsiveness on a
+      // later resize is knowingly given up for this element: the authored
+      // candidate set was the pathology. A skip/timeout reveals as authored.
       if (verdict && verdict !== "skip") {
-        image.src = verdict; // OFFLOADED_SRC_ATTR keeps the authored source
-      } else {
-        image.removeAttribute(OFFLOADED_SRC_ATTR);
-        image.src = info.url;
+        image.setAttribute(OFFLOADED_SRC_ATTR, info.url);
+        image.removeAttribute("srcset");
+        image.removeAttribute("sizes");
+        const picture = image.closest("picture");
+        if (picture) {
+          for (const source of Array.from(picture.querySelectorAll("source"))) {
+            source.removeAttribute("srcset");
+          }
+        }
+        image.src = verdict;
+      }
+    } else {
+      // Only touch the element if our parking is still in place — an authored
+      // src write while held wins untouched.
+      const parked = image.getAttribute("src") === PARKED_PIXEL;
+      if (parked) {
+        if (verdict && verdict !== "skip") {
+          image.src = verdict; // OFFLOADED_SRC_ATTR keeps the authored source
+        } else {
+          image.removeAttribute(OFFLOADED_SRC_ATTR);
+          image.src = info.url;
+        }
       }
     }
     if (info.previousVisibility) image.style.visibility = info.previousVisibility;
@@ -226,6 +251,73 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     activeWorker.postMessage({ url, targetWidth, neededArea, ratio: OVERSIZE_AREA_RATIO });
   };
 
+  // Responsive path: let the browser pick and download its candidate as
+  // authored (single download, selection stays correct — no re-implementation
+  // of srcset/sizes/media evaluation), but keep the element HIDDEN until that
+  // load. An img presents nothing before its resource anyway, so the hold
+  // adds ZERO latency; it only guarantees the oversized case never paints.
+  // At load the chosen candidate's REAL dimensions are on the element:
+  // well-sized reveals as authored (no worker at all); oversized stays
+  // hidden through the scale probe and first-appears as the scaled result
+  // (release() strips the candidate markup so the swap wins).
+  const considerResponsive = (image: HTMLImageElement) => {
+    // Already painted: untouchable, same as the bare-img rule.
+    if (image.complete && image.naturalWidth > 0) return;
+
+    const info: HeldElement = {
+      url: "", // the chosen candidate is only known at load
+      previousVisibility: image.style.visibility,
+      timeout: setTimeout(() => release(image, null), PROBE_REVEAL_TIMEOUT_MS),
+      responsive: true
+    };
+    const onLoad = () => {
+      const url = image.currentSrc || image.getAttribute("src") || "";
+      const box = image.getBoundingClientRect();
+      const oversized =
+        /^https?:/.test(url) &&
+        shouldOffloadImage({
+          naturalWidth: image.naturalWidth,
+          naturalHeight: image.naturalHeight,
+          boxWidth: box.width || MIN_TARGET_PX,
+          boxHeight: box.height || MIN_TARGET_PX,
+          devicePixelRatio: dpr()
+        });
+      if (!oversized) {
+        release(image, null);
+        return;
+      }
+      info.url = url;
+      const verdict = verdicts.get(url);
+      if (verdict) {
+        release(image, verdict);
+        return;
+      }
+      void readScaled(url).then((blob) => {
+        if (disposed || !held.has(image)) return;
+        if (verdicts.has(url)) {
+          release(image, verdicts.get(url)!);
+          return;
+        }
+        if (blob) {
+          const objectUrl = URL.createObjectURL(blob);
+          objectUrls.add(objectUrl);
+          settle(url, objectUrl);
+          return;
+        }
+        probe(url, box.width || MIN_TARGET_PX, box.height || MIN_TARGET_PX);
+      });
+    };
+    const onError = () => release(image, null); // authored error path untouched
+    info.detachListeners = () => {
+      image.removeEventListener("load", onLoad);
+      image.removeEventListener("error", onError);
+    };
+    image.addEventListener("load", onLoad);
+    image.addEventListener("error", onError);
+    held.set(image, info);
+    image.style.visibility = "hidden";
+  };
+
   const consider = (image: HTMLImageElement) => {
     if (disposed || seen.has(image)) return;
     if (image.getAttribute(OFFLOADED_SRC_ATTR) !== null) return;
@@ -233,11 +325,18 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     // Only network sources are refetchable; blob/data results (including our
     // own swaps) stay as authored.
     if (!/^https?:/.test(url)) return;
-    // Responsive markup (srcset / <picture>) IS the author already solving
-    // sizing — next/image and its kin serve pre-scaled candidates. And the
-    // browser's candidate selection outranks `src`, so a src-level park or
-    // swap would be inert on these elements anyway. Stay out entirely.
-    if (image.getAttribute("srcset") !== null || image.closest("picture") !== null) return;
+    // Responsive markup (srcset / <picture>): the browser's candidate
+    // selection outranks `src`, so the bare-img park below cannot work here.
+    // Usually the author already solved sizing (next/image and its kin serve
+    // pre-scaled candidates) — but the candidates themselves can be
+    // oversized (a degenerate srcset wrapping one raw original;
+    // WordPress-style sets that include the full original as a candidate).
+    // Piggyback on the browser instead of re-implementing its selection.
+    if (image.getAttribute("srcset") !== null || image.closest("picture") !== null) {
+      seen.add(image);
+      considerResponsive(image);
+      return;
+    }
     seen.add(image);
 
     // An element that has ALREADY painted is untouchable — re-pointing or
