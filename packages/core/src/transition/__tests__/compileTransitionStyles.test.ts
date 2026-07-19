@@ -941,12 +941,13 @@ describe("compileTransitionStyles bar transitions", () => {
 describe("transition quarantine rule", () => {
   it("suppresses consumer animations inside a navigation's cold screens, parts excepted", () => {
     const css = compileTransitionStyles([], [], []);
-    // Cold sides only: the freshly-mounted entering screen (push/replace) and
-    // the unfreezing pop destination.
+    // Fresh-mount sides only: the entering screen of a push/replace. The pop
+    // destination's animations restart at the unfreeze commit under the
+    // flight's own motion — quarantining them only moves the restart pose
+    // jump to the landing.
     for (const [status, active] of [
       ["PUSHING", "true"],
-      ["REPLACING", "true"],
-      ["POPPING", "false"]
+      ["REPLACING", "true"]
     ]) {
       expect(css).toContain(
         `[data-flemo-screen][data-flemo-status="${status}"][data-flemo-active="${active}"] :not([data-flemo-part-name])`
@@ -956,7 +957,7 @@ describe("transition quarantine rule", () => {
     // animation there must not lose its phase).
     expect(css).not.toContain('[data-flemo-status="PUSHING"][data-flemo-active="false"] :not');
     expect(css).not.toContain('[data-flemo-status="REPLACING"][data-flemo-active="false"] :not');
-    expect(css).not.toContain('[data-flemo-status="POPPING"][data-flemo-active="true"] :not');
+    expect(css).not.toContain('[data-flemo-status="POPPING"]');
     // Pseudo-element coverage: shimmer-style consumer effects animate a
     // ::before/::after, which the element-only descendant selector misses.
     expect(css).toContain(":not([data-flemo-part-name])::before");
