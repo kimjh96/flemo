@@ -686,6 +686,31 @@ describe("perceptual completion cut", () => {
   });
 });
 
+describe("driver join without a task", () => {
+  it("falls back to the compiled path when no navigation task exists", () => {
+    sessionStorage.setItem("flemo:motion-driver-force", "raf");
+    try {
+      const { scope } = elements();
+      document.body.appendChild(scope);
+      const engine = createTransitionEngine(deps()); // getTransitionTaskId -> null
+      const cleanup = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: "PUSHING",
+        isActive: true,
+        animHoldReleased: true
+      });
+      // No player joined (no task): the compiled animation stays untouched.
+      expect(scope.style.animation).toBe("");
+      cleanup();
+      scope.remove();
+    } finally {
+      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+    }
+  });
+});
+
 describe("perceptual cut with participating parts", () => {
   const drive = (engine: ReturnType<typeof createTransitionEngine>, scope: HTMLElement) =>
     engine.driveScreenLifecycle({
@@ -732,6 +757,8 @@ describe("perceptual cut with participating parts", () => {
     try {
       const scope = cutScope();
       mountPart(scope, "slow-fade");
+      // An unregistered part contributes nothing and must not veto.
+      mountPart(scope, "unregistered-part");
       const resolveSpy = vi
         .spyOn(TaskManger, "resolveTask")
         .mockImplementation(() => Promise.resolve(true));

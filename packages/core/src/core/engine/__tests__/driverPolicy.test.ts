@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createDriverPolicy, type DriverPolicyStorage } from "@core/engine/driverPolicy";
+import {
+  createDriverPolicy,
+  detectBlinkEngine,
+  type DriverPolicyStorage
+} from "@core/engine/driverPolicy";
 
 const memoryStorage = (initial: string | null = null) => {
   let value = initial;
@@ -115,6 +119,15 @@ describe("driverPolicy engine default", () => {
   });
 });
 
+describe("detectBlinkEngine", () => {
+  it("reads userAgentData presence as the Blink signal", () => {
+    expect(detectBlinkEngine()).toBe(false); // jsdom ships none
+    Object.defineProperty(navigator, "userAgentData", { value: {}, configurable: true });
+    expect(detectBlinkEngine()).toBe(true);
+    delete (navigator as { userAgentData?: unknown }).userAgentData;
+  });
+});
+
 describe("driverPolicy default storage", () => {
   it("round-trips through localStorage and tolerates absence", () => {
     localStorage.removeItem("flemo:motion-driver");
@@ -151,6 +164,16 @@ describe("driverPolicy default storage", () => {
     localStorage.setItem("flemo:motion-driver-force", "raf");
     expect(policy.playerAllowed()).toBe(false); // never honored
     expect(localStorage.getItem("flemo:motion-driver-force")).toBe(null); // healed
+  });
+
+  it("tolerates a throwing localStorage during the legacy pin strip", () => {
+    const removeItem = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new Error("storage disabled");
+    });
+    const { storage } = memoryStorage();
+    const policy = createDriverPolicy(storage, true);
+    expect(policy.playerAllowed()).toBe(true);
+    removeItem.mockRestore();
   });
 
   it("tolerates a throwing localStorage (embedder storage policies)", () => {

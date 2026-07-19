@@ -79,6 +79,40 @@ describe("perceptualCutMs", () => {
     expect(perceptualCutMs(slide({ ease: "linear", duration: 0.15 }), box, 2)).toBeNull();
   });
 
+  it("refuses unit-less and non-numeric channel values", () => {
+    expect(perceptualCutMs(slide({ from: { x: "10em" }, to: { x: 0 } }), box, 2)).toBeNull();
+    expect(perceptualCutMs(slide({ from: { x: {} as never }, to: { x: 0 } }), box, 2)).toBeNull();
+    expect(perceptualCutMs(slide({ from: null as never, to: { x: 0 } }), box, 2)).toBeNull();
+    expect(perceptualCutMs(slide({ from: {}, to: {} }), box, 2)).toBeNull();
+  });
+
+  it("resolves y-percentage distances against the box height", () => {
+    const vertical = perceptualCutMs(
+      slide({ from: { y: "100%" }, to: { y: 0 } }),
+      { clientWidth: 390, clientHeight: 800 },
+      2
+    );
+    const shallow = perceptualCutMs(
+      slide({ from: { y: "100%" }, to: { y: 0 } }),
+      { clientWidth: 390, clientHeight: 80 },
+      2
+    );
+    expect(vertical).not.toBeNull();
+    expect(shallow).not.toBeNull();
+    // A taller travel keeps the band tighter, so its cut lands later.
+    expect(shallow!).toBeLessThan(vertical!);
+  });
+
+  it("handles near-band travels at both sides of the threshold", () => {
+    // 0.9px of travel at dpr 1: the whole motion sits inside one device
+    // pixel — refused outright.
+    expect(perceptualCutMs(slide({ from: { x: "0.9px" }, to: { x: 0 } }), box, 1)).toBeNull();
+    // 1.2px: barely above the band — cuttable, and very early.
+    const tiny = perceptualCutMs(slide({ from: { x: "1.2px" }, to: { x: 0 } }), box, 1);
+    expect(tiny).not.toBeNull();
+    expect(tiny!).toBeLessThan(120);
+  });
+
   it("survives overshooting eases by scanning from the end", () => {
     const cut = perceptualCutMs(slide({ ease: "backOut" }), box, 2);
     // backOut re-enters the band only after its overshoot returns; the cut

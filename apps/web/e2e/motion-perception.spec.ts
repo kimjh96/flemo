@@ -111,6 +111,85 @@ test.describe("motion perception", () => {
   // INCIDENT: the player's inline writes survived on the covered prev screen
   // because its COMPLETED effect never runs (Activity freezes it in the same
   // commit); the parallax offset stayed as a stale baseline.
+  // INCIDENT: a cold navigation's async data landed mid-flight — section
+  // swaps punching through the deceleration, in-place text updates
+  // flickering — the end-of-transition judder class. The engine holds every
+  // in-flight mutation of the entering screen off-glass and reflects it at
+  // rest; this asserts that contract end to end in a real browser.
+  test("in-flight mutations stay off-glass until the screen lands", async ({ page }) => {
+    const { errors } = trackConsoleErrors(page);
+    await openPlaygroundWithCupertino(page);
+
+    await page.getByRole("button", { name: "Next" }).click();
+    // Deterministic mid-flight anchor: the entering screen exists, its hold
+    // has released (the commit-hold arms there), and the motion is running.
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("[data-flemo-screen]")].some(
+        (el) =>
+          el.getAttribute("data-flemo-status") === "PUSHING" &&
+          el.getAttribute("data-flemo-active") === "true" &&
+          el.getAttribute("data-flemo-anim-hold") === "false"
+      )
+    );
+    const midFlight = await page.evaluate(async () => {
+      const entering = [...document.querySelectorAll<HTMLElement>("[data-flemo-screen]")].find(
+        (el) =>
+          el.getAttribute("data-flemo-status") === "PUSHING" &&
+          el.getAttribute("data-flemo-active") === "true"
+      )!;
+      // A resolving query commit, simulated exactly: one arriving node and
+      // one in-place write on an existing non-<Part> text.
+      const arrival = document.createElement("div");
+      arrival.id = "e2e-arrival";
+      arrival.textContent = "landed content";
+      entering.appendChild(arrival);
+      const label = [...entering.querySelectorAll<HTMLElement>("p, h1, h2, h3, li, span")].find(
+        (el) => !el.closest("[data-flemo-part-name]") && el.firstChild?.nodeType === Node.TEXT_NODE
+      )!;
+      const before = label.firstChild!.nodeValue!;
+      label.firstChild!.nodeValue = "e2e-mutated";
+      // The hold reverts inside the observer microtask; hop a frame so the
+      // assertions read post-observer state.
+      await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+      return {
+        held: arrival.hasAttribute("data-flemo-held-arrival"),
+        display: getComputedStyle(arrival).display,
+        onGlass: label.firstChild!.nodeValue,
+        before
+      };
+    });
+    // On glass, nothing changed mid-flight.
+    expect(midFlight.held).toBe(true);
+    expect(midFlight.display).toBe("none");
+    expect(midFlight.onGlass).toBe(midFlight.before);
+
+    // After landing (+ the two-frame deferred landing), everything reflects.
+    // Scoped to the mutated screen: unrelated routers (the shell) rest at
+    // IDLE and never flip.
+    await page.waitForFunction(
+      () =>
+        document
+          .getElementById("e2e-arrival")
+          ?.closest("[data-flemo-screen]")
+          ?.getAttribute("data-flemo-status") === "COMPLETED"
+    );
+    await page.waitForTimeout(150);
+    const landed = await page.evaluate(() => {
+      const arrival = document.getElementById("e2e-arrival")!;
+      return {
+        held: arrival.hasAttribute("data-flemo-held-arrival"),
+        display: getComputedStyle(arrival).display,
+        text: [...document.querySelectorAll("[data-flemo-screen]")]
+          .map((el) => el.textContent ?? "")
+          .join(" ")
+      };
+    });
+    expect(landed.held).toBe(false);
+    expect(landed.display).not.toBe("none");
+    expect(landed.text).toContain("e2e-mutated");
+    expect(errors).toEqual([]);
+  });
+
   test("no inline transform survives completed transitions", async ({ page }) => {
     await openPlaygroundWithCupertino(page);
 

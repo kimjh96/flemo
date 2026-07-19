@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import createArrivalHold, { HELD_ARRIVAL_ATTR } from "@core/engine/arrivalHold";
 
@@ -21,6 +21,159 @@ const buildScreen = () => {
 };
 
 describe("createArrivalHold", () => {
+  it("degrades to a noop where MutationObserver is unavailable (SSR)", () => {
+    const original = globalThis.MutationObserver;
+    vi.stubGlobal("MutationObserver", undefined);
+    try {
+      const scope = document.createElement("div");
+      const release = createArrivalHold(scope);
+      expect(() => release()).not.toThrow();
+    } finally {
+      vi.stubGlobal("MutationObserver", original);
+    }
+  });
+
+  it("ignores comment-node removals inside a swap batch", async () => {
+    const { scope, section, skeleton } = buildScreen();
+    const comment = document.createComment("marker");
+    section.appendChild(comment);
+    const release = createArrivalHold(scope);
+
+    const content = document.createElement("article");
+    section.removeChild(comment);
+    section.replaceChild(content, skeleton);
+    await observerFlush();
+
+    // The comment is neither Element nor Text: never parked.
+    expect(comment.parentNode).toBe(null);
+    expect(skeleton.parentNode).toBe(section);
+    release();
+    scope.remove();
+  });
+
+  it("treats a same-value in-place write as glass-neutral", async () => {
+    const { scope, section } = buildScreen();
+    const label = document.createElement("span");
+    label.textContent = "same";
+    section.appendChild(label);
+    const release = createArrivalHold(scope);
+
+    label.firstChild!.nodeValue = "same";
+    await observerFlush();
+    expect(label.textContent).toBe("same");
+
+    release();
+    expect(label.textContent).toBe("same");
+    scope.remove();
+  });
+
+  it("reverts a freshly ADDED attribute and replays it at release", async () => {
+    const { scope, section } = buildScreen();
+    const chip = document.createElement("div");
+    section.appendChild(chip);
+    const release = createArrivalHold(scope);
+
+    chip.setAttribute("aria-busy", "true");
+    await observerFlush();
+    // On glass the attribute never existed mid-flight.
+    expect(chip.hasAttribute("aria-busy")).toBe(false);
+
+    release();
+    expect(chip.getAttribute("aria-busy")).toBe("true");
+    scope.remove();
+  });
+
+  it("reverts a mid-flight attribute REMOVAL and replays it at release", async () => {
+    const { scope, section } = buildScreen();
+    const chip = document.createElement("div");
+    chip.setAttribute("aria-label", "kept");
+    section.appendChild(chip);
+    const release = createArrivalHold(scope);
+
+    chip.removeAttribute("aria-label");
+    await observerFlush();
+    expect(chip.getAttribute("aria-label")).toBe("kept");
+
+    release();
+    expect(chip.hasAttribute("aria-label")).toBe(false);
+    scope.remove();
+  });
+
+  it("freezes multiple attributes of one element in one batch", async () => {
+    const { scope, section } = buildScreen();
+    const chip = document.createElement("div");
+    chip.className = "a";
+    chip.setAttribute("aria-label", "one");
+    section.appendChild(chip);
+    const release = createArrivalHold(scope);
+
+    chip.className = "b";
+    chip.setAttribute("aria-label", "two");
+    await observerFlush();
+    expect(chip.className).toBe("a");
+    expect(chip.getAttribute("aria-label")).toBe("one");
+
+    release();
+    expect(chip.className).toBe("b");
+    expect(chip.getAttribute("aria-label")).toBe("two");
+    scope.remove();
+  });
+
+  it("skips in-place freezing for elements detached within the batch", async () => {
+    const { scope, section } = buildScreen();
+    const chip = document.createElement("div");
+    chip.className = "a";
+    section.appendChild(chip);
+    const release = createArrivalHold(scope);
+
+    chip.className = "b";
+    chip.remove();
+    await observerFlush();
+    // Detached before delivery: nothing to keep on glass.
+    expect(chip.className).toBe("b");
+    release();
+    scope.remove();
+  });
+
+  it("never re-parks a parked departure removed by a third party", async () => {
+    const { scope, section, skeleton } = buildScreen();
+    const release = createArrivalHold(scope);
+
+    const content = document.createElement("article");
+    section.replaceChild(content, skeleton);
+    await observerFlush();
+    expect(skeleton.parentNode).toBe(section);
+
+    // Something outside the hold rips the zombie out: it must stay out.
+    section.removeChild(skeleton);
+    await observerFlush();
+    expect(skeleton.parentNode).toBe(null);
+
+    release();
+    scope.remove();
+  });
+
+  it("release tolerates frozen elements that left the tree", async () => {
+    const { scope, section } = buildScreen();
+    const label = document.createElement("span");
+    label.textContent = "a";
+    const chip = document.createElement("div");
+    chip.className = "x";
+    section.appendChild(label);
+    section.appendChild(chip);
+    const release = createArrivalHold(scope);
+
+    label.firstChild!.nodeValue = "b";
+    chip.className = "y";
+    await observerFlush();
+    label.remove();
+    chip.remove();
+    await observerFlush();
+
+    expect(() => release()).not.toThrow();
+    scope.remove();
+  });
+
   it("parks a mid-flight swap in place and reflects it in one commit on release", async () => {
     const { scope, section, skeleton, trailing } = buildScreen();
     const release = createArrivalHold(scope);
