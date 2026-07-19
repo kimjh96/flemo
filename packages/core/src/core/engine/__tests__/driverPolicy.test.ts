@@ -94,12 +94,38 @@ describe("driverPolicy", () => {
 });
 
 describe("driverPolicy engine default", () => {
-  it("keeps the player off by default on every engine", () => {
+  it("keeps the player off by default on Blink (the compiled path composites there)", () => {
     const { storage } = memoryStorage();
-    // The compiled compositor drives by default everywhere; the player is a
-    // pinned diagnostic tier (see the driverPolicy file header).
     const policy = createDriverPolicy(storage);
     expect(policy.playerAllowed()).toBe(false);
+  });
+
+  it("a non-demotable player default survives stall strikes AND a persisted demotion", () => {
+    // The non-Blink wiring: WebKit presents the compiled path from the main
+    // thread (device-glass freeze-then-jump), so there is no better tier to
+    // demote to — chronic gaps must not flip the driver, and a demotion an
+    // older version persisted is ignored.
+    const writes: string[] = [];
+    const storage: DriverPolicyStorage = {
+      read: () => "css", // an older version's persisted demotion
+      write: (next) => {
+        writes.push(next);
+      }
+    };
+    const policy = createDriverPolicy(storage, true, false);
+    expect(policy.playerAllowed()).toBe(true);
+
+    for (let run = 0; run < 4; run++) {
+      policy.beginRun();
+      policy.reportGap(65);
+      policy.reportGap(80);
+      policy.endRun();
+    }
+    expect(policy.playerAllowed()).toBe(true);
+    // Diagnostics keep counting; nothing was persisted by the runs.
+    expect(policy.stats().strikes).toBe(4);
+    expect(policy.stats().demoted).toBe(false);
+    expect(writes).toEqual([]);
   });
 
   it("the force key overrides the engine default in both directions, warning once", () => {

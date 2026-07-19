@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import TaskManger from "@core/TaskManger";
 
@@ -12,6 +12,12 @@ import type { TransitionEngineDeps } from "@core/engine/types";
 // guard. jsdom has no Web Animations API, so the quarantine takes its
 // degraded path (attribute lifecycle only) unless a test stubs
 // `scope.getAnimations`.
+
+// These suites verify the COMPILED-CSS wiring (guard arming, cancel-resume,
+// the cut), and jsdom reads as non-Blink where the PLAYER now drives by
+// default — pin the compiled path explicitly.
+beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`));
+afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
 
 const landingFlush = () =>
   new Promise((resolve) =>
