@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import MusicRouter from "../../_demo/_music/_router/MusicRouter";
 import WalletRouter from "../../_demo/_wallet/_router/WalletRouter";
@@ -21,29 +21,61 @@ const BEZEL =
 
 const ROLL_SECONDS = 7;
 
-// Roll-phase continuity across freezes. The home screen freezes
-// (display: none) whenever another screen covers it, which terminates the
-// bezels' CSS animations; on every return they would restart from phase zero,
-// so the SAME card led the roll each time — a visible "reset to the music
-// app" right at the landing. Anchoring each mount's animation-delay to a
-// module epoch resumes the roll wherever it would have been had the screen
-// never frozen. Applied via ref callback: it runs client-side at commit,
-// before paint, so SSR markup stays phase-free and hydration never mismatches.
-const rollEpoch = Date.now();
-const applyRollPhase = (offsetSeconds: number) => (element: HTMLDivElement | null) => {
-  if (!element) return;
-  const elapsedSeconds = (Date.now() - rollEpoch) / 1000;
-  element.style.animationDelay = `${-((elapsedSeconds + offsetSeconds) % ROLL_SECONDS)}s`;
+// The shared roll clock: phase = ACCUMULATED RUNNING TIME, not wall time.
+// Two behaviors hang on that distinction:
+// - Hovering pauses the animation AND this clock, so un-hovering resumes the
+//   roll from the exact pose it paused at (a wall-clock phase teleported the
+//   paused cards on every re-render — the "hover snaps the demo" defect).
+// - Navigating away freezes the screen (display: none terminates CSS
+//   animations) but leaves the clock running, so a return re-anchors the roll
+//   as if it had carried on the whole time — never the same leading card, and
+//   no phase-zero reset at the landing.
+const rollClock = {
+  baseMs: 0,
+  runningSince: Date.now() as number | null,
+  phaseMs() {
+    return this.baseMs + (this.runningSince === null ? 0 : Date.now() - this.runningSince);
+  },
+  pause() {
+    if (this.runningSince === null) return;
+    this.baseMs += Date.now() - this.runningSince;
+    this.runningSince = null;
+  },
+  resume() {
+    if (this.runningSince === null) this.runningSince = Date.now();
+  }
 };
+
+const rollDelay = (offsetSeconds: number) =>
+  `${-((rollClock.phaseMs() / 1000 + offsetSeconds) % ROLL_SECONDS)}s`;
 
 function HeroDemo({ active }: HeroDemoProps) {
   const [interacting, setInteracting] = useState(false);
+  const walletBezelRef = useRef<HTMLDivElement | null>(null);
+  const musicBezelRef = useRef<HTMLDivElement | null>(null);
 
   const handlePointerEnter = () => setInteracting(true);
   const handlePointerLeave = () => setInteracting(false);
 
   const playState = interacting ? "paused" : "running";
   const playing = active && !interacting;
+
+  // Align the CSS animations to the shared clock at mount, at every unfreeze
+  // (Activity re-runs effects), and at every hover release — and ONLY then.
+  // While paused nothing may touch the delay: the pose must stand still.
+  // Client-only and pre-paint, so SSR markup stays phase-free and hydration
+  // never mismatches.
+  useLayoutEffect(() => {
+    if (interacting) {
+      rollClock.pause();
+      return;
+    }
+    rollClock.resume();
+    if (walletBezelRef.current) walletBezelRef.current.style.animationDelay = rollDelay(0);
+    if (musicBezelRef.current) {
+      musicBezelRef.current.style.animationDelay = rollDelay(ROLL_SECONDS / 2);
+    }
+  }, [interacting]);
 
   return (
     <div
@@ -62,7 +94,7 @@ function HeroDemo({ active }: HeroDemoProps) {
           className="absolute inset-x-0 top-0 h-[500px] translate-x-[92px] translate-y-[80px] scale-[0.82] rounded-[34px] border border-white/20 bg-white/5 shadow-xl backdrop-blur-xl"
         />
         <div
-          ref={applyRollPhase(0)}
+          ref={walletBezelRef}
           className={BEZEL}
           style={{
             animation: "flemo-card-roll 7s ease-in-out infinite",
@@ -74,7 +106,7 @@ function HeroDemo({ active }: HeroDemoProps) {
           </div>
         </div>
         <div
-          ref={applyRollPhase(ROLL_SECONDS / 2)}
+          ref={musicBezelRef}
           className={BEZEL}
           style={{
             animation: "flemo-card-roll 7s ease-in-out infinite",
