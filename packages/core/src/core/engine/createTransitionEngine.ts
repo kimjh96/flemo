@@ -634,6 +634,25 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       watchdog = undefined;
     };
 
+    // The whole choreography's span can outlive the ACTIVE screen's own
+    // motion: a passive side or a <Part> with a longer registered duration
+    // was, until now, truncated mid-flight by the COMPLETED flip at the
+    // active animationend — visible as the part snapping right at the
+    // convergence (measured: a 0.6s part riding a 0.35s material screen cut
+    // at 58% of its motion). A CLEAN end now defers the task resolution by
+    // the difference (bounded below the liveness floor), so the full
+    // choreography plays; recovery paths (watchdog terminal, floor) still
+    // resolve immediately — something is already wrong there.
+    let choreographyExtraMs = 0;
+    let choreographyTimer: ReturnType<typeof setTimeout> | undefined;
+    const resolveAfterChoreography = () => {
+      if (choreographyExtraMs <= 0) {
+        resolve();
+        return;
+      }
+      choreographyTimer = setTimeout(resolve, choreographyExtraMs);
+    };
+
     // Detaches the scope's own cancel-resume + watchdog. Set once the recovery
     // is wired (below); a no-op until then and when the player drives. Called
     // on a clean end so a late stray cancel can't resolve a second time.
@@ -648,7 +667,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       scope.removeEventListener("animationend", onEnd);
       clearWatchdog();
       stopScopeRecovery();
-      resolve();
+      resolveAfterChoreography();
     };
     scope.addEventListener("animationend", onEnd);
 
@@ -682,6 +701,37 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const floor = flooredTaskId
       ? setTimeout(() => void TaskManger.resolveTask(flooredTaskId), settleMs)
       : undefined;
+
+    // Every participant of this STATUS with a registered motion — the passive
+    // screen variant plus both screens' parts (parts self-carry their variant
+    // attributes) — shared by the choreography-span deferral above and the
+    // perceptual cut below.
+    const passiveVariantKey = `${status}-false` as TransitionVariant;
+    const passiveMotion = variantHasAnimation(currentTransition, passiveVariantKey)
+      ? resolveVariantMotion(currentTransition, passiveVariantKey)
+      : null;
+    const statusPartMotions: { element: HTMLElement; motion: VariantMotion }[] = [];
+    for (const part of Array.from(
+      scope.ownerDocument.querySelectorAll<HTMLElement>(
+        `[${PART_NAME_ATTR}][data-flemo-status="${status}"]`
+      )
+    )) {
+      const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
+      const partVariant =
+        `${status}-${part.getAttribute("data-flemo-active")}` as TransitionVariant;
+      const partMotion =
+        definition && variantHasAnimation(definition, partVariant)
+          ? resolveVariantMotion(definition, partVariant)
+          : null;
+      if (partMotion) statusPartMotions.push({ element: part, motion: partMotion });
+    }
+    let participantSpanMs = passiveMotion
+      ? (passiveMotion.delay + passiveMotion.duration) * 1000
+      : 0;
+    for (const { motion } of statusPartMotions) {
+      participantSpanMs = Math.max(participantSpanMs, (motion.delay + motion.duration) * 1000);
+    }
+    choreographyExtraMs = Math.max(0, Math.min(1000, participantSpanMs - motionSpanMs));
 
     // Animation-signal loss recovery for the COMPILED-CSS path only. When the
     // rAF player drives, its own onComplete resolves and the join's
@@ -792,10 +842,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     if (recovering && flooredTaskId) {
       const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
       const activeCut = perceptualCutMs(activeMotion!, scope, dpr);
-      const passiveVariant = `${status}-false` as TransitionVariant;
-      const passiveMotion = variantHasAnimation(currentTransition, passiveVariant)
-        ? resolveVariantMotion(currentTransition, passiveVariant)
-        : null;
       // Both sides must be inside their bands before the COMPLETED flip cuts
       // them; an unanalyzable passive side vetoes. (Passive % distances
       // resolve against this scope's box — sibling screens share the
@@ -804,19 +850,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // Part ceiling: percentage distances resolve against each part's own
       // box, exactly as its compiled keyframes do.
       let partsCut: number | null = 0;
-      for (const part of Array.from(
-        scope.ownerDocument.querySelectorAll<HTMLElement>(
-          `[${PART_NAME_ATTR}][data-flemo-status="${status}"]`
-        )
-      )) {
-        const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
-        const partVariant =
-          `${status}-${part.getAttribute("data-flemo-active")}` as TransitionVariant;
-        const partMotion =
-          definition && variantHasAnimation(definition, partVariant)
-            ? resolveVariantMotion(definition, partVariant)
-            : null;
-        if (!partMotion) continue;
+      for (const { element: part, motion: partMotion } of statusPartMotions) {
         const partCut = perceptualCutMs(partMotion, part, dpr);
         if (partCut === null) {
           partsCut = null;
@@ -824,14 +858,14 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         }
         partsCut = Math.max(partsCut, partCut);
       }
-      // A ceiling at or past the natural span is pointless — animationend
-      // resolves there anyway (and today already truncates parts that outlive
-      // the screen's own motion).
+      // A ceiling at or past the choreography's natural span is pointless —
+      // the clean-end path (animationend + the choreography-span deferral)
+      // resolves there anyway.
       const cutMs =
         activeCut !== null && passiveCut !== null && partsCut !== null
           ? Math.max(activeCut, passiveCut, partsCut)
           : null;
-      if (cutMs !== null && cutMs + 17 < motionSpanMs) {
+      if (cutMs !== null && cutMs + 17 < motionSpanMs + choreographyExtraMs) {
         perceptualCut = setTimeout(() => {
           perceptualCut = undefined;
           if (!scopeIsLive()) return;
@@ -845,6 +879,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
 
     return () => {
       if (floor !== undefined) clearTimeout(floor);
+      if (choreographyTimer !== undefined) clearTimeout(choreographyTimer);
       clearPerceptualCut();
       scope.removeEventListener("animationend", onEnd);
       if (recovering) {

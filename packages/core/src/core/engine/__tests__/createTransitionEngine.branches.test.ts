@@ -800,6 +800,82 @@ describe("perceptual cut with participating parts", () => {
   });
 });
 
+describe("choreography-span deferral", () => {
+  it("defers the clean-end resolve until the longest part finishes", () => {
+    vi.useFakeTimers();
+    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    // A material-shaped screen (0.35s) with a 0.6s part: the part outlives
+    // the screen by 250ms, and the COMPLETED flip must wait for it.
+    transitionMap.set(
+      "short-screen" as never,
+      createTransition({
+        name: "short-screen" as never,
+        initial: { x: "100%" },
+        idle: { value: { x: 0 }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 0.35 } },
+        enterBack: { value: { x: "100%" }, options: { duration: 0.35 } },
+        exit: { value: { x: "-35%" }, options: { duration: 0.35 } },
+        exitBack: { value: { x: 0 }, options: { duration: 0.35 } }
+      })
+    );
+    partTransitionMap.set(
+      "long-part" as never,
+      createPartTransition({
+        name: "long-part" as never,
+        initial: { scale: 1 },
+        idle: { value: { scale: 1 }, options: { duration: 0 } },
+        enter: { value: { scale: 0.8 }, options: { duration: 0.6 } },
+        exit: { value: { scale: 1 }, options: { duration: 0.6 } }
+      })
+    );
+    try {
+      const { scope } = elements();
+      document.body.appendChild(scope);
+      const part = document.createElement("div");
+      part.setAttribute("data-flemo-part-name", "long-part");
+      part.setAttribute("data-flemo-status", "PUSHING");
+      part.setAttribute("data-flemo-active", "false");
+      scope.appendChild(part);
+      const resolveSpy = vi
+        .spyOn(TaskManger, "resolveTask")
+        .mockImplementation(() => Promise.resolve(true));
+      const d = deps();
+      d.getTransitionTaskId.mockReturnValue("defer-task" as never);
+      const engine = createTransitionEngine(d);
+      const cleanup = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "short-screen" as never,
+        prevTransitionName: "short-screen" as never,
+        status: "PUSHING",
+        isActive: true,
+        animHoldReleased: true
+      });
+
+      // Clean end of the SCREEN's animation at its natural 350ms.
+      scope.dispatchEvent(
+        animationEndEvent(animationName("screen", "short-screen", "PUSHING-true"))
+      );
+      // The task must NOT resolve yet: the 0.6s part is still mid-motion.
+      expect(resolveSpy).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(150);
+      expect(resolveSpy).not.toHaveBeenCalled();
+
+      // ...and resolves once the part's span has elapsed (extra = 250ms).
+      vi.advanceTimersByTime(120);
+      expect(resolveSpy).toHaveBeenCalledWith("defer-task");
+
+      cleanup();
+      resolveSpy.mockRestore();
+      scope.remove();
+    } finally {
+      transitionMap.delete("short-screen" as never);
+      partTransitionMap.delete("long-part" as never);
+      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("in-flight arrival hold wiring", () => {
   const observerFlush = () => new Promise((resolve) => setTimeout(resolve, 0));
   // The landing is deferred two frames past COMPLETED (off the convergence
