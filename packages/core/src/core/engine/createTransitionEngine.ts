@@ -778,8 +778,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // the release (the same commit that unpauses the animation), and DISARMED
     // the moment recovery touches the clock (a cancel-resume or watchdog
     // restart shifts presentation later than the wall-clock cut). <Part>
-    // choreography runs on its own registered timings this analysis cannot
-    // see, so any participating part vetoes the cut.
+    // choreography runs on its own registered timings, so every part
+    // participating in this STATUS — both screens' (parts self-carry their
+    // variant attributes) — contributes its own cut to the ceiling; a part
+    // whose motion cannot be analyzed vetoes the cut entirely.
     let perceptualCut: ReturnType<typeof setTimeout> | undefined;
     const clearPerceptualCut = () => {
       if (perceptualCut === undefined) return;
@@ -787,7 +789,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       perceptualCut = undefined;
     };
     disarmPerceptualCut = clearPerceptualCut;
-    if (recovering && flooredTaskId && collectVariantParts(scope, variantKey).length === 0) {
+    if (recovering && flooredTaskId) {
       const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
       const activeCut = perceptualCutMs(activeMotion!, scope, dpr);
       const passiveVariant = `${status}-false` as TransitionVariant;
@@ -799,8 +801,37 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // resolve against this scope's box — sibling screens share the
       // viewport.)
       const passiveCut = passiveMotion ? perceptualCutMs(passiveMotion, scope, dpr) : 0;
-      if (activeCut !== null && passiveCut !== null) {
-        const cutMs = Math.max(activeCut, passiveCut);
+      // Part ceiling: percentage distances resolve against each part's own
+      // box, exactly as its compiled keyframes do.
+      let partsCut: number | null = 0;
+      for (const part of Array.from(
+        scope.ownerDocument.querySelectorAll<HTMLElement>(
+          `[${PART_NAME_ATTR}][data-flemo-status="${status}"]`
+        )
+      )) {
+        const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
+        const partVariant =
+          `${status}-${part.getAttribute("data-flemo-active")}` as TransitionVariant;
+        const partMotion =
+          definition && variantHasAnimation(definition, partVariant)
+            ? resolveVariantMotion(definition, partVariant)
+            : null;
+        if (!partMotion) continue;
+        const partCut = perceptualCutMs(partMotion, part, dpr);
+        if (partCut === null) {
+          partsCut = null;
+          break;
+        }
+        partsCut = Math.max(partsCut, partCut);
+      }
+      // A ceiling at or past the natural span is pointless — animationend
+      // resolves there anyway (and today already truncates parts that outlive
+      // the screen's own motion).
+      const cutMs =
+        activeCut !== null && passiveCut !== null && partsCut !== null
+          ? Math.max(activeCut, passiveCut, partsCut)
+          : null;
+      if (cutMs !== null && cutMs + 17 < motionSpanMs) {
         perceptualCut = setTimeout(() => {
           perceptualCut = undefined;
           if (!scopeIsLive()) return;

@@ -686,6 +686,120 @@ describe("perceptual completion cut", () => {
   });
 });
 
+describe("perceptual cut with participating parts", () => {
+  const drive = (engine: ReturnType<typeof createTransitionEngine>, scope: HTMLElement) =>
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "PUSHING",
+      isActive: true,
+      animHoldReleased: true
+    });
+
+  const cutScope = () => {
+    const { scope } = elements();
+    Object.defineProperty(scope, "clientWidth", { value: 390, configurable: true });
+    Object.defineProperty(scope, "clientHeight", { value: 720, configurable: true });
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  const mountPart = (scope: HTMLElement, name: string) => {
+    const part = document.createElement("div");
+    part.setAttribute("data-flemo-part-name", name);
+    part.setAttribute("data-flemo-status", "PUSHING");
+    // createPartTransition maps the animated `enter` state to the -false side
+    // (the screen shifting into the background).
+    part.setAttribute("data-flemo-active", "false");
+    scope.appendChild(part);
+    return part;
+  };
+
+  it("raises the cut ceiling to a longer analyzable part motion", () => {
+    vi.useFakeTimers();
+    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    partTransitionMap.set(
+      "slow-fade" as never,
+      createPartTransition({
+        name: "slow-fade" as never,
+        initial: { opacity: 1 },
+        idle: { value: { opacity: 1 }, options: { duration: 0 } },
+        enter: { value: { opacity: 0 }, options: { duration: 0.66, ease: [0.32, 0.72, 0, 1] } },
+        exit: { value: { opacity: 1 }, options: { duration: 0.66, ease: [0.32, 0.72, 0, 1] } }
+      })
+    );
+    try {
+      const scope = cutScope();
+      mountPart(scope, "slow-fade");
+      const resolveSpy = vi
+        .spyOn(TaskManger, "resolveTask")
+        .mockImplementation(() => Promise.resolve(true));
+      const d = deps();
+      d.getTransitionTaskId.mockReturnValue("part-cut" as never);
+      const engine = createTransitionEngine(d);
+      const cleanup = drive(engine, scope);
+
+      // Past the screen's own cut point (~510ms) but inside the part's
+      // 0.66s fade: the ceiling must have moved past the screen's cut.
+      vi.advanceTimersByTime(530);
+      expect(resolveSpy).not.toHaveBeenCalled();
+
+      // Past the part's own sub-perceptual point (~580ms), still before the
+      // screen's 600ms animationend.
+      vi.advanceTimersByTime(110);
+      expect(resolveSpy).toHaveBeenCalledWith("part-cut");
+
+      cleanup();
+      resolveSpy.mockRestore();
+      scope.remove();
+    } finally {
+      partTransitionMap.delete("slow-fade" as never);
+      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      vi.useRealTimers();
+    }
+  });
+
+  it("vetoes the cut on an unanalyzable part motion", () => {
+    vi.useFakeTimers();
+    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    partTransitionMap.set(
+      "scaling-part" as never,
+      createPartTransition({
+        name: "scaling-part" as never,
+        initial: { scale: 0.8 },
+        idle: { value: { scale: 1 }, options: { duration: 0 } },
+        enter: { value: { scale: 1 }, options: { duration: 0.3 } },
+        exit: { value: { scale: 0.8 }, options: { duration: 0.3 } }
+      })
+    );
+    try {
+      const scope = cutScope();
+      mountPart(scope, "scaling-part");
+      const resolveSpy = vi
+        .spyOn(TaskManger, "resolveTask")
+        .mockImplementation(() => Promise.resolve(true));
+      const d = deps();
+      d.getTransitionTaskId.mockReturnValue("part-veto" as never);
+      const engine = createTransitionEngine(d);
+      const cleanup = drive(engine, scope);
+
+      // No cut fires inside the motion span (jsdom fires no animationend;
+      // the 850ms watchdog and 2100ms floor are the only other resolvers).
+      vi.advanceTimersByTime(800);
+      expect(resolveSpy).not.toHaveBeenCalled();
+
+      cleanup();
+      resolveSpy.mockRestore();
+      scope.remove();
+    } finally {
+      partTransitionMap.delete("scaling-part" as never);
+      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("in-flight arrival hold wiring", () => {
   const observerFlush = () => new Promise((resolve) => setTimeout(resolve, 0));
   // The landing is deferred two frames past COMPLETED (off the convergence
