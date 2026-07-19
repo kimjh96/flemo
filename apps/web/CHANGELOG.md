@@ -1,5 +1,17 @@
 # @flemo/web
 
+## 0.10.2
+
+### Patch Changes
+
+- [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6) Keep the hero demo's card-roll phase across screen freezes: returning to home no longer resets the roll to the same leading card, and the landing no longer shows a pose jump.
+
+- [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6) Make the playground panel-title scrub read as continuous under slow swipes: the travel grows to 18px and the recovery compresses into the drag's first 60%, so the title advances about one pixel per 13px of drag instead of one per 39px.
+- Updated dependencies ([`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6)):
+  - @flemo/core@1.20.0
+  - @flemo/react@1.7.2
+  - @flemo/react-layout@0.1.36
+
 ## 0.10.1
 
 ### Patch Changes

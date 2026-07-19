@@ -1,5 +1,13 @@
 # @flemo/react
 
+## 1.7.2
+
+### Patch Changes
+
+- [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6) Keep the convergence frames light. Resting screens deeper than the transition pair no longer re-render on status flips (previously an O(depth) re-render plus attribute-write storm landed exactly on the final frames of every navigation), and the in-flight landing now presents two frames after COMPLETED instead of inside the convergence commit — with an immediate land if a new navigation starts first.
+- Updated dependencies ([`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6)):
+  - @flemo/core@1.20.0
+
 ## 1.7.1
 
 ### Patch Changes
