@@ -12,12 +12,15 @@ module.exports = [
     // framework-neutral engine (lifecycle, swipe, bar-riding, screen store,
     // navigation controller, popstate bridge), core now also carries the rAF
     // motion engine (transition player, driver policy, cubic-bezier solver,
-    // variant motion). Current baseline: ~15.0 KB by CI's size-limit run,
-    // ~18.2 KB by a local run on a byte-identical dist (measurement-toolchain
-    // variance, cause unresolved) — the budget leaves headroom above the
-    // LARGER ruler so the gate can't flap across environments while still
-    // tripping on a multi-KB accidental balloon.
-    limit: "22 KB",
+    // variant motion) and the in-flight glass-integrity machinery (commit
+    // hold, perceptual completion cut) — the latter pushed the local ruler to
+    // ~22.3 KB, a deliberate +0.6 KB for measured judder mechanisms. Current
+    // baseline: ~18.7 KB by CI's size-limit run, ~22.3 KB by a local run on a
+    // byte-identical dist (measurement-toolchain variance, cause unresolved)
+    // — the budget leaves headroom above the LARGER ruler so the gate can't
+    // flap across environments while still tripping on a multi-KB accidental
+    // balloon.
+    limit: "24 KB",
     gzip: true
   },
   {

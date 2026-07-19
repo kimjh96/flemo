@@ -19,6 +19,23 @@ export interface HeroDemoProps {
 const BEZEL =
   "absolute inset-x-0 top-0 h-[500px] rounded-[34px] border border-white/30 bg-white/10 p-1.5 shadow-[0_34px_80px_-26px_rgba(15,23,42,0.55)] backdrop-blur-2xl";
 
+const ROLL_SECONDS = 7;
+
+// Roll-phase continuity across freezes. The home screen freezes
+// (display: none) whenever another screen covers it, which terminates the
+// bezels' CSS animations; on every return they would restart from phase zero,
+// so the SAME card led the roll each time — a visible "reset to the music
+// app" right at the landing. Anchoring each mount's animation-delay to a
+// module epoch resumes the roll wherever it would have been had the screen
+// never frozen. Applied via ref callback: it runs client-side at commit,
+// before paint, so SSR markup stays phase-free and hydration never mismatches.
+const rollEpoch = Date.now();
+const applyRollPhase = (offsetSeconds: number) => (element: HTMLDivElement | null) => {
+  if (!element) return;
+  const elapsedSeconds = (Date.now() - rollEpoch) / 1000;
+  element.style.animationDelay = `${-((elapsedSeconds + offsetSeconds) % ROLL_SECONDS)}s`;
+};
+
 function HeroDemo({ active }: HeroDemoProps) {
   const [interacting, setInteracting] = useState(false);
 
@@ -45,6 +62,7 @@ function HeroDemo({ active }: HeroDemoProps) {
           className="absolute inset-x-0 top-0 h-[500px] translate-x-[92px] translate-y-[80px] scale-[0.82] rounded-[34px] border border-white/20 bg-white/5 shadow-xl backdrop-blur-xl"
         />
         <div
+          ref={applyRollPhase(0)}
           className={BEZEL}
           style={{
             animation: "flemo-card-roll 7s ease-in-out infinite",
@@ -56,9 +74,10 @@ function HeroDemo({ active }: HeroDemoProps) {
           </div>
         </div>
         <div
+          ref={applyRollPhase(ROLL_SECONDS / 2)}
           className={BEZEL}
           style={{
-            animation: "flemo-card-roll 7s ease-in-out -3.5s infinite",
+            animation: "flemo-card-roll 7s ease-in-out infinite",
             animationPlayState: playState
           }}
         >

@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import TaskManger from "@core/TaskManger";
+
 import { animationName } from "@transition/compileTransitionStyles";
 
 import createTransition from "@transition/createTransition";
@@ -13,8 +15,8 @@ import { partTransitionMap } from "@transition/partTransition/partTransition";
 // jsdom reads as non-Blink (no navigator.userAgentData), where the player
 // defaults OFF; these suites exercise the player paths, so pin it on via
 // the diagnostic force key.
-beforeAll(() => localStorage.setItem("flemo:motion-driver-force", "raf"));
-afterAll(() => localStorage.removeItem("flemo:motion-driver-force"));
+beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", "raf"));
+afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
 
 const deps = () => ({
   getTransitionTaskId: vi.fn(() => null),
@@ -557,5 +559,465 @@ describe("createTransitionEngine gate-phase reporting", () => {
 
     held.mockRestore();
     anchored.mockRestore();
+  });
+});
+
+describe("reveal-shaped transitions (active no-op, passive animated)", () => {
+  // The transition's whole visible motion lives on the EXIT side (the old
+  // screen animates out above the standing new one). A microtask resolve
+  // would flip COMPLETED instantly and cut that exit off — the task must span
+  // the passive variant's motion, armed at the hold release.
+  it("spans the passive exit instead of resolving on a microtask", async () => {
+    vi.useFakeTimers();
+    const TaskManger = (await import("@core/TaskManger")).default;
+    const resolveSpy = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
+    transitionMap.set(
+      "reveal-branch" as never,
+      createTransition({
+        name: "reveal-branch" as never,
+        initial: { x: 0 },
+        idle: { value: { x: 0 }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 0 } },
+        enterBack: { value: { x: 0 }, options: { duration: 0 } },
+        exit: { value: { opacity: 0 }, options: { duration: 0.15 } },
+        exitBack: { value: { opacity: 0 }, options: { duration: 0.15 } }
+      })
+    );
+    try {
+      const { scope } = elements();
+      const d = { ...deps(), getTransitionTaskId: vi.fn(() => "reveal-task") };
+      const engine = createTransitionEngine(d);
+
+      // Pre-release: the span must not arm yet (a heavy pre-release commit
+      // delays the exit; resolving on the original clock would truncate it).
+      const preRelease = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "reveal-branch" as never,
+        prevTransitionName: "reveal-branch" as never,
+        status: "REPLACING",
+        isActive: true,
+        animHoldReleased: false
+      });
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(resolveSpy).not.toHaveBeenCalled();
+      preRelease();
+
+      // Released: the task resolves after the passive motion span (+margin),
+      // never on a microtask.
+      const released = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "reveal-branch" as never,
+        prevTransitionName: "reveal-branch" as never,
+        status: "REPLACING",
+        isActive: true,
+        animHoldReleased: true
+      });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(resolveSpy).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(150);
+      expect(resolveSpy).toHaveBeenCalledWith("reveal-task");
+      released();
+
+      // Cleanup cancels a pending span (interrupt safety).
+      const interrupted = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "reveal-branch" as never,
+        prevTransitionName: "reveal-branch" as never,
+        status: "REPLACING",
+        isActive: true,
+        animHoldReleased: true
+      });
+      interrupted();
+      resolveSpy.mockClear();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(resolveSpy).not.toHaveBeenCalled();
+    } finally {
+      resolveSpy.mockRestore();
+      transitionMap.delete("reveal-branch" as never);
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("perceptual completion cut", () => {
+  it("resolves the task once remaining motion is sub-pixel, before animationend", async () => {
+    vi.useFakeTimers();
+    // The cut is compiled-CSS-path only; this file pins the raf player in
+    // beforeAll, so pin css for this test.
+    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    try {
+      const { scope } = elements();
+      // jsdom boxes measure 0: give the scope a real width so percentage
+      // distances resolve.
+      Object.defineProperty(scope, "clientWidth", { value: 390, configurable: true });
+      Object.defineProperty(scope, "clientHeight", { value: 720, configurable: true });
+      document.body.appendChild(scope);
+      const resolveSpy = vi
+        .spyOn(TaskManger, "resolveTask")
+        .mockImplementation(() => Promise.resolve(true));
+      const d = deps();
+      d.getTransitionTaskId.mockReturnValue("cut-task" as never);
+      const engine = createTransitionEngine(d);
+      const cleanup = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: "PUSHING",
+        isActive: true,
+        animHoldReleased: true
+      });
+
+      // Well inside the visible motion: no cut yet.
+      vi.advanceTimersByTime(420);
+      expect(resolveSpy).not.toHaveBeenCalled();
+
+      // Past the sub-pixel point (but before the 600ms animationend, which
+      // jsdom never fires): the cut resolves the task.
+      vi.advanceTimersByTime(200);
+      expect(resolveSpy).toHaveBeenCalledWith("cut-task");
+
+      cleanup();
+      resolveSpy.mockRestore();
+      scope.remove();
+    } finally {
+      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("perceptual cut with participating parts", () => {
+  const drive = (engine: ReturnType<typeof createTransitionEngine>, scope: HTMLElement) =>
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "PUSHING",
+      isActive: true,
+      animHoldReleased: true
+    });
+
+  const cutScope = () => {
+    const { scope } = elements();
+    Object.defineProperty(scope, "clientWidth", { value: 390, configurable: true });
+    Object.defineProperty(scope, "clientHeight", { value: 720, configurable: true });
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  const mountPart = (scope: HTMLElement, name: string) => {
+    const part = document.createElement("div");
+    part.setAttribute("data-flemo-part-name", name);
+    part.setAttribute("data-flemo-status", "PUSHING");
+    // createPartTransition maps the animated `enter` state to the -false side
+    // (the screen shifting into the background).
+    part.setAttribute("data-flemo-active", "false");
+    scope.appendChild(part);
+    return part;
+  };
+
+  it("raises the cut ceiling to a longer analyzable part motion", () => {
+    vi.useFakeTimers();
+    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    partTransitionMap.set(
+      "slow-fade" as never,
+      createPartTransition({
+        name: "slow-fade" as never,
+        initial: { opacity: 1 },
+        idle: { value: { opacity: 1 }, options: { duration: 0 } },
+        enter: { value: { opacity: 0 }, options: { duration: 0.66, ease: [0.32, 0.72, 0, 1] } },
+        exit: { value: { opacity: 1 }, options: { duration: 0.66, ease: [0.32, 0.72, 0, 1] } }
+      })
+    );
+    try {
+      const scope = cutScope();
+      mountPart(scope, "slow-fade");
+      const resolveSpy = vi
+        .spyOn(TaskManger, "resolveTask")
+        .mockImplementation(() => Promise.resolve(true));
+      const d = deps();
+      d.getTransitionTaskId.mockReturnValue("part-cut" as never);
+      const engine = createTransitionEngine(d);
+      const cleanup = drive(engine, scope);
+
+      // Past the screen's own cut point (~510ms) but inside the part's
+      // 0.66s fade: the ceiling must have moved past the screen's cut.
+      vi.advanceTimersByTime(530);
+      expect(resolveSpy).not.toHaveBeenCalled();
+
+      // Past the part's own sub-perceptual point (~580ms), still before the
+      // screen's 600ms animationend.
+      vi.advanceTimersByTime(110);
+      expect(resolveSpy).toHaveBeenCalledWith("part-cut");
+
+      cleanup();
+      resolveSpy.mockRestore();
+      scope.remove();
+    } finally {
+      partTransitionMap.delete("slow-fade" as never);
+      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      vi.useRealTimers();
+    }
+  });
+
+  it("vetoes the cut on an unanalyzable part motion", () => {
+    vi.useFakeTimers();
+    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    partTransitionMap.set(
+      "scaling-part" as never,
+      createPartTransition({
+        name: "scaling-part" as never,
+        initial: { scale: 0.8 },
+        idle: { value: { scale: 1 }, options: { duration: 0 } },
+        enter: { value: { scale: 1 }, options: { duration: 0.3 } },
+        exit: { value: { scale: 0.8 }, options: { duration: 0.3 } }
+      })
+    );
+    try {
+      const scope = cutScope();
+      mountPart(scope, "scaling-part");
+      const resolveSpy = vi
+        .spyOn(TaskManger, "resolveTask")
+        .mockImplementation(() => Promise.resolve(true));
+      const d = deps();
+      d.getTransitionTaskId.mockReturnValue("part-veto" as never);
+      const engine = createTransitionEngine(d);
+      const cleanup = drive(engine, scope);
+
+      // No cut fires inside the motion span (jsdom fires no animationend;
+      // the 850ms watchdog and 2100ms floor are the only other resolvers).
+      vi.advanceTimersByTime(800);
+      expect(resolveSpy).not.toHaveBeenCalled();
+
+      cleanup();
+      resolveSpy.mockRestore();
+      scope.remove();
+    } finally {
+      partTransitionMap.delete("scaling-part" as never);
+      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("choreography-span deferral", () => {
+  it("defers the clean-end resolve until the longest part finishes", () => {
+    vi.useFakeTimers();
+    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    // A material-shaped screen (0.35s) with a 0.6s part: the part outlives
+    // the screen by 250ms, and the COMPLETED flip must wait for it.
+    transitionMap.set(
+      "short-screen" as never,
+      createTransition({
+        name: "short-screen" as never,
+        initial: { x: "100%" },
+        idle: { value: { x: 0 }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 0.35 } },
+        enterBack: { value: { x: "100%" }, options: { duration: 0.35 } },
+        exit: { value: { x: "-35%" }, options: { duration: 0.35 } },
+        exitBack: { value: { x: 0 }, options: { duration: 0.35 } }
+      })
+    );
+    partTransitionMap.set(
+      "long-part" as never,
+      createPartTransition({
+        name: "long-part" as never,
+        initial: { scale: 1 },
+        idle: { value: { scale: 1 }, options: { duration: 0 } },
+        enter: { value: { scale: 0.8 }, options: { duration: 0.6 } },
+        exit: { value: { scale: 1 }, options: { duration: 0.6 } }
+      })
+    );
+    try {
+      const { scope } = elements();
+      document.body.appendChild(scope);
+      const part = document.createElement("div");
+      part.setAttribute("data-flemo-part-name", "long-part");
+      part.setAttribute("data-flemo-status", "PUSHING");
+      part.setAttribute("data-flemo-active", "false");
+      scope.appendChild(part);
+      const resolveSpy = vi
+        .spyOn(TaskManger, "resolveTask")
+        .mockImplementation(() => Promise.resolve(true));
+      const d = deps();
+      d.getTransitionTaskId.mockReturnValue("defer-task" as never);
+      const engine = createTransitionEngine(d);
+      const cleanup = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "short-screen" as never,
+        prevTransitionName: "short-screen" as never,
+        status: "PUSHING",
+        isActive: true,
+        animHoldReleased: true
+      });
+
+      // Clean end of the SCREEN's animation at its natural 350ms.
+      scope.dispatchEvent(
+        animationEndEvent(animationName("screen", "short-screen", "PUSHING-true"))
+      );
+      // The task must NOT resolve yet: the 0.6s part is still mid-motion.
+      expect(resolveSpy).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(150);
+      expect(resolveSpy).not.toHaveBeenCalled();
+
+      // ...and resolves once the part's span has elapsed (extra = 250ms).
+      vi.advanceTimersByTime(120);
+      expect(resolveSpy).toHaveBeenCalledWith("defer-task");
+
+      cleanup();
+      resolveSpy.mockRestore();
+      scope.remove();
+    } finally {
+      transitionMap.delete("short-screen" as never);
+      partTransitionMap.delete("long-part" as never);
+      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("in-flight arrival hold wiring", () => {
+  const observerFlush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  // The landing is deferred two frames past COMPLETED (off the convergence
+  // commit); tests flush both rAFs plus a macrotask.
+  const landingFlush = () =>
+    new Promise((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 0)))
+    );
+
+  it("holds a mid-flight swap on the entering screen and reflects it at COMPLETED", async () => {
+    const { scope } = elements();
+    document.body.appendChild(scope);
+    const skeleton = document.createElement("div");
+    scope.appendChild(skeleton);
+    const engine = createTransitionEngine(deps());
+
+    // Pre-release run: the screen is parked under a cover, landings are
+    // invisible — no hold yet.
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "PUSHING",
+      isActive: true,
+      animHoldReleased: false
+    });
+    const early = document.createElement("aside");
+    scope.appendChild(early);
+    await observerFlush();
+    expect(early.hasAttribute("data-flemo-held-arrival")).toBe(false);
+
+    // Post-release run arms the hold; a Suspense-style swap parks.
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "PUSHING",
+      isActive: true,
+      animHoldReleased: true
+    });
+    const content = document.createElement("article");
+    scope.replaceChild(content, skeleton);
+    await observerFlush();
+    expect(content.hasAttribute("data-flemo-held-arrival")).toBe(true);
+    expect(skeleton.parentNode).toBe(scope);
+
+    // COMPLETED lands the swap two frames later, off the convergence commit.
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "COMPLETED",
+      isActive: true,
+      animHoldReleased: true
+    });
+    expect(content.hasAttribute("data-flemo-held-arrival")).toBe(true);
+    await landingFlush();
+    expect(skeleton.parentNode).toBe(null);
+    expect(content.hasAttribute("data-flemo-held-arrival")).toBe(false);
+    scope.remove();
+  });
+
+  it("holds on the pop destination (passive cold side) and releases on its COMPLETED", async () => {
+    const { scope } = elements();
+    document.body.appendChild(scope);
+    const engine = createTransitionEngine(deps());
+
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "POPPING",
+      isActive: false,
+      animHoldReleased: true
+    });
+    const refreshed = document.createElement("article");
+    scope.appendChild(refreshed);
+    await observerFlush();
+    expect(refreshed.hasAttribute("data-flemo-held-arrival")).toBe(true);
+
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "COMPLETED",
+      isActive: false,
+      animHoldReleased: true
+    });
+    await landingFlush();
+    expect(refreshed.hasAttribute("data-flemo-held-arrival")).toBe(false);
+    scope.remove();
+  });
+
+  it("lands a pending deferred landing before a new transition's first frame", async () => {
+    const { scope } = elements();
+    document.body.appendChild(scope);
+    const skeleton = document.createElement("div");
+    scope.appendChild(skeleton);
+    const engine = createTransitionEngine(deps());
+    const drive = (status: "PUSHING" | "COMPLETED", isActive: boolean) =>
+      engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status,
+        isActive,
+        animHoldReleased: true
+      });
+
+    drive("PUSHING", true);
+    const content = document.createElement("article");
+    scope.replaceChild(content, skeleton);
+    await observerFlush();
+    expect(content.hasAttribute("data-flemo-held-arrival")).toBe(true);
+
+    // COMPLETED schedules the landing; a new navigation starts immediately,
+    // BEFORE the two-frame window elapses.
+    drive("COMPLETED", true);
+    drive("PUSHING", true);
+    // The pending landing must have been applied synchronously at re-arm.
+    expect(skeleton.parentNode).toBe(null);
+    expect(content.hasAttribute("data-flemo-held-arrival")).toBe(false);
+    scope.remove();
+  });
+
+  it("never holds on the warm exiting side", async () => {
+    const { scope } = elements();
+    document.body.appendChild(scope);
+    const engine = createTransitionEngine(deps());
+
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "PUSHING",
+      isActive: false,
+      animHoldReleased: true
+    });
+    const live = document.createElement("article");
+    scope.appendChild(live);
+    await observerFlush();
+    expect(live.hasAttribute("data-flemo-held-arrival")).toBe(false);
+    scope.remove();
   });
 });

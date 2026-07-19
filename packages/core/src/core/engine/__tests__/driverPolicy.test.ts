@@ -89,10 +89,10 @@ describe("driverPolicy", () => {
 });
 
 describe("driverPolicy engine default", () => {
-  it("keeps the player off where the Blink evidence does not apply", () => {
+  it("keeps the player off by default on every engine", () => {
     const { storage } = memoryStorage();
-    // jsdom has no navigator.userAgentData -> detectBlinkEngine() is false,
-    // the same read a WebKit browser produces.
+    // The compiled compositor drives by default everywhere; the player is a
+    // pinned diagnostic tier (see the driverPolicy file header).
     const policy = createDriverPolicy(storage);
     expect(policy.playerAllowed()).toBe(false);
   });
@@ -101,7 +101,7 @@ describe("driverPolicy engine default", () => {
     const { storage } = memoryStorage();
     const nonBlink = createDriverPolicy(storage, false);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    localStorage.setItem("flemo:motion-driver-force", "raf");
+    sessionStorage.setItem("flemo:motion-driver-force", "raf");
     expect(nonBlink.playerAllowed()).toBe(true);
     // An active pin is never silent (a forgotten key reads as a mysterious
     // perf regression) — but it warns once per session, not per transition.
@@ -109,7 +109,7 @@ describe("driverPolicy engine default", () => {
     expect(warn.mock.calls[0]![0]).toContain("flemo:motion-driver-force");
     expect(nonBlink.playerAllowed()).toBe(true);
     expect(warn).toHaveBeenCalledTimes(1);
-    localStorage.removeItem("flemo:motion-driver-force");
+    sessionStorage.removeItem("flemo:motion-driver-force");
     expect(nonBlink.playerAllowed()).toBe(false);
     warn.mockRestore();
   });
@@ -131,15 +131,26 @@ describe("driverPolicy default storage", () => {
     const { storage } = memoryStorage("css"); // persisted demotion...
     const policy = createDriverPolicy(storage, true);
 
-    localStorage.setItem("flemo:motion-driver-force", "raf");
+    sessionStorage.setItem("flemo:motion-driver-force", "raf");
     expect(policy.playerAllowed()).toBe(true); // ...overridden to the player
 
-    localStorage.setItem("flemo:motion-driver-force", "css");
+    sessionStorage.setItem("flemo:motion-driver-force", "css");
     expect(policy.playerAllowed()).toBe(false); // pinned to CSS live
 
-    localStorage.setItem("flemo:motion-driver-force", "garbage");
+    sessionStorage.setItem("flemo:motion-driver-force", "garbage");
     expect(policy.playerAllowed()).toBe(true); // invalid value = no override
-    localStorage.removeItem("flemo:motion-driver-force");
+    sessionStorage.removeItem("flemo:motion-driver-force");
+  });
+
+  it("strips a legacy localStorage pin without honoring it", () => {
+    // The pin once lived in localStorage, where a forgotten debugging session
+    // kept pinning every future session. A legacy value must not drive the
+    // decision, and reading the policy must delete it so the profile heals.
+    const { storage } = memoryStorage();
+    const policy = createDriverPolicy(storage, false);
+    localStorage.setItem("flemo:motion-driver-force", "raf");
+    expect(policy.playerAllowed()).toBe(false); // never honored
+    expect(localStorage.getItem("flemo:motion-driver-force")).toBe(null); // healed
   });
 
   it("tolerates a throwing localStorage (embedder storage policies)", () => {

@@ -1,23 +1,27 @@
 // Evidence-based motion-driver policy.
 //
-// The rAF player's failure mode (main-thread stalls skipping its frames) is
-// SELF-MEASURABLE — its own frame gaps — while the compositor path's failure
-// (missed presentation under raster load) is invisible to JS entirely, which
-// is why the library defaults to the player and demotes on evidence, never
-// the other way around. A device whose main thread chronically starves the
-// player (long consumer commits mid-transition on low-end hardware) earns a
-// persisted demotion to the compiled-CSS animation path, which is preserved
-// intact as the fallback driver. No consumer API: the library observes and
-// decides.
-//
-// The default is ENGINE-SCOPED. The compositor defect the player routes
-// around was measured on Blink specifically; WebKit's compositor never showed
-// it (its historical failure — content-update stalls — is solved in the
-// hold/park/decode pipeline), while WebKit's mobile main threads are exactly
-// where a main-thread player starves, eye-confirmed janky on Safari and worse
-// on iOS. So the player is the default only where its evidence lives; on
-// every other engine the compiled compositor paths stay in charge, with the
-// measured policy and the force key still supreme on both sides.
+// The COMPILED COMPOSITOR path is the default screen-transition driver on
+// EVERY engine; the rAF player is a diagnostic tier behind the force pin. Two
+// pixel-level measurements settled this, both taken on real Chrome with
+// per-frame screencast diffing:
+// - Deceleration tail: the player's px-snapped inline writes move less than
+//   1px per frame near rest, so the presented frames alternate hold/1px-step
+//   (measured as ~0 / ~68k changed pixels, alternating) — a visible shiver.
+//   The compiled path on translate3d keyframes decays monotonically to rest.
+//   The Blink 2D-transform judder the player was ORIGINALLY built to route
+//   around disappeared when the keyframe compiler moved every translation to
+//   translate3d (direct texture-filtered compositing); the player outlived
+//   its evidence.
+// - Main-thread churn: under 20x CPU throttle a real app's transition window
+//   (query refetch + suspense commits) collapsed player-driven 150ms fades
+//   into 1-2 presented frames, while the compositor played every fade on
+//   time through 300ms stalls. A main-thread driver shares its thread with
+//   consumer work by construction; no probe can certify the future.
+// There is deliberately NO automatic driver switching, and none mid-flight:
+// the two paths have different clocks, easing evaluation, and write paths, so
+// any handoff during motion risks a visible seam. The pin picks one driver
+// for the whole session; the demotion machinery below still guards a pinned
+// player on a chronically-starved device.
 
 export interface DriverPolicyStorage {
   read: () => string | null;
@@ -30,7 +34,11 @@ const STORAGE_KEY = "flemo:motion-driver";
 // window.__flemoPlayerGaps): "css" pins the compiled-CSS path, "raf" pins the
 // player, bypassing measurement, strikes, and probation entirely. Read live on
 // every decision so a DevTools toggle takes effect on the next transition.
-// Not a consumer API — intentionally undocumented.
+// Not a consumer API — intentionally undocumented. SESSION storage on
+// purpose: a diagnostic pin must die with its debugging session. It once
+// lived in localStorage, where one forgotten toggle silently pinned every
+// future session — a stale "raf" pin kept reintroducing the player's
+// deceleration-tail shiver long after the default had moved on.
 const FORCE_KEY = "flemo:motion-driver-force";
 
 // Warn once per session while the pin is active: a forgotten force key reads
@@ -40,8 +48,16 @@ let warnedForcedDriver = false;
 
 const readForcedDriver = (): "css" | "raf" | null => {
   try {
-    if (typeof localStorage === "undefined") return null;
-    const value = localStorage.getItem(FORCE_KEY);
+    // Strip the legacy localStorage pin (see FORCE_KEY note) on every read:
+    // never honored, only removed, so an old profile self-heals on its next
+    // decision even if a stale tab rewrites it.
+    try {
+      if (typeof localStorage !== "undefined") localStorage.removeItem(FORCE_KEY);
+    } catch {
+      // Storage unavailable: nothing to heal.
+    }
+    if (typeof sessionStorage === "undefined") return null;
+    const value = sessionStorage.getItem(FORCE_KEY);
     if (value !== "css" && value !== "raf") return null;
     if (!warnedForcedDriver && typeof console !== "undefined") {
       warnedForcedDriver = true;
@@ -50,7 +66,7 @@ const readForcedDriver = (): "css" | "raf" | null => {
       // that a forgotten pin can never be silent.
       // eslint-disable-next-line no-console
       console.warn(
-        `[flemo] motion driver pinned to "${value}" via localStorage ${FORCE_KEY}; ` +
+        `[flemo] motion driver pinned to "${value}" via sessionStorage ${FORCE_KEY}; ` +
           "remove the key to restore automatic selection."
       );
     }
@@ -105,14 +121,14 @@ export interface DriverPolicy {
 
 // Engine probe, not a brand sniff: navigator.userAgentData ships with Blink
 // and nothing else — including iOS Chrome, which is WebKit underneath and
-// correctly reads as non-Blink here. Blink builds too old to have it predate
-// the measured defect profile and are better served by the compositor anyway.
+// correctly reads as non-Blink here. Kept for diagnostics; the DEFAULT driver
+// no longer branches on it (see the file header).
 export const detectBlinkEngine = (): boolean =>
   typeof navigator !== "undefined" && !!(navigator as { userAgentData?: unknown }).userAgentData;
 
 export const createDriverPolicy = (
   storage: DriverPolicyStorage = defaultStorage(),
-  playerByDefault: boolean = detectBlinkEngine()
+  playerByDefault: boolean = false
 ): DriverPolicy => {
   // A persisted demotion is PROBATION, not a life sentence: each new session
   // the player gets one probe transition. A clean probe clears the record —

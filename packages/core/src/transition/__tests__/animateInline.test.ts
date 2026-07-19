@@ -5,8 +5,8 @@ import animateInline, { clearInlineAnimation } from "@transition/animateInline";
 // jsdom reads as non-Blink (no navigator.userAgentData), where the player
 // defaults OFF; these suites exercise the player paths, so pin it on via
 // the diagnostic force key.
-beforeAll(() => localStorage.setItem("flemo:motion-driver-force", "raf"));
-afterAll(() => localStorage.removeItem("flemo:motion-driver-force"));
+beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", "raf"));
+afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
 
 const newDiv = () => {
   const el = document.createElement("div");
@@ -148,13 +148,13 @@ describe("animateInline", () => {
     el.animate = animate;
     // Engine default / demotion territory (e.g. WebKit): the compositor
     // drives the settle even though WAAPI exists.
-    localStorage.setItem("flemo:motion-driver-force", "css");
+    sessionStorage.setItem("flemo:motion-driver-force", "css");
 
     void animateInline(el, { x: 0 }, { duration: 0.3 });
     expect(animate).not.toHaveBeenCalled();
     expect(el.style.transition).toContain("transform");
 
-    localStorage.setItem("flemo:motion-driver-force", "raf");
+    sessionStorage.setItem("flemo:motion-driver-force", "raf");
   });
 
   it("an instant write takes over a live settle (re-grab semantics)", () => {

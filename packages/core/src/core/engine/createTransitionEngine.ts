@@ -7,7 +7,9 @@ import resolveTransition from "@transition/resolveTransition";
 import type { TransitionVariant } from "@transition/typing";
 import { resolveVariantMotion, type VariantMotion } from "@transition/variantMotion";
 
+import createArrivalHold from "@core/engine/arrivalHold";
 import driverPolicy from "@core/engine/driverPolicy";
+import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import transitionPlayers from "@core/engine/transitionPlayer";
 import {
   SKIP_ANIMATION_ATTR,
@@ -191,11 +193,83 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   // their counters live and die with the wiring closure.
   const activeResumeCounts = new Map<string, number>();
 
+  // The in-flight commit hold for this screen's CURRENT transition (see
+  // arrivalHold.ts). Engine-level, not per drive-run: the driver effect
+  // re-runs mid-transition (the anim-hold release), and the hold must span
+  // those re-runs and release only at COMPLETED or on an interrupt.
+  let releaseArrivalHold: (() => void) | null = null;
+  // A landing scheduled two frames past COMPLETED (see below). Tracked so a
+  // navigation starting inside that window can land it immediately instead of
+  // letting it punch into the new flight.
+  let pendingLanding: { land: () => void; cancel: () => void } | null = null;
+
+  const landNow = () => {
+    if (!pendingLanding) return;
+    const { land, cancel } = pendingLanding;
+    pendingLanding = null;
+    cancel();
+    land();
+  };
+
+  // The COMPLETED flip's commit is already the convergence frame's busiest
+  // moment (status re-renders, freeze of the covered screen, quarantine
+  // release); landing the held content there stacks a large reveal commit
+  // onto the exact frames the eye is watching settle. Two rAFs put the
+  // landing just past the last presented motion frame — visually still "at
+  // rest", but off the convergence commit. Without rAF (SSR/jsdom edge) the
+  // landing is immediate, which is the old behavior.
+  const scheduleLanding = (land: () => void) => {
+    if (typeof requestAnimationFrame !== "function") {
+      land();
+      return;
+    }
+    let handle = 0;
+    const cancel = () => cancelAnimationFrame(handle);
+    handle = requestAnimationFrame(() => {
+      handle = requestAnimationFrame(() => {
+        pendingLanding = null;
+        land();
+      });
+    });
+    pendingLanding = { land, cancel };
+  };
+
   const driveScreenLifecycle = (input: ScreenLifecycleInput): (() => void) => {
     const { getElements, transitionName, prevTransitionName, status, isActive, animHoldReleased } =
       input;
 
     const isTransitional = status === "PUSHING" || status === "POPPING" || status === "REPLACING";
+
+    // No content landing while the screen is in motion: the COLD side of a
+    // navigation (freshly-mounted enter on push/replace, unfreezing pop
+    // destination — the screens whose async data can resolve mid-flight)
+    // holds in-flight DOM swaps and reflects them at rest. Armed only once
+    // the anim-hold has released: before that the screen is parked under a
+    // cover, so a landing is invisible and reflecting it immediately is
+    // strictly better (content is ready earlier at zero visual cost).
+    const holdsArrivals =
+      isTransitional &&
+      animHoldReleased &&
+      (isActive ? status === "PUSHING" || status === "REPLACING" : status === "POPPING");
+    if (!holdsArrivals && releaseArrivalHold) {
+      // COMPLETED, IDLE, or an interrupt that flipped this screen's role.
+      const release = releaseArrivalHold;
+      releaseArrivalHold = null;
+      if (isTransitional) {
+        // Interrupt: a new transition owns the glass right now — land
+        // everything immediately, before its first frame.
+        release();
+      } else {
+        scheduleLanding(release);
+      }
+    }
+    if (holdsArrivals && !releaseArrivalHold) {
+      // A navigation starting inside a still-pending landing window: land it
+      // now so the deferred reveal can never punch into the new flight.
+      landNow();
+      const { scope } = getElements();
+      if (scope) releaseArrivalHold = createArrivalHold(scope);
+    }
 
     // Join this screen's participants (scope, riding bars, decorator) to the
     // navigation's shared player. The player covers every motion — numeric
@@ -483,8 +557,34 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const hasAnimation = !skipAnimation && variantHasAnimation(currentTransition, variantKey);
 
     if (!hasAnimation) {
-      // No animation will run for this variant. Resolve in a microtask so the
-      // binding's commit lands first and the navigation queue keeps advancing.
+      // A REVEAL-shaped transition: the active entering screen stands still
+      // (its enter is visually a no-op) while the PASSIVE side animates out
+      // above it — the transition's whole visible motion lives on the exit.
+      // Resolving on a microtask here would complete the task instantly and
+      // cut that exit off, so the task spans the passive variant's motion
+      // instead: armed at the hold release (a heavy pre-release commit then
+      // DELAYS the span, never truncates it), plus a small margin so the exit
+      // lands its final frame before the COMPLETED flip re-renders both
+      // screens. The engine watchdogs still net a lost exit animation.
+      if (!skipAnimation) {
+        const passiveVariant = `${status}-false` as TransitionVariant;
+        if (variantHasAnimation(currentTransition, passiveVariant)) {
+          if (!animHoldReleased) {
+            // Wait for the release commit; this effect re-runs with
+            // animHoldReleased=true and arms the span then.
+            if (flooredTaskId) TaskManger.markGateHeld(flooredTaskId);
+            return noop;
+          }
+          if (flooredTaskId) TaskManger.anchorGate(flooredTaskId);
+          const passiveMotion = resolveVariantMotion(currentTransition, passiveVariant)!;
+          const spanMs = (passiveMotion.delay + passiveMotion.duration) * 1000 + 50;
+          const spanTimer = setTimeout(resolve, spanMs);
+          return () => clearTimeout(spanTimer);
+        }
+      }
+      // No animation anywhere in this variant pair. Resolve in a microtask so
+      // the binding's commit lands first and the navigation queue keeps
+      // advancing.
       queueMicrotask(resolve);
       return noop;
     }
@@ -534,17 +634,40 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       watchdog = undefined;
     };
 
+    // The whole choreography's span can outlive the ACTIVE screen's own
+    // motion: a passive side or a <Part> with a longer registered duration
+    // was, until now, truncated mid-flight by the COMPLETED flip at the
+    // active animationend — visible as the part snapping right at the
+    // convergence (measured: a 0.6s part riding a 0.35s material screen cut
+    // at 58% of its motion). A CLEAN end now defers the task resolution by
+    // the difference (bounded below the liveness floor), so the full
+    // choreography plays; recovery paths (watchdog terminal, floor) still
+    // resolve immediately — something is already wrong there.
+    let choreographyExtraMs = 0;
+    let choreographyTimer: ReturnType<typeof setTimeout> | undefined;
+    const resolveAfterChoreography = () => {
+      if (choreographyExtraMs <= 0) {
+        resolve();
+        return;
+      }
+      choreographyTimer = setTimeout(resolve, choreographyExtraMs);
+    };
+
     // Detaches the scope's own cancel-resume + watchdog. Set once the recovery
     // is wired (below); a no-op until then and when the player drives. Called
     // on a clean end so a late stray cancel can't resolve a second time.
     let stopScopeRecovery = noop;
+    // Disarms the perceptual completion cut (wired below): any recovery event
+    // shifts real presentation later than the wall clock, so the cut must
+    // yield to animationend.
+    let disarmPerceptualCut = noop;
     const onEnd = (event: AnimationEvent) => {
       if (event.target !== scope) return;
       if (event.animationName !== expectedName) return;
       scope.removeEventListener("animationend", onEnd);
       clearWatchdog();
       stopScopeRecovery();
-      resolve();
+      resolveAfterChoreography();
     };
     scope.addEventListener("animationend", onEnd);
 
@@ -578,6 +701,37 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const floor = flooredTaskId
       ? setTimeout(() => void TaskManger.resolveTask(flooredTaskId), settleMs)
       : undefined;
+
+    // Every participant of this STATUS with a registered motion — the passive
+    // screen variant plus both screens' parts (parts self-carry their variant
+    // attributes) — shared by the choreography-span deferral above and the
+    // perceptual cut below.
+    const passiveVariantKey = `${status}-false` as TransitionVariant;
+    const passiveMotion = variantHasAnimation(currentTransition, passiveVariantKey)
+      ? resolveVariantMotion(currentTransition, passiveVariantKey)
+      : null;
+    const statusPartMotions: { element: HTMLElement; motion: VariantMotion }[] = [];
+    for (const part of Array.from(
+      scope.ownerDocument.querySelectorAll<HTMLElement>(
+        `[${PART_NAME_ATTR}][data-flemo-status="${status}"]`
+      )
+    )) {
+      const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
+      const partVariant =
+        `${status}-${part.getAttribute("data-flemo-active")}` as TransitionVariant;
+      const partMotion =
+        definition && variantHasAnimation(definition, partVariant)
+          ? resolveVariantMotion(definition, partVariant)
+          : null;
+      if (partMotion) statusPartMotions.push({ element: part, motion: partMotion });
+    }
+    let participantSpanMs = passiveMotion
+      ? (passiveMotion.delay + passiveMotion.duration) * 1000
+      : 0;
+    for (const { motion } of statusPartMotions) {
+      participantSpanMs = Math.max(participantSpanMs, (motion.delay + motion.duration) * 1000);
+    }
+    choreographyExtraMs = Math.max(0, Math.min(1000, participantSpanMs - motionSpanMs));
 
     // Animation-signal loss recovery for the COMPILED-CSS path only. When the
     // rAF player drives, its own onComplete resolves and the join's
@@ -626,6 +780,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // id — so the assertions can never fire.
       budgetUsed: () => activeResumeCounts.get(flooredTaskId!) ?? 0,
       spendBudget: () => {
+        disarmPerceptualCut();
         activeResumeCounts.set(flooredTaskId!, (activeResumeCounts.get(flooredTaskId!) ?? 0) + 1);
       },
       onTerminal: resolve
@@ -643,6 +798,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // Nothing ever ended: replay once from `from` on a fresh clock (the
         // resume's original-clock tracking is reset by fullRestart) and re-arm.
         watchdogRestarted = true;
+        disarmPerceptualCut();
         scopeResume.fullRestart();
         armWatchdog();
         return;
@@ -664,8 +820,67 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (flooredTaskId) armWatchdog();
     }
 
+    // Perceptual completion cut (see perceptualSpan.ts): once every animated
+    // channel of BOTH sides has permanently entered its imperceptibility band
+    // (< 1 device pixel / < one opacity step remaining), the rest of the
+    // clock presents nothing — resolve there and skip the sub-pixel shimmer
+    // window. Compiled-CSS path only (the player owns its own tail), armed at
+    // the release (the same commit that unpauses the animation), and DISARMED
+    // the moment recovery touches the clock (a cancel-resume or watchdog
+    // restart shifts presentation later than the wall-clock cut). <Part>
+    // choreography runs on its own registered timings, so every part
+    // participating in this STATUS — both screens' (parts self-carry their
+    // variant attributes) — contributes its own cut to the ceiling; a part
+    // whose motion cannot be analyzed vetoes the cut entirely.
+    let perceptualCut: ReturnType<typeof setTimeout> | undefined;
+    const clearPerceptualCut = () => {
+      if (perceptualCut === undefined) return;
+      clearTimeout(perceptualCut);
+      perceptualCut = undefined;
+    };
+    disarmPerceptualCut = clearPerceptualCut;
+    if (recovering && flooredTaskId) {
+      const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+      const activeCut = perceptualCutMs(activeMotion!, scope, dpr);
+      // Both sides must be inside their bands before the COMPLETED flip cuts
+      // them; an unanalyzable passive side vetoes. (Passive % distances
+      // resolve against this scope's box — sibling screens share the
+      // viewport.)
+      const passiveCut = passiveMotion ? perceptualCutMs(passiveMotion, scope, dpr) : 0;
+      // Part ceiling: percentage distances resolve against each part's own
+      // box, exactly as its compiled keyframes do.
+      let partsCut: number | null = 0;
+      for (const { element: part, motion: partMotion } of statusPartMotions) {
+        const partCut = perceptualCutMs(partMotion, part, dpr);
+        if (partCut === null) {
+          partsCut = null;
+          break;
+        }
+        partsCut = Math.max(partsCut, partCut);
+      }
+      // A ceiling at or past the choreography's natural span is pointless —
+      // the clean-end path (animationend + the choreography-span deferral)
+      // resolves there anyway.
+      const cutMs =
+        activeCut !== null && passiveCut !== null && partsCut !== null
+          ? Math.max(activeCut, passiveCut, partsCut)
+          : null;
+      if (cutMs !== null && cutMs + 17 < motionSpanMs + choreographyExtraMs) {
+        perceptualCut = setTimeout(() => {
+          perceptualCut = undefined;
+          if (!scopeIsLive()) return;
+          scope.removeEventListener("animationend", onEnd);
+          clearWatchdog();
+          stopScopeRecovery();
+          resolve();
+        }, cutMs + 17);
+      }
+    }
+
     return () => {
       if (floor !== undefined) clearTimeout(floor);
+      if (choreographyTimer !== undefined) clearTimeout(choreographyTimer);
+      clearPerceptualCut();
       scope.removeEventListener("animationend", onEnd);
       if (recovering) {
         scopeResume.detach();

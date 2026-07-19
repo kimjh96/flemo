@@ -77,6 +77,15 @@ const openPlaygroundWithCupertino = async (page: Page) => {
   await page.getByRole("button", { name: "Cupertino" }).first().click();
 };
 
+// The compositor is the DEFAULT driver on every engine (a main-thread player
+// cannot survive mid-transition consumer commits); the rAF player is an
+// explicitly-pinned tier. Player-mechanics guardrails opt in with the
+// diagnostic force key before the app boots.
+const openPlaygroundWithPinnedPlayer = async (page: Page) => {
+  await page.addInitScript(() => sessionStorage.setItem("flemo:motion-driver-force", "raf"));
+  await openPlaygroundWithCupertino(page);
+};
+
 test.describe("motion perception", () => {
   // INCIDENT: a one-sided variant property silently kept the exiting screen
   // on the CSS driver while the entering screen ran on the player — two
@@ -85,9 +94,9 @@ test.describe("motion perception", () => {
     page,
     browserName
   }) => {
-    test.skip(browserName === "webkit", "WebKit defaults to the compositor driver");
+    test.skip(browserName === "webkit", "the player tier is exercised on Blink");
     const { errors } = trackConsoleErrors(page);
-    await openPlaygroundWithCupertino(page);
+    await openPlaygroundWithPinnedPlayer(page);
 
     const sample = sampleTransition(page, 900);
     await page.getByRole("button", { name: "Next" }).click();
@@ -239,8 +248,9 @@ test.describe("motion perception", () => {
     page,
     browserName
   }) => {
-    test.skip(browserName === "webkit", "WebKit defaults to the compositor driver");
+    test.skip(browserName === "webkit", "the player tier is exercised on Blink");
     const { errors } = trackConsoleErrors(page);
+    await page.addInitScript(() => sessionStorage.setItem("flemo:motion-driver-force", "raf"));
     await page.goto("/playground");
     await expect(page.getByText("1", { exact: true }).first()).toBeVisible();
     await page.getByRole("button", { name: "Wipe" }).first().click();
@@ -288,8 +298,8 @@ test.describe("motion perception", () => {
   // compositor clock while their screen ran on the player — the mixed-clock
   // class, per part. Parts must join the shared player.
   test("a <Part> rides the player clock with its screen", async ({ page, browserName }) => {
-    test.skip(browserName === "webkit", "WebKit defaults to the compositor driver");
-    await openPlaygroundWithCupertino(page);
+    test.skip(browserName === "webkit", "the player tier is exercised on Blink");
+    await openPlaygroundWithPinnedPlayer(page);
 
     const sample = page.evaluate(() => {
       return new Promise<{ suppressedFrames: number; opacityValues: number }>((resolve) => {
@@ -330,8 +340,8 @@ test.describe("motion perception", () => {
     page,
     browserName
   }) => {
-    test.skip(browserName === "webkit", "WebKit defaults to the compositor driver");
-    await openPlaygroundWithCupertino(page);
+    test.skip(browserName === "webkit", "the player tier is exercised on Blink");
+    await openPlaygroundWithPinnedPlayer(page);
     await page.getByRole("button", { name: "Next" }).click();
     await page.waitForTimeout(900); // land on a non-root, swipeable screen
 
@@ -407,12 +417,12 @@ test.describe("motion perception", () => {
     expect(result.titleOpacities, "the part must recover with the drag").toBeGreaterThan(3);
   });
 
-  // The compositor defect the player routes around is Blink-specific: on
-  // WebKit the compiled CSS driver must stay the default (eye-confirmed: the
-  // main-thread player starves Safari, worst on iOS, while WebKit's
-  // compositor is healthy).
-  test("WebKit defaults to the compositor driver", async ({ page, browserName }) => {
-    test.skip(browserName !== "webkit", "engine-default assertion for WebKit");
+  // A main-thread player cannot survive mid-transition consumer commits
+  // (query-refetch renders, suspense data landing), and short transitions
+  // leave no room to recover from a single block — measured on production
+  // under CPU throttle. The compiled CSS compositor driver is therefore the
+  // default on EVERY engine; the player is an explicitly-pinned tier.
+  test("every engine defaults to the compositor driver", async ({ page }) => {
     const { errors } = trackConsoleErrors(page);
     await openPlaygroundWithCupertino(page);
 
@@ -452,7 +462,7 @@ test.describe("motion perception", () => {
     page.on("console", (message) => {
       if (message.type() === "warning") warnings.push(message.text());
     });
-    await page.evaluate(() => localStorage.setItem("flemo:motion-driver-force", "css"));
+    await page.evaluate(() => sessionStorage.setItem("flemo:motion-driver-force", "css"));
 
     const sample = sampleTransition(page, 900);
     await page.getByRole("button", { name: "Next" }).click();
@@ -464,7 +474,7 @@ test.describe("motion perception", () => {
       warnings.some((text) => text.includes("flemo:motion-driver-force")),
       "an active pin must announce itself in the console"
     ).toBe(true);
-    await page.evaluate(() => localStorage.removeItem("flemo:motion-driver-force"));
+    await page.evaluate(() => sessionStorage.removeItem("flemo:motion-driver-force"));
   });
 
   // INCIDENT: replay chains inherently stall a main-thread player (the next
@@ -472,8 +482,8 @@ test.describe("motion perception", () => {
   // as a slow device — a persisted, silent demotion that put the user's
   // whole session back on the janky compositor path.
   test("a back/forward storm never demotes the motion driver", async ({ page, browserName }) => {
-    test.skip(browserName === "webkit", "WebKit defaults to the compositor driver");
-    await openPlaygroundWithCupertino(page);
+    test.skip(browserName === "webkit", "the player tier is exercised on Blink");
+    await openPlaygroundWithPinnedPlayer(page);
 
     for (let i = 0; i < 3; i++) {
       await page.getByRole("button", { name: "Next" }).click();

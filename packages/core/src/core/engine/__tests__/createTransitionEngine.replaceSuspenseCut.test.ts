@@ -37,8 +37,8 @@ import type { TransitionEngineDeps } from "@core/engine/types";
 // recovery guards, and the path the affected device uses.
 // ─────────────────────────────────────────────────────────────────────────────
 
-beforeAll(() => localStorage.setItem("flemo:motion-driver-force", "raf"));
-afterAll(() => localStorage.removeItem("flemo:motion-driver-force"));
+beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", "raf"));
+afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
 
 const TAB = "tab-forward" as never;
 

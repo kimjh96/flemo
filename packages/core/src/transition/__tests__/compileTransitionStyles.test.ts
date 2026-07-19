@@ -937,3 +937,46 @@ describe("compileTransitionStyles bar transitions", () => {
     expect(block).not.toContain("@keyframes");
   });
 });
+
+describe("transition quarantine rule", () => {
+  it("suppresses consumer animations inside a navigation's cold screens, parts excepted", () => {
+    const css = compileTransitionStyles([], [], []);
+    // Fresh-mount sides only: the entering screen of a push/replace. The pop
+    // destination's animations restart at the unfreeze commit under the
+    // flight's own motion — quarantining them only moves the restart pose
+    // jump to the landing.
+    for (const [status, active] of [
+      ["PUSHING", "true"],
+      ["REPLACING", "true"]
+    ]) {
+      expect(css).toContain(
+        `[data-flemo-screen][data-flemo-status="${status}"][data-flemo-active="${active}"] :not([data-flemo-part-name])`
+      );
+    }
+    // The WARM exiting side keeps its animations (an infinite ambient
+    // animation there must not lose its phase).
+    expect(css).not.toContain('[data-flemo-status="PUSHING"][data-flemo-active="false"] :not');
+    expect(css).not.toContain('[data-flemo-status="REPLACING"][data-flemo-active="false"] :not');
+    expect(css).not.toContain('[data-flemo-status="POPPING"]');
+    // Pseudo-element coverage: shimmer-style consumer effects animate a
+    // ::before/::after, which the element-only descendant selector misses.
+    expect(css).toContain(":not([data-flemo-part-name])::before");
+    expect(css).toContain(":not([data-flemo-part-name])::after");
+    // `animation: none` (not paused): a paused animation still owns a
+    // compositor layer, and the layer storm is the measured cost.
+    const rule = css.slice(css.indexOf('[data-flemo-screen][data-flemo-status="PUSHING"]'));
+    expect(rule).toContain("animation: none !important;");
+    // No quarantine at rest: COMPLETED/IDLE must not appear in the rule.
+    expect(rule).not.toContain('data-flemo-status="COMPLETED"');
+    expect(rule).not.toContain('data-flemo-status="IDLE"');
+  });
+});
+
+describe("in-flight arrival hold rule", () => {
+  it("holds stamped arrivals off-glass", () => {
+    const css = compileTransitionStyles([], [], []);
+    const idx = css.indexOf("[data-flemo-held-arrival]");
+    expect(idx).toBeGreaterThan(-1);
+    expect(css.slice(idx)).toContain("display: none !important;");
+  });
+});

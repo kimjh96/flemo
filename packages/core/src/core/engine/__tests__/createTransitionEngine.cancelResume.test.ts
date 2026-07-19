@@ -24,8 +24,8 @@ import { partTransitionMap } from "@transition/partTransition/partTransition";
 // exactly the path this recovery guards.
 // ─────────────────────────────────────────────────────────────────────────────
 
-beforeAll(() => localStorage.setItem("flemo:motion-driver-force", "raf"));
-afterAll(() => localStorage.removeItem("flemo:motion-driver-force"));
+beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", "raf"));
+afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
 
 // delay 0, duration 0.15 → span 150ms, watchdog deadline 400ms. Mismatched
 // clipPath templates ("inset(0)" vs "inset(0 0 0 100%)") keep both sides on the
