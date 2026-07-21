@@ -33,7 +33,7 @@
     "lint-staged": "^17.0.8",
     "prettier": "^3.9.5",
     "size-limit": "^12.1.0",
-    "turbo": "^2.10.0"
+    "turbo": "^2.10.5"
   },
   "packageManager": "pnpm@11.9.0",
   "engines": {
