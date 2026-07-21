@@ -37,6 +37,23 @@
 
 export const HELD_ARRIVAL_ATTR = "data-flemo-held-arrival";
 
+// How long a landing will wait on held images' decodes at most. Decoding is
+// off-main-thread; the cap only bounds a pathological set. Mirrors the
+// anim-hold's decode cap (see animStartAnchor).
+export const LANDING_DECODE_CAP_MS = 150;
+
+export interface ArrivalHoldRelease {
+  (): void;
+  // Decode the held subtrees' images off-main before the landing commit.
+  // WebKit paints an undecoded image by SYNCHRONOUSLY decoding the full
+  // original on the main thread (profiled: RenderImage::paint →
+  // ShareableBitmap::createFromImagePixels → AppleJPEG decode — ~380ms for
+  // one production list's photos), so a landing that reveals images without
+  // decoding first stalls the exact frames the eye is watching settle.
+  // Bounded, and safe to skip (interrupt landings land immediately).
+  prepareLanding: () => Promise<void>;
+}
+
 interface TargetBatch {
   // Departure candidates in removal order (Element or Text).
   removed: Node[];
@@ -57,11 +74,48 @@ interface FrozenValue {
   pendingEcho: boolean;
 }
 
-export default function createArrivalHold(scope: HTMLElement): () => void {
-  if (typeof MutationObserver === "undefined") return () => {};
+export default function createArrivalHold(scope: HTMLElement): ArrivalHoldRelease {
+  if (typeof MutationObserver === "undefined") {
+    const noopRelease = (() => {}) as ArrivalHoldRelease;
+    noopRelease.prepareLanding = () => Promise.resolve();
+    return noopRelease;
+  }
 
   const heldArrivals = new Set<Element>();
   const parkedDepartures = new Set<Node>();
+  // The hold defers VISIBILITY, never LOADING. A held subtree is
+  // `display: none`, and a lazy image inside it stops loading entirely (no
+  // viewport intersection) — so the landing's one-commit reveal used to push
+  // every image into the viewport simultaneously: dozens of (cache-warm)
+  // loads + layouts synchronized into a single main-thread task. Measured on
+  // a production members list as a ~370ms stall right after the reveal — a
+  // stall the pre-hold library never had, because mid-flight commits loaded
+  // their images spread across the flight's frames. While held, lazy images
+  // flip to eager and decode off-glass; the landing restores the authored
+  // attribute in the same commit, with everything already fetched.
+  const eagerizedImages = new Set<HTMLImageElement>();
+  // Warm roughly a viewport's worth (the anim-hold's decode limit): eagerly
+  // loading EVERY below-fold lazy image hands WebKit's idle margin-tile
+  // prepaint hundreds of loaded-but-undecoded originals to synchronously
+  // decode — a rest stall this module would be creating itself.
+  const WARM_IMAGE_LIMIT = 20;
+  const warmHeldImages = (root: Element) => {
+    const images: HTMLImageElement[] = [];
+    if (root instanceof HTMLImageElement) images.push(root);
+    for (const image of Array.from(root.querySelectorAll("img"))) images.push(image);
+    for (const image of images) {
+      if (eagerizedImages.size >= WARM_IMAGE_LIMIT) break;
+      if (eagerizedImages.has(image)) continue;
+      if (image.getAttribute("loading") !== "lazy") continue;
+      eagerizedImages.add(image);
+      image.setAttribute("loading", "eager");
+      const decode = () => {
+        if (typeof image.decode === "function") image.decode().catch(() => {});
+      };
+      if (image.complete) decode();
+      else image.addEventListener("load", decode, { once: true });
+    }
+  };
   // Nodes this module re-inserted itself: their childList records must not be
   // re-processed as consumer arrivals when the observer delivers them.
   const selfInserted = new Set<Node>();
@@ -156,6 +210,7 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
         if (!(added instanceof Element)) continue;
         added.setAttribute(HELD_ARRIVAL_ATTR, "");
         heldArrivals.add(added);
+        warmHeldImages(added);
         batchOf(record.target).added.push(added);
       }
     }
@@ -222,7 +277,7 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
     attributeOldValue: true
   });
 
-  return () => {
+  const release = (() => {
     observer.disconnect();
     for (const parked of parkedDepartures) {
       parked.parentNode?.removeChild(parked);
@@ -232,6 +287,12 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
       held.removeAttribute(HELD_ARRIVAL_ATTR);
     }
     heldArrivals.clear();
+    // Give the images their authored attribute back in the same commit; the
+    // fetches the eager flip started are done (or in flight) either way.
+    for (const image of eagerizedImages) {
+      image.setAttribute("loading", "lazy");
+    }
+    eagerizedImages.clear();
     // Replay the latest in-place values the flight reverted, in this same
     // commit, so the DOM converges on what React last wrote.
     for (const [node, freeze] of textFreeze) {
@@ -247,5 +308,25 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
     }
     attrFreeze.clear();
     selfInserted.clear();
+  }) as ArrivalHoldRelease;
+
+  release.prepareLanding = () => {
+    const images: HTMLImageElement[] = [];
+    for (const held of heldArrivals) {
+      if (!held.isConnected) continue;
+      if (held instanceof HTMLImageElement) images.push(held);
+      for (const image of Array.from(held.querySelectorAll("img"))) images.push(image);
+    }
+    const decodable = images.filter(
+      (image) => image.complete && typeof image.decode === "function"
+    );
+    if (decodable.length === 0) return Promise.resolve();
+    const decodes = Promise.allSettled(decodable.map((image) => image.decode()));
+    const cap = new Promise<void>((resolve) => {
+      setTimeout(resolve, LANDING_DECODE_CAP_MS);
+    });
+    return Promise.race([decodes, cap]).then(() => {});
   };
+
+  return release;
 }

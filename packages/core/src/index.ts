@@ -154,6 +154,17 @@ export {
 export { default as observeBarHeight } from "@screen/observeBarHeight";
 export { default as observeViewportScrollHeight } from "@screen/observeViewportScrollHeight";
 
+// Off-main decode-to-scale for oversized images (WebKit decodes synchronously
+// on the main thread at full source resolution, recurringly; see the module).
+export {
+  default as ensureImageDecodeOffloader,
+  createImageDecodeOffloader,
+  shouldOffloadImage,
+  OVERSIZE_AREA_RATIO,
+  OFFLOADED_SRC_ATTR,
+  type OversizeInput
+} from "@core/engine/imageDecodeOffloader";
+
 // Transition types
 export type {
   RegisterTransition,

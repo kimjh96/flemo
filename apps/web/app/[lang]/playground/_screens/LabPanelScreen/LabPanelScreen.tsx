@@ -3,6 +3,7 @@
 import { Part, Screen, useParams, useStep } from "@flemo/react";
 
 import LabCodePanel from "../../_components/LabCodePanel";
+import LabRevealProbe from "../../_components/LabRevealProbe";
 import { gradientForHue, LAB_ITEMS } from "../../_data/labItems";
 import { useLabSettings } from "../../_providers/LabSettingsProvider";
 
@@ -67,6 +68,7 @@ function LabPanelScreen() {
       </div>
 
       <LabCodePanel slug={transition} open={open} onClose={handleCloseSource} />
+      <LabRevealProbe />
     </Screen>
   );
 }

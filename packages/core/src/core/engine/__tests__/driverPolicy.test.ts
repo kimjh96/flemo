@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createDriverPolicy,
   detectBlinkEngine,
+  FORCE_PIN_TTL_MS,
   type DriverPolicyStorage
 } from "@core/engine/driverPolicy";
 
@@ -93,19 +94,45 @@ describe("driverPolicy", () => {
 });
 
 describe("driverPolicy engine default", () => {
-  it("keeps the player off by default on every engine", () => {
+  it("keeps the player off by default on Blink (the compiled path composites there)", () => {
     const { storage } = memoryStorage();
-    // The compiled compositor drives by default everywhere; the player is a
-    // pinned diagnostic tier (see the driverPolicy file header).
     const policy = createDriverPolicy(storage);
     expect(policy.playerAllowed()).toBe(false);
+  });
+
+  it("a non-demotable player default survives stall strikes AND a persisted demotion", () => {
+    // The non-Blink wiring: WebKit presents the compiled path from the main
+    // thread (device-glass freeze-then-jump), so there is no better tier to
+    // demote to — chronic gaps must not flip the driver, and a demotion an
+    // older version persisted is ignored.
+    const writes: string[] = [];
+    const storage: DriverPolicyStorage = {
+      read: () => "css", // an older version's persisted demotion
+      write: (next) => {
+        writes.push(next);
+      }
+    };
+    const policy = createDriverPolicy(storage, true, false);
+    expect(policy.playerAllowed()).toBe(true);
+
+    for (let run = 0; run < 4; run++) {
+      policy.beginRun();
+      policy.reportGap(65);
+      policy.reportGap(80);
+      policy.endRun();
+    }
+    expect(policy.playerAllowed()).toBe(true);
+    // Diagnostics keep counting; nothing was persisted by the runs.
+    expect(policy.stats().strikes).toBe(4);
+    expect(policy.stats().demoted).toBe(false);
+    expect(writes).toEqual([]);
   });
 
   it("the force key overrides the engine default in both directions, warning once", () => {
     const { storage } = memoryStorage();
     const nonBlink = createDriverPolicy(storage, false);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    sessionStorage.setItem("flemo:motion-driver-force", "raf");
+    sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
     expect(nonBlink.playerAllowed()).toBe(true);
     // An active pin is never silent (a forgotten key reads as a mysterious
     // perf regression) — but it warns once per session, not per transition.
@@ -144,15 +171,34 @@ describe("driverPolicy default storage", () => {
     const { storage } = memoryStorage("css"); // persisted demotion...
     const policy = createDriverPolicy(storage, true);
 
-    sessionStorage.setItem("flemo:motion-driver-force", "raf");
+    sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
     expect(policy.playerAllowed()).toBe(true); // ...overridden to the player
 
-    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     expect(policy.playerAllowed()).toBe(false); // pinned to CSS live
 
     sessionStorage.setItem("flemo:motion-driver-force", "garbage");
     expect(policy.playerAllowed()).toBe(true); // invalid value = no override
-    sessionStorage.removeItem("flemo:motion-driver-force");
+    // ...and an invalid value is removed on sight, not left to linger.
+    expect(sessionStorage.getItem("flemo:motion-driver-force")).toBe(null);
+  });
+
+  it("ignores and removes an unstamped or expired session pin", () => {
+    // sessionStorage alone proved insufficient: mobile tab restoration
+    // resurrects it across days, and a stale plain "raf" pin from an old
+    // debugging session reproduced the player's whole delay/mid-start
+    // profile on a restored tab. Unstamped and expired pins are removed on
+    // the next decision so the profile self-heals.
+    const { storage } = memoryStorage();
+    const policy = createDriverPolicy(storage, false);
+
+    sessionStorage.setItem("flemo:motion-driver-force", "raf");
+    expect(policy.playerAllowed()).toBe(false); // plain legacy: never honored
+    expect(sessionStorage.getItem("flemo:motion-driver-force")).toBe(null); // healed
+
+    sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now() - FORCE_PIN_TTL_MS - 1}`);
+    expect(policy.playerAllowed()).toBe(false); // expired: never honored
+    expect(sessionStorage.getItem("flemo:motion-driver-force")).toBe(null); // healed
   });
 
   it("strips a legacy localStorage pin without honoring it", () => {

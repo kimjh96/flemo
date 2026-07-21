@@ -33,6 +33,95 @@ describe("createArrivalHold", () => {
     }
   });
 
+  it("keeps a held arrival's lazy images LOADING off-glass and restores the attribute at the landing", async () => {
+    // REGRESSION: `display: none` stops a lazy image's load entirely (no
+    // viewport intersection), so the landing's one-commit reveal used to push
+    // every image into the viewport at once — dozens of cache-warm loads and
+    // layouts synchronized into a single ~370ms main-thread task right where
+    // the user's next tap lands. The hold defers visibility, never loading.
+    const { scope, section, skeleton } = buildScreen();
+    const release = createArrivalHold(scope);
+
+    const arrival = document.createElement("div");
+    const lazyImage = document.createElement("img");
+    lazyImage.setAttribute("loading", "lazy");
+    const decode = vi.fn(() => Promise.resolve());
+    (lazyImage as unknown as { decode: () => Promise<void> }).decode = decode;
+    Object.defineProperty(lazyImage, "complete", { value: true, configurable: true });
+    const eagerImage = document.createElement("img");
+    eagerImage.setAttribute("loading", "eager");
+    arrival.append(lazyImage, eagerImage);
+    section.replaceChild(arrival, skeleton);
+    await observerFlush();
+
+    // Held off-glass, but fetching and decoding as if visible.
+    expect(arrival.hasAttribute(HELD_ARRIVAL_ATTR)).toBe(true);
+    expect(lazyImage.getAttribute("loading")).toBe("eager");
+    expect(decode).toHaveBeenCalledTimes(1);
+    // An authored-eager image is left alone.
+    expect(eagerImage.getAttribute("loading")).toBe("eager");
+
+    release();
+    // The authored attribute comes back in the landing commit.
+    expect(lazyImage.getAttribute("loading")).toBe("lazy");
+    expect(arrival.hasAttribute(HELD_ARRIVAL_ATTR)).toBe(false);
+    scope.remove();
+  });
+
+  it("prepareLanding decodes every held image off-main before the reveal", async () => {
+    // WebKit paints an undecoded image by synchronously decoding the FULL
+    // original on the main thread (profiled: RenderImage::paint → AppleJPEG,
+    // ~380ms for one production list's photos). The landing decodes first,
+    // bounded, so the reveal frame never carries that work.
+    const { scope, section, skeleton } = buildScreen();
+    const release = createArrivalHold(scope);
+
+    const arrival = document.createElement("div");
+    const image = document.createElement("img");
+    image.setAttribute("loading", "eager");
+    const decode = vi.fn(() => Promise.resolve());
+    (image as unknown as { decode: () => Promise<void> }).decode = decode;
+    Object.defineProperty(image, "complete", { value: true, configurable: true });
+    arrival.appendChild(image);
+    section.replaceChild(arrival, skeleton);
+    await observerFlush();
+    decode.mockClear(); // the hold-time warm-up decode is separate
+
+    await release.prepareLanding();
+    expect(decode).toHaveBeenCalledTimes(1);
+    release();
+    scope.remove();
+  });
+
+  it("prepareLanding resolves immediately with nothing decodable held", async () => {
+    const { scope } = buildScreen();
+    const release = createArrivalHold(scope);
+    await expect(release.prepareLanding()).resolves.toBeUndefined();
+    release();
+    scope.remove();
+  });
+
+  it("decodes a held lazy image once its pending load completes", async () => {
+    const { scope, section, skeleton } = buildScreen();
+    const release = createArrivalHold(scope);
+
+    const arrival = document.createElement("img");
+    arrival.setAttribute("loading", "lazy");
+    const decode = vi.fn(() => Promise.resolve());
+    (arrival as unknown as { decode: () => Promise<void> }).decode = decode;
+    Object.defineProperty(arrival, "complete", { value: false, configurable: true });
+    section.replaceChild(arrival, skeleton);
+    await observerFlush();
+
+    expect(arrival.getAttribute("loading")).toBe("eager");
+    expect(decode).not.toHaveBeenCalled();
+    arrival.dispatchEvent(new Event("load"));
+    expect(decode).toHaveBeenCalledTimes(1);
+
+    release();
+    scope.remove();
+  });
+
   it("ignores comment-node removals inside a swap batch", async () => {
     const { scope, section, skeleton } = buildScreen();
     const comment = document.createComment("marker");
