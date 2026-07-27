@@ -570,12 +570,7 @@ export const compileTransitionStyles = (
     }
   }
 
-  return [
-    ...blocks.filter((b) => b.length > 0),
-    ANIM_HOLD_RULE,
-    TRANSITION_QUARANTINE_RULE,
-    ARRIVAL_HOLD_RULE
-  ].join("\n\n");
+  return [...blocks.filter((b) => b.length > 0), ANIM_HOLD_RULE, ARRIVAL_HOLD_RULE].join("\n\n");
 };
 
 // A freshly-started transition animation is held paused while the binding
@@ -600,50 +595,13 @@ const ANIM_HOLD_RULE = [
   `}`
 ].join("\n");
 
-// Consumer-animation quarantine: while a navigation runs, no CSS animation
-// exists inside its COLD screens (their own <Part> elements excepted — that
-// choreography belongs to the transition). Profiled on device (iPhone, Safari
-// timeline): a cold first entry mounted ~380 skeleton shimmer animations, each
-// an accelerated `transform` loop — ~380 compositor layers inside the entering
-// screen. The release-time restructure (park z-order restored + the screen's
-// own animation promoting its layer) then re-committed that whole subtree:
-// one 65ms composite pass plus ~70ms of render-server backpressure, swallowing
-// a 150ms fade wholesale — zero intermediate frames presented. Three hard-won
-// details of this rule:
-// - FRESH-MOUNT sides only: the entering screen of a push/replace, whose
-//   whole subtree (and its animations) is born in the transition commit;
-//   suppressing those costs no visible state. The WARM exiting side keeps
-//   its animations untouched: its layers are already built (no storm to
-//   prevent), and killing an infinite ambient animation there snaps it to
-//   its base pose and restarts its phase — observed on a hero card-roll that
-//   visibly flipped to the wrong card on every navigation. The POP
-//   destination is exempt too: its animations were already terminated by the
-//   freeze (display: none) and restart at the unfreeze commit — under the
-//   flight's own motion, where a phase-zero restart is least visible;
-//   quarantining it only moved that restart to the landing, where a settled
-//   eye catches the pose jump.
-// - `animation: none`, NOT `animation-play-state: paused`. A paused animation
-//   still exists, so WebKit still builds and commits its compositor layer;
-//   only a non-existent animation prevents the layer storm. Everything starts
-//   when the status flips to COMPLETED — on a fresh subtree that is the
-//   natural begin-at-arrival, not a restart.
-// - `::before`/`::after` variants. The descendant selector alone matches real
-//   elements only, and shimmer-style effects live on pseudo-elements.
-const QUARANTINE_COLD_VARIANTS = [
-  ["PUSHING", "true"],
-  ["REPLACING", "true"]
-];
-const TRANSITION_QUARANTINE_RULE = [
-  ...QUARANTINE_COLD_VARIANTS.flatMap(([status, active], variantIndex) =>
-    ["", "::before", "::after"].map((pseudo, pseudoIndex) => {
-      const last =
-        variantIndex === QUARANTINE_COLD_VARIANTS.length - 1 && pseudoIndex === 2 ? " {" : ",";
-      return `[data-flemo-screen][data-flemo-status="${status}"][data-flemo-active="${active}"] :not([data-flemo-part-name])${pseudo}${last}`;
-    })
-  ),
-  `  animation: none !important;`,
-  `}`
-].join("\n");
+// NOTE (consumer-animation quarantine, removed): a rule used to live here that
+// set `animation: none !important` on every non-<Part> descendant (and its
+// `::before`/`::after`) of a navigation's cold entering screens, to prevent a
+// storm of consumer animation layers from committing during the flight. It
+// manipulated animations the consumer authored — skeleton shimmers, ambient
+// loops — which is not the library's call to make. Consumer animations now run
+// exactly as written, transitions or not.
 
 // In-flight commit hold (see core/engine/arrivalHold.ts): content that
 // arrives inside a screen DURING its transition is held off-glass and

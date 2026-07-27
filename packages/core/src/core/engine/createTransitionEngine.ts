@@ -218,8 +218,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   };
 
   // The COMPLETED flip's commit is already the convergence frame's busiest
-  // moment (status re-renders, freeze of the covered screen, quarantine
-  // release); landing the held content there stacks a large reveal commit
+  // moment (status re-renders, freeze of the covered screen); landing the
+  // held content there stacks a large reveal commit
   // onto the exact frames the eye is watching settle. Two rAFs put the
   // landing just past the last presented motion frame — visually still "at
   // rest", but off the convergence commit. Without rAF (SSR/jsdom edge) the
