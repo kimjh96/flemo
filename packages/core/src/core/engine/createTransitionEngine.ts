@@ -5,21 +5,7 @@ import { animationName, variantHasAnimation } from "@transition/compileTransitio
 import resolveTransition from "@transition/resolveTransition";
 
 import type { TransitionVariant } from "@transition/typing";
-import {
-  motionTranslationPxPerFrame,
-  resolveVariantMotion,
-  type VariantMotion
-} from "@transition/variantMotion";
-
-// Motion faster than this (mean CSS px per 60Hz frame) never rides the rAF
-// player by default: a screen slide averages ~12px/frame, a tab fade's drift
-// stays under 1 — see motionTranslationPxPerFrame.
-const PLAYER_TRANSLATION_CEILING_PX_PER_FRAME = 6;
-
-// How long the compositor warm-up outlives COMPLETED: covers the +2rAF
-// landing reveal and the convergence commits (drops measured at 400-700ms
-// into 600ms flights), comfortably under the warm-up's own 3s backstop.
-const WARM_SETTLE_MS = 400;
+import { resolveVariantMotion, type VariantMotion } from "@transition/variantMotion";
 
 import createArrivalHold from "@core/engine/arrivalHold";
 import holdCompositorWarm from "@core/engine/compositorWarmUp";
@@ -36,6 +22,11 @@ import { decoratorMap } from "@transition/decorator/decorator";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 const noop = () => {};
+
+// How long the compositor warm-up outlives COMPLETED: covers the +2rAF
+// landing reveal and the convergence commits (drops measured at 400-700ms
+// into 600ms flights), comfortably under the warm-up's own 3s backstop.
+const WARM_SETTLE_MS = 400;
 
 const PART_NAME_ATTR = "data-flemo-part-name";
 
@@ -358,23 +349,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       const transition = resolveTransition(transitionName);
       const motion = resolveVariantMotion(transition, variant);
       if (!motion) return null;
-
-      // 3. Per-motion split where the player is the default (non-Blink):
-      //    real slides keep the compiled path on EVERY engine — the player's
-      //    device-pixel-snapped writes shiver near rest on fast motion —
-      //    while low-displacement motion (tab fades, drifts) rides the
-      //    player, whose re-anchoring survives the main-thread blocks that
-      //    make WebKit's wall-clocked CSS fades jump. The diagnostic force
-      //    pin bypasses this gate like it bypasses demotion.
-      if (
-        !driverPolicy.playerForced() &&
-        motionTranslationPxPerFrame(motion, {
-          width: scope.offsetWidth,
-          height: scope.offsetHeight
-        }) >= PLAYER_TRANSLATION_CEILING_PX_PER_FRAME
-      ) {
-        return null;
-      }
 
       const detachers: (() => void)[] = [];
       const scopeDetach = transitionPlayers.join(taskId, {

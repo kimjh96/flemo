@@ -1,5 +1,7 @@
 import type { NavigateStatus } from "@navigate/store";
 
+import { hasPendingRequests } from "@screen/pendingNetwork";
+
 // Anchoring a transition's START to the screen's first painted frame,
 // framework-neutral. iOS WebKit anchors a CSS animation's timeline when the
 // style change commits; when the entering screen's first frame is expensive
@@ -97,6 +99,30 @@ export interface AnimHoldReleaseOptions {
   // pair skipping the wait, the group releases at max(2rAF, 2rAF) — the barrier
   // adds no time over releasing each alone (see createAnimHoldCoordinator).
   decodeWait?: boolean;
+  // Wait for the screen's first CONTENT WAVE before starting the motion.
+  // Glass measurement (real display recording, region captured): a warm
+  // screen's flight is perfectly monotone, while a cold screen's flight holds
+  // one frame and then double-steps at the moment its data commits — the
+  // tremor, reproducible with every flemo mechanism disabled, so it is the
+  // commit itself stealing a compositor tick. Waiting for that commit BEFORE
+  // the motion makes a cold flight identical to a warm one, and the
+  // destination arrives complete instead of assembling under the eye.
+  // Bounded twice: `contentWaitMs` for the first mutation to show up at all,
+  // and `contentCapMs` for the whole wait.
+  contentSettle?: {
+    // How long to wait for a CONTENT wave to show up at all before giving up
+    // and starting the motion (a screen with nothing pending must not pay).
+    firstWaitMs: number;
+    // Hard bound on the whole wait.
+    capMs: number;
+    // How long to give this screen's mount effects to issue their requests
+    // before concluding that nothing is loading.
+    graceMs: number;
+    // Added nodes that make a batch count as content rather than the shell's
+    // own skeleton commits, which land immediately and would otherwise satisfy
+    // the gate before any data exists.
+    minNodes: number;
+  };
 }
 
 // Schedules the READINESS of a held animation after the screen's first painted
@@ -111,6 +137,30 @@ export interface AnimHoldReleaseOptions {
 // policy lives with the caller, never here, so the pair barrier can bound the
 // whole group with a single timeout. `onReady` must be idempotent. Returns a
 // canceller that stops the frame chain and suppresses a late decode.
+// Text per element below which a screen reads as a skeleton rather than
+// content (see the settle gate).
+const SHELL_TEXT_PER_ELEMENT = 3;
+// An image IS content, and an image-heavy list (photo cards with short
+// labels) reads as text-poor: the production members list measured 544
+// characters over ~400 elements while fully loaded, which the text rule alone
+// would call a skeleton. Skeletons are built from boxes, not <img>, so
+// counting each image as content separates them.
+const IMAGE_TEXT_EQUIVALENT = 40;
+// A shell is STRUCTURE without text. Below this it is not a placeholder for
+// anything — a sparse screen, or a test fixture — and nothing is worth
+// waiting for.
+const MIN_SHELL_ELEMENTS = 24;
+
+const looksLikeShell = (scope: HTMLElement): boolean => {
+  if (typeof scope.querySelectorAll !== "function") return false;
+  const elements = scope.querySelectorAll("*").length;
+  if (elements < MIN_SHELL_ELEMENTS) return false;
+  const content =
+    (scope.textContent ?? "").trim().length +
+    scope.querySelectorAll("img").length * IMAGE_TEXT_EQUIVALENT;
+  return content / elements < SHELL_TEXT_PER_ELEMENT;
+};
+
 export function scheduleAnimHoldReadiness(
   onReady: () => void,
   options: AnimHoldReleaseOptions = {}
@@ -118,6 +168,7 @@ export function scheduleAnimHoldReadiness(
   let cancelled = false;
   let secondFrame = 0;
   const chainedFrames: number[] = [];
+  const cancellers: (() => void)[] = [];
   const readyAfterDecodes = () => {
     const scope = options.scope;
     // decodeWait === false: release right after the paint anchor, exactly as if
@@ -142,9 +193,118 @@ export function scheduleAnimHoldReadiness(
       if (!cancelled) onReady();
     });
   };
+  // See AnimHoldReleaseOptions.contentSettle. Watches the scope for consumer
+  // commits: nothing within `firstWaitMs` means the screen is already complete
+  // (a warm destination) and the motion starts immediately; a commit extends
+  // the wait until two quiet frames, bounded by `capMs`.
+  const settleForContent = (done: () => void) => {
+    const settle = options.contentSettle;
+    const scope = options.scope;
+    if (!settle || !scope || typeof MutationObserver === "undefined") {
+      done();
+      return;
+    }
+    // Two independent conditions must BOTH hold for this screen to be worth
+    // waiting on, because either alone misreads a common case:
+    //
+    // - Something is in flight. Nothing pending means nothing is coming.
+    // - The screen is still a SHELL. A stale-while-revalidate cache refetches
+    //   on mount, so a fully-rendered warm screen has requests in flight too;
+    //   what separates them is that a skeleton carries structure without text.
+    //   Measured on a production list at the anchor: cold 165 chars over 235
+    //   elements (0.7), the same screen warm 1716 over 196 (8.8) — a factor of
+    //   twelve, and the threshold sits an order of magnitude from both.
+    // A screen that already carries its content is warm: never wait.
+    if (!looksLikeShell(scope)) {
+      done();
+      return;
+    }
+    const startedAt = typeof performance !== "undefined" ? performance.now() : 0;
+    const elapsed = () => (typeof performance !== "undefined" ? performance.now() : 0) - startedAt;
+    let quietFrames: number[] = [];
+    let seen = false;
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      observer.disconnect();
+      clearTimeout(graceTimer);
+      clearTimeout(firstTimer);
+      clearTimeout(capTimer);
+      quietFrames.forEach((frame) => cancelAnimationFrame(frame));
+      quietFrames = [];
+      done();
+    };
+    // Real quiescence, not "two frames since the first wave". A screen's data
+    // arrives in BEATS — a list, then its sections, then a secondary query —
+    // and a gate that releases between beats starts the motion in the middle
+    // of the storm, which measures WORSE than not gating at all (deep journey,
+    // 24 transitions: 29% velocity noise gated on two frames vs 3% ungated).
+    // Waiting for a genuinely calm window is the whole point of the gate.
+    const QUIET_FRAMES = 6;
+    const quiet = () => {
+      quietFrames.forEach((frame) => cancelAnimationFrame(frame));
+      quietFrames = [];
+      const step = (remaining: number) => {
+        if (remaining <= 0) {
+          // Still fetching means another beat is coming: keep waiting (the cap
+          // is the backstop).
+          if (hasPendingRequests() && elapsed() < settle.capMs) {
+            quietFrames.push(requestAnimationFrame(() => step(QUIET_FRAMES)));
+            return;
+          }
+          finish();
+          return;
+        }
+        quietFrames.push(requestAnimationFrame(() => step(remaining - 1)));
+      };
+      step(QUIET_FRAMES);
+    };
+    const observer = new MutationObserver((records) => {
+      let added = 0;
+      for (const record of records) {
+        if (record.type !== "childList") continue;
+        for (const node of Array.from(record.addedNodes)) {
+          added += node instanceof Element ? 1 + node.querySelectorAll("*").length : 1;
+        }
+      }
+      if (added < settle.minNodes) return;
+      seen = true;
+      if (elapsed() >= settle.capMs) {
+        finish();
+        return;
+      }
+      quiet();
+    });
+    observer.observe(scope, { childList: true, subtree: true });
+    // A shell with nothing in flight is not loading — it is simply a sparse
+    // screen (an empty state, an error). Give up on the short grace instead of
+    // the full window. The check is deferred rather than immediate because a
+    // screen's own requests are issued by its mount effects, a tick after the
+    // paint this gate is anchored to.
+    const graceTimer = setTimeout(() => {
+      if (!seen && !hasPendingRequests()) finish();
+    }, settle.graceMs);
+    // Giving up at a fixed deadline is what leaves the slow screens exposed:
+    // measured at an emulated mobile viewport, a flight whose content lands
+    // inside it is bad in a third of transitions, while a flight that waits is
+    // clean in every one. So the deadline only applies while NOTHING is in
+    // flight — as long as this screen still has requests outstanding, its
+    // content is genuinely coming and the wait continues to the cap.
+    const firstTimer = setTimeout(function giveUp() {
+      if (seen) return;
+      if (hasPendingRequests() && elapsed() < settle.capMs) {
+        setTimeout(giveUp, 100);
+        return;
+      }
+      finish();
+    }, settle.firstWaitMs);
+    const capTimer = setTimeout(finish, settle.capMs);
+    cancellers.push(finish);
+  };
   const chain = (remaining: number) => {
     if (remaining <= 0) {
-      readyAfterDecodes();
+      settleForContent(readyAfterDecodes);
       return;
     }
     chainedFrames.push(requestAnimationFrame(() => chain(remaining - 1)));
@@ -157,6 +317,7 @@ export function scheduleAnimHoldReadiness(
     cancelAnimationFrame(firstFrame);
     if (secondFrame) cancelAnimationFrame(secondFrame);
     chainedFrames.forEach((frame) => cancelAnimationFrame(frame));
+    cancellers.forEach((cancel) => cancel());
   };
 }
 

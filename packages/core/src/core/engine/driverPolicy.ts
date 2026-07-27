@@ -144,10 +144,6 @@ const DEMOTION_STRIKES = 2;
 export interface DriverPolicy {
   // Whether the rAF player may drive motion on this device.
   playerAllowed: () => boolean;
-  // Whether the player is pinned by the diagnostic force key. A pin bypasses
-  // the per-motion displacement gate the way it bypasses measurement and
-  // demotion: a field diagnosis must be able to put ANY motion on the player.
-  playerForced: () => boolean;
   // Player run lifecycle: the registry reports gaps; the policy aggregates.
   beginRun: () => void;
   reportGap: (gapMs: number) => void;
@@ -194,7 +190,6 @@ export const createDriverPolicy = (
       if (forced) return forced === "raf";
       return playerByDefault && !demoted;
     },
-    playerForced: () => readForcedDriver() === "raf",
     beginRun: () => {
       runLongGaps = 0;
       runGaps = [];

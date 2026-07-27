@@ -59,6 +59,16 @@ interface FrozenValue {
 
 export default function createArrivalHold(scope: HTMLElement): () => void {
   if (typeof MutationObserver === "undefined") return () => {};
+  // DIAGNOSTIC (temporary, session-scoped like the motion-driver force pin):
+  // `sessionStorage["flemo:hold"] = "off"` disables the in-flight commit hold
+  // for paired on-device A/B of the convergence tremor. Strip before release.
+  try {
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem("flemo:hold") === "off") {
+      return () => {};
+    }
+  } catch {
+    // Storage unavailable: the hold stays on.
+  }
 
   const heldArrivals = new Set<Element>();
   const parkedDepartures = new Set<Node>();

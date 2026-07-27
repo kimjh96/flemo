@@ -481,10 +481,35 @@ function ScreenMotion({
         // or freshly-mounted screen never pays the wait, which is what keeps a
         // paired push/replace release free.
         scope: scopeRef.current,
-        decodeWait: decodeWaitRef.current
+        decodeWait: decodeWaitRef.current,
+        // Enter COMPLETE: while this screen still has requests in flight, the
+        // motion waits for its content wave to land and settle, so a cold
+        // navigation slides in already filled instead of assembling under the
+        // eye mid-flight (paired A/B on the deep journey under load: gate ON
+        // 13% velocity noise vs OFF 50%). Bounded twice, and skipped entirely
+        // when nothing is pending or the screen already carries content — a
+        // warm entry pays nothing. FRESH MOUNTS only: a pop returns to a
+        // screen the user has already seen; making it wait on a refetch taxes
+        // the one navigation that must feel instant (measured: +150ms on
+        // every pop). `flemo:settle=off` (sessionStorage) disables it for
+        // paired on-device A/B.
+        contentSettle: (() => {
+          if (!(isActive && (status === "PUSHING" || status === "REPLACING"))) return undefined;
+          try {
+            if (
+              typeof sessionStorage !== "undefined" &&
+              sessionStorage.getItem("flemo:settle") === "off"
+            ) {
+              return undefined;
+            }
+          } catch {
+            // No storage access: keep the gate.
+          }
+          return { graceMs: 150, firstWaitMs: 400, capMs: 900, minNodes: 30 };
+        })()
       }
     );
-  }, [animHold, holdKey, holdAttr, stores.navigate]);
+  }, [animHold, holdKey, holdAttr, isActive, status, stores.navigate]);
 
   const initialStyle =
     holdAttr === "park-under"

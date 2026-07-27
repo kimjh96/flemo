@@ -68,6 +68,15 @@ const teardown = () => {
 
 export default function holdCompositorWarm(): () => void {
   if (typeof document === "undefined" || !document.body) return () => {};
+  // DIAGNOSTIC (temporary, session-scoped): `sessionStorage["flemo:warm"] =
+  // "off"` disables the warm-up for paired on-device A/B. Strip before release.
+  try {
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem("flemo:warm") === "off") {
+      return () => {};
+    }
+  } catch {
+    // Storage unavailable: the warm-up stays on.
+  }
   if (typeof Element === "undefined" || typeof Element.prototype.animate !== "function") {
     return () => {};
   }
