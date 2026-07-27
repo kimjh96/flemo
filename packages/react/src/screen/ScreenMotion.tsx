@@ -491,10 +491,14 @@ function ScreenMotion({
         // warm entry pays nothing. FRESH MOUNTS only: a pop returns to a
         // screen the user has already seen; making it wait on a refetch taxes
         // the one navigation that must feel instant (measured: +150ms on
-        // every pop). `flemo:settle=off` (sessionStorage) disables it for
-        // paired on-device A/B.
+        // every pop). PUSH only, not REPLACE: a bottom-tab switch is a 150ms
+        // whole-screen fade where "arrive complete" buys nothing the eye can
+        // see, while the wait reads as a dead tap — and mid-flight commits
+        // there are survived by the driver (the player re-anchors through
+        // blocks; Blink's compositor plays through them). `flemo:settle=off`
+        // (sessionStorage) disables it for paired on-device A/B.
         contentSettle: (() => {
-          if (!(isActive && (status === "PUSHING" || status === "REPLACING"))) return undefined;
+          if (!(isActive && status === "PUSHING")) return undefined;
           try {
             if (
               typeof sessionStorage !== "undefined" &&
