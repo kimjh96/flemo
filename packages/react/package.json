@@ -59,7 +59,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react-swc": "^4.3.2",
     "@vitest/coverage-v8": "^4.1.10",
-    "eslint": "^9.39.4",
+    "eslint": "^10.8.0",
     "jsdom": "^29.1.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
