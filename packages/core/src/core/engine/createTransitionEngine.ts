@@ -16,6 +16,11 @@ import {
 // stays under 1 — see motionTranslationPxPerFrame.
 const PLAYER_TRANSLATION_CEILING_PX_PER_FRAME = 6;
 
+// How long the compositor warm-up outlives COMPLETED: covers the +2rAF
+// landing reveal and the convergence commits (drops measured at 400-700ms
+// into 600ms flights), comfortably under the warm-up's own 3s backstop.
+const WARM_SETTLE_MS = 400;
+
 import createArrivalHold from "@core/engine/arrivalHold";
 import holdCompositorWarm from "@core/engine/compositorWarmUp";
 import driverPolicy from "@core/engine/driverPolicy";
@@ -213,6 +218,16 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   // re-runs mid-transition, and the warm-up must span those re-runs and end
   // only when the screen leaves its transitional statuses.
   let releaseWarm: (() => void) | null = null;
+  // The warm-up outlives COMPLETED by the settle window. The convergence
+  // storm — status-flip commits, the covered screen's freeze, the landing
+  // reveal two frames past COMPLETED — lands right AFTER the motion rests,
+  // where frame production is back to on-demand; measured on the user's own
+  // machine (attached real Chrome, 180s of hand-driven journeys) as 17
+  // dropped frames clustered at 400-700ms into 600ms flights with no
+  // compositor animation live — the convergence tremor. Forcing frames
+  // through the settle keeps that window on the vsync cadence, exactly what
+  // a DevTools Performance recording does when it masks the judder.
+  let warmSettleTimer: ReturnType<typeof setTimeout> | null = null;
   // A landing scheduled two frames past COMPLETED (see below). Tracked so a
   // navigation starting inside that window can land it immediately instead of
   // letting it punch into the new flight.
@@ -256,11 +271,28 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const isTransitional = status === "PUSHING" || status === "POPPING" || status === "REPLACING";
 
     // Keep the compositor producing frames for as long as this screen is in
-    // motion, so the motion's opening doesn't pay to spin it up from idle.
-    if (isTransitional && !releaseWarm) releaseWarm = holdCompositorWarm();
-    if (!isTransitional && releaseWarm) {
-      releaseWarm();
-      releaseWarm = null;
+    // motion (opening spin-up) AND through the settle window past COMPLETED
+    // (the convergence storm) — see warmSettleTimer above.
+    if (isTransitional) {
+      // A navigation starting inside the settle window keeps the SAME hold:
+      // cancel the pending release without spending it.
+      if (warmSettleTimer) {
+        clearTimeout(warmSettleTimer);
+        warmSettleTimer = null;
+      }
+      if (!releaseWarm) releaseWarm = holdCompositorWarm();
+    }
+    if (!isTransitional && releaseWarm && !warmSettleTimer) {
+      if (typeof setTimeout === "function") {
+        warmSettleTimer = setTimeout(() => {
+          warmSettleTimer = null;
+          releaseWarm?.();
+          releaseWarm = null;
+        }, WARM_SETTLE_MS);
+      } else {
+        releaseWarm();
+        releaseWarm = null;
+      }
     }
 
     // No content landing while the screen is in motion: the COLD side of a

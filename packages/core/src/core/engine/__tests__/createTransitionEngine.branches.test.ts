@@ -1118,3 +1118,80 @@ describe("per-motion driver split (default path, no force pin)", () => {
     }
   });
 });
+
+describe("compositor warm-up settle extension", () => {
+  it("keeps the warm element alive 400ms past COMPLETED, then removes it", () => {
+    vi.useFakeTimers();
+    const originalAnimate = Element.prototype.animate;
+    const cancel = vi.fn();
+    Element.prototype.animate = vi.fn(
+      () => ({ cancel }) as unknown as Animation
+    ) as unknown as typeof Element.prototype.animate;
+    try {
+      const { scope } = elements();
+      const engine = createTransitionEngine(deps());
+      const drive = (status: string) =>
+        engine.driveScreenLifecycle({
+          getElements: () => ({ scope, decorator: null, bars: [] }),
+          transitionName: "cupertino" as never,
+          prevTransitionName: "cupertino" as never,
+          status: status as never,
+          isActive: true,
+          animHoldReleased: true
+        });
+
+      const cleanupFlight = drive("PUSHING");
+      expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+      cleanupFlight();
+
+      // COMPLETED: the warm-up must survive the settle window...
+      const cleanupRest = drive("COMPLETED");
+      expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+      vi.advanceTimersByTime(399);
+      expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+      // ...and end right after it.
+      vi.advanceTimersByTime(2);
+      expect(document.querySelector("[data-flemo-warm]")).toBeNull();
+      cleanupRest();
+    } finally {
+      Element.prototype.animate = originalAnimate;
+      vi.useRealTimers();
+    }
+  });
+
+  it("a new flight inside the settle window keeps the warm-up unbroken", () => {
+    vi.useFakeTimers();
+    const originalAnimate = Element.prototype.animate;
+    Element.prototype.animate = vi.fn(
+      () => ({ cancel: vi.fn() }) as unknown as Animation
+    ) as unknown as typeof Element.prototype.animate;
+    try {
+      const { scope } = elements();
+      const engine = createTransitionEngine(deps());
+      const drive = (status: string) =>
+        engine.driveScreenLifecycle({
+          getElements: () => ({ scope, decorator: null, bars: [] }),
+          transitionName: "cupertino" as never,
+          prevTransitionName: "cupertino" as never,
+          status: status as never,
+          isActive: true,
+          animHoldReleased: true
+        });
+
+      drive("PUSHING")();
+      drive("COMPLETED")();
+      vi.advanceTimersByTime(200);
+      // Next navigation starts mid-settle: the pending release is cancelled.
+      drive("POPPING")();
+      vi.advanceTimersByTime(1000);
+      expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+      // Its own COMPLETED starts a fresh settle window.
+      drive("COMPLETED")();
+      vi.advanceTimersByTime(401);
+      expect(document.querySelector("[data-flemo-warm]")).toBeNull();
+    } finally {
+      Element.prototype.animate = originalAnimate;
+      vi.useRealTimers();
+    }
+  });
+});
