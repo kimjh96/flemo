@@ -8,6 +8,7 @@ import type { TransitionVariant } from "@transition/typing";
 import { resolveVariantMotion, type VariantMotion } from "@transition/variantMotion";
 
 import createArrivalHold from "@core/engine/arrivalHold";
+import holdCompositorWarm from "@core/engine/compositorWarmUp";
 import driverPolicy from "@core/engine/driverPolicy";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import transitionPlayers from "@core/engine/transitionPlayer";
@@ -198,6 +199,11 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   // re-runs mid-transition (the anim-hold release), and the hold must span
   // those re-runs and release only at COMPLETED or on an interrupt.
   let releaseArrivalHold: (() => void) | null = null;
+  // This screen's hold on the compositor warm-up (see compositorWarmUp.ts).
+  // Engine-level for the same reason as the arrival hold: the driver effect
+  // re-runs mid-transition, and the warm-up must span those re-runs and end
+  // only when the screen leaves its transitional statuses.
+  let releaseWarm: (() => void) | null = null;
   // A landing scheduled two frames past COMPLETED (see below). Tracked so a
   // navigation starting inside that window can land it immediately instead of
   // letting it punch into the new flight.
@@ -239,6 +245,14 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       input;
 
     const isTransitional = status === "PUSHING" || status === "POPPING" || status === "REPLACING";
+
+    // Keep the compositor producing frames for as long as this screen is in
+    // motion, so the motion's opening doesn't pay to spin it up from idle.
+    if (isTransitional && !releaseWarm) releaseWarm = holdCompositorWarm();
+    if (!isTransitional && releaseWarm) {
+      releaseWarm();
+      releaseWarm = null;
+    }
 
     // No content landing while the screen is in motion: the COLD side of a
     // navigation (freshly-mounted enter on push/replace, unfreezing pop
