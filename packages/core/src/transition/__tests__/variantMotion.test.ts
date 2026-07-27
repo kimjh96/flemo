@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import cupertino from "@transition/cupertino";
 import {
   FROM_VARIANT,
+  motionTranslationPxPerFrame,
   resolveVariantFromValue,
   resolveVariantMotion,
   TRANSITION_VARIANTS
@@ -45,5 +46,51 @@ describe("variantMotion", () => {
       }
     };
     expect(resolveVariantMotion(idleLike as never, "PUSHING-true")).toBeNull();
+  });
+});
+
+describe("motionTranslationPxPerFrame", () => {
+  const base = { width: 390, height: 720 };
+  const motion = (from: object, to: object, duration: number) => ({
+    from: from as never,
+    to: to as never,
+    duration,
+    delay: 0,
+    ease: undefined
+  });
+
+  it("resolves % against the axis base and averages over 60Hz frames", () => {
+    // 100% of 390px over 0.6s (36 frames) ≈ 10.8 px/frame.
+    expect(motionTranslationPxPerFrame(motion({ x: "100%" }, { x: 0 }, 0.6), base)).toBeCloseTo(
+      390 / 36,
+      5
+    );
+    // 1% of 390px over 0.15s (9 frames) ≈ 0.43 px/frame.
+    expect(motionTranslationPxPerFrame(motion({ x: "1%" }, { x: 0 }, 0.15), base)).toBeCloseTo(
+      3.9 / 9,
+      5
+    );
+  });
+
+  it("takes the dominant axis and handles px numbers and strings", () => {
+    expect(
+      motionTranslationPxPerFrame(motion({ x: 30, y: "720px" }, { x: 0, y: 0 }, 1), base)
+    ).toBeCloseTo(12, 5);
+  });
+
+  it("treats non-translation values as no displacement", () => {
+    expect(
+      motionTranslationPxPerFrame(
+        motion({ opacity: 0, x: "calc(1px + 2%)" }, { opacity: 1 }, 0.2),
+        base
+      )
+    ).toBe(0);
+    expect(motionTranslationPxPerFrame(motion("dark" as never, "light" as never, 0.2), base)).toBe(
+      0
+    );
+  });
+
+  it("clamps zero-duration motion to one frame", () => {
+    expect(motionTranslationPxPerFrame(motion({ x: 10 }, { x: 0 }, 0), base)).toBe(10);
   });
 });

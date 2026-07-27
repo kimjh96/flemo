@@ -15,7 +15,7 @@ import { partTransitionMap } from "@transition/partTransition/partTransition";
 // jsdom reads as non-Blink (no navigator.userAgentData), where the player
 // defaults OFF; these suites exercise the player paths, so pin it on via
 // the diagnostic force key.
-beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", "raf"));
+beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`));
 afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
 
 const deps = () => ({
@@ -644,7 +644,7 @@ describe("perceptual completion cut", () => {
     vi.useFakeTimers();
     // The cut is compiled-CSS-path only; this file pins the raf player in
     // beforeAll, so pin css for this test.
-    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     try {
       const { scope } = elements();
       // jsdom boxes measure 0: give the scope a real width so percentage
@@ -680,7 +680,7 @@ describe("perceptual completion cut", () => {
       resolveSpy.mockRestore();
       scope.remove();
     } finally {
-      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.useRealTimers();
     }
   });
@@ -688,7 +688,7 @@ describe("perceptual completion cut", () => {
 
 describe("driver join without a task", () => {
   it("falls back to the compiled path when no navigation task exists", () => {
-    sessionStorage.setItem("flemo:motion-driver-force", "raf");
+    sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
     try {
       const { scope } = elements();
       document.body.appendChild(scope);
@@ -706,7 +706,7 @@ describe("driver join without a task", () => {
       cleanup();
       scope.remove();
     } finally {
-      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
     }
   });
 });
@@ -743,7 +743,7 @@ describe("perceptual cut with participating parts", () => {
 
   it("raises the cut ceiling to a longer analyzable part motion", () => {
     vi.useFakeTimers();
-    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     partTransitionMap.set(
       "slow-fade" as never,
       createPartTransition({
@@ -782,14 +782,14 @@ describe("perceptual cut with participating parts", () => {
       scope.remove();
     } finally {
       partTransitionMap.delete("slow-fade" as never);
-      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.useRealTimers();
     }
   });
 
   it("vetoes the cut on an unanalyzable part motion", () => {
     vi.useFakeTimers();
-    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     partTransitionMap.set(
       "scaling-part" as never,
       createPartTransition({
@@ -821,7 +821,7 @@ describe("perceptual cut with participating parts", () => {
       scope.remove();
     } finally {
       partTransitionMap.delete("scaling-part" as never);
-      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.useRealTimers();
     }
   });
@@ -830,7 +830,7 @@ describe("perceptual cut with participating parts", () => {
 describe("choreography-span deferral", () => {
   it("defers the clean-end resolve until the longest part finishes", () => {
     vi.useFakeTimers();
-    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     // A material-shaped screen (0.35s) with a 0.6s part: the part outlives
     // the screen by 250ms, and the COMPLETED flip must wait for it.
     transitionMap.set(
@@ -897,7 +897,7 @@ describe("choreography-span deferral", () => {
     } finally {
       transitionMap.delete("short-screen" as never);
       partTransitionMap.delete("long-part" as never);
-      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.useRealTimers();
     }
   });
@@ -1046,5 +1046,75 @@ describe("in-flight arrival hold wiring", () => {
     await observerFlush();
     expect(live.hasAttribute("data-flemo-held-arrival")).toBe(false);
     scope.remove();
+  });
+});
+
+describe("per-motion driver split (default path, no force pin)", () => {
+  // jsdom reads as non-Blink, where the player is the DEFAULT driver; these
+  // cases exercise the displacement gate without the diagnostic pin (a pin
+  // bypasses the gate by design).
+  const driveWith = (transitionName: string, scope: HTMLElement) => {
+    const d = deps();
+    d.getTransitionTaskId.mockReturnValue("split-task" as never);
+    const engine = createTransitionEngine(d);
+    return engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: transitionName as never,
+      prevTransitionName: transitionName as never,
+      status: "PUSHING",
+      isActive: true,
+      animHoldReleased: true
+    });
+  };
+
+  const sizedScope = () => {
+    const { scope } = elements();
+    Object.defineProperty(scope, "offsetWidth", { value: 390, configurable: true });
+    Object.defineProperty(scope, "offsetHeight", { value: 720, configurable: true });
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  it("keeps a real slide on the compiled path", () => {
+    sessionStorage.removeItem("flemo:motion-driver-force");
+    try {
+      const scope = sizedScope();
+      // cupertino enter: 100% of 390px over 0.6s ≈ 11px/frame — over the
+      // ceiling, so the player must decline and leave the compiled
+      // animation in charge.
+      const cleanup = driveWith("cupertino", scope);
+      expect(scope.style.animation).toBe("");
+      cleanup();
+      scope.remove();
+    } finally {
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
+    }
+  });
+
+  it("puts a low-displacement fade on the player", () => {
+    sessionStorage.removeItem("flemo:motion-driver-force");
+    transitionMap.set(
+      "split-tab-drift" as never,
+      createTransition({
+        name: "split-tab-drift" as never,
+        initial: { x: "1%", opacity: 0 },
+        idle: { value: { x: 0, opacity: 1 }, options: { duration: 0 } },
+        enter: { value: { x: 0, opacity: 1 }, options: { duration: 0.15 } },
+        enterBack: { value: { x: 0, opacity: 1 }, options: { duration: 0.15 } },
+        exit: { value: { x: "-1%", opacity: 0 }, options: { duration: 0.15 } },
+        exitBack: { value: { x: "1%", opacity: 0 }, options: { duration: 0.15 } }
+      })
+    );
+    try {
+      const scope = sizedScope();
+      // 1% of 390px over 0.15s ≈ 0.4px/frame — the player drives.
+      const cleanup = driveWith("split-tab-drift", scope);
+      expect(scope.style.animation).toBe("none");
+      cleanup();
+      scope.remove();
+    } finally {
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
+      transitionMap.delete("split-tab-drift" as never);
+    }
   });
 });
