@@ -41,9 +41,18 @@ const WARM_TIMING: KeyframeAnimationOptions = {
 // or what the user sees. `position: fixed` keeps it out of the document flow
 // without becoming an ancestor of anything, so no consumer's `position: fixed`
 // descendant can have its containing block changed by it.
+//
+// The element MUST paint (a real background, not transparent): the compositor
+// only presents a frame when the animation produces damage, and Blink refuses
+// to composite animations with no visible change outright
+// (kAnimationHasNoVisibleChange). A transparent 1px element paints nothing, so
+// moving it damages nothing and the warm-up forces no frames — measured as
+// exactly the judder-that-disappears-while-recording surviving the warm-up.
+// One painted pixel at 2% opacity is imperceptible but is real damage every
+// frame.
 const WARM_STYLE =
   "position:fixed;top:0;left:0;width:1px;height:1px;" +
-  "pointer-events:none;opacity:0.01;background:transparent;will-change:transform;";
+  "pointer-events:none;opacity:0.02;background:#888;will-change:transform;";
 
 let element: HTMLElement | null = null;
 let animation: Animation | null = null;
