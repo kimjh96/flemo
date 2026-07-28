@@ -495,22 +495,11 @@ function ScreenMotion({
         // whole-screen fade where "arrive complete" buys nothing the eye can
         // see, while the wait reads as a dead tap — and mid-flight commits
         // there are survived by the driver (the player re-anchors through
-        // blocks; Blink's compositor plays through them). `flemo:settle=off`
-        // (sessionStorage) disables it for paired on-device A/B.
-        contentSettle: (() => {
-          if (!(isActive && status === "PUSHING")) return undefined;
-          try {
-            if (
-              typeof sessionStorage !== "undefined" &&
-              sessionStorage.getItem("flemo:settle") === "off"
-            ) {
-              return undefined;
-            }
-          } catch {
-            // No storage access: keep the gate.
-          }
-          return { graceMs: 150, firstWaitMs: 400, capMs: 900, minNodes: 30 };
-        })()
+        // blocks; Blink's compositor plays through them).
+        contentSettle:
+          isActive && status === "PUSHING"
+            ? { graceMs: 150, firstWaitMs: 400, capMs: 900, minNodes: 30 }
+            : undefined
       }
     );
   }, [animHold, holdKey, holdAttr, isActive, status, stores.navigate]);
