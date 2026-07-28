@@ -414,3 +414,111 @@ describe("Screen", () => {
     expect(scope.getAttribute("data-flemo-anim-hold")).toBe("false");
   });
 });
+
+describe("Screen freeze deferral", () => {
+  const frozenWrapperOf = (getByTestId: (id: string) => HTMLElement) =>
+    getByTestId("content").closest("div[style*='display: none']");
+
+  it("defers a live freeze flip past the convergence, then applies it", () => {
+    vi.useFakeTimers();
+    try {
+      stores.history.setState({ index: 0, histories: [] });
+      stores.navigate.setState({ status: "PUSHING", transitionTaskId: "t1" });
+
+      // Covered side of a push: becomes freezable only when the status settles.
+      const { getByTestId } = render(
+        <Screen>
+          <div data-testid="content">covered</div>
+        </Screen>,
+        { wrapper: buildHarness({ isActive: false, isPrev: false, zIndex: 0 }) }
+      );
+      expect(frozenWrapperOf(getByTestId)).toBeNull();
+
+      act(() => {
+        stores.navigate.setState({ status: "COMPLETED", transitionTaskId: null });
+      });
+      // The convergence frames stay freeze-free...
+      expect(frozenWrapperOf(getByTestId)).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(599);
+      });
+      expect(frozenWrapperOf(getByTestId)).toBeNull();
+      // ...and the commit lands in the quiet window after.
+      act(() => {
+        vi.advanceTimersByTime(2);
+      });
+      expect(frozenWrapperOf(getByTestId)).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a new transition inside the defer window re-arms the freeze timer", () => {
+    vi.useFakeTimers();
+    try {
+      stores.history.setState({ index: 0, histories: [] });
+      stores.navigate.setState({ status: "PUSHING", transitionTaskId: "t1" });
+      const { getByTestId } = render(
+        <Screen>
+          <div data-testid="content">covered</div>
+        </Screen>,
+        { wrapper: buildHarness({ isActive: false, isPrev: false, zIndex: 0 }) }
+      );
+
+      act(() => {
+        stores.navigate.setState({ status: "COMPLETED", transitionTaskId: null });
+      });
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+      // A navigation starts before the freeze lands: the pending commit must
+      // not punch into the new flight.
+      act(() => {
+        stores.navigate.setState({ status: "PUSHING", transitionTaskId: "t2" });
+      });
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(frozenWrapperOf(getByTestId)).toBeNull();
+      // It lands one quiet window after the new flight settles.
+      act(() => {
+        stores.navigate.setState({ status: "COMPLETED", transitionTaskId: null });
+      });
+      act(() => {
+        vi.advanceTimersByTime(601);
+      });
+      expect(frozenWrapperOf(getByTestId)).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("unfreezes immediately when the screen becomes the pop destination", () => {
+    vi.useFakeTimers();
+    try {
+      stores.history.setState({ index: 0, histories: [] });
+      stores.navigate.setState({ status: "COMPLETED", transitionTaskId: null });
+      const { getByTestId, rerender } = render(
+        <Screen>
+          <div data-testid="content">covered</div>
+        </Screen>,
+        { wrapper: buildHarness({ isActive: false, isPrev: false, zIndex: 0 }) }
+      );
+      // Mounted already-covered: frozen from the first commit, no deferral.
+      expect(frozenWrapperOf(getByTestId)).not.toBeNull();
+
+      // A pop starts: the destination must wake in the same commit.
+      act(() => {
+        stores.navigate.setState({ status: "POPPING", transitionTaskId: "t3" });
+      });
+      rerender(
+        <Screen>
+          <div data-testid="content">covered</div>
+        </Screen>
+      );
+      expect(frozenWrapperOf(getByTestId)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
