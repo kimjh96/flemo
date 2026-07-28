@@ -51,14 +51,14 @@
     "@types/node": "^24.13.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react-swc": "^4.3.1",
+    "@vitejs/plugin-react-swc": "^4.3.2",
     "eslint": "^9.39.4",
     "motion": "^12.40.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16",
-    "vite-plugin-dts": "^5.0.2"
+    "vite": "^8.1.5",
+    "vite-plugin-dts": "^5.0.3"
   },
   "peerDependencies": {
     "motion": "^12.40.0",
