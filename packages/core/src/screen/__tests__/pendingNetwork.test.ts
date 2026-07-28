@@ -73,3 +73,23 @@ describe("pendingNetwork", () => {
     expect(hasPendingRequests()).toBe(false);
   });
 });
+
+describe("pendingNetwork XHR sync-throw", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("a synchronously-throwing send settles the counter and rethrows", async () => {
+    XMLHttpRequest.prototype.send = (() => {
+      throw new Error("bad state");
+    }) as typeof XMLHttpRequest.prototype.send;
+
+    const { hasPendingRequests } = await import("@screen/pendingNetwork");
+    hasPendingRequests();
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", "/data");
+    expect(() => xhr.send()).toThrow("bad state");
+    expect(hasPendingRequests()).toBe(false);
+  });
+});

@@ -382,3 +382,208 @@ describe("ensureImageDecodeOffloader", () => {
     }).not.toThrow();
   });
 });
+
+// A hand-rolled Cache API: enough surface for persistScaled/readScaled.
+const installCacheStub = (seed: Record<string, Blob> = {}) => {
+  const store = new Map<string, Blob>(Object.entries(seed));
+  const put = vi.fn(async (url: string, response: Response) => {
+    store.set(url, await response.blob());
+  });
+  const match = vi.fn(async (url: string) => {
+    const blob = store.get(url);
+    return blob ? new Response(blob) : undefined;
+  });
+  vi.stubGlobal("caches", { open: async () => ({ put, match }) });
+  return { put, match, store };
+};
+
+describe("createImageDecodeOffloader scaled-result cache", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
+  });
+
+  it("a prior session's scaled result swaps at insertion with zero worker cost", async () => {
+    const { posted } = installWorkerStubs();
+    installCacheStub({ "https://cdn.example/huge.jpg": new Blob(["scaled"]) });
+    const dispose = createImageDecodeOffloader(document.body);
+
+    const image = freshImage("https://cdn.example/huge.jpg");
+    document.body.appendChild(image);
+    await flush();
+    await flush();
+
+    expect(image.getAttribute("src")).toMatch(/^blob:scaled-/);
+    expect(image.getAttribute(OFFLOADED_SRC_ATTR)).toBe("https://cdn.example/huge.jpg");
+    expect(posted).toHaveLength(0);
+    dispose();
+  });
+
+  it("persists a fresh scale so the next session can swap at insertion", async () => {
+    const { posted, reply } = installWorkerStubs();
+    const { put } = installCacheStub();
+    const dispose = createImageDecodeOffloader(document.body);
+
+    const image = freshImage("https://cdn.example/huge.jpg");
+    document.body.appendChild(image);
+    await flush();
+    expect(posted).toHaveLength(1);
+
+    reply({ url: "https://cdn.example/huge.jpg", blob: new Blob(["scaled"]) });
+    await flush();
+    expect(put).toHaveBeenCalledWith("https://cdn.example/huge.jpg", expect.any(Response));
+    expect(image.getAttribute("src")).toMatch(/^blob:scaled-/);
+    dispose();
+  });
+
+  it("a throwing Cache API degrades to the worker probe", async () => {
+    const { posted } = installWorkerStubs();
+    vi.stubGlobal("caches", {
+      open: async () => {
+        throw new Error("storage disabled");
+      }
+    });
+    const dispose = createImageDecodeOffloader(document.body);
+
+    const image = freshImage("https://cdn.example/huge.jpg");
+    document.body.appendChild(image);
+    await flush();
+
+    expect(posted).toHaveLength(1);
+    dispose();
+  });
+});
+
+describe("createImageDecodeOffloader degraded and terminal paths", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.innerHTML = "";
+  });
+
+  it("a refused blob worker leaves the held image to the reveal timeout", async () => {
+    installWorkerStubs();
+    vi.stubGlobal(
+      "Worker",
+      class {
+        constructor() {
+          throw new Error("CSP: blob workers forbidden");
+        }
+      }
+    );
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const dispose = createImageDecodeOffloader(document.body);
+
+    const image = freshImage("https://cdn.example/huge.jpg");
+    document.body.appendChild(image);
+    await vi.advanceTimersByTimeAsync(0);
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(image.getAttribute("src")).toBe(PARKED_PIXEL);
+
+    // No worker will ever answer: the safety timeout reveals the original.
+    await vi.advanceTimersByTimeAsync(15001);
+    expect(image.getAttribute("src")).toBe("https://cdn.example/huge.jpg");
+    expect(image.style.visibility).toBe("");
+    dispose();
+  });
+
+  it("a worker error reveals the authored original (skip verdict)", async () => {
+    const { posted, reply } = installWorkerStubs();
+    const dispose = createImageDecodeOffloader(document.body);
+
+    const image = freshImage("https://cdn.example/huge.jpg");
+    document.body.appendChild(image);
+    await flush();
+    expect(posted).toHaveLength(1);
+
+    reply({ url: "https://cdn.example/huge.jpg", error: "http 403" });
+    expect(image.getAttribute("src")).toBe("https://cdn.example/huge.jpg");
+    expect(image.getAttribute(OFFLOADED_SRC_ATTR)).toBeNull();
+    dispose();
+  });
+
+  it("disposal releases every held image and revokes scaled object URLs", async () => {
+    const { posted, reply } = installWorkerStubs();
+    const dispose = createImageDecodeOffloader(document.body);
+
+    const settled = freshImage("https://cdn.example/settled.jpg");
+    const pending = freshImage("https://cdn.example/pending.jpg");
+    document.body.appendChild(settled);
+    document.body.appendChild(pending);
+    await flush();
+    expect(posted).toHaveLength(2);
+    reply({ url: "https://cdn.example/settled.jpg", blob: new Blob(["scaled"]) });
+    expect(settled.getAttribute("src")).toMatch(/^blob:scaled-/);
+
+    dispose();
+    // The still-held image first-appears as its authored self...
+    expect(pending.getAttribute("src")).toBe("https://cdn.example/pending.jpg");
+    expect(pending.style.visibility).toBe("");
+    // ...and the scaled result's object URL does not leak.
+    expect(
+      (URL as unknown as { revokeObjectURL: ReturnType<typeof vi.fn> }).revokeObjectURL
+    ).toHaveBeenCalled();
+  });
+});
+
+describe("createImageDecodeOffloader responsive verdicts", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
+  });
+
+  const responsiveImage = (src: string) => {
+    const image = freshImage(src);
+    image.setAttribute("srcset", `${src} 1x`);
+    return image;
+  };
+
+  const loadAt = (image: HTMLImageElement, width: number, height: number) => {
+    Object.defineProperty(image, "currentSrc", {
+      value: image.getAttribute("src"),
+      configurable: true
+    });
+    Object.defineProperty(image, "naturalWidth", { value: width, configurable: true });
+    Object.defineProperty(image, "naturalHeight", { value: height, configurable: true });
+    image.dispatchEvent(new Event("load"));
+  };
+
+  it("a responsive load whose source verdict is already known releases synchronously", async () => {
+    const { reply } = installWorkerStubs();
+    const dispose = createImageDecodeOffloader(document.body);
+
+    // Establish the verdict through a bare image first.
+    const bare = freshImage("https://cdn.example/shared.jpg");
+    document.body.appendChild(bare);
+    await flush();
+    reply({ url: "https://cdn.example/shared.jpg", blob: new Blob(["scaled"]) });
+
+    const responsive = responsiveImage("https://cdn.example/shared.jpg");
+    document.body.appendChild(responsive);
+    await flush();
+    loadAt(responsive, 4971, 7456);
+    await flush();
+
+    expect(responsive.getAttribute("src")).toMatch(/^blob:scaled-/);
+    expect(responsive.getAttribute("srcset")).toBeNull();
+    dispose();
+  });
+
+  it("a responsive oversized load rides the scaled-result cache without a probe", async () => {
+    const { posted } = installWorkerStubs();
+    installCacheStub({ "https://cdn.example/wp.jpg": new Blob(["scaled"]) });
+    const dispose = createImageDecodeOffloader(document.body);
+
+    const responsive = responsiveImage("https://cdn.example/wp.jpg");
+    document.body.appendChild(responsive);
+    await flush();
+    loadAt(responsive, 4971, 7456);
+    await flush();
+    await flush();
+
+    expect(responsive.getAttribute("src")).toMatch(/^blob:scaled-/);
+    expect(posted).toHaveLength(0);
+    dispose();
+  });
+});

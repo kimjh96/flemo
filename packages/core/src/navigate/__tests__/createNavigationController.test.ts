@@ -159,6 +159,17 @@ describe("createNavigationController router liveness", () => {
     expect(stores.navigate.getState().status).toBe("IDLE");
   });
 
+  it("a queued push aborts when the Router died before it ran", async () => {
+    const { stores, controller, life } = deadSetup();
+    life.alive = false;
+
+    await controller.push("/pushed");
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(stores.history.getState().histories).toHaveLength(1);
+    expect(stores.navigate.getState().status).toBe("IDLE");
+  });
+
   it("a queued pop aborts when the Router died before it ran", async () => {
     const { stores, controller, life } = deadSetup();
     stores.history.setState({
