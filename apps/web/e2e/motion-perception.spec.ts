@@ -82,7 +82,9 @@ const openPlaygroundWithCupertino = async (page: Page) => {
 // explicitly-pinned tier. Player-mechanics guardrails opt in with the
 // diagnostic force key before the app boots.
 const openPlaygroundWithPinnedPlayer = async (page: Page) => {
-  await page.addInitScript(() => sessionStorage.setItem("flemo:motion-driver-force", "raf"));
+  await page.addInitScript(() =>
+    sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`)
+  );
   await openPlaygroundWithCupertino(page);
 };
 
@@ -329,7 +331,9 @@ test.describe("motion perception", () => {
   }) => {
     test.skip(browserName === "webkit", "the player tier is exercised on Blink");
     const { errors } = trackConsoleErrors(page);
-    await page.addInitScript(() => sessionStorage.setItem("flemo:motion-driver-force", "raf"));
+    await page.addInitScript(() =>
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`)
+    );
     await page.goto("/playground");
     await expect(page.getByText("1", { exact: true }).first()).toBeVisible();
     await page.getByRole("button", { name: "Wipe" }).first().click();
@@ -496,12 +500,13 @@ test.describe("motion perception", () => {
     expect(result.titleOpacities, "the part must recover with the drag").toBeGreaterThan(3);
   });
 
-  // A main-thread player cannot survive mid-transition consumer commits
-  // (query-refetch renders, suspense data landing), and short transitions
-  // leave no room to recover from a single block — measured on production
-  // under CPU throttle. The compiled CSS compositor driver is therefore the
-  // default on EVERY engine; the player is an explicitly-pinned tier.
-  test("every engine defaults to the compositor driver", async ({ page }) => {
+  // The default driver is ENGINE-SCOPED. On Blink the compiled compositor
+  // path drives: it plays through main-thread blocks that collapse a player
+  // (measured under CPU throttle). On non-Blink engines the PLAYER drives:
+  // WebKit presents compiled CSS animations from the main thread, so a
+  // wall-clocked fade snaps across a mid-flight commit, while the player's
+  // re-anchoring resumes from the freeze and completes.
+  test("the default driver is engine-scoped", async ({ page, browserName }) => {
     const { errors } = trackConsoleErrors(page);
     await openPlaygroundWithCupertino(page);
 
@@ -526,7 +531,11 @@ test.describe("motion perception", () => {
     const { transitional, suppressed } = await sample;
 
     expect(transitional, "the transition must run").toBeGreaterThan(5);
-    expect(suppressed, "the compiled animation must stay in charge").toBe(0);
+    if (browserName === "chromium") {
+      expect(suppressed, "Blink keeps the compiled animation in charge").toBe(0);
+    } else {
+      expect(suppressed, "non-Blink rides the player").toBeGreaterThan(5);
+    }
     expect(errors).toEqual([]);
   });
 
@@ -541,7 +550,9 @@ test.describe("motion perception", () => {
     page.on("console", (message) => {
       if (message.type() === "warning") warnings.push(message.text());
     });
-    await page.evaluate(() => sessionStorage.setItem("flemo:motion-driver-force", "css"));
+    await page.evaluate(() =>
+      sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`)
+    );
 
     const sample = sampleTransition(page, 900);
     await page.getByRole("button", { name: "Next" }).click();

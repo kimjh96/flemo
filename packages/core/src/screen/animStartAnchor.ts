@@ -170,6 +170,10 @@ export function scheduleAnimHoldReadiness(
   const chainedFrames: number[] = [];
   const cancellers: (() => void)[] = [];
   const readyAfterDecodes = () => {
+    // The canceller runs every stage's cleanup (including the settle gate's
+    // finish, whose normal job is to fire the next stage) — a cancelled
+    // readiness must swallow that call, not release the hold.
+    if (cancelled) return;
     const scope = options.scope;
     // decodeWait === false: release right after the paint anchor, exactly as if
     // the scope had no images. The wait only pays off for a screen waking from

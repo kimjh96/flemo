@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Controllable stand-in for the pending-request counter the settle gate
+// consults (the real module wraps window.fetch/XHR).
+let pendingForTests = false;
+const setPendingForTests = (value: boolean) => {
+  pendingForTests = value;
+};
+vi.mock("@screen/pendingNetwork", () => ({
+  hasPendingRequests: () => pendingForTests
+}));
+
 import {
   animHoldKey,
   createAnimHoldCoordinator,
@@ -628,5 +638,125 @@ describe("createAnimHoldCoordinator", () => {
     // coordinator does not hold it back.
     expect(a).toHaveBeenCalledTimes(1);
     expect(b).not.toHaveBeenCalled();
+  });
+});
+
+describe("scheduleAnimHoldReadiness content settle", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let frameId: number;
+  const flushFrame = () => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((frameCallback) => frameCallback(performance.now()));
+  };
+
+  const SETTLE = { graceMs: 150, firstWaitMs: 400, capMs: 900, minNodes: 30 };
+
+  const shellScope = () => {
+    // Structure without text: reads as a skeleton awaiting content.
+    const scope = document.createElement("div");
+    for (let i = 0; i < 30; i++) scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  const contentScope = () => {
+    const scope = document.createElement("div");
+    for (let i = 0; i < 30; i++) {
+      const row = document.createElement("div");
+      row.textContent = "이미 채워진 콘텐츠 행입니다";
+      scope.appendChild(row);
+    }
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    frames = new Map();
+    frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.textContent = "";
+    setPendingForTests(false);
+  });
+
+  it("a screen that already carries content never waits", () => {
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope: contentScope(), contentSettle: SETTLE });
+    flushFrame();
+    flushFrame(); // paint anchor
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("a shell with nothing in flight gives up on the short grace", () => {
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope: shellScope(), contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+    expect(onReady).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("a loading shell waits for its content wave, then six quiet frames", async () => {
+    setPendingForTests(true);
+    const scope = shellScope();
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+    // Pending requests hold it past both the grace and the first-wave wait.
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    vi.advanceTimersByTime(SETTLE.firstWaitMs + 1);
+    expect(onReady).not.toHaveBeenCalled();
+
+    // The content wave lands (a batch big enough to be content, not shell).
+    const wave = document.createElement("section");
+    for (let i = 0; i < 40; i++) wave.appendChild(document.createElement("p"));
+    scope.appendChild(wave);
+    await Promise.resolve(); // MutationObserver delivery
+
+    setPendingForTests(false);
+    for (let i = 0; i < 6; i++) {
+      expect(onReady).not.toHaveBeenCalled();
+      flushFrame();
+    }
+    flushFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("the cap bounds the whole wait even while requests stay in flight", () => {
+    setPendingForTests(true);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope: shellScope(), contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+    vi.advanceTimersByTime(SETTLE.capMs + 1);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancelling mid-wait suppresses the release", () => {
+    setPendingForTests(true);
+    const onReady = vi.fn();
+    const cancel = scheduleAnimHoldReadiness(onReady, {
+      scope: shellScope(),
+      contentSettle: SETTLE
+    });
+    flushFrame();
+    flushFrame();
+    cancel();
+    vi.advanceTimersByTime(SETTLE.capMs + 10);
+    expect(onReady).not.toHaveBeenCalled();
   });
 });
