@@ -61,8 +61,8 @@ describe("Router image-decode offloader", () => {
   });
 });
 
-describe("pointerdown compositor pre-warm", () => {
-  it("warms on press and releases after the tail", async () => {
+describe("interaction compositor pre-warm", () => {
+  it("warms on interaction and releases after the tail", async () => {
     vi.useFakeTimers();
     const originalAnimate = Element.prototype.animate;
     Element.prototype.animate = vi.fn(
@@ -81,10 +81,10 @@ describe("pointerdown compositor pre-warm", () => {
       });
       expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
 
-      // A second press inside the tail extends it instead of double-holding.
+      // Later interaction inside the tail extends it (pointermove counts).
       act(() => {
         vi.advanceTimersByTime(2000);
-        document.dispatchEvent(new Event("pointerdown"));
+        document.dispatchEvent(new Event("pointermove"));
       });
       act(() => {
         vi.advanceTimersByTime(2500);

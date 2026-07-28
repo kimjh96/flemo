@@ -3,4 +3,4 @@
 "@flemo/react": patch
 ---
 
-Pre-warm the compositor on pointerdown. The per-flight warm-up starts with the flight, so a session's first navigation still paid the pipeline's cold spin-up inside its opening frames. A press precedes its navigation by 50-300ms; warming at the press puts every flight — including the session's first — on an already-spinning compositor.
+Pre-warm the compositor while the user interacts. The per-flight warm-up starts with the flight, so the first navigation after an idle period still paid the pipeline's wake-up inside its opening frames. The warm-up now rides any interaction (pointer movement, wheel, touch, keys) — a pointer moving toward a tap precedes it by seconds — renewed at a throttled cadence and released shortly after interaction stops.
