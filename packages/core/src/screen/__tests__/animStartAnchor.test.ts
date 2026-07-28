@@ -760,3 +760,84 @@ describe("scheduleAnimHoldReadiness content settle", () => {
     expect(onReady).not.toHaveBeenCalled();
   });
 });
+
+describe("scheduleAnimHoldReadiness settle beats", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let frameId: number;
+  const flushFrame = () => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((frameCallback) => frameCallback(performance.now()));
+  };
+  const SETTLE = { graceMs: 150, firstWaitMs: 400, capMs: 900, minNodes: 30 };
+
+  const shellScope = () => {
+    const scope = document.createElement("div");
+    for (let i = 0; i < 30; i++) scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    frames = new Map();
+    frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.textContent = "";
+    setPendingForTests(false);
+  });
+
+  it("quiet frames that end while requests are still in flight re-arm the wait", async () => {
+    setPendingForTests(true);
+    const scope = shellScope();
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+
+    const wave = document.createElement("section");
+    for (let i = 0; i < 40; i++) wave.appendChild(document.createElement("p"));
+    scope.appendChild(wave);
+    await Promise.resolve();
+
+    // Six quiet frames pass but a request is STILL pending: another beat is
+    // coming, so the gate re-arms instead of releasing between beats.
+    for (let i = 0; i < 7; i++) flushFrame();
+    expect(onReady).not.toHaveBeenCalled();
+
+    setPendingForTests(false);
+    for (let i = 0; i < 7; i++) flushFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("the first-wave deadline keeps retrying while requests are in flight", () => {
+    setPendingForTests(true);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope: shellScope(), contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+
+    // Deadline reached with a request outstanding: content is genuinely
+    // coming, so the give-up defers in 100ms steps instead of firing.
+    vi.advanceTimersByTime(SETTLE.firstWaitMs + 1);
+    expect(onReady).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(100);
+    expect(onReady).not.toHaveBeenCalled();
+
+    // The moment nothing is pending (and nothing ever arrived), it gives up.
+    setPendingForTests(false);
+    vi.advanceTimersByTime(101);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+});

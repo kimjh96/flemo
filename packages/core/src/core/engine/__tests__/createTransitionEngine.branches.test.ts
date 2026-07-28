@@ -1125,3 +1125,63 @@ describe("compositor warm-up settle extension", () => {
     }
   });
 });
+
+describe("arrival-hold interrupt and SSR landing paths", () => {
+  it("an interrupt lands held content immediately, before the new flight's first frame", async () => {
+    const { scope } = elements();
+    document.body.appendChild(scope);
+    const engine = createTransitionEngine(deps());
+    const drive = (status: string, isActive: boolean) =>
+      engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: status as never,
+        isActive,
+        animHoldReleased: true
+      });
+
+    drive("PUSHING", true)();
+    const arriving = document.createElement("article");
+    scope.appendChild(arriving);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(arriving.hasAttribute("data-flemo-held-arrival")).toBe(true);
+
+    // The screen's role flips mid-flight (a pop interrupts the push): the
+    // held content must land in the SAME commit, not two frames later.
+    drive("POPPING", true)();
+    expect(arriving.hasAttribute("data-flemo-held-arrival")).toBe(false);
+    scope.remove();
+  });
+
+  it("lands immediately where requestAnimationFrame does not exist (SSR edge)", async () => {
+    const originalRaf = globalThis.requestAnimationFrame;
+    // @ts-expect-error simulating an environment without rAF
+    delete globalThis.requestAnimationFrame;
+    try {
+      const { scope } = elements();
+      document.body.appendChild(scope);
+      const engine = createTransitionEngine(deps());
+      const drive = (status: string) =>
+        engine.driveScreenLifecycle({
+          getElements: () => ({ scope, decorator: null, bars: [] }),
+          transitionName: "cupertino" as never,
+          prevTransitionName: "cupertino" as never,
+          status: status as never,
+          isActive: true,
+          animHoldReleased: true
+        });
+      drive("PUSHING")();
+      const arriving = document.createElement("article");
+      scope.appendChild(arriving);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(arriving.hasAttribute("data-flemo-held-arrival")).toBe(true);
+
+      drive("COMPLETED")();
+      expect(arriving.hasAttribute("data-flemo-held-arrival")).toBe(false);
+      scope.remove();
+    } finally {
+      globalThis.requestAnimationFrame = originalRaf;
+    }
+  });
+});
