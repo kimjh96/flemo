@@ -1,5 +1,23 @@
 # @flemo/core
 
+## 1.21.0
+
+### Minor Changes
+
+- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Enter complete on pushes: a freshly-mounted PUSH destination whose requests are still in flight waits (bounded) for its first content wave to land and settle before the motion starts, so a cold navigation slides in already filled instead of assembling mid-flight. Replaces (bottom-tab switches), warm entries, and pops pay nothing.
+
+- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Remove the consumer-animation quarantine: the compiled sheet no longer sets `animation: none` on the consumer's own elements and `::before`/`::after` pseudo-elements inside entering screens. Consumer-authored animations (skeleton shimmers, ambient loops) now run exactly as written during transitions.
+
+- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Engine-scoped motion driver: on non-Blink engines the rAF player drives every screen transition on one shared clock; Blink keeps the compiled compositor path. WebKit presents compiled CSS animations from the main thread, so a fetch commit landing mid-flight eats the remaining span and the transition snaps; the player's re-anchoring resumes from the freeze and plays the remainder, delayed but complete.
+
+- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) A replace arriving mid-transition now supersedes the in-flight transition (fast-forwards it and starts immediately) instead of being silently dropped. Rapid bottom-tab switching no longer swallows taps that land inside the previous tab's flight, and lag no longer accumulates behind queued fades.
+
+### Patch Changes
+
+- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Pre-warm the compositor while the user interacts. The per-flight warm-up starts with the flight, so the first navigation after an idle period still paid the pipeline's wake-up inside its opening frames. The warm-up now rides any interaction (pointer movement, wheel, touch, keys) — a pointer moving toward a tap precedes it by seconds — renewed at a throttled cadence and released shortly after interaction stops.
+
+- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Warm the compositor for the length of every flight and decode oversized images off the main thread. Fixes the one-frame opening judder on cold transitions and the WebKit tab fade being swallowed when a fetching screen's image decode lands inside the flight.
+
 ## 1.20.0
 
 ### Minor Changes
