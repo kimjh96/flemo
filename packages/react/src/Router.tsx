@@ -16,6 +16,7 @@ import {
   createBrowserHistoryDriver,
   createRouterScope,
   ensureImageDecodeOffloader,
+  holdCompositorWarm,
   seedRouterEntry,
   isServer,
   type HistoryDriver,
@@ -100,6 +101,11 @@ const EMPTY_PART_TRANSITIONS: PartTransition[] = [];
 
 // Stable context value so a nested Router's screens don't re-render on identity churn.
 const CONTAINED_VIEWPORT = { contained: true };
+
+// How long a press keeps the compositor warm past the last pointerdown:
+// enough to bridge press -> navigation -> the flight's own warm-up taking
+// over, short enough that idle taps cost nothing lasting.
+const PRESS_WARM_TAIL_MS = 3000;
 
 function Router({
   children,
@@ -253,6 +259,41 @@ function Router({
   // transition whole — a 190ms fade presented 5 of its 12 frames and ran for
   // 384ms. Document-wide and refcounted, so nested Routers share one observer.
   useEffect(() => ensureImageDecodeOffloader(), []);
+
+  // Pre-warm the compositor on every pointerdown. The per-flight warm-up
+  // starts WITH the flight, so the first navigation of a session still pays
+  // the pipeline's cold spin-up inside its opening frames (observed as a
+  // first-journey judder that disappears while a Performance recording — a
+  // continuous frame producer — runs). A press precedes its navigation by
+  // 50-300ms; warming at the press puts every flight, including the
+  // session's first, on an already-spinning compositor. Reference-counted
+  // with the flight warm-up, released after a short tail.
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    let release: (() => void) | null = null;
+    let tail: ReturnType<typeof setTimeout> | null = null;
+    const handlePointerDown = () => {
+      if (tail) clearTimeout(tail);
+      // Renew the hold on every press (overlapping holds are refcounted):
+      // each hold carries the module's own ~3s backstop, so a press CHAIN
+      // longer than one backstop must not let an old hold's backstop drain
+      // the warm mid-chain.
+      const previous = release;
+      release = holdCompositorWarm();
+      previous?.();
+      tail = setTimeout(() => {
+        tail = null;
+        release?.();
+        release = null;
+      }, PRESS_WARM_TAIL_MS);
+    };
+    document.addEventListener("pointerdown", handlePointerDown, { passive: true });
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      if (tail) clearTimeout(tail);
+      release?.();
+    };
+  }, []);
 
   useEffect(() => {
     // Stamp this Router's identity onto the entry it mounted on: seed its keyed

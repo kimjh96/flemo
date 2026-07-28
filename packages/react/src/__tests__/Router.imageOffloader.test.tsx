@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import Route from "@Route";
@@ -58,5 +58,45 @@ describe("Router image-decode offloader", () => {
     second.unmount();
 
     expect(dispose).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("pointerdown compositor pre-warm", () => {
+  it("warms on press and releases after the tail", async () => {
+    vi.useFakeTimers();
+    const originalAnimate = Element.prototype.animate;
+    Element.prototype.animate = vi.fn(
+      () => ({ cancel: vi.fn() }) as unknown as Animation
+    ) as unknown as typeof Element.prototype.animate;
+    try {
+      render(
+        <Router>
+          <Route path="/" element={<div>home</div>} />
+        </Router>
+      );
+      expect(document.querySelector("[data-flemo-warm]")).toBeNull();
+
+      act(() => {
+        document.dispatchEvent(new Event("pointerdown"));
+      });
+      expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+
+      // A second press inside the tail extends it instead of double-holding.
+      act(() => {
+        vi.advanceTimersByTime(2000);
+        document.dispatchEvent(new Event("pointerdown"));
+      });
+      act(() => {
+        vi.advanceTimersByTime(2500);
+      });
+      expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(600);
+      });
+      expect(document.querySelector("[data-flemo-warm]")).toBeNull();
+    } finally {
+      Element.prototype.animate = originalAnimate;
+      vi.useRealTimers();
+    }
   });
 });
