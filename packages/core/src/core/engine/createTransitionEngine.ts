@@ -8,6 +8,7 @@ import type { TransitionVariant } from "@transition/typing";
 import { resolveVariantMotion, type VariantMotion } from "@transition/variantMotion";
 
 import createArrivalHold from "@core/engine/arrivalHold";
+import holdCompositorWarm from "@core/engine/compositorWarmUp";
 import driverPolicy from "@core/engine/driverPolicy";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import transitionPlayers from "@core/engine/transitionPlayer";
@@ -21,6 +22,11 @@ import { decoratorMap } from "@transition/decorator/decorator";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 const noop = () => {};
+
+// How long the compositor warm-up outlives COMPLETED: covers the +2rAF
+// landing reveal and the convergence commits (drops measured at 400-700ms
+// into 600ms flights), comfortably under the warm-up's own 3s backstop.
+const WARM_SETTLE_MS = 400;
 
 const PART_NAME_ATTR = "data-flemo-part-name";
 
@@ -198,6 +204,21 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   // re-runs mid-transition (the anim-hold release), and the hold must span
   // those re-runs and release only at COMPLETED or on an interrupt.
   let releaseArrivalHold: (() => void) | null = null;
+  // This screen's hold on the compositor warm-up (see compositorWarmUp.ts).
+  // Engine-level for the same reason as the arrival hold: the driver effect
+  // re-runs mid-transition, and the warm-up must span those re-runs and end
+  // only when the screen leaves its transitional statuses.
+  let releaseWarm: (() => void) | null = null;
+  // The warm-up outlives COMPLETED by the settle window. The convergence
+  // storm — status-flip commits, the covered screen's freeze, the landing
+  // reveal two frames past COMPLETED — lands right AFTER the motion rests,
+  // where frame production is back to on-demand; measured on the user's own
+  // machine (attached real Chrome, 180s of hand-driven journeys) as 17
+  // dropped frames clustered at 400-700ms into 600ms flights with no
+  // compositor animation live — the convergence tremor. Forcing frames
+  // through the settle keeps that window on the vsync cadence, exactly what
+  // a DevTools Performance recording does when it masks the judder.
+  let warmSettleTimer: ReturnType<typeof setTimeout> | null = null;
   // A landing scheduled two frames past COMPLETED (see below). Tracked so a
   // navigation starting inside that window can land it immediately instead of
   // letting it punch into the new flight.
@@ -212,8 +233,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   };
 
   // The COMPLETED flip's commit is already the convergence frame's busiest
-  // moment (status re-renders, freeze of the covered screen, quarantine
-  // release); landing the held content there stacks a large reveal commit
+  // moment (status re-renders, freeze of the covered screen); landing the
+  // held content there stacks a large reveal commit
   // onto the exact frames the eye is watching settle. Two rAFs put the
   // landing just past the last presented motion frame — visually still "at
   // rest", but off the convergence commit. Without rAF (SSR/jsdom edge) the
@@ -239,6 +260,31 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       input;
 
     const isTransitional = status === "PUSHING" || status === "POPPING" || status === "REPLACING";
+
+    // Keep the compositor producing frames for as long as this screen is in
+    // motion (opening spin-up) AND through the settle window past COMPLETED
+    // (the convergence storm) — see warmSettleTimer above.
+    if (isTransitional) {
+      // A navigation starting inside the settle window keeps the SAME hold:
+      // cancel the pending release without spending it.
+      if (warmSettleTimer) {
+        clearTimeout(warmSettleTimer);
+        warmSettleTimer = null;
+      }
+      if (!releaseWarm) releaseWarm = holdCompositorWarm();
+    }
+    if (!isTransitional && releaseWarm && !warmSettleTimer) {
+      if (typeof setTimeout === "function") {
+        warmSettleTimer = setTimeout(() => {
+          warmSettleTimer = null;
+          releaseWarm?.();
+          releaseWarm = null;
+        }, WARM_SETTLE_MS);
+      } else {
+        releaseWarm();
+        releaseWarm = null;
+      }
+    }
 
     // No content landing while the screen is in motion: the COLD side of a
     // navigation (freshly-mounted enter on push/replace, unfreezing pop

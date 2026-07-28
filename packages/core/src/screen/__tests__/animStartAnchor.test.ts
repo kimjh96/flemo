@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Controllable stand-in for the pending-request counter the settle gate
+// consults (the real module wraps window.fetch/XHR).
+let pendingForTests = false;
+const setPendingForTests = (value: boolean) => {
+  pendingForTests = value;
+};
+vi.mock("@screen/pendingNetwork", () => ({
+  hasPendingRequests: () => pendingForTests
+}));
+
 import {
   animHoldKey,
   createAnimHoldCoordinator,
@@ -628,5 +638,401 @@ describe("createAnimHoldCoordinator", () => {
     // coordinator does not hold it back.
     expect(a).toHaveBeenCalledTimes(1);
     expect(b).not.toHaveBeenCalled();
+  });
+});
+
+describe("scheduleAnimHoldReadiness content settle", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let frameId: number;
+  const flushFrame = () => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((frameCallback) => frameCallback(performance.now()));
+  };
+
+  const SETTLE = { graceMs: 150, firstWaitMs: 400, capMs: 900, minNodes: 30 };
+
+  const shellScope = () => {
+    // Structure without text: reads as a skeleton awaiting content.
+    const scope = document.createElement("div");
+    for (let i = 0; i < 30; i++) scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  const contentScope = () => {
+    const scope = document.createElement("div");
+    for (let i = 0; i < 30; i++) {
+      const row = document.createElement("div");
+      row.textContent = "이미 채워진 콘텐츠 행입니다";
+      scope.appendChild(row);
+    }
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    frames = new Map();
+    frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.textContent = "";
+    setPendingForTests(false);
+  });
+
+  it("a screen that already carries content never waits", () => {
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope: contentScope(), contentSettle: SETTLE });
+    flushFrame();
+    flushFrame(); // paint anchor
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("a shell with nothing in flight gives up on the short grace", () => {
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope: shellScope(), contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+    expect(onReady).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("a loading shell waits for its content wave, then six quiet frames", async () => {
+    setPendingForTests(true);
+    const scope = shellScope();
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+    // Pending requests hold it past both the grace and the first-wave wait.
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    vi.advanceTimersByTime(SETTLE.firstWaitMs + 1);
+    expect(onReady).not.toHaveBeenCalled();
+
+    // The content wave lands (a batch big enough to be content, not shell).
+    const wave = document.createElement("section");
+    for (let i = 0; i < 40; i++) wave.appendChild(document.createElement("p"));
+    scope.appendChild(wave);
+    await Promise.resolve(); // MutationObserver delivery
+
+    setPendingForTests(false);
+    for (let i = 0; i < 6; i++) {
+      expect(onReady).not.toHaveBeenCalled();
+      flushFrame();
+    }
+    flushFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("the cap bounds the whole wait even while requests stay in flight", () => {
+    setPendingForTests(true);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope: shellScope(), contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+    vi.advanceTimersByTime(SETTLE.capMs + 1);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancelling mid-wait suppresses the release", () => {
+    setPendingForTests(true);
+    const onReady = vi.fn();
+    const cancel = scheduleAnimHoldReadiness(onReady, {
+      scope: shellScope(),
+      contentSettle: SETTLE
+    });
+    flushFrame();
+    flushFrame();
+    cancel();
+    vi.advanceTimersByTime(SETTLE.capMs + 10);
+    expect(onReady).not.toHaveBeenCalled();
+  });
+});
+
+describe("scheduleAnimHoldReadiness settle beats", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let frameId: number;
+  const flushFrame = () => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((frameCallback) => frameCallback(performance.now()));
+  };
+  const SETTLE = { graceMs: 150, firstWaitMs: 400, capMs: 900, minNodes: 30 };
+
+  const shellScope = () => {
+    const scope = document.createElement("div");
+    for (let i = 0; i < 30; i++) scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    frames = new Map();
+    frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.textContent = "";
+    setPendingForTests(false);
+  });
+
+  it("quiet frames that end while requests are still in flight re-arm the wait", async () => {
+    setPendingForTests(true);
+    const scope = shellScope();
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+
+    const wave = document.createElement("section");
+    for (let i = 0; i < 40; i++) wave.appendChild(document.createElement("p"));
+    scope.appendChild(wave);
+    await Promise.resolve();
+
+    // Six quiet frames pass but a request is STILL pending: another beat is
+    // coming, so the gate re-arms instead of releasing between beats.
+    for (let i = 0; i < 7; i++) flushFrame();
+    expect(onReady).not.toHaveBeenCalled();
+
+    setPendingForTests(false);
+    for (let i = 0; i < 7; i++) flushFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("the first-wave deadline keeps retrying while requests are in flight", () => {
+    setPendingForTests(true);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope: shellScope(), contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+
+    // Deadline reached with a request outstanding: content is genuinely
+    // coming, so the give-up defers in 100ms steps instead of firing.
+    vi.advanceTimersByTime(SETTLE.firstWaitMs + 1);
+    expect(onReady).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(100);
+    expect(onReady).not.toHaveBeenCalled();
+
+    // The moment nothing is pending (and nothing ever arrived), it gives up.
+    setPendingForTests(false);
+    vi.advanceTimersByTime(101);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("scheduleAnimHoldReadiness settle boundaries", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let frameId: number;
+  const flushFrame = () => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((frameCallback) => frameCallback(performance.now()));
+  };
+  const SETTLE = { graceMs: 150, firstWaitMs: 400, capMs: 900, minNodes: 30 };
+
+  const shellScope = () => {
+    const scope = document.createElement("div");
+    for (let i = 0; i < 30; i++) scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    frames = new Map();
+    frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.textContent = "";
+    setPendingForTests(false);
+  });
+
+  it("a wave landing at the cap finishes immediately instead of re-quieting", async () => {
+    setPendingForTests(true);
+    const scope = shellScope();
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+
+    // Ride the pending requests past the whole window, then land the wave.
+    await vi.advanceTimersByTimeAsync(SETTLE.capMs - 1);
+    const wave = document.createElement("section");
+    for (let i = 0; i < 40; i++) wave.appendChild(document.createElement("p"));
+    scope.appendChild(wave);
+    await vi.advanceTimersByTimeAsync(2);
+    await Promise.resolve();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("the first-wave deadline stands down once content has arrived", async () => {
+    setPendingForTests(true);
+    const scope = shellScope();
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+
+    const wave = document.createElement("section");
+    for (let i = 0; i < 40; i++) wave.appendChild(document.createElement("p"));
+    scope.appendChild(wave);
+    await Promise.resolve();
+
+    // The deadline fires with content already seen: it must defer to the
+    // quiet-frame convergence, not force a release.
+    await vi.advanceTimersByTimeAsync(SETTLE.firstWaitMs + 1);
+    expect(onReady).not.toHaveBeenCalled();
+
+    setPendingForTests(false);
+    for (let i = 0; i < 7; i++) flushFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("small mutations never count as the content wave", async () => {
+    const scope = shellScope();
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+
+    scope.appendChild(document.createElement("div")); // 1 node < minNodes
+    await Promise.resolve();
+    expect(onReady).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(SETTLE.graceMs + 1); // nothing pending: grace fires
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("text nodes count toward the wave one apiece", async () => {
+    setPendingForTests(true);
+    const scope = shellScope();
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+
+    const fragment = document.createDocumentFragment();
+    for (let i = 0; i < 31; i++) fragment.appendChild(document.createTextNode(`행 ${i}`));
+    scope.appendChild(fragment);
+    await Promise.resolve();
+
+    setPendingForTests(false);
+    for (let i = 0; i < 7; i++) flushFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("a sparse screen (too little structure to be a skeleton) never waits", () => {
+    const scope = document.createElement("div");
+    scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("a scope without querySelectorAll cannot be judged and never waits", () => {
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, {
+      scope: {} as HTMLElement,
+      decodeWait: false,
+      contentSettle: SETTLE
+    });
+    flushFrame();
+    flushFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("scheduleAnimHoldReadiness consecutive waves", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let frameId: number;
+  const flushFrame = () => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((frameCallback) => frameCallback(performance.now()));
+  };
+  const SETTLE = { graceMs: 150, firstWaitMs: 400, capMs: 900, minNodes: 30 };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    frames = new Map();
+    frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.textContent = "";
+    setPendingForTests(false);
+  });
+
+  it("a second wave mid-quiet restarts the quiet count from its own frames", async () => {
+    setPendingForTests(true);
+    const scope = document.createElement("div");
+    for (let i = 0; i < 30; i++) scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+
+    const wave = () => {
+      const section = document.createElement("section");
+      for (let i = 0; i < 40; i++) section.appendChild(document.createElement("p"));
+      scope.appendChild(section);
+    };
+    wave();
+    await Promise.resolve();
+    flushFrame();
+    flushFrame(); // two quiet frames in...
+    wave(); // ...a second beat cancels them and restarts the count
+    await Promise.resolve();
+
+    setPendingForTests(false);
+    for (let i = 0; i < 6; i++) {
+      expect(onReady).not.toHaveBeenCalled();
+      flushFrame();
+    }
+    expect(onReady).toHaveBeenCalledTimes(1);
   });
 });

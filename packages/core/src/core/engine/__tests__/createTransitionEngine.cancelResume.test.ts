@@ -24,7 +24,7 @@ import { partTransitionMap } from "@transition/partTransition/partTransition";
 // exactly the path this recovery guards.
 // ─────────────────────────────────────────────────────────────────────────────
 
-beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", "raf"));
+beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`));
 afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
 
 // delay 0, duration 0.15 → span 150ms, watchdog deadline 400ms. Mismatched

@@ -481,10 +481,28 @@ function ScreenMotion({
         // or freshly-mounted screen never pays the wait, which is what keeps a
         // paired push/replace release free.
         scope: scopeRef.current,
-        decodeWait: decodeWaitRef.current
+        decodeWait: decodeWaitRef.current,
+        // Enter COMPLETE: while this screen still has requests in flight, the
+        // motion waits for its content wave to land and settle, so a cold
+        // navigation slides in already filled instead of assembling under the
+        // eye mid-flight (paired A/B on the deep journey under load: gate ON
+        // 13% velocity noise vs OFF 50%). Bounded twice, and skipped entirely
+        // when nothing is pending or the screen already carries content — a
+        // warm entry pays nothing. FRESH MOUNTS only: a pop returns to a
+        // screen the user has already seen; making it wait on a refetch taxes
+        // the one navigation that must feel instant (measured: +150ms on
+        // every pop). PUSH only, not REPLACE: a bottom-tab switch is a 150ms
+        // whole-screen fade where "arrive complete" buys nothing the eye can
+        // see, while the wait reads as a dead tap — and mid-flight commits
+        // there are survived by the driver (the player re-anchors through
+        // blocks; Blink's compositor plays through them).
+        contentSettle:
+          isActive && status === "PUSHING"
+            ? { graceMs: 150, firstWaitMs: 400, capMs: 900, minNodes: 30 }
+            : undefined
       }
     );
-  }, [animHold, holdKey, holdAttr, stores.navigate]);
+  }, [animHold, holdKey, holdAttr, isActive, status, stores.navigate]);
 
   const initialStyle =
     holdAttr === "park-under"

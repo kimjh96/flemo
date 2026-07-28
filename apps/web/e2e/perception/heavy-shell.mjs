@@ -220,7 +220,7 @@ async function runScenario(browser, cfg, transition, block, tag) {
   const contextStart = Date.now();
   await context.addInitScript((driver) => {
     try {
-      sessionStorage.setItem("flemo:motion-driver-force", driver);
+      sessionStorage.setItem("flemo:motion-driver-force", `${driver}@${Date.now()}`);
     } catch {
       // ignore
     }

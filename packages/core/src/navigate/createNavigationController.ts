@@ -287,7 +287,25 @@ export default function createNavigationController(deps: NavigationControllerDep
     const { status } = stores.navigate.getState();
 
     if (status !== "COMPLETED" && status !== "IDLE") {
-      return;
+      // A replace arriving mid-transition supersedes it (measured on the
+      // bottom-tab bar: taps landing inside the previous tab's flight were
+      // silently dropped — the intermittent "swallowed transition" — and
+      // taps landing between flights queued ~150-500ms behind the finger).
+      // Fast-forward the in-flight gate to COMPLETED (the engine's interrupt
+      // path lands held content immediately), give its resolver's
+      // continuation a beat to run, and proceed. Push and pop keep their
+      // guards: replays and traversals must never skip, but a replace is a
+      // statement of fresh intent about the CURRENT entry.
+      await TaskManager.resolveAllPending();
+      for (let i = 0; i < 5; i++) {
+        const { status: settled } = stores.navigate.getState();
+        if (settled === "COMPLETED" || settled === "IDLE") break;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      const { status: settled } = stores.navigate.getState();
+      if (settled !== "COMPLETED" && settled !== "IDLE") {
+        return;
+      }
     }
 
     const defaultTransitionName = stores.transition.getState().defaultTransitionName;

@@ -15,6 +15,8 @@ import {
 import {
   createBrowserHistoryDriver,
   createRouterScope,
+  ensureImageDecodeOffloader,
+  holdCompositorWarm,
   seedRouterEntry,
   isServer,
   type HistoryDriver,
@@ -99,6 +101,13 @@ const EMPTY_PART_TRANSITIONS: PartTransition[] = [];
 
 // Stable context value so a nested Router's screens don't re-render on identity churn.
 const CONTAINED_VIEWPORT = { contained: true };
+
+// Interaction-warm cadence: how often the hold is renewed while interaction
+// continues, and how long it survives past the last interaction — enough to
+// bridge move -> tap -> the flight's own warm-up taking over, short enough
+// that a walked-away user costs nothing lasting.
+const INTERACTION_WARM_RENEW_MS = 500;
+const INTERACTION_WARM_TAIL_MS = 3000;
 
 function Router({
   children,
@@ -245,6 +254,55 @@ function Router({
   // injects the compiled CSS keyframes into the document head. Runs in
   // useInsertionEffect so styles are committed before any screen paints.
   useTransitionStyles(transitions, decorators, partTransitions);
+
+  // Off-main decode-to-scale for oversized images (see @flemo/core
+  // imageDecodeOffloader): WebKit decodes full-resolution originals
+  // synchronously on the main thread, which was measured eating a tab
+  // transition whole — a 190ms fade presented 5 of its 12 frames and ran for
+  // 384ms. Document-wide and refcounted, so nested Routers share one observer.
+  useEffect(() => ensureImageDecodeOffloader(), []);
+
+  // Pre-warm the compositor while the user INTERACTS. The per-flight warm-up
+  // starts WITH the flight, so the first navigation after an idle period
+  // still pays the pipeline's wake-up (frame clock, GPU power state) inside
+  // its opening frames — observed as a first-journey judder that disappears
+  // while a Performance recording (a continuous frame producer) runs, and
+  // measured to survive a press-scoped warm: the wake costs more than the
+  // 50-300ms a press precedes its navigation by. So the warm rides ANY
+  // interaction — a pointer moving toward a tap precedes it by seconds —
+  // renewed at most twice a second, released a short tail after the
+  // interaction stops. This reproduces exactly what the recording does, but
+  // only while the user is actually about to do something.
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    let release: (() => void) | null = null;
+    let tail: ReturnType<typeof setTimeout> | null = null;
+    let lastRenewal = 0;
+    const renew = () => {
+      const now = Date.now();
+      // Renew the hold (overlapping holds are refcounted; each carries the
+      // module's ~3s backstop, so a long interaction must keep re-taking it)
+      // at a throttled cadence — pointermove fires per frame.
+      if (now - lastRenewal < INTERACTION_WARM_RENEW_MS) return;
+      lastRenewal = now;
+      if (tail) clearTimeout(tail);
+      const previous = release;
+      release = holdCompositorWarm();
+      previous?.();
+      tail = setTimeout(() => {
+        tail = null;
+        release?.();
+        release = null;
+      }, INTERACTION_WARM_TAIL_MS);
+    };
+    const events = ["pointerdown", "pointermove", "wheel", "touchstart", "keydown"] as const;
+    for (const type of events) document.addEventListener(type, renew, { passive: true });
+    return () => {
+      for (const type of events) document.removeEventListener(type, renew);
+      if (tail) clearTimeout(tail);
+      release?.();
+    };
+  }, []);
 
   useEffect(() => {
     // Stamp this Router's identity onto the entry it mounted on: seed its keyed

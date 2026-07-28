@@ -1,27 +1,41 @@
-// Evidence-based motion-driver policy.
+// Evidence-based motion-driver policy, scoped per rendering engine.
 //
-// The COMPILED COMPOSITOR path is the default screen-transition driver on
-// EVERY engine; the rAF player is a diagnostic tier behind the force pin. Two
-// pixel-level measurements settled this, both taken on real Chrome with
-// per-frame screencast diffing:
+// BLINK: the COMPILED COMPOSITOR path drives; the rAF player is a diagnostic
+// tier behind the force pin. Two pixel-level measurements settled this, both
+// taken on real Chrome with per-frame screencast diffing:
 // - Deceleration tail: the player's px-snapped inline writes move less than
 //   1px per frame near rest, so the presented frames alternate hold/1px-step
 //   (measured as ~0 / ~68k changed pixels, alternating) — a visible shiver.
 //   The compiled path on translate3d keyframes decays monotonically to rest.
 //   The Blink 2D-transform judder the player was ORIGINALLY built to route
 //   around disappeared when the keyframe compiler moved every translation to
-//   translate3d (direct texture-filtered compositing); the player outlived
-//   its evidence.
+//   translate3d (direct texture-filtered compositing).
 // - Main-thread churn: under 20x CPU throttle a real app's transition window
 //   (query refetch + suspense commits) collapsed player-driven 150ms fades
-//   into 1-2 presented frames, while the compositor played every fade on
-//   time through 300ms stalls. A main-thread driver shares its thread with
-//   consumer work by construction; no probe can certify the future.
+//   into 1-2 presented frames, while Blink's compositor played every fade on
+//   time through 300ms stalls.
+//
+// NON-BLINK: the PLAYER drives. The Chrome measurements above do not
+// transfer, because WebKit presents these compiled screen animations FROM
+// THE MAIN THREAD — proven on device glass (iPhone Safari screen recording,
+// per-frame pixel classification): a refetch commit landing in a tab fade's
+// tail froze the pixels at ~60% presented progress for ~80ms while the
+// animation clock ran past its end, then the fill snapped the landed screen
+// to full contrast — the reported whole-screen blink, on first entry and
+// re-entry alike. A wall-clocked CSS animation structurally cannot survive
+// that: the block eats its remaining span. The player shares the same main
+// thread, so the same block freezes it identically — but its re-anchoring
+// resumes FROM THE FREEZE and plays the remainder, delayed-but-complete
+// instead of jumped (device-verified: blink gone, overall smoother). The
+// demotion machinery is Blink-thinking ("the compositor serves that device
+// better") and therefore never applies where the compiled path doesn't
+// composite — see `demotable`.
+//
 // There is deliberately NO automatic driver switching, and none mid-flight:
 // the two paths have different clocks, easing evaluation, and write paths, so
 // any handoff during motion risks a visible seam. The pin picks one driver
-// for the whole session; the demotion machinery below still guards a pinned
-// player on a chronically-starved device.
+// for the whole session; the demotion machinery still guards a force-pinned
+// player on a chronically-starved Blink device.
 
 export interface DriverPolicyStorage {
   read: () => string | null;
@@ -31,15 +45,21 @@ export interface DriverPolicyStorage {
 const STORAGE_KEY = "flemo:motion-driver";
 
 // Diagnostic hard override for field debugging (same spirit as
-// window.__flemoPlayerGaps): "css" pins the compiled-CSS path, "raf" pins the
-// player, bypassing measurement, strikes, and probation entirely. Read live on
-// every decision so a DevTools toggle takes effect on the next transition.
-// Not a consumer API — intentionally undocumented. SESSION storage on
-// purpose: a diagnostic pin must die with its debugging session. It once
-// lived in localStorage, where one forgotten toggle silently pinned every
-// future session — a stale "raf" pin kept reintroducing the player's
-// deceleration-tail shiver long after the default had moved on.
+// window.__flemoPlayerGaps): "css@<epoch-ms>" pins the compiled-CSS path,
+// "raf@<epoch-ms>" pins the player, bypassing measurement, strikes, and
+// probation entirely. Read live on every decision so a DevTools toggle takes
+// effect on the next transition. Not a consumer API — intentionally
+// undocumented. SESSION storage AND a freshness stamp, both learned the hard
+// way: the pin once lived in localStorage, where one forgotten toggle
+// silently pinned every future session; moved to sessionStorage, it STILL
+// outlived its debugging session, because mobile tab restoration resurrects
+// sessionStorage across days — a stale plain "raf" pin on a restored Safari
+// tab reproduced the player's whole delay/mid-start profile on every tab
+// switch while a pristine private window ran clean. A pin now expires after
+// FORCE_PIN_TTL_MS, and anything unstamped or stale is REMOVED on sight so
+// an old profile self-heals on its next decision.
 const FORCE_KEY = "flemo:motion-driver-force";
+export const FORCE_PIN_TTL_MS = 24 * 60 * 60 * 1000;
 
 // Warn once per session while the pin is active: a forgotten force key reads
 // as a mysterious cross-site perf regression (it pins EVERY transition), so
@@ -58,7 +78,20 @@ const readForcedDriver = (): "css" | "raf" | null => {
     }
     if (typeof sessionStorage === "undefined") return null;
     const value = sessionStorage.getItem(FORCE_KEY);
-    if (value !== "css" && value !== "raf") return null;
+    if (value === null) return null;
+    const [driver, stamp] = value.split("@");
+    const stampMs = Number(stamp);
+    const fresh =
+      (driver === "css" || driver === "raf") &&
+      stamp !== undefined &&
+      Number.isFinite(stampMs) &&
+      Math.abs(Date.now() - stampMs) < FORCE_PIN_TTL_MS;
+    if (!fresh) {
+      // Unstamped (legacy plain "raf"/"css"), malformed, or expired: never
+      // honored, only removed.
+      sessionStorage.removeItem(FORCE_KEY);
+      return null;
+    }
     if (!warnedForcedDriver && typeof console !== "undefined") {
       warnedForcedDriver = true;
       // The console IS the destination here: this fires only while a
@@ -66,11 +99,11 @@ const readForcedDriver = (): "css" | "raf" | null => {
       // that a forgotten pin can never be silent.
       // eslint-disable-next-line no-console
       console.warn(
-        `[flemo] motion driver pinned to "${value}" via sessionStorage ${FORCE_KEY}; ` +
-          "remove the key to restore automatic selection."
+        `[flemo] motion driver pinned to "${driver}" via sessionStorage ${FORCE_KEY}; ` +
+          "remove the key to restore automatic selection (pins expire after 24h)."
       );
     }
-    return value;
+    return driver as "css" | "raf";
   } catch {
     return null;
   }
@@ -121,21 +154,29 @@ export interface DriverPolicy {
 
 // Engine probe, not a brand sniff: navigator.userAgentData ships with Blink
 // and nothing else — including iOS Chrome, which is WebKit underneath and
-// correctly reads as non-Blink here. Kept for diagnostics; the DEFAULT driver
-// no longer branches on it (see the file header).
+// correctly reads as non-Blink here. The DEFAULT driver branches on it (see
+// the file header): compiled compositor on Blink, player elsewhere.
 export const detectBlinkEngine = (): boolean =>
   typeof navigator !== "undefined" && !!(navigator as { userAgentData?: unknown }).userAgentData;
 
 export const createDriverPolicy = (
   storage: DriverPolicyStorage = defaultStorage(),
-  playerByDefault: boolean = false
+  playerByDefault: boolean = false,
+  // Whether the stall accounting may demote the player to the compiled path.
+  // Only meaningful where the compiled path actually COMPOSITES (Blink): on
+  // engines that present it from the main thread, "demoting" swaps a
+  // freeze-and-continue driver for a freeze-and-jump one — strictly worse on
+  // exactly the starved devices the demotion targets. Gap stats keep
+  // accumulating for diagnostics either way.
+  demotable: boolean = true
 ): DriverPolicy => {
   // A persisted demotion is PROBATION, not a life sentence: each new session
   // the player gets one probe transition. A clean probe clears the record —
   // so one bad day (a background-noise stall streak) can't permanently
   // downgrade a healthy device — while a stalling probe re-confirms the
-  // demotion for the rest of the session.
-  let demoted = storage.read() === "css";
+  // demotion for the rest of the session. A non-demotable policy also
+  // IGNORES any persisted record (an older version may have written one).
+  let demoted = demotable && storage.read() === "css";
   let probing = demoted;
   if (demoted) demoted = false;
 
@@ -159,6 +200,8 @@ export const createDriverPolicy = (
     },
     endRun: () => {
       const stalled = runLongGaps >= STALLED_RUN_THRESHOLD;
+      if (stalled) strikes += 1;
+      if (!demotable) return;
       if (probing) {
         probing = false;
         if (stalled) {
@@ -168,18 +211,20 @@ export const createDriverPolicy = (
         }
         return;
       }
-      if (stalled) {
-        strikes += 1;
-        if (strikes >= DEMOTION_STRIKES && !demoted) {
-          demoted = true;
-          storage.write("css");
-        }
+      if (stalled && strikes >= DEMOTION_STRIKES && !demoted) {
+        demoted = true;
+        storage.write("css");
       }
     },
     stats: () => ({ runGaps: [...runGaps], strikes, demoted })
   };
 };
 
-const driverPolicy = createDriverPolicy();
+// Engine-scoped default (see the file header): Blink runs the compiled
+// compositor path; everything else runs the player, non-demotable — the
+// compiled path is the freeze-and-jump tier there, never a refuge.
+const driverPolicy = detectBlinkEngine()
+  ? createDriverPolicy()
+  : createDriverPolicy(defaultStorage(), true, false);
 
 export default driverPolicy;

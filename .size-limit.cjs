@@ -14,13 +14,14 @@ module.exports = [
     // motion engine (transition player, driver policy, cubic-bezier solver,
     // variant motion) and the in-flight glass-integrity machinery (commit
     // hold, perceptual completion cut) — the latter pushed the local ruler to
-    // ~22.3 KB, a deliberate +0.6 KB for measured judder mechanisms. Current
-    // baseline: ~18.7 KB by CI's size-limit run, ~22.3 KB by a local run on a
-    // byte-identical dist (measurement-toolchain variance, cause unresolved)
-    // — the budget leaves headroom above the LARGER ruler so the gate can't
-    // flap across environments while still tripping on a multi-KB accidental
-    // balloon.
-    limit: "24 KB",
+    // ~22.3 KB, a deliberate +0.6 KB for measured judder mechanisms. The
+    // fetch-overlap work added the image decode offloader (with its embedded
+    // worker source), the compositor warm-up, the pending-network counter and
+    // the content-settle gate — measured on-device as the difference between
+    // swallowed/juddering flights and clean ones — for a deliberate +2.9 KB
+    // (CI ruler: 22.4 -> 25.3 KB). Budget re-based with ~15% headroom so the
+    // gate still trips on a multi-KB accidental balloon.
+    limit: "29 KB",
     gzip: true
   },
   {

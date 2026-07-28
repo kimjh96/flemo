@@ -15,7 +15,7 @@ import { partTransitionMap } from "@transition/partTransition/partTransition";
 // jsdom reads as non-Blink (no navigator.userAgentData), where the player
 // defaults OFF; these suites exercise the player paths, so pin it on via
 // the diagnostic force key.
-beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", "raf"));
+beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`));
 afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
 
 const deps = () => ({
@@ -644,7 +644,7 @@ describe("perceptual completion cut", () => {
     vi.useFakeTimers();
     // The cut is compiled-CSS-path only; this file pins the raf player in
     // beforeAll, so pin css for this test.
-    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     try {
       const { scope } = elements();
       // jsdom boxes measure 0: give the scope a real width so percentage
@@ -680,7 +680,7 @@ describe("perceptual completion cut", () => {
       resolveSpy.mockRestore();
       scope.remove();
     } finally {
-      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.useRealTimers();
     }
   });
@@ -688,7 +688,7 @@ describe("perceptual completion cut", () => {
 
 describe("driver join without a task", () => {
   it("falls back to the compiled path when no navigation task exists", () => {
-    sessionStorage.setItem("flemo:motion-driver-force", "raf");
+    sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
     try {
       const { scope } = elements();
       document.body.appendChild(scope);
@@ -706,7 +706,7 @@ describe("driver join without a task", () => {
       cleanup();
       scope.remove();
     } finally {
-      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
     }
   });
 });
@@ -743,7 +743,7 @@ describe("perceptual cut with participating parts", () => {
 
   it("raises the cut ceiling to a longer analyzable part motion", () => {
     vi.useFakeTimers();
-    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     partTransitionMap.set(
       "slow-fade" as never,
       createPartTransition({
@@ -782,14 +782,14 @@ describe("perceptual cut with participating parts", () => {
       scope.remove();
     } finally {
       partTransitionMap.delete("slow-fade" as never);
-      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.useRealTimers();
     }
   });
 
   it("vetoes the cut on an unanalyzable part motion", () => {
     vi.useFakeTimers();
-    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     partTransitionMap.set(
       "scaling-part" as never,
       createPartTransition({
@@ -821,7 +821,7 @@ describe("perceptual cut with participating parts", () => {
       scope.remove();
     } finally {
       partTransitionMap.delete("scaling-part" as never);
-      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.useRealTimers();
     }
   });
@@ -830,7 +830,7 @@ describe("perceptual cut with participating parts", () => {
 describe("choreography-span deferral", () => {
   it("defers the clean-end resolve until the longest part finishes", () => {
     vi.useFakeTimers();
-    sessionStorage.setItem("flemo:motion-driver-force", "css");
+    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     // A material-shaped screen (0.35s) with a 0.6s part: the part outlives
     // the screen by 250ms, and the COMPLETED flip must wait for it.
     transitionMap.set(
@@ -897,7 +897,7 @@ describe("choreography-span deferral", () => {
     } finally {
       transitionMap.delete("short-screen" as never);
       partTransitionMap.delete("long-part" as never);
-      sessionStorage.setItem("flemo:motion-driver-force", "raf");
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.useRealTimers();
     }
   });
@@ -1046,5 +1046,176 @@ describe("in-flight arrival hold wiring", () => {
     await observerFlush();
     expect(live.hasAttribute("data-flemo-held-arrival")).toBe(false);
     scope.remove();
+  });
+});
+
+describe("compositor warm-up settle extension", () => {
+  it("keeps the warm element alive 400ms past COMPLETED, then removes it", () => {
+    vi.useFakeTimers();
+    const originalAnimate = Element.prototype.animate;
+    const cancel = vi.fn();
+    Element.prototype.animate = vi.fn(
+      () => ({ cancel }) as unknown as Animation
+    ) as unknown as typeof Element.prototype.animate;
+    try {
+      const { scope } = elements();
+      const engine = createTransitionEngine(deps());
+      const drive = (status: string) =>
+        engine.driveScreenLifecycle({
+          getElements: () => ({ scope, decorator: null, bars: [] }),
+          transitionName: "cupertino" as never,
+          prevTransitionName: "cupertino" as never,
+          status: status as never,
+          isActive: true,
+          animHoldReleased: true
+        });
+
+      const cleanupFlight = drive("PUSHING");
+      expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+      cleanupFlight();
+
+      // COMPLETED: the warm-up must survive the settle window...
+      const cleanupRest = drive("COMPLETED");
+      expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+      vi.advanceTimersByTime(399);
+      expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+      // ...and end right after it.
+      vi.advanceTimersByTime(2);
+      expect(document.querySelector("[data-flemo-warm]")).toBeNull();
+      cleanupRest();
+    } finally {
+      Element.prototype.animate = originalAnimate;
+      vi.useRealTimers();
+    }
+  });
+
+  it("a new flight inside the settle window keeps the warm-up unbroken", () => {
+    vi.useFakeTimers();
+    const originalAnimate = Element.prototype.animate;
+    Element.prototype.animate = vi.fn(
+      () => ({ cancel: vi.fn() }) as unknown as Animation
+    ) as unknown as typeof Element.prototype.animate;
+    try {
+      const { scope } = elements();
+      const engine = createTransitionEngine(deps());
+      const drive = (status: string) =>
+        engine.driveScreenLifecycle({
+          getElements: () => ({ scope, decorator: null, bars: [] }),
+          transitionName: "cupertino" as never,
+          prevTransitionName: "cupertino" as never,
+          status: status as never,
+          isActive: true,
+          animHoldReleased: true
+        });
+
+      drive("PUSHING")();
+      drive("COMPLETED")();
+      vi.advanceTimersByTime(200);
+      // Next navigation starts mid-settle: the pending release is cancelled.
+      drive("POPPING")();
+      vi.advanceTimersByTime(1000);
+      expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+      // Its own COMPLETED starts a fresh settle window.
+      drive("COMPLETED")();
+      vi.advanceTimersByTime(401);
+      expect(document.querySelector("[data-flemo-warm]")).toBeNull();
+    } finally {
+      Element.prototype.animate = originalAnimate;
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("arrival-hold interrupt and SSR landing paths", () => {
+  it("an interrupt lands held content immediately, before the new flight's first frame", async () => {
+    const { scope } = elements();
+    document.body.appendChild(scope);
+    const engine = createTransitionEngine(deps());
+    const drive = (status: string, isActive: boolean) =>
+      engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: status as never,
+        isActive,
+        animHoldReleased: true
+      });
+
+    drive("PUSHING", true)();
+    const arriving = document.createElement("article");
+    scope.appendChild(arriving);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(arriving.hasAttribute("data-flemo-held-arrival")).toBe(true);
+
+    // The screen's role flips mid-flight (a pop interrupts the push): the
+    // held content must land in the SAME commit, not two frames later.
+    drive("POPPING", true)();
+    expect(arriving.hasAttribute("data-flemo-held-arrival")).toBe(false);
+    scope.remove();
+  });
+
+  it("lands immediately where requestAnimationFrame does not exist (SSR edge)", async () => {
+    const originalRaf = globalThis.requestAnimationFrame;
+    // @ts-expect-error simulating an environment without rAF
+    delete globalThis.requestAnimationFrame;
+    try {
+      const { scope } = elements();
+      document.body.appendChild(scope);
+      const engine = createTransitionEngine(deps());
+      const drive = (status: string) =>
+        engine.driveScreenLifecycle({
+          getElements: () => ({ scope, decorator: null, bars: [] }),
+          transitionName: "cupertino" as never,
+          prevTransitionName: "cupertino" as never,
+          status: status as never,
+          isActive: true,
+          animHoldReleased: true
+        });
+      drive("PUSHING")();
+      const arriving = document.createElement("article");
+      scope.appendChild(arriving);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(arriving.hasAttribute("data-flemo-held-arrival")).toBe(true);
+
+      drive("COMPLETED")();
+      expect(arriving.hasAttribute("data-flemo-held-arrival")).toBe(false);
+      scope.remove();
+    } finally {
+      globalThis.requestAnimationFrame = originalRaf;
+    }
+  });
+});
+
+describe("compositor warm-up without setTimeout", () => {
+  it("releases the warm hold immediately where timers do not exist", () => {
+    const originalAnimate = Element.prototype.animate;
+    Element.prototype.animate = vi.fn(
+      () => ({ cancel: vi.fn() }) as unknown as Animation
+    ) as unknown as typeof Element.prototype.animate;
+    const { scope } = elements();
+    const engine = createTransitionEngine(deps());
+    const drive = (status: string) =>
+      engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: status as never,
+        isActive: true,
+        animHoldReleased: true
+      });
+    drive("PUSHING")();
+    expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+
+    const originalSetTimeout = globalThis.setTimeout;
+    // @ts-expect-error simulating an environment without timers for the
+    // release decision only (restored synchronously below).
+    globalThis.setTimeout = undefined;
+    try {
+      drive("COMPLETED")();
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+      Element.prototype.animate = originalAnimate;
+    }
+    expect(document.querySelector("[data-flemo-warm]")).toBeNull();
   });
 });

@@ -159,6 +159,17 @@ describe("createNavigationController router liveness", () => {
     expect(stores.navigate.getState().status).toBe("IDLE");
   });
 
+  it("a queued push aborts when the Router died before it ran", async () => {
+    const { stores, controller, life } = deadSetup();
+    life.alive = false;
+
+    await controller.push("/pushed");
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(stores.history.getState().histories).toHaveLength(1);
+    expect(stores.navigate.getState().status).toBe("IDLE");
+  });
+
   it("a queued pop aborts when the Router died before it ran", async () => {
     const { stores, controller, life } = deadSetup();
     stores.history.setState({
@@ -312,11 +323,41 @@ describe("createNavigationController distance options (skip / until / collapse)"
     expect(stores.history.getState().index).toBe(before);
   });
 
-  it("replace is ignored while a transition is mid-flight", async () => {
+  it("replace is ignored while a stuck transitional status has no resolvable gate", async () => {
     const { stores, controller } = setup();
+    await stopSweeper?.();
+    stopSweeper = null;
     stores.navigate.getState().setStatus("REPLACING");
     await controller.replace("/a");
     expect(stores.history.getState().histories).toHaveLength(1);
+  });
+
+  it("replace mid-flight supersedes the running transition instead of dropping", async () => {
+    const { stores, controller } = setup();
+    await controller.push("/x");
+    // From here the test owns gate resolution: the first replace must be
+    // verifiably IN FLIGHT (gate parked) when the second one arrives.
+    await stopSweeper?.();
+    stopSweeper = null;
+
+    const first = controller.replace("/a");
+    await vi.waitFor(() => {
+      expect(stores.navigate.getState().status).toBe("REPLACING");
+    });
+
+    // A tap on another tab while the previous tab transition is still
+    // flying: this used to return silently (the intermittent swallowed
+    // transition); now it fast-forwards the flight and runs.
+    const second = controller.replace("/b");
+    await vi.waitFor(async () => {
+      await TaskManager.resolveAllPending();
+      expect(stores.navigate.getState().status).toBe("COMPLETED");
+      expect(stores.history.getState().histories.at(-1)?.pathname).toBe("/b");
+    });
+    await Promise.all([first, second]);
+
+    expect(stores.history.getState().index).toBe(1);
+    expect(stores.history.getState().histories).toHaveLength(2);
   });
 
   it("replace { until } with no match is a no-op", async () => {
