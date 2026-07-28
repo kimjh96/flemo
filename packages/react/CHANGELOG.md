@@ -1,5 +1,21 @@
 # @flemo/react
 
+## 1.8.0
+
+### Minor Changes
+
+- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Enter complete on pushes: a freshly-mounted PUSH destination whose requests are still in flight waits (bounded) for its first content wave to land and settle before the motion starts, so a cold navigation slides in already filled instead of assembling mid-flight. Replaces (bottom-tab switches), warm entries, and pops pay nothing.
+
+### Patch Changes
+
+- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Defer the covered screen's freeze commit 600ms past the convergence instead of applying it at the COMPLETED flip. The freeze disconnects the covered screen's whole effect tree in one large commit; landing it while the eye watches the transition settle was measured (paired on-device A/B) as the remaining convergence frame drops. The screen is already covered, so freezing late is invisible; a new transition re-arms the timer so the commit only lands in a quiet window. Unfreezing stays immediate.
+
+- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Pre-warm the compositor while the user interacts. The per-flight warm-up starts with the flight, so the first navigation after an idle period still paid the pipeline's wake-up inside its opening frames. The warm-up now rides any interaction (pointer movement, wheel, touch, keys) — a pointer moving toward a tap precedes it by seconds — renewed at a throttled cadence and released shortly after interaction stops.
+
+- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Warm the compositor for the length of every flight and decode oversized images off the main thread. Fixes the one-frame opening judder on cold transitions and the WebKit tab fade being swallowed when a fetching screen's image decode lands inside the flight.
+- Updated dependencies ([`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f), [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f), [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f), [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f), [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f), [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f)):
+  - @flemo/core@1.21.0
+
 ## 1.7.2
 
 ### Patch Changes
