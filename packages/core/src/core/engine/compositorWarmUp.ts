@@ -67,6 +67,7 @@ const teardown = () => {
 };
 
 export default function holdCompositorWarm(): () => void {
+  /* v8 ignore next 2 -- SSR guard: the test environment always has a body. */
   if (typeof document === "undefined" || !document.body) return () => {};
   if (typeof Element === "undefined" || typeof Element.prototype.animate !== "function") {
     return () => {};
@@ -90,6 +91,8 @@ export default function holdCompositorWarm(): () => void {
 
   let released = false;
   const backstop = setTimeout(() => {
+    /* v8 ignore next -- the release clears this timeout, so the timer can
+       never fire on an already-released hold; kept as a re-entrancy guard. */
     if (released) return;
     released = true;
     holders -= 1;

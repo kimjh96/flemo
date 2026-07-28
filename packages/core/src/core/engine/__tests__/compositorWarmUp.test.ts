@@ -127,3 +127,62 @@ describe("holdCompositorWarm", () => {
     expect(() => release()).not.toThrow();
   });
 });
+
+describe("holdCompositorWarm release edges", () => {
+  it("a second release of the same hold is a no-op", () => {
+    stubAnimate();
+    const release = holdCompositorWarm();
+    release();
+    expect(warmElement()).toBeNull();
+    release(); // must not underflow holders or touch a future element
+    const again = holdCompositorWarm();
+    expect(warmElement()).not.toBeNull();
+    again();
+  });
+
+  it("releasing one of two holds keeps the element alive", () => {
+    stubAnimate();
+    const first = holdCompositorWarm();
+    const second = holdCompositorWarm();
+    first();
+    expect(warmElement()).not.toBeNull();
+    second();
+    expect(warmElement()).toBeNull();
+  });
+});
+
+describe("holdCompositorWarm backstop", () => {
+  it("drains a hold whose flight never reported its end", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      stubAnimate();
+      const release = holdCompositorWarm();
+      expect(warmElement()).not.toBeNull();
+      vi.advanceTimersByTime(3001);
+      expect(warmElement()).toBeNull();
+      // The real release arriving after the backstop is a no-op.
+      release();
+      expect(warmElement()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("holdCompositorWarm backstop with siblings", () => {
+  it("one drained backstop leaves a sibling hold's element alive", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      stubAnimate();
+      holdCompositorWarm(); // never released: its backstop drains it
+      vi.advanceTimersByTime(1500);
+      const late = holdCompositorWarm();
+      vi.advanceTimersByTime(1600); // first backstop fires; late hold remains
+      expect(warmElement()).not.toBeNull();
+      late();
+      expect(warmElement()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

@@ -155,9 +155,11 @@ const looksLikeShell = (scope: HTMLElement): boolean => {
   if (typeof scope.querySelectorAll !== "function") return false;
   const elements = scope.querySelectorAll("*").length;
   if (elements < MIN_SHELL_ELEMENTS) return false;
+  /* v8 ignore start -- textContent is null only for document nodes. */
   const content =
     (scope.textContent ?? "").trim().length +
     scope.querySelectorAll("img").length * IMAGE_TEXT_EQUIVALENT;
+  /* v8 ignore stop */
   return content / elements < SHELL_TEXT_PER_ELEMENT;
 };
 
@@ -223,8 +225,11 @@ export function scheduleAnimHoldReadiness(
       done();
       return;
     }
+    /* v8 ignore start -- performance exists in every runtime under test;
+       the fallback only shields exotic embedders. */
     const startedAt = typeof performance !== "undefined" ? performance.now() : 0;
     const elapsed = () => (typeof performance !== "undefined" ? performance.now() : 0) - startedAt;
+    /* v8 ignore stop */
     let quietFrames: number[] = [];
     let seen = false;
     let finished = false;
@@ -267,6 +272,7 @@ export function scheduleAnimHoldReadiness(
     const observer = new MutationObserver((records) => {
       let added = 0;
       for (const record of records) {
+        /* v8 ignore next -- the observer subscribes to childList only. */
         if (record.type !== "childList") continue;
         for (const node of Array.from(record.addedNodes)) {
           added += node instanceof Element ? 1 + node.querySelectorAll("*").length : 1;
@@ -274,10 +280,14 @@ export function scheduleAnimHoldReadiness(
       }
       if (added < settle.minNodes) return;
       seen = true;
+      /* v8 ignore start -- the cap timer fires the moment elapsed reaches
+         capMs, so a delivery can never observe elapsed past the cap first;
+         kept so a delivery racing the timer can only ever finish early. */
       if (elapsed() >= settle.capMs) {
         finish();
         return;
       }
+      /* v8 ignore stop */
       quiet();
     });
     observer.observe(scope, { childList: true, subtree: true });

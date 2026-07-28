@@ -231,3 +231,23 @@ describe("driverPolicy default storage", () => {
     getItem.mockRestore();
   });
 });
+
+describe("engine-scoped default instance", () => {
+  it("constructs the compiled-compositor default on Blink (userAgentData present)", async () => {
+    vi.resetModules();
+    const original = Object.getOwnPropertyDescriptor(navigator, "userAgentData");
+    Object.defineProperty(navigator, "userAgentData", {
+      value: { brands: [] },
+      configurable: true
+    });
+    try {
+      const { default: policy, detectBlinkEngine } = await import("@core/engine/driverPolicy");
+      expect(detectBlinkEngine()).toBe(true);
+      expect(policy.playerAllowed()).toBe(false);
+    } finally {
+      if (original) Object.defineProperty(navigator, "userAgentData", original);
+      else delete (navigator as { userAgentData?: unknown }).userAgentData;
+      vi.resetModules();
+    }
+  });
+});

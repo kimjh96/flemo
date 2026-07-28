@@ -587,3 +587,324 @@ describe("createImageDecodeOffloader responsive verdicts", () => {
     dispose();
   });
 });
+
+// A cache stub whose match resolves only when the test says so — for racing
+// verdicts against an in-flight cache read.
+const installDeferredCacheStub = () => {
+  const pending: Array<(blob: Blob | undefined) => void> = [];
+  vi.stubGlobal("caches", {
+    open: async () => ({
+      put: vi.fn(),
+      match: () =>
+        new Promise<Response | undefined>((resolve) => {
+          pending.push((blob) => resolve(blob ? new Response(blob) : undefined));
+        })
+    })
+  });
+  // Resolves the OLDEST outstanding read.
+  return { resolveMatch: (blob: Blob | undefined) => pending.shift()?.(blob) };
+};
+
+describe("createImageDecodeOffloader branch edges", () => {
+  // A failing assertion must not leak a live observer into the next test —
+  // it would mark and park that test's images before its own offloader runs.
+  const disposers: Array<() => void> = [];
+  const track = (dispose: () => void) => {
+    disposers.push(dispose);
+    return dispose;
+  };
+  afterEach(() => {
+    for (const dispose of disposers.splice(0)) dispose();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.innerHTML = "";
+  });
+
+  it("a responsive element that already painted is untouched", async () => {
+    installWorkerStubs();
+    const dispose = track(createImageDecodeOffloader(document.body));
+    const image = paintedImage("https://cdn.example/huge.jpg");
+    image.setAttribute("srcset", "https://cdn.example/huge.jpg 1x");
+    document.body.appendChild(image);
+    await flush();
+    expect(image.style.visibility).toBe("");
+    expect(image.getAttribute("srcset")).not.toBeNull();
+    dispose();
+  });
+
+  it("a responsive element that never loads is revealed by the safety timeout", async () => {
+    installWorkerStubs();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const dispose = track(createImageDecodeOffloader(document.body));
+    const image = freshImage("https://cdn.example/huge.jpg");
+    image.setAttribute("srcset", "https://cdn.example/huge.jpg 1x");
+    document.body.appendChild(image);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(image.style.visibility).toBe("hidden");
+
+    await vi.advanceTimersByTimeAsync(15001);
+    expect(image.style.visibility).toBe("");
+    dispose();
+  });
+
+  it("a settle landing while the responsive cache read is in flight releases it once", async () => {
+    const { reply } = installWorkerStubs();
+    const { resolveMatch } = installDeferredCacheStub();
+    const dispose = track(createImageDecodeOffloader(document.body));
+
+    const bare = freshImage("https://cdn.example/race.jpg");
+    document.body.appendChild(bare);
+    await flush();
+    // Resolve the bare image's cache read (miss) so its probe runs.
+    resolveMatch(undefined);
+    await flush();
+
+    const responsive = freshImage("https://cdn.example/race.jpg");
+    responsive.setAttribute("srcset", "https://cdn.example/race.jpg 1x");
+    document.body.appendChild(responsive);
+    await flush();
+    Object.defineProperty(responsive, "naturalWidth", { value: 4971, configurable: true });
+    Object.defineProperty(responsive, "naturalHeight", { value: 7456, configurable: true });
+    responsive.dispatchEvent(new Event("load"));
+
+    // The probe's verdict settles BOTH held elements while the responsive
+    // element's own cache read is still in flight...
+    reply({ url: "https://cdn.example/race.jpg", blob: new Blob(["scaled"]) });
+    expect(responsive.getAttribute("src")).toMatch(/^blob:scaled-/);
+    // ...so the late read finds it already released and changes nothing.
+    resolveMatch(new Blob(["late"]));
+    await flush();
+    expect(responsive.getAttribute("src")).toMatch(/^blob:scaled-/);
+    dispose();
+  });
+
+  it("falls back to a bare measure where requestAnimationFrame is missing", async () => {
+    const { posted } = installWorkerStubs();
+    const originalRaf = globalThis.requestAnimationFrame;
+    // @ts-expect-error simulating an environment without rAF
+    delete globalThis.requestAnimationFrame;
+    try {
+      const dispose = track(createImageDecodeOffloader(document.body));
+      const image = freshImage("https://cdn.example/huge.jpg");
+      document.body.appendChild(image);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(posted).toHaveLength(1);
+      dispose();
+    } finally {
+      globalThis.requestAnimationFrame = originalRaf;
+    }
+  });
+
+  it("unmeasurable boxes probe at the minimum target size", async () => {
+    const { posted } = installWorkerStubs();
+    const dispose = track(createImageDecodeOffloader(document.body));
+    const image = paintedImage("https://cdn.example/huge.jpg");
+    image.getBoundingClientRect = () => ({ width: 0, height: 0 }) as DOMRect;
+    document.body.appendChild(image);
+    await flush();
+    expect(posted).toHaveLength(1);
+    expect(posted[0]).toMatchObject({ url: "https://cdn.example/huge.jpg" });
+    dispose();
+  });
+
+  it("two fresh mounts of one source share a single probe and settle together", async () => {
+    const { posted, reply } = installWorkerStubs();
+    const dispose = track(createImageDecodeOffloader(document.body));
+    const first = freshImage("https://cdn.example/shared.jpg");
+    const second = freshImage("https://cdn.example/shared.jpg");
+    const other = freshImage("https://cdn.example/other.jpg");
+    document.body.appendChild(first);
+    document.body.appendChild(second);
+    document.body.appendChild(other);
+    await flush();
+    expect(posted.filter((p) => p.url === "https://cdn.example/shared.jpg")).toHaveLength(1);
+
+    reply({ url: "https://cdn.example/shared.jpg", blob: new Blob(["scaled"]) });
+    expect(first.getAttribute("src")).toMatch(/^blob:scaled-/);
+    expect(second.getAttribute("src")).toMatch(/^blob:scaled-/);
+    // The unrelated hold stays parked.
+    expect(other.getAttribute("src")).toBe(PARKED_PIXEL);
+    // A duplicate reply for the same source keeps the first verdict.
+    reply({ url: "https://cdn.example/shared.jpg", blob: new Blob(["scaled-again"]) });
+    dispose();
+  });
+
+  it("release restores a pre-existing inline visibility", async () => {
+    const { reply } = installWorkerStubs();
+    const dispose = track(createImageDecodeOffloader(document.body));
+    const image = freshImage("https://cdn.example/huge.jpg");
+    image.style.visibility = "visible";
+    document.body.appendChild(image);
+    await flush();
+    expect(image.style.visibility).toBe("hidden");
+
+    reply({ url: "https://cdn.example/huge.jpg", skip: true });
+    expect(image.style.visibility).toBe("visible");
+    dispose();
+  });
+
+  it("a consumer re-pointing a held image keeps its own src at release", async () => {
+    const { reply } = installWorkerStubs();
+    const dispose = track(createImageDecodeOffloader(document.body));
+    const image = freshImage("https://cdn.example/huge.jpg");
+    document.body.appendChild(image);
+    await flush();
+    expect(image.getAttribute("src")).toBe(PARKED_PIXEL);
+
+    // React re-pointed the element mid-hold: the park is gone, so the
+    // release must not overwrite the consumer's write.
+    image.setAttribute("src", "https://cdn.example/replaced.jpg");
+    reply({ url: "https://cdn.example/huge.jpg", skip: true });
+    expect(image.getAttribute("src")).toBe("https://cdn.example/replaced.jpg");
+    dispose();
+  });
+
+  it("ignores re-encounters, own swaps, and srcless or text insertions", async () => {
+    const { posted, reply } = installWorkerStubs();
+    const dispose = track(createImageDecodeOffloader(document.body));
+
+    const image = freshImage("https://cdn.example/huge.jpg");
+    document.body.appendChild(image);
+    await flush();
+    reply({ url: "https://cdn.example/huge.jpg", blob: new Blob(["scaled"]) });
+
+    // Re-inserting the SAME element must not re-hold it...
+    image.remove();
+    document.body.appendChild(image);
+    // ...nor must an element already carrying our swap marker...
+    const swapped = freshImage("https://cdn.example/other.jpg");
+    swapped.setAttribute(OFFLOADED_SRC_ATTR, "https://cdn.example/other.jpg");
+    document.body.appendChild(swapped);
+    // ...nor a srcless img or a plain text node.
+    const srcless = document.createElement("img");
+    document.body.appendChild(srcless);
+    document.body.appendChild(document.createTextNode("텍스트"));
+    await flush();
+
+    expect(posted).toHaveLength(1);
+    dispose();
+  });
+
+  it("a cache read resolving after disposal changes nothing", async () => {
+    installWorkerStubs();
+    const { resolveMatch } = installDeferredCacheStub();
+    const dispose = track(createImageDecodeOffloader(document.body));
+    const image = freshImage("https://cdn.example/huge.jpg");
+    document.body.appendChild(image);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    dispose();
+    expect(image.getAttribute("src")).toBe("https://cdn.example/huge.jpg");
+    resolveMatch(new Blob(["late"]));
+    await flush();
+    expect(image.getAttribute("src")).toBe("https://cdn.example/huge.jpg");
+  });
+
+  it("probes at devicePixelRatio 1 where the platform reports none", async () => {
+    const { posted } = installWorkerStubs();
+    vi.stubGlobal("devicePixelRatio", undefined);
+    const dispose = track(createImageDecodeOffloader(document.body));
+    const image = paintedImage("https://cdn.example/huge.jpg");
+    document.body.appendChild(image);
+    await flush();
+    expect(posted).toHaveLength(1);
+    dispose();
+  });
+});
+
+describe("ensureImageDecodeOffloader disposer edges", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
+  });
+
+  it("a second call to a spent disposer is a no-op", () => {
+    installWorkerStubs();
+    const release = ensureImageDecodeOffloader();
+    release();
+    release(); // shared is already gone
+    const again = ensureImageDecodeOffloader();
+    again();
+  });
+});
+
+describe("createImageDecodeOffloader zero-layout and disposal races", () => {
+  const disposers: Array<() => void> = [];
+  const track = (dispose: () => void) => {
+    disposers.push(dispose);
+    return dispose;
+  };
+  afterEach(() => {
+    for (const dispose of disposers.splice(0)) dispose();
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
+  });
+
+  it("a responsive candidate with no layout probes at the minimum box", async () => {
+    const { posted } = installWorkerStubs();
+    const dispose = track(createImageDecodeOffloader(document.body));
+    const image = freshImage("https://cdn.example/huge.jpg");
+    image.setAttribute("srcset", "https://cdn.example/huge.jpg 1x");
+    image.getBoundingClientRect = () => ({ width: 0, height: 0 }) as DOMRect;
+    document.body.appendChild(image);
+    await flush();
+
+    Object.defineProperty(image, "naturalWidth", { value: 4971, configurable: true });
+    Object.defineProperty(image, "naturalHeight", { value: 7456, configurable: true });
+    image.dispatchEvent(new Event("load"));
+    await flush();
+    await flush();
+    expect(posted).toHaveLength(1);
+    dispose();
+  });
+
+  it("a fresh image with no layout probes at the minimum box", async () => {
+    const { posted } = installWorkerStubs();
+    const dispose = track(createImageDecodeOffloader(document.body));
+    const image = freshImage("https://cdn.example/huge.jpg");
+    image.getBoundingClientRect = () => ({ width: 0, height: 0 }) as DOMRect;
+    document.body.appendChild(image);
+    await flush();
+    expect(posted).toHaveLength(1);
+    dispose();
+  });
+
+  it("a measurement frame arriving after disposal probes nothing", async () => {
+    const { posted } = installWorkerStubs();
+    const measured: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      measured.push(frameCallback);
+      return measured.length;
+    });
+    const dispose = track(createImageDecodeOffloader(document.body));
+    const image = freshImage("https://cdn.example/huge.jpg");
+    document.body.appendChild(image);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(measured.length).toBeGreaterThan(0);
+
+    dispose();
+    for (const frameCallback of measured) frameCallback(0);
+    expect(posted).toHaveLength(0);
+  });
+
+  it("a responsive cache read resolving after disposal changes nothing", async () => {
+    installWorkerStubs();
+    const { resolveMatch } = installDeferredCacheStub();
+    const dispose = track(createImageDecodeOffloader(document.body));
+    const image = freshImage("https://cdn.example/huge.jpg");
+    image.setAttribute("srcset", "https://cdn.example/huge.jpg 1x");
+    document.body.appendChild(image);
+    await flush();
+    Object.defineProperty(image, "naturalWidth", { value: 4971, configurable: true });
+    Object.defineProperty(image, "naturalHeight", { value: 7456, configurable: true });
+    image.dispatchEvent(new Event("load"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    dispose();
+    resolveMatch(new Blob(["late"]));
+    await flush();
+    expect(image.getAttribute("src")).toBe("https://cdn.example/huge.jpg");
+  });
+});

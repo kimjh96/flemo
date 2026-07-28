@@ -200,6 +200,8 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
 
   const release = (image: HTMLImageElement, verdict: string | null) => {
     const info = held.get(image);
+    /* v8 ignore next -- release tears down its own triggers (listeners,
+       timeout), so a second call has no live path; kept as a guard. */
     if (!info) return;
     held.delete(image);
     clearTimeout(info.timeout);
@@ -271,6 +273,8 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
       responsive: true
     };
     const onLoad = () => {
+      /* v8 ignore next -- consider() only routes elements with an https src
+         here, so the final fallback arm is unreachable. */
       const url = image.currentSrc || image.getAttribute("src") || "";
       const box = image.getBoundingClientRect();
       const oversized =
@@ -294,10 +298,15 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
       }
       void readScaled(url).then((blob) => {
         if (disposed || !held.has(image)) return;
+        /* v8 ignore start -- a verdict can only appear via settle(), which
+           releases every held element of the url first, so a still-held
+           element cannot observe an existing verdict here; kept as a guard
+           against future settle() reorderings. */
         if (verdicts.has(url)) {
           release(image, verdicts.get(url)!);
           return;
         }
+        /* v8 ignore stop */
         if (blob) {
           const objectUrl = URL.createObjectURL(blob);
           objectUrls.add(objectUrl);
@@ -319,6 +328,8 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
   };
 
   const consider = (image: HTMLImageElement) => {
+    /* v8 ignore next -- `disposed` guard: disposal disconnects the observer
+       in the same tick, so no delivery can race it; kept for direct calls. */
     if (disposed || seen.has(image)) return;
     if (image.getAttribute(OFFLOADED_SRC_ATTR) !== null) return;
     const url = image.getAttribute("src") ?? "";
@@ -390,6 +401,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
 
   const sweep = (node: ParentNode) => {
     if (node instanceof HTMLImageElement) consider(node);
+    /* v8 ignore next -- defensive: every DOM Element implements it. */
     if (typeof (node as Element).querySelectorAll !== "function") return;
     for (const image of Array.from((node as Element).querySelectorAll("img"))) consider(image);
   };
@@ -422,6 +434,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
 let shared: { dispose: () => void; count: number } | null = null;
 
 export default function ensureImageDecodeOffloader(): () => void {
+  /* v8 ignore next 2 -- SSR guard: the test environment always has a body. */
   if (typeof document === "undefined" || !document.body) return () => {};
   if (shared) {
     shared.count += 1;

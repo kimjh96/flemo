@@ -93,3 +93,26 @@ describe("pendingNetwork XHR sync-throw", () => {
     expect(hasPendingRequests()).toBe(false);
   });
 });
+
+describe("pendingNetwork platform absences", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("skips the fetch wrapper where fetch is not a function", async () => {
+    // @ts-expect-error simulating a platform without fetch
+    window.fetch = undefined;
+    const { hasPendingRequests } = await import("@screen/pendingNetwork");
+    expect(hasPendingRequests()).toBe(false);
+  });
+
+  it("skips the XHR wrapper where XMLHttpRequest does not exist", async () => {
+    vi.stubGlobal("XMLHttpRequest", undefined);
+    try {
+      const { hasPendingRequests } = await import("@screen/pendingNetwork");
+      expect(hasPendingRequests()).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

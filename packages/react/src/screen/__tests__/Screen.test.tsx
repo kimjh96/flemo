@@ -522,3 +522,76 @@ describe("Screen freeze deferral", () => {
     }
   });
 });
+
+describe("Screen freeze deferral during a live transition", () => {
+  it("re-arms while the navigation is still transitional, then defers from settle", () => {
+    vi.useFakeTimers();
+    try {
+      stores.history.setState({ index: 1, histories: [] });
+      stores.navigate.setState({ status: "COMPLETED", transitionTaskId: null });
+
+      // A wrapper whose context VALUE is swappable without changing the tree,
+      // so role flips re-render the same Screen instance instead of
+      // remounting it (a remount freezes from its initial state and skips
+      // the deferral under test).
+      let screenValue: ScreenContextProps = {
+        id: "screen-live",
+        isActive: true,
+        isRoot: false,
+        isPrev: false,
+        zIndex: 1,
+        pathname: "/live",
+        params: {},
+        transitionName: "cupertino" as TransitionName,
+        prevTransitionName: "cupertino" as TransitionName,
+        layoutId: null,
+        routePath: "/live"
+      };
+      function LiveHarness({ children }: PropsWithChildren): ReactNode {
+        return createElement(
+          StoreContext.Provider,
+          { value: stores },
+          createElement(ScreenContext.Provider, { value: screenValue }, children)
+        );
+      }
+
+      const { getByTestId, rerender } = render(
+        <Screen>
+          <div data-testid="content">page</div>
+        </Screen>,
+        { wrapper: LiveHarness }
+      );
+      const frozenWrapper = () => getByTestId("content").closest("div[style*='display: none']");
+      expect(frozenWrapper()).toBeNull();
+
+      // A push starts and this screen becomes the covered prev: the freeze
+      // predicate turns true mid-flight (the isPrev branch is
+      // status-independent), but the deferral must not arm until the
+      // navigation settles.
+      screenValue = { ...screenValue, isActive: false, isPrev: true };
+      act(() => {
+        stores.history.setState({ index: 2, histories: [] });
+        stores.navigate.setState({ status: "PUSHING", transitionTaskId: "t-next" });
+      });
+      rerender(
+        <Screen>
+          <div data-testid="content">page</div>
+        </Screen>
+      );
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(frozenWrapper()).toBeNull();
+
+      act(() => {
+        stores.navigate.setState({ status: "COMPLETED", transitionTaskId: null });
+      });
+      act(() => {
+        vi.advanceTimersByTime(601);
+      });
+      expect(frozenWrapper()).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

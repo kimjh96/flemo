@@ -1185,3 +1185,37 @@ describe("arrival-hold interrupt and SSR landing paths", () => {
     }
   });
 });
+
+describe("compositor warm-up without setTimeout", () => {
+  it("releases the warm hold immediately where timers do not exist", () => {
+    const originalAnimate = Element.prototype.animate;
+    Element.prototype.animate = vi.fn(
+      () => ({ cancel: vi.fn() }) as unknown as Animation
+    ) as unknown as typeof Element.prototype.animate;
+    const { scope } = elements();
+    const engine = createTransitionEngine(deps());
+    const drive = (status: string) =>
+      engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: status as never,
+        isActive: true,
+        animHoldReleased: true
+      });
+    drive("PUSHING")();
+    expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+
+    const originalSetTimeout = globalThis.setTimeout;
+    // @ts-expect-error simulating an environment without timers for the
+    // release decision only (restored synchronously below).
+    globalThis.setTimeout = undefined;
+    try {
+      drive("COMPLETED")();
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+      Element.prototype.animate = originalAnimate;
+    }
+    expect(document.querySelector("[data-flemo-warm]")).toBeNull();
+  });
+});
