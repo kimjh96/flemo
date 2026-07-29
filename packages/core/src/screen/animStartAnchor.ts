@@ -163,6 +163,73 @@ const looksLikeShell = (scope: HTMLElement): boolean => {
   return content / elements < SHELL_TEXT_PER_ELEMENT;
 };
 
+// React throttles the commit that swaps a suspense fallback for its content:
+// once a fallback has painted, the reveal is deferred until well after it
+// (FALLBACK_THROTTLE_MS, 300ms today — an internal constant that varies by
+// React version), even when the data resolved instantly from a cache. During
+// that deferral NOTHING is observable from outside — no request in flight, no
+// mutation — yet a reveal commit is scheduled and will land. Traced on a
+// production app: gate released at +164ms on the "sparse screen" grace,
+// React's deferred reveal landed at fallback+300ms, 133ms INTO the flight,
+// cancelling ~130 skeleton animations and skipping a vsync mid-slide. The
+// gate therefore keys on STATE, never on a timing window: as long as the
+// scope still reads as a skeleton whose placeholders animate, the reveal has
+// not landed yet and the wait continues (the settle cap is the only bound) —
+// robust to whatever deferral a device, an engine, or a React version
+// actually produces.
+//
+// What separates that throttled skeleton from a genuinely sparse screen (an
+// empty state, an error page) is that a skeleton ANIMATES — its shimmer/pulse
+// placeholders run CSS animations while they wait. flemo's own screen and
+// decorator animations all compile under the `flemo-` keyframe prefix, so any
+// other running animation inside the scope is the consumer's placeholder.
+const hasAnimatedPlaceholders = (scope: HTMLElement): boolean => {
+  if (typeof scope.getAnimations !== "function") return false;
+  return scope.getAnimations({ subtree: true }).some((animation) => {
+    const name = (animation as CSSAnimation).animationName;
+    return typeof name !== "string" || !name.startsWith("flemo-");
+  });
+};
+
+// The pending-request counter sees fetch/XHR but is BLIND to <img> loads —
+// traced on production as a commit wave (image paints + a raster burst) 31ms
+// into a flight whose reveal had already settled: the markup landed before the
+// motion, its images finished DURING it. An incomplete image inside the
+// scope's first screenful counts as in-flight work exactly like a pending
+// request (same bounds: the settle cap). Deliberately narrow:
+// - Only the scope's first screenful, measured against the SCOPE's own box —
+//   a held screen sits translated offscreen, so the window viewport is the
+//   wrong frame. Below-the-fold images land invisibly.
+// - Only DECODE_IMAGE_LIMIT images, the same viewport's-worth bound the
+//   decode wait uses.
+// - A lazy image that has not even selected a source may never start loading
+//   while the screen holds offscreen — waiting on it would burn the whole
+//   cap, so it is skipped (it was never going to land mid-flight anyway).
+// A failed load also flips `complete`, so a broken image cannot stall this.
+const hasPendingImages = (scope: HTMLElement): boolean => {
+  /* v8 ignore next -- the settle gate only runs a scope past looksLikeShell,
+     which already requires querySelectorAll. */
+  if (typeof scope.querySelectorAll !== "function") return false;
+  /* v8 ignore next 2 -- every DOM element implements getBoundingClientRect;
+     the guard shields exotic embedders. */
+  const scopeRect =
+    typeof scope.getBoundingClientRect === "function" ? scope.getBoundingClientRect() : null;
+  // A zero-height box (jsdom, a display:none edge) cannot frame a screenful —
+  // consider every image rather than silently skipping them all.
+  const screenful = scopeRect && scopeRect.height > 0 ? scopeRect : null;
+  let considered = 0;
+  for (const image of Array.from(scope.querySelectorAll("img"))) {
+    if (considered >= DECODE_IMAGE_LIMIT) break;
+    if (image.loading === "lazy" && !image.currentSrc) continue;
+    if (screenful && image.getBoundingClientRect().top - screenful.top >= screenful.height) {
+      continue;
+    }
+    considered += 1;
+    if (!image.complete) return true;
+  }
+  return false;
+};
+
 export function scheduleAnimHoldReadiness(
   onReady: () => void,
   options: AnimHoldReleaseOptions = {}
@@ -233,6 +300,15 @@ export function scheduleAnimHoldReadiness(
     let quietFrames: number[] = [];
     let seen = false;
     let finished = false;
+    // React is holding a throttled suspense reveal for this scope: still a
+    // shell, placeholders animating (see hasAnimatedPlaceholders). Pure state,
+    // no timing window — the reveal ENDS this condition when it lands, and the
+    // settle cap bounds the wait if it never does.
+    const awaitingThrottledReveal = () => looksLikeShell(scope) && hasAnimatedPlaceholders(scope);
+    // In-flight work this screen is still waiting on: network requests OR the
+    // first screenful's images (see hasPendingImages) — either landing
+    // mid-flight costs a frame, so both hold the gate under the same cap.
+    const somethingLoading = () => hasPendingRequests() || hasPendingImages(scope);
     const finish = () => {
       if (finished) return;
       finished = true;
@@ -251,15 +327,27 @@ export function scheduleAnimHoldReadiness(
     // 24 transitions: 29% velocity noise gated on two frames vs 3% ungated).
     // Waiting for a genuinely calm window is the whole point of the gate.
     const QUIET_FRAMES = 6;
+    // A wave that DE-SHELLED the scope with nothing left in flight is not the
+    // middle of a storm — it is the reveal itself, the very commit the gate
+    // exists to keep out of the motion. Everything after it (paint + raster)
+    // needs the standard two-frame anchor, not six: the beat-storm case the
+    // long window guards against always has requests pending, which the
+    // countdown's exit re-checks anyway. Every quiet frame here is tap-to-
+    // motion latency on cold screens, so spend the minimum.
+    const QUIET_FRAMES_AFTER_REVEAL = 2;
+    const quietSpan = () =>
+      !looksLikeShell(scope) && !somethingLoading() ? QUIET_FRAMES_AFTER_REVEAL : QUIET_FRAMES;
     const quiet = () => {
       quietFrames.forEach((frame) => cancelAnimationFrame(frame));
       quietFrames = [];
       const step = (remaining: number) => {
         if (remaining <= 0) {
-          // Still fetching means another beat is coming: keep waiting (the cap
-          // is the backstop).
-          if (hasPendingRequests() && elapsed() < settle.capMs) {
-            quietFrames.push(requestAnimationFrame(() => step(QUIET_FRAMES)));
+          // Still fetching means another beat is coming; a scope that is
+          // STILL an animated shell means the throttled reveal has not landed
+          // yet — release now and it lands mid-flight. Keep waiting for
+          // either (the cap is the backstop).
+          if ((somethingLoading() || awaitingThrottledReveal()) && elapsed() < settle.capMs) {
+            quietFrames.push(requestAnimationFrame(() => step(quietSpan())));
             return;
           }
           finish();
@@ -267,7 +355,7 @@ export function scheduleAnimHoldReadiness(
         }
         quietFrames.push(requestAnimationFrame(() => step(remaining - 1)));
       };
-      step(QUIET_FRAMES);
+      step(quietSpan());
     };
     const observer = new MutationObserver((records) => {
       let added = 0;
@@ -295,9 +383,14 @@ export function scheduleAnimHoldReadiness(
     // screen (an empty state, an error). Give up on the short grace instead of
     // the full window. The check is deferred rather than immediate because a
     // screen's own requests are issued by its mount effects, a tick after the
-    // paint this gate is anchored to.
+    // paint this gate is anchored to. A shell whose placeholders ANIMATE is
+    // the exception: that is a skeleton whose data resolved from a cache and
+    // whose reveal commit React is throttling (see hasAnimatedPlaceholders) —
+    // nothing is observable yet, but the reveal is coming, so this early exit
+    // must not fire; the give-up deadline and the settle cap remain the
+    // bounds.
     const graceTimer = setTimeout(() => {
-      if (!seen && !hasPendingRequests()) finish();
+      if (!seen && !somethingLoading() && !awaitingThrottledReveal()) finish();
     }, settle.graceMs);
     // Giving up at a fixed deadline is what leaves the slow screens exposed:
     // measured at an emulated mobile viewport, a flight whose content lands
@@ -307,7 +400,7 @@ export function scheduleAnimHoldReadiness(
     // content is genuinely coming and the wait continues to the cap.
     const firstTimer = setTimeout(function giveUp() {
       if (seen) return;
-      if (hasPendingRequests() && elapsed() < settle.capMs) {
+      if ((somethingLoading() || awaitingThrottledReveal()) && elapsed() < settle.capMs) {
         setTimeout(giveUp, 100);
         return;
       }
@@ -348,7 +441,15 @@ export function scheduleAnimHoldRelease(
   options: AnimHoldReleaseOptions = {}
 ): () => void {
   const cancelReadiness = scheduleAnimHoldReadiness(release, options);
-  const fallback = setTimeout(release, ANIM_HOLD_RELEASE_BACKSTOP_MS);
+  // The backstop is insurance against a suspended rAF, not a wait — so it must
+  // OUTLAST every bounded wait the readiness gate can legitimately hold.
+  // With a content settle configured the gate may wait up to its cap (a
+  // throttled suspense reveal, requests still in flight); a 300ms backstop
+  // under that cap would fire first and release the motion INTO the very
+  // commit the gate is waiting out — measured as the reveal and the flight
+  // starting on the same frame.
+  const settleCapMs = options.contentSettle?.capMs ?? 0;
+  const fallback = setTimeout(release, ANIM_HOLD_RELEASE_BACKSTOP_MS + settleCapMs);
   return () => {
     cancelReadiness();
     clearTimeout(fallback);
@@ -371,7 +472,20 @@ interface AnimHoldGroupMember {
 interface AnimHoldGroup {
   members: Set<AnimHoldGroupMember>;
   backstop: ReturnType<typeof setTimeout>;
+  // The bound the current backstop was armed with, so a later-joining member
+  // with a LONGER legitimate wait (a content settle) can extend it.
+  backstopMs: number;
 }
+
+// The backstop a member's options call for: insurance against a suspended rAF,
+// never a wait — so it must outlast every bounded wait the readiness gate can
+// legitimately hold. With a content settle configured the gate may wait up to
+// its cap (a throttled suspense reveal, requests still in flight); a plain
+// 300ms backstop under that cap fires first and releases the motion INTO the
+// very commit the gate is waiting out — measured on a production push as the
+// reveal and the flight starting on the same frame.
+const backstopBoundMs = (options?: AnimHoldReleaseOptions) =>
+  ANIM_HOLD_RELEASE_BACKSTOP_MS + (options?.contentSettle?.capMs ?? 0);
 
 // A transition-scoped barrier that releases the anim-hold of every screen in
 // ONE navigation together — push, replace, AND pop.
@@ -430,12 +544,27 @@ export function createAnimHoldCoordinator(): AnimHoldCoordinator {
       // ONE backstop for the whole group: if any member's decode never settles,
       // the pair still releases together at the bound (the lone-screen insurance
       // applied group-wide).
+      const boundMs = backstopBoundMs(options);
       const created: AnimHoldGroup = {
         members: new Set(),
-        backstop: setTimeout(() => releaseGroup(key, created), ANIM_HOLD_RELEASE_BACKSTOP_MS)
+        backstop: setTimeout(() => releaseGroup(key, created), boundMs),
+        backstopMs: boundMs
       };
       groups.set(key, created);
       group = created;
+    } else {
+      // A member whose readiness gate legitimately waits longer than the
+      // group's current bound (a content settle) extends the shared backstop;
+      // it stays ONE timeout for the whole group, at the longest member's
+      // bound. Joins land within the paint anchor's first frames, so re-arming
+      // from "now" is at most a frame or two of extra insurance.
+      const boundMs = backstopBoundMs(options);
+      if (boundMs > group.backstopMs) {
+        clearTimeout(group.backstop);
+        const extended = group;
+        extended.backstopMs = boundMs;
+        extended.backstop = setTimeout(() => releaseGroup(key, extended), boundMs);
+      }
     }
     const currentGroup = group;
 

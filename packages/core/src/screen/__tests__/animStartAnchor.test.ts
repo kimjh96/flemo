@@ -11,6 +11,7 @@ vi.mock("@screen/pendingNetwork", () => ({
 }));
 
 import {
+  ANIM_HOLD_RELEASE_BACKSTOP_MS,
   animHoldKey,
   createAnimHoldCoordinator,
   eagerlyDecodeImages,
@@ -1033,6 +1034,463 @@ describe("scheduleAnimHoldReadiness consecutive waves", () => {
       expect(onReady).not.toHaveBeenCalled();
       flushFrame();
     }
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("scheduleAnimHoldReadiness throttled reveal", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let frameId: number;
+  const flushFrame = () => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((frameCallback) => frameCallback(performance.now()));
+  };
+  const SETTLE = { graceMs: 150, firstWaitMs: 400, capMs: 900, minNodes: 30 };
+
+  const shellScope = () => {
+    const scope = document.createElement("div");
+    for (let i = 0; i < 30; i++) scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  const animate = (scope: HTMLElement, names: (string | undefined)[]) => {
+    (scope as unknown as { getAnimations: () => { animationName?: string }[] }).getAnimations =
+      () => names.map((animationName) => (animationName ? { animationName } : {}));
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    frames = new Map();
+    frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.textContent = "";
+    setPendingForTests(false);
+  });
+
+  it("an animated skeleton is not mistaken for a sparse screen at the grace", async () => {
+    const scope = shellScope();
+    animate(scope, ["skeleton-wave"]);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+
+    // Nothing pending, nothing arrived — but the placeholders animate, so the
+    // sparse-screen early exit must not fire: a throttled reveal is coming.
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    expect(onReady).not.toHaveBeenCalled();
+
+    // The reveal commit lands (real content de-shells the scope), then six
+    // quiet frames release the motion.
+    const wave = document.createElement("section");
+    for (let i = 0; i < 40; i++) {
+      const row = document.createElement("p");
+      row.textContent = "드디어 도착한 실제 콘텐츠 행입니다";
+      wave.appendChild(row);
+    }
+    scope.appendChild(wave);
+    await Promise.resolve();
+    for (let i = 0; i < 7; i++) flushFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("flemo's own animations do not count as placeholders", () => {
+    const scope = shellScope();
+    animate(scope, ["flemo-screen-cupertino-PUSHING-false"]);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("a nameless (WAAPI) animation counts as a placeholder, bounded by the cap", () => {
+    const scope = shellScope();
+    animate(scope, [undefined]);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    expect(onReady).not.toHaveBeenCalled();
+
+    // Still an animated shell at the give-up deadline: the wait is state-
+    // based, so the deadline keeps deferring…
+    vi.advanceTimersByTime(SETTLE.firstWaitMs - SETTLE.graceMs);
+    expect(onReady).not.toHaveBeenCalled();
+
+    // …and if no reveal EVER lands, the settle cap is the bound.
+    vi.advanceTimersByTime(SETTLE.capMs);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("the quiet exit re-arms while the scope is still an animated shell", async () => {
+    const scope = shellScope();
+    animate(scope, ["skeleton-wave"]);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+
+    // A wave of MORE skeleton lands: quiet frames complete but the scope is
+    // still an animated shell, so the gate re-arms instead of releasing into
+    // the throttled reveal.
+    const wave = document.createElement("section");
+    for (let i = 0; i < 40; i++) wave.appendChild(document.createElement("p"));
+    scope.appendChild(wave);
+    await Promise.resolve();
+    for (let i = 0; i < 8; i++) flushFrame();
+    expect(onReady).not.toHaveBeenCalled();
+
+    // The placeholders stop animating (state, not time): the same quiet exit
+    // now releases.
+    animate(scope, []);
+    for (let i = 0; i < 8; i++) flushFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("the give-up deadline defers while the shell still animates, then fires", () => {
+    const scope = shellScope();
+    animate(scope, ["skeleton-wave"]);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, {
+      scope,
+      contentSettle: { graceMs: 10, firstWaitMs: 50, capMs: 900, minNodes: 30 }
+    });
+    flushFrame();
+    flushFrame();
+
+    // Deadline reached while the shell still animates: defer in 100ms steps.
+    vi.advanceTimersByTime(51);
+    expect(onReady).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(100);
+    expect(onReady).not.toHaveBeenCalled();
+
+    // The placeholders stop (still no reveal wave): the next retry gives up.
+    animate(scope, []);
+    vi.advanceTimersByTime(101);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("scheduleAnimHoldRelease backstop with a content settle", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let frameId: number;
+  const SETTLE = { graceMs: 150, firstWaitMs: 400, capMs: 900, minNodes: 30 };
+
+  const shellScope = () => {
+    const scope = document.createElement("div");
+    for (let i = 0; i < 30; i++) scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    frames = new Map();
+    frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.textContent = "";
+    setPendingForTests(false);
+  });
+
+  const flushFrame = () => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((frameCallback) => frameCallback(performance.now()));
+  };
+
+  it("outlasts the settle cap instead of releasing the motion into the wave it waits out", () => {
+    setPendingForTests(true);
+    const release = vi.fn();
+    scheduleAnimHoldRelease(release, { scope: shellScope(), contentSettle: SETTLE });
+    flushFrame();
+    flushFrame(); // paint anchor → the settle gate arms
+
+    // The gate is legitimately waiting (requests in flight): the plain 300ms
+    // backstop must NOT fire underneath it.
+    vi.advanceTimersByTime(301);
+    expect(release).not.toHaveBeenCalled();
+
+    // The settle cap releases through the gate itself.
+    vi.advanceTimersByTime(SETTLE.capMs - 301 + 1);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the plain 300ms backstop when no settle is configured", () => {
+    const release = vi.fn();
+    scheduleAnimHoldRelease(release, {});
+    vi.advanceTimersByTime(299);
+    expect(release).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(2);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("still backstops a suspended tab, at the extended bound", () => {
+    // rAF never fires (a backgrounded tab): the paint anchor never advances,
+    // the settle gate never arms, and the extended backstop is what releases.
+    setPendingForTests(true);
+    const release = vi.fn();
+    scheduleAnimHoldRelease(release, { scope: shellScope(), contentSettle: SETTLE });
+    vi.advanceTimersByTime(SETTLE.capMs + ANIM_HOLD_RELEASE_BACKSTOP_MS - 1);
+    expect(release).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("coordinator group backstop with a content settle", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let frameId: number;
+  const SETTLE = { graceMs: 150, firstWaitMs: 400, capMs: 900, minNodes: 30 };
+
+  const shellScope = () => {
+    const scope = document.createElement("div");
+    for (let i = 0; i < 30; i++) scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    frames = new Map();
+    frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.textContent = "";
+    setPendingForTests(false);
+  });
+
+  it("a founding settle member arms the group backstop at the extended bound", () => {
+    setPendingForTests(true);
+    const coordinator = createAnimHoldCoordinator();
+    const enter = vi.fn();
+    const exit = vi.fn();
+    coordinator.join("PUSHING:cupertino", enter, { scope: shellScope(), contentSettle: SETTLE });
+    coordinator.join("PUSHING:cupertino", exit, { decodeWait: false });
+
+    // rAF suspended: only the backstop can release. The plain 300ms bound must
+    // not fire under the settle member's legitimate wait.
+    vi.advanceTimersByTime(ANIM_HOLD_RELEASE_BACKSTOP_MS + 1);
+    expect(enter).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(SETTLE.capMs);
+    expect(enter).toHaveBeenCalledTimes(1);
+    expect(exit).toHaveBeenCalledTimes(1);
+  });
+
+  it("a settle member joining an existing group extends the shared backstop", () => {
+    setPendingForTests(true);
+    const coordinator = createAnimHoldCoordinator();
+    const exit = vi.fn();
+    const enter = vi.fn();
+    coordinator.join("PUSHING:cupertino", exit, { decodeWait: false });
+    coordinator.join("PUSHING:cupertino", enter, { scope: shellScope(), contentSettle: SETTLE });
+
+    vi.advanceTimersByTime(ANIM_HOLD_RELEASE_BACKSTOP_MS + 1);
+    expect(exit).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(SETTLE.capMs + ANIM_HOLD_RELEASE_BACKSTOP_MS);
+    expect(exit).toHaveBeenCalledTimes(1);
+    expect(enter).toHaveBeenCalledTimes(1);
+  });
+
+  it("a shorter member never shrinks an already-extended group backstop", () => {
+    setPendingForTests(true);
+    const coordinator = createAnimHoldCoordinator();
+    const enter = vi.fn();
+    const exit = vi.fn();
+    coordinator.join("PUSHING:cupertino", enter, { scope: shellScope(), contentSettle: SETTLE });
+    coordinator.join("PUSHING:cupertino", exit, { decodeWait: false });
+
+    vi.advanceTimersByTime(ANIM_HOLD_RELEASE_BACKSTOP_MS + SETTLE.capMs - 1);
+    expect(enter).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(enter).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("settle gate image loads", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let frameId: number;
+  const flushFrame = () => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((frameCallback) => frameCallback(performance.now()));
+  };
+  const SETTLE = { graceMs: 150, firstWaitMs: 400, capMs: 900, minNodes: 30 };
+
+  const shellScope = () => {
+    const scope = document.createElement("div");
+    for (let i = 0; i < 30; i++) scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  // jsdom never loads images; `complete` is emulated per test.
+  const makeImage = (complete: boolean, loading?: string) => {
+    const image = document.createElement("img");
+    let done = complete;
+    Object.defineProperty(image, "complete", { get: () => done, configurable: true });
+    if (loading) Object.defineProperty(image, "loading", { value: loading, configurable: true });
+    return { image, finishLoad: () => (done = true) };
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    frames = new Map();
+    frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.textContent = "";
+    setPendingForTests(false);
+  });
+
+  it("an incomplete image holds the gate exactly like a pending request", () => {
+    const scope = shellScope();
+    const { image, finishLoad } = makeImage(false);
+    scope.appendChild(image);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+
+    // The sparse-screen grace must not fire while an image is still loading…
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    expect(onReady).not.toHaveBeenCalled();
+
+    // …and the give-up deadline defers in 100ms steps until it lands.
+    vi.advanceTimersByTime(SETTLE.firstWaitMs - SETTLE.graceMs);
+    expect(onReady).not.toHaveBeenCalled();
+
+    finishLoad();
+    vi.advanceTimersByTime(101);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("a lazy image that never selected a source is not worth waiting on", () => {
+    const scope = shellScope();
+    const { image } = makeImage(false, "lazy");
+    scope.appendChild(image);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("images below the scope's first screenful land invisibly and are skipped", () => {
+    const scope = shellScope();
+    scope.getBoundingClientRect = () => ({ top: 0, height: 800 }) as DOMRect;
+    const { image } = makeImage(false);
+    image.getBoundingClientRect = () => ({ top: 1200 }) as DOMRect;
+    scope.appendChild(image);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("an incomplete image inside the first screenful still counts", () => {
+    const scope = shellScope();
+    scope.getBoundingClientRect = () => ({ top: 0, height: 800 }) as DOMRect;
+    const { image } = makeImage(false);
+    image.getBoundingClientRect = () => ({ top: 300 }) as DOMRect;
+    scope.appendChild(image);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    expect(onReady).not.toHaveBeenCalled();
+  });
+
+  it("only a viewport's worth of images is considered", () => {
+    const scope = shellScope();
+    for (let i = 0; i < 20; i++) scope.appendChild(makeImage(true).image);
+    scope.appendChild(makeImage(false).image); // the 21st — beyond the bound
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("the quiet exit re-arms until the revealed wave's images finish", async () => {
+    const scope = shellScope();
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+
+    // The reveal lands: real content whose images are still loading.
+    const wave = document.createElement("section");
+    for (let i = 0; i < 40; i++) {
+      const row = document.createElement("p");
+      row.textContent = "이미지가 곧 도착할 콘텐츠 행입니다";
+      wave.appendChild(row);
+    }
+    const { image, finishLoad } = makeImage(false);
+    wave.appendChild(image);
+    scope.appendChild(wave);
+    await Promise.resolve();
+
+    for (let i = 0; i < 8; i++) flushFrame();
+    expect(onReady).not.toHaveBeenCalled();
+
+    // The image completes: the in-progress countdown runs out and the quiet
+    // exit now releases.
+    finishLoad();
+    for (let i = 0; i < 8; i++) flushFrame();
     expect(onReady).toHaveBeenCalledTimes(1);
   });
 });

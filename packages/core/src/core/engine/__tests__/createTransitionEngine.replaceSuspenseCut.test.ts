@@ -190,12 +190,21 @@ describe("replace suspended-mount cut", () => {
     scope.remove();
   });
 
-  it("CONTRAST: with no suspense churn the active fade runs to animationend and resolves once", () => {
+  // The COMPLETED flip now waits for the last motion frame to PRESENT (two
+  // rAFs past a clean end, 100ms fallback) — flush that before asserting.
+  const presentedFlush = () =>
+    new Promise((flushed) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(flushed, 0)))
+    );
+
+  it("CONTRAST: with no suspense churn the active fade runs to animationend and resolves once", async () => {
     const scope = newDiv();
     const dispose = driveActive(scope);
 
-    // The healthy path: the compiled animation plays and ends normally.
+    // The healthy path: the compiled animation plays, ends normally, and
+    // resolves after the presented-frame deferral.
     scope.dispatchEvent(endEvent(ACTIVE_ANIM));
+    await presentedFlush();
     expect(resolveSpy).toHaveBeenCalledTimes(1);
     expect(resolveSpy).toHaveBeenCalledWith("task-replace");
 

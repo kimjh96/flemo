@@ -58,11 +58,13 @@ export const TRANSITION_GATE_BACKSTOP_MS = 1200;
 
 // How many extra backstop windows a HELD gate may claim before the backstop
 // force-resolves it anyway. A held gate is a transition whose motion has not
-// started yet — typically because the entering screen's mount commit blocked
-// the main thread past the first window, with the anim-hold release still
-// scheduled right behind it (the hold machinery bounds release at ~300ms once
-// the thread is free). The bound keeps a zone torn down while held from ever
-// wedging the serial queue: worst case (1 + MAX) windows, then force-resolve.
+// started yet — a mount commit blocking the main thread past the first
+// window, or the content-settle gate legitimately waiting on a suspense
+// reveal / pending loads (bounded by its cap plus the anim-hold backstop,
+// ~1.2s worst case — see animStartAnchor). The bound keeps a zone torn down
+// while held from ever wedging the serial queue: worst case (1 + MAX)
+// windows, then force-resolve — comfortably above the longest legitimate
+// hold.
 const MAX_HELD_GATE_REARMS = 2;
 
 // The transition gate's phase for a task, reported by the transition engine:

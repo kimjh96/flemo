@@ -28,6 +28,12 @@ const noop = () => {};
 // into 600ms flights), comfortably under the warm-up's own 3s backstop.
 const WARM_SETTLE_MS = 400;
 
+// Timeout insurance for the landing-clear deferral (a clean end resolves two
+// rAFs after the last motion frame so the COMPLETED flip's commit cannot cut
+// it — see resolvePresented): rAF suspends in background tabs, and the
+// navigation queue must never hang on an invisible deferral.
+const LANDING_CLEAR_FALLBACK_MS = 100;
+
 const PART_NAME_ATTR = "data-flemo-part-name";
 
 // This screen's <Part> elements. The container (the scope's parent) hosts
@@ -691,12 +697,53 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // resolve immediately — something is already wrong there.
     let choreographyExtraMs = 0;
     let choreographyTimer: ReturnType<typeof setTimeout> | undefined;
-    const resolveAfterChoreography = () => {
-      if (choreographyExtraMs <= 0) {
+    // The COMPLETED flip's commit is the convergence frame's busiest moment
+    // (status re-renders, the covered screen's freeze, the animation strip +
+    // re-layerize), and resolving it in the same beat as the motion's last
+    // frame measured as a dropped frame right at landing (production trace:
+    // smoothness-affecting drop ~32ms after animationend, TimerFire → flip
+    // commit at the final frame). A CLEAN end therefore lets that frame
+    // PRESENT first: two rAFs — the same anchor the hold uses — with a
+    // timeout fallback for suspended rAF (background tab). The screen holds
+    // its arrival pose under the compiled rules meanwhile, so the deferral is
+    // invisible. Recovery paths (watchdog, floor, resume-terminal) keep
+    // resolving immediately — something is already wrong there.
+    let landingClearFrames: number[] = [];
+    let landingClearFallback: ReturnType<typeof setTimeout> | undefined;
+    const cancelLandingClear = () => {
+      landingClearFrames.forEach((frame) => cancelAnimationFrame(frame));
+      landingClearFrames = [];
+      if (landingClearFallback !== undefined) clearTimeout(landingClearFallback);
+      landingClearFallback = undefined;
+    };
+    const resolvePresented = () => {
+      /* v8 ignore next 4 -- every runtime under test has rAF; the guard
+         shields exotic embedders. */
+      if (typeof requestAnimationFrame !== "function") {
         resolve();
         return;
       }
-      choreographyTimer = setTimeout(resolve, choreographyExtraMs);
+      landingClearFallback = setTimeout(() => {
+        cancelLandingClear();
+        resolve();
+      }, LANDING_CLEAR_FALLBACK_MS);
+      landingClearFrames.push(
+        requestAnimationFrame(() => {
+          landingClearFrames.push(
+            requestAnimationFrame(() => {
+              cancelLandingClear();
+              resolve();
+            })
+          );
+        })
+      );
+    };
+    const resolveAfterChoreography = () => {
+      if (choreographyExtraMs <= 0) {
+        resolvePresented();
+        return;
+      }
+      choreographyTimer = setTimeout(resolvePresented, choreographyExtraMs);
     };
 
     // Detaches the scope's own cancel-resume + watchdog. Set once the recovery
@@ -721,7 +768,13 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // hold/park rules own the pre-release frames). A chain-gated or
     // non-joinable variant simply keeps the compiled animation + `onEnd`.
     const detachPlayer =
-      playerCanDrive && animHoldReleased ? joinPlayer(variantKey, "active", resolve) : null;
+      playerCanDrive && animHoldReleased
+        ? // The player's onComplete is a clean end too: its final frame was
+          // just written, so the flip commit waits for it to present exactly
+          // like the compiled path (WebKit presents these frames from the main
+          // thread, where the flip commit competes hardest).
+          joinPlayer(variantKey, "active", resolvePresented)
+        : null;
 
     // Liveness FLOOR — the guarantee that the manual task ALWAYS resolves. A
     // rapid back/forward storm can orphan or freeze the element this transition
@@ -918,7 +971,11 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           scope.removeEventListener("animationend", onEnd);
           clearWatchdog();
           stopScopeRecovery();
-          resolve();
+          // A cut is a CLEAN completion (both sides inside their bands) — the
+          // flip commit still waits for the presented frame like any clean
+          // end; the sub-pixel tail keeps playing under the compiled rules
+          // during the deferral, so nothing snaps.
+          resolvePresented();
         }, cutMs + 17);
       }
     }
@@ -926,6 +983,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     return () => {
       if (floor !== undefined) clearTimeout(floor);
       if (choreographyTimer !== undefined) clearTimeout(choreographyTimer);
+      cancelLandingClear();
       clearPerceptualCut();
       scope.removeEventListener("animationend", onEnd);
       if (recovering) {
