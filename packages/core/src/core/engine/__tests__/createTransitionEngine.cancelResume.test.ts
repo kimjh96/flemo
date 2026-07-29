@@ -242,7 +242,14 @@ describe("createTransitionEngine cancel-resume liveness", () => {
 
   // ── Repeated cancels + resolution ─────────────────────────────────────────
 
-  it("N≤budget cancels all resume, and the animation's end resolves the task exactly once", () => {
+  // The COMPLETED flip now waits for the last motion frame to PRESENT (two
+  // rAFs past a clean end, 100ms fallback) — flush that before asserting.
+  const presentedFlush = () =>
+    new Promise((flushed) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(flushed, 0)))
+    );
+
+  it("N≤budget cancels all resume, and the animation's end resolves the task exactly once", async () => {
     const scope = newDiv();
     const dispose = driveActive(scope);
 
@@ -255,8 +262,10 @@ describe("createTransitionEngine cancel-resume liveness", () => {
       expect(resolveSpy).not.toHaveBeenCalled();
     }
 
-    // The final resume ends on the ORIGINAL schedule; its animationend resolves.
+    // The final resume ends on the ORIGINAL schedule; its animationend
+    // resolves after the presented-frame deferral.
     scope.dispatchEvent(endEvent(ACTIVE(CROSSFADE)));
+    await presentedFlush();
     expect(resolveSpy).toHaveBeenCalledTimes(1);
     expect(resolveSpy).toHaveBeenCalledWith("task-1");
 
@@ -474,7 +483,7 @@ describe("createTransitionEngine cancel-resume liveness", () => {
     expect(scope.style.animationDelay).toBe("");
   });
 
-  it("the active resume budget is pruned on resolution — no growth across transitions", () => {
+  it("the active resume budget is pruned on resolution — no growth across transitions", async () => {
     const engine = createTransitionEngine(deps);
     const scope = newDiv();
 
@@ -494,6 +503,7 @@ describe("createTransitionEngine cancel-resume liveness", () => {
       scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE))); // adds a budget entry
       expect(engine.activeResumeEntryCount()).toBe(1);
       scope.dispatchEvent(endEvent(ACTIVE(CROSSFADE))); // resolve → prune entry
+      await presentedFlush();
       expect(engine.activeResumeEntryCount()).toBe(0);
       dispose();
     }

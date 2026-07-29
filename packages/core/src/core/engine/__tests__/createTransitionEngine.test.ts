@@ -140,13 +140,23 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     dispose();
   });
 
-  it("resolves the task on the matching animationend and ignores others", () => {
+  // The COMPLETED flip now waits for the last motion frame to PRESENT (two
+  // rAFs past a clean end, 100ms fallback) — flush that before asserting.
+  const presentedFlush = () =>
+    new Promise((flushed) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(flushed, 0)))
+    );
+
+  it("resolves the task on the matching animationend and ignores others", async () => {
     const dispose = drive({ status: "PUSHING" });
 
     scope.dispatchEvent(animationEndEvent("some-other-animation"));
     expect(resolveSpy).not.toHaveBeenCalled();
 
     scope.dispatchEvent(animationEndEvent("flemo-screen-engine-test-PUSHING-true"));
+    // A clean end resolves only after the presented-frame deferral.
+    expect(resolveSpy).not.toHaveBeenCalled();
+    await presentedFlush();
     expect(vi.mocked(deps.getTransitionTaskId)).toHaveBeenCalled();
     expect(resolveSpy).toHaveBeenCalledWith("task-1");
 
@@ -186,7 +196,7 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
   // the compiled screen animation name (see animationName()).
   const SCREEN_ANIM = "flemo-screen-engine-test-PUSHING-true";
 
-  it("restarts a cancelled screen animation once, then resolves on the restart's animationend", () => {
+  it("restarts a cancelled screen animation once, then resolves on the restart's animationend", async () => {
     const dispose = drive({ status: "PUSHING" });
     const removeSpy = vi.spyOn(scope.style, "removeProperty");
 
@@ -197,8 +207,10 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     expect(scope.style.animation).toBe(""); // left the compiled rule live again
     expect(resolveSpy).not.toHaveBeenCalled(); // restarted, did NOT resolve
 
-    // The restarted animation ends normally → the task resolves.
+    // The restarted animation ends normally → the task resolves (after the
+    // presented-frame deferral).
     scope.dispatchEvent(animationEndEvent(SCREEN_ANIM));
+    await presentedFlush();
     expect(resolveSpy).toHaveBeenCalledWith("task-1");
 
     removeSpy.mockRestore();
@@ -291,6 +303,8 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
 
     vi.advanceTimersByTime(200);
     scope.dispatchEvent(animationEndEvent(SCREEN_ANIM));
+    // Presented-frame deferral: the resolve lands via its rAF chain/fallback.
+    vi.advanceTimersByTime(132);
     expect(resolveSpy).toHaveBeenCalledTimes(1);
 
     // Past the watchdog deadline + its would-be re-arm, but before the 1800ms
@@ -301,6 +315,26 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
 
     removeSpy.mockRestore();
     dispose();
+  });
+
+  it("the presented-frame deferral falls back to its timeout when frames never come", () => {
+    vi.useFakeTimers();
+    // A backgrounded tab: rAF is suspended, so only the 100ms fallback can
+    // land the deferred resolve.
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    const dispose = drive({ status: "PUSHING" });
+
+    scope.dispatchEvent(animationEndEvent(SCREEN_ANIM));
+    expect(resolveSpy).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(99);
+    expect(resolveSpy).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(2);
+    expect(resolveSpy).toHaveBeenCalledTimes(1);
+
+    dispose();
+    vi.unstubAllGlobals();
   });
 
   it("does not double-arm the watchdog when the anim-hold release re-runs the effect", () => {

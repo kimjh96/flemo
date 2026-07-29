@@ -887,8 +887,10 @@ describe("choreography-span deferral", () => {
       vi.advanceTimersByTime(150);
       expect(resolveSpy).not.toHaveBeenCalled();
 
-      // ...and resolves once the part's span has elapsed (extra = 250ms).
+      // ...and resolves once the part's span has elapsed (extra = 250ms)
+      // plus the presented-frame deferral.
       vi.advanceTimersByTime(120);
+      vi.advanceTimersByTime(132);
       expect(resolveSpy).toHaveBeenCalledWith("defer-task");
 
       cleanup();
