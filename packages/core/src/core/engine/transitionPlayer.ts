@@ -250,6 +250,39 @@ export interface SnapMemory {
 // erratic-under-load snapping was the source of both judder (2D path) and
 // edge shimmer (3D path)); sub-pixel-per-frame motion writes the raw value so
 // the 3D path's texture filtering glides it instead of stepping it.
+// Session-scoped diagnostic override for the velocity-gated snap below:
+// "always" snaps every frame, "off" always writes raw sub-pixel values.
+// An on-device A/B instrument (the gate itself stays the shipped default);
+// read once per page load.
+// Session-scoped diagnostic for the VALUE-APPLICATION path: "scrub" forces
+// the scrub-WAAPI driver for every track (see the join below); read once per
+// page load.
+let applyOverrideCache: "scrub" | null | undefined;
+const snapshotApplyOverride = (): "scrub" | null => {
+  if (applyOverrideCache !== undefined) return applyOverrideCache;
+  try {
+    const value =
+      typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:apply") : null;
+    applyOverrideCache = value === "scrub" ? value : null;
+  } catch {
+    applyOverrideCache = null;
+  }
+  return applyOverrideCache;
+};
+
+let snapOverrideCache: "always" | "off" | null | undefined;
+const snapOverride = (): "always" | "off" | null => {
+  if (snapOverrideCache !== undefined) return snapOverrideCache;
+  try {
+    const value =
+      typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:snap") : null;
+    snapOverrideCache = value === "always" || value === "off" ? value : null;
+  } catch {
+    snapOverrideCache = null;
+  }
+  return snapOverrideCache;
+};
+
 const composeTransform = (
   channels: TransformChannel[],
   eased: number,
@@ -270,8 +303,14 @@ const composeTransform = (
 
     if (prop === "x" || prop === "y") {
       const last = prop === "x" ? snapMemory.x : snapMemory.y;
+      const override = snapOverride();
       const fastEnough =
-        last === null || Math.abs(value - last) * devicePixelRatio >= SNAP_MIN_DEVICE_PX_PER_FRAME;
+        override === "always"
+          ? true
+          : override === "off"
+            ? false
+            : last === null ||
+              Math.abs(value - last) * devicePixelRatio >= SNAP_MIN_DEVICE_PX_PER_FRAME;
       const written =
         fastEnough && devicePixelRatio > 0
           ? Math.round(value * devicePixelRatio) / devicePixelRatio
@@ -348,15 +387,17 @@ const createScrubAnimation = (element: HTMLElement, motion: VariantMotion): Anim
 // is allowed to advance across a stall (one frame, not the whole gap).
 const NOMINAL_FRAME_MS = 1000 / 60;
 
-// A frame arriving later than this means the main thread was BLOCKED between
-// our frames (a heavy consumer commit landed mid-transition), not merely a
-// dropped vsync or two. Past this the shared clock has jumped far enough that
-// stepping motion straight off it fast-forwards the transition to (near) its
-// end — a single-frame snap. At/under it the gap is ordinary jitter and the
-// clock advances normally (the driver policy still counts it as a stall via its
-// own, lower LONG_GAP_MS). Chosen well above a few dropped frames (~50ms) and
-// below the shortest transition, so only a genuine block re-anchors.
-const FRAME_GAP_REANCHOR_MS = 100;
+// The most the shared clock may advance across ONE frame gap: two nominal
+// frames — exactly what a natural double-vsync drop produces, so ordinary
+// jitter passes through untouched. Anything longer is a main-thread block (a
+// consumer commit, the COMPLETED flip of a neighbouring navigation), and
+// stepping motion by the full gap plays the authored curve compressed — a
+// 40-100ms block used to slip under the old 100ms re-anchor cliff and read
+// as the screen "whooshing" ahead of its easing. Capping the step keeps
+// every stall inside the player's delayed-but-complete semantics: motion
+// resumes at most two frames past where it stalled, and the tail plays out
+// in full (the liveness floor still bounds a pathological stall pile-up).
+const MAX_CLOCK_STEP_MS = 2 * NOMINAL_FRAME_MS;
 
 export interface PlayerScheduler {
   request: (callback: (time: number) => void) => number;
@@ -416,7 +457,11 @@ export const createTransitionPlayerRegistry = (
 
   const registry: TransitionPlayerRegistry = {
     join: (taskId, input) => {
-      const parsed = parseMotion(input.motion, input.element);
+      // Session-scoped diagnostic: `flemo:apply=scrub` routes EVERY track
+      // through the scrub-WAAPI path (native interpolation, our clock) so the
+      // per-frame style-write path can be A/B'd against it on-device.
+      const forceScrub = snapshotApplyOverride() === "scrub";
+      const parsed = forceScrub ? null : parseMotion(input.motion, input.element);
       const scrub = parsed ? null : createScrubAnimation(input.element, input.motion);
       if (!parsed && !scrub) return null;
 
@@ -552,19 +597,14 @@ export const createTransitionPlayerRegistry = (
       // makes that guarantee structural, not incidental.
       driverPolicy.reportGap(gap);
       registry.onFrameGap?.(gap);
-      // Re-anchor across a long main-thread stall. A gap this large means the
-      // main thread was blocked (a heavy consumer commit landed mid-flight), so
-      // the shared clock jumped far ahead; stepping motion straight off it would
-      // fast-forward progress to near the end and SNAP the transition to a
-      // single frame — a latent player defect for any mid-flight block. Instead
-      // push the anchor forward by (gap − one nominal frame) so progress RESUMES
-      // one frame past where it stalled rather than leaping to the end: the
-      // animation still plays every value, just late, matching the compiled-CSS
-      // path's post-block semantics (motion completes fully, late and clean).
-      // Scrub-WAAPI tracks derive currentTime from this same startTime, so they
-      // re-anchor with it automatically.
-      if (gap >= FRAME_GAP_REANCHOR_MS) {
-        startTime += gap - NOMINAL_FRAME_MS;
+      // Re-anchor across a main-thread stall (see MAX_CLOCK_STEP_MS): push the
+      // anchor forward by the excess so progress resumes at most two frames
+      // past where it stalled rather than leaping ahead — the animation plays
+      // every value of its authored curve, just late. Scrub-WAAPI tracks
+      // derive currentTime from this same startTime, so they re-anchor with
+      // it automatically.
+      if (gap > MAX_CLOCK_STEP_MS) {
+        startTime += gap - MAX_CLOCK_STEP_MS;
       }
     }
     player.startTime = startTime;

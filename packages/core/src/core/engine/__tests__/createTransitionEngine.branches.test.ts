@@ -8,6 +8,7 @@ import createTransition from "@transition/createTransition";
 import { transitionMap } from "@transition/transition";
 
 import createTransitionEngine from "@core/engine/createTransitionEngine";
+import transitionPlayers from "@core/engine/transitionPlayer";
 import { SKIP_ANIMATION_ATTR } from "@core/engine/types";
 import createPartTransition from "@transition/partTransition/createPartTransition";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
@@ -36,6 +37,57 @@ const elements = () => {
   const bar = document.createElement("div");
   return { scope, decorator, bar };
 };
+
+describe("kind-scoped driver routing", () => {
+  const drive = (scope: HTMLElement, transitionName: string) => {
+    const d = deps();
+    d.getTransitionTaskId.mockReturnValue("route-task" as never);
+    const engine = createTransitionEngine(d);
+    return engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: transitionName as never,
+      prevTransitionName: transitionName as never,
+      status: "PUSHING",
+      isActive: true,
+      animHoldReleased: true
+    });
+  };
+
+  it("a fast slide refuses the player and stays on the native clock", () => {
+    // jsdom default is non-Blink → the player would drive; a measurable box
+    // makes cupertino classify as native, so the join must be refused.
+    sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
+    sessionStorage.removeItem("flemo:motion-driver-force");
+    const { scope } = elements();
+    Object.defineProperty(scope, "clientWidth", { value: 400, configurable: true });
+    Object.defineProperty(scope, "clientHeight", { value: 800, configurable: true });
+    document.body.appendChild(scope);
+    const join = vi.spyOn(transitionPlayers, "join");
+    const cleanup = drive(scope, "cupertino");
+    expect(join).not.toHaveBeenCalled();
+    cleanup();
+    join.mockRestore();
+    scope.remove();
+  });
+
+  it("a 'raf' force pin bypasses the classification (diagnostic sessions player-drive everything)", () => {
+    sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
+    try {
+      const { scope } = elements();
+      Object.defineProperty(scope, "clientWidth", { value: 400, configurable: true });
+      Object.defineProperty(scope, "clientHeight", { value: 800, configurable: true });
+      document.body.appendChild(scope);
+      const join = vi.spyOn(transitionPlayers, "join");
+      const cleanup = drive(scope, "cupertino");
+      expect(join).toHaveBeenCalled();
+      cleanup();
+      join.mockRestore();
+      scope.remove();
+    } finally {
+      sessionStorage.removeItem("flemo:motion-driver-force");
+    }
+  });
+});
 
 describe("createTransitionEngine branches", () => {
   it("COMPLETED strips inline styles + skip markers from the scope, decorator, and bars", () => {

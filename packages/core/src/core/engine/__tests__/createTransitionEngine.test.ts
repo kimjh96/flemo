@@ -144,7 +144,11 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
   // rAFs past a clean end, 100ms fallback) — flush that before asserting.
   const presentedFlush = () =>
     new Promise((flushed) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(flushed, 0)))
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(flushed, 0)))
+        )
+      )
     );
 
   it("resolves the task on the matching animationend and ignores others", async () => {

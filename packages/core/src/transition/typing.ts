@@ -36,6 +36,10 @@ export type SwipeAnimate = (
 export type TransitionOptions =
   | {
       decoratorName?: DecoratorName;
+      // Motion-driver override for this transition: "native" pins the
+      // compiled-CSS clock, "player" pins the rAF player, replacing the
+      // measured kind classification (see core/engine/motionDriverKind).
+      driver?: "native" | "player";
       swipeDirection: "x" | "y";
       onSwipeStart: (
         event: PointerEvent,
@@ -70,6 +74,8 @@ export type TransitionOptions =
     }
   | {
       decoratorName?: DecoratorName;
+      // See the swipe branch above.
+      driver?: "native" | "player";
       swipeDirection?: never;
     };
 

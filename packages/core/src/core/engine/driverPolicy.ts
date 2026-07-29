@@ -144,6 +144,10 @@ const DEMOTION_STRIKES = 2;
 export interface DriverPolicy {
   // Whether the rAF player may drive motion on this device.
   playerAllowed: () => boolean;
+  // The active diagnostic force pin, if any. A pin bypasses not only the
+  // engine default but also the kind-scoped classification (a pinned "raf"
+  // session must player-drive EVERY transition to be a useful instrument).
+  pinnedDriver: () => "css" | "raf" | null;
   // Player run lifecycle: the registry reports gaps; the policy aggregates.
   beginRun: () => void;
   reportGap: (gapMs: number) => void;
@@ -190,6 +194,7 @@ export const createDriverPolicy = (
       if (forced) return forced === "raf";
       return playerByDefault && !demoted;
     },
+    pinnedDriver: readForcedDriver,
     beginRun: () => {
       runLongGaps = 0;
       runGaps = [];
