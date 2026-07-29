@@ -1,5 +1,15 @@
 # @flemo/core
 
+## 1.21.1
+
+### Patch Changes
+
+- [`b85b941`](https://github.com/kimjh96/flemo/commit/b85b9417bdf0aa65ab2f2ebafe157e75f419464e) Defer a clean transition end's COMPLETED flip by two frames so the last motion frame presents before the convergence commit (status re-renders, freeze, animation strip) lands — removing the dropped frame measured right at landing. Recovery paths still resolve immediately.
+
+- [`b85b941`](https://github.com/kimjh96/flemo/commit/b85b9417bdf0aa65ab2f2ebafe157e75f419464e) Hold the content-settle gate through React's suspense reveal throttle, keyed on state rather than timing: while the entering screen is still an animated skeleton (shimmering placeholders, nothing fetching, nothing mutating) the gate keeps waiting for the reveal commit, bounded only by the settle cap, and the anim-hold backstops now outlast that cap instead of firing underneath it. A de-shelled scope with nothing pending then releases on a two-frame anchor, so the reveal lands before the motion starts without paying the full quiet window.
+
+- [`b85b941`](https://github.com/kimjh96/flemo/commit/b85b9417bdf0aa65ab2f2ebafe157e75f419464e) Count the entering screen's first-screenful image loads as in-flight work in the content-settle gate: an incomplete eager image now holds the motion (under the same settle cap) the way a pending fetch does, so image paints land before the flight instead of stealing a frame during it. Below-the-fold and not-yet-started lazy images are skipped.
+
 ## 1.21.0
 
 ### Minor Changes
