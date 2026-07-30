@@ -9,7 +9,7 @@ import { resolveVariantMotion, type VariantMotion } from "@transition/variantMot
 
 import createArrivalHold from "@core/engine/arrivalHold";
 import holdCompositorWarm from "@core/engine/compositorWarmUp";
-import driverPolicy from "@core/engine/driverPolicy";
+import driverPolicy, { detectBlinkEngine } from "@core/engine/driverPolicy";
 
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import transitionPlayers from "@core/engine/transitionPlayer";
@@ -23,6 +23,7 @@ import { decoratorMap } from "@transition/decorator/decorator";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 import { classifyTransitionDriver } from "./motionDriverKind";
+import { watchNativeStalls } from "./nativeStallAnchor";
 
 const noop = () => {};
 
@@ -942,6 +943,25 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // true and arms here immediately). Only with a task to resolve.
       if (flooredTaskId) armWatchdog();
     }
+    // Native-clock stall re-anchor (see nativeStallAnchor): main-thread
+    // presentation only — on Blink the compositor plays through main stalls,
+    // where a shift would yank a smooth animation backwards. Each shift
+    // pushes the wall-clock deadlines out of the way: the watchdog re-arms
+    // on the stretched timeline and the perceptual cut (a wall-clock timer)
+    // stands down exactly as it does for any recovery event.
+    const detachStallWatch =
+      recovering && !detectBlinkEngine()
+        ? watchNativeStalls(
+            () => {
+              const { decorator, bars } = getElements();
+              return [scope, decorator, ...(bars ?? [])];
+            },
+            () => {
+              disarmPerceptualCut();
+              if (flooredTaskId && watchdog !== undefined) armWatchdog();
+            }
+          )
+        : null;
 
     // Perceptual completion cut (see perceptualSpan.ts): once every animated
     // channel of BOTH sides has permanently entered its imperceptibility band
@@ -1008,6 +1028,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (floor !== undefined) clearTimeout(floor);
       if (choreographyTimer !== undefined) clearTimeout(choreographyTimer);
       cancelLandingClear();
+      detachStallWatch?.();
       clearPerceptualCut();
       scope.removeEventListener("animationend", onEnd);
       if (recovering) {
