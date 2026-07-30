@@ -270,6 +270,13 @@ const snapshotApplyOverride = (): "scrub" | null => {
   return applyOverrideCache;
 };
 
+// Test-only: the session override caches are read once per page load; tests
+// reset them to exercise each override path in one module instance.
+export const resetSessionOverrideCachesForTests = () => {
+  applyOverrideCache = undefined;
+  snapOverrideCache = undefined;
+};
+
 let snapOverrideCache: "always" | "off" | null | undefined;
 const snapOverride = (): "always" | "off" | null => {
   if (snapOverrideCache !== undefined) return snapOverrideCache;

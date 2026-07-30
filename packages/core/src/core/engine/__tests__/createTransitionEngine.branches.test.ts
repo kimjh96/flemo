@@ -89,6 +89,133 @@ describe("kind-scoped driver routing", () => {
   });
 });
 
+describe("native-clock stall watch wiring", () => {
+  it("a stall during a native-driven flight re-anchors the scope's animations and re-arms the deadlines", () => {
+    // Controllable rAF clock so the stall watcher sees an explicit gap.
+    const frames = new Map<number, FrameRequestCallback>();
+    let frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      frames.set(++frameId, cb);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+    const pump = (time: number) => {
+      const callbacks = [...frames.values()];
+      frames.clear();
+      callbacks.forEach((cb) => cb(time));
+    };
+    try {
+      const { scope } = elements();
+      // A measurable box classifies cupertino as native → joinPlayer refuses →
+      // recovering wiring (jsdom reads as non-Blink) arms the stall watch.
+      Object.defineProperty(scope, "clientWidth", { value: 400, configurable: true });
+      Object.defineProperty(scope, "clientHeight", { value: 800, configurable: true });
+      document.body.appendChild(scope);
+      const anim = {
+        animationName: "flemo-screen-cupertino-PUSHING-true",
+        playState: "running",
+        startTime: 100
+      };
+      (scope as unknown as { getAnimations: () => unknown[] }).getAnimations = () => [anim];
+      const d = deps();
+      d.getTransitionTaskId.mockReturnValue("stall-task" as never);
+      const engine = createTransitionEngine(d);
+      const cleanup = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: "PUSHING",
+        isActive: true,
+        animHoldReleased: true
+      });
+
+      pump(0);
+      pump(200); // a 200ms main-thread stall
+      // The watcher shifted the running flemo animation's timeline forward by
+      // the excess over two nominal frames.
+      expect(anim.startTime).toBeGreaterThan(100 + 160);
+      cleanup();
+
+      // Without a task (nothing to gate) the deadline nudges are a no-op but
+      // the timeline shift itself still runs — and a binding that reports no
+      // bars at all is equivalent to an empty set.
+      frames.clear();
+      anim.startTime = 100;
+      const bare = deps();
+      const bareEngine = createTransitionEngine(bare);
+      const bareCleanup = bareEngine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: undefined }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: "PUSHING",
+        isActive: true,
+        animHoldReleased: true
+      });
+      pump(0);
+      pump(200);
+      expect(anim.startTime).toBeGreaterThan(100 + 160);
+      bareCleanup();
+      scope.remove();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("native-clock stall watch is Blink-gated", () => {
+  it("does not arm on Blink (the compositor plays through main stalls)", () => {
+    const frames = new Map<number, FrameRequestCallback>();
+    let frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      frames.set(++frameId, cb);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+    const pump = (time: number) => {
+      const callbacks = [...frames.values()];
+      frames.clear();
+      callbacks.forEach((cb) => cb(time));
+    };
+    Object.defineProperty(navigator, "userAgentData", { value: {}, configurable: true });
+    try {
+      const { scope } = elements();
+      Object.defineProperty(scope, "clientWidth", { value: 400, configurable: true });
+      Object.defineProperty(scope, "clientHeight", { value: 800, configurable: true });
+      document.body.appendChild(scope);
+      const anim = {
+        animationName: "flemo-screen-cupertino-PUSHING-true",
+        playState: "running",
+        startTime: 100
+      };
+      (scope as unknown as { getAnimations: () => unknown[] }).getAnimations = () => [anim];
+      const d = deps();
+      d.getTransitionTaskId.mockReturnValue("blink-task" as never);
+      const engine = createTransitionEngine(d);
+      const cleanup = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: "PUSHING",
+        isActive: true,
+        animHoldReleased: true
+      });
+      pump(0);
+      pump(200);
+      // No watcher armed: the animation timeline is untouched.
+      expect(anim.startTime).toBe(100);
+      cleanup();
+      scope.remove();
+    } finally {
+      delete (navigator as { userAgentData?: unknown }).userAgentData;
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe("createTransitionEngine branches", () => {
   it("COMPLETED strips inline styles + skip markers from the scope, decorator, and bars", () => {
     const { scope, decorator, bar } = elements();

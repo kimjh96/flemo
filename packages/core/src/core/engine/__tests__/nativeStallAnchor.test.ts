@@ -135,7 +135,7 @@ describe("watchNativeStalls", () => {
     detach();
   });
 
-  it("detach stops the watcher", () => {
+  it("detach stops the watcher, and a late frame callback is inert", () => {
     const animation: FakeAnimation = {
       animationName: "flemo-screen-cupertino-PUSHING-true",
       playState: "running",
@@ -144,7 +144,11 @@ describe("watchNativeStalls", () => {
     const { element } = fakeElement([animation]);
     const detach = watchNativeStalls(() => [element]);
     pump(0);
+    // A callback the scheduler already dispatched can still fire after the
+    // detach: it must do nothing.
+    const pending = [...frames.values()];
     detach();
+    pending.forEach((frameCallback) => frameCallback(500));
     pump(500);
     expect(animation.startTime).toBe(0);
     expect(frames.size).toBe(0);

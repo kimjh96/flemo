@@ -6,6 +6,7 @@ import driverPolicy from "@core/engine/driverPolicy";
 import {
   createTransitionPlayerRegistry,
   isPlayerDrivable,
+  resetSessionOverrideCachesForTests,
   type PlayerScheduler
 } from "@core/engine/transitionPlayer";
 
@@ -683,5 +684,97 @@ describe("app-wide registry glue", () => {
     detach();
     expect(el.style.transform).toBe("");
     expect(el.style.animation).toBe("");
+  });
+});
+
+describe("transitionPlayer session overrides (diagnostic instruments)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    sessionStorage.removeItem("flemo:snap");
+    sessionStorage.removeItem("flemo:apply");
+    resetSessionOverrideCachesForTests();
+  });
+
+  const slide = () => linearMotion({ x: 0 }, { x: -100 }, 1);
+
+  it("snap=always snaps even sub-device-pixel motion", () => {
+    sessionStorage.setItem("flemo:snap", "always");
+    resetSessionOverrideCachesForTests();
+    const { scheduler, pump } = createFakeScheduler(2);
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    registry.join("task-1", { element: el, motion: slide(), role: "active" });
+    pump(0);
+    pump(17); // raw -1.7px → snapped to the device grid at dpr 2
+    expect(el.style.transform).toBe("translate3d(-1.5px, 0px, 0)");
+  });
+
+  it("snap=off always writes the raw sub-pixel value", () => {
+    sessionStorage.setItem("flemo:snap", "off");
+    resetSessionOverrideCachesForTests();
+    const { scheduler, pump } = createFakeScheduler(2);
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    registry.join("task-1", { element: el, motion: slide(), role: "active" });
+    pump(0);
+    pump(17);
+    expect(el.style.transform).toBe("translate3d(-1.7px, 0px, 0)");
+  });
+
+  it("an unknown snap value falls back to the shipped gate", () => {
+    sessionStorage.setItem("flemo:snap", "sometimes");
+    resetSessionOverrideCachesForTests();
+    const { scheduler, pump } = createFakeScheduler(2);
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    registry.join("task-1", { element: el, motion: slide(), role: "active" });
+    pump(0);
+    pump(17); // 1.7px = 3.4 device px ≥ 1 → the normal gate snaps
+    expect(el.style.transform).toBe("translate3d(-1.5px, 0px, 0)");
+  });
+
+  it("apply=scrub routes a parseable motion through the scrub driver", () => {
+    sessionStorage.setItem("flemo:apply", "scrub");
+    resetSessionOverrideCachesForTests();
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const animation = fakeAnimation();
+    withAnimate(el, animation);
+    registry.join("task-1", { element: el, motion: slide(), role: "active" });
+    pump(0);
+    pump(30);
+    // The browser interpolates via the paused Web Animation; no per-frame
+    // style writes happen.
+    expect(animation.currentTime).toBe(30);
+    expect(el.style.transform).toBe("");
+  });
+
+  it("a runtime without sessionStorage reads as no override", () => {
+    resetSessionOverrideCachesForTests();
+    vi.stubGlobal("sessionStorage", undefined);
+    const { scheduler, pump } = createFakeScheduler(2);
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    registry.join("task-1", { element: el, motion: slide(), role: "active" });
+    pump(0);
+    pump(17);
+    expect(el.style.transform).toBe("translate3d(-1.5px, 0px, 0)");
+  });
+
+  it("a storage that throws reads as no override", () => {
+    resetSessionOverrideCachesForTests();
+    vi.stubGlobal("sessionStorage", {
+      getItem() {
+        throw new Error("storage blocked");
+      }
+    });
+    const { scheduler, pump } = createFakeScheduler(2);
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    registry.join("task-1", { element: el, motion: slide(), role: "active" });
+    pump(0);
+    pump(17); // shipped gate behavior, no crash
+    expect(el.style.transform).toBe("translate3d(-1.5px, 0px, 0)");
   });
 });
