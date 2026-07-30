@@ -77,6 +77,39 @@ describe("Part", () => {
   // inner Router's StoreContext. The screen context carries the owning scope's
   // navigate store, and the Part must follow THAT status (the outer transition),
   // not the nearest bundle's, reactively.
+  it("a part inside a DEEP screen pins its status through a navigation", () => {
+    const owningStores = createTestStores();
+    owningStores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+
+    const screen: ScreenContextProps = {
+      id: "deep-screen",
+      isActive: false,
+      isRoot: false,
+      isPrev: true,
+      zIndex: 0,
+      pathname: "/playground/1",
+      params: {},
+      transitionName: "cupertino",
+      prevTransitionName: "cupertino",
+      layoutId: null,
+      routePath: "/playground/:n",
+      navigateStore: owningStores.navigate
+    };
+
+    const { container } = render(
+      createElement(
+        StoreContext.Provider,
+        { value: stores },
+        createElement(ScreenContext.Provider, { value: screen }, <Part name="title-fade">x</Part>)
+      )
+    );
+
+    // Below the direct prev, the navigation's status flips must not reach
+    // this part — its attribute stays at rest.
+    const el = container.querySelector('[data-flemo-part-name="title-fade"]');
+    expect(el?.getAttribute("data-flemo-status")).toBe("COMPLETED");
+  });
+
   it("follows the owning screen's navigate store over the nearest bundle", () => {
     const owningStores = createTestStores();
     owningStores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
@@ -87,7 +120,9 @@ describe("Part", () => {
       id: "outer-screen",
       isActive: false,
       isRoot: false,
-      isPrev: true,
+      // A PARTICIPATING prev (not deep): a deep screen's part pins its status
+      // to COMPLETED and would not exercise the store-scoping under test.
+      isPrev: false,
       zIndex: 0,
       pathname: "/playground/1",
       params: {},

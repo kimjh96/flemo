@@ -7,13 +7,18 @@ import useScreen from "@screen/useScreen";
 import useNavigateStore from "@stores/useNavigateStore";
 
 function ScreenDecorator({ ref, style, ...props }: ComponentPropsWithRef<"div">) {
-  const { isActive, transitionName } = useScreen();
+  const { isActive, isPrev, transitionName } = useScreen();
 
   const scopeRef = useRef<HTMLDivElement | null>(null);
 
   useImperativeHandle(ref, () => scopeRef.current!);
 
-  const status = useNavigateStore((state) => state.status);
+  // A RESTING deep screen's decorator pins its status subscription to a
+  // constant (see Part / ScreenMotion): without the pin every navigation
+  // flipped every stacked screen's decorator overlay through
+  // PUSHING→COMPLETED — an O(depth) attribute-write storm that also
+  // re-triggered their compiled decorator keyframes.
+  const status = useNavigateStore((state) => (isPrev ? "COMPLETED" : state.status));
 
   const currentTransition = resolveTransition(transitionName);
   const { decoratorName } = currentTransition;

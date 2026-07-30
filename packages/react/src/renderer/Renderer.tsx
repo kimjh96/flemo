@@ -1,4 +1,4 @@
-import { Children, type PropsWithChildren, type ReactElement } from "react";
+import { Children, useContext, type PropsWithChildren, type ReactElement } from "react";
 
 import { createScreenSelector, getMatchedPathPattern, matchesPathname } from "@flemo/core";
 
@@ -18,6 +18,15 @@ function Renderer({ children }: PropsWithChildren) {
   // consumers stay bound to the OWNING scope even under a nested Router's
   // StoreContext (see ScreenContextProps.navigateStore).
   const stores = useStores();
+  // The screen ENCLOSING this Router, when it is nested. While any enclosing
+  // screen rests deep in ITS stack, this Router's whole subtree is covered —
+  // its own top included — so the resting flag composes down. Without this, a
+  // deep outer screen's inner-active decorator and parts kept following the
+  // outer navigation's status flips: measured in the playground, one push at
+  // depth ~10 flipped ten covered decorators through PUSHING→COMPLETED.
+  // At the root there is no enclosing screen and the default context's
+  // isPrev=false leaves the selection untouched.
+  const enclosing = useContext(ScreenContext);
 
   // Selection (which screens stack, active/prev/zIndex, transition names) is a
   // pure derivation in @flemo/core; React only matches each screen to its Route
@@ -38,6 +47,7 @@ function Renderer({ children }: PropsWithChildren) {
         key={selection.id}
         value={{
           ...selection,
+          isPrev: selection.isPrev || enclosing.isPrev,
           navigateStore: stores.navigate,
           routePath: getMatchedPathPattern(
             (child as ReactElement<RouteProps>).props.path,

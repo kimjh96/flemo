@@ -20,14 +20,23 @@ export interface PartProps extends PropsWithChildren<ComponentPropsWithRef<"div"
 // right variant matches. Selective by design: only the wrapped child animates,
 // the rest of the bar stays put.
 function Part({ ref, name, style, children, ...props }: PartProps) {
-  const { isActive, navigateStore } = useScreen();
+  const { isActive, isPrev, navigateStore } = useScreen();
 
   // The status must come from the Router that OWNS the enclosing screen. Inside
   // a nested <Router>'s chrome the nearest bundle is the inner Router's, so a
   // Part there would otherwise follow the wrong scope's transitions. The
   // nearest bundle stays as the fallback for a Part outside any screen.
+  //
+  // A part inside a RESTING deep screen (isPrev: below the direct prev) pins
+  // its status to a constant, exactly like the screen scope itself does —
+  // without the pin every navigation flipped every stacked screen's parts
+  // through PUSHING→COMPLETED (measured: an O(depth) attribute-write storm on
+  // elements nothing can see). Role changes arrive through the screen
+  // context, which re-renders and re-evaluates the pin.
   const stores = useStores();
-  const status = useStore(navigateStore ?? stores.navigate, (state) => state.status);
+  const status = useStore(navigateStore ?? stores.navigate, (state) =>
+    isPrev ? "COMPLETED" : state.status
+  );
 
   return (
     <div
