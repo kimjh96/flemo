@@ -6,7 +6,7 @@ import {
   type ReactNode
 } from "react";
 
-import { computeScreenFreeze } from "@flemo/core";
+import { computeScreenFreezeMode } from "@flemo/core";
 
 import ScreenFreeze from "@screen/ScreenFreeze";
 import ScreenMotion from "@screen/ScreenMotion";
@@ -44,7 +44,7 @@ function Screen({ children, ...props }: ScreenProps) {
   const dragStatus = useScreenStore((state) => state.dragStatus);
   const replaceTransitionStatus = useScreenStore((state) => state.replaceTransitionStatus);
 
-  const shouldFreeze = computeScreenFreeze({
+  const freezeMode = computeScreenFreezeMode({
     isActive,
     isPrev,
     zIndex,
@@ -54,27 +54,34 @@ function Screen({ children, ...props }: ScreenProps) {
     replaceTransitionStatus
   });
 
-  // Freezing is DEFERRED; unfreezing is immediate. The freeze (Activity
-  // hidden) is a large commit — it disconnects the covered screen's whole
-  // effect tree — and applying it at the COMPLETED flip stacks that commit
-  // onto the exact frames the eye watches settle. Measured on-device (paired
-  // A/B over 117 flights): the convergence window drops ~0.2 frames per
-  // flight with or without the arrival hold's landing, so THIS commit is the
-  // remaining convergence load. The screen is already covered, so freezing
-  // late is invisible; the timer re-arms whenever a new transition starts,
-  // so the commit only ever lands in a quiet window. Mounting-deep screens
-  // (already covered, no eye on them) freeze immediately.
-  const [frozen, setFrozen] = useState(shouldFreeze);
-  if (!shouldFreeze && frozen) {
+  // Only the JUST-COVERED screen's freeze is deferred; a DEEP screen freezes
+  // in this very commit and a participant wakes in this very commit. The
+  // deferral exists because the freeze (Activity hidden) is a large commit —
+  // it disconnects the covered screen's whole effect tree — and applying it
+  // at the COMPLETED flip stacks that commit onto the exact frames the eye
+  // watches settle (measured on-device, paired A/B over 117 flights: ~0.2
+  // dropped frames per flight from this commit alone). The deferral timer
+  // re-arms whenever a new transition starts, so it only ever lands in a
+  // quiet window — which is exactly why it must NOT govern deep screens: a
+  // rapid push storm never offers a quiet window, and deferring the deep
+  // freezes let 15-20 live full-screen layers accumulate (whole-app flicker
+  // at depth). Deep screens were already covered before the transition
+  // began, so their freeze commit races nothing.
+  const [frozen, setFrozen] = useState(freezeMode !== "live");
+  if (freezeMode === "live" && frozen) {
     // Render-phase adjustment: a pop destination must wake in THIS commit.
     setFrozen(false);
   }
+  if (freezeMode === "immediate" && !frozen) {
+    // Render-phase adjustment: a screen that just became deep freezes in
+    // THIS commit — its cover has been up for a full transition already.
+    setFrozen(true);
+  }
   useEffect(() => {
-    if (!shouldFreeze || frozen) return undefined;
-    if (status !== "COMPLETED") return undefined;
+    if (freezeMode !== "deferred" || frozen) return undefined;
     const timer = setTimeout(() => setFrozen(true), FREEZE_DEFER_MS);
     return () => clearTimeout(timer);
-  }, [shouldFreeze, frozen, status]);
+  }, [freezeMode, frozen]);
 
   return (
     <ScreenFreeze freeze={frozen}>

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import computeScreenFreeze, { type ScreenFreezeInput } from "@screen/computeScreenFreeze";
+import computeScreenFreeze, {
+  computeScreenFreezeMode,
+  type ScreenFreezeInput
+} from "@screen/computeScreenFreeze";
 
 const base: ScreenFreezeInput = {
   isActive: false,
@@ -62,5 +65,49 @@ describe("computeScreenFreeze", () => {
         replaceTransitionStatus: "PENDING"
       })
     ).toBe(true);
+  });
+});
+
+describe("computeScreenFreezeMode", () => {
+  const base = {
+    isActive: false,
+    isPrev: false,
+    zIndex: 3,
+    index: 4,
+    status: "COMPLETED" as const,
+    dragStatus: "IDLE" as const,
+    replaceTransitionStatus: "IDLE" as const
+  };
+
+  it("the just-covered prev at rest is DEFERRED (its freeze races the settling eye)", () => {
+    expect(computeScreenFreezeMode(base)).toBe("deferred");
+  });
+
+  it("a deep screen is IMMEDIATE regardless of transition status", () => {
+    expect(computeScreenFreezeMode({ ...base, isPrev: true, zIndex: 2, status: "PUSHING" })).toBe(
+      "immediate"
+    );
+    expect(computeScreenFreezeMode({ ...base, isPrev: true, zIndex: 0, status: "PUSHING" })).toBe(
+      "immediate"
+    );
+  });
+
+  it("a participant is LIVE: the active screen, a transitioning prev, the replace guard", () => {
+    expect(computeScreenFreezeMode({ ...base, isActive: true })).toBe("live");
+    expect(computeScreenFreezeMode({ ...base, status: "PUSHING" })).toBe("live");
+    expect(
+      computeScreenFreezeMode({
+        ...base,
+        isPrev: true,
+        zIndex: 2,
+        replaceTransitionStatus: "PENDING",
+        status: "REPLACING"
+      })
+    ).toBe("live");
+  });
+
+  it("the boolean view mirrors the mode", () => {
+    expect(computeScreenFreeze(base)).toBe(true);
+    expect(computeScreenFreeze({ ...base, isActive: true })).toBe(false);
   });
 });

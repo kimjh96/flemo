@@ -194,7 +194,11 @@ describe("replace suspended-mount cut", () => {
   // rAFs past a clean end, 100ms fallback) — flush that before asserting.
   const presentedFlush = () =>
     new Promise((flushed) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(flushed, 0)))
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(flushed, 0)))
+        )
+      )
     );
 
   it("CONTRAST: with no suspense churn the active fade runs to animationend and resolves once", async () => {

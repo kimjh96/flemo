@@ -9,7 +9,8 @@ import { resolveVariantMotion, type VariantMotion } from "@transition/variantMot
 
 import createArrivalHold from "@core/engine/arrivalHold";
 import holdCompositorWarm from "@core/engine/compositorWarmUp";
-import driverPolicy from "@core/engine/driverPolicy";
+import driverPolicy, { detectBlinkEngine } from "@core/engine/driverPolicy";
+
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import transitionPlayers from "@core/engine/transitionPlayer";
 import {
@@ -21,6 +22,9 @@ import {
 import { decoratorMap } from "@transition/decorator/decorator";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
+import { classifyTransitionDriver } from "./motionDriverKind";
+import { watchNativeStalls } from "./nativeStallAnchor";
+
 const noop = () => {};
 
 // How long the compositor warm-up outlives COMPLETED: covers the +2rAF
@@ -28,9 +32,18 @@ const noop = () => {};
 // into 600ms flights), comfortably under the warm-up's own 3s backstop.
 const WARM_SETTLE_MS = 400;
 
-// Timeout insurance for the landing-clear deferral (a clean end resolves two
-// rAFs after the last motion frame so the COMPLETED flip's commit cannot cut
-// it — see resolvePresented): rAF suspends in background tabs, and the
+// How many vsyncs a clean end waits before the COMPLETED flip so the motion's
+// last frames actually reach the glass first. Two covers the write; WebKit
+// presents from the main thread with a 1-2 frame pipeline behind it, and a
+// measured ~30ms flip commit starting at write+2 still delayed the decel
+// tail's final frame on device (the "blip at the end" of a pop). Four puts
+// the flip past that pipeline; the screen holds its arrival pose under the
+// compiled rules meanwhile, so the extra ~33ms is invisible.
+const LANDING_CLEAR_FRAMES = 4;
+
+// Timeout insurance for the landing-clear deferral (a clean end resolves a
+// few rAFs after the last motion frame so the COMPLETED flip's commit cannot
+// cut it — see resolvePresented): rAF suspends in background tabs, and the
 // navigation queue must never hang on an invisible deferral.
 const LANDING_CLEAR_FALLBACK_MS = 100;
 
@@ -353,6 +366,19 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (!scope) return null;
 
       const transition = resolveTransition(transitionName);
+      // 3. KIND-scoped choice (see motionDriverKind): a transition whose
+      //    authored screens demonstrably MOVE fast renders cleanest on the
+      //    native clock — measured on WebKit, the player's rAF jitter reads
+      //    as a fine tremor on fast movers while fades need the player's
+      //    re-anchoring through heavy ungated mounts. Every participant of a
+      //    navigation calls through here with the same transition and status,
+      //    so the whole navigation lands on ONE driver. A "raf" force pin
+      //    bypasses this — a pinned session must player-drive everything to
+      //    be a useful instrument.
+      if (driverPolicy.pinnedDriver() !== "raf") {
+        const status = variant.split("-")[0]!;
+        if (classifyTransitionDriver(transition, status, scope) === "native") return null;
+      }
       const motion = resolveVariantMotion(transition, variant);
       if (!motion) return null;
 
@@ -727,16 +753,15 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         cancelLandingClear();
         resolve();
       }, LANDING_CLEAR_FALLBACK_MS);
-      landingClearFrames.push(
-        requestAnimationFrame(() => {
-          landingClearFrames.push(
-            requestAnimationFrame(() => {
-              cancelLandingClear();
-              resolve();
-            })
-          );
-        })
-      );
+      const chain = (remaining: number) => {
+        if (remaining <= 0) {
+          cancelLandingClear();
+          resolve();
+          return;
+        }
+        landingClearFrames.push(requestAnimationFrame(() => chain(remaining - 1)));
+      };
+      chain(LANDING_CLEAR_FRAMES);
     };
     const resolveAfterChoreography = () => {
       if (choreographyExtraMs <= 0) {
@@ -918,6 +943,25 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // true and arms here immediately). Only with a task to resolve.
       if (flooredTaskId) armWatchdog();
     }
+    // Native-clock stall re-anchor (see nativeStallAnchor): main-thread
+    // presentation only — on Blink the compositor plays through main stalls,
+    // where a shift would yank a smooth animation backwards. Each shift
+    // pushes the wall-clock deadlines out of the way: the watchdog re-arms
+    // on the stretched timeline and the perceptual cut (a wall-clock timer)
+    // stands down exactly as it does for any recovery event.
+    const detachStallWatch =
+      recovering && !detectBlinkEngine()
+        ? watchNativeStalls(
+            () => {
+              const { decorator, bars } = getElements();
+              return [scope, decorator, ...(bars ?? [])];
+            },
+            () => {
+              disarmPerceptualCut();
+              if (flooredTaskId && watchdog !== undefined) armWatchdog();
+            }
+          )
+        : null;
 
     // Perceptual completion cut (see perceptualSpan.ts): once every animated
     // channel of BOTH sides has permanently entered its imperceptibility band
@@ -984,6 +1028,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (floor !== undefined) clearTimeout(floor);
       if (choreographyTimer !== undefined) clearTimeout(choreographyTimer);
       cancelLandingClear();
+      detachStallWatch?.();
       clearPerceptualCut();
       scope.removeEventListener("animationend", onEnd);
       if (recovering) {

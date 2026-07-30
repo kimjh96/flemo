@@ -246,7 +246,11 @@ describe("createTransitionEngine cancel-resume liveness", () => {
   // rAFs past a clean end, 100ms fallback) — flush that before asserting.
   const presentedFlush = () =>
     new Promise((flushed) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(flushed, 0)))
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(flushed, 0)))
+        )
+      )
     );
 
   it("N≤budget cancels all resume, and the animation's end resolves the task exactly once", async () => {

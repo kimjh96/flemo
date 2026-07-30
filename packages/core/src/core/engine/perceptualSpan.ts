@@ -38,7 +38,9 @@ export interface PerceptualBox {
   clientHeight: number;
 }
 
-const channelValue = (
+// Exported for the kind-scoped driver classifier (motionDriverKind), which
+// resolves authored x/y endpoints against the same box semantics.
+export const channelValue = (
   target: MotionTarget,
   key: string,
   box: PerceptualBox

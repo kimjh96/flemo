@@ -73,7 +73,9 @@ export {
 } from "@screen/createScreenSelector";
 export {
   default as computeScreenFreeze,
-  type ScreenFreezeInput
+  computeScreenFreezeMode,
+  type ScreenFreezeInput,
+  type ScreenFreezeMode
 } from "@screen/computeScreenFreeze";
 
 // Transition primitives

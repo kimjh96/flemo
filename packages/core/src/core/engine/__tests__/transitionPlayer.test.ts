@@ -6,6 +6,7 @@ import driverPolicy from "@core/engine/driverPolicy";
 import {
   createTransitionPlayerRegistry,
   isPlayerDrivable,
+  resetSessionOverrideCachesForTests,
   type PlayerScheduler
 } from "@core/engine/transitionPlayer";
 
@@ -33,15 +34,16 @@ const createFakeScheduler = (devicePixelRatio = 1) => {
   return { scheduler, pump, pendingCount: () => pending.size };
 };
 
-// Advance the fake clock from `from` to `to` in sub-threshold (<100ms) steps,
-// landing exactly on `to`. Real rAF fires every ~16ms, so reaching a given
-// progress means many small frames — a single 250/500ms jump would now read as
-// a main-thread STALL and re-anchor. This walks the clock at frame cadence so
-// the player advances linearly, exactly as it does under a real rAF stream.
+// Advance the fake clock from `from` to `to` in sub-cap (≤ two nominal
+// frames) steps, landing exactly on `to`. Real rAF fires every ~16ms, so
+// reaching a given progress means many small frames — any longer jump now
+// reads as a main-thread STALL and re-anchors (see MAX_CLOCK_STEP_MS). This
+// walks the clock at frame cadence so the player advances linearly, exactly
+// as it does under a real rAF stream.
 const climbTo = (pump: (time: number) => void, from: number, to: number) => {
   let t = from;
-  while (to - t > 80) {
-    t += 80;
+  while (to - t > 32) {
+    t += 32;
     pump(t);
   }
   pump(to);
@@ -512,7 +514,7 @@ describe("transitionPlayer block-resilient re-anchor", () => {
   const progressOf = (el: HTMLElement) => 1 - parseFloat(el.style.opacity);
   const ONE_FRAME_MS = 1000 / 60;
 
-  it("advances normally when the frame gap is below the re-anchor threshold", () => {
+  it("a gap up to two nominal frames advances the full gap (ordinary jitter)", () => {
     const { scheduler, pump } = createFakeScheduler();
     const registry = createTransitionPlayerRegistry(scheduler);
     const el = element();
@@ -520,8 +522,20 @@ describe("transitionPlayer block-resilient re-anchor", () => {
     registry.join("task-1", { element: el, motion: fadeOut(1), role: "active" });
 
     pump(0);
-    pump(90); // 90ms < 100ms threshold → elapsed IS the gap, no shift
-    expect(progressOf(el)).toBeCloseTo(90 / 1000, 5);
+    pump(33); // a natural double-vsync drop → elapsed IS the gap, no shift
+    expect(progressOf(el)).toBeCloseTo(33 / 1000, 5);
+  });
+
+  it("caps the clock step past two frames so a block cannot compress the curve", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+
+    registry.join("task-1", { element: el, motion: fadeOut(1), role: "active" });
+
+    pump(0);
+    pump(90); // a 90ms block used to slip under the old 100ms cliff and jump
+    expect(progressOf(el)).toBeCloseTo((2 * ONE_FRAME_MS) / 1000, 5);
   });
 
   it("re-anchors across a long stall: progress resumes one frame past the stall, not fast-forwarded", () => {
@@ -546,12 +560,14 @@ describe("transitionPlayer block-resilient re-anchor", () => {
 
     pump(400); // 370ms stall: without re-anchor a 100ms motion would be DONE
     const postProgress = progressOf(el);
-    // Resumes one nominal frame past where it stalled, not at the end.
-    expect(postProgress).toBeCloseTo(preProgress + ONE_FRAME_MS / 100, 5);
-    expect(postProgress).toBeLessThan(0.6);
+    // Resumes two nominal frames past where it stalled, not at the end.
+    expect(postProgress).toBeCloseTo(preProgress + (2 * ONE_FRAME_MS) / 100, 5);
+    expect(postProgress).toBeLessThan(0.7);
     expect(completed).toBe(0);
 
-    pump(454); // 100ms of RE-ANCHORED elapsed reaches the true end
+    pump(420); // ordinary frames from here play the tail out in full
+    expect(completed).toBe(0);
+    pump(440); // re-anchored elapsed passes the true end
     expect(el.style.opacity).toBe("0");
     expect(completed).toBe(1);
 
@@ -589,11 +605,11 @@ describe("transitionPlayer block-resilient re-anchor", () => {
     });
 
     pump(0);
-    pump(40);
-    expect(animation.currentTime).toBe(40);
+    pump(30);
+    expect(animation.currentTime).toBe(30);
 
-    pump(500); // 460ms stall → the scrub clock resumes near 40 + one frame, not 500
-    expect(animation.currentTime as number).toBeCloseTo(40 + ONE_FRAME_MS, 5);
+    pump(500); // 470ms stall → the scrub clock resumes two frames past 30, not at 500
+    expect(animation.currentTime as number).toBeCloseTo(30 + 2 * ONE_FRAME_MS, 5);
   });
 
   it("stops cleanly when detached mid-re-anchor (task resolved by the liveness floor)", () => {
@@ -668,5 +684,97 @@ describe("app-wide registry glue", () => {
     detach();
     expect(el.style.transform).toBe("");
     expect(el.style.animation).toBe("");
+  });
+});
+
+describe("transitionPlayer session overrides (diagnostic instruments)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    sessionStorage.removeItem("flemo:snap");
+    sessionStorage.removeItem("flemo:apply");
+    resetSessionOverrideCachesForTests();
+  });
+
+  const slide = () => linearMotion({ x: 0 }, { x: -100 }, 1);
+
+  it("snap=always snaps even sub-device-pixel motion", () => {
+    sessionStorage.setItem("flemo:snap", "always");
+    resetSessionOverrideCachesForTests();
+    const { scheduler, pump } = createFakeScheduler(2);
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    registry.join("task-1", { element: el, motion: slide(), role: "active" });
+    pump(0);
+    pump(17); // raw -1.7px → snapped to the device grid at dpr 2
+    expect(el.style.transform).toBe("translate3d(-1.5px, 0px, 0)");
+  });
+
+  it("snap=off always writes the raw sub-pixel value", () => {
+    sessionStorage.setItem("flemo:snap", "off");
+    resetSessionOverrideCachesForTests();
+    const { scheduler, pump } = createFakeScheduler(2);
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    registry.join("task-1", { element: el, motion: slide(), role: "active" });
+    pump(0);
+    pump(17);
+    expect(el.style.transform).toBe("translate3d(-1.7px, 0px, 0)");
+  });
+
+  it("an unknown snap value falls back to the shipped gate", () => {
+    sessionStorage.setItem("flemo:snap", "sometimes");
+    resetSessionOverrideCachesForTests();
+    const { scheduler, pump } = createFakeScheduler(2);
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    registry.join("task-1", { element: el, motion: slide(), role: "active" });
+    pump(0);
+    pump(17); // 1.7px = 3.4 device px ≥ 1 → the normal gate snaps
+    expect(el.style.transform).toBe("translate3d(-1.5px, 0px, 0)");
+  });
+
+  it("apply=scrub routes a parseable motion through the scrub driver", () => {
+    sessionStorage.setItem("flemo:apply", "scrub");
+    resetSessionOverrideCachesForTests();
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const animation = fakeAnimation();
+    withAnimate(el, animation);
+    registry.join("task-1", { element: el, motion: slide(), role: "active" });
+    pump(0);
+    pump(30);
+    // The browser interpolates via the paused Web Animation; no per-frame
+    // style writes happen.
+    expect(animation.currentTime).toBe(30);
+    expect(el.style.transform).toBe("");
+  });
+
+  it("a runtime without sessionStorage reads as no override", () => {
+    resetSessionOverrideCachesForTests();
+    vi.stubGlobal("sessionStorage", undefined);
+    const { scheduler, pump } = createFakeScheduler(2);
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    registry.join("task-1", { element: el, motion: slide(), role: "active" });
+    pump(0);
+    pump(17);
+    expect(el.style.transform).toBe("translate3d(-1.5px, 0px, 0)");
+  });
+
+  it("a storage that throws reads as no override", () => {
+    resetSessionOverrideCachesForTests();
+    vi.stubGlobal("sessionStorage", {
+      getItem() {
+        throw new Error("storage blocked");
+      }
+    });
+    const { scheduler, pump } = createFakeScheduler(2);
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    registry.join("task-1", { element: el, motion: slide(), role: "active" });
+    pump(0);
+    pump(17); // shipped gate behavior, no crash
+    expect(el.style.transform).toBe("translate3d(-1.5px, 0px, 0)");
   });
 });
