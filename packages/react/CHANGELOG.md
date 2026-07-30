@@ -1,5 +1,15 @@
 # @flemo/react
 
+## 1.8.2
+
+### Patch Changes
+
+- [`9a98052`](https://github.com/kimjh96/flemo/commit/9a98052e826200d9ed98c213c95f847e774e4bc0) Split the screen-freeze decision into three modes (`computeScreenFreezeMode`): a DEEP screen (below the direct prev) freezes in the same commit that re-ranks it, only the just-covered screen's freeze keeps the quiet-window deferral, and participants wake immediately. Deferring deep freezes let a rapid push storm accumulate 15-20 live full-screen layers (no quiet window ever arrived), flickering and janking the whole app at depth — a regression introduced with the freeze deferral.
+
+- [`9a98052`](https://github.com/kimjh96/flemo/commit/9a98052e826200d9ed98c213c95f847e774e4bc0) Scope navigation-status updates to the screens that actually participate: parts and decorators inside a resting deep screen pin their status subscription to a constant (the screen scope already did), and a nested Router composes the enclosing screen's resting flag down so a covered outer screen's inner-active chrome pins too. One navigation now flips a depth-independent constant number of nodes (measured: 18 nodes at depth 15 before, 3 after) instead of re-rendering and re-stamping every stacked screen's decorator and parts.
+- Updated dependencies ([`9a98052`](https://github.com/kimjh96/flemo/commit/9a98052e826200d9ed98c213c95f847e774e4bc0), [`9a98052`](https://github.com/kimjh96/flemo/commit/9a98052e826200d9ed98c213c95f847e774e4bc0), [`9a98052`](https://github.com/kimjh96/flemo/commit/9a98052e826200d9ed98c213c95f847e774e4bc0), [`9a98052`](https://github.com/kimjh96/flemo/commit/9a98052e826200d9ed98c213c95f847e774e4bc0)):
+  - @flemo/core@1.22.0
+
 ## 1.8.1
 
 ### Patch Changes

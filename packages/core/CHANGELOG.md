@@ -1,5 +1,19 @@
 # @flemo/core
 
+## 1.22.0
+
+### Minor Changes
+
+- [`9a98052`](https://github.com/kimjh96/flemo/commit/9a98052e826200d9ed98c213c95f847e774e4bc0) Split the screen-freeze decision into three modes (`computeScreenFreezeMode`): a DEEP screen (below the direct prev) freezes in the same commit that re-ranks it, only the just-covered screen's freeze keeps the quiet-window deferral, and participants wake immediately. Deferring deep freezes let a rapid push storm accumulate 15-20 live full-screen layers (no quiet window ever arrived), flickering and janking the whole app at depth — a regression introduced with the freeze deferral.
+
+- [`9a98052`](https://github.com/kimjh96/flemo/commit/9a98052e826200d9ed98c213c95f847e774e4bc0) Choose the motion driver per transition kind, measured from the authored keyframes: a transition whose screens move fast (peak translation ≥ 6 CSS px/frame, percentages resolved against the real screen box) runs on the native compiled-CSS clock even on engines that default to the rAF player, while fades, drifts, and unanalyzable choreographies keep the player. One navigation always runs on one driver, and a new `driver: "native" | "player"` transition option lets authors override the measurement.
+
+### Patch Changes
+
+- [`9a98052`](https://github.com/kimjh96/flemo/commit/9a98052e826200d9ed98c213c95f847e774e4bc0) Widen the clean-end landing deferral from two to four frames so the COMPLETED flip's commit starts after the motion's final frames have cleared the presentation pipeline — measured on WebKit (main-thread presentation), the ~30ms flip commit at write+2 frames still delayed a pop's deceleration tail.
+
+- [`9a98052`](https://github.com/kimjh96/flemo/commit/9a98052e826200d9ed98c213c95f847e774e4bc0) Cap the player clock's advance at two frames per gap: a 40-100ms main-thread block used to slip under the old 100ms re-anchor cliff and fast-forward the authored curve in one frame (the screen "whooshing" ahead of its easing). Any stall now resumes at most two frames past where it stalled and the curve plays out in full.
+
 ## 1.21.1
 
 ### Patch Changes
