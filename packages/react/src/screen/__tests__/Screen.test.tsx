@@ -524,7 +524,7 @@ describe("Screen freeze deferral", () => {
 });
 
 describe("Screen freeze deferral during a live transition", () => {
-  it("re-arms while the navigation is still transitional, then defers from settle", () => {
+  it("a screen that becomes DEEP mid-push freezes in that very commit", () => {
     vi.useFakeTimers();
     try {
       stores.history.setState({ index: 1, histories: [] });
@@ -564,10 +564,12 @@ describe("Screen freeze deferral during a live transition", () => {
       const frozenWrapper = () => getByTestId("content").closest("div[style*='display: none']");
       expect(frozenWrapper()).toBeNull();
 
-      // A push starts and this screen becomes the covered prev: the freeze
-      // predicate turns true mid-flight (the isPrev branch is
-      // status-independent), but the deferral must not arm until the
-      // navigation settles.
+      // A push starts and this screen sinks BELOW the covered prev (isPrev
+      // per the selector = deeper than the direct prev): it was already
+      // covered before this transition began, so its freeze must land in
+      // this very commit — deferring deep freezes is what let a rapid push
+      // storm accumulate 15-20 live full-screen layers (no quiet window ever
+      // arrived to run the deferral).
       screenValue = { ...screenValue, isActive: false, isPrev: true };
       act(() => {
         stores.history.setState({ index: 2, histories: [] });
@@ -578,17 +580,6 @@ describe("Screen freeze deferral during a live transition", () => {
           <div data-testid="content">page</div>
         </Screen>
       );
-      act(() => {
-        vi.advanceTimersByTime(2000);
-      });
-      expect(frozenWrapper()).toBeNull();
-
-      act(() => {
-        stores.navigate.setState({ status: "COMPLETED", transitionTaskId: null });
-      });
-      act(() => {
-        vi.advanceTimersByTime(601);
-      });
       expect(frozenWrapper()).not.toBeNull();
     } finally {
       vi.useRealTimers();

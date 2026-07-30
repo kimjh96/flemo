@@ -10,16 +10,37 @@ export interface ScreenFreezeInput {
   replaceTransitionStatus: "IDLE" | "PENDING";
 }
 
-// Whether a screen should be frozen (kept mounted but display:none) so it holds
-// its state without painting. Pure decision from the stack position + transition
-// state: an inactive screen freezes once its transition settles, and a prev
-// screen freezes once it's safely covered (guarding the replace flip). The
-// binding renders the result. Framework-neutral.
-export default function computeScreenFreeze(input: ScreenFreezeInput): boolean {
-  const isTransitionCompleted = input.status === "COMPLETED" && input.dragStatus === "IDLE";
-  return (
-    (!input.isActive && isTransitionCompleted) ||
+// HOW a screen should freeze (kept mounted but display:none so it holds its
+// state without painting). Three modes, because the freeze COMMIT has a cost
+// and only one screen's freeze ever races the eye:
+// - "immediate": a DEEP screen (below the direct prev). Nothing the eye can
+//   see — it was already covered before this transition began — so it freezes
+//   in the same commit that re-ranks it. Deferring these is what let a rapid
+//   push storm accumulate 15-20 live full-screen layers (every new
+//   transition re-armed the deferral, so no screen ever froze until the
+//   storm ended): whole-app flicker and jank at depth.
+// - "deferred": the JUST-COVERED direct prev at rest. Its freeze is the one
+//   commit that would land on the convergence frames the eye still watches
+//   (measured: ~0.2 dropped frames per flight), so the binding defers it
+//   into a quiet window.
+// - "live": a participant (the active screen, a transitioning prev, the
+//   replace-flip guard) — must not freeze, and a frozen screen reaching this
+//   mode must WAKE in the same commit (a pop destination).
+// Framework-neutral; the binding renders the result.
+export type ScreenFreezeMode = "live" | "deferred" | "immediate";
+
+export function computeScreenFreezeMode(input: ScreenFreezeInput): ScreenFreezeMode {
+  const deep =
     (input.isPrev && input.index - 2 <= input.zIndex && input.replaceTransitionStatus === "IDLE") ||
-    (input.isPrev && input.index - 2 > input.zIndex)
-  );
+    (input.isPrev && input.index - 2 > input.zIndex);
+  if (deep) return "immediate";
+  const isTransitionCompleted = input.status === "COMPLETED" && input.dragStatus === "IDLE";
+  if (!input.isActive && isTransitionCompleted) return "deferred";
+  return "live";
+}
+
+// Boolean view of the mode — unchanged semantics for callers that only ask
+// "should this screen be frozen at all".
+export default function computeScreenFreeze(input: ScreenFreezeInput): boolean {
+  return computeScreenFreezeMode(input) !== "live";
 }
