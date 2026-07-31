@@ -733,7 +733,8 @@ describe("createTransitionEngine gate-phase reporting", () => {
       isActive: true,
       animHoldReleased: true
     });
-    expect(anchored).toHaveBeenCalledWith("task-gate-1");
+    // Anchored with the authored span + recovery margin (0.6s cupertino).
+    expect(anchored).toHaveBeenCalledWith("task-gate-1", 600 + 1500);
     postRelease();
 
     held.mockRestore();
@@ -1007,6 +1008,84 @@ describe("perceptual cut with participating parts", () => {
 });
 
 describe("choreography-span deferral", () => {
+  it("a part authored far longer than its screen is never cut by a fixed cap", () => {
+    vi.useFakeTimers();
+    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
+    // 0.35s screen with a 3s part: extra = 2650ms — beyond the old 1000ms cap.
+    transitionMap.set(
+      "short-screen-long-part" as never,
+      createTransition({
+        name: "short-screen-long-part" as never,
+        initial: { x: "100%" },
+        idle: { value: { x: 0 }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 0.35 } },
+        enterBack: { value: { x: "100%" }, options: { duration: 0.35 } },
+        exit: { value: { x: "-35%" }, options: { duration: 0.35 } },
+        exitBack: { value: { x: 0 }, options: { duration: 0.35 } }
+      })
+    );
+    partTransitionMap.set(
+      "marathon-part" as never,
+      createPartTransition({
+        name: "marathon-part" as never,
+        initial: { scale: 1 },
+        idle: { value: { scale: 1 }, options: { duration: 0 } },
+        enter: { value: { scale: 0.8 }, options: { duration: 3 } },
+        exit: { value: { scale: 1 }, options: { duration: 3 } }
+      })
+    );
+    try {
+      const { scope } = elements();
+      document.body.appendChild(scope);
+      const part = document.createElement("div");
+      part.setAttribute("data-flemo-part-name", "marathon-part");
+      part.setAttribute("data-flemo-status", "PUSHING");
+      part.setAttribute("data-flemo-active", "false");
+      scope.appendChild(part);
+      const resolveSpy = vi
+        .spyOn(TaskManger, "resolveTask")
+        .mockImplementation(() => Promise.resolve(true));
+      const anchorSpy = vi.spyOn(TaskManger, "anchorGate");
+      const d = deps();
+      d.getTransitionTaskId.mockReturnValue("marathon-task" as never);
+      const engine = createTransitionEngine(d);
+      const cleanup = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "short-screen-long-part" as never,
+        prevTransitionName: "short-screen-long-part" as never,
+        status: "PUSHING",
+        isActive: true,
+        animHoldReleased: true
+      });
+
+      // The gate is anchored for the WHOLE choreography (3s part + margin),
+      // so the backstop can never cut the marathon part.
+      expect(anchorSpy).toHaveBeenCalledWith("marathon-task", 3000 + 1500);
+
+      scope.dispatchEvent(
+        animationEndEvent(animationName("screen", "short-screen-long-part", "PUSHING-true"))
+      );
+      // Deep into the part's motion, far past the old 1000ms cap: still flying.
+      vi.advanceTimersByTime(2400);
+      expect(resolveSpy).not.toHaveBeenCalled();
+
+      // The full 2650ms extra elapses (+ the presented-frame deferral).
+      vi.advanceTimersByTime(300);
+      vi.advanceTimersByTime(132);
+      expect(resolveSpy).toHaveBeenCalledWith("marathon-task");
+
+      cleanup();
+      resolveSpy.mockRestore();
+      anchorSpy.mockRestore();
+      scope.remove();
+    } finally {
+      transitionMap.delete("short-screen-long-part" as never);
+      partTransitionMap.delete("marathon-part" as never);
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
+      vi.useRealTimers();
+    }
+  });
+
   it("defers the clean-end resolve until the longest part finishes", () => {
     vi.useFakeTimers();
     sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);

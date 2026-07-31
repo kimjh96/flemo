@@ -167,6 +167,15 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     dispose();
   });
 
+  it("anchors the task gate with the authored motion span (a long motion is never cut)", () => {
+    const anchorSpy = vi.spyOn(TaskManger, "anchorGate").mockImplementation(() => {});
+    const dispose = drive({ status: "PUSHING" });
+    // engine-test: 0.3s active motion → anchored window = span + recovery margin.
+    expect(anchorSpy).toHaveBeenCalledWith("task-1", 300 + 1500);
+    anchorSpy.mockRestore();
+    dispose();
+  });
+
   it("resolves on a microtask when the variant has no animation (skip flag)", async () => {
     scope.setAttribute(SKIP_ANIMATION_ATTR, "true");
     drive({ status: "PUSHING" });

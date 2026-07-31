@@ -47,6 +47,11 @@ const LANDING_CLEAR_FRAMES = 4;
 // navigation queue must never hang on an invisible deferral.
 const LANDING_CLEAR_FALLBACK_MS = 100;
 
+// How far past the authored motion span the anchored task gate stays armed —
+// the same recovery margin the liveness floor uses, so the gate only ever
+// fires on a genuinely stranded task, never on a long authored duration.
+const GATE_MOTION_MARGIN_MS = 1500;
+
 const PART_NAME_ATTR = "data-flemo-part-name";
 
 // This screen's <Part> elements. The container (the scope's parent) hosts
@@ -634,6 +639,38 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const skipAnimation = scope.getAttribute(SKIP_ANIMATION_ATTR) === "true";
     const hasAnimation = !skipAnimation && variantHasAnimation(currentTransition, variantKey);
 
+    // Every participant of this STATUS with a registered motion — the passive
+    // screen variant plus both screens' parts (parts self-carry their variant
+    // attributes). Computed up front because EVERY deadline must derive from
+    // the whole choreography's span, not just the active screen's: the task
+    // gate, the liveness floor, and the choreography-span deferral all cut a
+    // longer-authored participant if they assume the active span.
+    const passiveVariantKey = `${status}-false` as TransitionVariant;
+    const passiveMotion = variantHasAnimation(currentTransition, passiveVariantKey)
+      ? resolveVariantMotion(currentTransition, passiveVariantKey)
+      : null;
+    const statusPartMotions: { element: HTMLElement; motion: VariantMotion }[] = [];
+    for (const part of Array.from(
+      scope.ownerDocument.querySelectorAll<HTMLElement>(
+        `[${PART_NAME_ATTR}][data-flemo-status="${status}"]`
+      )
+    )) {
+      const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
+      const partVariant =
+        `${status}-${part.getAttribute("data-flemo-active")}` as TransitionVariant;
+      const partMotion =
+        definition && variantHasAnimation(definition, partVariant)
+          ? resolveVariantMotion(definition, partVariant)
+          : null;
+      if (partMotion) statusPartMotions.push({ element: part, motion: partMotion });
+    }
+    let participantSpanMs = passiveMotion
+      ? (passiveMotion.delay + passiveMotion.duration) * 1000
+      : 0;
+    for (const { motion } of statusPartMotions) {
+      participantSpanMs = Math.max(participantSpanMs, (motion.delay + motion.duration) * 1000);
+    }
+
     if (!hasAnimation) {
       // A REVEAL-shaped transition: the active entering screen stands still
       // (its enter is visually a no-op) while the PASSIVE side animates out
@@ -645,17 +682,17 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // lands its final frame before the COMPLETED flip re-renders both
       // screens. The engine watchdogs still net a lost exit animation.
       if (!skipAnimation) {
-        const passiveVariant = `${status}-false` as TransitionVariant;
-        if (variantHasAnimation(currentTransition, passiveVariant)) {
+        if (variantHasAnimation(currentTransition, passiveVariantKey)) {
           if (!animHoldReleased) {
             // Wait for the release commit; this effect re-runs with
             // animHoldReleased=true and arms the span then.
             if (flooredTaskId) TaskManger.markGateHeld(flooredTaskId);
             return noop;
           }
-          if (flooredTaskId) TaskManger.anchorGate(flooredTaskId);
-          const passiveMotion = resolveVariantMotion(currentTransition, passiveVariant)!;
-          const spanMs = (passiveMotion.delay + passiveMotion.duration) * 1000 + 50;
+          const spanMs = participantSpanMs + 50;
+          // Anchor with the choreography's own span so the gate can never cut
+          // an authored motion (see TaskManger.anchorGate).
+          if (flooredTaskId) TaskManger.anchorGate(flooredTaskId, spanMs + GATE_MOTION_MARGIN_MS);
           const spanTimer = setTimeout(resolve, spanMs);
           return () => clearTimeout(spanTimer);
         }
@@ -675,15 +712,23 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // instead of firing; the release anchors a FRESH window so a late-starting
     // transition always gets its full motion span. Both calls are idempotent
     // and safe pre-park (TaskManger keeps the phase until the task settles).
+    const activeMotion = resolveVariantMotion(currentTransition, variantKey);
+
     if (flooredTaskId) {
       if (animHoldReleased) {
-        TaskManger.anchorGate(flooredTaskId);
+        // Anchor with the authored motion's own span: the gate default
+        // assumed no transition outlives ~1.2s and silently CUT longer
+        // authored motions at the backstop (measured: a 3s cupertino snapped
+        // to rest at ~1.2s). The margin mirrors the liveness floor's.
+        const motionMs = activeMotion ? (activeMotion.delay + activeMotion.duration) * 1000 : 0;
+        TaskManger.anchorGate(
+          flooredTaskId,
+          Math.max(motionMs, participantSpanMs) + GATE_MOTION_MARGIN_MS
+        );
       } else {
         TaskManger.markGateHeld(flooredTaskId);
       }
     }
-
-    const activeMotion = resolveVariantMotion(currentTransition, variantKey);
     const playerCanDrive = !skipAnimation && !!activeMotion;
 
     // The `animationend` listener is the ALWAYS-WIRED resolver — attached from
@@ -821,7 +866,9 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // the assertion can never fire. One span, shared by the liveness floor and
     // the recovery watchdog below.
     const motionSpanMs = (activeMotion!.delay + activeMotion!.duration) * 1000;
-    const settleMs = motionSpanMs + 1500;
+    // The floor outlives the WHOLE choreography (a part may be authored
+    // longer than its screen), plus the recovery margin.
+    const settleMs = Math.max(motionSpanMs, participantSpanMs) + 1500;
     const floor = flooredTaskId
       ? setTimeout(() => void TaskManger.resolveTask(flooredTaskId), settleMs)
       : undefined;
@@ -830,32 +877,12 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // screen variant plus both screens' parts (parts self-carry their variant
     // attributes) — shared by the choreography-span deferral above and the
     // perceptual cut below.
-    const passiveVariantKey = `${status}-false` as TransitionVariant;
-    const passiveMotion = variantHasAnimation(currentTransition, passiveVariantKey)
-      ? resolveVariantMotion(currentTransition, passiveVariantKey)
-      : null;
-    const statusPartMotions: { element: HTMLElement; motion: VariantMotion }[] = [];
-    for (const part of Array.from(
-      scope.ownerDocument.querySelectorAll<HTMLElement>(
-        `[${PART_NAME_ATTR}][data-flemo-status="${status}"]`
-      )
-    )) {
-      const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
-      const partVariant =
-        `${status}-${part.getAttribute("data-flemo-active")}` as TransitionVariant;
-      const partMotion =
-        definition && variantHasAnimation(definition, partVariant)
-          ? resolveVariantMotion(definition, partVariant)
-          : null;
-      if (partMotion) statusPartMotions.push({ element: part, motion: partMotion });
-    }
-    let participantSpanMs = passiveMotion
-      ? (passiveMotion.delay + passiveMotion.duration) * 1000
-      : 0;
-    for (const { motion } of statusPartMotions) {
-      participantSpanMs = Math.max(participantSpanMs, (motion.delay + motion.duration) * 1000);
-    }
-    choreographyExtraMs = Math.max(0, Math.min(1000, participantSpanMs - motionSpanMs));
+    // The extra is UNCAPPED: it is bounded by the authored spans themselves,
+    // and every deadline below (gate, floor) scales with the same
+    // choreography span — a fixed cap here was one more hidden "no authored
+    // motion outlives N" assumption, cutting any part more than a second
+    // longer than its screen.
+    choreographyExtraMs = Math.max(0, participantSpanMs - motionSpanMs);
 
     // Animation-signal loss recovery for the COMPILED-CSS path only. When the
     // rAF player drives, its own onComplete resolves and the join's
