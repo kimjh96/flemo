@@ -824,6 +824,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // shifts real presentation later than the wall clock, so the cut must
     // yield to animationend.
     let disarmPerceptualCut = noop;
+    // Disarms the arrival hold's early landing (wired below) on the same
+    // events, for the same reason: a shifted presentation means the wall-clock
+    // rest point may still be visibly mid-motion.
+    let disarmEarlyLanding = noop;
     const onEnd = (event: AnimationEvent) => {
       if (event.target !== scope) return;
       if (event.animationName !== expectedName) return;
@@ -932,6 +936,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       budgetUsed: () => activeResumeCounts.get(flooredTaskId!) ?? 0,
       spendBudget: () => {
         disarmPerceptualCut();
+        disarmEarlyLanding();
         activeResumeCounts.set(flooredTaskId!, (activeResumeCounts.get(flooredTaskId!) ?? 0) + 1);
       },
       onTerminal: resolve
@@ -950,6 +955,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // resume's original-clock tracking is reset by fullRestart) and re-arm.
         watchdogRestarted = true;
         disarmPerceptualCut();
+        disarmEarlyLanding();
         scopeResume.fullRestart();
         armWatchdog();
         return;
@@ -985,6 +991,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
             },
             () => {
               disarmPerceptualCut();
+              disarmEarlyLanding();
               if (flooredTaskId && watchdog !== undefined) armWatchdog();
             }
           )
@@ -1051,12 +1058,63 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       }
     }
 
+    // Early landing of the in-flight arrival hold (the hold itself:
+    // arrivalHold.ts). The release commit — parked skeletons removed, held
+    // content revealed, frozen writes replayed — is the settle window's
+    // single biggest main-thread item (measured on the consumer app: ~10ms of
+    // layout plus a ~56-region paint storm landing two frames past the
+    // COMPLETED flip, exactly the frames the eye watches settle). But the
+    // hold's own contract only needs the screen to be VISUALLY at rest, not
+    // administratively COMPLETED: once every participant of the choreography
+    // is within one CSS pixel / one opacity step of its destination (the same
+    // backward band scan as the perceptual cut, evaluated at
+    // devicePixelRatio 1), a content change cannot read as motion-stutter —
+    // and the compositor still owns frame production, so the commit's
+    // layout/paint cost hides under the playing sub-pixel tail instead of
+    // stacking onto the convergence. The perceptual cut's device-pixel band
+    // is always at least as tight, so this fires at or before the cut; an
+    // unanalyzable participant keeps the deferred post-COMPLETED landing.
+    let earlyLanding: ReturnType<typeof setTimeout> | undefined;
+    const clearEarlyLanding = () => {
+      if (earlyLanding === undefined) return;
+      clearTimeout(earlyLanding);
+      earlyLanding = undefined;
+    };
+    disarmEarlyLanding = clearEarlyLanding;
+    if (recovering && releaseArrivalHold) {
+      const activeRest = perceptualCutMs(activeMotion!, scope, 1);
+      const passiveRest = passiveMotion ? perceptualCutMs(passiveMotion, scope, 1) : 0;
+      let partsRest: number | null = 0;
+      for (const { element: part, motion: partMotion } of statusPartMotions) {
+        const partRest = perceptualCutMs(partMotion, part, 1);
+        if (partRest === null) {
+          partsRest = null;
+          break;
+        }
+        partsRest = Math.max(partsRest, partRest);
+      }
+      const restMs =
+        activeRest !== null && passiveRest !== null && partsRest !== null
+          ? Math.max(activeRest, passiveRest, partsRest)
+          : null;
+      if (restMs !== null) {
+        earlyLanding = setTimeout(() => {
+          earlyLanding = undefined;
+          const release = releaseArrivalHold;
+          if (!release) return;
+          releaseArrivalHold = null;
+          release();
+        }, restMs);
+      }
+    }
+
     return () => {
       if (floor !== undefined) clearTimeout(floor);
       if (choreographyTimer !== undefined) clearTimeout(choreographyTimer);
       cancelLandingClear();
       detachStallWatch?.();
       clearPerceptualCut();
+      clearEarlyLanding();
       scope.removeEventListener("animationend", onEnd);
       if (recovering) {
         scopeResume.detach();
