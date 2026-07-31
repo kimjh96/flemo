@@ -10,6 +10,7 @@ import { resolveVariantMotion, type VariantMotion } from "@transition/variantMot
 import createArrivalHold from "@core/engine/arrivalHold";
 import holdCompositorWarm from "@core/engine/compositorWarmUp";
 import driverPolicy, { detectBlinkEngine } from "@core/engine/driverPolicy";
+import createInvisibleAnimationHold from "@core/engine/invisibleAnimationHold";
 
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import transitionPlayers from "@core/engine/transitionPlayer";
@@ -338,7 +339,20 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // now so the deferred reveal can never punch into the new flight.
       landNow();
       const { scope } = getElements();
-      if (scope) releaseArrivalHold = createArrivalHold(scope);
+      if (scope) {
+        // The same cold screens whose commits the hold shields also carry
+        // the invisible-animation layer storm (see invisibleAnimationHold.ts)
+        // — hold their unseen animations for the same span. Composing the
+        // release means every consumption path (early landing, deferred
+        // landing, interrupt, re-arm) resumes them exactly when the held
+        // content lands: at rest, where the storm cannot read as a twitch.
+        const releaseHold = createArrivalHold(scope);
+        const releaseAnimations = createInvisibleAnimationHold(scope);
+        releaseArrivalHold = () => {
+          releaseAnimations();
+          releaseHold();
+        };
+      }
     }
 
     // Join this screen's participants (scope, riding bars, decorator) to the

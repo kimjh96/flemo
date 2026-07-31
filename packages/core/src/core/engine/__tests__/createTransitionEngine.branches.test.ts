@@ -1310,6 +1310,46 @@ describe("in-flight arrival hold wiring", () => {
     expect(live.hasAttribute("data-flemo-held-arrival")).toBe(false);
     scope.remove();
   });
+
+  it("holds the cold screen's invisible animations and resumes them with the hold's release", async () => {
+    const { scope } = elements();
+    document.body.appendChild(scope);
+    const invisibleSection = document.createElement("section");
+    invisibleSection.style.opacity = "0";
+    scope.appendChild(invisibleSection);
+    const shimmer = {
+      animationName: "skeleton-wave",
+      playState: "running" as AnimationPlayState,
+      effect: { target: invisibleSection },
+      pause() {
+        this.playState = "paused";
+      },
+      play() {
+        this.playState = "running";
+      }
+    };
+    (scope as { getAnimations?: () => unknown[] }).getAnimations = () => [shimmer];
+    const engine = createTransitionEngine(deps());
+    const drive = (status: string) =>
+      engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: status as never,
+        isActive: true,
+        animHoldReleased: true
+      });
+    drive("PUSHING")();
+    // The watcher's first scan waits a frame for the arming commit's styles.
+    await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    expect(shimmer.playState).toBe("paused");
+
+    // The interrupt path consumes the hold — the invisible animations resume
+    // in the same breath.
+    drive("POPPING")();
+    expect(shimmer.playState).toBe("running");
+    scope.remove();
+  });
 });
 
 describe("arrival-hold early landing (sub-pixel tail)", () => {
