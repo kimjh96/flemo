@@ -10,6 +10,7 @@ import { resolveVariantMotion, type VariantMotion } from "@transition/variantMot
 import createArrivalHold from "@core/engine/arrivalHold";
 import holdCompositorWarm from "@core/engine/compositorWarmUp";
 import driverPolicy, { detectBlinkEngine } from "@core/engine/driverPolicy";
+import createInvisibleAnimationHold from "@core/engine/invisibleAnimationHold";
 
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import transitionPlayers from "@core/engine/transitionPlayer";
@@ -46,6 +47,11 @@ const LANDING_CLEAR_FRAMES = 4;
 // cut it — see resolvePresented): rAF suspends in background tabs, and the
 // navigation queue must never hang on an invisible deferral.
 const LANDING_CLEAR_FALLBACK_MS = 100;
+
+// How far past the authored motion span the anchored task gate stays armed —
+// the same recovery margin the liveness floor uses, so the gate only ever
+// fires on a genuinely stranded task, never on a long authored duration.
+const GATE_MOTION_MARGIN_MS = 1500;
 
 const PART_NAME_ATTR = "data-flemo-part-name";
 
@@ -333,7 +339,20 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // now so the deferred reveal can never punch into the new flight.
       landNow();
       const { scope } = getElements();
-      if (scope) releaseArrivalHold = createArrivalHold(scope);
+      if (scope) {
+        // The same cold screens whose commits the hold shields also carry
+        // the invisible-animation layer storm (see invisibleAnimationHold.ts)
+        // — hold their unseen animations for the same span. Composing the
+        // release means every consumption path (early landing, deferred
+        // landing, interrupt, re-arm) resumes them exactly when the held
+        // content lands: at rest, where the storm cannot read as a twitch.
+        const releaseHold = createArrivalHold(scope);
+        const releaseAnimations = createInvisibleAnimationHold(scope);
+        releaseArrivalHold = () => {
+          releaseAnimations();
+          releaseHold();
+        };
+      }
     }
 
     // Join this screen's participants (scope, riding bars, decorator) to the
@@ -634,6 +653,38 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const skipAnimation = scope.getAttribute(SKIP_ANIMATION_ATTR) === "true";
     const hasAnimation = !skipAnimation && variantHasAnimation(currentTransition, variantKey);
 
+    // Every participant of this STATUS with a registered motion — the passive
+    // screen variant plus both screens' parts (parts self-carry their variant
+    // attributes). Computed up front because EVERY deadline must derive from
+    // the whole choreography's span, not just the active screen's: the task
+    // gate, the liveness floor, and the choreography-span deferral all cut a
+    // longer-authored participant if they assume the active span.
+    const passiveVariantKey = `${status}-false` as TransitionVariant;
+    const passiveMotion = variantHasAnimation(currentTransition, passiveVariantKey)
+      ? resolveVariantMotion(currentTransition, passiveVariantKey)
+      : null;
+    const statusPartMotions: { element: HTMLElement; motion: VariantMotion }[] = [];
+    for (const part of Array.from(
+      scope.ownerDocument.querySelectorAll<HTMLElement>(
+        `[${PART_NAME_ATTR}][data-flemo-status="${status}"]`
+      )
+    )) {
+      const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
+      const partVariant =
+        `${status}-${part.getAttribute("data-flemo-active")}` as TransitionVariant;
+      const partMotion =
+        definition && variantHasAnimation(definition, partVariant)
+          ? resolveVariantMotion(definition, partVariant)
+          : null;
+      if (partMotion) statusPartMotions.push({ element: part, motion: partMotion });
+    }
+    let participantSpanMs = passiveMotion
+      ? (passiveMotion.delay + passiveMotion.duration) * 1000
+      : 0;
+    for (const { motion } of statusPartMotions) {
+      participantSpanMs = Math.max(participantSpanMs, (motion.delay + motion.duration) * 1000);
+    }
+
     if (!hasAnimation) {
       // A REVEAL-shaped transition: the active entering screen stands still
       // (its enter is visually a no-op) while the PASSIVE side animates out
@@ -645,17 +696,17 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // lands its final frame before the COMPLETED flip re-renders both
       // screens. The engine watchdogs still net a lost exit animation.
       if (!skipAnimation) {
-        const passiveVariant = `${status}-false` as TransitionVariant;
-        if (variantHasAnimation(currentTransition, passiveVariant)) {
+        if (variantHasAnimation(currentTransition, passiveVariantKey)) {
           if (!animHoldReleased) {
             // Wait for the release commit; this effect re-runs with
             // animHoldReleased=true and arms the span then.
             if (flooredTaskId) TaskManger.markGateHeld(flooredTaskId);
             return noop;
           }
-          if (flooredTaskId) TaskManger.anchorGate(flooredTaskId);
-          const passiveMotion = resolveVariantMotion(currentTransition, passiveVariant)!;
-          const spanMs = (passiveMotion.delay + passiveMotion.duration) * 1000 + 50;
+          const spanMs = participantSpanMs + 50;
+          // Anchor with the choreography's own span so the gate can never cut
+          // an authored motion (see TaskManger.anchorGate).
+          if (flooredTaskId) TaskManger.anchorGate(flooredTaskId, spanMs + GATE_MOTION_MARGIN_MS);
           const spanTimer = setTimeout(resolve, spanMs);
           return () => clearTimeout(spanTimer);
         }
@@ -675,15 +726,26 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // instead of firing; the release anchors a FRESH window so a late-starting
     // transition always gets its full motion span. Both calls are idempotent
     // and safe pre-park (TaskManger keeps the phase until the task settles).
+    const activeMotion = resolveVariantMotion(currentTransition, variantKey);
+
     if (flooredTaskId) {
       if (animHoldReleased) {
-        TaskManger.anchorGate(flooredTaskId);
+        // Anchor with the authored motion's own span: the gate default
+        // assumed no transition outlives ~1.2s and silently CUT longer
+        // authored motions at the backstop (measured: a 3s cupertino snapped
+        // to rest at ~1.2s). The margin mirrors the liveness floor's.
+        // Past the `hasAnimation` early return the motion always resolves
+        // (variantHasAnimation and resolveVariantMotion share the same gate
+        // — see the liveness floor below).
+        const motionMs = (activeMotion!.delay + activeMotion!.duration) * 1000;
+        TaskManger.anchorGate(
+          flooredTaskId,
+          Math.max(motionMs, participantSpanMs) + GATE_MOTION_MARGIN_MS
+        );
       } else {
         TaskManger.markGateHeld(flooredTaskId);
       }
     }
-
-    const activeMotion = resolveVariantMotion(currentTransition, variantKey);
     const playerCanDrive = !skipAnimation && !!activeMotion;
 
     // The `animationend` listener is the ALWAYS-WIRED resolver — attached from
@@ -779,6 +841,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // shifts real presentation later than the wall clock, so the cut must
     // yield to animationend.
     let disarmPerceptualCut = noop;
+    // Disarms the arrival hold's early landing (wired below) on the same
+    // events, for the same reason: a shifted presentation means the wall-clock
+    // rest point may still be visibly mid-motion.
+    let disarmEarlyLanding = noop;
     const onEnd = (event: AnimationEvent) => {
       if (event.target !== scope) return;
       if (event.animationName !== expectedName) return;
@@ -821,7 +887,9 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // the assertion can never fire. One span, shared by the liveness floor and
     // the recovery watchdog below.
     const motionSpanMs = (activeMotion!.delay + activeMotion!.duration) * 1000;
-    const settleMs = motionSpanMs + 1500;
+    // The floor outlives the WHOLE choreography (a part may be authored
+    // longer than its screen), plus the recovery margin.
+    const settleMs = Math.max(motionSpanMs, participantSpanMs) + 1500;
     const floor = flooredTaskId
       ? setTimeout(() => void TaskManger.resolveTask(flooredTaskId), settleMs)
       : undefined;
@@ -830,32 +898,12 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // screen variant plus both screens' parts (parts self-carry their variant
     // attributes) — shared by the choreography-span deferral above and the
     // perceptual cut below.
-    const passiveVariantKey = `${status}-false` as TransitionVariant;
-    const passiveMotion = variantHasAnimation(currentTransition, passiveVariantKey)
-      ? resolveVariantMotion(currentTransition, passiveVariantKey)
-      : null;
-    const statusPartMotions: { element: HTMLElement; motion: VariantMotion }[] = [];
-    for (const part of Array.from(
-      scope.ownerDocument.querySelectorAll<HTMLElement>(
-        `[${PART_NAME_ATTR}][data-flemo-status="${status}"]`
-      )
-    )) {
-      const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
-      const partVariant =
-        `${status}-${part.getAttribute("data-flemo-active")}` as TransitionVariant;
-      const partMotion =
-        definition && variantHasAnimation(definition, partVariant)
-          ? resolveVariantMotion(definition, partVariant)
-          : null;
-      if (partMotion) statusPartMotions.push({ element: part, motion: partMotion });
-    }
-    let participantSpanMs = passiveMotion
-      ? (passiveMotion.delay + passiveMotion.duration) * 1000
-      : 0;
-    for (const { motion } of statusPartMotions) {
-      participantSpanMs = Math.max(participantSpanMs, (motion.delay + motion.duration) * 1000);
-    }
-    choreographyExtraMs = Math.max(0, Math.min(1000, participantSpanMs - motionSpanMs));
+    // The extra is UNCAPPED: it is bounded by the authored spans themselves,
+    // and every deadline below (gate, floor) scales with the same
+    // choreography span — a fixed cap here was one more hidden "no authored
+    // motion outlives N" assumption, cutting any part more than a second
+    // longer than its screen.
+    choreographyExtraMs = Math.max(0, participantSpanMs - motionSpanMs);
 
     // Animation-signal loss recovery for the COMPILED-CSS path only. When the
     // rAF player drives, its own onComplete resolves and the join's
@@ -905,6 +953,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       budgetUsed: () => activeResumeCounts.get(flooredTaskId!) ?? 0,
       spendBudget: () => {
         disarmPerceptualCut();
+        disarmEarlyLanding();
         activeResumeCounts.set(flooredTaskId!, (activeResumeCounts.get(flooredTaskId!) ?? 0) + 1);
       },
       onTerminal: resolve
@@ -923,6 +972,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // resume's original-clock tracking is reset by fullRestart) and re-arm.
         watchdogRestarted = true;
         disarmPerceptualCut();
+        disarmEarlyLanding();
         scopeResume.fullRestart();
         armWatchdog();
         return;
@@ -952,12 +1002,21 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const detachStallWatch =
       recovering && !detectBlinkEngine()
         ? watchNativeStalls(
-            () => {
-              const { decorator, bars } = getElements();
-              return [scope, decorator, ...(bars ?? [])];
-            },
+            // A main-thread stall freezes the WHOLE PAGE's presentation, so
+            // every running flemo timeline must shift together — the sibling
+            // screen (each screen lives in its own wrapper, NOT beside this
+            // scope), its decorator, riding bars, nested routers, all of it.
+            // Shifting only this scope's participants resumed the active
+            // side smoothly while the covered screen teleported the stalled
+            // span on the next frame (measured on WebKit: a forced 120ms
+            // stall left the covered screen's startTime unshifted and its
+            // 30% parallax visibly snapped). The documentElement subtree is
+            // the complete, structure-independent target; the per-frame
+            // shift dedup keeps overlapping watchers single-shift.
+            () => [scope.ownerDocument.documentElement],
             () => {
               disarmPerceptualCut();
+              disarmEarlyLanding();
               if (flooredTaskId && watchdog !== undefined) armWatchdog();
             }
           )
@@ -1024,12 +1083,63 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       }
     }
 
+    // Early landing of the in-flight arrival hold (the hold itself:
+    // arrivalHold.ts). The release commit — parked skeletons removed, held
+    // content revealed, frozen writes replayed — is the settle window's
+    // single biggest main-thread item (measured on the consumer app: ~10ms of
+    // layout plus a ~56-region paint storm landing two frames past the
+    // COMPLETED flip, exactly the frames the eye watches settle). But the
+    // hold's own contract only needs the screen to be VISUALLY at rest, not
+    // administratively COMPLETED: once every participant of the choreography
+    // is within one CSS pixel / one opacity step of its destination (the same
+    // backward band scan as the perceptual cut, evaluated at
+    // devicePixelRatio 1), a content change cannot read as motion-stutter —
+    // and the compositor still owns frame production, so the commit's
+    // layout/paint cost hides under the playing sub-pixel tail instead of
+    // stacking onto the convergence. The perceptual cut's device-pixel band
+    // is always at least as tight, so this fires at or before the cut; an
+    // unanalyzable participant keeps the deferred post-COMPLETED landing.
+    let earlyLanding: ReturnType<typeof setTimeout> | undefined;
+    const clearEarlyLanding = () => {
+      if (earlyLanding === undefined) return;
+      clearTimeout(earlyLanding);
+      earlyLanding = undefined;
+    };
+    disarmEarlyLanding = clearEarlyLanding;
+    if (recovering && releaseArrivalHold) {
+      const activeRest = perceptualCutMs(activeMotion!, scope, 1);
+      const passiveRest = passiveMotion ? perceptualCutMs(passiveMotion, scope, 1) : 0;
+      let partsRest: number | null = 0;
+      for (const { element: part, motion: partMotion } of statusPartMotions) {
+        const partRest = perceptualCutMs(partMotion, part, 1);
+        if (partRest === null) {
+          partsRest = null;
+          break;
+        }
+        partsRest = Math.max(partsRest, partRest);
+      }
+      const restMs =
+        activeRest !== null && passiveRest !== null && partsRest !== null
+          ? Math.max(activeRest, passiveRest, partsRest)
+          : null;
+      if (restMs !== null) {
+        earlyLanding = setTimeout(() => {
+          earlyLanding = undefined;
+          const release = releaseArrivalHold;
+          if (!release) return;
+          releaseArrivalHold = null;
+          release();
+        }, restMs);
+      }
+    }
+
     return () => {
       if (floor !== undefined) clearTimeout(floor);
       if (choreographyTimer !== undefined) clearTimeout(choreographyTimer);
       cancelLandingClear();
       detachStallWatch?.();
       clearPerceptualCut();
+      clearEarlyLanding();
       scope.removeEventListener("animationend", onEnd);
       if (recovering) {
         scopeResume.detach();

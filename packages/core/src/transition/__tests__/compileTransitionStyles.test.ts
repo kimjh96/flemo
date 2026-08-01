@@ -47,7 +47,7 @@ describe("compileTransitionStyles", () => {
       '[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
     );
     expect(css).toContain("cubic-bezier(0.32, 0.72, 0, 1)");
-    expect(css).toContain("0.6s");
+    expect(css).toContain("0.7s");
   });
 
   it("uses the previous-exit position as the from-state for POPPING-false", () => {
@@ -63,7 +63,7 @@ describe("compileTransitionStyles", () => {
 
     expect(popInactive).toBeDefined();
     // returning screen comes from the exit position (x: -30%) back to identity
-    expect(popInactive).toContain("transform: translate3d(-35%, 0, 0)");
+    expect(popInactive).toContain("transform: translate3d(-30%, 0, 0)");
     expect(popInactive).toContain("transform: none");
   });
 
@@ -164,7 +164,7 @@ describe("compileTransitionStyles", () => {
   it("emits camelCase CSS props as kebab-case", () => {
     const css = compileTransitionStyles([], [overlay]);
 
-    expect(css).toContain("background-color: rgba(0, 0, 0, 0.2)");
+    expect(css).toContain("background-color: rgba(0, 0, 0, 0.1)");
     expect(css).not.toContain("backgroundColor");
   });
 

@@ -7,7 +7,10 @@ import { animationName } from "@transition/compileTransitionStyles";
 import createTransition from "@transition/createTransition";
 import { transitionMap } from "@transition/transition";
 
+import { resolveVariantMotion } from "@transition/variantMotion";
+
 import createTransitionEngine from "@core/engine/createTransitionEngine";
+import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import transitionPlayers from "@core/engine/transitionPlayer";
 import { SKIP_ANIMATION_ATTR } from "@core/engine/types";
 import createPartTransition from "@transition/partTransition/createPartTransition";
@@ -118,7 +121,10 @@ describe("native-clock stall watch wiring", () => {
         playState: "running",
         startTime: 100
       };
-      (scope as unknown as { getAnimations: () => unknown[] }).getAnimations = () => [anim];
+      // The watcher sweeps the documentElement subtree (a stall is a
+      // page-global event).
+      (document.documentElement as unknown as { getAnimations: () => unknown[] }).getAnimations =
+        () => [anim];
       const d = deps();
       d.getTransitionTaskId.mockReturnValue("stall-task" as never);
       const engine = createTransitionEngine(d);
@@ -153,12 +159,15 @@ describe("native-clock stall watch wiring", () => {
         isActive: true,
         animHoldReleased: true
       });
-      pump(0);
-      pump(200);
+      // Fresh, LATER frame timestamps: rAF time is monotonic per page, and
+      // the shift dedup keys on it.
+      pump(300);
+      pump(500);
       expect(anim.startTime).toBeGreaterThan(100 + 160);
       bareCleanup();
       scope.remove();
     } finally {
+      delete (document.documentElement as unknown as { getAnimations?: unknown }).getAnimations;
       vi.unstubAllGlobals();
     }
   });
@@ -191,7 +200,10 @@ describe("native-clock stall watch is Blink-gated", () => {
         playState: "running",
         startTime: 100
       };
-      (scope as unknown as { getAnimations: () => unknown[] }).getAnimations = () => [anim];
+      // The watcher sweeps the documentElement subtree (a stall is a
+      // page-global event).
+      (document.documentElement as unknown as { getAnimations: () => unknown[] }).getAnimations =
+        () => [anim];
       const d = deps();
       d.getTransitionTaskId.mockReturnValue("blink-task" as never);
       const engine = createTransitionEngine(d);
@@ -733,7 +745,8 @@ describe("createTransitionEngine gate-phase reporting", () => {
       isActive: true,
       animHoldReleased: true
     });
-    expect(anchored).toHaveBeenCalledWith("task-gate-1");
+    // Anchored with the authored span + recovery margin (0.7s cupertino).
+    expect(anchored).toHaveBeenCalledWith("task-gate-1", 700 + 1500);
     postRelease();
 
     held.mockRestore();
@@ -850,9 +863,10 @@ describe("perceptual completion cut", () => {
       vi.advanceTimersByTime(420);
       expect(resolveSpy).not.toHaveBeenCalled();
 
-      // Past the sub-pixel point (but before the 600ms animationend, which
-      // jsdom never fires): the cut resolves the task.
-      vi.advanceTimersByTime(200);
+      // Past the sub-pixel point (cut ~593ms) plus the presented-frame
+      // landing deferral, but before the 700ms animationend (which jsdom
+      // never fires): the cut resolves the task.
+      vi.advanceTimersByTime(300);
       expect(resolveSpy).toHaveBeenCalledWith("cut-task");
 
       cleanup();
@@ -861,6 +875,149 @@ describe("perceptual completion cut", () => {
     } finally {
       sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.useRealTimers();
+    }
+  });
+});
+
+describe("reveal-path gate branches", () => {
+  const drive = (
+    engine: ReturnType<typeof createTransitionEngine>,
+    scope: HTMLElement,
+    name: string,
+    animHoldReleased: boolean
+  ) =>
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: name as never,
+      prevTransitionName: name as never,
+      status: "REPLACING",
+      isActive: true,
+      animHoldReleased
+    });
+
+  it("a variant pair with no animation on either side resolves on a microtask", async () => {
+    const TaskManger = (await import("@core/TaskManger")).default;
+    const resolveSpy = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
+    transitionMap.set(
+      "rest-pair" as never,
+      createTransition({
+        name: "rest-pair" as never,
+        initial: { x: 0 },
+        idle: { value: { x: 0 }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 0 } },
+        enterBack: { value: { x: 0 }, options: { duration: 0 } },
+        exit: { value: { x: 0 }, options: { duration: 0 } },
+        exitBack: { value: { x: 0 }, options: { duration: 0 } }
+      })
+    );
+    try {
+      const { scope } = elements();
+      const d = { ...deps(), getTransitionTaskId: vi.fn(() => "rest-task") };
+      const engine = createTransitionEngine(d);
+      const cleanup = drive(engine, scope, "rest-pair", true);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(resolveSpy).toHaveBeenCalledWith("rest-task");
+      cleanup();
+    } finally {
+      transitionMap.delete("rest-pair" as never);
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("a reveal-shaped flight with NO task neither marks nor anchors the gate", async () => {
+    const TaskManger = (await import("@core/TaskManger")).default;
+    const heldSpy = vi.spyOn(TaskManger, "markGateHeld");
+    const anchorSpy = vi.spyOn(TaskManger, "anchorGate");
+    transitionMap.set(
+      "reveal-taskless" as never,
+      createTransition({
+        name: "reveal-taskless" as never,
+        initial: { x: 0 },
+        idle: { value: { x: 0 }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 0 } },
+        enterBack: { value: { x: 0 }, options: { duration: 0 } },
+        exit: { value: { opacity: 0 }, options: { duration: 0.15 } },
+        exitBack: { value: { opacity: 0 }, options: { duration: 0.15 } }
+      })
+    );
+    try {
+      const { scope } = elements();
+      const engine = createTransitionEngine(deps()); // getTransitionTaskId -> null
+
+      // Held: nothing to gate, so no held mark.
+      drive(engine, scope, "reveal-taskless", false)();
+      expect(heldSpy).not.toHaveBeenCalled();
+
+      // Released: the span arms for the exit motion, but with no task there
+      // is nothing to anchor.
+      const cleanup = drive(engine, scope, "reveal-taskless", true);
+      expect(anchorSpy).not.toHaveBeenCalled();
+      cleanup();
+    } finally {
+      transitionMap.delete("reveal-taskless" as never);
+      vi.restoreAllMocks();
+    }
+  });
+});
+
+describe("native stall re-anchor coverage", () => {
+  it("shifts the SIBLING screen's animations with the active side", () => {
+    // The covered parallax screen runs its own animation but arms no watcher
+    // of its own: the active engine's watcher must re-anchor it too, or a
+    // main-thread stall resumes the active side smoothly while the sibling
+    // teleports the stalled span (the measured WebKit parallax snap).
+    const frames = new Map<number, FrameRequestCallback>();
+    let frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+    const pump = (time: number) => {
+      const callbacks = [...frames.values()];
+      frames.clear();
+      callbacks.forEach((frameCallback) => frameCallback(time));
+    };
+    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
+    try {
+      const { scope } = elements();
+      document.body.appendChild(scope);
+      // The covered screen lives in its OWN wrapper, not beside the scope:
+      // the watcher targets the documentElement subtree, which reaches it
+      // regardless of structure.
+      const siblingAnimation = {
+        animationName: "flemo-screen-cupertino-PUSHING-false",
+        playState: "running",
+        startTime: 0
+      };
+      (document.documentElement as unknown as { getAnimations?: () => unknown[] }).getAnimations =
+        () => [siblingAnimation];
+
+      const d = deps();
+      d.getTransitionTaskId.mockReturnValue("stall-task" as never);
+      const engine = createTransitionEngine(d);
+      const cleanup = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: "PUSHING",
+        isActive: true,
+        animHoldReleased: true
+      });
+
+      pump(0);
+      pump(200); // a 200ms stall
+      expect(siblingAnimation.startTime).toBeGreaterThan(0);
+
+      cleanup();
+      scope.remove();
+    } finally {
+      delete (document.documentElement as unknown as { getAnimations?: unknown }).getAnimations;
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
+      vi.unstubAllGlobals();
     }
   });
 });
@@ -929,8 +1086,8 @@ describe("perceptual cut with participating parts", () => {
         name: "slow-fade" as never,
         initial: { opacity: 1 },
         idle: { value: { opacity: 1 }, options: { duration: 0 } },
-        enter: { value: { opacity: 0 }, options: { duration: 0.66, ease: [0.32, 0.72, 0, 1] } },
-        exit: { value: { opacity: 1 }, options: { duration: 0.66, ease: [0.32, 0.72, 0, 1] } }
+        enter: { value: { opacity: 0 }, options: { duration: 0.8, ease: [0.32, 0.72, 0, 1] } },
+        exit: { value: { opacity: 1 }, options: { duration: 0.8, ease: [0.32, 0.72, 0, 1] } }
       })
     );
     try {
@@ -946,14 +1103,15 @@ describe("perceptual cut with participating parts", () => {
       const engine = createTransitionEngine(d);
       const cleanup = drive(engine, scope);
 
-      // Past the screen's own cut point (~510ms) but inside the part's
-      // 0.66s fade: the ceiling must have moved past the screen's cut.
-      vi.advanceTimersByTime(530);
+      // Past the screen's own cut point (~593ms) AND its landing deferral
+      // (~674ms) but inside the part's 0.8s fade: the ceiling must have
+      // moved past the screen's cut.
+      vi.advanceTimersByTime(690);
       expect(resolveSpy).not.toHaveBeenCalled();
 
-      // Past the part's own sub-perceptual point (~580ms), still before the
-      // screen's 600ms animationend.
-      vi.advanceTimersByTime(110);
+      // Past the part's own sub-perceptual point (~652ms) plus the landing
+      // deferral, still before the choreography's natural end.
+      vi.advanceTimersByTime(70);
       expect(resolveSpy).toHaveBeenCalledWith("part-cut");
 
       cleanup();
@@ -1007,6 +1165,84 @@ describe("perceptual cut with participating parts", () => {
 });
 
 describe("choreography-span deferral", () => {
+  it("a part authored far longer than its screen is never cut by a fixed cap", () => {
+    vi.useFakeTimers();
+    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
+    // 0.35s screen with a 3s part: extra = 2650ms — beyond the old 1000ms cap.
+    transitionMap.set(
+      "short-screen-long-part" as never,
+      createTransition({
+        name: "short-screen-long-part" as never,
+        initial: { x: "100%" },
+        idle: { value: { x: 0 }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 0.35 } },
+        enterBack: { value: { x: "100%" }, options: { duration: 0.35 } },
+        exit: { value: { x: "-35%" }, options: { duration: 0.35 } },
+        exitBack: { value: { x: 0 }, options: { duration: 0.35 } }
+      })
+    );
+    partTransitionMap.set(
+      "marathon-part" as never,
+      createPartTransition({
+        name: "marathon-part" as never,
+        initial: { scale: 1 },
+        idle: { value: { scale: 1 }, options: { duration: 0 } },
+        enter: { value: { scale: 0.8 }, options: { duration: 3 } },
+        exit: { value: { scale: 1 }, options: { duration: 3 } }
+      })
+    );
+    try {
+      const { scope } = elements();
+      document.body.appendChild(scope);
+      const part = document.createElement("div");
+      part.setAttribute("data-flemo-part-name", "marathon-part");
+      part.setAttribute("data-flemo-status", "PUSHING");
+      part.setAttribute("data-flemo-active", "false");
+      scope.appendChild(part);
+      const resolveSpy = vi
+        .spyOn(TaskManger, "resolveTask")
+        .mockImplementation(() => Promise.resolve(true));
+      const anchorSpy = vi.spyOn(TaskManger, "anchorGate");
+      const d = deps();
+      d.getTransitionTaskId.mockReturnValue("marathon-task" as never);
+      const engine = createTransitionEngine(d);
+      const cleanup = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "short-screen-long-part" as never,
+        prevTransitionName: "short-screen-long-part" as never,
+        status: "PUSHING",
+        isActive: true,
+        animHoldReleased: true
+      });
+
+      // The gate is anchored for the WHOLE choreography (3s part + margin),
+      // so the backstop can never cut the marathon part.
+      expect(anchorSpy).toHaveBeenCalledWith("marathon-task", 3000 + 1500);
+
+      scope.dispatchEvent(
+        animationEndEvent(animationName("screen", "short-screen-long-part", "PUSHING-true"))
+      );
+      // Deep into the part's motion, far past the old 1000ms cap: still flying.
+      vi.advanceTimersByTime(2400);
+      expect(resolveSpy).not.toHaveBeenCalled();
+
+      // The full 2650ms extra elapses (+ the presented-frame deferral).
+      vi.advanceTimersByTime(300);
+      vi.advanceTimersByTime(132);
+      expect(resolveSpy).toHaveBeenCalledWith("marathon-task");
+
+      cleanup();
+      resolveSpy.mockRestore();
+      anchorSpy.mockRestore();
+      scope.remove();
+    } finally {
+      transitionMap.delete("short-screen-long-part" as never);
+      partTransitionMap.delete("marathon-part" as never);
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
+      vi.useRealTimers();
+    }
+  });
+
   it("defers the clean-end resolve until the longest part finishes", () => {
     vi.useFakeTimers();
     sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
@@ -1227,6 +1463,315 @@ describe("in-flight arrival hold wiring", () => {
     await observerFlush();
     expect(live.hasAttribute("data-flemo-held-arrival")).toBe(false);
     scope.remove();
+  });
+
+  it("holds the cold screen's invisible animations and resumes them with the hold's release", async () => {
+    const { scope } = elements();
+    document.body.appendChild(scope);
+    const invisibleSection = document.createElement("section");
+    invisibleSection.style.opacity = "0";
+    scope.appendChild(invisibleSection);
+    const shimmer = {
+      animationName: "skeleton-wave",
+      playState: "running" as AnimationPlayState,
+      effect: { target: invisibleSection },
+      pause() {
+        this.playState = "paused";
+      },
+      play() {
+        this.playState = "running";
+      }
+    };
+    (scope as { getAnimations?: () => unknown[] }).getAnimations = () => [shimmer];
+    const engine = createTransitionEngine(deps());
+    const drive = (status: string) =>
+      engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: status as never,
+        isActive: true,
+        animHoldReleased: true
+      });
+    drive("PUSHING")();
+    // The watcher's first scan waits a frame for the arming commit's styles.
+    await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    expect(shimmer.playState).toBe("paused");
+
+    // The interrupt path consumes the hold — the invisible animations resume
+    // in the same breath.
+    drive("POPPING")();
+    expect(shimmer.playState).toBe("running");
+    scope.remove();
+  });
+});
+
+describe("arrival-hold early landing (sub-pixel tail)", () => {
+  // Pixel endpoints make the rest point computable on jsdom's zero-size
+  // boxes (percentages resolve to 0 there, which reads as "no translation"
+  // and falls back to the post-COMPLETED landing — the path the suite above
+  // covers). The strongly-decelerating ease gives the band scan a real tail.
+  const EASE: [number, number, number, number] = [0.32, 0.72, 0, 1];
+  const slideTargets = (duration: number) => ({
+    idle: { value: { x: 0 }, options: { duration: 0 } },
+    enter: { value: { x: 0 }, options: { duration, ease: EASE } },
+    enterBack: { value: { x: "320px" }, options: { duration, ease: EASE } },
+    exit: { value: { x: "-112px" }, options: { duration, ease: EASE } },
+    exitBack: { value: { x: 0 }, options: { duration, ease: EASE } }
+  });
+
+  const driveWith = (engine: ReturnType<typeof createTransitionEngine>, scope: HTMLElement) =>
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "px-slide" as never,
+      prevTransitionName: "px-slide" as never,
+      status: "PUSHING",
+      isActive: true,
+      animHoldReleased: true
+    });
+
+  it("lands the held arrival at the CSS-pixel rest point, before COMPLETED", async () => {
+    vi.useFakeTimers();
+    transitionMap.set(
+      "px-slide" as never,
+      createTransition({
+        name: "px-slide" as never,
+        initial: { x: "320px" },
+        ...slideTargets(0.6)
+      } as never)
+    );
+    try {
+      const { scope } = elements();
+      document.body.appendChild(scope);
+      const skeleton = document.createElement("div");
+      scope.appendChild(skeleton);
+      const engine = createTransitionEngine(deps());
+      const cleanup = driveWith(engine, scope);
+
+      const content = document.createElement("article");
+      scope.replaceChild(content, skeleton);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(content.hasAttribute("data-flemo-held-arrival")).toBe(true);
+
+      const motion = resolveVariantMotion(transitionMap.get("px-slide" as never)!, "PUSHING-true")!;
+      const restMs = perceptualCutMs(motion, { clientWidth: 0, clientHeight: 0 }, 1)!;
+      expect(restMs).toBeGreaterThan(0);
+      expect(restMs).toBeLessThan(600);
+
+      // Just short of the rest point: still visibly mid-motion, still held.
+      await vi.advanceTimersByTimeAsync(restMs - 20);
+      expect(content.hasAttribute("data-flemo-held-arrival")).toBe(true);
+      // At the rest point — while the status is still PUSHING — the swap
+      // reflects: skeleton out, content on glass.
+      await vi.advanceTimersByTimeAsync(30);
+      expect(content.hasAttribute("data-flemo-held-arrival")).toBe(false);
+      expect(skeleton.parentNode).toBe(null);
+
+      cleanup();
+      scope.remove();
+    } finally {
+      transitionMap.delete("px-slide" as never);
+      vi.useRealTimers();
+    }
+  });
+
+  it("a part still moving at the screen's rest point extends the landing", async () => {
+    vi.useFakeTimers();
+    transitionMap.set(
+      "px-slide" as never,
+      createTransition({
+        name: "px-slide" as never,
+        initial: { x: "320px" },
+        ...slideTargets(0.6)
+      } as never)
+    );
+    partTransitionMap.set(
+      "long-slide-part" as never,
+      createPartTransition({
+        name: "long-slide-part" as never,
+        initial: { x: "100px" },
+        // A part's PUSHING-false motion resolves idle → enter.
+        idle: { value: { x: "100px" }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 1.2, ease: EASE } },
+        exit: { value: { x: "-100px" }, options: { duration: 1.2, ease: EASE } }
+      } as never)
+    );
+    try {
+      const { scope } = elements();
+      document.body.appendChild(scope);
+      const part = document.createElement("div");
+      part.setAttribute("data-flemo-part-name", "long-slide-part");
+      part.setAttribute("data-flemo-status", "PUSHING");
+      part.setAttribute("data-flemo-active", "false");
+      scope.appendChild(part);
+      const engine = createTransitionEngine(deps());
+      const cleanup = driveWith(engine, scope);
+
+      const content = document.createElement("article");
+      scope.appendChild(content);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(content.hasAttribute("data-flemo-held-arrival")).toBe(true);
+
+      const partMotion = resolveVariantMotion(
+        partTransitionMap.get("long-slide-part" as never)!,
+        "PUSHING-false"
+      )!;
+      const partRestMs = perceptualCutMs(partMotion, { clientWidth: 0, clientHeight: 0 }, 1)!;
+      expect(partRestMs).toBeGreaterThan(600);
+
+      // Past the screen's own rest, the part is still visibly moving: held.
+      await vi.advanceTimersByTimeAsync(620);
+      expect(content.hasAttribute("data-flemo-held-arrival")).toBe(true);
+      // Once EVERY participant is inside its band, the landing fires.
+      await vi.advanceTimersByTimeAsync(partRestMs - 620 + 10);
+      expect(content.hasAttribute("data-flemo-held-arrival")).toBe(false);
+
+      cleanup();
+      scope.remove();
+    } finally {
+      transitionMap.delete("px-slide" as never);
+      partTransitionMap.delete("long-slide-part" as never);
+      vi.useRealTimers();
+    }
+  });
+
+  it("a choreography whose passive side stands still rests on the active motion alone", async () => {
+    vi.useFakeTimers();
+    transitionMap.set(
+      "px-slide" as never,
+      createTransition({
+        name: "px-slide" as never,
+        initial: { x: "320px" },
+        idle: { value: { x: 0 }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 0.6, ease: EASE } },
+        enterBack: { value: { x: "320px" }, options: { duration: 0.6, ease: EASE } },
+        // The passive side rests: a zero-duration exit registers no motion at
+        // all, so only the active side constrains the rest point.
+        exit: { value: { x: 0 }, options: { duration: 0 } },
+        exitBack: { value: { x: 0 }, options: { duration: 0 } }
+      } as never)
+    );
+    try {
+      const { scope } = elements();
+      document.body.appendChild(scope);
+      const engine = createTransitionEngine(deps());
+      const cleanup = driveWith(engine, scope);
+
+      const content = document.createElement("article");
+      scope.appendChild(content);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(content.hasAttribute("data-flemo-held-arrival")).toBe(true);
+
+      const motion = resolveVariantMotion(transitionMap.get("px-slide" as never)!, "PUSHING-true")!;
+      const restMs = perceptualCutMs(motion, { clientWidth: 0, clientHeight: 0 }, 1)!;
+      await vi.advanceTimersByTimeAsync(restMs + 10);
+      expect(content.hasAttribute("data-flemo-held-arrival")).toBe(false);
+
+      cleanup();
+      scope.remove();
+    } finally {
+      transitionMap.delete("px-slide" as never);
+      vi.useRealTimers();
+    }
+  });
+
+  it("an armed landing whose hold an interrupt already consumed fires as a no-op", async () => {
+    vi.useFakeTimers();
+    transitionMap.set(
+      "px-slide" as never,
+      createTransition({
+        name: "px-slide" as never,
+        initial: { x: "320px" },
+        ...slideTargets(0.6)
+      } as never)
+    );
+    try {
+      const { scope } = elements();
+      document.body.appendChild(scope);
+      const engine = createTransitionEngine(deps());
+      // The flight's run stays mounted (no cleanup) so its wall-clock landing
+      // stays armed while the interrupt consumes the hold underneath it.
+      driveWith(engine, scope);
+
+      const content = document.createElement("article");
+      scope.appendChild(content);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(content.hasAttribute("data-flemo-held-arrival")).toBe(true);
+
+      // Role flip mid-flight: the interrupt path lands everything NOW.
+      const cleanupInterrupt = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "px-slide" as never,
+        prevTransitionName: "px-slide" as never,
+        status: "POPPING",
+        isActive: true,
+        animHoldReleased: true
+      });
+      expect(content.hasAttribute("data-flemo-held-arrival")).toBe(false);
+
+      // The stale timer fires against the spent hold and must change nothing.
+      await vi.advanceTimersByTimeAsync(600);
+      expect(content.hasAttribute("data-flemo-held-arrival")).toBe(false);
+      expect(content.parentNode).toBe(scope);
+
+      cleanupInterrupt();
+      scope.remove();
+    } finally {
+      transitionMap.delete("px-slide" as never);
+      vi.useRealTimers();
+    }
+  });
+
+  it("an unanalyzable part vetoes the early landing and keeps the COMPLETED path", async () => {
+    vi.useFakeTimers();
+    transitionMap.set(
+      "px-slide" as never,
+      createTransition({
+        name: "px-slide" as never,
+        initial: { x: "320px" },
+        ...slideTargets(0.6)
+      } as never)
+    );
+    partTransitionMap.set(
+      "scale-part" as never,
+      createPartTransition({
+        name: "scale-part" as never,
+        initial: { scale: 0.8 },
+        // idle → enter carries a real scale motion: present, animating, and
+        // outside the band scan's known channels.
+        idle: { value: { scale: 0.8 }, options: { duration: 0 } },
+        enter: { value: { scale: 1 }, options: { duration: 0.4 } },
+        exit: { value: { scale: 1 }, options: { duration: 0.4 } }
+      } as never)
+    );
+    try {
+      const { scope } = elements();
+      document.body.appendChild(scope);
+      const part = document.createElement("div");
+      part.setAttribute("data-flemo-part-name", "scale-part");
+      part.setAttribute("data-flemo-status", "PUSHING");
+      part.setAttribute("data-flemo-active", "false");
+      scope.appendChild(part);
+      const engine = createTransitionEngine(deps());
+      const cleanup = driveWith(engine, scope);
+
+      const content = document.createElement("article");
+      scope.appendChild(content);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(content.hasAttribute("data-flemo-held-arrival")).toBe(true);
+
+      // A scale channel cannot be band-scanned: no wall-clock landing may
+      // fire, however long the flight runs.
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(content.hasAttribute("data-flemo-held-arrival")).toBe(true);
+
+      cleanup();
+      scope.remove();
+    } finally {
+      transitionMap.delete("px-slide" as never);
+      partTransitionMap.delete("scale-part" as never);
+      vi.useRealTimers();
+    }
   });
 });
 

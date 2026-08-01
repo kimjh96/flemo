@@ -449,6 +449,29 @@ describe("TaskManger: gate phases (markGateHeld / anchorGate)", () => {
     expect(events).toEqual(["resolved"]);
   });
 
+  it("an anchored motion span extends the gate past the configured default", async () => {
+    const id = TaskManger.generateTaskId();
+    const events: string[] = [];
+    const pending = TaskManger.addTask(async () => "long-motion", {
+      id,
+      control: { manual: true, maxLifetimeMs: 80 }
+    });
+    TaskManger.markGateHeld(id);
+    // A 3s-authored motion anchors with its own span: the 80ms default must
+    // not cut it — the gate default assumed no transition outlives it and
+    // silently snapped longer authored motions to rest.
+    TaskManger.anchorGate(id, 250);
+    void pending.then(() => events.push("resolved"));
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    // Past the configured default, inside the motion span: still flying.
+    expect(events).toEqual([]);
+
+    // Past the anchored span the gate is still the stranded-task net.
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    expect(events).toEqual(["resolved"]);
+  });
+
   it("anchorGate is idempotent: repeated anchors cannot extend the gate", async () => {
     const id = TaskManger.generateTaskId();
     const pending = TaskManger.addTask(async () => "once", {

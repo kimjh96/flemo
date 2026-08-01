@@ -74,6 +74,12 @@ const MAX_HELD_GATE_REARMS = 2;
 interface GatePhaseEntry {
   phase: "held" | "anchored";
   rearms: number;
+  // The minimum backstop window the transition engine anchored for this task:
+  // the authored motion's span plus the recovery margin. The gate default
+  // (TRANSITION_GATE_BACKSTOP_MS) assumed no transition outlives ~1.2s, which
+  // silently CUT any longer authored motion at the backstop — the store
+  // flipped to COMPLETED mid-flight and the screen snapped to rest.
+  minLifetimeMs?: number;
 }
 
 class TaskManager {
@@ -427,10 +433,14 @@ class TaskManager {
   // backstop so the transition gets its full window from its real start, not
   // from the park. Idempotent: only the first anchor re-arms, so repeated
   // engine passes cannot extend the gate indefinitely.
-  public anchorGate(taskId: string) {
+  public anchorGate(taskId: string, minLifetimeMs?: number) {
     const entry = this.gatePhases.get(taskId);
     if (entry?.phase === "anchored") return;
-    this.gatePhases.set(taskId, { phase: "anchored", rearms: entry?.rearms ?? 0 });
+    this.gatePhases.set(taskId, {
+      phase: "anchored",
+      rearms: entry?.rearms ?? 0,
+      minLifetimeMs: minLifetimeMs ?? entry?.minLifetimeMs
+    });
     const task = this.tasks.get(taskId);
     if (!task || (task.status !== "MANUAL_PENDING" && task.status !== "SIGNAL_PENDING")) return;
     if (task.backstopTimer) {
@@ -447,8 +457,12 @@ class TaskManager {
   // resolves — the unreported case is the storm safety net (a zone torn down
   // before any transition wired up must not wedge the serial queue).
   private armBackstop(task: Task<unknown>) {
-    const lifetime = task.control?.maxLifetimeMs;
-    if (!lifetime || lifetime <= 0 || typeof setTimeout === "undefined") return;
+    const configured = task.control?.maxLifetimeMs;
+    if (!configured || configured <= 0 || typeof setTimeout === "undefined") return;
+    // The anchored motion's own span may legitimately outlive the configured
+    // default — the gate is insurance against a STRANDED task, never a cap on
+    // an authored duration.
+    const lifetime = Math.max(configured, this.gatePhases.get(task.id)?.minLifetimeMs ?? 0);
     task.backstopTimer = setTimeout(() => {
       delete task.backstopTimer;
       const entry = this.gatePhases.get(task.id);

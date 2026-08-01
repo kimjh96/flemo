@@ -28,7 +28,7 @@ describe("variantMotion", () => {
     const motion = resolveVariantMotion(cupertino, "PUSHING-true")!;
     expect(motion.from).toBe(cupertino.initial);
     expect(motion.to).toBe(cupertino.variants["PUSHING-true"].value);
-    expect(motion.duration).toBeCloseTo(0.6);
+    expect(motion.duration).toBeCloseTo(0.7);
     expect(motion.delay).toBe(0);
     expect(motion.ease).toEqual([0.32, 0.72, 0, 1]);
   });

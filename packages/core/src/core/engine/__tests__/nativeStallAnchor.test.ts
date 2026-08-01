@@ -104,27 +104,52 @@ describe("watchNativeStalls", () => {
     detach();
   });
 
-  it("secondary elements (decorator, bars) are searched without subtree", () => {
+  it("every element is searched subtree-wide (sibling screens carry their own participants)", () => {
     const screenAnim: FakeAnimation = {
       animationName: "flemo-screen-cupertino-PUSHING-true",
       playState: "running",
       startTime: 0
     };
-    const decoratorAnim: FakeAnimation = {
-      animationName: "flemo-decorator-overlay-PUSHING-false",
+    const siblingAnim: FakeAnimation = {
+      animationName: "flemo-screen-cupertino-PUSHING-false",
       playState: "running",
       startTime: 0
     };
     const scope = fakeElement([screenAnim]);
-    const decorator = fakeElement([decoratorAnim]);
-    const detach = watchNativeStalls(() => [scope.element, decorator.element, null]);
+    const sibling = fakeElement([siblingAnim]);
+    const detach = watchNativeStalls(() => [scope.element, sibling.element, null]);
 
     pump(0);
     pump(200);
     expect(screenAnim.startTime).toBeGreaterThan(0);
-    expect(decoratorAnim.startTime).toBeGreaterThan(0);
-    expect(decorator.seenOptions[0]).toEqual({ subtree: false });
+    // The covered parallax side re-anchors WITH the active side — a shift
+    // that skips it makes the sibling teleport the stalled span.
+    expect(siblingAnim.startTime).toBeGreaterThan(0);
+    expect(sibling.seenOptions[0]).toEqual({ subtree: true });
     detach();
+  });
+
+  it("overlapping watchers in the same frame shift an animation once", () => {
+    const shared: FakeAnimation = {
+      animationName: "flemo-screen-cupertino-PUSHING-false",
+      playState: "running",
+      startTime: 0
+    };
+    const first = fakeElement([shared]);
+    const second = fakeElement([shared]);
+    // Two watchers (two engines) covering the SAME participant, both primed
+    // on the same frame cadence.
+    const detachFirst = watchNativeStalls(() => [first.element]);
+    const detachSecond = watchNativeStalls(() => [second.element]);
+
+    pump(0);
+    pump(100);
+    const excess = 100 - NATIVE_STALL_STEP_MS;
+    // One stall, one shift — the same-frame timestamp dedups the second
+    // watcher's delivery.
+    expect(shared.startTime).toBeCloseTo(excess, 5);
+    detachFirst();
+    detachSecond();
   });
 
   it("an element without getAnimations is skipped", () => {
