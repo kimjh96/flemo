@@ -60,6 +60,28 @@ describe("perceptualCutMs", () => {
     expect(perceptualCutMs(slide({ from: { x: "100%" }, to: {} }), box, 2)).toBeNull();
   });
 
+  it("ignores a channel held constant across the variant, whatever its property", () => {
+    // A constant decoration (a fixed edge shadow, say): an unknown property,
+    // but identical on both endpoints — it never interpolates, so it must
+    // not veto the cut.
+    const shadow = "-1px 0 5px rgba(0, 0, 0, 0.3)";
+    const withShadow = perceptualCutMs(
+      slide({ from: { x: "100%", boxShadow: shadow }, to: { x: 0, boxShadow: shadow } }),
+      box,
+      2
+    );
+    expect(withShadow).not.toBeNull();
+    expect(withShadow).toEqual(perceptualCutMs(slide(), box, 2));
+    // The same property VARYING keeps the veto.
+    expect(
+      perceptualCutMs(
+        slide({ from: { x: "100%", boxShadow: "none" }, to: { x: 0, boxShadow: shadow } }),
+        box,
+        2
+      )
+    ).toBeNull();
+  });
+
   it("parses px-unit channels", () => {
     const cut = perceptualCutMs(slide({ from: { x: "390px" }, to: { x: 0 } }), box, 2);
     expect(cut).not.toBeNull();
@@ -83,6 +105,7 @@ describe("perceptualCutMs", () => {
     expect(perceptualCutMs(slide({ from: { x: "10em" }, to: { x: 0 } }), box, 2)).toBeNull();
     expect(perceptualCutMs(slide({ from: { x: {} as never }, to: { x: 0 } }), box, 2)).toBeNull();
     expect(perceptualCutMs(slide({ from: null as never, to: { x: 0 } }), box, 2)).toBeNull();
+    expect(perceptualCutMs(slide({ from: { x: "100%" }, to: null as never }), box, 2)).toBeNull();
     expect(perceptualCutMs(slide({ from: {}, to: {} }), box, 2)).toBeNull();
   });
 

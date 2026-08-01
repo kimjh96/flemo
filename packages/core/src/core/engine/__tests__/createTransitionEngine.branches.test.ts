@@ -736,8 +736,8 @@ describe("createTransitionEngine gate-phase reporting", () => {
       isActive: true,
       animHoldReleased: true
     });
-    // Anchored with the authored span + recovery margin (0.6s cupertino).
-    expect(anchored).toHaveBeenCalledWith("task-gate-1", 600 + 1500);
+    // Anchored with the authored span + recovery margin (0.7s cupertino).
+    expect(anchored).toHaveBeenCalledWith("task-gate-1", 700 + 1500);
     postRelease();
 
     held.mockRestore();
@@ -854,9 +854,10 @@ describe("perceptual completion cut", () => {
       vi.advanceTimersByTime(420);
       expect(resolveSpy).not.toHaveBeenCalled();
 
-      // Past the sub-pixel point (but before the 600ms animationend, which
-      // jsdom never fires): the cut resolves the task.
-      vi.advanceTimersByTime(200);
+      // Past the sub-pixel point (cut ~593ms) plus the presented-frame
+      // landing deferral, but before the 700ms animationend (which jsdom
+      // never fires): the cut resolves the task.
+      vi.advanceTimersByTime(300);
       expect(resolveSpy).toHaveBeenCalledWith("cut-task");
 
       cleanup();
@@ -933,8 +934,8 @@ describe("perceptual cut with participating parts", () => {
         name: "slow-fade" as never,
         initial: { opacity: 1 },
         idle: { value: { opacity: 1 }, options: { duration: 0 } },
-        enter: { value: { opacity: 0 }, options: { duration: 0.66, ease: [0.32, 0.72, 0, 1] } },
-        exit: { value: { opacity: 1 }, options: { duration: 0.66, ease: [0.32, 0.72, 0, 1] } }
+        enter: { value: { opacity: 0 }, options: { duration: 0.8, ease: [0.32, 0.72, 0, 1] } },
+        exit: { value: { opacity: 1 }, options: { duration: 0.8, ease: [0.32, 0.72, 0, 1] } }
       })
     );
     try {
@@ -950,14 +951,15 @@ describe("perceptual cut with participating parts", () => {
       const engine = createTransitionEngine(d);
       const cleanup = drive(engine, scope);
 
-      // Past the screen's own cut point (~510ms) but inside the part's
-      // 0.66s fade: the ceiling must have moved past the screen's cut.
-      vi.advanceTimersByTime(530);
+      // Past the screen's own cut point (~593ms) AND its landing deferral
+      // (~674ms) but inside the part's 0.8s fade: the ceiling must have
+      // moved past the screen's cut.
+      vi.advanceTimersByTime(690);
       expect(resolveSpy).not.toHaveBeenCalled();
 
-      // Past the part's own sub-perceptual point (~580ms), still before the
-      // screen's 600ms animationend.
-      vi.advanceTimersByTime(110);
+      // Past the part's own sub-perceptual point (~652ms) plus the landing
+      // deferral, still before the choreography's natural end.
+      vi.advanceTimersByTime(70);
       expect(resolveSpy).toHaveBeenCalledWith("part-cut");
 
       cleanup();

@@ -1,13 +1,15 @@
 import createDecorator from "@transition/decorator/createDecorator";
 
 // `backgroundColor` is held at the target dim across every variant so only
-// `opacity` actually animates. Effective dim is `opacity × 0.2`, which gives
-// a linear perceived ramp instead of the non-linear `opacity × bg_alpha`
-// product the previous setup produced (midpoint 0.5 × 0.2 = 0.10). It also keeps the keyframe single-property:
-// `opacity` is compositor-friendly on every browser, while animating
-// `background-color` on a transformed ancestor has historically tripped
-// color-space interpolation quirks in iOS Safari.
-const DIM_COLOR = "rgba(0, 0, 0, 0.2)";
+// `opacity` actually animates. Effective dim is `opacity × 0.1` — the native
+// iOS dim over the covered screen (react-navigation's forHorizontalIOS
+// measures 0.07, Ionic's ios.transition uses 0.1; UIKit's own
+// _UIParallaxDimmingView sits in that band). The linear ramp keeps the
+// perceived dim even across the flight, and the keyframe stays
+// single-property: `opacity` is compositor-friendly on every browser, while
+// animating `background-color` on a transformed ancestor has historically
+// tripped color-space interpolation quirks in iOS Safari.
+const DIM_COLOR = "rgba(0, 0, 0, 0.1)";
 
 const overlay = createDecorator({
   name: "overlay",
@@ -41,7 +43,7 @@ const overlay = createDecorator({
       backgroundColor: DIM_COLOR
     },
     options: {
-      duration: 0.6
+      duration: 0.7
     }
   },
   // POPPING-false target: the previously-behind screen is returning to active.
@@ -54,7 +56,7 @@ const overlay = createDecorator({
       backgroundColor: DIM_COLOR
     },
     options: {
-      duration: 0.6
+      duration: 0.7
     }
   },
   options: {

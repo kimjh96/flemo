@@ -8,6 +8,23 @@ const linear = (value: number, from: [number, number], to: [number, number]) => 
   return toMin + t * (toMax - toMin);
 };
 
+// The native iOS navigation push/pop, per the measured consensus of its
+// closest replications (Ionic's ios.transition: 540ms,
+// cubic-bezier(0.32, 0.72, 0, 1), -33% parallax; react-navigation's
+// forHorizontalIOS: -30% parallax, 0.3 leading-edge shadow; UIKit itself
+// runs a critically-damped spring settling ≈ 500-550ms with a 0.3 parallax
+// factor — Liquid Glass (iOS 26) restyled materials, not these kinematics):
+// - DURATION/EASE: UIKit's spring settles ~500-550ms (Ionic replicates it
+//   at 540ms) on this bezier; flemo runs the same curve over 0.7s — an
+//   authored choice for a calmer glide, not a platform measurement. One
+//   clock for every participant.
+// - PARALLAX: the covered screen retreats 30% of its width.
+// The dim over the covered screen lives in the `overlay` decorator. The
+// native leading-edge shadow is deliberately NOT replicated.
+const PARALLAX = 30;
+const DURATION = 0.7;
+const EASE: [number, number, number, number] = [0.32, 0.72, 0, 1];
+
 const cupertino = createTransition({
   name: "cupertino",
   initial: {
@@ -26,8 +43,8 @@ const cupertino = createTransition({
       x: 0
     },
     options: {
-      duration: 0.6,
-      ease: [0.32, 0.72, 0, 1]
+      duration: DURATION,
+      ease: EASE
     }
   },
   enterBack: {
@@ -35,17 +52,17 @@ const cupertino = createTransition({
       x: "100%"
     },
     options: {
-      duration: 0.6,
-      ease: [0.32, 0.72, 0, 1]
+      duration: DURATION,
+      ease: EASE
     }
   },
   exit: {
     value: {
-      x: "-35%"
+      x: `-${PARALLAX}%`
     },
     options: {
-      duration: 0.6,
-      ease: [0.32, 0.72, 0, 1]
+      duration: DURATION,
+      ease: EASE
     }
   },
   exitBack: {
@@ -53,8 +70,8 @@ const cupertino = createTransition({
       x: 0
     },
     options: {
-      duration: 0.6,
-      ease: [0.32, 0.72, 0, 1]
+      duration: DURATION,
+      ease: EASE
     }
   },
   options: {
@@ -82,7 +99,7 @@ const cupertino = createTransition({
       animate(
         prevScreen,
         {
-          x: `${-35 + progress * 0.35}%`
+          x: `${-PARALLAX + progress * (PARALLAX / 100)}%`
         },
         {
           duration: 0
@@ -106,17 +123,17 @@ const cupertino = createTransition({
           },
           {
             duration: 0.3,
-            ease: [0.32, 0.72, 0, 1]
+            ease: EASE
           }
         ),
         animate(
           prevScreen,
           {
-            x: isTriggered ? 0 : "-35%"
+            x: isTriggered ? 0 : `-${PARALLAX}%`
           },
           {
             duration: 0.3,
-            ease: [0.32, 0.72, 0, 1]
+            ease: EASE
           }
         )
       ]);

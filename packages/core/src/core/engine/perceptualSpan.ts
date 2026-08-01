@@ -82,6 +82,20 @@ const imperceptibleFraction = (
 
   let band = Infinity;
   for (const key of keys) {
+    // A channel held CONSTANT across the variant (the same authored value on
+    // both endpoints — a fixed decoration a transition carries through its
+    // motion) never interpolates, so it cannot keep the motion perceptible
+    // whatever its property is. Raw identity only: anything else stays
+    // subject to the known-channel analysis below.
+    const rawFrom =
+      motion.from && typeof motion.from === "object"
+        ? (motion.from as Record<string, unknown>)[key]
+        : undefined;
+    const rawTo =
+      motion.to && typeof motion.to === "object"
+        ? (motion.to as Record<string, unknown>)[key]
+        : undefined;
+    if (rawFrom !== undefined && rawFrom === rawTo) continue;
     if (!KNOWN_CHANNELS.has(key)) return null;
     const from = channelValue(motion.from, key, box);
     const to = channelValue(motion.to, key, box);
