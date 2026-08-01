@@ -879,6 +879,88 @@ describe("perceptual completion cut", () => {
   });
 });
 
+describe("reveal-path gate branches", () => {
+  const drive = (
+    engine: ReturnType<typeof createTransitionEngine>,
+    scope: HTMLElement,
+    name: string,
+    animHoldReleased: boolean
+  ) =>
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: name as never,
+      prevTransitionName: name as never,
+      status: "REPLACING",
+      isActive: true,
+      animHoldReleased
+    });
+
+  it("a variant pair with no animation on either side resolves on a microtask", async () => {
+    const TaskManger = (await import("@core/TaskManger")).default;
+    const resolveSpy = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
+    transitionMap.set(
+      "rest-pair" as never,
+      createTransition({
+        name: "rest-pair" as never,
+        initial: { x: 0 },
+        idle: { value: { x: 0 }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 0 } },
+        enterBack: { value: { x: 0 }, options: { duration: 0 } },
+        exit: { value: { x: 0 }, options: { duration: 0 } },
+        exitBack: { value: { x: 0 }, options: { duration: 0 } }
+      })
+    );
+    try {
+      const { scope } = elements();
+      const d = { ...deps(), getTransitionTaskId: vi.fn(() => "rest-task") };
+      const engine = createTransitionEngine(d);
+      const cleanup = drive(engine, scope, "rest-pair", true);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(resolveSpy).toHaveBeenCalledWith("rest-task");
+      cleanup();
+    } finally {
+      transitionMap.delete("rest-pair" as never);
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("a reveal-shaped flight with NO task neither marks nor anchors the gate", async () => {
+    const TaskManger = (await import("@core/TaskManger")).default;
+    const heldSpy = vi.spyOn(TaskManger, "markGateHeld");
+    const anchorSpy = vi.spyOn(TaskManger, "anchorGate");
+    transitionMap.set(
+      "reveal-taskless" as never,
+      createTransition({
+        name: "reveal-taskless" as never,
+        initial: { x: 0 },
+        idle: { value: { x: 0 }, options: { duration: 0 } },
+        enter: { value: { x: 0 }, options: { duration: 0 } },
+        enterBack: { value: { x: 0 }, options: { duration: 0 } },
+        exit: { value: { opacity: 0 }, options: { duration: 0.15 } },
+        exitBack: { value: { opacity: 0 }, options: { duration: 0.15 } }
+      })
+    );
+    try {
+      const { scope } = elements();
+      const engine = createTransitionEngine(deps()); // getTransitionTaskId -> null
+
+      // Held: nothing to gate, so no held mark.
+      drive(engine, scope, "reveal-taskless", false)();
+      expect(heldSpy).not.toHaveBeenCalled();
+
+      // Released: the span arms for the exit motion, but with no task there
+      // is nothing to anchor.
+      const cleanup = drive(engine, scope, "reveal-taskless", true);
+      expect(anchorSpy).not.toHaveBeenCalled();
+      cleanup();
+    } finally {
+      transitionMap.delete("reveal-taskless" as never);
+      vi.restoreAllMocks();
+    }
+  });
+});
+
 describe("native stall re-anchor coverage", () => {
   it("shifts the SIBLING screen's animations with the active side", () => {
     // The covered parallax screen runs its own animation but arms no watcher

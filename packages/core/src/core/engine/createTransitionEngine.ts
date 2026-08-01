@@ -734,7 +734,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // assumed no transition outlives ~1.2s and silently CUT longer
         // authored motions at the backstop (measured: a 3s cupertino snapped
         // to rest at ~1.2s). The margin mirrors the liveness floor's.
-        const motionMs = activeMotion ? (activeMotion.delay + activeMotion.duration) * 1000 : 0;
+        // Past the `hasAnimation` early return the motion always resolves
+        // (variantHasAnimation and resolveVariantMotion share the same gate
+        // — see the liveness floor below).
+        const motionMs = (activeMotion!.delay + activeMotion!.duration) * 1000;
         TaskManger.anchorGate(
           flooredTaskId,
           Math.max(motionMs, participantSpanMs) + GATE_MOTION_MARGIN_MS
