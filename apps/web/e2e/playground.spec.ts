@@ -104,7 +104,7 @@ test.describe("playground", () => {
     for (const transition of TRANSITIONS) {
       await page.getByRole("button", { name: transition, exact: true }).click();
       await page.getByRole("button", { name: "Next" }).click();
-      await page.waitForTimeout(650);
+      await page.waitForTimeout(950);
     }
 
     expect(errors).toEqual([]);

@@ -216,7 +216,7 @@ test.describe("motion perception", () => {
     const aside = page.locator("aside");
     for (const menu of ["Router and Route", "Screen", "Transitions"]) {
       await aside.getByRole("button", { name: menu, exact: true }).click();
-      await page.waitForTimeout(700);
+      await page.waitForTimeout(950);
     }
 
     const rhythm = page.evaluate(() => {
@@ -372,7 +372,7 @@ test.describe("motion perception", () => {
     ).toBeGreaterThan(8);
     // The scrub's fill must not outlive the transition: at rest the computed
     // clip-path is the compiled rest rule's, not a stuck animation value.
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(1050);
     expect(await inlineLeftovers(page)).toEqual([]);
     expect(errors).toEqual([]);
   });
@@ -407,7 +407,7 @@ test.describe("motion perception", () => {
 
     expect(suppressedFrames, "the part's compiled animation must be suppressed").toBeGreaterThan(5);
     expect(opacityValues, "the part must advance on the player clock").toBeGreaterThan(4);
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(1050);
     expect(
       await page.$$eval("[data-flemo-part-name]", (parts) =>
         parts.map((part) => (part as HTMLElement).style.transform || "").filter((t) => t !== "")
@@ -426,7 +426,7 @@ test.describe("motion perception", () => {
     test.skip(browserName === "webkit", "the player tier is exercised on Blink");
     await openPlaygroundWithPinnedPlayer(page);
     await page.getByRole("button", { name: "Next" }).click();
-    await page.waitForTimeout(900); // land on a non-root, swipeable screen
+    await page.waitForTimeout(1000); // land on a non-root, swipeable screen
 
     const result = await page.evaluate(async () => {
       // The innermost (panels) screen: nested routers mean several active
@@ -577,7 +577,7 @@ test.describe("motion perception", () => {
 
     for (let i = 0; i < 3; i++) {
       await page.getByRole("button", { name: "Next" }).click();
-      await page.waitForTimeout(750);
+      await page.waitForTimeout(950);
     }
 
     // Health gate: the property under test is "a replay chain must not strike
