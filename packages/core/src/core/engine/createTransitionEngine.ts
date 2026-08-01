@@ -999,10 +999,18 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const detachStallWatch =
       recovering && !detectBlinkEngine()
         ? watchNativeStalls(
-            () => {
-              const { decorator, bars } = getElements();
-              return [scope, decorator, ...(bars ?? [])];
-            },
+            // A main-thread stall freezes the WHOLE PAGE's presentation, so
+            // every running flemo timeline must shift together — the sibling
+            // screen (each screen lives in its own wrapper, NOT beside this
+            // scope), its decorator, riding bars, nested routers, all of it.
+            // Shifting only this scope's participants resumed the active
+            // side smoothly while the covered screen teleported the stalled
+            // span on the next frame (measured on WebKit: a forced 120ms
+            // stall left the covered screen's startTime unshifted and its
+            // 30% parallax visibly snapped). The documentElement subtree is
+            // the complete, structure-independent target; the per-frame
+            // shift dedup keeps overlapping watchers single-shift.
+            () => [scope.ownerDocument.documentElement],
             () => {
               disarmPerceptualCut();
               disarmEarlyLanding();

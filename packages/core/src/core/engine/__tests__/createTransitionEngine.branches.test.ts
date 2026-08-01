@@ -121,7 +121,10 @@ describe("native-clock stall watch wiring", () => {
         playState: "running",
         startTime: 100
       };
-      (scope as unknown as { getAnimations: () => unknown[] }).getAnimations = () => [anim];
+      // The watcher sweeps the documentElement subtree (a stall is a
+      // page-global event).
+      (document.documentElement as unknown as { getAnimations: () => unknown[] }).getAnimations =
+        () => [anim];
       const d = deps();
       d.getTransitionTaskId.mockReturnValue("stall-task" as never);
       const engine = createTransitionEngine(d);
@@ -156,12 +159,15 @@ describe("native-clock stall watch wiring", () => {
         isActive: true,
         animHoldReleased: true
       });
-      pump(0);
-      pump(200);
+      // Fresh, LATER frame timestamps: rAF time is monotonic per page, and
+      // the shift dedup keys on it.
+      pump(300);
+      pump(500);
       expect(anim.startTime).toBeGreaterThan(100 + 160);
       bareCleanup();
       scope.remove();
     } finally {
+      delete (document.documentElement as unknown as { getAnimations?: unknown }).getAnimations;
       vi.unstubAllGlobals();
     }
   });
@@ -194,7 +200,10 @@ describe("native-clock stall watch is Blink-gated", () => {
         playState: "running",
         startTime: 100
       };
-      (scope as unknown as { getAnimations: () => unknown[] }).getAnimations = () => [anim];
+      // The watcher sweeps the documentElement subtree (a stall is a
+      // page-global event).
+      (document.documentElement as unknown as { getAnimations: () => unknown[] }).getAnimations =
+        () => [anim];
       const d = deps();
       d.getTransitionTaskId.mockReturnValue("blink-task" as never);
       const engine = createTransitionEngine(d);
@@ -866,6 +875,67 @@ describe("perceptual completion cut", () => {
     } finally {
       sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.useRealTimers();
+    }
+  });
+});
+
+describe("native stall re-anchor coverage", () => {
+  it("shifts the SIBLING screen's animations with the active side", () => {
+    // The covered parallax screen runs its own animation but arms no watcher
+    // of its own: the active engine's watcher must re-anchor it too, or a
+    // main-thread stall resumes the active side smoothly while the sibling
+    // teleports the stalled span (the measured WebKit parallax snap).
+    const frames = new Map<number, FrameRequestCallback>();
+    let frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+    const pump = (time: number) => {
+      const callbacks = [...frames.values()];
+      frames.clear();
+      callbacks.forEach((frameCallback) => frameCallback(time));
+    };
+    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
+    try {
+      const { scope } = elements();
+      document.body.appendChild(scope);
+      // The covered screen lives in its OWN wrapper, not beside the scope:
+      // the watcher targets the documentElement subtree, which reaches it
+      // regardless of structure.
+      const siblingAnimation = {
+        animationName: "flemo-screen-cupertino-PUSHING-false",
+        playState: "running",
+        startTime: 0
+      };
+      (document.documentElement as unknown as { getAnimations?: () => unknown[] }).getAnimations =
+        () => [siblingAnimation];
+
+      const d = deps();
+      d.getTransitionTaskId.mockReturnValue("stall-task" as never);
+      const engine = createTransitionEngine(d);
+      const cleanup = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: "PUSHING",
+        isActive: true,
+        animHoldReleased: true
+      });
+
+      pump(0);
+      pump(200); // a 200ms stall
+      expect(siblingAnimation.startTime).toBeGreaterThan(0);
+
+      cleanup();
+      scope.remove();
+    } finally {
+      delete (document.documentElement as unknown as { getAnimations?: unknown }).getAnimations;
+      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
+      vi.unstubAllGlobals();
     }
   });
 });
