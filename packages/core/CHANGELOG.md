@@ -1,5 +1,19 @@
 # @flemo/core
 
+## 1.22.1
+
+### Patch Changes
+
+- [`c0a878d`](https://github.com/kimjh96/flemo/commit/c0a878d936c2f9057fbd4f9817710ff58402d86e) Land the in-flight arrival hold inside the transition's sub-pixel tail instead of after the COMPLETED flip. Once every participant of the choreography is within one CSS pixel of rest, the held content reflects while the compositor still owns frame production, keeping the release commit's layout and paint cost out of the settle window; unanalyzable choreographies keep the deferred post-COMPLETED landing.
+
+- [`c0a878d`](https://github.com/kimjh96/flemo/commit/c0a878d936c2f9057fbd4f9817710ff58402d86e) Align the cupertino preset's kinematics with the measured native iOS navigation transition — 30% parallax on the covered screen (was 35%) and a 10% dim (was 20%) — and lengthen the glide to 0.7s (was 0.6s) on the same UIKit-spring bezier. The perceptual analyzers now ignore channels held constant across a variant, so a constant decoration never disables the completion cut.
+
+- [`c0a878d`](https://github.com/kimjh96/flemo/commit/c0a878d936c2f9057fbd4f9817710ff58402d86e) Derive every transition deadline from the authored choreography instead of fixed constants: the task gate's ~1.2s backstop silently cut any longer authored transition mid-flight, and the choreography deferral's 1s cap cut any part authored more than a second past its screen. The gate, the liveness floor, and the deferral now all scale with the full choreography span (active, passive, and parts alike) plus the recovery margin — an authored duration of any length plays in full, and the backstops only ever fire on a genuinely stranded task.
+
+- [`c0a878d`](https://github.com/kimjh96/flemo/commit/c0a878d936c2f9057fbd4f9817710ff58402d86e) Hold invisible consumer animations for the flight. An animation running inside an opacity-0 subtree (a delayed skeleton reveal and its shimmer layers) forces the compositor to create and raster every layer of that subtree the moment it becomes visible — mid-flight, that is a visible twitch. Such animations now pause while the screen is in motion (indistinguishable on glass — their output cannot be seen) and resume with the arrival-hold release at the choreography's rest point; visible animations are never touched.
+
+- [`c0a878d`](https://github.com/kimjh96/flemo/commit/c0a878d936c2f9057fbd4f9817710ff58402d86e) Re-anchor the covered screen with the active one on main-thread stalls. The native stall re-anchor only shifted the active scope's participants, so on engines that present from the main thread a stall resumed the entering screen smoothly while the covered screen's parallax teleported the stalled span in one frame (the visible parallax snap on mobile Safari). The watcher now shifts every sibling screen's timeline in the same breath, with overlapping watchers deduplicated per frame.
+
 ## 1.22.0
 
 ### Minor Changes
