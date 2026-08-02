@@ -10,6 +10,7 @@ import {
   animHoldKey,
   computeBarRiding,
   computeScreenFreeze,
+  detectBlinkEngine,
   eagerlyDecodeImages,
   isOpaqueColor,
   createSwipeController,
@@ -470,10 +471,49 @@ function ScreenMotion({
     const groupKey = transitionTaskId === null ? key : `${key}#${transitionTaskId}`;
     return coordinatorRef.current!.join(
       groupKey,
-      () =>
+      () => {
+        // Non-Blink: flip the hold on the DOM SYNCHRONOUSLY, inside the
+        // readiness rAF. Routing the release through setState alone hands
+        // the attribute write to a later React task, and any task that
+        // slots in between — a suspense reveal's multi-hundred-ms render —
+        // stretches the gap between the compiled clock's anchor (WebKit
+        // stamps a new animation with the frame-TOP timestamp of the
+        // rendering update that creates it) and its first presentation.
+        // That gap IS the swallowed opening: device-video'd as the exiting
+        // parallax skipping its 0→30% glide and the entering sheet's first
+        // presented frame already deep into the curve. A rAF callback and
+        // its own frame's rendering update are ATOMIC — no task can run
+        // between them — so flipping here makes clock-start and first
+        // paint simultaneous BY CONSTRUCTION: no waits, no heuristics, no
+        // after-the-fact correction. The setState below reconciles React
+        // to the same value one commit later; the pair coordinator fires
+        // both screens' callbacks in one tick, so the pair still departs
+        // on one clock. Player-routed flights (the default on every engine)
+        // keep the state-only path: the player takes over at the effect
+        // that follows the state commit, and an early compiled start would
+        // play a few frames the player then restarts — so the direct flip
+        // is for authored `driver: "native"` pins only.
+        const authoredNative = (currentTransition as { driver?: string }).driver === "native";
+        if (authoredNative && !detectBlinkEngine()) {
+          for (const el of [
+            scopeRef.current,
+            sharedTopBarRef.current,
+            sharedBottomBarRef.current,
+            decoratorRef.current
+          ]) {
+            if (el?.isConnected && el.getAttribute("data-flemo-anim-hold") !== null) {
+              el.setAttribute("data-flemo-anim-hold", "false");
+            }
+          }
+          // park-under sank the whole screen container beneath its cover;
+          // the released flight must surface in the same frame its clock
+          // starts, not a React commit later.
+          if (screenRef.current) screenRef.current.style.zIndex = "";
+        }
         setAnimRelease((current) =>
           current.key === key && !current.released ? { key, released: true } : current
-        ),
+        );
+      },
       {
         // Decode-wait: a frozen screen's discarded image bitmaps re-decode
         // during the hold instead of dropping the first animated frames. Scoped
@@ -482,20 +522,21 @@ function ScreenMotion({
         // paired push/replace release free.
         scope: scopeRef.current,
         decodeWait: decodeWaitRef.current
-        // NO content settle (removed): the gate held a cold PUSH until its
-        // data landed, buying a commit-free flight at the price of a
-        // ~300ms-plus entry delay (React throttles a suspense reveal to
-        // fallback+300ms, so the wait could never be shorter for a skeleton
-        // screen). The machinery that has shipped since — the settle gate's
-        // own era of stall re-anchoring on native-clock flights, the player's
-        // clock-step cap, Blink's compositor riding through commits — bounds
-        // a mid-flight commit to a two-frame hold on WebKit and to nothing on
-        // Blink, and the instant entry won on device: verified no-jank on the
-        // user's real Chrome with the gate off, and "smooth enough" on
-        // WebKit, where the residual cold-data hiccup is owned by app-level
-        // press prefetch (data ready before the tap = commit lands before the
-        // motion). The core capability (AnimHoldReleaseOptions.contentSettle)
-        // remains available to bindings that want the trade the other way.
+        // NO enter content-settle gate — the third and FINAL flip, each
+        // direction device-judged (2026-08). Gate ON (arrive-complete): the
+        // cold-push dead wait was rejected twice, and dependent-query chains
+        // can still land a wave after the release. Gate OFF + nothing else:
+        // the reveal render co-flushes with the release frame and the
+        // compiled clock ages before first paint (the swallowed opening).
+        // The resolution lives in the ENGINE now: motion starts immediately,
+        // and the flight-start anchor (anchorNativeFlightStart, birth-window
+        // startTime rewind — the one clock intervention the falsification
+        // series never implicated) rewinds a clock the release frame aged,
+        // so the opening plays in full either way. Mid-flight commits are
+        // survived by the untouched accelerated animation plus the
+        // early-armed arrival hold. The core capability
+        // (AnimHoldReleaseOptions.contentSettle) remains for bindings that
+        // want the arrive-complete trade.
       }
     );
   }, [animHold, holdKey, holdAttr, isActive, status, stores.navigate]);

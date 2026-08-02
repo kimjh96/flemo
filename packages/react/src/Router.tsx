@@ -15,6 +15,7 @@ import {
 import {
   createBrowserHistoryDriver,
   createRouterScope,
+  ensureGpuPipelinePrewarm,
   ensureImageDecodeOffloader,
   holdCompositorWarm,
   seedRouterEntry,
@@ -261,6 +262,14 @@ function Router({
   // transition whole — a 190ms fade presented 5 of its 12 frames and ran for
   // 384ms. Document-wide and refcounted, so nested Routers share one observer.
   useEffect(() => ensureImageDecodeOffloader(), []);
+
+  // One-shot GPU pipeline prewarm (see @flemo/core gpuPipelinePrewarm):
+  // Chrome's Graphite backend compiles the flight's GPU pipelines on their
+  // first draw — on a cold cache (fresh profile, Chrome update, GPU-process
+  // restart) that's ~100ms of GPU-thread stall landing INSIDE the session's
+  // first flight, worst on the deceleration frames. Imperceptible probes at
+  // boot idle compile them ahead of any motion.
+  useEffect(() => ensureGpuPipelinePrewarm(), []);
 
   // Pre-warm the compositor while the user INTERACTS. The per-flight warm-up
   // starts WITH the flight, so the first navigation after an idle period

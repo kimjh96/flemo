@@ -268,7 +268,14 @@ describe("Screen", () => {
 
       const { container } = render(
         <Screen sharedBottomBar={<div>tabs</div>}>
-          <div>hello</div>
+          {/* Content-RICH body: this test exercises the two-frame paint
+              anchor alone. A near-empty body now reads as a SHELL (deferred
+              skeletons) and the enter settle gate would hold past the grace,
+              which is the settle suite's subject, not this one's. */}
+          <div>
+            이 화면은 충분한 본문 텍스트를 이미 갖춘 따뜻한 화면입니다. 게이트는 콘텐츠 밀도로 쉘을
+            판정하므로 이 문단이 그 판정을 통과시킵니다.
+          </div>
         </Screen>,
         { wrapper: buildHarness({ isActive: true, id: "top" }) }
       );
