@@ -953,7 +953,12 @@ describe("scheduleAnimHoldReadiness settle boundaries", () => {
     expect(onReady).toHaveBeenCalledTimes(1);
   });
 
-  it("a sparse screen (too little structure to be a skeleton) never waits", () => {
+  it("a near-empty screen is a SHELL (deferred skeletons), exiting at the grace when idle", () => {
+    // A deferred-skeleton consumer (render nothing for the first ~300ms)
+    // mounts as a handful of empty containers. Treating that as "warm"
+    // released the gate straight into the reveal render — device-video'd as
+    // a blank sheet departing with a swallowed opening. Near-empty is
+    // pre-content until the GRACE proves nothing is coming.
     const scope = document.createElement("div");
     scope.appendChild(document.createElement("div"));
     document.body.appendChild(scope);
@@ -961,6 +966,34 @@ describe("scheduleAnimHoldReadiness settle boundaries", () => {
     scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
     flushFrame();
     flushFrame();
+    expect(onReady).not.toHaveBeenCalled(); // held: could be a deferred skeleton
+    vi.advanceTimersByTime(SETTLE.graceMs + 1); // nothing pending → empty state
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("a near-empty screen with requests in flight waits for its content", async () => {
+    setPendingForTests(true);
+    const scope = document.createElement("div");
+    scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    expect(onReady).not.toHaveBeenCalled(); // loading: the reveal is coming
+
+    // The reveal lands; the wave settles and the gate releases.
+    const fragment = document.createDocumentFragment();
+    for (let i = 0; i < 31; i++) {
+      const row = document.createElement("div");
+      row.textContent = `의원 행 ${i} 내용이 충분히 길다`;
+      fragment.appendChild(row);
+    }
+    scope.appendChild(fragment);
+    await Promise.resolve();
+    setPendingForTests(false);
+    for (let i = 0; i < 7; i++) flushFrame();
     expect(onReady).toHaveBeenCalledTimes(1);
   });
 

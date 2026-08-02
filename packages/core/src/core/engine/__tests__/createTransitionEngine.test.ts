@@ -7,6 +7,7 @@ import none from "@transition/none";
 import { transitionMap } from "@transition/transition";
 
 import createTransitionEngine from "@core/engine/createTransitionEngine";
+import { LAYER_SETTLE_MS } from "@core/engine/layerSettleHold";
 import { SKIP_ANIMATION_ATTR, type TransitionEngineDeps } from "@core/engine/types";
 
 // jsdom reads as non-Blink (no navigator.userAgentData), where the player
@@ -113,6 +114,7 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
   });
 
   it("resolves drag/replace and strips inline styles on COMPLETED", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const decorator = newDiv();
     const bar = newDiv();
     scope.style.transform = "translateX(20px)";
@@ -127,6 +129,10 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     expect(scope.style.transform).toBe("");
     expect(scope.hasAttribute(SKIP_ANIMATION_ATTR)).toBe(false);
     expect(decorator.style.transform).toBe("");
+    // The bar's promoted layer demotes off-cadence, LAYER_SETTLE_MS past the
+    // flip (see layerSettleHold.ts) — never in the flip commit itself.
+    expect(bar.style.getPropertyValue("will-change")).toBe("transform");
+    vi.advanceTimersByTime(LAYER_SETTLE_MS);
     expect(bar.style.getPropertyValue("will-change")).toBe("");
 
     decorator.remove();

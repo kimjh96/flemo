@@ -44,6 +44,10 @@ export const clearInlineAnimation = (el: HTMLElement, properties?: string[]) => 
   // animateInline write surface, so strip it unconditionally here: COMPLETED
   // cleanup and the next transition start must begin with no leftover delay.
   el.style.removeProperty("animation-delay");
+  // Same contract for the landing pixel snap's reshaped easing (see
+  // landingPixelSnap.ts): engine-written, untracked, and per-variant — a
+  // stale one would bend the NEXT transition's curve.
+  el.style.removeProperty("animation-timing-function");
   if (properties) {
     const tracked = inlineWrites.get(el);
     for (const property of properties) {

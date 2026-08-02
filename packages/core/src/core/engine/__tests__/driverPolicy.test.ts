@@ -233,7 +233,7 @@ describe("driverPolicy default storage", () => {
 });
 
 describe("engine-scoped default instance", () => {
-  it("constructs the compiled-compositor default on Blink (userAgentData present)", async () => {
+  it("constructs the player default on Blink too (demotable, unlike non-Blink)", async () => {
     vi.resetModules();
     const original = Object.getOwnPropertyDescriptor(navigator, "userAgentData");
     Object.defineProperty(navigator, "userAgentData", {
@@ -243,7 +243,10 @@ describe("engine-scoped default instance", () => {
     try {
       const { default: policy, detectBlinkEngine } = await import("@core/engine/driverPolicy");
       expect(detectBlinkEngine()).toBe(true);
-      expect(policy.playerAllowed()).toBe(false);
+      // Unified driver: the player everywhere. Blink's distinction is the
+      // FALLBACK — its compiled path composites healthily, so chronic
+      // starvation may demote to it (see the default construction).
+      expect(policy.playerAllowed()).toBe(true);
     } finally {
       if (original) Object.defineProperty(navigator, "userAgentData", original);
       else delete (navigator as { userAgentData?: unknown }).userAgentData;

@@ -4,7 +4,8 @@ import { easingToCss, targetToDecls } from "@transition/compileTransitionStyles"
 import { resolveEasing, type EasingFunction } from "@transition/cubicBezier";
 import type { MotionTarget, VariantMotion } from "@transition/variantMotion";
 
-import driverPolicy from "@core/engine/driverPolicy";
+import driverPolicy, { detectBlinkEngine } from "@core/engine/driverPolicy";
+import { perceptualCutMs } from "@core/engine/perceptualSpan";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The rAF transition player: drives transition MOTION by writing inline
@@ -275,6 +276,27 @@ const snapshotApplyOverride = (): "scrub" | null => {
 export const resetSessionOverrideCachesForTests = () => {
   applyOverrideCache = undefined;
   snapOverrideCache = undefined;
+  handoffOverrideCache = undefined;
+};
+
+// Session-scoped OPT-IN for the anchored-opening HANDOFF below: "on" enables
+// it. Default OFF everywhere — the 2026-08 iPhone falsification series ended
+// with mid-flight-born animations (however unremarkable their timing)
+// intermittently desyncing WebKit's accelerated re-sync at a suspense
+// reveal's commit, so no production flight may hand its remainder to one.
+// The machinery is retained as a measured instrument (and as the record of
+// the series — see the handoff header).
+let handoffOverrideCache: "on" | null | undefined;
+const handoffOverride = (): "on" | null => {
+  if (handoffOverrideCache !== undefined) return handoffOverrideCache;
+  try {
+    const value =
+      typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:handoff") : null;
+    handoffOverrideCache = value === "on" ? value : null;
+  } catch {
+    handoffOverrideCache = null;
+  }
+  return handoffOverrideCache;
 };
 
 let snapOverrideCache: "always" | "off" | null | undefined;
@@ -394,17 +416,168 @@ const createScrubAnimation = (element: HTMLElement, motion: VariantMotion): Anim
 // is allowed to advance across a stall (one frame, not the whole gap).
 const NOMINAL_FRAME_MS = 1000 / 60;
 
-// The most the shared clock may advance across ONE frame gap: two nominal
-// frames — exactly what a natural double-vsync drop produces, so ordinary
-// jitter passes through untouched. Anything longer is a main-thread block (a
-// consumer commit, the COMPLETED flip of a neighbouring navigation), and
-// stepping motion by the full gap plays the authored curve compressed — a
-// 40-100ms block used to slip under the old 100ms re-anchor cliff and read
-// as the screen "whooshing" ahead of its easing. Capping the step keeps
-// every stall inside the player's delayed-but-complete semantics: motion
-// resumes at most two frames past where it stalled, and the tail plays out
-// in full (the liveness floor still bounds a pathological stall pile-up).
-const MAX_CLOCK_STEP_MS = 2 * NOMINAL_FRAME_MS;
+// Stall semantics: how the clock treats one frame gap.
+//
+// - A gap up to PASS_THROUGH_FRAMES × the display interval is ordinary
+//   jitter (a slightly late frame, a single benign vsync slip) and passes
+//   through untouched — the clock stays wall-synced.
+// - Anything longer is a main-thread block, and the clock advances by
+//   EXACTLY ONE display frame: the resume step is then indistinguishable
+//   from a normal frame's step — zero velocity discontinuity. This is the
+//   final form of the resume policy: the earlier two-frame allowance made a
+//   47ms GC-class blip resume with a double step, device-measured as
+//   `jump 17%` at peak velocity — the visible half of an otherwise
+//   invisible hitch. The frozen frames themselves are physics (nothing can
+//   present while main is blocked); the resume jump was ours, and it is
+//   gone. The excess re-anchors, so the tail still plays out in full,
+//   merely late by the stall.
+//
+// Both thresholds are measured against the DISPLAY'S OWN cadence: each
+// player estimates its interval as the MINIMUM plausible observed gap
+// (converges within a few frames; floored so a timer-jitter runt cannot
+// fake a 240Hz panel, and seeded at — never above — the 60Hz nominal).
+const PASS_THROUGH_FRAMES = 1.6;
+const MIN_FRAME_INTERVAL_MS = 1000 / 240;
+
+// ── Anchored-opening handoff (non-Blink) ────────────────────────────────────
+//
+// The player clock solves the flight's OPENING: it anchors t=0 to its own
+// first frame and caps steps across stalls, so the entering commit's monster
+// frame can never swallow the first fifth of the curve. But per-frame driving
+// makes the whole flight ride the main thread, and the flight's TAIL is where
+// consumer work lands (suspense resolutions, data-arrival renders) — device-
+// measured on iPhone: gap max 42ms, 3 missed frames per 120 during a push,
+// each one a visible hitch exactly as the entering screen converges.
+//
+// On non-Blink engines the browser runs transform/opacity animations OFF the
+// main thread (WebKit: in the UI process — a mid-flight commit cannot stall
+// them; that immunity is measured fact, it is why the compiled path's tails
+// were always smooth on iOS). So each driver is right for one half of the
+// flight, and the handoff combines them: the player drives the opening off
+// its anchored clock (a scrub-WAAPI track, so the motion is browser-exact
+// from the first frame), then hands the remainder to a FRESH Web Animation —
+// the original curve's remaining segment BAKED into evenly-spaced keyframes
+// over the remaining duration — born running at the handoff frame and never
+// touched again. Completion arrives via its finish event instead of the
+// player loop.
+//
+// EVERY ingredient of the remainder animation is deliberately UNREMARKABLE —
+// no negative delay, no pause/play, no currentTime writes, no exotic easing —
+// because WebKit's accelerated path only stays reliable for animations it can
+// treat as ordinary. Three device-falsified designs established that (each
+// read fine from JS and failed only on the glass): play() on the scrubbed
+// animation lost the accelerated representation outright (the whole remainder
+// rode the wall clock through main-thread blocks: freeze, then a leap to the
+// end); a compiled CSS animation reborn mid-flight with a negative inline
+// animation-delay was smooth per-flight but intermittently froze-then-rushed
+// when a mid-flight commit (a suspense reveal) forced the engine to re-sync
+// its accelerated animations — the unusual begin time desynced exactly the
+// class of animation a naturally-born one survives (the pure compiled path
+// historically sailed through those same commits); and a fresh animation with
+// a linear() easing brought the convergence stutter back — a non-bezier
+// timing function has no Core Animation form, so the remainder ran on the
+// main thread again (see buildRemainderKeyframes).
+//
+// Blink keeps the full player: there the compositor is the driver that
+// misses presentation deadlines under raster load (the reason the player
+// exists — see the file header), and rAF gaps do not mean presentation gaps.
+
+// How much of the flight the anchored player clock drives before the
+// handoff: six nominal frames. Enough for the entry storm to have landed
+// (the entering commit blocks the FIRST frame or two) and for the capped
+// clock to have absorbed it; early enough that the browser owns the long
+// middle and the whole convergence.
+const HANDOFF_MS = 6 * NOMINAL_FRAME_MS;
+
+// The remainder animation reproduces the authored curve's tail by BAKING it
+// into evenly-spaced keyframes with plain linear easing between them — the
+// same shape as a compiled CSS keyframe animation, which is the one form of
+// mid-curve motion the accelerated path demonstrably carries on iOS. A
+// linear() timing function was device-falsified here: exact in value, but a
+// non-standard easing knocks the animation off the accelerated path (Core
+// Animation timing is bezier-only), which put the whole remainder back on
+// the main thread — the very convergence stutter the handoff exists to
+// remove. Baking needs per-sample VALUES, so the handoff requires a
+// numerically parseable motion (track.remainderPlan); anything else simply
+// stays scrubbed. 41 samples over a ≤700ms remainder is ~one keyframe per
+// frame — visually exact for the low-curvature tails this hands off.
+const REMAINDER_KEYFRAME_SAMPLES = 41;
+
+const round4 = (value: number) => Math.round(value * 10000) / 10000;
+
+// The transform string at one eased progress — composeTransform's math
+// without the per-frame snap machinery (keyframes want raw values; the
+// browser interpolates and presents them off the main thread).
+const plainTransformAt = (channels: TransformChannel[], eased: number): string => {
+  let x = 0;
+  let y = 0;
+  let hasTranslate = false;
+  const parts: string[] = [];
+  let allIdentity = true;
+  for (const prop of TRANSFORM_ORDER) {
+    const channel = channels.find((c) => c.prop === prop);
+    if (!channel) continue;
+    let value = channel.from.value + (channel.to.value - channel.from.value) * eased;
+    if (channel.from.unit === "%") value *= channel.percentBase;
+    value = round4(value);
+    if (prop === "x" || prop === "y") {
+      if (prop === "x") x = value;
+      else y = value;
+      hasTranslate = true;
+      if (value !== 0) allIdentity = false;
+      continue;
+    }
+    if (value !== IDENTITY[prop]) allIdentity = false;
+    if (prop === "z") parts.push(`translateZ(${value}px)`);
+    else if (prop === "scale") parts.push(`scale(${value})`);
+    else if (prop === "scaleX") parts.push(`scaleX(${value})`);
+    else if (prop === "scaleY") parts.push(`scaleY(${value})`);
+    else if (prop === "rotate" || prop === "rotateZ") parts.push(`rotate(${value}deg)`);
+    else if (prop === "rotateX") parts.push(`rotateX(${value}deg)`);
+    else if (prop === "rotateY") parts.push(`rotateY(${value}deg)`);
+  }
+  if (!hasTranslate && parts.length === 0) return "";
+  if (allIdentity) return "none";
+  const translate = hasTranslate ? [`translate3d(${x}px, ${y}px, 0)`] : [];
+  return [...translate, ...parts].join(" ");
+};
+
+// Bake the remaining segment of the flight (eased progress f(p)→1 over the
+// remaining time) into evenly-spaced keyframes. The first keyframe equals
+// the pose the scrub is showing at the handoff frame — same channels, same
+// easing function — so the handoff has no visible seam.
+const buildRemainderKeyframes = (
+  plan: ParsedMotion,
+  ease: EasingFunction,
+  startProgress: number
+): Keyframe[] => {
+  const keyframes: Keyframe[] = [];
+  for (let i = 0; i < REMAINDER_KEYFRAME_SAMPLES; i += 1) {
+    const u = i / (REMAINDER_KEYFRAME_SAMPLES - 1);
+    const eased = ease(startProgress + u * (1 - startProgress));
+    const keyframe: Record<string, string> = {};
+    if (plan.transforms.length > 0) {
+      const transform = plainTransformAt(plan.transforms, eased);
+      if (transform !== "") keyframe.transform = transform;
+    }
+    if (plan.opacity) {
+      keyframe.opacity = `${round4(plan.opacity.from + (plan.opacity.to - plan.opacity.from) * eased)}`;
+    }
+    for (const channel of plan.strings) {
+      keyframe[kebabToCamel(channel.property)] = channel.mix(eased);
+    }
+    // Constants hold their value across the whole remainder: first and last
+    // keyframes suffice (WAAPI interpolates a property between the keyframes
+    // that carry it).
+    if (i === 0 || i === REMAINDER_KEYFRAME_SAMPLES - 1) {
+      for (const constant of plan.constants) {
+        keyframe[kebabToCamel(constant.property)] = constant.value;
+      }
+    }
+    keyframes.push(keyframe as Keyframe);
+  }
+  return keyframes;
+};
 
 export interface PlayerScheduler {
   request: (callback: (time: number) => void) => number;
@@ -432,6 +605,20 @@ interface Track extends TrackInput {
   parsed: ParsedMotion | null;
   // Universal tier: a paused Web Animation scrubbed off the shared clock.
   scrub: Animation | null;
+  // Anchored-opening handoff (see HANDOFF_MS): whether this scrub track hands
+  // its remainder to the browser once the opening is past, and whether it
+  // already has (the browser now drives; the finish event completes it).
+  handoff: boolean;
+  handedOff: boolean;
+  // Perceptual tail cut (mirrors the compiled path's perceptualSpan cut):
+  // the authored-timeline ms past which THIS track's motion stays inside its
+  // imperceptibility band (sub-device-pixel / sub-opacity-step remaining).
+  // Null = unanalyzable, which VETOES the navigation's cut (see stepPlayer).
+  cutMs: number | null;
+  // The parsed numeric motion the remainder keyframes are baked from —
+  // retained even though a handoff track scrubs (parsed stays null): baking
+  // needs per-sample values, which only the numeric parse can supply.
+  remainderPlan: ParsedMotion | null;
   completed: boolean;
   detached: boolean;
   snapMemory: SnapMemory;
@@ -454,7 +641,24 @@ export const createTransitionPlayerRegistry = (
 ): TransitionPlayerRegistry => {
   interface Player {
     tracks: Track[];
+    // The display's measured frame interval (see PASS_THROUGH_FRAMES): the
+    // MEDIAN of recent plausible gaps, clamped to [240Hz floor, 60Hz
+    // nominal]. A median, not a minimum — one runt gap (a double-fired rAF,
+    // timer jitter) must not convince the clock the display is faster than
+    // it is and throttle every honest frame after it.
+    frameIntervalMs: number;
+    recentGaps: number[];
+    // The navigation's effective perceptual cut on the shared clock: the MAX
+    // of every track's own cut (a longer participant must not be snapped
+    // mid-visible-motion), or null when ANY track is unanalyzable (veto,
+    // exactly like the compiled path's parts ceiling).
+    navCutMs: number | null;
     started: boolean;
+    // Whether this player's driver-policy run has been closed. Set on the
+    // normal all-done exit, but also when every remaining track has been
+    // handed off (no more frames → no more gap evidence) — the finish
+    // events that complete those tracks must not close the run twice.
+    ended: boolean;
     startTime: number | null;
     lastTime: number | null;
     frameHandle: number | null;
@@ -466,17 +670,33 @@ export const createTransitionPlayerRegistry = (
     join: (taskId, input) => {
       // Session-scoped diagnostic: `flemo:apply=scrub` routes EVERY track
       // through the scrub-WAAPI path (native interpolation, our clock) so the
-      // per-frame style-write path can be A/B'd against it on-device.
+      // per-frame style-write path can be A/B'd against it on-device. It
+      // deliberately does NOT hand off — it isolates the value-application
+      // path, so the whole flight stays scrubbed.
       const forceScrub = snapshotApplyOverride() === "scrub";
-      const parsed = forceScrub ? null : parseMotion(input.motion, input.element);
-      const scrub = parsed ? null : createScrubAnimation(input.element, input.motion);
+      // Anchored-opening handoff (see HANDOFF_MS) — diagnostic OPT-IN only
+      // (see handoffOverride): the scrub tier is then PREFERRED for
+      // numerically drivable motion, because the handoff needs the browser
+      // to own the pose from the first frame (the scrub pins it
+      // browser-exactly) and the numeric parse to bake the remainder
+      // keyframes from. No WAAPI → the numeric tier still drives; no numeric
+      // parse → the scrub drives the whole flight (nothing to bake from).
+      const wantsHandoff = !forceScrub && !detectBlinkEngine() && handoffOverride() === "on";
+      const numeric = forceScrub ? null : parseMotion(input.motion, input.element);
+      const scrub =
+        !numeric || wantsHandoff ? createScrubAnimation(input.element, input.motion) : null;
+      const parsed = scrub ? null : numeric;
       if (!parsed && !scrub) return null;
 
       let player = players.get(taskId);
       if (!player) {
         player = {
           tracks: [],
+          frameIntervalMs: NOMINAL_FRAME_MS,
+          recentGaps: [],
+          navCutMs: null,
           started: false,
+          ended: false,
           startTime: null,
           lastTime: null,
           frameHandle: null
@@ -484,15 +704,29 @@ export const createTransitionPlayerRegistry = (
         players.set(taskId, player);
       }
 
+      // The tail the eye cannot see: past this point the flight presents
+      // nothing but sub-pixel churn — and for the rAF player that dead span
+      // is ALSO its most starvation-exposed window (main-thread frame gaps
+      // read as tremor exactly where motion is slowest). The compiled path
+      // has cut it for months (perceptualSpan); the player now cuts its own.
+      const cut = perceptualCutMs(input.motion, input.element, scheduler.devicePixelRatio() || 1);
+
       const track: Track = {
         ...input,
         parsed,
         scrub,
+        cutMs: cut,
+        handoff: wantsHandoff && scrub !== null && numeric !== null,
+        handedOff: false,
+        remainderPlan: wantsHandoff && scrub !== null ? numeric : null,
         completed: false,
         detached: false,
         snapMemory: { x: null, y: null }
       };
       player.tracks.push(track);
+      player.navCutMs = player.tracks.some((t) => t.cutMs === null)
+        ? null
+        : Math.max(...player.tracks.map((t) => t.cutMs!));
 
       // Pin the first frame synchronously in the same commit that joined the
       // track: the compiled animation is suppressed here, so without this
@@ -590,6 +824,89 @@ export const createTransitionPlayerRegistry = (
     });
   }
 
+  function endPolicyRun(player: Player) {
+    if (player.ended) return;
+    player.ended = true;
+    driverPolicy.endRun();
+  }
+
+  // Hand a track's remainder to a FRESH Web Animation: the authored curve's
+  // remaining segment baked into plain-linear keyframes over the remaining
+  // duration (see buildRemainderKeyframes for why keyframes and not a
+  // linear() easing). Born running at this frame and never touched again —
+  // no negative delay, no pause/play, no currentTime writes, no exotic
+  // easing — every ingredient one the accelerated path demonstrably carries
+  // (see the handoff header for the device-falsified designs this replaces).
+  // The scrub is cancelled in the same task, and the remainder's first
+  // keyframe equals the pose the scrub is showing (same channels, same
+  // easing function), so both style states land in ONE rendering update
+  // with no visible seam. The compiled CSS animation stays suppressed for the whole
+  // flight, exactly as on the plain player path — so the player (via the
+  // finish event here) remains the single live resolver, and the engine's
+  // `animationend` resolver stays dormant ("never a double" is a hard engine
+  // invariant: a duplicate resolution's deferred chain lands on the NEXT
+  // queued task — measured as a fast back's pop completing at ~90ms with no
+  // motion). Returns false when the environment refuses — the track then
+  // stays scrubbed for its whole flight, the pre-handoff behavior.
+  function tryHandOff(taskId: string, player: Player, track: Track, currentTimeMs: number) {
+    const el = track.element;
+    const delayMs = Math.max(0, track.motion.delay * 1000);
+    const durationMs = Math.max(0, track.motion.duration * 1000);
+    const remainingDelayMs = Math.max(0, delayMs - currentTimeMs);
+    const activeElapsedMs = Math.max(0, currentTimeMs - delayMs);
+    const remainderMs = durationMs - activeElapsedMs;
+    if (remainderMs <= 0) {
+      track.handoff = false;
+      return false;
+    }
+    const plan = track.remainderPlan;
+    if (!plan) {
+      track.handoff = false;
+      return false;
+    }
+    const ease = trackEasing(track);
+    const startProgress = durationMs > 0 ? activeElapsedMs / durationMs : 0;
+    if (!(1 - ease(startProgress) > 1e-3)) {
+      // The remaining eased span is imperceptible: let the scrub finish.
+      track.handoff = false;
+      return false;
+    }
+    let remainder: Animation;
+    try {
+      remainder = el.animate(buildRemainderKeyframes(plan, ease, startProgress), {
+        duration: remainderMs,
+        delay: remainingDelayMs,
+        easing: "linear",
+        fill: "both"
+      });
+    } catch {
+      track.handoff = false;
+      return false;
+    }
+    track.scrub!.cancel();
+    // The remainder takes over the scrub's slot so every existing teardown
+    // (detach, dispose) cancels the LIVE animation and its fill.
+    track.scrub = remainder;
+    track.handedOff = true;
+    remainder.onfinish = () => {
+      if (track.completed || track.detached) return;
+      track.completed = true;
+      track.onComplete?.();
+      if (players.get(taskId) !== player) return;
+      if (player.tracks.every((t) => t.completed || t.detached)) {
+        endPolicyRun(player);
+        players.delete(taskId);
+      }
+    };
+    // On-device diagnostics: handoff moments, mirrored like the frame gaps.
+    if (typeof window !== "undefined") {
+      const log = ((window as { __flemoHandoffs?: number[] }).__flemoHandoffs ??= []);
+      log.push(Math.round(currentTimeMs));
+      if (log.length > 100) log.splice(0, log.length - 100);
+    }
+    return true;
+  }
+
   function stepPlayer(taskId: string, player: Player, time: number) {
     // This frame's anchor. `??` (not `||`) so a legitimate t0 of 0 stays 0.
     let startTime = player.startTime ?? time;
@@ -604,36 +921,74 @@ export const createTransitionPlayerRegistry = (
       // makes that guarantee structural, not incidental.
       driverPolicy.reportGap(gap);
       registry.onFrameGap?.(gap);
-      // Re-anchor across a main-thread stall (see MAX_CLOCK_STEP_MS): push the
-      // anchor forward by the excess so progress resumes at most two frames
-      // past where it stalled rather than leaping ahead — the animation plays
-      // every value of its authored curve, just late. Scrub-WAAPI tracks
-      // derive currentTime from this same startTime, so they re-anchor with
-      // it automatically.
-      if (gap > MAX_CLOCK_STEP_MS) {
-        startTime += gap - MAX_CLOCK_STEP_MS;
+      if (gap >= MIN_FRAME_INTERVAL_MS && gap <= NOMINAL_FRAME_MS * PASS_THROUGH_FRAMES) {
+        player.recentGaps.push(gap);
+        if (player.recentGaps.length > 7) player.recentGaps.shift();
+        const sorted = [...player.recentGaps].sort((a, b) => a - b);
+        const median = sorted[Math.floor(sorted.length / 2)]!;
+        player.frameIntervalMs = Math.min(
+          NOMINAL_FRAME_MS,
+          Math.max(MIN_FRAME_INTERVAL_MS, median)
+        );
+      }
+      // Re-anchor across a main-thread stall (see PASS_THROUGH_FRAMES):
+      // beyond ordinary jitter the clock advances exactly ONE display frame,
+      // so the resume step matches a normal frame's step — no velocity
+      // discontinuity. Scrub-WAAPI tracks derive currentTime from this same
+      // startTime, so they re-anchor with it automatically.
+      if (gap > PASS_THROUGH_FRAMES * player.frameIntervalMs) {
+        startTime += gap - player.frameIntervalMs;
       }
     }
     player.startTime = startTime;
     player.lastTime = time;
 
     let allDone = true;
+    let needsFrame = false;
     for (const track of player.tracks) {
       if (track.completed || track.detached) continue;
       const durationMs = track.motion.duration * 1000;
       const delayMs = track.motion.delay * 1000;
       const elapsed = time - startTime;
+      // Perceptual tail cut, on the player's own capped clock (a stall
+      // shifts startTime, so the cut shifts with presentation — the wall-
+      // clock hazard the compiled path had to disarm for never exists
+      // here). Past the navigation's cut every remaining value is inside
+      // the imperceptibility band: complete now, and the COMPLETED flip's
+      // rest snap is sub-pixel by construction.
+      if (player.navCutMs !== null && elapsed >= player.navCutMs) {
+        track.completed = true;
+        track.onComplete?.();
+        continue;
+      }
 
       if (track.scrub) {
+        // A handed-off track is the browser's: no writes, no frames — its
+        // finish event completes it (tryHandOff).
+        if (track.handedOff) {
+          allDone = false;
+          continue;
+        }
         // The browser interpolates; we only advance its clock. Raw (uneased)
         // time — the easing lives in the animation's own timing function.
         const totalMs = delayMs + durationMs;
-        track.scrub.currentTime = Math.min(Math.max(0, elapsed), totalMs);
+        const currentTimeMs = Math.min(Math.max(0, elapsed), totalMs);
+        if (
+          track.handoff &&
+          elapsed >= HANDOFF_MS &&
+          elapsed < totalMs &&
+          tryHandOff(taskId, player, track, currentTimeMs)
+        ) {
+          allDone = false;
+          continue;
+        }
+        track.scrub.currentTime = currentTimeMs;
         if (elapsed >= totalMs) {
           track.completed = true;
           track.onComplete?.();
         } else {
           allDone = false;
+          needsFrame = true;
         }
         continue;
       }
@@ -646,12 +1001,20 @@ export const createTransitionPlayerRegistry = (
         track.onComplete?.();
       } else {
         allDone = false;
+        needsFrame = true;
       }
     }
 
     if (allDone) {
-      driverPolicy.endRun();
+      endPolicyRun(player);
       players.delete(taskId);
+      return;
+    }
+    if (!needsFrame) {
+      // Every remaining track is handed off: the browser presents, finish
+      // events complete. Stop the loop — from here a main-thread gap is not
+      // a presentation gap, so the run's stall evidence is complete too.
+      endPolicyRun(player);
       return;
     }
     scheduleFrame(taskId, player);

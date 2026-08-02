@@ -225,11 +225,14 @@ export const createDriverPolicy = (
   };
 };
 
-// Engine-scoped default (see the file header): Blink runs the compiled
-// compositor path; everything else runs the player, non-demotable — the
-// compiled path is the freeze-and-jump tier there, never a refuge.
-const driverPolicy = detectBlinkEngine()
-  ? createDriverPolicy()
-  : createDriverPolicy(defaultStorage(), true, false);
+// Engine-scoped default: the PLAYER everywhere (see the file header — it
+// was born on Blink, where compositor-driven animations miss presentation
+// deadlines on raster-heavy layers; the 2026-08 WebKit campaign then made
+// it the only reliable opening there too). What differs per engine is the
+// FALLBACK: on Blink the compiled path composites healthily, so a device
+// whose main thread chronically starves the player DEMOTES to it (the
+// probation cycle above); on non-Blink the compiled tier is the
+// freeze-and-jump tier — never a refuge — so demotion stays off.
+const driverPolicy = createDriverPolicy(defaultStorage(), true, detectBlinkEngine());
 
 export default driverPolicy;

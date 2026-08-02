@@ -163,7 +163,9 @@ const transformPart = (prop: string, value: string): string => {
 // how targetToDecls emits them. Used by the React layer to mirror exactly the
 // properties a transition can write, so a ride-along shared bar tracks
 // arbitrary author-defined CSS, not just transform/opacity.
-export const collectAnimatedProperties = (transition: Transition): string[] => {
+export const collectAnimatedProperties = (
+  transition: Pick<Transition, "initial" | "variants">
+): string[] => {
   // A property held CONSTANT across every target (same formatted value in
   // `initial` and all variants — e.g. cupertino's leading-edge shadow) never
   // interpolates, so it must not appear here: it would leak into `will-change`

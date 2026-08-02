@@ -65,40 +65,34 @@ describe("peakTranslationPxPerFrame", () => {
 });
 
 describe("classifyTransitionDriver", () => {
-  it("classifies a fast slide as native", () => {
-    expect(classifyTransitionDriver(cupertino, "PUSHING", BOX)).toBe("native");
-    expect(classifyTransitionDriver(cupertino, "POPPING", BOX)).toBe("native");
-  });
+  // The default is the PLAYER on every engine (see the module comment: on
+  // WebKit the compiled clock's stamp-to-glass pipeline ages every cold
+  // flight's opening; the player is immune by construction). Blink
+  // expectations stub the probe only to prove engine-independence.
+  const asBlink = <T>(run: () => T): T => {
+    const nav = navigator as { userAgentData?: unknown };
+    nav.userAgentData = { brands: [] };
+    try {
+      return run();
+    } finally {
+      delete nav.userAgentData;
+    }
+  };
 
-  it("classifies a fade as player", () => {
+  it("every kind rides the player by default, on every engine", () => {
     const fade = custom({ initial: { opacity: 0 }, enter: { opacity: 1 } });
-    expect(classifyTransitionDriver(fade, "REPLACING", BOX)).toBe("player");
-  });
-
-  it("classifies a slow drift as player", () => {
-    // 24px over 0.35s ≈ 1.1 px/frame mean — far under the boundary even at
-    // its easing peak.
-    const drift = custom({ initial: { x: 24, opacity: 0 }, enter: { x: 0, opacity: 1 } });
-    expect(classifyTransitionDriver(drift, "REPLACING", BOX)).toBe("player");
-  });
-
-  it("one fast participant makes the whole navigation native", () => {
-    // Active side fades in place, passive side sweeps 100%: one driver for
-    // the pair, decided by the fastest participant.
-    const mixed = custom({
-      initial: { x: 0, opacity: 0 },
-      enter: { x: 0, opacity: 1 },
-      exit: { x: "-100%" }
-    });
-    expect(classifyTransitionDriver(mixed, "PUSHING", BOX)).toBe("native");
-  });
-
-  it("an unanalyzable choreography keeps the player", () => {
     const weird = custom({ initial: { x: "calc(100% - 20px)" }, enter: { x: 0 } });
+    expect(classifyTransitionDriver(cupertino, "PUSHING", BOX)).toBe("player");
+    expect(classifyTransitionDriver(cupertino, "POPPING", BOX)).toBe("player");
+    expect(classifyTransitionDriver(fade, "REPLACING", BOX)).toBe("player");
     expect(classifyTransitionDriver(weird, "PUSHING", BOX)).toBe("player");
+    asBlink(() => {
+      expect(classifyTransitionDriver(cupertino, "PUSHING", BOX)).toBe("player");
+      expect(classifyTransitionDriver(fade, "REPLACING", BOX)).toBe("player");
+    });
   });
 
-  it("an authored driver overrides the measurement both ways", () => {
+  it("an authored driver overrides the default both ways", () => {
     const pinnedPlayer = custom({ initial: { x: "100%" }, enter: { x: 0 } }, { driver: "player" });
     const pinnedNative = custom(
       { initial: { opacity: 0 }, enter: { opacity: 1 } },
@@ -106,11 +100,9 @@ describe("classifyTransitionDriver", () => {
     );
     expect(classifyTransitionDriver(pinnedPlayer, "PUSHING", BOX)).toBe("player");
     expect(classifyTransitionDriver(pinnedNative, "REPLACING", BOX)).toBe("native");
-  });
-
-  it("a zero-size box classifies as player (nothing measurably moves)", () => {
-    expect(
-      classifyTransitionDriver(cupertino, "PUSHING", { clientWidth: 0, clientHeight: 0 })
-    ).toBe("player");
+    asBlink(() => {
+      expect(classifyTransitionDriver(pinnedPlayer, "PUSHING", BOX)).toBe("player");
+      expect(classifyTransitionDriver(pinnedNative, "REPLACING", BOX)).toBe("native");
+    });
   });
 });

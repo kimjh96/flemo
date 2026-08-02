@@ -146,15 +146,21 @@ const SHELL_TEXT_PER_ELEMENT = 3;
 // would call a skeleton. Skeletons are built from boxes, not <img>, so
 // counting each image as content separates them.
 const IMAGE_TEXT_EQUIVALENT = 40;
-// A shell is STRUCTURE without text. Below this it is not a placeholder for
-// anything — a sparse screen, or a test fixture — and nothing is worth
-// waiting for.
-const MIN_SHELL_ELEMENTS = 24;
-
+// A shell is a screen WITHOUT content — a skeleton's structure, or almost
+// nothing at all. An earlier version additionally required a minimum element
+// count (24), reasoning that a near-empty screen is "not a placeholder for
+// anything"; that misread every DEFERRED-skeleton consumer pattern (a
+// skeleton that renders nothing for its first ~300ms to avoid flashing on
+// fast loads — plen's DelayedSkeleton): the cold mount is a handful of empty
+// containers, the gate declared it "warm" and released straight into the
+// reveal render — device-video'd as the member-detail push departing blank
+// and swallowing its opening on the reveal's main-thread block. Content
+// density alone is the right test; a genuinely sparse screen with nothing in
+// flight still exits at the GRACE (see the graceTimer below), which is what
+// actually distinguishes an empty state from a pre-content one.
 const looksLikeShell = (scope: HTMLElement): boolean => {
   if (typeof scope.querySelectorAll !== "function") return false;
-  const elements = scope.querySelectorAll("*").length;
-  if (elements < MIN_SHELL_ELEMENTS) return false;
+  const elements = Math.max(1, scope.querySelectorAll("*").length);
   /* v8 ignore start -- textContent is null only for document nodes. */
   const content =
     (scope.textContent ?? "").trim().length +

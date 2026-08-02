@@ -153,12 +153,21 @@ export {
   type AnimHoldInput,
   type AnimHoldCoordinator
 } from "@screen/animStartAnchor";
+// Engine probe (Blink vs everything else). Public for bindings whose release
+// policy branches per engine — the entry content-settle gate runs only where
+// the compiled (untouched) animation is the driver (non-Blink).
+export { detectBlinkEngine } from "@core/engine/driverPolicy";
 export { default as observeBarHeight } from "@screen/observeBarHeight";
 export { default as observeViewportScrollHeight } from "@screen/observeViewportScrollHeight";
 
 // Compositor warm-up (see the module): also pre-armed by the React binding on
 // pointerdown, so a tap's flight starts on an already-spinning compositor.
 export { default as holdCompositorWarm } from "@core/engine/compositorWarmUp";
+
+// One-shot GPU pipeline prewarm (see the module): front-loads Graphite/Dawn
+// pipeline compilation at boot idle so a cold cache's ~100ms GPU stalls never
+// land inside the first flight.
+export { default as ensureGpuPipelinePrewarm } from "@core/engine/gpuPipelinePrewarm";
 
 // Off-main decode-to-scale for oversized images (WebKit decodes synchronously
 // on the main thread at full source resolution, recurringly; see the module).

@@ -1,10 +1,10 @@
 import animateInline, { clearInlineAnimation } from "@transition/animateInline";
 
-import { collectAnimatedProperties } from "@transition/compileTransitionStyles";
-
 import type { Transition } from "@transition/typing";
 
 import findScrollable from "@utils/findScrollable";
+
+import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
 
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
@@ -149,20 +149,25 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     ridingBars = { current, prev };
 
     // Pre-promote the riding bars so the first inline write doesn't pay layer
-    // creation.
-    const willChange = collectAnimatedProperties(config.getTransition()).join(", ");
-    for (const bar of current) bar.style.willChange = willChange;
-    for (const bar of prev) bar.style.willChange = willChange;
+    // creation. Routed through the settle hold (not a bare style write) so a
+    // swipe starting inside a previous release's settle window cancels the
+    // pending demotion — otherwise that timer would strip `will-change`
+    // mid-drag.
+    for (const bar of current) holdScopeLayer(bar, config.getTransition());
+    for (const bar of prev) holdScopeLayer(bar, config.getTransition());
   };
 
   const releaseRidingBars = () => {
+    // A cancelled swipe has just animated back to rest — dropping the bars'
+    // promotion in this commit would repaint them on the exact settle frames
+    // (see layerSettleHold.ts), so the demotion rides the deferred clock.
     for (const bar of ridingBars.current) {
       clearInlineAnimation(bar);
-      bar.style.removeProperty("will-change");
+      releaseScopeLayerAfterSettle(bar);
     }
     for (const bar of ridingBars.prev) {
       clearInlineAnimation(bar);
-      bar.style.removeProperty("will-change");
+      releaseScopeLayerAfterSettle(bar);
     }
     ridingBars = { current: [], prev: [] };
   };
@@ -307,13 +312,15 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       // POPPING keyframe so it doesn't snap back to its `from` value first.
       scope?.setAttribute(SKIP_ANIMATION_ATTR, "true");
       decorator?.setAttribute(SKIP_ANIMATION_ATTR, "true");
-      // Current-side bars unmount with the current screen via back(); just drop
-      // will-change. Prev-side bars outlive the navigation, so strip the inline
-      // transforms so they don't shadow the next compiled rule.
-      for (const bar of ridingBars.current) bar.style.removeProperty("will-change");
+      // Current-side bars unmount with the current screen via back(). Prev-side
+      // bars outlive the navigation: strip the inline transforms so they don't
+      // shadow the next compiled rule, but demote their layers off-cadence —
+      // the swiped-out landing is a convergence like any other (see
+      // layerSettleHold.ts).
+      for (const bar of ridingBars.current) releaseScopeLayerAfterSettle(bar);
       for (const bar of ridingBars.prev) {
         clearInlineAnimation(bar);
-        bar.style.removeProperty("will-change");
+        releaseScopeLayerAfterSettle(bar);
       }
       ridingBars = { current: [], prev: [] };
       // Current-side part elements unmount with the screen. The previous
