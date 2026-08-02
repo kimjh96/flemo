@@ -41,5 +41,9 @@
   },
   "lint-staged": {
     "*.{js,mjs,ts,jsx,tsx,mts,json,md,mdx}": "prettier --write --ignore-unknown"
-  }
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ]
 }
