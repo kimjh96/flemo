@@ -1,4 +1,4 @@
-import { type ComponentPropsWithRef, type PropsWithChildren } from "react";
+import { useContext, type ComponentPropsWithRef, type PropsWithChildren } from "react";
 
 import { useStore } from "zustand";
 
@@ -7,6 +7,8 @@ import type { PartTransitionName } from "@flemo/core";
 import useScreen from "@screen/useScreen";
 
 import useStores from "@stores/useStores";
+
+import RouterIdContext from "../RouterIdContext";
 
 export interface PartProps extends PropsWithChildren<ComponentPropsWithRef<"div">> {
   // The registered createPartTransition `name` to run on this element.
@@ -20,7 +22,14 @@ export interface PartProps extends PropsWithChildren<ComponentPropsWithRef<"div"
 // right variant matches. Selective by design: only the wrapped child animates,
 // the rest of the bar stays put.
 function Part({ ref, name, style, children, ...props }: PartProps) {
-  const { isActive, isPrev, navigateStore } = useScreen();
+  const { isActive, isPrev, navigateStore, routerId: screenRouterId } = useScreen();
+  // The part's OWNING Router, stamped on the element so the engine can scope
+  // a flight's choreography without structure guesses even for parts OUTSIDE
+  // any screen (a persistent header next to a <Slot>, a portal). Inside a
+  // screen the ENCLOSING screen's owner wins (a part in a nested Router's
+  // chrome belongs to the outer flight); outside one, the nearest Router.
+  const nearestRouterId = useContext(RouterIdContext);
+  const ownerRouterId = screenRouterId ?? nearestRouterId ?? undefined;
 
   // The status must come from the Router that OWNS the enclosing screen. Inside
   // a nested <Router>'s chrome the nearest bundle is the inner Router's, so a
@@ -42,6 +51,7 @@ function Part({ ref, name, style, children, ...props }: PartProps) {
     <div
       ref={ref}
       data-flemo-part-name={name}
+      data-flemo-router={ownerRouterId}
       data-flemo-status={status}
       data-flemo-active={isActive ? "true" : "false"}
       style={style}

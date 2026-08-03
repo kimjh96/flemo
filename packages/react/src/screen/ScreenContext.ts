@@ -18,6 +18,11 @@ export interface ScreenContextProps extends History {
   // nearest bundle is the inner Router's, while the enclosing screen still
   // belongs to the outer one. Absent outside any screen.
   navigateStore?: FlemoStores["navigate"];
+  // The OWNING Router's flight-boundary identity (see RouterIdContext), for
+  // the same nesting reason as navigateStore: a <Part> inside a nested
+  // Router's chrome must carry the ENCLOSING screen's owner, not the nearest
+  // Router's. Absent outside any screen.
+  routerId?: string;
 }
 
 const ScreenContext = createContext<ScreenContextProps>({

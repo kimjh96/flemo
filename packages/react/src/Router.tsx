@@ -40,6 +40,7 @@ import useTransitionStyles from "@transition/styles";
 import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 
 import RouterDepthContext from "./RouterDepthContext";
+import RouterIdContext from "./RouterIdContext";
 import Slot from "./Slot";
 
 import type { RouteProps } from "@Route";
@@ -128,6 +129,10 @@ function Router({
   // Nesting controls ONLY the contained rendering; the history backend is chosen
   // by the `history` prop, independent of depth.
   const depth = useContext(RouterDepthContext);
+  // This Router's flight-boundary identity (see RouterIdContext). useId is
+  // fine here: the marker only needs page-load uniqueness, not cross-restore
+  // stability.
+  const routerId = useId();
   const isNested = depth > 0;
 
   // The history backend. "browser" (the default, even when nested) participates
@@ -349,18 +354,20 @@ function Router({
   // its own keyed driver + guard. A memory Router runs none (its driver's
   // traversals are awaited inline by the controller).
   const content = (
-    <RouterDepthContext.Provider value={depth + 1}>
-      <StoreContext.Provider value={stores}>
-        {!useMemory && <HistoryListener />}
-        {isNested ? (
-          <ScreenViewportContext.Provider value={CONTAINED_VIEWPORT}>
-            {stack}
-          </ScreenViewportContext.Provider>
-        ) : (
-          stack
-        )}
-      </StoreContext.Provider>
-    </RouterDepthContext.Provider>
+    <RouterIdContext.Provider value={routerId}>
+      <RouterDepthContext.Provider value={depth + 1}>
+        <StoreContext.Provider value={stores}>
+          {!useMemory && <HistoryListener />}
+          {isNested ? (
+            <ScreenViewportContext.Provider value={CONTAINED_VIEWPORT}>
+              {stack}
+            </ScreenViewportContext.Provider>
+          ) : (
+            stack
+          )}
+        </StoreContext.Provider>
+      </RouterDepthContext.Provider>
+    </RouterIdContext.Provider>
   );
 
   // A nested region contains its screens to a positioned box (the consumer sizes

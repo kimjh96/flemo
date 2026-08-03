@@ -1,4 +1,5 @@
 import {
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -37,6 +38,8 @@ import useNavigateStore from "@stores/useNavigateStore";
 import useScreenStore from "@stores/useScreenStore";
 import useStores from "@stores/useStores";
 
+import RouterIdContext from "../RouterIdContext";
+
 function ScreenMotion({
   children,
   statusBarHeight,
@@ -63,6 +66,10 @@ function ScreenMotion({
   const screenPosition = contained ? "absolute" : "fixed";
 
   const stores = useStores();
+  // The owning Router's boundary marker (see RouterIdContext) — stamped on
+  // the screen and both shared bars so the engine can scope choreography
+  // participants to this Router's flight.
+  const routerId = useContext(RouterIdContext);
 
   const index = useHistoryStore((state) => state.index);
   const histories = useHistoryStore((state) => state.histories);
@@ -493,7 +500,11 @@ function ScreenMotion({
         // that follows the state commit, and an early compiled start would
         // play a few frames the player then restarts — so the direct flip
         // is for authored `driver: "native"` pins only.
-        const authoredNative = (currentTransition as { driver?: string }).driver === "native";
+        // Read via the latest-ref (not the render closure) so no stale value
+        // and no extra effect dependency: currentTransition is a fresh object
+        // each render, which as a dep would re-run this effect every render.
+        const authoredNative =
+          (swipeEnvRef.current.transition as { driver?: string }).driver === "native";
         if (authoredNative && !detectBlinkEngine()) {
           for (const el of [
             scopeRef.current,
@@ -598,6 +609,7 @@ function ScreenMotion({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         data-flemo-screen
+        data-flemo-router={routerId ?? undefined}
         data-flemo-transition={transitionName}
         data-flemo-status={status}
         data-flemo-active={isActive ? "true" : "false"}
@@ -687,6 +699,7 @@ function ScreenMotion({
         <div
           ref={sharedTopBarRef}
           data-flemo-bar="app"
+          data-flemo-router={routerId ?? undefined}
           data-flemo-bar-transition={transitionName}
           data-flemo-bar-status={status}
           data-flemo-bar-active={isActive ? "true" : "false"}
@@ -707,6 +720,7 @@ function ScreenMotion({
         <div
           ref={sharedBottomBarRef}
           data-flemo-bar="nav"
+          data-flemo-router={routerId ?? undefined}
           data-flemo-bar-transition={transitionName}
           data-flemo-bar-status={status}
           data-flemo-bar-active={isActive ? "true" : "false"}

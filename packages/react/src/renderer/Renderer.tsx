@@ -9,6 +9,8 @@ import ParamsProvider from "@screen/ParamsProvider/ParamsProvider";
 import useHistoryStore from "@stores/useHistoryStore";
 import useStores from "@stores/useStores";
 
+import RouterIdContext from "../RouterIdContext";
+
 import type { RouteProps } from "@Route";
 
 function Renderer({ children }: PropsWithChildren) {
@@ -27,6 +29,8 @@ function Renderer({ children }: PropsWithChildren) {
   // At the root there is no enclosing screen and the default context's
   // isPrev=false leaves the selection untouched.
   const enclosing = useContext(ScreenContext);
+  // This Renderer's Router identity — every screen it mounts is OWNED by it.
+  const routerId = useContext(RouterIdContext);
 
   // Selection (which screens stack, active/prev/zIndex, transition names) is a
   // pure derivation in @flemo/core; React only matches each screen to its Route
@@ -49,6 +53,7 @@ function Renderer({ children }: PropsWithChildren) {
           ...selection,
           isPrev: selection.isPrev || enclosing.isPrev,
           navigateStore: stores.navigate,
+          routerId: routerId ?? undefined,
           routePath: getMatchedPathPattern(
             (child as ReactElement<RouteProps>).props.path,
             selection.pathname

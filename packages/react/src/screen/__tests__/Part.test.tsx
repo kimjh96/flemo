@@ -9,6 +9,8 @@ import ScreenContext, { type ScreenContextProps } from "@screen/ScreenContext";
 import { createTestStores } from "@stores/__tests__/testUtils";
 import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 
+import RouterIdContext from "../../RouterIdContext";
+
 // Part mirrors the screen's status (navigate store) and active flag
 // (ScreenContext) onto its wrapper so the compiled bar-transition keyframes
 // match the right variant. Drive both with a thin harness.
@@ -149,5 +151,62 @@ describe("Part", () => {
       owningStores.navigate.setState({ status: "COMPLETED", transitionTaskId: null });
     });
     expect(el?.getAttribute("data-flemo-status")).toBe("COMPLETED");
+  });
+});
+
+describe("Part owner Router marker", () => {
+  it("inside a screen, carries the ENCLOSING screen's owner — not the nearest Router", () => {
+    const screen: ScreenContextProps = {
+      id: "screen-1",
+      isActive: true,
+      isRoot: false,
+      isPrev: false,
+      zIndex: 0,
+      pathname: "/a",
+      params: {},
+      transitionName: "cupertino",
+      prevTransitionName: "cupertino",
+      layoutId: null,
+      routePath: "/a",
+      navigateStore: stores.navigate,
+      routerId: "outer-router"
+    };
+    const { container } = render(
+      createElement(
+        StoreContext.Provider,
+        { value: stores },
+        createElement(
+          ScreenContext.Provider,
+          { value: screen },
+          // A nested Router's chrome: the NEAREST RouterIdContext is the
+          // inner one, but the part belongs to the outer flight.
+          createElement(
+            RouterIdContext.Provider,
+            { value: "inner-router" },
+            createElement(Part, { name: "p" as never })
+          )
+        )
+      )
+    );
+    expect(
+      container.querySelector("[data-flemo-part-name]")!.getAttribute("data-flemo-router")
+    ).toBe("outer-router");
+  });
+
+  it("outside any screen (persistent chrome), falls back to the nearest Router", () => {
+    const { container } = render(
+      createElement(
+        StoreContext.Provider,
+        { value: stores },
+        createElement(
+          RouterIdContext.Provider,
+          { value: "the-router" },
+          createElement(Part, { name: "p" as never })
+        )
+      )
+    );
+    expect(
+      container.querySelector("[data-flemo-part-name]")!.getAttribute("data-flemo-router")
+    ).toBe("the-router");
   });
 });
