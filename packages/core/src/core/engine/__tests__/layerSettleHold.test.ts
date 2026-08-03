@@ -83,14 +83,16 @@ describe("layerSettleHold", () => {
     expect(scope.style.willChange).toBe("transform");
   });
 
-  it("a re-release replaces the pending timer instead of stacking", () => {
+  it("a duplicate release from the same owner is a no-op (no stack, no reset)", () => {
     const scope = document.createElement("div");
     holdScopeLayer(scope, cupertino());
-    releaseScopeLayerAfterSettle(scope);
+    releaseScopeLayerAfterSettle(scope); // schedules the settle demote at +300
     vi.advanceTimersByTime(LAYER_SETTLE_MS - 50);
+    // The owner already let go; a second release must NOT reset the window or
+    // stack a second timer — the demote still lands 300ms after the FIRST.
     releaseScopeLayerAfterSettle(scope);
-    // The fresh window counts from the second release.
-    vi.advanceTimersByTime(LAYER_SETTLE_MS - 1);
+    expect(vi.getTimerCount()).toBe(1);
+    vi.advanceTimersByTime(49);
     expect(scope.style.willChange).toBe("transform");
     vi.advanceTimersByTime(1);
     expect(scope.style.willChange).toBe("");
@@ -120,6 +122,192 @@ describe("layerSettleHold", () => {
     expect(scope.style.contain).toBe("");
     vi.advanceTimersByTime(LAYER_SETTLE_MS * 2);
     expect(scope.style.willChange).toBe("transform");
+  });
+
+  it("an ANIMATION-LESS re-hold restores a stale containment pin immediately", () => {
+    const scope = document.createElement("div");
+    // A push stamps promotion + containment.
+    holdScopeLayer(scope, cupertino(), true);
+    expect(scope.style.contain).toBe("layout");
+    releaseScopeLayerAfterSettle(scope);
+    // A rehold whose variant animates NOTHING (properties empty) previously
+    // early-returned, leaving push's contain:layout stuck on the element for
+    // the whole next flight. It must restore the element now.
+    const still = createTransition({
+      name: "layer-hold-still-2" as never,
+      initial: {},
+      idle: { value: {}, options: { duration: 0 } },
+      enter: { value: {}, options: { duration: 0.3 } },
+      enterBack: { value: {}, options: { duration: 0.3 } },
+      exit: { value: {}, options: { duration: 0.3 } },
+      exitBack: { value: {}, options: { duration: 0.3 } }
+    });
+    holdScopeLayer(scope, still, false);
+    expect(scope.style.willChange).toBe("");
+    expect(scope.style.contain).toBe("");
+  });
+
+  it("COMPOSES with the element's OWN inline will-change/contain during the flight", () => {
+    const scope = document.createElement("div");
+    // Consumer authored these on the same element flemo promotes. Their
+    // semantics must SURVIVE the flight (paint keeps clipping overflow, the
+    // filter promotion stays), not be replaced for its span.
+    scope.style.willChange = "filter";
+    scope.style.contain = "paint";
+    holdScopeLayer(scope, cupertino(), true);
+    expect(scope.style.willChange).toContain("filter");
+    expect(scope.style.willChange).toContain("transform");
+    expect(scope.style.contain).toBe("paint layout");
+    releaseScopeLayerAfterSettle(scope);
+    vi.advanceTimersByTime(LAYER_SETTLE_MS);
+    // Released to the CONSUMER's original values, not deleted.
+    expect(scope.style.willChange).toBe("filter");
+    expect(scope.style.contain).toBe("paint");
+  });
+
+  it("keeps a strict/content containment as-is (layout already implied)", () => {
+    const scope = document.createElement("div");
+    scope.style.contain = "strict";
+    holdScopeLayer(scope, cupertino(), true);
+    expect(scope.style.contain).toBe("strict"); // no redundant token appended
+    releaseScopeLayerAfterSettle(scope);
+    vi.advanceTimersByTime(LAYER_SETTLE_MS);
+    expect(scope.style.contain).toBe("strict");
+  });
+
+  it("a PAST owner from an earlier settle window has no rights over the current one", () => {
+    const scope = document.createElement("div");
+    const A = Symbol("owner-A");
+    const B = Symbol("owner-B");
+    // A's window: hold, release (pending scheduled under A).
+    holdScopeLayer(scope, cupertino(), false, A);
+    releaseScopeLayerAfterSettle(scope, A);
+    // B re-promotes inside A's window (legit: the layer is needed again),
+    // then releases — the CURRENT window is B's now.
+    holdScopeLayer(scope, cupertino(), false, B);
+    releaseScopeLayerAfterSettle(scope, B);
+    vi.advanceTimersByTime(100);
+    // A (whose window ended when B re-promoted) comes back with an
+    // animation-less hold: it must NOT cancel B's timer or demote early.
+    const still = createTransition({
+      name: "layer-hold-still-4" as never,
+      initial: {},
+      idle: { value: {}, options: { duration: 0 } },
+      enter: { value: {}, options: { duration: 0.3 } },
+      enterBack: { value: {}, options: { duration: 0.3 } },
+      exit: { value: {}, options: { duration: 0.3 } },
+      exitBack: { value: {}, options: { duration: 0.3 } }
+    });
+    holdScopeLayer(scope, still, false, A);
+    expect(scope.style.willChange).toBe("transform"); // B's window intact
+    vi.advanceTimersByTime(LAYER_SETTLE_MS - 100);
+    expect(scope.style.willChange).toBe(""); // B's own clock demotes it
+  });
+
+  it("a STRANGER's animation-less hold never cancels another owner's settle timer", () => {
+    const scope = document.createElement("div");
+    const A = Symbol("owner-A");
+    const B = Symbol("owner-B");
+    holdScopeLayer(scope, cupertino(), true, A);
+    releaseScopeLayerAfterSettle(scope, A); // A's settle window is running
+    const still = createTransition({
+      name: "layer-hold-still-3" as never,
+      initial: {},
+      idle: { value: {}, options: { duration: 0 } },
+      enter: { value: {}, options: { duration: 0.3 } },
+      enterBack: { value: {}, options: { duration: 0.3 } },
+      exit: { value: {}, options: { duration: 0.3 } },
+      exitBack: { value: {}, options: { duration: 0.3 } }
+    });
+    // B never held this element; its animation-less hold must be a strict
+    // no-op — NOT an immediate demote on A's convergence frames.
+    holdScopeLayer(scope, still, false, B);
+    expect(scope.style.willChange).toBe("transform"); // A's deferral intact
+    vi.advanceTimersByTime(LAYER_SETTLE_MS);
+    expect(scope.style.willChange).toBe(""); // A's own clock demotes it
+  });
+
+  it("refcounts overlapping owners: demotes only after the LAST releases", () => {
+    const bar = document.createElement("div");
+    const A = Symbol("owner-A");
+    const B = Symbol("owner-B");
+    holdScopeLayer(bar, cupertino(), false, A);
+    holdScopeLayer(bar, cupertino(), false, B);
+    expect(bar.style.willChange).toBe("transform");
+    // Owner A releases; B is still flying → the layer must survive the window.
+    releaseScopeLayerAfterSettle(bar, A);
+    vi.advanceTimersByTime(LAYER_SETTLE_MS * 2);
+    expect(bar.style.willChange).toBe("transform");
+    // B releases → now the settle window runs and demotes.
+    releaseScopeLayerAfterSettle(bar, B);
+    vi.advanceTimersByTime(LAYER_SETTLE_MS - 1);
+    expect(bar.style.willChange).toBe("transform");
+    vi.advanceTimersByTime(1);
+    expect(bar.style.willChange).toBe("");
+  });
+
+  it("a release from an owner that never held is a no-op for other owners", () => {
+    const bar = document.createElement("div");
+    const A = Symbol("owner-A");
+    const B = Symbol("owner-B");
+    holdScopeLayer(bar, cupertino(), false, A);
+    // B never held this bar (its variant animated nothing); releasing under B
+    // must not demote A's still-active layer.
+    releaseScopeLayerAfterSettle(bar, B);
+    vi.advanceTimersByTime(LAYER_SETTLE_MS * 2);
+    expect(bar.style.willChange).toBe("transform");
+  });
+
+  it("composes two owners' DIFFERENT requirements as a union, not last-writer", () => {
+    const bar = document.createElement("div");
+    const A = Symbol("owner-A");
+    const B = Symbol("owner-B");
+    // Owner A wants transform (+ containment); owner B wants a filter-animating
+    // transition (no containment). The applied will-change must be the UNION.
+    const filterTx = createTransition({
+      name: "layer-hold-filter" as never,
+      initial: { filter: "blur(4px)" },
+      idle: { value: { filter: "blur(0px)" }, options: { duration: 0 } },
+      enter: { value: { filter: "blur(0px)" }, options: { duration: 0.3 } },
+      enterBack: { value: { filter: "blur(4px)" }, options: { duration: 0.3 } },
+      exit: { value: { filter: "blur(4px)" }, options: { duration: 0.3 } },
+      exitBack: { value: { filter: "blur(0px)" }, options: { duration: 0.3 } }
+    });
+    holdScopeLayer(bar, cupertino(), true, A);
+    holdScopeLayer(bar, filterTx, false, B);
+    expect(bar.style.willChange).toContain("transform");
+    expect(bar.style.willChange).toContain("filter");
+    expect(bar.style.contain).toBe("layout"); // OR of containment: A wants it
+
+    // A (the containment owner) releases: the union recomputes to B's filter
+    // only, and containment drops — but the layer survives on B.
+    releaseScopeLayerAfterSettle(bar, A);
+    expect(bar.style.willChange).toBe("filter");
+    expect(bar.style.contain).toBe("");
+    vi.advanceTimersByTime(LAYER_SETTLE_MS * 2);
+    expect(bar.style.willChange).toBe("filter"); // B still flying, no demote
+
+    // B releases → last owner → settle demote.
+    releaseScopeLayerAfterSettle(bar, B);
+    vi.advanceTimersByTime(LAYER_SETTLE_MS);
+    expect(bar.style.willChange).toBe("");
+  });
+
+  it("two engine instances on one bar refcount independently (nested Routers)", () => {
+    // Regression: module-global owner tokens collapsed two engine instances
+    // into ONE holder, so the first to finish demoted the shared bar out from
+    // under the other. Distinct per-instance owners must refcount.
+    const bar = document.createElement("div");
+    const routerA = Symbol("engine-A");
+    const routerB = Symbol("engine-B");
+    holdScopeLayer(bar, cupertino(), false, routerA);
+    holdScopeLayer(bar, cupertino(), false, routerB);
+    releaseScopeLayerAfterSettle(bar, routerA); // A's flight ends first
+    vi.advanceTimersByTime(LAYER_SETTLE_MS * 2);
+    expect(bar.style.willChange).toBe("transform"); // B still holds it
+    releaseScopeLayerAfterSettle(bar, routerB);
+    vi.advanceTimersByTime(LAYER_SETTLE_MS);
+    expect(bar.style.willChange).toBe("");
   });
 });
 

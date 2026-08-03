@@ -61,56 +61,179 @@ import type { Transition } from "@transition/typing";
 // forced frame cadence while nothing moves.
 export const LAYER_SETTLE_MS = 300;
 
-// Pending releases, keyed per element: a re-hold cancels its element's timer
-// (the layer stays), and an unmounted element's entry is GC'd with it.
-const pendingRelease = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
+// Per-element stamp record. `owners` maps each independent holder (an engine
+// transition, a swipe gesture — both promote riding bars, and their holds can
+// overlap; NESTED Routers each hold with their own instance token) to WHAT it
+// requires: the property list it wants promoted and whether it wants
+// containment. The applied `will-change` is the UNION of every owner's
+// properties and the applied `contain` is the OR of their containment, so two
+// owners wanting different things (transform vs filter) compose instead of
+// clobbering. `willChange`/`contain` are the element's OWN inline values
+// captured before the FIRST owner stamped, restored verbatim once the LAST
+// owner releases — so a consumer's inline `will-change: filter` or
+// `contain: paint` is never destroyed. The GC drops an unmounted element's
+// record with it.
+interface OwnerRequirement {
+  properties: string[];
+  containment: boolean;
+}
+interface LayerStamp {
+  owners: Map<symbol, OwnerRequirement>;
+  // The owner whose release scheduled the CURRENT pending demotion (null
+  // while any owner still holds, or after a re-promotion voided the window).
+  // Distinguishes THAT owner's animation-less re-hold — its own settle
+  // window, its own stale pin, restore NOW — from everyone else's, which
+  // must not touch the scheduled demotion. A single token, not an
+  // accumulated set: a PAST owner from an earlier window (A held, released,
+  // B re-held and released) has no rights over B's window — an accumulated
+  // set would have let A cancel B's timer and demote early.
+  settleOwner: symbol | null;
+  willChange: string;
+  contain: string;
+  pending: ReturnType<typeof setTimeout> | null;
+}
+const stamps = new WeakMap<HTMLElement, LayerStamp>();
 
-// Pin the compiled rule's promotion inline for the flight. Idempotent — the
-// driver effect re-runs mid-flight (the anim-hold release) and re-stamps the
-// same value. A definition that animates nothing leaves no stamp (the
-// compiled rule has no `will-change` either — stamping would ADD a layer the
-// CSS path never made). `containment` mirrors the rule's `contain: layout`
-// (PUSHING/REPLACING only); a false re-hold strips a stale pin so a pop
-// flight never inherits push's containment (pop's rules omit it — measured
-// cost, see compileTransitionStyles).
-export const holdScopeLayer = (
-  scope: HTMLElement,
-  transitionLike: Pick<Transition, "initial" | "variants">,
-  containment = false
-) => {
-  const pending = pendingRelease.get(scope);
-  if (pending !== undefined) {
-    clearTimeout(pending);
-    pendingRelease.delete(scope);
-  }
-  const properties = collectAnimatedProperties(transitionLike);
-  if (properties.length === 0) return;
-  scope.style.willChange = properties.join(", ");
-  if (containment) scope.style.contain = "layout";
+// The default owner for callers that don't distinguish holders (single-owner
+// use). The engine and swipe controller pass their own PER-INSTANCE tokens so
+// two nested Routers on one shared bar refcount independently.
+const DEFAULT_OWNER = Symbol("flemo-layer-owner");
+
+const restoreLayer = (scope: HTMLElement, stamp: LayerStamp) => {
+  if (stamp.willChange) scope.style.willChange = stamp.willChange;
+  else scope.style.removeProperty("will-change");
+  if (stamp.contain) scope.style.contain = stamp.contain;
   else scope.style.removeProperty("contain");
 };
 
-// Release the pinned layer on its own clock, off the convergence commits. A
-// scope that was never stamped (or already released) is a no-op, so calling
-// this from every COMPLETED path is always safe.
-export const releaseScopeLayerAfterSettle = (scope: HTMLElement) => {
-  if (scope.style.willChange === "" && scope.style.contain === "") return;
-  const pending = pendingRelease.get(scope);
-  if (pending !== undefined) clearTimeout(pending);
+// Compose the applied `contain` from the element's ORIGINAL value and the
+// owners' layout requirement. The original's own semantics (a consumer's
+// `contain: paint` clipping child overflow) must SURVIVE the flight, not be
+// replaced for its span — so the original tokens stay and `layout` is added
+// only when missing (`strict`/`content` already imply it).
+const composeContain = (original: string, needsLayout: boolean): string => {
+  const base = original.trim() === "none" ? "" : original.trim();
+  if (!needsLayout) return base;
+  if (!base) return "layout";
+  if (/\b(layout|strict|content)\b/.test(base)) return base;
+  return `${base} layout`;
+};
+
+// Apply the union of every current owner's requirements over the element's
+// captured original values. The original inline `will-change` tokens ride
+// along too (a consumer's `will-change: filter` keeps its promotion during a
+// transform flight instead of losing it for the span).
+const applyUnion = (scope: HTMLElement, stamp: LayerStamp) => {
+  const properties = new Set<string>();
+  let containment = false;
+  for (const token of stamp.willChange.split(",")) {
+    const trimmed = token.trim();
+    if (trimmed && trimmed !== "auto") properties.add(trimmed);
+  }
+  for (const requirement of stamp.owners.values()) {
+    for (const property of requirement.properties) properties.add(property);
+    if (requirement.containment) containment = true;
+  }
+  // Every owner in the map has a non-empty property list (an animation-less
+  // hold removes its entry), so the union is non-empty whenever owners exist.
+  scope.style.willChange = [...properties].join(", ");
+  const contain = composeContain(stamp.contain, containment);
+  if (contain) scope.style.contain = contain;
+  else scope.style.removeProperty("contain");
+};
+
+// Pin the compiled rule's promotion inline for the flight. Idempotent per
+// owner — the driver effect re-runs mid-flight (the anim-hold release) and
+// re-stamps the same requirement. A definition that animates nothing leaves
+// no stamp (the compiled rule has no `will-change` either — stamping would
+// ADD a layer the CSS path never made), and if THIS owner had previously
+// stamped (a rehold into an animation-less variant) its requirement is
+// dropped and the union recomputed — so its stale properties/containment
+// never bleed into the animation-less flight. `containment` mirrors the
+// rule's `contain: layout` (PUSHING/REPLACING only).
+export const holdScopeLayer = (
+  scope: HTMLElement,
+  transitionLike: Pick<Transition, "initial" | "variants">,
+  containment = false,
+  owner: symbol = DEFAULT_OWNER
+) => {
+  const properties = collectAnimatedProperties(transitionLike);
+  let stamp = stamps.get(scope);
+  if (properties.length === 0) {
+    // Nothing to promote for this owner. Only an owner with a CURRENT stake
+    // or a FORMER one (its own settle window — a push landing into an
+    // animation-less pop must not carry push's stale containment) may mutate
+    // the stamp here. A STRANGER's animation-less hold is a strict no-op: a
+    // pending settle timer exists exactly when the owners map is empty, and
+    // letting a stranger reach in would cancel another owner's scheduled
+    // demotion and demote the layer immediately — on the very convergence
+    // frames the deferral protects.
+    if (!stamp) return;
+    if (stamp.owners.has(owner)) {
+      stamp.owners.delete(owner);
+      if (stamp.owners.size === 0) {
+        if (stamp.pending != null) clearTimeout(stamp.pending);
+        restoreLayer(scope, stamp);
+        stamps.delete(scope);
+      } else {
+        applyUnion(scope, stamp); // recompute without this owner's stake
+      }
+    } else if (owner === stamp.settleOwner && stamp.owners.size === 0) {
+      if (stamp.pending != null) clearTimeout(stamp.pending);
+      restoreLayer(scope, stamp);
+      stamps.delete(scope);
+    }
+    return;
+  }
+  // A real promotion legitimately cancels a pending demotion from ANY owner:
+  // the element is becoming a layer again, so the demote-repromote round
+  // trip the settle window exists to avoid would be pure waste.
+  if (stamp?.pending != null) {
+    clearTimeout(stamp.pending);
+    stamp.pending = null;
+  }
+  if (!stamp) {
+    stamp = {
+      owners: new Map(),
+      settleOwner: null,
+      willChange: scope.style.willChange,
+      contain: scope.style.contain,
+      pending: null
+    };
+    stamps.set(scope, stamp);
+  }
+  stamp.owners.set(owner, { properties, containment });
+  stamp.settleOwner = null; // a re-promotion voids the previous settle window
+  applyUnion(scope, stamp);
+};
+
+// Release this owner's hold. When OTHER owners remain, the union recomputes
+// without this owner (the element stays a layer via the survivors, so no
+// demote-repaint) and the layer lives on. When it was the LAST owner, the
+// element is demoted on its own clock — LAYER_SETTLE_MS after release, off
+// the convergence commits — and restored to its captured original values. A
+// scope this owner never stamped is a no-op, so calling this from every
+// COMPLETED path is always safe.
+export const releaseScopeLayerAfterSettle = (scope: HTMLElement, owner: symbol = DEFAULT_OWNER) => {
+  const stamp = stamps.get(scope);
+  if (!stamp || !stamp.owners.has(owner)) return;
+  stamp.owners.delete(owner);
+  if (stamp.owners.size > 0) {
+    applyUnion(scope, stamp); // survivors keep the element a layer
+    return;
+  }
+  stamp.settleOwner = owner; // this owner's window: it alone may cut it short
+  if (stamp.pending != null) clearTimeout(stamp.pending);
   /* v8 ignore next 5 -- setTimeout exists in every runtime under test; the
      guard shields exotic embedders, where an immediate demotion is simply
      the pre-hold behavior. */
   if (typeof setTimeout !== "function") {
-    scope.style.removeProperty("will-change");
-    scope.style.removeProperty("contain");
+    restoreLayer(scope, stamp);
+    stamps.delete(scope);
     return;
   }
-  pendingRelease.set(
-    scope,
-    setTimeout(() => {
-      pendingRelease.delete(scope);
-      scope.style.removeProperty("will-change");
-      scope.style.removeProperty("contain");
-    }, LAYER_SETTLE_MS)
-  );
+  stamp.pending = setTimeout(() => {
+    restoreLayer(scope, stamp);
+    stamps.delete(scope);
+  }, LAYER_SETTLE_MS);
 };

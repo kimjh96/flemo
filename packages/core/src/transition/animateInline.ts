@@ -9,66 +9,122 @@ import driverPolicy from "@core/engine/driverPolicy";
 const isHTMLElement = (target: unknown): target is HTMLElement =>
   typeof HTMLElement !== "undefined" && target instanceof HTMLElement;
 
-// Track every CSS property animateInline has written to a given element, so
-// `clearInlineAnimation` can strip exactly that surface, regardless of which
-// transition (built-in or custom) owns the property. Without this, the
-// default-branch cleanup only stripped transform + opacity, leaking any other
-// animated property (e.g., `filter` on the playground's `blur` transition).
-const inlineWrites = new WeakMap<HTMLElement, Set<string>>();
+// A LEASE over every CSS property animateInline (or the engine) has written to
+// a given element: property → the element's OWN inline value BEFORE flemo
+// first wrote it ("" when it had none) plus the set of WRITERS currently
+// staked on it. `clearInlineAnimation` RESTORES the captured value rather
+// than blindly deleting the property, so a consumer's own inline
+// `animation-delay: 0.2s` survives a transition that temporarily overwrote it
+// — and a stale write from a superseded transition is cleaned by restoring
+// the original, never inherited by the next one.
+//
+// WHY writers are tracked: two independent drivers can write the same
+// property on the same element — a swipe gesture's release settle and the
+// engine's player both drive a shared bar's transform when a navigation
+// starts right after a cancelled swipe. A single-owner lease let whichever
+// finished FIRST restore the original out from under the still-animating
+// other (a visible snap to rest). An owner-scoped clear removes only that
+// writer's stake and restores only when the LAST stake is gone; a clear with
+// NO owner is the force form — the final authority (the engine's COMPLETED
+// flip, the player's own teardown), where the flight is over by definition.
+interface InlineLease {
+  original: string;
+  owners: Set<symbol>;
+}
+const inlineLeases = new WeakMap<HTMLElement, Map<string, InlineLease>>();
 
-// Exported for the rAF transition player: its per-frame writes register here
-// so the COMPLETED cleanup (`clearInlineAnimation` with no property list)
-// strips them and the compiled rest rules take back over.
-export const trackInlineWrite = (el: HTMLElement, property: string) => {
-  let set = inlineWrites.get(el);
-  if (!set) {
-    set = new Set<string>();
-    inlineWrites.set(el, set);
+// The stake for callers that don't distinguish themselves (the player, the
+// engine's recovery/snap writers). Their writes are always force-cleared by
+// their own teardown paths, so a shared token is safe for them.
+const GLOBAL_WRITER = Symbol("flemo-inline-writer");
+
+// Who last wrote the element's inline `transition` (the instant path's
+// "none", the no-WAAPI fallback's property list). The reset in
+// clearInlineAnimation is scoped by it: writer A's cleanup must not clip a
+// fallback transition writer B is still running on the same element.
+const transitionWriters = new WeakMap<HTMLElement, symbol | undefined>();
+
+// Register a lease BEFORE writing `property` inline: captures the element's
+// current value as the original the FIRST time this property is leased
+// (repeat writes — the player's per-frame transform — keep the first
+// capture), and stakes `owner` on it. Exported for the rAF player and the
+// engine's inline writers.
+export const trackInlineWrite = (
+  el: HTMLElement,
+  property: string,
+  owner: symbol = GLOBAL_WRITER
+) => {
+  let lease = inlineLeases.get(el);
+  if (!lease) {
+    lease = new Map<string, InlineLease>();
+    inlineLeases.set(el, lease);
   }
-  set.add(property);
+  let entry = lease.get(property);
+  if (!entry) {
+    entry = { original: el.style.getPropertyValue(property), owners: new Set() };
+    lease.set(property, entry);
+  }
+  entry.owners.add(owner);
 };
 
 // Drop any inline styles animateInline wrote (transform / opacity / filter /
 // backgroundColor / ...) so the underlying CSS rules can take over (e.g.,
 // after a swipe is cancelled, the CSS rest rule resumes). Pass an explicit
-// `properties` list to override.
-export const clearInlineAnimation = (el: HTMLElement, properties?: string[]) => {
+// `properties` list to override. Pass `owner` to release only that writer's
+// stake — the property is restored only when no other writer still holds it;
+// omit `owner` for the force form (the flight-over final authority).
+export const clearInlineAnimation = (el: HTMLElement, properties?: string[], owner?: symbol) => {
   // An in-flight settle would out-rank the rest rules this handoff enables
   // (animations override inline and cascade styles) AND write its final
-  // values back after the strip — drop it first, writing nothing.
-  settleScrubber.cancel(el);
-  el.style.transition = "";
-  // The compiled-CSS liveness recovery rejoins a browser-cancelled animation
-  // on its original clock via an inline `animation-delay` (negative to resume
-  // mid-flight). That property is written by the engine, not tracked in the
-  // animateInline write surface, so strip it unconditionally here: COMPLETED
-  // cleanup and the next transition start must begin with no leftover delay.
-  el.style.removeProperty("animation-delay");
-  // Same contract for the landing pixel snap's reshaped easing (see
-  // landingPixelSnap.ts): engine-written, untracked, and per-variant — a
-  // stale one would bend the NEXT transition's curve.
-  el.style.removeProperty("animation-timing-function");
-  if (properties) {
-    const tracked = inlineWrites.get(el);
-    for (const property of properties) {
-      el.style.removeProperty(property);
-      tracked?.delete(property);
+  // values back after the strip — drop it first, writing nothing. The drop
+  // is owner-scoped like the leases: writer A's cleanup must not cancel a
+  // settle writer B is still running on the same element — only the force
+  // form (flight over) drops any settle. The CSS `transition` reset follows
+  // the same rule via the owner's stakes (the property itself carries no
+  // writer tag, so a staked owner's reset can still clip another writer's
+  // fallback transition — a far narrower residue than the unscoped reset).
+  settleScrubber.cancel(el, owner);
+  const lease = inlineLeases.get(el);
+  // Reset `transition` only under the force form or when THIS owner was its
+  // last writer — the property itself is single-valued, so ownership of the
+  // running transition is tracked explicitly.
+  const mayResetTransition = !owner || transitionWriters.get(el) === owner;
+  if (mayResetTransition) {
+    el.style.transition = "";
+    transitionWriters.delete(el);
+  }
+  const releaseProperty = (property: string) => {
+    const entry = lease?.get(property);
+    if (!entry) {
+      // Untracked: only the force form may strip (an explicit-list caller
+      // clearing a property it knows about); an owner-scoped clear never
+      // touches what it has no stake in.
+      if (!owner) el.style.removeProperty(property);
+      return;
     }
+    if (owner) {
+      entry.owners.delete(owner);
+      if (entry.owners.size > 0) return; // another writer still drives this
+    }
+    if (entry.original) el.style.setProperty(property, entry.original);
+    else el.style.removeProperty(property);
+    lease!.delete(property);
+  };
+  if (properties) {
+    for (const property of properties) releaseProperty(property);
     return;
   }
-  const tracked = inlineWrites.get(el);
-  if (tracked && tracked.size > 0) {
-    for (const property of tracked) {
-      el.style.removeProperty(property);
-    }
-    tracked.clear();
+  if (lease && lease.size > 0) {
+    for (const property of [...lease.keys()]) releaseProperty(property);
     return;
   }
   // Untracked element (animateInline never wrote here): fall back to
   // stripping the two near-universal swipe targets so the contract stays
   // useful for callers that hand in an arbitrary element.
-  el.style.removeProperty("transform");
-  el.style.removeProperty("opacity");
+  if (!owner) {
+    el.style.removeProperty("transform");
+    el.style.removeProperty("opacity");
+  }
 };
 
 // Imperative replacement for Motion's `animate()` inside transition swipe
@@ -77,7 +133,15 @@ export const clearInlineAnimation = (el: HTMLElement, properties?: string[]) => 
 // scrubber's shared main-thread clock (see settleScrub.ts), falling back to
 // an inline CSS `transition` where WAAPI is unavailable. Returns a Promise
 // that resolves when the motion lands (never rejects).
-const animateInline: SwipeAnimate = (target, value, options = {}) => {
+const animateInline = (
+  target: HTMLElement,
+  value: Parameters<SwipeAnimate>[1],
+  options: NonNullable<Parameters<SwipeAnimate>[2]> = {},
+  // The writer staking these inline values (see the lease model above).
+  // The swipe controller passes its instance token so its cleanup releases
+  // only its own stake; unscoped callers share the global writer.
+  writer?: symbol
+) => {
   if (!isHTMLElement(target)) return Promise.resolve();
   const el = target;
 
@@ -92,11 +156,12 @@ const animateInline: SwipeAnimate = (target, value, options = {}) => {
     // A re-grab writes through here every pointermove: a lingering settle
     // animation would override the inline values, so it hands over first
     // (pinning its current position — the finger takes it from there).
-    settleScrubber.takeover(el);
+    settleScrubber.takeover(el, writer);
     el.style.transition = "none";
+    transitionWriters.set(el, writer);
     for (const d of decls) {
+      trackInlineWrite(el, d.property, writer);
       el.style.setProperty(d.property, d.value);
-      trackInlineWrite(el, d.property);
     }
     return Promise.resolve();
   }
@@ -111,9 +176,10 @@ const animateInline: SwipeAnimate = (target, value, options = {}) => {
         decls,
         { durationMs: duration * 1000, delayMs: delay * 1000, easing },
         (decl) => {
+          trackInlineWrite(el, decl.property, writer);
           el.style.setProperty(decl.property, decl.value);
-          trackInlineWrite(el, decl.property);
-        }
+        },
+        writer
       )
     : null;
   if (scrubbed) return scrubbed;
@@ -123,12 +189,13 @@ const animateInline: SwipeAnimate = (target, value, options = {}) => {
     .map((d) => `${d.property} ${duration}s ${easing} ${delay}s`)
     .join(", ");
   el.style.transition = transitionList;
+  transitionWriters.set(el, writer);
   // Force a reflow so the new `transition` value is in effect before we set
   // the target values (some browsers otherwise coalesce property mutations).
   void el.offsetWidth;
   for (const d of decls) {
+    trackInlineWrite(el, d.property, writer);
     el.style.setProperty(d.property, d.value);
-    trackInlineWrite(el, d.property);
   }
 
   return new Promise<void>((resolve) => {
