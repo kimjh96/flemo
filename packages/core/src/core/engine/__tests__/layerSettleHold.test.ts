@@ -35,6 +35,40 @@ describe("layerSettleHold", () => {
     vi.useRealTimers();
   });
 
+  it("a rehold into an animation-less variant drops the owner's stake", () => {
+    const still = { initial: {}, variants: {} } as Parameters<typeof holdScopeLayer>[1];
+    const scope = document.createElement("div");
+
+    // Sole owner: dropping the last stake restores the element immediately —
+    // an animation-less flight must not inherit the previous variant's layer.
+    const solo = Symbol("solo");
+    holdScopeLayer(scope, cupertino(), true, solo);
+    expect(scope.style.willChange).not.toBe("");
+    holdScopeLayer(scope, still, true, solo);
+    expect(scope.style.willChange).toBe("");
+    expect(scope.style.contain).toBe("");
+
+    // With a second owner still staked, the union is recomputed without the
+    // rehold's stake instead of tearing the layer down under the survivor.
+    const engine = Symbol("engine");
+    const swipe = Symbol("swipe");
+    holdScopeLayer(scope, cupertino(), true, engine);
+    holdScopeLayer(scope, cupertino(), false, swipe);
+    holdScopeLayer(scope, still, true, engine);
+    expect(scope.style.willChange).not.toBe("");
+    expect(scope.style.contain).toBe(""); // the survivor never asked for containment
+  });
+
+  it("an animation-less hold from a stranger never touches another owner's stamp", () => {
+    const still = { initial: {}, variants: {} } as Parameters<typeof holdScopeLayer>[1];
+    const scope = document.createElement("div");
+    holdScopeLayer(scope, cupertino(), true, Symbol("holder"));
+    const held = scope.style.willChange;
+
+    holdScopeLayer(scope, still, false, Symbol("stranger"));
+    expect(scope.style.willChange).toBe(held);
+  });
+
   it("resident diagnostic keeps a SCREEN promoted at rest; bars still demote", () => {
     sessionStorage.setItem("flemo:layers", "resident");
     resetResidentLayersForTesting();
