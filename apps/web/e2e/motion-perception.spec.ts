@@ -506,7 +506,7 @@ test.describe("motion perception", () => {
   // WebKit presents compiled CSS animations from the main thread, so a
   // wall-clocked fade snaps across a mid-flight commit, while the player's
   // re-anchoring resumes from the freeze and completes.
-  test("the default driver is engine-scoped", async ({ page, browserName }) => {
+  test("the default driver is the player on every engine", async ({ page }) => {
     const { errors } = trackConsoleErrors(page);
     await openPlaygroundWithCupertino(page);
 
@@ -531,11 +531,12 @@ test.describe("motion perception", () => {
     const { transitional, suppressed } = await sample;
 
     expect(transitional, "the transition must run").toBeGreaterThan(5);
-    if (browserName === "chromium") {
-      expect(suppressed, "Blink keeps the compiled animation in charge").toBe(0);
-    } else {
-      expect(suppressed, "non-Blink rides the player").toBeGreaterThan(5);
-    }
+    // The unified driver: the rAF player rides EVERY engine (it suppresses
+    // the compiled animation inline). What stays engine-scoped is the
+    // FALLBACK — Blink may demote a chronically-starved device to its
+    // healthy compiled compositor path; non-Blink never does (its compiled
+    // tier presents from the main thread: freeze-and-jump).
+    expect(suppressed, "the player suppresses the compiled animation").toBeGreaterThan(5);
     expect(errors).toEqual([]);
   });
 
