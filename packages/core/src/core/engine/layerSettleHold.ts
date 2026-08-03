@@ -61,6 +61,48 @@ import type { Transition } from "@transition/typing";
 // forced frame cadence while nothing moves.
 export const LAYER_SETTLE_MS = 300;
 
+// OPT-IN diagnostic: keep SCREEN layers resident at rest instead of demoting
+// them LAYER_SETTLE_MS past the flip. Measurement motive (2026-08, Mac
+// Safari glass recordings): almost every flight shows exactly ONE skipped
+// present in its first ~50-150ms, position-locked to the moment the flight's
+// compositing layers are (re)created — WebKit pays a full-screen first
+// raster into each fresh backing store. Demoting at rest means every next
+// flight pays that creation raster again; keeping the screen layers
+// resident should delete the onset skip, at the cost of resident backing
+// stores. A URL visit arms it for the session (?flemo-layers=resident /
+// ?flemo-layers=off), read eagerly at module load — the first drive runs
+// after a navigation has already dropped the query.
+const syncResidentToggle = () => {
+  try {
+    if (typeof location === "undefined" || typeof sessionStorage === "undefined") return;
+    if (/[?&]flemo-layers=resident\b/.test(location.search)) {
+      sessionStorage.setItem("flemo:layers", "resident");
+    } else if (/[?&]flemo-layers=off\b/.test(location.search)) {
+      sessionStorage.removeItem("flemo:layers");
+    }
+  } catch {
+    // Storage unavailable: the instrument simply stays off.
+  }
+};
+syncResidentToggle();
+let residentCache: boolean | undefined;
+const residentScreenLayers = (): boolean => {
+  if (residentCache !== undefined) return residentCache;
+  try {
+    residentCache =
+      typeof sessionStorage !== "undefined" &&
+      sessionStorage.getItem("flemo:layers") === "resident";
+  } catch {
+    residentCache = false;
+  }
+  return residentCache;
+};
+
+/* v8 ignore next 3 -- test hook: the toggle is read once per page load. */
+export const resetResidentLayersForTesting = () => {
+  residentCache = undefined;
+};
+
 // Per-element stamp record. `owners` maps each independent holder (an engine
 // transition, a swipe gesture — both promote riding bars, and their holds can
 // overlap; NESTED Routers each hold with their own instance token) to WHAT it
@@ -220,6 +262,23 @@ export const releaseScopeLayerAfterSettle = (scope: HTMLElement, owner: symbol =
   stamp.owners.delete(owner);
   if (stamp.owners.size > 0) {
     applyUnion(scope, stamp); // survivors keep the element a layer
+    return;
+  }
+  // EXPERIMENT branch (diagnostic, default off): screens stay promoted at
+  // rest — no demotion, no re-creation raster on the next flight. Bars and
+  // other non-screen participants demote normally. `contain` still restores
+  // (a resident containment would change rest-layout semantics).
+  if (
+    residentScreenLayers() &&
+    typeof scope.closest === "function" &&
+    scope.closest("[data-flemo-screen]")
+  ) {
+    if (stamp.pending != null) clearTimeout(stamp.pending);
+    stamp.pending = null;
+    stamp.settleOwner = null;
+    scope.style.willChange = "transform";
+    if (stamp.contain) scope.style.contain = stamp.contain;
+    else scope.style.removeProperty("contain");
     return;
   }
   stamp.settleOwner = owner; // this owner's window: it alone may cut it short

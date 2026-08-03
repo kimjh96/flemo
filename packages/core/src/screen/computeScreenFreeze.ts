@@ -1,5 +1,45 @@
 import type { NavigateStatus } from "@navigate/store";
 
+// OPT-IN diagnostic: keep the DIRECT prev screen live (never freeze it).
+// Measurement motive (2026-08, Mac Safari glass): resident screen layers
+// halved the per-flight onset present-skip, but the POP-returning screen
+// still pays a layer creation + first raster — its freeze (display:none)
+// destroys the layer regardless of any will-change, so the wake recreates
+// it at flight start. Keeping only the direct prev live pre-serves its
+// rasterized layer for the instant a pop needs it; DEEP screens keep
+// freezing (the O(depth) storm protection stays intact). Cost: one extra
+// live full-screen subtree at rest. Armed per session by a URL visit
+// (?flemo-freeze=shallow / ?flemo-freeze=off), read eagerly at module load.
+const syncShallowToggle = () => {
+  try {
+    if (typeof location === "undefined" || typeof sessionStorage === "undefined") return;
+    if (/[?&]flemo-freeze=shallow\b/.test(location.search)) {
+      sessionStorage.setItem("flemo:freeze", "shallow");
+    } else if (/[?&]flemo-freeze=off\b/.test(location.search)) {
+      sessionStorage.removeItem("flemo:freeze");
+    }
+  } catch {
+    // Storage unavailable: the instrument simply stays off.
+  }
+};
+syncShallowToggle();
+let shallowCache: boolean | undefined;
+const shallowFreeze = (): boolean => {
+  if (shallowCache !== undefined) return shallowCache;
+  try {
+    shallowCache =
+      typeof sessionStorage !== "undefined" && sessionStorage.getItem("flemo:freeze") === "shallow";
+  } catch {
+    shallowCache = false;
+  }
+  return shallowCache;
+};
+
+/* v8 ignore next 3 -- test hook: the toggle is read once per page load. */
+export const resetShallowFreezeForTesting = () => {
+  shallowCache = undefined;
+};
+
 export interface ScreenFreezeInput {
   isActive: boolean;
   isPrev: boolean;
@@ -35,7 +75,7 @@ export function computeScreenFreezeMode(input: ScreenFreezeInput): ScreenFreezeM
     (input.isPrev && input.index - 2 > input.zIndex);
   if (deep) return "immediate";
   const isTransitionCompleted = input.status === "COMPLETED" && input.dragStatus === "IDLE";
-  if (!input.isActive && isTransitionCompleted) return "deferred";
+  if (!input.isActive && isTransitionCompleted) return shallowFreeze() ? "live" : "deferred";
   return "live";
 }
 
