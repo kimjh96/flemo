@@ -88,7 +88,11 @@ export const snappedEasingForMotion = (
   devicePixelRatio: number
 ): string | null => {
   if (motion.duration <= 0) return null;
-  const dpr = Math.max(1, devicePixelRatio);
+  // Any valid positive DPR is the real device grid — including < 1 (browser
+  // zoom-out on a 1x display); only a non-finite/zero/negative value falls
+  // back to 1. Clamping sub-1 up to 1 would snap to CSS pixels, not device
+  // pixels.
+  const dpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
 
   const keys = new Set<string>();
   for (const target of [motion.from, motion.to]) {
