@@ -145,6 +145,55 @@ describe("ScreenMotion chrome rendering", () => {
   });
 });
 
+describe("swipe wiring on a swipeable (non-root) screen", () => {
+  it("a left-edge drag flows through the controller's element accessors and blocks native touch scroll", async () => {
+    const { container } = render(
+      <Screen sharedTopBar={<div data-testid="shared-top">top</div>}>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isRoot: false }) }
+    );
+
+    const scope = container.querySelector<HTMLElement>("[data-flemo-screen]")!;
+    // jsdom has no pointer capture; the controller calls all three.
+    scope.setPointerCapture = vi.fn();
+    scope.hasPointerCapture = vi.fn(() => true);
+    scope.releasePointerCapture = vi.fn();
+
+    // beginSwipe resolves the screen below via the previous-sibling walk, so
+    // every ancestor between the scope and the render root needs a preceding
+    // sibling carrying a screen — plant one before the outermost.
+    const outermost = container.firstElementChild as HTMLElement;
+    const prevContainer = document.createElement("div");
+    const prevScope = document.createElement("div");
+    prevScope.setAttribute("data-flemo-screen", "");
+    prevContainer.appendChild(prevScope);
+    outermost.before(prevContainer);
+
+    // An edge press, then a rightward move: the readiness gate (non-root,
+    // active, COMPLETED, cupertino's x swipe) opens and the drag begins,
+    // pulling every element accessor handed to the controller.
+    scope.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 4, clientY: 300 }));
+    scope.dispatchEvent(
+      new MouseEvent("pointermove", { bubbles: true, clientX: 40, clientY: 300 })
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // The in-progress drag owns the gesture: native touch scrolling yields.
+    const touchMove = new Event("touchmove", { bubbles: true, cancelable: true });
+    scope.dispatchEvent(touchMove);
+    expect(touchMove.defaultPrevented).toBe(true);
+
+    // Release back to rest so no drag state leaks into the next test.
+    scope.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, clientX: 40, clientY: 300 }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+  });
+});
+
 describe("keyboard-visible layout", () => {
   let listeners: Map<string, EventListener>;
   let frames: FrameRequestCallback[];

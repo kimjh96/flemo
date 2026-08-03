@@ -1135,6 +1135,243 @@ describe("anchored-opening handoff (non-Blink, diagnostic opt-in)", () => {
   });
 });
 
+// The remainder bake and the handoff's decline paths: what the baked
+// keyframes carry per channel class, and the frames where tryHandOff decides
+// the browser has nothing (or nothing visible) left to take.
+describe("anchored-opening handoff — remainder bake and decline paths", () => {
+  beforeEach(() => {
+    sessionStorage.setItem("flemo:handoff", "on");
+    resetSessionOverrideCachesForTests();
+  });
+  afterEach(() => {
+    sessionStorage.removeItem("flemo:handoff");
+    resetSessionOverrideCachesForTests();
+    vi.restoreAllMocks();
+  });
+
+  const remainderAnimation = () => ({
+    ...fakeAnimation(),
+    onfinish: null as (() => void) | null
+  });
+
+  it("bakes every transform channel, string templates, and constants into the remainder", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const scrub = fakeAnimation();
+    const remainder = remainderAnimation();
+    const animate = vi.fn().mockReturnValueOnce(scrub).mockReturnValueOnce(remainder);
+    el.animate = animate as unknown as typeof el.animate;
+
+    registry.join("task-1", {
+      element: el,
+      // Every serializable channel class at once: y (percent-based), z,
+      // the three scales, the three rotates, a string template (filter),
+      // and a constant carried across the flight (boxShadow). filter is not
+      // a perceptual-cut channel, so the cut self-vetoes and cannot land
+      // before the handoff frame.
+      motion: linearMotion(
+        {
+          y: "100%",
+          z: 8,
+          scale: 0.5,
+          scaleX: 0.25,
+          scaleY: 0.5,
+          rotate: 45,
+          rotateX: 10,
+          rotateY: 20,
+          filter: "blur(8px)",
+          boxShadow: "0 0 12px rgba(0, 0, 0, 0.3)"
+        },
+        {
+          y: 0,
+          z: 0,
+          scale: 1,
+          scaleX: 1,
+          scaleY: 1,
+          rotate: 0,
+          rotateX: 0,
+          rotateY: 0,
+          filter: "blur(0px)",
+          boxShadow: "0 0 12px rgba(0, 0, 0, 0.3)"
+        },
+        1
+      ),
+      role: "active"
+    });
+    pump(0);
+    climbTo(pump, 0, 112); // frame cadence to just past HANDOFF_MS
+
+    expect(animate).toHaveBeenCalledTimes(2);
+    const keyframes = animate.mock.calls[1]![0] as Record<string, string>[];
+    expect(keyframes.length).toBe(41);
+    // The first keyframe is the pose at 11.2% of the linear curve, raw
+    // (round4) values — no snap machinery in baked keyframes. y is 100% of
+    // offsetHeight 800 → 88.8% remaining = 710.4px.
+    expect(keyframes[0]!.transform).toBe(
+      "translate3d(0px, 710.4px, 0) translateZ(7.104px) scale(0.556) scaleX(0.334) " +
+        "scaleY(0.556) rotate(39.96deg) rotateX(8.88deg) rotateY(17.76deg)"
+    );
+    expect(keyframes[0]!.filter).toBe("blur(7.104px)");
+    expect(keyframes[0]!.opacity).toBeUndefined(); // no opacity channel authored
+    // Constants ride only the first and last keyframes — WAAPI holds a
+    // property between the keyframes that carry it.
+    expect(keyframes[0]!.boxShadow).toBe("0 0 12px rgba(0, 0, 0, 0.3)");
+    expect(keyframes[1]!.boxShadow).toBeUndefined();
+    expect(keyframes[40]!.boxShadow).toBe("0 0 12px rgba(0, 0, 0, 0.3)");
+    // Every transform channel lands on identity → the rest pose collapses
+    // to "none", mirroring the compiler's rest semantics.
+    expect(keyframes[40]!.transform).toBe("none");
+    expect(keyframes[40]!.filter).toBe("blur(0px)");
+  });
+
+  it("a transform-less motion bakes opacity-only keyframes (no transform key)", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const scrub = fakeAnimation();
+    const remainder = remainderAnimation();
+    const animate = vi.fn().mockReturnValueOnce(scrub).mockReturnValueOnce(remainder);
+    el.animate = animate as unknown as typeof el.animate;
+
+    registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ opacity: 0 }, { opacity: 1 }, 1),
+      role: "active"
+    });
+    pump(0);
+    climbTo(pump, 0, 112);
+
+    expect(animate).toHaveBeenCalledTimes(2);
+    const keyframes = animate.mock.calls[1]![0] as Record<string, string>[];
+    expect(keyframes[0]!).toEqual({ opacity: "0.112" });
+    expect(keyframes[40]!).toEqual({ opacity: "1" });
+  });
+
+  it("a delay-only motion (zero duration) declines the handoff and stays scrubbed", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const scrub = fakeAnimation();
+    const animate = withAnimate(el, scrub);
+    let completed = 0;
+
+    registry.join("task-1", {
+      element: el,
+      // The handoff frame lands inside the 500ms delay: activeElapsed is 0
+      // and the duration is 0, so the remainder would be an empty animation
+      // — nothing for the browser to take. The scrub carries the flight.
+      motion: { from: { x: 400 }, to: { x: 0 }, duration: 0, delay: 0.5, ease: "linear" },
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+    pump(0);
+    climbTo(pump, 0, 112); // past HANDOFF_MS, still inside the delay
+    expect(animate).toHaveBeenCalledTimes(1); // no remainder animation
+    expect(scrub.canceled).toBe(false);
+    expect(scrub.currentTime).toBe(112);
+
+    climbTo(pump, 112, 500); // the scrub clock reaches delay + duration
+    expect(completed).toBe(1);
+  });
+
+  it("declines the handoff when the remaining eased span is imperceptible", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const scrub = fakeAnimation();
+    const animate = withAnimate(el, scrub);
+    const vetoEl = element();
+    withAnimate(vetoEl, fakeAnimation());
+    let completed = 0;
+
+    registry.join("task-1", {
+      element: el,
+      // ease [0,1,0,1] on a 120ms flight: at the 112ms handoff frame the
+      // eased value sits within ~1e-4 of the end — a remainder animation
+      // would present nothing. Letting the scrub finish avoids paying a
+      // fresh accelerated animation for an invisible tail.
+      motion: {
+        from: { x: 400 },
+        to: { x: 0 },
+        duration: 0.12,
+        delay: 0,
+        ease: [0, 1, 0, 1] as VariantMotion["ease"]
+      },
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+    // The steep curve's perceptual cut would complete the track BEFORE the
+    // handoff frame; an unanalyzable participant vetoes the navigation's cut
+    // so the handoff decision itself is what this test reaches.
+    registry.join("task-1", {
+      element: vetoEl,
+      motion: linearMotion({ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }, 1),
+      role: "passive"
+    });
+
+    pump(0);
+    climbTo(pump, 0, 112); // the handoff frame: declined, scrub keeps driving
+    expect(animate).toHaveBeenCalledTimes(1);
+    expect(scrub.canceled).toBe(false);
+    expect(scrub.currentTime).toBe(112);
+
+    climbTo(pump, 112, 1000); // active ends at 120 on the scrub; passive at 1000
+    expect(completed).toBe(1);
+  });
+
+  it("a handed-off track idles in the loop while a sibling still needs frames", () => {
+    const { scheduler, pump, pendingCount } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const scrub = fakeAnimation();
+    const remainder = remainderAnimation();
+    el.animate = vi
+      .fn()
+      .mockReturnValueOnce(scrub)
+      .mockReturnValueOnce(remainder) as unknown as typeof el.animate;
+    const passiveEl = element();
+    const passiveScrub = fakeAnimation();
+    withAnimate(passiveEl, passiveScrub);
+    let completed = 0;
+
+    registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ x: "100%" }, { x: 0 }, 0.5),
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+    registry.join("task-1", {
+      element: passiveEl,
+      // Non-numeric: scrubbed for its whole flight, so the loop must keep
+      // pumping frames after the active's handoff.
+      motion: linearMotion({ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }, 1),
+      role: "passive"
+    });
+
+    pump(0);
+    climbTo(pump, 0, 112); // the active hands off here...
+    expect(remainder.canceled).toBe(false);
+    // ...but the passive still needs frames, so the loop stays alive — the
+    // handed-off track just idles in it (the browser presents its motion).
+    expect(pendingCount()).toBe(1);
+
+    climbTo(pump, 112, 1000); // the passive finishes on the player clock
+    // Every remaining track is now the browser's: the loop stops, but the
+    // navigation stays open until the remainder's finish event.
+    expect(pendingCount()).toBe(0);
+    expect(completed).toBe(0);
+    remainder.onfinish?.();
+    expect(completed).toBe(1);
+  });
+});
+
 describe("perceptual tail cut (player clock)", () => {
   // A steep decel ease enters its imperceptibility band long before the
   // authored end — the dead sub-pixel tail the cut removes.
