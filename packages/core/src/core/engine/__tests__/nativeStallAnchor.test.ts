@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { NATIVE_STALL_STEP_MS, watchNativeStalls } from "@core/engine/nativeStallAnchor";
+import {
+  NATIVE_STALL_STEP_MS,
+  watchNativeStalls,
+  anchorNativeFlightStart,
+  holdNativeClocksToFirstFrame
+} from "@core/engine/nativeStallAnchor";
 
 interface FakeAnimation {
   animationName?: string;
@@ -177,5 +182,232 @@ describe("watchNativeStalls", () => {
     pump(500);
     expect(animation.startTime).toBe(0);
     expect(frames.size).toBe(0);
+  });
+});
+
+describe("anchorNativeFlightStart", () => {
+  const makeAnimation = (currentTime: number, name = "flemo-screen-x-PUSHING-true") =>
+    ({
+      animationName: name,
+      playState: "running",
+      currentTime,
+      startTime: 1000
+    }) as unknown as CSSAnimation;
+
+  const host = (animations: Animation[]) => {
+    const el = document.createElement("div");
+    (el as unknown as { getAnimations: unknown }).getAnimations = () => animations;
+    return el;
+  };
+
+  it("rewinds a just-started clock that aged past its allowance before first rAF", () => {
+    const fresh = makeAnimation(2);
+    const rafCbs: FrameRequestCallback[] = [];
+    const raf = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((cb: FrameRequestCallback) => (rafCbs.push(cb), rafCbs.length));
+    const onShift = vi.fn();
+    anchorNativeFlightStart(() => [host([fresh])], onShift);
+    // The release frame's own rendering update blocked: by the first rAF the
+    // clock aged 150ms. Budget = base(2) + one-step slack: the excess is
+    // given back to the timeline.
+    (fresh as unknown as { currentTime: number }).currentTime = 150;
+    rafCbs.shift()!(0);
+    expect(fresh.startTime).toBeCloseTo(1000 + (150 - 2), 5); // rewound to its base exactly
+    expect(onShift).toHaveBeenCalled();
+    expect(rafCbs.length).toBe(0); // one rewind ends the watch
+    raf.mockRestore();
+  });
+
+  it("covers a block that lands AFTER a clean first frame (the co-flush window)", () => {
+    const fresh = makeAnimation(2);
+    const rafCbs: FrameRequestCallback[] = [];
+    const raf = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((cb: FrameRequestCallback) => (rafCbs.push(cb), rafCbs.length));
+    const onShift = vi.fn();
+    anchorNativeFlightStart(() => [host([fresh])], onShift);
+    // Frame 1: healthy — nothing written, the watch continues.
+    (fresh as unknown as { currentTime: number }).currentTime = 16;
+    rafCbs.shift()!(1000);
+    expect(fresh.startTime).toBe(1000);
+    // Frame 2 arrives 300ms late (the release frame's co-flushed update).
+    // Allowance for the gap is capped at one player step; the rest rewinds.
+    (fresh as unknown as { currentTime: number }).currentTime = 316;
+    rafCbs.shift()!(1300);
+    const allowed = 2 + NATIVE_STALL_STEP_MS; /* base + capped gap allowance */
+    expect(fresh.startTime).toBeCloseTo(1000 + (316 - allowed), 5);
+    expect(onShift).toHaveBeenCalledTimes(1);
+    expect(rafCbs.length).toBe(0);
+    raf.mockRestore();
+  });
+
+  it("stands down at the window bound without touching a healthy flight", () => {
+    const fresh = makeAnimation(2);
+    const rafCbs: FrameRequestCallback[] = [];
+    const raf = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((cb: FrameRequestCallback) => (rafCbs.push(cb), rafCbs.length));
+    const onShift = vi.fn();
+    anchorNativeFlightStart(() => [host([fresh])], onShift);
+    let t = 1000;
+    let ct = 10;
+    while (rafCbs.length > 0) {
+      (fresh as unknown as { currentTime: number }).currentTime = ct;
+      rafCbs.shift()!(t);
+      t += 16;
+      ct += 16;
+      if (t > 3000) break; // safety: the window must terminate long before
+    }
+    expect(t).toBeLessThan(1400); // ~150ms window, not an endless watch
+    expect(fresh.startTime).toBe(1000);
+    expect(onShift).not.toHaveBeenCalled();
+    raf.mockRestore();
+  });
+
+  it("never touches a mid-flight animation (an effect re-run) or the same animation twice", () => {
+    const midFlight = makeAnimation(300);
+    const raf = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((cb: FrameRequestCallback) => {
+        cb(performance.now());
+        return 1;
+      });
+    anchorNativeFlightStart(() => [host([midFlight])]);
+    expect(midFlight.startTime).toBe(1000);
+
+    // A fresh one, anchored once; a second arming must not re-anchor it.
+    const fresh = makeAnimation(0);
+    let age = 0;
+    Object.defineProperty(fresh, "currentTime", { get: () => age, configurable: true });
+    age = 100;
+    anchorNativeFlightStart(() => [host([fresh])]);
+    const after = fresh.startTime;
+    age = 100; // fresh-looking? no: startAnchored remembers the object
+    anchorNativeFlightStart(() => [host([fresh])]);
+    expect(fresh.startTime).toBe(after);
+    raf.mockRestore();
+  });
+
+  it("a healthy first frame is a no-op", () => {
+    const fresh = makeAnimation(2);
+    const rafCbs: FrameRequestCallback[] = [];
+    const raf = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((cb: FrameRequestCallback) => (rafCbs.push(cb), rafCbs.length));
+    const onShift = vi.fn();
+    anchorNativeFlightStart(() => [host([fresh])], onShift);
+    (fresh as unknown as { currentTime: number }).currentTime = 16;
+    rafCbs.shift()!(0);
+    expect(fresh.startTime).toBe(1000);
+    expect(onShift).not.toHaveBeenCalled();
+    raf.mockRestore();
+  });
+});
+
+describe("holdNativeClocksToFirstFrame", () => {
+  const makeScope = () => {
+    const scope = document.createElement("div");
+    scope.setAttribute("data-flemo-anim-hold", "true");
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  const makeAnim = (currentTime: number) => {
+    const calls: string[] = [];
+    const state = { playState: "running" };
+    const animation = {
+      animationName: "flemo-screen-x-PUSHING-true",
+      get playState() {
+        return state.playState;
+      },
+      currentTime,
+      startTime: 0,
+      pause() {
+        calls.push("pause");
+        state.playState = "paused";
+      },
+      play() {
+        calls.push("play");
+        state.playState = "running";
+      }
+    } as unknown as CSSAnimation;
+    return { calls, animation };
+  };
+
+  it("pauses just-born clocks at the release and plays them on the next frame", async () => {
+    const scope = makeScope();
+    const { animation, calls } = makeAnim(2);
+    const target = document.createElement("div");
+    (target as unknown as { getAnimations: unknown }).getAnimations = () => [animation];
+    const rafCbs: FrameRequestCallback[] = [];
+    const raf = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((cb: FrameRequestCallback) => {
+        rafCbs.push(cb);
+        return rafCbs.length;
+      });
+    const onHeld = vi.fn();
+    holdNativeClocksToFirstFrame(scope, () => [target], onHeld);
+
+    scope.setAttribute("data-flemo-anim-hold", "false");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Paused inside the release's microtask — before the frame can paint.
+    expect(calls).toEqual(["pause"]);
+
+    // Engage schedules the resume AND the early stall watcher's loop; fire
+    // the batch scheduled so far once, like one frame would.
+    for (const cb of rafCbs.splice(0)) cb(performance.now());
+    expect(calls).toEqual(["pause", "play"]);
+    expect(onHeld).toHaveBeenCalledTimes(1);
+    raf.mockRestore();
+    scope.remove();
+  });
+
+  it("leaves aged clocks (a mid-flight re-arm) untouched", async () => {
+    const scope = makeScope();
+    const { animation, calls } = makeAnim(300);
+    const target = document.createElement("div");
+    (target as unknown as { getAnimations: unknown }).getAnimations = () => [animation];
+    holdNativeClocksToFirstFrame(scope, () => [target]);
+    scope.setAttribute("data-flemo-anim-hold", "false");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(calls).toEqual([]);
+    scope.remove();
+  });
+
+  it("a detach BEFORE the resume frame plays the held clocks and cancels the backstop", async () => {
+    vi.useFakeTimers();
+    const scope = makeScope();
+    const { animation, calls } = makeAnim(2);
+    const target = document.createElement("div");
+    (target as unknown as { getAnimations: unknown }).getAnimations = () => [animation];
+    const rafCbs: FrameRequestCallback[] = [];
+    const raf = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((cb: FrameRequestCallback) => (rafCbs.push(cb), rafCbs.length));
+    const onHeld = vi.fn();
+    const dispose = holdNativeClocksToFirstFrame(scope, () => [target], onHeld);
+
+    scope.setAttribute("data-flemo-anim-hold", "false");
+    await Promise.resolve();
+    expect(calls).toEqual(["pause"]); // engaged: the clock is held
+
+    // Teardown BEFORE the resume rAF fires: it must play the held clock (never
+    // leave it frozen) but NOT call onHeld (a superseding transition owns the
+    // scope now).
+    dispose();
+    expect(calls).toEqual(["pause", "play"]);
+    expect(onHeld).not.toHaveBeenCalled();
+
+    // The internal 1s backstop must be cancelled — no stale resume/onHeld.
+    vi.advanceTimersByTime(2000);
+    for (const cb of rafCbs.splice(0)) cb(0);
+    expect(onHeld).not.toHaveBeenCalled();
+    expect(calls).toEqual(["pause", "play"]); // no second play
+
+    raf.mockRestore();
+    vi.useRealTimers();
+    scope.remove();
   });
 });

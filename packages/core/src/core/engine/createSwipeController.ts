@@ -1,10 +1,10 @@
 import animateInline, { clearInlineAnimation } from "@transition/animateInline";
 
-import { collectAnimatedProperties } from "@transition/compileTransitionStyles";
-
 import type { Transition } from "@transition/typing";
 
 import findScrollable from "@utils/findScrollable";
+
+import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
 
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
@@ -61,6 +61,13 @@ const SKIP_ANIMATION_ATTR = "data-flemo-skip-animation";
 // events and supplies the live environment. A faithful port of the former
 // ScreenMotion swipe handlers, so any binding gets identical behavior.
 export default function createSwipeController(config: SwipeControllerConfig): SwipeController {
+  // This controller's per-instance layer-hold owner token, distinct from the
+  // engine's and from any other controller's. A riding bar can be promoted by
+  // both a swipe gesture and an engine transition at once; the settle hold
+  // refcounts each owner so the bar is demoted only after ALL release (see
+  // layerSettleHold.ts).
+  const layerOwner = Symbol("flemo-swipe-layer");
+
   let prevScreen: HTMLElement | null = null;
   let prevDecorator: HTMLElement | null = null;
   let ridingBars: { current: HTMLElement[]; prev: HTMLElement[] } = { current: [], prev: [] };
@@ -114,11 +121,11 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   // trailed by a frame). Two ride lists because cupertino / material animate
   // both the current and the previous screen per tick.
   const animateSwipe: typeof animateInline = (target, value, options) => {
-    const result = animateInline(target, value, options);
+    const result = animateInline(target, value, options, layerOwner);
     if (target === config.getElements().scope) {
-      for (const bar of ridingBars.current) animateInline(bar, value, options);
+      for (const bar of ridingBars.current) animateInline(bar, value, options, layerOwner);
     } else if (target === prevScreen) {
-      for (const bar of ridingBars.prev) animateInline(bar, value, options);
+      for (const bar of ridingBars.prev) animateInline(bar, value, options, layerOwner);
     }
     return result;
   };
@@ -149,20 +156,25 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     ridingBars = { current, prev };
 
     // Pre-promote the riding bars so the first inline write doesn't pay layer
-    // creation.
-    const willChange = collectAnimatedProperties(config.getTransition()).join(", ");
-    for (const bar of current) bar.style.willChange = willChange;
-    for (const bar of prev) bar.style.willChange = willChange;
+    // creation. Routed through the settle hold (not a bare style write) so a
+    // swipe starting inside a previous release's settle window cancels the
+    // pending demotion — otherwise that timer would strip `will-change`
+    // mid-drag.
+    for (const bar of current) holdScopeLayer(bar, config.getTransition(), false, layerOwner);
+    for (const bar of prev) holdScopeLayer(bar, config.getTransition(), false, layerOwner);
   };
 
   const releaseRidingBars = () => {
+    // A cancelled swipe has just animated back to rest — dropping the bars'
+    // promotion in this commit would repaint them on the exact settle frames
+    // (see layerSettleHold.ts), so the demotion rides the deferred clock.
     for (const bar of ridingBars.current) {
-      clearInlineAnimation(bar);
-      bar.style.removeProperty("will-change");
+      clearInlineAnimation(bar, undefined, layerOwner);
+      releaseScopeLayerAfterSettle(bar, layerOwner);
     }
     for (const bar of ridingBars.prev) {
-      clearInlineAnimation(bar);
-      bar.style.removeProperty("will-change");
+      clearInlineAnimation(bar, undefined, layerOwner);
+      releaseScopeLayerAfterSettle(bar, layerOwner);
     }
     ridingBars = { current: [], prev: [] };
   };
@@ -188,7 +200,13 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       // Selected by [data-flemo-part-name], so the attribute is present.
       const def = partTransitionMap.get(element.getAttribute("data-flemo-part-name")!);
       if (!def) return;
-      const options = { animate: animateInline, element, active };
+      // The part hook's writes must carry THIS controller's writer token —
+      // releasePartTransitions clears under it, and an unstaked write would
+      // never match that owner-scoped clear (leaking the inline values and
+      // their leases past a cancelled swipe).
+      const animate: typeof animateInline = (target, value, animOptions) =>
+        animateInline(target, value, animOptions, layerOwner);
+      const options = { animate, element, active };
       if (hook === "swipe") def.onSwipe?.(triggered, progress, options);
       else if (hook === "start") def.onSwipeStart?.(triggered, options);
       else def.onSwipeEnd?.(triggered, options);
@@ -198,7 +216,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   };
 
   const releasePartTransitions = () => {
-    for (const element of [...partEls.current, ...partEls.prev]) clearInlineAnimation(element);
+    for (const element of [...partEls.current, ...partEls.prev])
+      clearInlineAnimation(element, undefined, layerOwner);
     partEls = { current: [], prev: [] };
   };
 
@@ -307,13 +326,15 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       // POPPING keyframe so it doesn't snap back to its `from` value first.
       scope?.setAttribute(SKIP_ANIMATION_ATTR, "true");
       decorator?.setAttribute(SKIP_ANIMATION_ATTR, "true");
-      // Current-side bars unmount with the current screen via back(); just drop
-      // will-change. Prev-side bars outlive the navigation, so strip the inline
-      // transforms so they don't shadow the next compiled rule.
-      for (const bar of ridingBars.current) bar.style.removeProperty("will-change");
+      // Current-side bars unmount with the current screen via back(). Prev-side
+      // bars outlive the navigation: strip the inline transforms so they don't
+      // shadow the next compiled rule, but demote their layers off-cadence —
+      // the swiped-out landing is a convergence like any other (see
+      // layerSettleHold.ts).
+      for (const bar of ridingBars.current) releaseScopeLayerAfterSettle(bar, layerOwner);
       for (const bar of ridingBars.prev) {
-        clearInlineAnimation(bar);
-        bar.style.removeProperty("will-change");
+        clearInlineAnimation(bar, undefined, layerOwner);
+        releaseScopeLayerAfterSettle(bar, layerOwner);
       }
       ridingBars = { current: [], prev: [] };
       // Current-side part elements unmount with the screen. The previous
@@ -327,8 +348,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     } else {
       // Cancel: animation already played back to rest. Clear inline styles so
       // the CSS rest rule resumes ownership.
-      if (scope) clearInlineAnimation(scope);
-      if (prevScreen) clearInlineAnimation(prevScreen);
+      if (scope) clearInlineAnimation(scope, undefined, layerOwner);
+      if (prevScreen) clearInlineAnimation(prevScreen, undefined, layerOwner);
       if (decorator) clearInlineAnimation(decorator);
       if (prevDecorator) clearInlineAnimation(prevDecorator);
       releaseRidingBars();

@@ -35,6 +35,8 @@
 // attributes anywhere, and anything inside a held arrival (already
 // invisible; freezing its construction would be wasted work).
 
+import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
+
 export const HELD_ARRIVAL_ATTR = "data-flemo-held-arrival";
 
 interface TargetBatch {
@@ -229,6 +231,11 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
     }
     parkedDepartures.clear();
     for (const held of heldArrivals) {
+      // Async-decode the arriving content's images BEFORE the reveal: the
+      // rest-time landing paint must not block on a large decode either
+      // (see imageDecodeHygiene.ts — the flight armor's last uncovered
+      // stall), and a held subtree was invisible so nothing decoded yet.
+      if (held instanceof HTMLElement) stampAsyncImageDecode(held);
       held.removeAttribute(HELD_ARRIVAL_ATTR);
     }
     heldArrivals.clear();

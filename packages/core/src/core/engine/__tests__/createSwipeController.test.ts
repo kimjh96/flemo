@@ -309,4 +309,156 @@ describe("createSwipeController", () => {
       expect(prevBar.style.opacity).toBe("1");
     });
   });
+
+  // The riding-bar mirror: bars that ride a swiped screen receive every inline
+  // write the screen gets in the SAME synchronous tick, and each end path
+  // releases each side by its ownership rules (current bars unmount with the
+  // screen on a trigger; prev bars outlive it).
+  describe("riding bars", () => {
+    let topBar: HTMLElement;
+    let prevNav: HTMLElement;
+
+    beforeEach(() => {
+      // The current screen's shared TOP bar rides (the partner has no match);
+      // the previous screen's own NAV bar (in its subtree) rides because this
+      // screen has no shared bottom bar.
+      topBar = document.createElement("div");
+      document.body.appendChild(topBar);
+      prevNav = document.createElement("div");
+      prevNav.setAttribute("data-flemo-bar", "nav");
+      (dom.root.firstElementChild as HTMLElement).appendChild(prevNav);
+
+      config.getElements = () => ({
+        scope: dom.scope,
+        screenContainer: dom.screenContainer,
+        decorator: null,
+        sharedTopBar: topBar,
+        sharedBottomBar: null
+      });
+      config.hasSharedTopBar = () => true;
+
+      // The hook writes both screens through the controller's animate — the
+      // mirror is what this suite asserts, so write REAL inline values.
+      onSwipe.mockImplementation(
+        (
+          _e: unknown,
+          _i: unknown,
+          o: {
+            animate: (t: HTMLElement, v: object) => void;
+            currentScreen: HTMLElement;
+            prevScreen: HTMLElement;
+          }
+        ) => {
+          o.animate(o.currentScreen, { x: 24 });
+          o.animate(o.prevScreen, { x: -8 });
+          return 0;
+        }
+      );
+    });
+
+    afterEach(() => {
+      topBar.remove();
+    });
+
+    const drag = async (c: ReturnType<typeof createSwipeController>) => {
+      c.pointerDown(event({ target: dom.scope }));
+      c.pointerMove(event({ clientX: 40 }));
+      await flush();
+      c.pointerMove(event({ clientX: 60, timeStamp: 32 }));
+    };
+
+    it("mirrors screen writes onto both sides' riding bars in the same tick", async () => {
+      const c = createSwipeController(config);
+      await drag(c);
+
+      expect(dom.scope.style.transform).not.toBe("");
+      expect(topBar.style.transform).toBe(dom.scope.style.transform);
+      const prevScreenEl = dom.root.querySelector<HTMLElement>("[data-flemo-screen]")!; // first match = prev scope
+      expect(prevScreenEl.style.transform).not.toBe("");
+      expect(prevNav.style.transform).toBe(prevScreenEl.style.transform);
+    });
+
+    it("a cancelled swipe restores every riding bar's inline state", async () => {
+      const c = createSwipeController(config);
+      await drag(c);
+      c.pointerUp(event({ clientX: 60 }));
+      await flush();
+
+      // onSwipeEnd resolved false: the rest rules own everything again.
+      expect(topBar.style.transform).toBe("");
+      expect(prevNav.style.transform).toBe("");
+      expect(vi.mocked(setDragStatus)).toHaveBeenCalledWith("IDLE");
+    });
+
+    it("a triggered swipe strips only the prev side's bars (current unmounts with the screen)", async () => {
+      onSwipeEnd.mockImplementation(async () => true);
+      const c = createSwipeController(config);
+      await drag(c);
+      c.pointerUp(event({ clientX: 200 }));
+      await flush();
+
+      expect(back).toHaveBeenCalled();
+      // The swiped-out screen suppresses its upcoming POPPING keyframe.
+      expect(dom.scope.getAttribute("data-flemo-skip-animation")).toBe("true");
+      // Prev-side bars outlive the navigation: inline transforms stripped so
+      // the next compiled rule isn't shadowed. Current-side bars keep theirs —
+      // they leave with the screen.
+      expect(prevNav.style.transform).toBe("");
+      expect(topBar.style.transform).not.toBe("");
+    });
+  });
+
+  // The part hooks' animate wrapper stakes the controller's own writer token,
+  // so a cancelled swipe's owner-scoped clear can restore the part's inline
+  // state (an unstaked write would leak past the cancel).
+  describe("part hook animate writes", () => {
+    let part: HTMLElement;
+
+    beforeEach(() => {
+      part = document.createElement("div");
+      part.setAttribute("data-flemo-part-name", "cov-part");
+      dom.screenContainer.appendChild(part);
+      partTransitionMap.set("cov-part", {
+        name: "cov-part",
+        initial: {},
+        variants: {} as never,
+        onSwipe: (
+          _t: boolean,
+          _p: number,
+          o: { animate: (el: HTMLElement, v: object) => void; element: HTMLElement }
+        ) => {
+          o.animate(o.element, { opacity: 0.5 });
+        }
+      } as never);
+
+      onSwipeStart.mockImplementation(
+        async (_e: unknown, _i: unknown, o: { onStart?: (t: boolean) => void }) => {
+          o.onStart?.(true);
+          return true;
+        }
+      );
+      onSwipe.mockImplementation(
+        (_e: unknown, _i: unknown, o: { onProgress?: (t: boolean, p: number) => void }) => {
+          o.onProgress?.(true, 0.4);
+          return 0.4;
+        }
+      );
+    });
+
+    afterEach(() => partTransitionMap.delete("cov-part"));
+
+    it("a part write lands inline through the controller's writer and clears on cancel", async () => {
+      const c = createSwipeController(config);
+      c.pointerDown(event({ target: dom.scope }));
+      c.pointerMove(event({ clientX: 40 }));
+      await flush();
+      c.pointerMove(event({ clientX: 60, timeStamp: 32 }));
+
+      expect(part.style.opacity).toBe("0.5");
+
+      c.pointerUp(event({ clientX: 60 }));
+      await flush();
+      expect(part.style.opacity).toBe("");
+    });
+  });
 });

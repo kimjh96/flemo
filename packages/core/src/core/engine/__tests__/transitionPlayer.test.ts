@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { VariantMotion } from "@transition/variantMotion";
 
@@ -34,16 +34,16 @@ const createFakeScheduler = (devicePixelRatio = 1) => {
   return { scheduler, pump, pendingCount: () => pending.size };
 };
 
-// Advance the fake clock from `from` to `to` in sub-cap (≤ two nominal
+// Advance the fake clock from `from` to `to` in pass-through (≤ 1.6 nominal
 // frames) steps, landing exactly on `to`. Real rAF fires every ~16ms, so
 // reaching a given progress means many small frames — any longer jump now
-// reads as a main-thread STALL and re-anchors (see MAX_CLOCK_STEP_MS). This
-// walks the clock at frame cadence so the player advances linearly, exactly
-// as it does under a real rAF stream.
+// reads as a main-thread STALL and resumes at one-frame cadence (see
+// PASS_THROUGH_FRAMES). This walks the clock at frame cadence so the player
+// advances linearly, exactly as it does under a real rAF stream.
 const climbTo = (pump: (time: number) => void, from: number, to: number) => {
   let t = from;
-  while (to - t > 32) {
-    t += 32;
+  while (to - t > 24) {
+    t += 24;
     pump(t);
   }
   pump(to);
@@ -99,6 +99,31 @@ describe("isPlayerDrivable", () => {
     );
     expect(
       isPlayerDrivable(linearMotion({ scale: 0.9, rotate: "3deg" }, { scale: 1, rotate: 0 }))
+    ).toBe(true);
+  });
+
+  it("rejects transform channels authored out of canonical order (non-commutative)", () => {
+    // rotate-then-translate is a DIFFERENT path than translate-then-rotate;
+    // the numeric tier recomposes canonically, so such motions must fall to
+    // the scrub tier where the browser composes the authored list exactly.
+    expect(isPlayerDrivable(linearMotion({ rotate: "90deg", x: 100 }, { rotate: 0, x: 0 }))).toBe(
+      false
+    );
+    expect(isPlayerDrivable(linearMotion({ x: 100, rotate: "90deg" }, { x: 0, rotate: 0 }))).toBe(
+      true
+    );
+    // x/y merge into one translate3d — their mutual order is free.
+    expect(isPlayerDrivable(linearMotion({ y: 10, x: 10 }, { y: 0, x: 0 }))).toBe(true);
+    // Rotates around different axes do not commute either.
+    expect(
+      isPlayerDrivable(
+        linearMotion({ rotateZ: "10deg", rotateX: "10deg" }, { rotateZ: 0, rotateX: 0 })
+      )
+    ).toBe(false);
+    expect(
+      isPlayerDrivable(
+        linearMotion({ rotateX: "10deg", rotateZ: "10deg" }, { rotateX: 0, rotateZ: 0 })
+      )
     ).toBe(true);
   });
 
@@ -175,6 +200,99 @@ describe("transitionPlayer", () => {
     expect(completed).toBe(1);
   });
 
+  it("a sustained 30Hz cadence advances the clock at the display's own pace", () => {
+    // Every frame arriving at ~33ms IS the display's cadence, not a stall:
+    // after a short sustained window the estimator adopts it and the clock
+    // stays wall-synced (a 60Hz-capped estimate would advance 16.7ms per
+    // 33ms frame and double the flight).
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    let completed = 0;
+    registry.join("task-30hz", {
+      element: el,
+      motion: linearMotion({ x: "100%" }, { x: 0 }, 0.6),
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+    let t = 0;
+    pump(t);
+    for (let i = 0; i < 22 && completed === 0; i++) {
+      t += 1000 / 30;
+      pump(t);
+    }
+    // 0.6s of motion in ~0.73s of 30Hz wall time (estimator warmup slack
+    // included). The old cap needed ~1.2s of wall time.
+    expect(completed).toBe(1);
+  });
+
+  it("a stall burst on a fast display keeps the one-frame resume (no cadence poisoning)", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    registry.join("task-burst", {
+      element: el,
+      motion: linearMotion({ x: "100%" }, { x: 0 }, 0.6),
+      role: "active"
+    });
+    // Healthy 60Hz frames to t=100...
+    pump(0);
+    for (const t of [16.67, 33.33, 50, 66.67, 83.33, 100]) pump(t);
+    // ...then a 40ms block. 40 sits inside the slow-cadence sample window,
+    // but the recent gaps are mostly 16.7ms — NOT sustained-slow — so the
+    // estimate stays at 60Hz and the clock advances exactly ONE frame.
+    pump(140);
+    // elapsed = 140 - (40 - 16.67) = 116.67 → x = 400 * (1 - 116.67/600).
+    expect(el.style.transform).toBe("translate3d(322px, 0px, 0)");
+  });
+
+  it("navigation completes only when the LONGEST track finishes — surviving a stall after the active landed", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const active = element();
+    const passive = element();
+    let completed = 0;
+    registry.join("task-stall", {
+      element: active,
+      motion: linearMotion({ x: "100%" }, { x: 0 }, 0.3),
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+    registry.join("task-stall", {
+      element: passive,
+      motion: linearMotion({ x: 0 }, { x: "-35%" }, 1),
+      role: "passive"
+    });
+    pump(0);
+    let t = 0;
+    while (t < 350) {
+      t += 1000 / 60;
+      pump(t);
+    }
+    // The active track landed; the navigation must NOT have resolved (the
+    // passive still has ~650ms of motion).
+    expect(completed).toBe(0);
+    // A 600ms main-thread stall: the player clock advances ONE frame and
+    // re-anchors — the passive's remaining span now ends ~583ms later in
+    // wall time. A wall-clock timer would already have fired inside it.
+    pump(950);
+    expect(completed).toBe(0);
+    while (t < 1500) {
+      t = Math.max(t, 950) + 1000 / 60;
+      pump(t);
+    }
+    expect(completed).toBe(0); // passive's player clock is still mid-motion
+    while (t < 1650 && completed === 0) {
+      t += 1000 / 60;
+      pump(t);
+    }
+    expect(completed).toBe(1); // resolves on the player clock, ~583ms late
+  });
+
   it("snaps x/y to device pixels", () => {
     const { scheduler, pump } = createFakeScheduler(2);
     const registry = createTransitionPlayerRegistry(scheduler);
@@ -193,7 +311,11 @@ describe("transitionPlayer", () => {
     expect(Math.round(value * 2)).toBe(value * 2);
   });
 
-  it("glides sub-device-pixel motion unsnapped, re-snaps when fast", () => {
+  it("glides sub-device-pixel motion unsnapped, re-snaps when fast (velocity gate)", () => {
+    // Pin the GATE: the platform default at desktop densities is always-snap
+    // (see defaultAlwaysSnap), and this test exercises the gate itself.
+    sessionStorage.setItem("flemo:snap", "gate");
+    resetSessionOverrideCachesForTests();
     const { scheduler, pump } = createFakeScheduler(2);
     const registry = createTransitionPlayerRegistry(scheduler);
     const el = element();
@@ -214,6 +336,41 @@ describe("transitionPlayer", () => {
 
     pump(521); // 1.7px this frame = 3.4 device px → snapped again
     expect(el.style.transform).toBe("translate3d(-52px, 0px, 0)");
+  });
+
+  it("the platform default snaps EVERY frame on non-Blink desktop densities, gates at phone densities", () => {
+    // dpr 2 (Mac Safari class): slow motion snaps to the device grid.
+    {
+      const { scheduler, pump } = createFakeScheduler(2);
+      const registry = createTransitionPlayerRegistry(scheduler);
+      const el = element();
+      registry.join("task-desk", {
+        element: el,
+        motion: linearMotion({ x: 0 }, { x: -100 }),
+        role: "active"
+      });
+      pump(0);
+      pump(16.67); // ~1.67 CSS px in, velocity ~0.83 device px/frame (below the gate)
+      const m = /translate3d\((-?[\d.]+)px/.exec(el.style.transform)!;
+      expect(Math.abs(parseFloat(m[1]) * 2) % 1).toBe(0); // on the half-CSS-px device grid
+    }
+    // dpr 3 (iPhone class): the same slow frame glides fractionally.
+    {
+      const { scheduler, pump } = createFakeScheduler(3);
+      const registry = createTransitionPlayerRegistry(scheduler);
+      const el = element();
+      registry.join("task-phone", {
+        element: el,
+        motion: linearMotion({ x: 0 }, { x: -30 }),
+        role: "active"
+      });
+      pump(0);
+      pump(16.67); // 0.5 CSS px in → 1.5 device px... keep it slower: next frame
+      pump(20); // ~0.6 CSS px → sub-device-px per-frame delta by now
+      const m = /translate3d\((-?[\d.]+)px/.exec(el.style.transform)!;
+      // fractional (not on the 1/3 device grid) — the gate's raw glide
+      expect(Math.abs(parseFloat(m[1]) * 3) % 1).not.toBe(0);
+    }
   });
 
   it("drives y/z/scale/rotate channels through one composed transform", () => {
@@ -514,7 +671,7 @@ describe("transitionPlayer block-resilient re-anchor", () => {
   const progressOf = (el: HTMLElement) => 1 - parseFloat(el.style.opacity);
   const ONE_FRAME_MS = 1000 / 60;
 
-  it("a gap up to two nominal frames advances the full gap (ordinary jitter)", () => {
+  it("a gap inside the pass-through window advances the full gap (ordinary jitter)", () => {
     const { scheduler, pump } = createFakeScheduler();
     const registry = createTransitionPlayerRegistry(scheduler);
     const el = element();
@@ -522,11 +679,11 @@ describe("transitionPlayer block-resilient re-anchor", () => {
     registry.join("task-1", { element: el, motion: fadeOut(1), role: "active" });
 
     pump(0);
-    pump(33); // a natural double-vsync drop → elapsed IS the gap, no shift
-    expect(progressOf(el)).toBeCloseTo(33 / 1000, 5);
+    pump(25); // a slightly late frame (≤1.6 nominal) → elapsed IS the gap
+    expect(progressOf(el)).toBeCloseTo(25 / 1000, 5);
   });
 
-  it("caps the clock step past two frames so a block cannot compress the curve", () => {
+  it("a block resumes at exactly ONE frame's step — no velocity discontinuity", () => {
     const { scheduler, pump } = createFakeScheduler();
     const registry = createTransitionPlayerRegistry(scheduler);
     const el = element();
@@ -534,8 +691,8 @@ describe("transitionPlayer block-resilient re-anchor", () => {
     registry.join("task-1", { element: el, motion: fadeOut(1), role: "active" });
 
     pump(0);
-    pump(90); // a 90ms block used to slip under the old 100ms cliff and jump
-    expect(progressOf(el)).toBeCloseTo((2 * ONE_FRAME_MS) / 1000, 5);
+    pump(90); // a 90ms block: the resume step must look like a normal frame
+    expect(progressOf(el)).toBeCloseTo(ONE_FRAME_MS / 1000, 5);
   });
 
   it("re-anchors across a long stall: progress resumes one frame past the stall, not fast-forwarded", () => {
@@ -554,20 +711,18 @@ describe("transitionPlayer block-resilient re-anchor", () => {
     });
 
     pump(0);
-    pump(30); // normal frame → progress 0.30
+    pump(25); // normal frame → progress 0.25
     const preProgress = progressOf(el);
-    expect(preProgress).toBeCloseTo(0.3, 5);
+    expect(preProgress).toBeCloseTo(0.25, 5);
 
-    pump(400); // 370ms stall: without re-anchor a 100ms motion would be DONE
+    pump(400); // 375ms stall: without re-anchor a 100ms motion would be DONE
     const postProgress = progressOf(el);
-    // Resumes two nominal frames past where it stalled, not at the end.
-    expect(postProgress).toBeCloseTo(preProgress + (2 * ONE_FRAME_MS) / 100, 5);
+    // Resumes exactly ONE nominal frame past where it stalled, not at the end.
+    expect(postProgress).toBeCloseTo(preProgress + ONE_FRAME_MS / 100, 5);
     expect(postProgress).toBeLessThan(0.7);
     expect(completed).toBe(0);
 
-    pump(420); // ordinary frames from here play the tail out in full
-    expect(completed).toBe(0);
-    pump(440); // re-anchored elapsed passes the true end
+    climbTo(pump, 400, 480); // ordinary frames from here play the tail out in full
     expect(el.style.opacity).toBe("0");
     expect(completed).toBe(1);
 
@@ -605,11 +760,11 @@ describe("transitionPlayer block-resilient re-anchor", () => {
     });
 
     pump(0);
-    pump(30);
-    expect(animation.currentTime).toBe(30);
+    pump(25);
+    expect(animation.currentTime).toBe(25);
 
-    pump(500); // 470ms stall → the scrub clock resumes two frames past 30, not at 500
-    expect(animation.currentTime as number).toBeCloseTo(30 + 2 * ONE_FRAME_MS, 5);
+    pump(500); // 475ms stall → the scrub clock resumes one frame past 25, not at 500
+    expect(animation.currentTime as number).toBeCloseTo(25 + ONE_FRAME_MS, 5);
   });
 
   it("stops cleanly when detached mid-re-anchor (task resolved by the liveness floor)", () => {
@@ -743,10 +898,10 @@ describe("transitionPlayer session overrides (diagnostic instruments)", () => {
     withAnimate(el, animation);
     registry.join("task-1", { element: el, motion: slide(), role: "active" });
     pump(0);
-    pump(30);
+    pump(24);
     // The browser interpolates via the paused Web Animation; no per-frame
     // style writes happen.
-    expect(animation.currentTime).toBe(30);
+    expect(animation.currentTime).toBe(24);
     expect(el.style.transform).toBe("");
   });
 
@@ -774,7 +929,504 @@ describe("transitionPlayer session overrides (diagnostic instruments)", () => {
     const el = element();
     registry.join("task-1", { element: el, motion: slide(), role: "active" });
     pump(0);
-    pump(17); // shipped gate behavior, no crash
+    pump(17);
     expect(el.style.transform).toBe("translate3d(-1.5px, 0px, 0)");
+  });
+});
+
+// jsdom has no navigator.userAgentData, so these tests run as a non-Blink
+// engine — the handoff's shipped default. The handoff additionally requires
+// WAAPI (the scrub) and a numerically parseable motion (the remainder bake),
+// so suites whose elements lack an animate stub, or whose motions are
+// non-numeric, exercise the plain player untouched.
+describe("anchored-opening handoff (non-Blink, diagnostic opt-in)", () => {
+  beforeEach(() => {
+    // The handoff is OPT-IN (mid-flight-born animations desync WebKit's
+    // accelerated re-sync — see handoffOverride); these tests enable it.
+    sessionStorage.setItem("flemo:handoff", "on");
+    resetSessionOverrideCachesForTests();
+  });
+  afterEach(() => {
+    sessionStorage.removeItem("flemo:handoff");
+    resetSessionOverrideCachesForTests();
+    vi.restoreAllMocks();
+  });
+
+  // The handoff's remainder animation, as the second element.animate call
+  // returns it.
+  const remainderAnimation = () => ({
+    ...fakeAnimation(),
+    onfinish: null as (() => void) | null
+  });
+
+  it("prefers the scrub tier for numeric motion and hands the remainder to a fresh animation", () => {
+    const { scheduler, pump, pendingCount } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const scrub = fakeAnimation();
+    const remainder = remainderAnimation();
+    const animate = vi.fn().mockReturnValueOnce(scrub).mockReturnValueOnce(remainder);
+    el.animate = animate as unknown as typeof el.animate;
+    const endRun = vi.spyOn(driverPolicy, "endRun");
+    let completed = 0;
+
+    registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ x: "100%", opacity: 0 }, { x: 0, opacity: 1 }, 1),
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+    expect(animate).toHaveBeenCalledTimes(1);
+    expect(el.style.transform).toBe(""); // no numeric writes: the animation pins the frame
+    expect(el.style.animation).toBe("none"); // compiled animation suppressed
+
+    // The anchored opening: scrubbed off the player clock.
+    pump(0);
+    pump(24);
+    pump(48);
+    pump(72);
+    pump(96);
+    expect(scrub.currentTime).toBe(96);
+    expect(scrub.canceled).toBe(false);
+
+    // Past the opening: a FRESH animation takes the remainder — the curve's
+    // tail baked into evenly-spaced keyframes over the remaining duration,
+    // plain linear easing — and the scrub is cancelled in the same step.
+    // Every ingredient unremarkable by design (see tryHandOff).
+    pump(112);
+    expect(animate).toHaveBeenCalledTimes(2);
+    const [keyframes, options] = animate.mock.calls[1]! as [
+      Record<string, string>[],
+      KeyframeAnimationOptions
+    ];
+    expect(keyframes.length).toBe(41);
+    // First keyframe = the pose at the handoff frame (11.2% of a linear 1s
+    // slide across a 400px-wide element: 400 * (1 - 0.112) = 355.2px), last
+    // keyframe = the rest pose.
+    expect(keyframes[0]!.transform).toBe("translate3d(355.2px, 0px, 0)");
+    expect(keyframes[0]!.opacity).toBe("0.112");
+    expect(keyframes[40]!.transform).toBe("none");
+    expect(keyframes[40]!.opacity).toBe("1");
+    expect(options.duration).toBe(888); // 1000 - 112 already played
+    expect(options.delay).toBe(0);
+    expect(options.easing).toBe("linear");
+    expect(options.fill).toBe("both");
+    expect(scrub.canceled).toBe(true);
+    expect(el.style.animation).toBe("none"); // compiled stays suppressed for the whole flight
+    // The loop stops — the browser presents from here, so no frames, no
+    // stall evidence, and the policy run closes once.
+    expect(pendingCount()).toBe(0);
+    expect(endRun).toHaveBeenCalledTimes(1);
+    expect(completed).toBe(0);
+
+    // With the compiled animation suppressed throughout, no animationend can
+    // fire — the player IS the single live resolver, so the finish event
+    // completes the flight here (and only once).
+    remainder.onfinish?.();
+    expect(completed).toBe(1);
+    expect(endRun).toHaveBeenCalledTimes(1);
+    remainder.onfinish?.(); // idempotent: a stray second event changes nothing
+    expect(completed).toBe(1);
+  });
+
+  it("a detach after the handoff cancels the remainder and ignores a late finish", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const scrub = fakeAnimation();
+    const remainder = remainderAnimation();
+    el.animate = vi
+      .fn()
+      .mockReturnValueOnce(scrub)
+      .mockReturnValueOnce(remainder) as unknown as typeof el.animate;
+    let completed = 0;
+
+    const detach = registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ x: "100%" }, { x: 0 }, 1),
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    })!;
+    pump(0);
+    climbTo(pump, 0, 112); // frame-cadence past the handoff point
+    expect(remainder.canceled).toBe(false);
+
+    detach(); // interruption mid-remainder: the fill must not outlive the track
+    expect(remainder.canceled).toBe(true);
+    remainder.onfinish?.(); // a late finish after the detach is ignored
+    expect(completed).toBe(0);
+  });
+
+  it("stays scrubbed when the remainder animation is refused", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const scrub = fakeAnimation();
+    el.animate = vi
+      .fn()
+      .mockReturnValueOnce(scrub)
+      .mockImplementation(() => {
+        throw new Error("unsupported keyframes");
+      }) as unknown as typeof el.animate;
+    let completed = 0;
+
+    registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ x: "100%" }, { x: 0 }, 1),
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+    pump(0);
+    climbTo(pump, 0, 112); // the handoff attempt throws — and is not retried
+    expect(scrub.canceled).toBe(false);
+    climbTo(pump, 112, 1000); // the scrub carries the whole flight
+    expect(scrub.currentTime).toBe(1000);
+    expect(completed).toBe(1);
+  });
+
+  it("a non-numeric motion has nothing to bake from and stays scrubbed", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const scrub = fakeAnimation();
+    const animate = withAnimate(el, scrub);
+    let completed = 0;
+
+    registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }, 1),
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+    pump(0);
+    climbTo(pump, 0, 1000); // straight through the handoff point on the scrub path
+    expect(animate).toHaveBeenCalledTimes(1); // no remainder animation was ever created
+    expect(scrub.currentTime).toBe(1000);
+    expect(completed).toBe(1);
+  });
+
+  it("without the opt-in the numeric tier drives (shipped default)", () => {
+    sessionStorage.removeItem("flemo:handoff");
+    resetSessionOverrideCachesForTests();
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const animate = withAnimate(el, fakeAnimation());
+
+    registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ x: "100%" }, { x: 0 }, 1),
+      role: "active"
+    });
+    // Numeric motion without the handoff opt-in: the numeric tier drives,
+    // no Web Animation is created at all.
+    expect(animate).not.toHaveBeenCalled();
+    pump(0);
+    pump(500);
+    expect(el.style.transform).not.toBe("");
+  });
+});
+
+// The remainder bake and the handoff's decline paths: what the baked
+// keyframes carry per channel class, and the frames where tryHandOff decides
+// the browser has nothing (or nothing visible) left to take.
+describe("anchored-opening handoff — remainder bake and decline paths", () => {
+  beforeEach(() => {
+    sessionStorage.setItem("flemo:handoff", "on");
+    resetSessionOverrideCachesForTests();
+  });
+  afterEach(() => {
+    sessionStorage.removeItem("flemo:handoff");
+    resetSessionOverrideCachesForTests();
+    vi.restoreAllMocks();
+  });
+
+  const remainderAnimation = () => ({
+    ...fakeAnimation(),
+    onfinish: null as (() => void) | null
+  });
+
+  it("bakes every transform channel, string templates, and constants into the remainder", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const scrub = fakeAnimation();
+    const remainder = remainderAnimation();
+    const animate = vi.fn().mockReturnValueOnce(scrub).mockReturnValueOnce(remainder);
+    el.animate = animate as unknown as typeof el.animate;
+
+    registry.join("task-1", {
+      element: el,
+      // Every serializable channel class at once: y (percent-based), z,
+      // the three scales, the three rotates, a string template (filter),
+      // and a constant carried across the flight (boxShadow). filter is not
+      // a perceptual-cut channel, so the cut self-vetoes and cannot land
+      // before the handoff frame.
+      motion: linearMotion(
+        {
+          y: "100%",
+          z: 8,
+          scale: 0.5,
+          scaleX: 0.25,
+          scaleY: 0.5,
+          rotate: 45,
+          rotateX: 10,
+          rotateY: 20,
+          filter: "blur(8px)",
+          boxShadow: "0 0 12px rgba(0, 0, 0, 0.3)"
+        },
+        {
+          y: 0,
+          z: 0,
+          scale: 1,
+          scaleX: 1,
+          scaleY: 1,
+          rotate: 0,
+          rotateX: 0,
+          rotateY: 0,
+          filter: "blur(0px)",
+          boxShadow: "0 0 12px rgba(0, 0, 0, 0.3)"
+        },
+        1
+      ),
+      role: "active"
+    });
+    pump(0);
+    climbTo(pump, 0, 112); // frame cadence to just past HANDOFF_MS
+
+    expect(animate).toHaveBeenCalledTimes(2);
+    const keyframes = animate.mock.calls[1]![0] as Record<string, string>[];
+    expect(keyframes.length).toBe(41);
+    // The first keyframe is the pose at 11.2% of the linear curve, raw
+    // (round4) values — no snap machinery in baked keyframes. y is 100% of
+    // offsetHeight 800 → 88.8% remaining = 710.4px.
+    expect(keyframes[0]!.transform).toBe(
+      "translate3d(0px, 710.4px, 0) translateZ(7.104px) scale(0.556) scaleX(0.334) " +
+        "scaleY(0.556) rotate(39.96deg) rotateX(8.88deg) rotateY(17.76deg)"
+    );
+    expect(keyframes[0]!.filter).toBe("blur(7.104px)");
+    expect(keyframes[0]!.opacity).toBeUndefined(); // no opacity channel authored
+    // Constants ride only the first and last keyframes — WAAPI holds a
+    // property between the keyframes that carry it.
+    expect(keyframes[0]!.boxShadow).toBe("0 0 12px rgba(0, 0, 0, 0.3)");
+    expect(keyframes[1]!.boxShadow).toBeUndefined();
+    expect(keyframes[40]!.boxShadow).toBe("0 0 12px rgba(0, 0, 0, 0.3)");
+    // Every transform channel lands on identity → the rest pose collapses
+    // to "none", mirroring the compiler's rest semantics.
+    expect(keyframes[40]!.transform).toBe("none");
+    expect(keyframes[40]!.filter).toBe("blur(0px)");
+  });
+
+  it("a transform-less motion bakes opacity-only keyframes (no transform key)", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const scrub = fakeAnimation();
+    const remainder = remainderAnimation();
+    const animate = vi.fn().mockReturnValueOnce(scrub).mockReturnValueOnce(remainder);
+    el.animate = animate as unknown as typeof el.animate;
+
+    registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ opacity: 0 }, { opacity: 1 }, 1),
+      role: "active"
+    });
+    pump(0);
+    climbTo(pump, 0, 112);
+
+    expect(animate).toHaveBeenCalledTimes(2);
+    const keyframes = animate.mock.calls[1]![0] as Record<string, string>[];
+    expect(keyframes[0]!).toEqual({ opacity: "0.112" });
+    expect(keyframes[40]!).toEqual({ opacity: "1" });
+  });
+
+  it("a delay-only motion (zero duration) declines the handoff and stays scrubbed", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const scrub = fakeAnimation();
+    const animate = withAnimate(el, scrub);
+    let completed = 0;
+
+    registry.join("task-1", {
+      element: el,
+      // The handoff frame lands inside the 500ms delay: activeElapsed is 0
+      // and the duration is 0, so the remainder would be an empty animation
+      // — nothing for the browser to take. The scrub carries the flight.
+      motion: { from: { x: 400 }, to: { x: 0 }, duration: 0, delay: 0.5, ease: "linear" },
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+    pump(0);
+    climbTo(pump, 0, 112); // past HANDOFF_MS, still inside the delay
+    expect(animate).toHaveBeenCalledTimes(1); // no remainder animation
+    expect(scrub.canceled).toBe(false);
+    expect(scrub.currentTime).toBe(112);
+
+    climbTo(pump, 112, 500); // the scrub clock reaches delay + duration
+    expect(completed).toBe(1);
+  });
+
+  it("declines the handoff when the remaining eased span is imperceptible", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const scrub = fakeAnimation();
+    const animate = withAnimate(el, scrub);
+    const vetoEl = element();
+    withAnimate(vetoEl, fakeAnimation());
+    let completed = 0;
+
+    registry.join("task-1", {
+      element: el,
+      // ease [0,1,0,1] on a 120ms flight: at the 112ms handoff frame the
+      // eased value sits within ~1e-4 of the end — a remainder animation
+      // would present nothing. Letting the scrub finish avoids paying a
+      // fresh accelerated animation for an invisible tail.
+      motion: {
+        from: { x: 400 },
+        to: { x: 0 },
+        duration: 0.12,
+        delay: 0,
+        ease: [0, 1, 0, 1] as VariantMotion["ease"]
+      },
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+    // The steep curve's perceptual cut would complete the track BEFORE the
+    // handoff frame; an unanalyzable participant vetoes the navigation's cut
+    // so the handoff decision itself is what this test reaches.
+    registry.join("task-1", {
+      element: vetoEl,
+      motion: linearMotion({ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }, 1),
+      role: "passive"
+    });
+
+    pump(0);
+    climbTo(pump, 0, 112); // the handoff frame: declined, scrub keeps driving
+    expect(animate).toHaveBeenCalledTimes(1);
+    expect(scrub.canceled).toBe(false);
+    expect(scrub.currentTime).toBe(112);
+
+    climbTo(pump, 112, 1000); // active ends at 120 on the scrub; passive at 1000
+    expect(completed).toBe(1);
+  });
+
+  it("a handed-off track idles in the loop while a sibling still needs frames", () => {
+    const { scheduler, pump, pendingCount } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const scrub = fakeAnimation();
+    const remainder = remainderAnimation();
+    el.animate = vi
+      .fn()
+      .mockReturnValueOnce(scrub)
+      .mockReturnValueOnce(remainder) as unknown as typeof el.animate;
+    const passiveEl = element();
+    const passiveScrub = fakeAnimation();
+    withAnimate(passiveEl, passiveScrub);
+    let completed = 0;
+
+    registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ x: "100%" }, { x: 0 }, 0.5),
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+    registry.join("task-1", {
+      element: passiveEl,
+      // Non-numeric: scrubbed for its whole flight, so the loop must keep
+      // pumping frames after the active's handoff.
+      motion: linearMotion({ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }, 1),
+      role: "passive"
+    });
+
+    pump(0);
+    climbTo(pump, 0, 112); // the active hands off here...
+    expect(remainder.canceled).toBe(false);
+    // ...but the passive still needs frames, so the loop stays alive — the
+    // handed-off track just idles in it (the browser presents its motion).
+    expect(pendingCount()).toBe(1);
+
+    climbTo(pump, 112, 1000); // the passive finishes on the player clock
+    // Every remaining track is now the browser's: the loop stops, but the
+    // navigation stays open until the remainder's finish event.
+    expect(pendingCount()).toBe(0);
+    expect(completed).toBe(0);
+    remainder.onfinish?.();
+    expect(completed).toBe(1);
+  });
+});
+
+describe("perceptual tail cut (player clock)", () => {
+  // A steep decel ease enters its imperceptibility band long before the
+  // authored end — the dead sub-pixel tail the cut removes.
+  const steep = (from: object, to: object): VariantMotion => ({
+    from: from as VariantMotion["from"],
+    to: to as VariantMotion["to"],
+    duration: 1,
+    delay: 0,
+    ease: [0, 1, 0, 1]
+  });
+
+  it("completes the navigation at the cut, not the authored end", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    let completed = 0;
+    registry.join("task-1", {
+      element: el,
+      motion: steep({ x: 400 }, { x: 0 }),
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+    pump(0);
+    climbTo(pump, 0, 700); // deep inside the band for ease [0,1,0,1]
+    expect(completed).toBe(1); // cut fired well before the 1000ms end
+  });
+
+  it("an unanalyzable participant vetoes the navigation's cut", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const a = element();
+    const b = element();
+    const animation = fakeAnimation();
+    withAnimate(b, animation);
+    let completed = 0;
+    registry.join("task-1", {
+      element: a,
+      motion: steep({ x: 400 }, { x: 0 }),
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+    registry.join("task-1", {
+      element: b,
+      // clip-path: not an analyzable channel → cut unsafe → veto.
+      motion: steep({ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }),
+      role: "passive"
+    });
+    pump(0);
+    climbTo(pump, 0, 900);
+    expect(completed).toBe(0); // no cut: the full authored span plays
+    climbTo(pump, 900, 1000);
+    expect(completed).toBe(1);
   });
 });

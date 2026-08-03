@@ -1,6 +1,6 @@
 import { resolveEasing } from "@transition/cubicBezier";
-import type { Transition, TransitionVariant } from "@transition/typing";
-import { resolveVariantMotion, type VariantMotion } from "@transition/variantMotion";
+import type { Transition } from "@transition/typing";
+import { type VariantMotion } from "@transition/variantMotion";
 
 import { channelValue, type PerceptualBox } from "./perceptualSpan";
 
@@ -72,26 +72,43 @@ export const peakTranslationPxPerFrame = (
 
 export type MotionDriverKind = "native" | "player";
 
-// The driver for one navigation of `transition` at `status`, measured against
-// the screen box. An authored `driver` on the transition overrides the
-// measurement (the library provides the measured default; the author can
-// always pin a borderline motion). An unanalyzable variant keeps the player —
-// the conservative default that every motion ran on before this
-// classification existed.
+// The driver for one navigation of `transition` at `status`. An authored
+// `driver` on the transition is the strongest routing input; the default is
+// the PLAYER on every engine.
+//
+// - Blink: the compositor is the component that misses presentation
+//   deadlines on raster-heavy layers (eye-verified single-variable A/B; the
+//   reason the player exists), and rAF rides a healthy main thread.
+// - Non-Blink (WebKit): the compiled clock is stamped at the frame TOP of
+//   the rendering update that creates (or resumes) the animation, and
+//   everything between that stamp and the glass — the update's own style/
+//   layer work, the CA commit, the UI-process activation — runs on the
+//   flight's clock. On a loaded phone that pipeline is 50-100ms+, and no
+//   release scheduling can shrink it (an atomic rAF-flip closed the
+//   task-injection window and the device still jumped "미세하게 나아진 것
+//   뿐"): the opening of every cold flight starts visibly mid-curve. The
+//   player is immune BY CONSTRUCTION — each presented frame shows the value
+//   written that frame, and a block holds the capped clock instead of
+//   aging it. This is also the only opening the device user ever judged
+//   natural ("raf는 매우 자연스럽습니다", 2026-08 A/B). The player's known
+//   trade — main-thread frame supply at the convergence — is now carried by
+//   the early-armed arrival hold (mid-flight commits are display:none-held,
+//   their layout cost gone), which the original convergence verdicts
+//   predate. The untouched-native path remains for authored
+//   `driver: "native"` pins (with the birth-window anchor and, for them,
+//   the atomic release flip).
+//
+// The measured fast-mover carve-out (peak translation ≥
+// NATIVE_PEAK_CSS_PX_PER_FRAME → native) stays retired as a default;
+// peakTranslationPxPerFrame remains exported for diagnostics and pinned
+// authors.
 export const classifyTransitionDriver = (
   transition: Transition,
-  status: string,
-  box: PerceptualBox
+  // Kept for call-site and diagnostic stability: carve-outs read these.
+  _status: string,
+  _box: PerceptualBox
 ): MotionDriverKind => {
   const authored = (transition as { driver?: MotionDriverKind }).driver;
   if (authored === "native" || authored === "player") return authored;
-  let peak = 0;
-  for (const active of ["true", "false"]) {
-    const motion = resolveVariantMotion(transition, `${status}-${active}` as TransitionVariant);
-    if (!motion) continue;
-    const variantPeak = peakTranslationPxPerFrame(motion, box);
-    if (variantPeak === null) return "player";
-    peak = Math.max(peak, variantPeak);
-  }
-  return peak >= NATIVE_PEAK_CSS_PX_PER_FRAME ? "native" : "player";
+  return "player";
 };

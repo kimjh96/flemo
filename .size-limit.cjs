@@ -20,8 +20,13 @@ module.exports = [
     // the content-settle gate — measured on-device as the difference between
     // swallowed/juddering flights and clean ones — for a deliberate +2.9 KB
     // (CI ruler: 22.4 -> 25.3 KB). Budget re-based with ~15% headroom so the
-    // gate still trips on a multi-KB accidental balloon.
-    limit: "29 KB",
+    // gate still trips on a multi-KB accidental balloon. The motion-driver
+    // hardening (five review rounds: writer-scoped inline/settle leases,
+    // marker-scoped choreography, method-agnostic response hold, async image
+    // decode, platform-density snap defaults, slow-cadence clock) measured
+    // 31.9 KB — deliberate, device-justified growth; re-based to 33 KB with
+    // ~3% headroom tightened back until the next feature wave.
+    limit: "33 KB",
     gzip: true
   },
   {

@@ -1,12 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-import { navButton, trackConsoleErrors } from "./helpers/flemo";
+import { navButton, trackConsoleErrors, waitForNavIdle } from "./helpers/flemo";
 
 // flemo runs one navigation at a time: a push is ignored while the previous
-// transition is still animating. Real users pause between taps; the tests let
-// each transition complete before the next click (the longest shell transition
-// is ~0.5s).
-const SETTLE = 700;
+// transition is still animating. Real users pause between taps; the tests wait
+// for the engine to report the flight over (a fixed pause cannot bound a
+// stalled CI runner's honest wall-clock completion) before the next click.
 
 test.describe("shell navigation", () => {
   // The header nav is desktop-only (hidden md:flex); mobile has no menu yet.
@@ -20,11 +19,11 @@ test.describe("shell navigation", () => {
 
     await navButton(page, "Showcase").click();
     await expect(navButton(page, "Showcase")).toHaveAttribute("aria-current", "page");
-    await page.waitForTimeout(SETTLE);
+    await waitForNavIdle(page);
 
     await navButton(page, "Playground").click();
     await expect(navButton(page, "Playground")).toHaveAttribute("aria-current", "page");
-    await page.waitForTimeout(SETTLE);
+    await waitForNavIdle(page);
 
     await navButton(page, "Docs").click();
     await expect(navButton(page, "Docs")).toHaveAttribute("aria-current", "page");
@@ -52,7 +51,7 @@ test.describe("shell navigation", () => {
       await expect(navButton(page, label)).toHaveAttribute("aria-current", "page", {
         timeout: 5000
       });
-      await page.waitForTimeout(SETTLE);
+      await waitForNavIdle(page);
     }
   });
 

@@ -271,6 +271,57 @@ describe("settleScrub", () => {
     expect(() => scrubber.cancel(element())).not.toThrow();
   });
 
+  it("an owner-scoped cancel drops only that writer's settle", async () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const scrubber = createSettleScrubber(scheduler);
+    const el = element();
+    const animation = fakeAnimation();
+    withAnimate(el, animation);
+    const A = Symbol("writer-A");
+    const B = Symbol("writer-B");
+
+    const promise = scrubber.settle(
+      el,
+      [{ property: "opacity", value: "0" }],
+      { durationMs: 300, delayMs: 0, easing: "linear" },
+      () => {},
+      B // writer B owns this settle
+    )!;
+    pump(0);
+
+    // Writer A's cleanup must not drop B's running settle...
+    scrubber.cancel(el, A);
+    expect(animation.canceled).toBe(false);
+    scrubber.takeover(el, A);
+    expect(animation.canceled).toBe(false);
+
+    // ...B's own cancel (or the owner-less force form) does.
+    scrubber.cancel(el, B);
+    expect(animation.canceled).toBe(true);
+    await promise;
+  });
+
+  it("a scoped owner cannot conclude an owner-LESS (global) settle", async () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const scrubber = createSettleScrubber(scheduler);
+    const el = element();
+    const animation = fakeAnimation();
+    withAnimate(el, animation);
+    const promise = scrubber.settle(
+      el,
+      [{ property: "opacity", value: "0" }],
+      { durationMs: 300, delayMs: 0, easing: "linear" },
+      () => {}
+      // no owner: someone else's global write
+    )!;
+    pump(0);
+    scrubber.cancel(el, Symbol("writer-A"));
+    expect(animation.canceled).toBe(false); // not yours to drop
+    scrubber.cancel(el); // the force form is
+    expect(animation.canceled).toBe(true);
+    await promise;
+  });
+
   it("returns null without WAAPI or when the keyframe is rejected", () => {
     const { scheduler } = createFakeScheduler();
     const scrubber = createSettleScrubber(scheduler);

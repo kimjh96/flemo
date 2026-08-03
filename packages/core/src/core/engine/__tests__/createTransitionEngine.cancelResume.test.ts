@@ -89,9 +89,13 @@ const startEvent = (name: string) => {
   Object.defineProperty(event, "animationName", { value: name });
   return event as AnimationEvent;
 };
-const cancelEvent = (name: string) => {
+// animationcancel carries `elapsedTime` = the ACTIVE-phase seconds elapsed at
+// cancel (CSS spec: excludes delay; 0 while still delaying). The resume math
+// reads it directly, so tests pass the active-elapsed here.
+const cancelEvent = (name: string, elapsedSeconds = 0) => {
   const event = new Event("animationcancel");
   Object.defineProperty(event, "animationName", { value: name });
+  Object.defineProperty(event, "elapsedTime", { value: elapsedSeconds });
   return event as AnimationEvent;
 };
 const endEvent = (name: string) => {
@@ -158,43 +162,48 @@ describe("createTransitionEngine cancel-resume liveness", () => {
     const scope = newDiv();
     const dispose = driveActive(scope);
 
-    nowSpy.mockReturnValue(1000);
-    scope.dispatchEvent(startEvent(ACTIVE(CROSSFADE))); // original start = 1000
+    // Cancelled 60ms into the 150ms active phase (delay 0).
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.06));
 
-    nowSpy.mockReturnValue(1060); // elapsed 60ms of a 150ms span
-    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
-
-    // delay 0 - 60ms = -0.06s: the resume picks up 60ms into the motion.
+    // -0.06s: the resume picks up 60ms into the motion.
     expect(scope.style.animationDelay).toBe("-0.06s");
     expect(resolveSpy).not.toHaveBeenCalled();
 
     dispose();
   });
 
-  it("cancel during the delay phase waits out the remainder with a positive delay", () => {
+  it("cancel DURING the delay phase replays from the top (no rejoin delay)", () => {
     const scope = newDiv();
     const dispose = driveActive(scope, DELAYED);
 
-    nowSpy.mockReturnValue(1000);
-    scope.dispatchEvent(startEvent(ACTIVE(DELAYED)));
-
-    nowSpy.mockReturnValue(1030); // 30ms into the 100ms delay phase
-    scope.dispatchEvent(cancelEvent(ACTIVE(DELAYED)));
-
-    // delay 0.1 - 0.03 = 0.07s remaining before the motion proper begins.
-    expect(scope.style.animationDelay).toBe("0.07s");
+    // Cancelled while still delaying → animationcancel.elapsedTime is 0. The
+    // active phase never presented, so the resume is a plain restart: the
+    // authored delay replays, and NO rejoin delay is written (the old math
+    // wrote a positive +0.07s that re-waited part of the delay).
+    scope.dispatchEvent(cancelEvent(ACTIVE(DELAYED), 0));
+    expect(scope.style.animationDelay).toBe("");
 
     dispose();
   });
 
-  it("cancel past delay+duration does not resume: active resolves, passive no-ops", () => {
+  it("cancel in the ACTIVE phase of a DELAYED transition resumes with a negative delay only", () => {
+    const scope = newDiv();
+    const dispose = driveActive(scope, DELAYED);
+
+    // 30ms into the active phase (the 100ms authored delay already consumed by
+    // the browser). Resume must NOT re-add the delay: -0.03s, not +0.07s.
+    scope.dispatchEvent(cancelEvent(ACTIVE(DELAYED), 0.03));
+    expect(scope.style.animationDelay).toBe("-0.03s");
+
+    dispose();
+  });
+
+  it("cancel past the active duration does not resume: active resolves, passive no-ops", () => {
     const active = newDiv();
     const disposeActive = driveActive(active);
     const activeRemove = vi.spyOn(active.style, "removeProperty");
-    nowSpy.mockReturnValue(1000);
-    active.dispatchEvent(startEvent(ACTIVE(CROSSFADE)));
-    nowSpy.mockReturnValue(1200); // elapsed 200ms > 150ms span → finished
-    active.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
+    // 200ms > the 150ms active duration → finished, nothing to resume.
+    active.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.2));
     expect(activeRemove).not.toHaveBeenCalled(); // no restart
     expect(active.style.animationDelay).toBe(""); // no rejoin delay written
     expect(resolveSpy).toHaveBeenCalledWith("task-1"); // active concedes → resolve
@@ -204,37 +213,25 @@ describe("createTransitionEngine cancel-resume liveness", () => {
     const passive = newDiv();
     const disposePassive = drivePassive(passive);
     const passiveRemove = vi.spyOn(passive.style, "removeProperty");
-    nowSpy.mockReturnValue(2000);
-    passive.dispatchEvent(startEvent(PASSIVE(CROSSFADE)));
-    nowSpy.mockReturnValue(2200);
-    passive.dispatchEvent(cancelEvent(PASSIVE(CROSSFADE)));
+    passive.dispatchEvent(cancelEvent(PASSIVE(CROSSFADE), 0.2));
     expect(passiveRemove).not.toHaveBeenCalled(); // no restart
     expect(resolveSpy).not.toHaveBeenCalled(); // passive resolves nothing
     disposePassive();
   });
 
-  // ── Original-clock integrity ──────────────────────────────────────────────
+  // ── Chained resumes ───────────────────────────────────────────────────────
 
-  it("a resume's fresh animationstart does not reset the original clock", () => {
+  it("consecutive cancels resume from the accumulated active elapsed", () => {
     const scope = newDiv();
     const dispose = driveActive(scope);
 
-    nowSpy.mockReturnValue(1000);
-    scope.dispatchEvent(startEvent(ACTIVE(CROSSFADE))); // original = 1000
-
-    nowSpy.mockReturnValue(1050);
-    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE))); // resume, elapsed 50
+    // First cancel at active 50ms → -0.05s.
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.05));
     expect(scope.style.animationDelay).toBe("-0.05s");
 
-    // The resumed animation (negative delay) fires a fresh animationstart. It
-    // must NOT move the original clock.
-    nowSpy.mockReturnValue(1055);
-    scope.dispatchEvent(startEvent(ACTIVE(CROSSFADE)));
-
-    // Second cancel: elapsed is measured from the FIRST start (1000), not 1055.
-    nowSpy.mockReturnValue(1090);
-    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
-    // 1090 - 1000 = 90ms → -0.09s. (A reset clock would have given -0.035s.)
+    // The resumed animation's own animationcancel reports the TOTAL active
+    // elapsed (it includes the negative rejoin delay). At 90ms total → -0.09s.
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.09));
     expect(scope.style.animationDelay).toBe("-0.09s");
 
     dispose();
@@ -257,12 +254,8 @@ describe("createTransitionEngine cancel-resume liveness", () => {
     const scope = newDiv();
     const dispose = driveActive(scope);
 
-    nowSpy.mockReturnValue(1000);
-    scope.dispatchEvent(startEvent(ACTIVE(CROSSFADE)));
-
-    for (const at of [1030, 1060, 1090]) {
-      nowSpy.mockReturnValue(at);
-      scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
+    for (const activeSeconds of [0.03, 0.06, 0.09]) {
+      scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), activeSeconds));
       expect(resolveSpy).not.toHaveBeenCalled();
     }
 
@@ -274,8 +267,7 @@ describe("createTransitionEngine cancel-resume liveness", () => {
     expect(resolveSpy).toHaveBeenCalledWith("task-1");
 
     // A stray late cancel after the end does not resolve again.
-    nowSpy.mockReturnValue(1200);
-    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.2));
     expect(resolveSpy).toHaveBeenCalledTimes(1);
 
     dispose();
@@ -473,9 +465,38 @@ describe("createTransitionEngine cancel-resume liveness", () => {
 
   // ── Cleanup + bookkeeping boundedness ─────────────────────────────────────
 
-  it("COMPLETED strips a leftover inline animation-delay", () => {
+  it("restores the consumer's own delay after the recovery overwrote it", () => {
     const scope = newDiv();
-    scope.style.animationDelay = "-0.05s";
+    // A consumer authored its own delay on the same element.
+    scope.style.animationDelay = "0.2s";
+
+    // Drive a flight and cancel 50ms into the active phase so the recovery
+    // leases the consumer's 0.2s, then writes its negative rejoin delay.
+    const dispose = driveActive(scope);
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.05));
+    expect(scope.style.animationDelay).toBe("-0.05s"); // recovery's rejoin
+    // Interrupt: the controller detaches — it must restore the delay to the
+    // consumer's original, not leave the stale rejoin for the next transition.
+    dispose();
+    expect(scope.style.animationDelay).toBe("0.2s");
+  });
+
+  it("an interrupted recovery does not bleed its rejoin delay into the next transition", () => {
+    const scope = newDiv();
+    // No consumer delay this time: the element starts clean.
+    const dispose = driveActive(scope);
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.05));
+    expect(scope.style.animationDelay).toBe("-0.05s");
+    // A NEW transition supersedes it (the effect disposer runs on interrupt).
+    dispose();
+    expect(scope.style.animationDelay).toBe(""); // no stale offset inherited
+  });
+
+  it("COMPLETED leaves a consumer's inline animation longhands untouched", () => {
+    const scope = newDiv();
+    // Consumer values flemo never wrote (no flight touched these longhands).
+    scope.style.animationDelay = "0.3s";
+    scope.style.animationTimingFunction = "steps(4)";
     createTransitionEngine(deps).driveScreenLifecycle({
       getElements: () => ({ scope }),
       transitionName: CROSSFADE,
@@ -484,7 +505,8 @@ describe("createTransitionEngine cancel-resume liveness", () => {
       isActive: true,
       animHoldReleased: true
     });
-    expect(scope.style.animationDelay).toBe("");
+    expect(scope.style.animationDelay).toBe("0.3s");
+    expect(scope.style.animationTimingFunction).toBe("steps(4)");
   });
 
   it("the active resume budget is pruned on resolution — no growth across transitions", async () => {
@@ -576,83 +598,45 @@ describe("createTransitionEngine cancel-resume liveness", () => {
     });
   };
 
-  it("an animationstart emitted mid-restart does not corrupt the original clock", () => {
-    const scope = newDiv();
-    const dispose = driveActive(scope);
-
-    // First cancel arrives before any observed start (plain restart path).
-    // Mid-restart, the "compositor" emits a start — the guard must ignore it,
-    // leaving the clock unset.
-    injectDuringNextReflow(scope, () => {
-      nowSpy.mockReturnValue(1500);
-      scope.dispatchEvent(startEvent(ACTIVE(CROSSFADE)));
-    });
-    nowSpy.mockReturnValue(1000);
-    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
-
-    // The genuine start after the restart sets the clock; a later cancel's
-    // rejoin math must reference IT (2000), not the mid-restart event (1500).
-    nowSpy.mockReturnValue(2000);
-    scope.dispatchEvent(startEvent(ACTIVE(CROSSFADE)));
-    nowSpy.mockReturnValue(2060);
-    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
-    expect(scope.style.animationDelay).toBe("-0.06s");
-    expect(resolveSpy).not.toHaveBeenCalled();
-    dispose();
-  });
-
   it("an animationcancel emitted mid-restart is ignored, not treated as another loss", () => {
     const scope = newDiv();
     const dispose = driveActive(scope);
 
-    nowSpy.mockReturnValue(1000);
-    scope.dispatchEvent(startEvent(ACTIVE(CROSSFADE)));
-
-    // Spend three of the four resumes on genuine cancels.
-    for (const at of [1010, 1020, 1030]) {
-      nowSpy.mockReturnValue(at);
-      scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
+    // Spend three of the four resumes on genuine cancels (active 10/20/30ms).
+    for (const activeSeconds of [0.01, 0.02, 0.03]) {
+      scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), activeSeconds));
     }
 
     // The fourth genuine cancel spends the last budget; the mid-restart cancel
-    // it triggers must be swallowed — processed, it would read as a FIFTH loss
-    // and resolve the task out from under the running animation.
+    // it triggers (during the drop-reflow-restore) must be swallowed by the
+    // midRestart guard — processed, it would read as a FIFTH loss and resolve
+    // the task out from under the running animation.
     injectDuringNextReflow(scope, () => {
-      scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
+      scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.04));
     });
-    nowSpy.mockReturnValue(1040);
-    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.04));
 
     expect(scope.style.animationDelay).toBe("-0.04s"); // the 4th resume landed
     expect(resolveSpy).not.toHaveBeenCalled();
     dispose();
   });
 
-  it("a bubbling animation event from a descendant (foreign target) is ignored", () => {
+  it("a bubbling animationcancel from a descendant (foreign target) is ignored", () => {
     const scope = newDiv();
     const child = document.createElement("div");
     scope.appendChild(child);
     const dispose = driveActive(scope);
 
-    const bubbling = (type: string) => {
-      const event = new Event(type, { bubbles: true });
-      Object.defineProperty(event, "animationName", { value: ACTIVE(CROSSFADE) });
-      return event as AnimationEvent;
-    };
-
-    // A child's start must not set the clock, and a child's cancel must not
-    // trigger recovery, even with the expected animation name.
-    nowSpy.mockReturnValue(1500);
-    child.dispatchEvent(bubbling("animationstart"));
-    child.dispatchEvent(bubbling("animationcancel"));
+    // A child's cancel must not trigger recovery, even with the expected name.
+    const bubblingCancel = new Event("animationcancel", { bubbles: true });
+    Object.defineProperty(bubblingCancel, "animationName", { value: ACTIVE(CROSSFADE) });
+    Object.defineProperty(bubblingCancel, "elapsedTime", { value: 0.05 });
+    child.dispatchEvent(bubblingCancel);
     expect(scope.style.animationDelay).toBe("");
     expect(resolveSpy).not.toHaveBeenCalled();
 
-    // The scope's own start still records the clock cleanly afterwards.
-    nowSpy.mockReturnValue(2000);
-    scope.dispatchEvent(startEvent(ACTIVE(CROSSFADE)));
-    nowSpy.mockReturnValue(2090);
-    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
+    // The scope's own cancel still resumes cleanly afterwards.
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.09));
     expect(scope.style.animationDelay).toBe("-0.09s");
     dispose();
   });

@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import animateInline, { clearInlineAnimation } from "@transition/animateInline";
+import animateInline, { clearInlineAnimation, trackInlineWrite } from "@transition/animateInline";
 
 // jsdom reads as non-Blink (no navigator.userAgentData), where the player
 // defaults OFF; these suites exercise the player paths, so pin it on via
@@ -199,5 +199,92 @@ describe("animateInline", () => {
     expect(el.style.transform).toBe("");
     // opacity untouched
     expect(el.style.opacity).toBe("0.5");
+  });
+
+  it("preserves a consumer's animation longhands it did not write", () => {
+    // A <Part> the consumer authored with its own timing-function and delay
+    // that flemo never touched: COMPLETED cleanup must NOT strip them.
+    el.style.animationTimingFunction = "steps(4)";
+    el.style.animationDelay = "0.2s";
+    trackInlineWrite(el, "transform"); // flemo leases transform BEFORE writing
+    el.style.transform = "translate3d(10px, 0, 0)";
+    clearInlineAnimation(el);
+    expect(el.style.transform).toBe(""); // flemo's own write restored to none
+    expect(el.style.animationTimingFunction).toBe("steps(4)"); // consumer's preserved
+    expect(el.style.animationDelay).toBe("0.2s"); // consumer's preserved
+  });
+
+  it("restores a longhand flemo overwrote to the CONSUMER's original value", () => {
+    // A consumer authored animation-delay: 0.2s; flemo's recovery leases it
+    // BEFORE overwriting with a rejoin delay. Cleanup restores the consumer's
+    // 0.2s, not a bare delete.
+    el.style.animationDelay = "0.2s";
+    trackInlineWrite(el, "animation-delay"); // captures "0.2s" as the original
+    el.style.animationDelay = "-0.05s"; // flemo's rejoin
+    clearInlineAnimation(el);
+    expect(el.style.animationDelay).toBe("0.2s"); // consumer's original restored
+  });
+
+  it("removes a longhand flemo wrote where the consumer had none", () => {
+    // No consumer value: flemo leases (captures ""), writes, cleanup removes.
+    trackInlineWrite(el, "animation-timing-function");
+    el.style.animationTimingFunction = "linear(0, 0.5, 1)";
+    trackInlineWrite(el, "animation-delay");
+    el.style.animationDelay = "-0.075s";
+    clearInlineAnimation(el);
+    expect(el.style.animationTimingFunction).toBe("");
+    expect(el.style.animationDelay).toBe("");
+  });
+
+  it("an owner-scoped clear releases only that writer's stake", () => {
+    // Two independent drivers on one element (a swipe settle and the engine's
+    // player both driving a shared bar's transform): the one that finishes
+    // first must NOT restore the original out from under the other.
+    const swipe = Symbol("swipe");
+    const player = Symbol("player");
+    el.style.transform = "translateX(1px)"; // consumer original
+    trackInlineWrite(el, "transform", swipe);
+    trackInlineWrite(el, "transform", player);
+    el.style.transform = "translateX(120px)"; // mid-animation value
+
+    clearInlineAnimation(el, undefined, swipe);
+    // The player still drives: the inline value must survive.
+    expect(el.style.transform).toBe("translateX(120px)");
+
+    clearInlineAnimation(el, undefined, player);
+    // Last stake gone → the consumer's original is restored.
+    expect(el.style.transform).toBe("translateX(1px)");
+  });
+
+  it("an owner-scoped clear never strips properties it has no stake in", () => {
+    const stranger = Symbol("stranger");
+    trackInlineWrite(el, "transform"); // global writer's stake
+    el.style.transform = "translateX(50px)";
+    el.style.opacity = "0.5"; // untracked consumer value
+    clearInlineAnimation(el, undefined, stranger);
+    expect(el.style.transform).toBe("translateX(50px)"); // other writer's, kept
+    expect(el.style.opacity).toBe("0.5"); // untracked, kept (no force fallback)
+  });
+
+  it("the inline transition reset is scoped to its last writer", async () => {
+    const A = Symbol("writer-A");
+    const B = Symbol("writer-B");
+    // B's instant write pins transition: "none" under B's ownership.
+    await animateInline(el, { x: 10 }, {}, B);
+    expect(el.style.transition).toBe("none");
+    // A's cleanup must not clip it...
+    clearInlineAnimation(el, undefined, A);
+    expect(el.style.transition).toBe("none");
+    // ...B's own (or force) does.
+    clearInlineAnimation(el, undefined, B);
+    expect(el.style.transition).toBe("");
+  });
+
+  it("a force clear (no owner) remains the final authority over every stake", () => {
+    const swipe = Symbol("swipe");
+    trackInlineWrite(el, "transform", swipe);
+    el.style.transform = "translateX(80px)";
+    clearInlineAnimation(el); // the COMPLETED flip: flight is over
+    expect(el.style.transform).toBe("");
   });
 });

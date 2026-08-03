@@ -53,6 +53,10 @@ interface ActiveSettle {
   writeFinal: SettleWrite;
   resolve: () => void;
   backstop: ReturnType<typeof setTimeout>;
+  // The writer that started this settle (see animateInline's lease model).
+  // An owner-scoped takeover/cancel only concludes ITS OWN settle — writer A
+  // finishing must not drop a settle writer B started on the same element.
+  owner: symbol | undefined;
 }
 
 const kebabToCamel = (property: string) =>
@@ -66,16 +70,17 @@ export interface SettleScrubber {
     element: HTMLElement,
     decls: CssDecl[],
     timing: SettleTiming,
-    writeFinal: SettleWrite
+    writeFinal: SettleWrite,
+    owner?: symbol
   ) => Promise<void> | null;
   // Pin a settling element's current values inline and drop its animation, so
   // an immediate write (a re-grab's duration-0 follow) is not overridden by a
   // lingering animation. No-op for elements that aren't settling.
-  takeover: (element: HTMLElement) => void;
+  takeover: (element: HTMLElement, owner?: symbol) => void;
   // Drop a settle WITHOUT writing anything: a cleanup is handing the element
   // to its rest rules, and a late settle write would shadow them. No-op for
   // elements that aren't settling.
-  cancel: (element: HTMLElement) => void;
+  cancel: (element: HTMLElement, owner?: symbol) => void;
 }
 
 export const createSettleScrubber = (
@@ -136,7 +141,7 @@ export const createSettleScrubber = (
   };
 
   return {
-    settle: (element, decls, timing, writeFinal) => {
+    settle: (element, decls, timing, writeFinal, owner) => {
       if (typeof element.animate !== "function") return null;
       // A re-settle replaces the previous one, departing from its current
       // position (the previous animation still holds the pixels here).
@@ -173,14 +178,29 @@ export const createSettleScrubber = (
           resolve,
           // Insurance, not the wait: rAF suspends in background tabs, and an
           // unresolved settle would hang the swipe handler's await.
-          backstop: setTimeout(() => conclude(element, "end"), totalMs + 60)
+          backstop: setTimeout(() => conclude(element, "end"), totalMs + 60),
+          owner
         };
         active.set(element, record);
         if (frameHandle === null) frameHandle = scheduler.request(step);
       });
     },
-    takeover: (element) => conclude(element, "current"),
-    cancel: (element) => conclude(element, "drop")
+    // Owner-scoped forms conclude only a settle the SAME writer started —
+    // including never an owner-LESS settle (someone else's global write is
+    // still someone else's). Only the owner-less force form (the flight-over
+    // authority) concludes any settle.
+    takeover: (element, owner) => {
+      const settle = active.get(element);
+      if (!settle) return;
+      if (owner !== undefined && settle.owner !== owner) return;
+      conclude(element, "current");
+    },
+    cancel: (element, owner) => {
+      const settle = active.get(element);
+      if (!settle) return;
+      if (owner !== undefined && settle.owner !== owner) return;
+      conclude(element, "drop");
+    }
   };
 };
 

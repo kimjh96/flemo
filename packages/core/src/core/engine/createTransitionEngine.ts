@@ -1,6 +1,6 @@
 import TaskManger from "@core/TaskManger";
 
-import { clearInlineAnimation } from "@transition/animateInline";
+import { clearInlineAnimation, trackInlineWrite } from "@transition/animateInline";
 import { animationName, variantHasAnimation } from "@transition/compileTransitionStyles";
 import resolveTransition from "@transition/resolveTransition";
 
@@ -10,9 +10,14 @@ import { resolveVariantMotion, type VariantMotion } from "@transition/variantMot
 import createArrivalHold from "@core/engine/arrivalHold";
 import holdCompositorWarm from "@core/engine/compositorWarmUp";
 import driverPolicy, { detectBlinkEngine } from "@core/engine/driverPolicy";
+import { noticeDeviceEmulationOnce } from "@core/engine/emulationNotice";
+import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
 import createInvisibleAnimationHold from "@core/engine/invisibleAnimationHold";
+import { snappedEasingForMotion } from "@core/engine/landingPixelSnap";
+import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
 
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
+import { beginResponseHold } from "@core/engine/responseHold";
 import transitionPlayers from "@core/engine/transitionPlayer";
 import {
   SKIP_ANIMATION_ATTR,
@@ -24,7 +29,11 @@ import { decoratorMap } from "@transition/decorator/decorator";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 import { classifyTransitionDriver } from "./motionDriverKind";
-import { watchNativeStalls } from "./nativeStallAnchor";
+import {
+  anchorNativeFlightStart,
+  holdNativeClocksToFirstFrame,
+  watchNativeStalls
+} from "./nativeStallAnchor";
 
 const noop = () => {};
 
@@ -55,6 +64,12 @@ const GATE_MOTION_MARGIN_MS = 1500;
 
 const PART_NAME_ATTR = "data-flemo-part-name";
 
+// The first-frame clock hold resolves on its own rAF, potentially after the
+// release run has armed its wall-clock deadlines — this slot lets the hold
+// push THAT run's deadlines the same way a stall shift would (the closures
+// are per-effect-run, the hold is per-flight).
+const startHoldDisarms = new WeakMap<HTMLElement, () => void>();
+
 // This screen's <Part> elements. The container (the scope's parent) hosts
 // bar-mounted parts too; parts owned by a NESTED screen inside the container
 // belong to that screen's own engine and are excluded.
@@ -77,6 +92,190 @@ const collectVariantParts = (scope: HTMLElement, variant: TransitionVariant): HT
       part.getAttribute("data-flemo-status") === status &&
       part.getAttribute("data-flemo-active") === active
   );
+};
+
+// Pin the compiled promotions inline for one side of the flight (see
+// layerSettleHold.ts): the screen scope, its riding shared bars (they run
+// the screen's own rule, so they share its property list and containment),
+// the decorator, and this side's <Part> elements — every element whose
+// variant rule un-matching at the COMPLETED flip would demote-and-repaint a
+// compositor layer on the convergence frames. Each participant is gated on
+// its OWN definition's animation (a motionless screen can still carry an
+// animating decorator or part — REVEAL-shaped transitions). Containment
+// mirrors the rules' `contain: layout` scoping (PUSHING/REPLACING only).
+// This module's layer-hold owner token. A swipe gesture (createSwipeController)
+// OPT-IN landing-snap diagnostic flag, read defensively: a partitioned or
+// sandboxed document throws on sessionStorage access, and a measurement
+// toggle must never propagate that into driveScreenLifecycle.
+// The WHOLE choreography's span for one status: the longest of the screen
+// transition's BOTH variants (active and passive — either side may be the
+// long-authored one) and every <Part> participating in this status. Any
+// deadline meant to outlast "the flight" must derive from this, not from one
+// screen's variant — the response hold's backstop learned that the hard way
+// (a 700ms screen with a 3s Part flushed parked responses mid-Part).
+// Parts participating in THIS Router's flight, by the EXPLICIT boundary
+// marker: the React binding stamps every screen and shared bar with its
+// owning Router's identity (`data-flemo-router`, see RouterIdContext). A
+// document-global status query let an unrelated Router's 3s part inflate
+// this navigation's gate, floor, and response backstop — and DOM-structure
+// inference cannot draw the line: each screen sits in its own wrapper (so
+// the two screens of ONE flight share no parent), a root Router renders no
+// container at all, and two independent Routers may share a DOM parent.
+// Marker semantics: a part qualifies when its nearest marked carrier
+// (screen or bar) carries the SAME Router id as the scope's. Either side
+// missing a marker (a binding predating the stamp, detached test fixtures)
+// keeps the old inclusive behavior — over-waiting is a delay, cross-cutting
+// is a truncation.
+const collectFlightParts = (scope: HTMLElement, status: string): HTMLElement[] => {
+  const ownCarrier = scope.closest("[data-flemo-router]");
+  const flightId = ownCarrier?.getAttribute("data-flemo-router") ?? null;
+  return Array.from(
+    scope.ownerDocument.querySelectorAll<HTMLElement>(
+      `[${PART_NAME_ATTR}][data-flemo-status="${status}"]`
+    )
+  ).filter((part) => {
+    if (flightId === null) return true;
+    const carrier = part.closest("[data-flemo-router]");
+    if (!carrier) return true;
+    return carrier.getAttribute("data-flemo-router") === flightId;
+  });
+};
+
+const statusChoreographySpanMs = (
+  scope: HTMLElement,
+  transition: ReturnType<typeof resolveTransition>,
+  status: string
+): number => {
+  let spanMs = 0;
+  for (const variant of [`${status}-true`, `${status}-false`] as TransitionVariant[]) {
+    if (!variantHasAnimation(transition, variant)) continue;
+    const motion = resolveVariantMotion(transition, variant);
+    if (motion) spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
+  }
+  for (const part of collectFlightParts(scope, status)) {
+    const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
+    const partVariant = `${status}-${part.getAttribute("data-flemo-active")}` as TransitionVariant;
+    if (!definition || !variantHasAnimation(definition, partVariant)) continue;
+    const motion = resolveVariantMotion(definition, partVariant);
+    if (motion) spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
+  }
+  // The decorator is a full participant too (it joins the shared player): a
+  // 3s custom dim over a 700ms screen must extend every flight deadline,
+  // exactly like a long-authored Part.
+  const decoratorDefinition = transition.decoratorName
+    ? decoratorMap.get(transition.decoratorName)
+    : undefined;
+  if (decoratorDefinition) {
+    for (const variant of [`${status}-true`, `${status}-false`] as TransitionVariant[]) {
+      if (!variantHasAnimation(decoratorDefinition, variant)) continue;
+      const motion = resolveVariantMotion(decoratorDefinition, variant);
+      if (motion) spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
+    }
+  }
+  return spanMs;
+};
+
+const readLandingSnapFlag = (): boolean => {
+  try {
+    return (
+      typeof sessionStorage !== "undefined" && sessionStorage.getItem("flemo:landing-snap") === "on"
+    );
+  } catch {
+    return false;
+  }
+};
+
+const holdParticipantLayers = (
+  elements: {
+    scope: HTMLElement;
+    decorator?: HTMLElement | null;
+    bars?: (HTMLElement | null | undefined)[];
+  },
+  transition: ReturnType<typeof resolveTransition>,
+  variant: TransitionVariant,
+  owner: symbol
+) => {
+  const { scope, decorator, bars } = elements;
+  const status = variant.split("-")[0];
+  const containment = status === "PUSHING" || status === "REPLACING";
+  // Landing pixel snap (see landingPixelSnap.ts): reshape each translating
+  // participant's compiled easing so the flight presents integer device
+  // pixels — stamped as an INLINE longhand (clearInlineAnimation strips it
+  // at COMPLETED with animation-delay); a riding bar shares the screen's
+  // string so the pair stays in lockstep. OPT-IN diagnostics only
+  // (`sessionStorage.setItem("flemo:landing-snap", "on")` + reload): a live
+  // A/B on real content judged texel-rigid stepping WORSE than the authored
+  // fractional glide — the same verdict as the transformPart 2D-vs-3D
+  // experiment (translate3d chosen precisely for filtered sub-pixel
+  // compositing). The machinery stays for measurement work.
+  // The storage read is wrapped like every other diagnostic toggle (see
+  // transitionPlayer's overrides): a sandboxed/partitioned context can throw
+  // SecurityError on sessionStorage access, and an OPT-IN measurement flag
+  // must never take the whole transition down with it.
+  const snapEasing = detectBlinkEngine() && readLandingSnapFlag();
+  const dpr = snapEasing && typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+  if (variantHasAnimation(transition, variant)) {
+    holdScopeLayer(scope, transition, containment, owner);
+    const easing = snapEasing
+      ? snappedEasingForMotion(resolveVariantMotion(transition, variant)!, scope, dpr)
+      : null;
+    if (easing) {
+      trackInlineWrite(scope, "animation-timing-function", owner);
+      scope.style.animationTimingFunction = easing;
+    }
+    for (const bar of bars ?? []) {
+      if (bar?.getAttribute("data-flemo-bar-riding") === "true") {
+        holdScopeLayer(bar, transition, containment, owner);
+        if (easing) {
+          trackInlineWrite(bar, "animation-timing-function", owner);
+          bar.style.animationTimingFunction = easing;
+        }
+      }
+    }
+  }
+  if (decorator && transition.decoratorName) {
+    const definition = decoratorMap.get(transition.decoratorName);
+    if (definition && variantHasAnimation(definition, variant)) {
+      holdScopeLayer(decorator, definition, containment, owner);
+    }
+  }
+  for (const part of collectVariantParts(scope, variant)) {
+    const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
+    if (definition && variantHasAnimation(definition, variant)) {
+      holdScopeLayer(part, definition, containment, owner);
+      const partEasing = snapEasing
+        ? snappedEasingForMotion(resolveVariantMotion(definition, variant)!, part, dpr)
+        : null;
+      if (partEasing) {
+        trackInlineWrite(part, "animation-timing-function", owner);
+        part.style.animationTimingFunction = partEasing;
+      }
+    }
+  }
+};
+
+// The COMPLETED counterpart: queue every participant's demotion off-cadence,
+// LAYER_SETTLE_MS past the flip. Unstamped elements no-op, so this is safe
+// to call unconditionally — including for swipe-promoted bars, whose inline
+// `will-change` (createSwipeController's pre-promotion) previously dropped
+// IN the flip commit and now rides the same deferred clock.
+const releaseParticipantLayers = (
+  elements: {
+    scope?: HTMLElement | null;
+    decorator?: HTMLElement | null;
+    bars?: (HTMLElement | null | undefined)[];
+  },
+  owner: symbol
+) => {
+  const { scope, decorator, bars } = elements;
+  if (scope) {
+    releaseScopeLayerAfterSettle(scope, owner);
+    for (const part of collectScreenParts(scope)) releaseScopeLayerAfterSettle(part, owner);
+  }
+  if (decorator) releaseScopeLayerAfterSettle(decorator, owner);
+  for (const bar of bars ?? []) {
+    if (bar) releaseScopeLayerAfterSettle(bar, owner);
+  }
 };
 
 // Cancel-resume budget: how many browser-cancels of one element's compiled
@@ -104,6 +303,9 @@ interface CancelResumeConfig {
   // Budget spent, clock past the end, or not live. The active scope resolves
   // its task; a pure-resume participant does nothing.
   onTerminal: () => void;
+  // The lease writer for the rejoin delay (the engine instance's token), so
+  // ownership holds end-to-end instead of falling back to the global stake.
+  writer?: symbol;
 }
 
 // Wire cancel-resume liveness on ONE compiled-CSS participant. WebKit silently
@@ -117,37 +319,37 @@ interface CancelResumeConfig {
 // so the resume picks up mid-flight and ends on the original schedule).
 const wireCancelResume = (config: CancelResumeConfig) => {
   const { element, expectedName, motion } = config;
-  // The original start on the compiled timeline, set once at the FIRST
-  // `animationstart`. A resume's negative-delay replay fires a fresh
-  // `animationstart` that must NOT move it; only a watchdog full-restart resets
-  // it (fullRestart below).
-  let originalStart: number | null = null;
   // True only during our own drop-reflow-restore mutation, so a synchronous
   // cancel/start the real compositor emits from it is ignored (jsdom fires
   // neither, but the guard keeps the browser path re-entrancy-safe).
   let midRestart = false;
+  // Whether this recovery has written an inline rejoin delay that outlives it
+  // if not cleaned: an interrupt (a NEW transition superseding this one on the
+  // same element) tears the controller down before COMPLETED runs its own
+  // clearInlineAnimation, so detach must restore the delay itself — otherwise
+  // the next transition inherits the stale negative delay and starts mid-way.
+  let wroteRejoinDelay = false;
 
   // Standard restart trick (drop → reflow → restore the compiled rule), with
   // one of three treatments for the inline rejoin delay:
   //   "keep"  — leave it untouched (a plain restart of an animation that never
-  //             started on the clock, so there's no rejoin delay to manage);
-  //   "set"   — write the negative/positive delay that rejoins the clock;
+  //             entered its active phase, so there's no rejoin delay to manage);
+  //   "set"   — write the negative rejoin delay that resumes mid-flight;
   //   "clear" — strip any rejoin delay (a watchdog full-restart from `from`).
   const restart = (delay: { mode: "keep" | "clear" } | { mode: "set"; seconds: number }) => {
     midRestart = true;
     element.style.animation = "none";
     void element.offsetWidth;
     element.style.removeProperty("animation");
-    if (delay.mode === "clear") element.style.removeProperty("animation-delay");
-    else if (delay.mode === "set") element.style.animationDelay = cssSeconds(delay.seconds);
+    if (delay.mode === "clear") {
+      element.style.removeProperty("animation-delay");
+      wroteRejoinDelay = false;
+    } else if (delay.mode === "set") {
+      trackInlineWrite(element, "animation-delay", config.writer);
+      element.style.animationDelay = cssSeconds(delay.seconds);
+      wroteRejoinDelay = true;
+    }
     midRestart = false;
-  };
-
-  const onStart = (event: AnimationEvent) => {
-    if (midRestart) return;
-    if (event.target !== element || event.animationName !== expectedName) return;
-    if (originalStart !== null) return; // a resumed animation's fresh start
-    originalStart = performance.now();
   };
 
   const onCancel = (event: AnimationEvent) => {
@@ -157,41 +359,61 @@ const wireCancelResume = (config: CancelResumeConfig) => {
       config.onTerminal();
       return;
     }
-    if (originalStart === null) {
-      // Never observed on the compiled clock: plain restart, no delay change.
-      config.spendBudget();
-      restart({ mode: "keep" });
-      return;
-    }
-    const elapsedMs = performance.now() - originalStart;
-    const spanMs = (motion.delay + motion.duration) * 1000;
-    if (elapsedMs >= spanMs) {
-      // Past the end — the compiled rest rule owns the pose, nothing to resume.
+    // The ACTIVE-phase time elapsed at cancel, straight from the event (CSS
+    // Animations spec: animationcancel.elapsedTime is the active duration
+    // elapsed, EXCLUDING delay — 0 if cancelled while still delaying, and
+    // it already accounts for a negative rejoin delay on a re-cancel). This
+    // is the authoritative resume point: the old performance.now()-since-
+    // animationstart bookkeeping re-added `motion.delay` and, for a POSITIVE
+    // delay, made a mid-active cancel wait the delay out all over again.
+    const activeElapsedMs = Math.max(0, event.elapsedTime * 1000);
+    const durationMs = motion.duration * 1000;
+    // durationMs > 0 guard: a duration-0 variant (delay-only authoring) would
+    // otherwise read `0 >= 0` as finished and skip its remaining delay — it
+    // must take the replay path below instead.
+    if (durationMs > 0 && activeElapsedMs >= durationMs) {
+      // Past the active end — the compiled rest rule owns the pose.
       config.onTerminal();
       return;
     }
     config.spendBudget();
-    // delay - elapsed: negative once past the delay phase (rejoin mid-flight),
-    // positive if cancelled while still delaying (wait out the remainder).
-    restart({ mode: "set", seconds: motion.delay - elapsedMs / 1000 });
+    if (activeElapsedMs <= 0) {
+      // Cancelled during the delay (or exactly at active start): nothing of
+      // the active phase was presented, so replay delay + motion from the
+      // top. ACCEPTED trade-off: the event carries no delay-phase position
+      // (elapsedTime is active-only, 0 while delaying), so the authored delay
+      // replays in full rather than resuming its remainder — visually
+      // seamless (the from-pose showed throughout the delay and keeps
+      // showing), merely late for pathologically long authored delays.
+      // Preserving the exact position would need the wall-clock bookkeeping
+      // whose delay-double-count bug this event-based model replaced.
+      restart({ mode: "keep" });
+      return;
+    }
+    // Resume INTO the active phase: a negative delay of the elapsed active
+    // time, and NO re-delay (the browser already consumed the authored delay).
+    restart({ mode: "set", seconds: -activeElapsedMs / 1000 });
   };
 
   return {
     // Attach is explicit so the active scope can construct the controller (the
-    // watchdog needs its fullRestart) without wiring listeners on the
-    // player-driven path, where they'd catch the join's own `animation: none`.
+    // watchdog needs its fullRestart) without wiring the listener on the
+    // player-driven path, where it'd catch the join's own `animation: none`.
     attach: () => {
-      element.addEventListener("animationstart", onStart);
       element.addEventListener("animationcancel", onCancel);
     },
     detach: () => {
-      element.removeEventListener("animationstart", onStart);
       element.removeEventListener("animationcancel", onCancel);
+      // Restore the rejoin delay to the consumer's original (via the lease) so
+      // an interrupt never bleeds this transition's clock offset into the next.
+      if (wroteRejoinDelay) {
+        clearInlineAnimation(element, ["animation-delay"], config.writer);
+        wroteRejoinDelay = false;
+      }
     },
-    // Watchdog full-restart: replay from the compiled `from` on a FRESH clock
-    // (the next `animationstart` re-records it), dropping any rejoin delay.
+    // Watchdog full-restart: replay from the compiled `from` on a fresh clock,
+    // dropping any rejoin delay.
     fullRestart: () => {
-      originalStart = null;
       restart({ mode: "clear" });
     }
   };
@@ -212,6 +434,12 @@ const wireCancelResume = (config: CancelResumeConfig) => {
 // - Anything the player can't provably interpolate keeps the compiled CSS
 //   animation exactly as before.
 export default function createTransitionEngine(deps: TransitionEngineDeps): TransitionEngine {
+  // This engine instance's layer-hold owner token, distinct per instance so
+  // two nested Routers promoting the SAME shared bar refcount independently —
+  // a module-global token would collapse both into one holder and let the
+  // first to finish demote the layer out from under the other.
+  const layerOwner = Symbol("flemo-engine-layer");
+
   // Cancel-resume budget for the ACTIVE scope's compiled-CSS liveness recovery
   // (see the active path below): how many resumes each in-flight task has spent
   // on its screen animation. Keyed by task id, NOT by effect run — the anim-hold
@@ -286,10 +514,40 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
 
     const isTransitional = status === "PUSHING" || status === "POPPING" || status === "REPLACING";
 
+    // EVERY flight participant — active or passive, before any early-return
+    // fork below (the passive player join returns long before the active
+    // path) — gets async image decoding before its tiles paint mid-motion:
+    // the one main-thread stall the response/arrival armor cannot reach (see
+    // imageDecodeHygiene.ts; device-attributed via the noR tracer gaps). The
+    // returning screen of a pop is the passive-fork case exactly.
+    if (isTransitional) {
+      const { scope: early, bars: earlyBars } = getElements();
+      if (early) {
+        stampAsyncImageDecode(early);
+        // Release a PREVIOUS flight's landing-snap easing stake (this engine
+        // instance's only) BEFORE this flight stamps its own: an interrupted
+        // snappable slide must not bend a following unsnappable variant's
+        // curve. Done once at drive entry — a per-stamp-site else-clear
+        // fought the sibling holdParticipantLayers call of the SAME drive
+        // (passive-variant pre-stamp vs active stamp) and wiped fresh
+        // stamps. Owner-scoped: a no-op without a stake.
+        clearInlineAnimation(early, ["animation-timing-function"], layerOwner);
+        for (const part of collectScreenParts(early)) {
+          clearInlineAnimation(part, ["animation-timing-function"], layerOwner);
+        }
+        for (const bar of earlyBars ?? []) {
+          if (bar) clearInlineAnimation(bar, ["animation-timing-function"], layerOwner);
+        }
+      }
+    }
+
     // Keep the compositor producing frames for as long as this screen is in
     // motion (opening spin-up) AND through the settle window past COMPLETED
     // (the convergence storm) — see warmSettleTimer above.
     if (isTransitional) {
+      // Motion judged under DevTools device emulation chases phantoms — warn
+      // once (see emulationNotice.ts).
+      noticeDeviceEmulationOnce();
       // A navigation starting inside the settle window keeps the SAME hold:
       // cancel the pending release without spending it.
       if (warmSettleTimer) {
@@ -314,13 +572,25 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // No content landing while the screen is in motion: the COLD side of a
     // navigation (freshly-mounted enter on push/replace, unfreezing pop
     // destination — the screens whose async data can resolve mid-flight)
-    // holds in-flight DOM swaps and reflects them at rest. Armed only once
-    // the anim-hold has released: before that the screen is parked under a
-    // cover, so a landing is invisible and reflecting it immediately is
-    // strictly better (content is ready earlier at zero visual cost).
+    // holds in-flight DOM swaps and reflects them at rest. Armed from the
+    // FIRST transitional commit, not at the anim-hold release: an earlier
+    // policy armed at release on the reasoning that a pre-release landing is
+    // invisible (the screen is parked/held) and reflecting it immediately is
+    // free — but "free" counted only pixels, not the rendering update. A
+    // query's commit task finishing just before the RELEASE frame's vsync
+    // joins that frame's rendering update UNHELD, and its full style/layout
+    // ages the compiled clock (timestamped at the frame's top) before the
+    // flight ever presents — device-measured as the intermittent "gathers
+    // then rushes" opening on a multi-query detail push (a timing lottery:
+    // the collision needs the commit to land in the release frame itself).
+    // Held from the first commit, every arrival in the hold window is
+    // display:none (the compiled HELD_ARRIVAL rule) — the release frame can
+    // only ever carry cheap, layout-skipped arrivals, and everything lands
+    // in ONE commit at rest exactly like a mid-flight arrival always has
+    // (the delayed-but-complete contract, now uniform across the whole
+    // navigation window).
     const holdsArrivals =
       isTransitional &&
-      animHoldReleased &&
       (isActive ? status === "PUSHING" || status === "REPLACING" : status === "POPPING");
     if (!holdsArrivals && releaseArrivalHold) {
       // COMPLETED, IDLE, or an interrupt that flipped this screen's role.
@@ -342,13 +612,29 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (scope) {
         // The same cold screens whose commits the hold shields also carry
         // the invisible-animation layer storm (see invisibleAnimationHold.ts)
-        // — hold their unseen animations for the same span. Composing the
-        // release means every consumption path (early landing, deferred
-        // landing, interrupt, re-arm) resumes them exactly when the held
-        // content lands: at rest, where the storm cannot read as a twitch.
+        // — hold their unseen animations for the same span. And the reveal
+        // commits are TRIGGERED by network responses resolving mid-flight
+        // (see responseHold.ts — every method; real reveals arrive as GET
+        // selects, POST RPCs, and HEAD counts alike): parking those moves the
+        // reveal's REACT RENDER — the script cost display:none cannot touch,
+        // the player's convergence frame famine — to rest, where the arrival
+        // hold was going to reveal its pixels anyway. Never a stream, and
+        // bounded by the WHOLE choreography's span (a 3s authored Part must
+        // not see parked responses flushed into its middle just because the
+        // screen itself lands at 700ms). All releases run together at every
+        // consumption path (early/deferred landing, interrupt, re-arm), so
+        // content lands, animations resume, and responses deliver in one
+        // commit at rest.
         const releaseHold = createArrivalHold(scope);
         const releaseAnimations = createInvisibleAnimationHold(scope);
+        const holdSpanMs = statusChoreographySpanMs(
+          scope,
+          resolveTransition(transitionName),
+          status
+        );
+        const releaseResponses = beginResponseHold(holdSpanMs + GATE_MOTION_MARGIN_MS);
         releaseArrivalHold = () => {
+          releaseResponses();
           releaseAnimations();
           releaseHold();
         };
@@ -370,12 +656,23 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
 
       // Per-context driver selection, both decided by the library:
       // 1. A REPLAY CHAIN (more navigations queued behind this one — a rapid
-      //    back/forward storm) runs on the compiled CSS path BY DESIGN: the
-      //    queued screens' mount commits land mid-flight, which stalls a
-      //    main-thread player but is precisely where the compositor glides.
-      //    Single interactive navigations (the common case) get the player,
-      //    whose smoothness on raster-heavy layers the compositor can't match.
-      if (TaskManger.pendingTaskIds.some((id) => id !== taskId)) return null;
+      //    back/forward storm) runs on the compiled CSS path on BLINK ONLY:
+      //    there the queued screens' mount commits land mid-flight, which
+      //    stalls a main-thread player while the compositor glides. On
+      //    non-Blink the compiled tier is the WRONG refuge — its clock is
+      //    stamped a whole pipeline (style/layer work + CA commit + UI-
+      //    process activation) before first glass, so a chained flight born
+      //    into a heavy commit is swallowed wholesale. Device-video'd
+      //    (iPhone, 2026-08): a chained POP (returning screen's unfreeze =
+      //    the monster commit) presented as a ONE-FRAME swap, the user
+      //    naturally re-tapped into the still-pending queue, and every
+      //    alternate push then chained onto CSS and jumped — while the
+      //    unchained flights around them played the player perfectly. The
+      //    player's capped clock is precisely the driver that survives
+      //    mid-flight commits there: chains ride it too.
+      if (detectBlinkEngine() && TaskManger.pendingTaskIds.some((id) => id !== taskId)) {
+        return null;
+      }
       // 2. A device whose main thread chronically starves the player even on
       //    single navigations (measured by the player's own frame gaps)
       //    earned a demotion; CSS drives everything there, as it always did.
@@ -481,6 +778,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           element,
           expectedName,
           motion,
+          writer: layerOwner,
           isLive: () => element.isConnected,
           budgetUsed: () => used,
           spendBudget: () => {
@@ -545,8 +843,19 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         }
         if (decorator) clearInlineAnimation(decorator);
         for (const bar of bars ?? []) {
-          if (bar) clearInlineAnimation(bar);
+          // Bars are the one participant class SHARABLE across drivers (an
+          // engine flight and a swipe both promote riding bars), so their
+          // COMPLETED cleanup releases only THIS engine's stakes — the
+          // player's per-track writer and a swipe's own token clean up on
+          // their own paths. Scope and decorator are never shared: force.
+          if (bar) clearInlineAnimation(bar, undefined, layerOwner);
         }
+        // The pop-returning screen is the visible top from here on — its
+        // participants' layers demote off-cadence, past the convergence
+        // commits (see layerSettleHold.ts). clearInlineAnimation never
+        // touches the stamps (will-change/contain are not tracked writes),
+        // so the order is free.
+        releaseParticipantLayers({ scope, decorator, bars: bars ?? [] }, layerOwner);
         return noop;
       }
       // A prev screen entering a differently-transitioned replace flips the
@@ -554,6 +863,22 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       const isTransitionDiffOnReplace = prevTransitionName !== transitionName;
       if (status === "REPLACING" && isTransitionDiffOnReplace) {
         deps.setReplaceTransitionStatus("PENDING");
+      }
+      // Pin this side's compiled promotions inline for the flight (see
+      // layerSettleHold.ts), so the COMPLETED flip's rule un-match cannot
+      // demote-and-repaint any participant's layer on the convergence
+      // frames. Stamped from the FIRST transitional effect — the rules
+      // promote from the same commit.
+      if (isTransitional) {
+        const { scope, decorator, bars } = getElements();
+        if (scope) {
+          holdParticipantLayers(
+            { scope, decorator, bars: bars ?? [] },
+            resolveTransition(transitionName),
+            `${status}-false` as TransitionVariant,
+            layerOwner
+          );
+        }
       }
       // The passive side of the transition (exiting screen on push, returning
       // screen on pop) joins the shared player at hold release so both layers
@@ -585,6 +910,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
               element: scope,
               expectedName: animationName("screen", transitionName, variant),
               motion,
+              writer: layerOwner,
               isLive: () => scope.isConnected && scope.getAttribute(SKIP_ANIMATION_ATTR) !== "true",
               budgetUsed: () => used,
               spendBudget: () => {
@@ -620,10 +946,17 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         decorator.removeAttribute(SKIP_ANIMATION_ATTR);
       }
       for (const bar of bars ?? []) {
-        if (!bar) continue;
-        clearInlineAnimation(bar);
-        bar.style.removeProperty("will-change");
+        // Owner-scoped for the same reason as the passive side: bars are the
+        // one participant class sharable across drivers.
+        if (bar) clearInlineAnimation(bar, undefined, layerOwner);
       }
+      // The just-landed screen — and its decorator, riding bars, and parts —
+      // keep their compositor layers through the convergence window and
+      // demote off-cadence (see layerSettleHold.ts): the demote repaints
+      // were the full-viewport paint flash landing exactly on the frames the
+      // eye watches settle. Swipe-promoted bar layers ride the same clock
+      // (their inline promotion previously dropped IN this commit).
+      releaseParticipantLayers({ scope, decorator, bars: bars ?? [] }, layerOwner);
       return noop;
     }
 
@@ -653,6 +986,23 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const skipAnimation = scope.getAttribute(SKIP_ANIMATION_ATTR) === "true";
     const hasAnimation = !skipAnimation && variantHasAnimation(currentTransition, variantKey);
 
+    // Pin the compiled rules' promotions inline for the flight (see
+    // layerSettleHold.ts): the COMPLETED flip un-matches the variant rules
+    // in its own commit, and on Blink each demotion repaints its element
+    // right on the convergence frames. Gated on skipAnimation only — the
+    // helper gates every participant (screen, riding bars, decorator, parts)
+    // on its OWN definition's animation, so a REVEAL-shaped active screen
+    // still pins its animating decorator and parts.
+    if (!skipAnimation) {
+      const { decorator, bars } = getElements();
+      holdParticipantLayers(
+        { scope, decorator, bars: bars ?? [] },
+        currentTransition,
+        variantKey,
+        layerOwner
+      );
+    }
+
     // Every participant of this STATUS with a registered motion — the passive
     // screen variant plus both screens' parts (parts self-carry their variant
     // attributes). Computed up front because EVERY deadline must derive from
@@ -664,11 +1014,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       ? resolveVariantMotion(currentTransition, passiveVariantKey)
       : null;
     const statusPartMotions: { element: HTMLElement; motion: VariantMotion }[] = [];
-    for (const part of Array.from(
-      scope.ownerDocument.querySelectorAll<HTMLElement>(
-        `[${PART_NAME_ATTR}][data-flemo-status="${status}"]`
-      )
-    )) {
+    for (const part of collectFlightParts(scope, status)) {
       const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
       const partVariant =
         `${status}-${part.getAttribute("data-flemo-active")}` as TransitionVariant;
@@ -684,6 +1030,32 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     for (const { motion } of statusPartMotions) {
       participantSpanMs = Math.max(participantSpanMs, (motion.delay + motion.duration) * 1000);
     }
+    // The decorator participates on the same clock (it joins the player), so
+    // the gate, the liveness floor, the choreography-span deferral, the
+    // perceptual cut, and the early landing must all cover its span too — a
+    // longer-authored dim was previously cut at the screen's own COMPLETED.
+    const statusDecoratorMotions: VariantMotion[] = [];
+    {
+      const decoratorDefinition = currentTransition.decoratorName
+        ? decoratorMap.get(currentTransition.decoratorName)
+        : undefined;
+      if (decoratorDefinition) {
+        for (const decoratorVariant of [
+          `${status}-true`,
+          `${status}-false`
+        ] as TransitionVariant[]) {
+          if (!variantHasAnimation(decoratorDefinition, decoratorVariant)) continue;
+          const motion = resolveVariantMotion(decoratorDefinition, decoratorVariant);
+          if (motion) {
+            statusDecoratorMotions.push(motion);
+            participantSpanMs = Math.max(
+              participantSpanMs,
+              (motion.delay + motion.duration) * 1000
+            );
+          }
+        }
+      }
+    }
 
     if (!hasAnimation) {
       // A REVEAL-shaped transition: the active entering screen stands still
@@ -696,7 +1068,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // lands its final frame before the COMPLETED flip re-renders both
       // screens. The engine watchdogs still net a lost exit animation.
       if (!skipAnimation) {
-        if (variantHasAnimation(currentTransition, passiveVariantKey)) {
+        // Gate on the WHOLE choreography, not just the passive screen: a
+        // transition whose screens stand still while a Part or the decorator
+        // animates must span that motion too, not resolve on a microtask.
+        if (participantSpanMs > 0) {
           if (!animHoldReleased) {
             // Wait for the release commit; this effect re-runs with
             // animHoldReleased=true and arms the span then.
@@ -747,6 +1122,39 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       }
     }
     const playerCanDrive = !skipAnimation && !!activeMotion;
+
+    // Native-clock SURGERY opt-in (first-frame hold, flight-start anchor,
+    // stall re-anchoring): authored `driver: "native"` pins only. Every one
+    // of these mutates a running animation's timing (WAAPI pause/play,
+    // startTime shifts), and the 2026-08 iPhone falsification series
+    // established that on WebKit any such touch costs the accelerated
+    // (out-of-process) path or desyncs its re-sync — the routed non-Blink
+    // default therefore runs the compiled animation UNTOUCHED and protects
+    // the opening by release scheduling (paint-anchored anim-hold + the
+    // entry content-settle gate) instead. An author who pins "native" takes
+    // the main-thread-presentation trade knowingly, and for them the anchors
+    // remain the right medicine.
+    const nativeSurgeryAllowed =
+      (currentTransition as { driver?: string }).driver === "native" && !detectBlinkEngine();
+
+    // First-frame clock hold (see nativeStallAnchor): armed from the
+    // engine's own observer, whatever the hold state at effect time — React
+    // effect scheduling races both the release commit and its render pass,
+    // which are exactly the blocks being compensated. The module's
+    // fresh/pending gate makes re-arming across effect re-runs a no-op.
+    // Captured so the effect cleanup can tear it down: the hold owns a
+    // MutationObserver, a pending rAF, a resume backstop, AND a
+    // document-wide early stall watcher that traverses the NEXT flight's
+    // animations for up to 3s if left running. An interrupt/unmount must
+    // stop all of it, not leak it into the following navigation.
+    let detachFirstFrameHold: (() => void) | null = null;
+    if (playerCanDrive && nativeSurgeryAllowed) {
+      detachFirstFrameHold = holdNativeClocksToFirstFrame(
+        scope,
+        () => [scope.ownerDocument.documentElement],
+        () => startHoldDisarms.get(scope)?.()
+      );
+    }
 
     // The `animationend` listener is the ALWAYS-WIRED resolver — attached from
     // the first transitional render, whatever the driver. This is what
@@ -864,6 +1272,11 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           // just written, so the flip commit waits for it to present exactly
           // like the compiled path (WebKit presents these frames from the main
           // thread, where the flip commit competes hardest).
+          // The player fires this when EVERY track (screens, bars, dim,
+          // parts) finishes on ITS OWN capped clock — a stall re-anchors all
+          // of them together, so no wall-clock extra can cut a longer
+          // participant early. The choreography deferral below remains for
+          // the COMPILED path only.
           joinPlayer(variantKey, "active", resolvePresented)
         : null;
 
@@ -946,6 +1359,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       element: scope,
       expectedName,
       motion: activeMotion!,
+      writer: layerOwner,
       isLive: scopeIsLive,
       // Both callbacks run only past `isLive` (wireCancelResume consults the
       // budget after the short-circuit), and scopeIsLive requires a live task
@@ -999,8 +1413,44 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // pushes the wall-clock deadlines out of the way: the watchdog re-arms
     // on the stretched timeline and the perceptual cut (a wall-clock timer)
     // stands down exactly as it does for any recovery event.
-    const detachStallWatch =
+    // Flight-start anchor (see nativeStallAnchor): the release commit's own
+    // render pass is the one block the stall watcher has no baseline for —
+    // the swallowed opening of the covered screen's parallax. Same non-Blink
+    // gate, same deadline pushes as a stall shift.
+    if (recovering && nativeSurgeryAllowed) {
+      startHoldDisarms.set(scope, () => {
+        disarmPerceptualCut();
+        disarmEarlyLanding();
+        if (flooredTaskId && watchdog !== undefined) armWatchdog();
+      });
+    }
+    // Flight-START anchor: armed for EVERY routed-native flight, not only
+    // authored pins. Unlike the mid-flight surgeries (pause/play, stall
+    // shifting) this is the one clock intervention the 2026-08 falsification
+    // series never implicated: a one-shot, birth-window startTime rewind
+    // leaves an animation indistinguishable from one that was simply born a
+    // few frames later — no negative delay, no pause history, nothing for an
+    // accelerated re-sync to trip on. It is the direct antidote to the
+    // release-frame co-flush: when a reveal render stretches the release
+    // frame, the compiled clock ages by the whole block before first paint
+    // (device-video'd as the entering sheet's first presented frame already
+    // at ~60% of travel); the anchor's rAF fires right after that block —
+    // before, or at worst one frame after, the animation's first
+    // presentation — and pulls the clock back to one step, so the opening
+    // plays in full.
+    const detachStartAnchor =
       recovering && !detectBlinkEngine()
+        ? anchorNativeFlightStart(
+            () => [scope.ownerDocument.documentElement],
+            () => {
+              disarmPerceptualCut();
+              disarmEarlyLanding();
+              if (flooredTaskId && watchdog !== undefined) armWatchdog();
+            }
+          )
+        : null;
+    const detachStallWatch =
+      recovering && nativeSurgeryAllowed
         ? watchNativeStalls(
             // A main-thread stall freezes the WHOLE PAGE's presentation, so
             // every running flemo timeline must shift together — the sibling
@@ -1041,6 +1491,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       perceptualCut = undefined;
     };
     disarmPerceptualCut = clearPerceptualCut;
+
     if (recovering && flooredTaskId) {
       const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
       const activeCut = perceptualCutMs(activeMotion!, scope, dpr);
@@ -1060,12 +1511,31 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         }
         partsCut = Math.max(partsCut, partCut);
       }
+      // Decorator ceiling: its % distances resolve against its own box; a
+      // missing element (or unanalyzable motion) vetoes, like any participant.
+      let decoratorCut: number | null = 0;
+      if (statusDecoratorMotions.length > 0) {
+        // No decorator ELEMENT means the decorator simply isn't participating
+        // in this flight (nothing renders, nothing animates) — skip, don't
+        // veto. An unanalyzable motion on a PRESENT decorator vetoes.
+        const decoratorElement = getElements().decorator;
+        if (decoratorElement) {
+          for (const decoratorMotion of statusDecoratorMotions) {
+            const oneCut = perceptualCutMs(decoratorMotion, decoratorElement, dpr);
+            if (oneCut === null) {
+              decoratorCut = null;
+              break;
+            }
+            decoratorCut = Math.max(decoratorCut, oneCut);
+          }
+        }
+      }
       // A ceiling at or past the choreography's natural span is pointless —
       // the clean-end path (animationend + the choreography-span deferral)
       // resolves there anyway.
       const cutMs =
-        activeCut !== null && passiveCut !== null && partsCut !== null
-          ? Math.max(activeCut, passiveCut, partsCut)
+        activeCut !== null && passiveCut !== null && partsCut !== null && decoratorCut !== null
+          ? Math.max(activeCut, passiveCut, partsCut, decoratorCut)
           : null;
       if (cutMs !== null && cutMs + 17 < motionSpanMs + choreographyExtraMs) {
         perceptualCut = setTimeout(() => {
@@ -1118,9 +1588,23 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         }
         partsRest = Math.max(partsRest, partRest);
       }
+      let decoratorRest: number | null = 0;
+      if (statusDecoratorMotions.length > 0) {
+        const decoratorElement = getElements().decorator;
+        if (decoratorElement) {
+          for (const decoratorMotion of statusDecoratorMotions) {
+            const oneRest = perceptualCutMs(decoratorMotion, decoratorElement, 1);
+            if (oneRest === null) {
+              decoratorRest = null;
+              break;
+            }
+            decoratorRest = Math.max(decoratorRest, oneRest);
+          }
+        }
+      }
       const restMs =
-        activeRest !== null && passiveRest !== null && partsRest !== null
-          ? Math.max(activeRest, passiveRest, partsRest)
+        activeRest !== null && passiveRest !== null && partsRest !== null && decoratorRest !== null
+          ? Math.max(activeRest, passiveRest, partsRest, decoratorRest)
           : null;
       if (restMs !== null) {
         earlyLanding = setTimeout(() => {
@@ -1137,6 +1621,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (floor !== undefined) clearTimeout(floor);
       if (choreographyTimer !== undefined) clearTimeout(choreographyTimer);
       cancelLandingClear();
+      detachFirstFrameHold?.();
+      detachStartAnchor?.();
       detachStallWatch?.();
       clearPerceptualCut();
       clearEarlyLanding();

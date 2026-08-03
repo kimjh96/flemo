@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { Part, Screen, useParams, useStep } from "@flemo/react";
 
 import LabCodePanel from "../../_components/LabCodePanel";
-import { gradientForHue, LAB_ITEMS } from "../../_data/labItems";
+import { bakedGradientForHue, gradientForHue, LAB_ITEMS } from "../../_data/labItems";
 import { useLabSettings } from "../../_providers/LabSettingsProvider";
 
 // A full-bleed colour panel with a big screen number. The whole playground area
@@ -21,6 +23,14 @@ function LabPanelScreen() {
   const item = LAB_ITEMS[(n - 1) % LAB_ITEMS.length]!;
   const open = Boolean(params?.code);
 
+  // Grain-free baked background (see labItems): the live CSS gradient only
+  // for SSR markup, swapped to the baked texels on mount — before any
+  // transition can slide the surface.
+  const [background, setBackground] = useState(() => gradientForHue(item.hue));
+  useEffect(() => {
+    setBackground(bakedGradientForHue(item.hue));
+  }, [item.hue]);
+
   const handleViewSource = () => {
     pushStep({ n: String(n), code: transition });
   };
@@ -33,7 +43,7 @@ function LabPanelScreen() {
     <Screen statusBarHeight="0px" systemNavigationBarHeight="0px" backgroundColor="var(--color-bg)">
       <div
         className="relative flex h-full w-full flex-col items-center justify-center text-white"
-        style={{ background: gradientForHue(item.hue) }}
+        style={{ background }}
       >
         <span className="text-xs font-bold tracking-[0.3em] uppercase opacity-70">Screen</span>
         <span
