@@ -1,25 +1,33 @@
-// Flight-scoped network RESPONSE hold: while a transition is in motion,
-// fetch resolutions are parked and delivered in one batch at rest.
+// Flight-scoped network RESPONSE hold: while a transition is in motion, a
+// mid-flight fetch RESOLUTION is parked and delivered in one batch at rest.
 //
-// The arrival hold (arrivalHold.ts) already relocates a mid-flight commit's
-// VISIBLE effect to rest, and its display:none rule deletes the commit's
-// layout cost — but the commit's REACT RENDER is script, and on a phone a
-// detail screen's reveal render is a multi-hundred-ms main-thread task. For
-// the rAF player that task is a measured frame famine right where the eye
-// watches hardest (device: 42ms gaps, misses at the convergence; the
-// intermittent mid-flight freeze). The render starts when the query's
-// promise resolves — so the library moves THAT: a response arriving
-// mid-flight is held (the network work is done; only the consumer callback
-// waits) and delivered at rest, where its render lands in the same window
-// the arrival hold was always going to reveal it anyway. From the
-// consumer's view the network was simply ~a flight slower — and the pixels
-// change on exactly the same frame they did before.
+// Why this exists AND why it is narrowly scoped. The arrival hold
+// (arrivalHold.ts) hides a mid-flight commit with display:none, deleting its
+// LAYOUT/paint cost — but the commit's REACT RENDER is script, and on a phone
+// a detail screen's suspense reveal is a multi-hundred-ms main-thread task.
+// For the rAF player that task is a measured frame famine right at the
+// convergence (device: intermittent end-of-flight stutter), because the
+// render fires the instant its query's promise resolves. So the library moves
+// THAT resolution to rest, where the arrival hold was going to reveal the
+// pixels anyway — from the consumer's view the network was ~a flight slower,
+// and the pixels change on the same frame they did before.
 //
-// Deliberately narrow: only fetch (the modern data path; plen/supabase
-// included), only RESOLUTIONS (a request issued mid-flight still departs
-// immediately — only its completion waits), rejections held the same way
-// (an error handler triggers renders too), and a per-hold backstop so a
-// missed release can never strand a promise.
+// Scope: EVERY method, minus streams. A GET-only version was tried and
+// device-falsified: real data layers drive reveals through non-GET reads —
+// Supabase RPC queries travel as POST /rest/v1/rpc/*, and count queries as
+// HEAD — and one instrumented member-detail push showed six HEAD counts and
+// one POST RPC resolving mid-flight past the GET filter, each firing a query
+// cache update and a render on the convergence frames (the "intermittent
+// end-stutter came back" report). Reads and mutations are indistinguishable
+// at the fetch layer, so the hold parks both; a mutation's resolution is
+// delayed by at most one flight span — the exact behavior the device-perfect
+// original shipped. What it never parks:
+// - STREAM responses (content-type event-stream): parking would stall the
+//   stream's own start, and its consumer wants sub-flight delivery.
+// Bounded by the FLIGHT's span (the caller passes it): a genuinely long
+// authored transition is never cut short, and nothing is held longer than
+// one flight. Residual, documented: a fetch raced against a short (< one
+// flight) timeout that resolves mid-flight sees the timeout win.
 
 let installed = false;
 let holdDepth = 0;
@@ -31,14 +39,17 @@ const flush = () => {
   for (const deliver of queue) deliver();
 };
 
+const isStream = (response: Response): boolean =>
+  /event-stream/i.test(response.headers.get("content-type") ?? "");
+
 const install = () => {
   if (installed || typeof window === "undefined" || typeof window.fetch !== "function") return;
   installed = true;
   const original = window.fetch.bind(window);
-  window.fetch = (...args: Parameters<typeof fetch>) =>
-    original(...args).then(
+  window.fetch = (...args: Parameters<typeof fetch>) => {
+    return original(...args).then(
       (response) => {
-        if (holdDepth <= 0) return response;
+        if (holdDepth <= 0 || isStream(response)) return response;
         return new Promise<Response>((resolve) => {
           parked.push(() => resolve(response));
         });
@@ -50,16 +61,19 @@ const install = () => {
         });
       }
     );
+  };
 };
 
-// A missed release (an interrupted teardown path) must never strand consumer
-// promises: generously past any flight, the hold self-releases.
-const HOLD_BACKSTOP_MS = 2000;
+// Floor for the self-release backstop; the caller passes the flight's span so
+// a long authored transition is never cut short (the fixed value alone once
+// flushed a 1s response into the middle of an authored 3s+ transition).
+const MIN_HOLD_BACKSTOP_MS = 2000;
 
-// Begin holding responses; returns an idempotent release. Nested holds (both
-// screens of a navigation arm one) stack — responses deliver when the LAST
-// release lands, in one batch at rest.
-export function beginResponseHold(): () => void {
+// Begin holding fetch responses; returns an idempotent release. Nested holds
+// (both screens of a navigation arm one) stack — responses deliver when the
+// LAST release lands, in one batch at rest. `backstopMs` is the self-release
+// insurance bound: pass the flight span + margin.
+export function beginResponseHold(backstopMs = MIN_HOLD_BACKSTOP_MS): () => void {
   install();
   /* v8 ignore next -- SSR guard: without fetch there is nothing to hold. */
   if (!installed) return () => {};
@@ -73,7 +87,9 @@ export function beginResponseHold(): () => void {
     holdDepth = Math.max(0, holdDepth - 1);
     if (holdDepth === 0) flush();
   };
-  if (typeof setTimeout === "function") backstop = setTimeout(release, HOLD_BACKSTOP_MS);
+  if (typeof setTimeout === "function") {
+    backstop = setTimeout(release, Math.max(MIN_HOLD_BACKSTOP_MS, backstopMs));
+  }
   return release;
 }
 
