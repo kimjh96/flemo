@@ -149,19 +149,39 @@ export interface DriverPolicy {
   // session must player-drive EVERY transition to be a useful instrument).
   pinnedDriver: () => "css" | "raf" | null;
   // Player run lifecycle: the registry reports gaps; the policy aggregates.
+  // Long-gap judgment happens at endRun against the run's FINAL measured
+  // cadence: on a display genuinely pacing slower than 60Hz the estimator
+  // needs a few frames to adopt the cadence, and judging each gap at report
+  // time (with the still-60Hz estimate) counted every warm-up frame of every
+  // navigation as a stall — two navigations of perfectly healthy 30Hz frames
+  // could demote the player. The threshold scales with the final cadence,
+  // floored at LONG_GAP_MS.
   beginRun: () => void;
   reportGap: (gapMs: number) => void;
-  endRun: () => void;
+  endRun: (frameIntervalMs?: number) => void;
   // Diagnostics (also consumed by tests).
   stats: () => { runGaps: number[]; strikes: number; demoted: boolean };
 }
 
-// Engine probe, not a brand sniff: navigator.userAgentData ships with Blink
-// and nothing else — including iOS Chrome, which is WebKit underneath and
-// correctly reads as non-Blink here. The DEFAULT driver branches on it (see
-// the file header): compiled compositor on Blink, player elsewhere.
-export const detectBlinkEngine = (): boolean =>
-  typeof navigator !== "undefined" && !!(navigator as { userAgentData?: unknown }).userAgentData;
+// Engine probe: is this a CHROMIUM/Blink browser? Read the low-entropy
+// userAgentData.brands list and look for the "Chromium" brand every
+// Chromium-based engine includes (Chrome, Edge, Brave, Opera, …). Mere
+// PRESENCE of navigator.userAgentData is no longer a Blink signal — WebKit
+// shipped it (2025), so `!!userAgentData` now reads Safari as Blink and would
+// (a) let a WebKit device demote to the freeze-and-jump compiled path after
+// a stall streak, (b) route WebKit replay chains onto the compiled path
+// (swallowed openings), (c) false-positive iPad's MacIntel+touch as DevTools
+// emulation. iOS Chrome is WebKit underneath and ships NO Chromium brand, so
+// it correctly reads non-Blink. The brands list is spoofable in principle,
+// but a page that lies about its engine gets the driver it asked for; every
+// honest Chromium browser is covered.
+export const detectBlinkEngine = (): boolean => {
+  if (typeof navigator === "undefined") return false;
+  const brands = (navigator as { userAgentData?: { brands?: ReadonlyArray<{ brand?: string }> } })
+    .userAgentData?.brands;
+  if (!Array.isArray(brands)) return false;
+  return brands.some((entry) => /chromium/i.test(entry?.brand ?? ""));
+};
 
 export const createDriverPolicy = (
   storage: DriverPolicyStorage = defaultStorage(),
@@ -201,9 +221,10 @@ export const createDriverPolicy = (
     },
     reportGap: (gapMs) => {
       runGaps.push(gapMs);
-      if (gapMs >= LONG_GAP_MS) runLongGaps += 1;
     },
-    endRun: () => {
+    endRun: (frameIntervalMs) => {
+      const longThreshold = Math.max(LONG_GAP_MS, (frameIntervalMs ?? 1000 / 60) * 1.8);
+      runLongGaps = runGaps.filter((gapMs) => gapMs >= longThreshold).length;
       const stalled = runLongGaps >= STALLED_RUN_THRESHOLD;
       if (stalled) strikes += 1;
       if (!demotable) return;

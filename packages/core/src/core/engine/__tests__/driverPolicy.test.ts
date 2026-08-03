@@ -69,6 +69,28 @@ describe("driverPolicy", () => {
     expect(policy.playerAllowed()).toBe(false);
   });
 
+  it("an on-cadence slow display never strikes; a real stall on it still does", () => {
+    const { storage } = memoryStorage();
+    const policy = createDriverPolicy(storage, true);
+    // A genuine 30Hz display: every healthy frame is ~33ms. Judgment happens
+    // at endRun against the run's FINAL measured cadence, so even the
+    // warm-up frames (reported while the estimate was still 60Hz) are
+    // re-judged as on-cadence — the first navigation must not strike.
+    for (let run = 0; run < 3; run++) {
+      policy.beginRun();
+      for (let i = 0; i < 20; i++) policy.reportGap(33.4);
+      policy.endRun(1000 / 30);
+    }
+    expect(policy.stats().strikes).toBe(0);
+    expect(policy.playerAllowed()).toBe(true);
+    // A real block on that display still registers (65ms > 1.8 x 33.3).
+    policy.beginRun();
+    policy.reportGap(65);
+    policy.reportGap(70);
+    policy.endRun(1000 / 30);
+    expect(policy.stats().strikes).toBe(1);
+  });
+
   it("a few merely-late frames (sub-30ms) never count as a stall", () => {
     const { storage } = memoryStorage();
     const policy = createDriverPolicy(storage, true);
@@ -147,9 +169,25 @@ describe("driverPolicy engine default", () => {
 });
 
 describe("detectBlinkEngine", () => {
-  it("reads userAgentData presence as the Blink signal", () => {
+  it("reads a Chromium brand as the Blink signal, not mere userAgentData presence", () => {
     expect(detectBlinkEngine()).toBe(false); // jsdom ships none
-    Object.defineProperty(navigator, "userAgentData", { value: {}, configurable: true });
+    // WebKit shipped userAgentData with no Chromium brand → still non-Blink.
+    Object.defineProperty(navigator, "userAgentData", {
+      value: { brands: [{ brand: "Safari", version: "18" }] },
+      configurable: true
+    });
+    expect(detectBlinkEngine()).toBe(false);
+    // Empty/absent brands → non-Blink.
+    Object.defineProperty(navigator, "userAgentData", {
+      value: { brands: [] },
+      configurable: true
+    });
+    expect(detectBlinkEngine()).toBe(false);
+    // A Chromium brand → Blink.
+    Object.defineProperty(navigator, "userAgentData", {
+      value: { brands: [{ brand: "Chromium", version: "120" }, { brand: "Not?A_Brand" }] },
+      configurable: true
+    });
     expect(detectBlinkEngine()).toBe(true);
     delete (navigator as { userAgentData?: unknown }).userAgentData;
   });
@@ -237,7 +275,7 @@ describe("engine-scoped default instance", () => {
     vi.resetModules();
     const original = Object.getOwnPropertyDescriptor(navigator, "userAgentData");
     Object.defineProperty(navigator, "userAgentData", {
-      value: { brands: [] },
+      value: { brands: [{ brand: "Chromium", version: "120" }] },
       configurable: true
     });
     try {

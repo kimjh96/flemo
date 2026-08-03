@@ -71,7 +71,7 @@ describe("classifyTransitionDriver", () => {
   // expectations stub the probe only to prove engine-independence.
   const asBlink = <T>(run: () => T): T => {
     const nav = navigator as { userAgentData?: unknown };
-    nav.userAgentData = { brands: [] };
+    nav.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
     try {
       return run();
     } finally {

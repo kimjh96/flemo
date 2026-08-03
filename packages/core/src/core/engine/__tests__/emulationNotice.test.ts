@@ -48,7 +48,17 @@ describe("emulationNotice", () => {
     noticeDeviceEmulationOnce();
     expect(warn).not.toHaveBeenCalled();
 
-    stubNavigator({ userAgentData: {} });
+    // WebKit shipped userAgentData too, but with no Chromium brand → still
+    // silent (the iPad MacIntel+touch false-positive the brand check removes).
+    stubNavigator({ platform: "MacIntel", maxTouchPoints: 5, userAgentData: { brands: [] } });
+    noticeDeviceEmulationOnce();
+    expect(warn).not.toHaveBeenCalled();
+
+    stubNavigator({
+      platform: "MacIntel",
+      maxTouchPoints: 5,
+      userAgentData: { brands: [{ brand: "Chromium", version: "120" }] }
+    });
     noticeDeviceEmulationOnce();
     noticeDeviceEmulationOnce();
     expect(warn).toHaveBeenCalledTimes(1);
