@@ -117,12 +117,37 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const decorator = newDiv();
     const bar = newDiv();
+    // A RIDING bar the engine promotes during the flight (the layer settle
+    // hold only manages elements it stamped — a bare consumer will-change is
+    // left untouched).
+    bar.setAttribute("data-flemo-bar-riding", "true");
+
+    // ONE engine instance drives both statuses (a screen keeps its engine for
+    // its lifetime) — layer holds are per-instance, so the same instance's
+    // COMPLETED must release the promotion its PUSHING stamped.
+    const engine = createTransitionEngine(deps);
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator, bars: [bar] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "PUSHING",
+      isActive: true,
+      animHoldReleased: true
+    });
+    expect(bar.style.getPropertyValue("will-change")).toBe("transform");
+
     scope.style.transform = "translateX(20px)";
     scope.setAttribute(SKIP_ANIMATION_ATTR, "true");
     decorator.style.transform = "translateX(20px)";
-    bar.style.setProperty("will-change", "transform");
 
-    drive({ status: "COMPLETED", elements: { scope, decorator, bars: [bar] } });
+    engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator, bars: [bar] }),
+      transitionName: "engine-test" as never,
+      prevTransitionName: "engine-test" as never,
+      status: "COMPLETED",
+      isActive: true,
+      animHoldReleased: true
+    });
 
     expect(vi.mocked(deps.setDragStatus)).toHaveBeenCalledWith("IDLE");
     expect(vi.mocked(deps.setReplaceTransitionStatus)).toHaveBeenCalledWith("IDLE");
