@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { trackConsoleErrors } from "./helpers/flemo";
+import { trackConsoleErrors, waitForNavIdle } from "./helpers/flemo";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Motion-perception regression suite.
@@ -196,11 +196,14 @@ test.describe("motion perception", () => {
     await openPlaygroundWithCupertino(page);
 
     await page.getByRole("button", { name: "Next" }).click();
-    await page.waitForTimeout(1000);
+    // Wait on the engine's own completion, not a fixed pause: a stalled CI
+    // runner honestly extends the flight, and an in-flight sample would read
+    // the player's live inline transform as a leftover.
+    await waitForNavIdle(page);
     expect(await inlineLeftovers(page)).toEqual([]);
 
     await page.goBack();
-    await page.waitForTimeout(1000);
+    await waitForNavIdle(page);
     expect(await inlineLeftovers(page)).toEqual([]);
   });
 
@@ -426,7 +429,7 @@ test.describe("motion perception", () => {
     test.skip(browserName === "webkit", "the player tier is exercised on Blink");
     await openPlaygroundWithPinnedPlayer(page);
     await page.getByRole("button", { name: "Next" }).click();
-    await page.waitForTimeout(1000); // land on a non-root, swipeable screen
+    await waitForNavIdle(page); // land on a non-root, swipeable screen
 
     const result = await page.evaluate(async () => {
       // The innermost (panels) screen: nested routers mean several active
@@ -466,11 +469,14 @@ test.describe("motion perception", () => {
       }
       pointer("pointerup", 48);
 
-      // Sample the settle window.
+      // Sample the settle window BY FRAME COUNT, not wall time: the scrub
+      // advances on the rAF clock, so on a stalled CI runner a fixed window
+      // can elapse across one or two frames and see no motion at all. 45
+      // frames comfortably brackets the settle at any cadence.
       const transforms = new Set<string>();
       let cssTransitionFrames = 0;
       let scrubAnimationFrames = 0;
-      const start = performance.now();
+      let sampledFrames = 0;
       await new Promise<void>((resolve) => {
         const loop = () => {
           transforms.add(getComputedStyle(scope).transform);
@@ -478,7 +484,8 @@ test.describe("motion perception", () => {
             cssTransitionFrames += 1;
           }
           if (scope.getAnimations().length > 0) scrubAnimationFrames += 1;
-          if (performance.now() - start < 400) requestAnimationFrame(loop);
+          sampledFrames += 1;
+          if (sampledFrames < 45) requestAnimationFrame(loop);
           else resolve();
         };
         requestAnimationFrame(loop);
