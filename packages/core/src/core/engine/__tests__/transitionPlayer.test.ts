@@ -311,7 +311,11 @@ describe("transitionPlayer", () => {
     expect(Math.round(value * 2)).toBe(value * 2);
   });
 
-  it("glides sub-device-pixel motion unsnapped, re-snaps when fast", () => {
+  it("glides sub-device-pixel motion unsnapped, re-snaps when fast (velocity gate)", () => {
+    // Pin the GATE: the platform default at desktop densities is always-snap
+    // (see defaultAlwaysSnap), and this test exercises the gate itself.
+    sessionStorage.setItem("flemo:snap", "gate");
+    resetSessionOverrideCachesForTests();
     const { scheduler, pump } = createFakeScheduler(2);
     const registry = createTransitionPlayerRegistry(scheduler);
     const el = element();
@@ -332,6 +336,41 @@ describe("transitionPlayer", () => {
 
     pump(521); // 1.7px this frame = 3.4 device px → snapped again
     expect(el.style.transform).toBe("translate3d(-52px, 0px, 0)");
+  });
+
+  it("the platform default snaps EVERY frame on non-Blink desktop densities, gates at phone densities", () => {
+    // dpr 2 (Mac Safari class): slow motion snaps to the device grid.
+    {
+      const { scheduler, pump } = createFakeScheduler(2);
+      const registry = createTransitionPlayerRegistry(scheduler);
+      const el = element();
+      registry.join("task-desk", {
+        element: el,
+        motion: linearMotion({ x: 0 }, { x: -100 }),
+        role: "active"
+      });
+      pump(0);
+      pump(16.67); // ~1.67 CSS px in, velocity ~0.83 device px/frame (below the gate)
+      const m = /translate3d\((-?[\d.]+)px/.exec(el.style.transform)!;
+      expect(Math.abs(parseFloat(m[1]) * 2) % 1).toBe(0); // on the half-CSS-px device grid
+    }
+    // dpr 3 (iPhone class): the same slow frame glides fractionally.
+    {
+      const { scheduler, pump } = createFakeScheduler(3);
+      const registry = createTransitionPlayerRegistry(scheduler);
+      const el = element();
+      registry.join("task-phone", {
+        element: el,
+        motion: linearMotion({ x: 0 }, { x: -30 }),
+        role: "active"
+      });
+      pump(0);
+      pump(16.67); // 0.5 CSS px in → 1.5 device px... keep it slower: next frame
+      pump(20); // ~0.6 CSS px → sub-device-px per-frame delta by now
+      const m = /translate3d\((-?[\d.]+)px/.exec(el.style.transform)!;
+      // fractional (not on the 1/3 device grid) — the gate's raw glide
+      expect(Math.abs(parseFloat(m[1]) * 3) % 1).not.toBe(0);
+    }
   });
 
   it("drives y/z/scale/rotate channels through one composed transform", () => {

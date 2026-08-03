@@ -369,18 +369,32 @@ const handoffOverride = (): "on" | null => {
   return handoffOverrideCache;
 };
 
-let snapOverrideCache: "always" | "off" | null | undefined;
-const snapOverride = (): "always" | "off" | null => {
+let snapOverrideCache: "always" | "off" | "gate" | null | undefined;
+const snapOverride = (): "always" | "off" | "gate" | null => {
   if (snapOverrideCache !== undefined) return snapOverrideCache;
   try {
     const value =
       typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:snap") : null;
-    snapOverrideCache = value === "always" || value === "off" ? value : null;
+    snapOverrideCache = value === "always" || value === "off" || value === "gate" ? value : null;
   } catch {
     snapOverrideCache = null;
   }
   return snapOverrideCache;
 };
+
+// The DEFAULT snap policy, per platform — both ends device-judged (2026-08):
+// - WebKit at DESKTOP densities (dpr < 3): snap EVERY frame. The felt "지글"
+//   on Mac Safari measured as continuous texture resampling through the
+//   glide (frame-to-frame texture correlation 0.65-0.85 vs 0.999 at rest,
+//   dense 2x text amplifying every fractional phase); the user A/B judged
+//   always-snap better there — at 2x a step is half a CSS pixel.
+// - WebKit at phone densities (dpr >= 3): the velocity gate. The same A/B on
+//   the phone judged the gate best (always-snap read as stepping on the slow
+//   parallax; raw glide sizzled) — at 3x the sub-pixel glide wins the tail.
+// - Blink: the velocity gate (its compositor path never showed the class).
+// The session override (always/off/gate) replaces the default either way.
+const defaultAlwaysSnap = (devicePixelRatio: number): boolean =>
+  !detectBlinkEngine() && devicePixelRatio > 0 && devicePixelRatio < 3;
 
 const composeTransform = (
   channels: TransformChannel[],
@@ -404,7 +418,7 @@ const composeTransform = (
       const last = prop === "x" ? snapMemory.x : snapMemory.y;
       const override = snapOverride();
       const fastEnough =
-        override === "always"
+        override === "always" || (override === null && defaultAlwaysSnap(devicePixelRatio))
           ? true
           : override === "off"
             ? false
