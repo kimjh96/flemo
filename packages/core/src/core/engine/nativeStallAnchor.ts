@@ -92,13 +92,52 @@ export function holdNativeClocksToFirstFrame(
   if (typeof MutationObserver === "undefined" || typeof requestAnimationFrame !== "function") {
     return () => {};
   }
+  // All resume state is FUNCTION-scoped, not trapped inside engage(), so the
+  // disposer can cancel the backstop and the resume can be guarded against
+  // firing after teardown. A backstop trapped in engage() would fire its
+  // resume 1s after a detach — calling onHeld into a NEXT transition that has
+  // since replaced the scope's disarm closures, corrupting its cut/watchdog.
   let handle = 0;
   let released = false;
+  let disposed = false;
+  let resumed = false;
+  let backstop: ReturnType<typeof setTimeout> | null = null;
+  const held: Animation[] = [];
   let stopEarlyWatch: (() => void) | null = null;
+
+  const clearBackstop = () => {
+    if (backstop !== null) {
+      clearTimeout(backstop);
+      backstop = null;
+    }
+  };
+
+  const playHeld = () => {
+    for (const animation of held) {
+      try {
+        if (animation.playState === "paused") animation.play();
+      } catch {
+        // A cancelled animation (rule un-matched, player takeover) simply
+        // stays wherever its driver left it.
+      }
+    }
+  };
+
+  const resume = () => {
+    if (disposed || resumed) return; // once only, and never after teardown
+    resumed = true;
+    clearBackstop();
+    if (handle) {
+      cancelAnimationFrame(handle);
+      handle = 0;
+    }
+    playHeld();
+    onHeld?.();
+  };
+
   const engage = () => {
     released = true;
     observer.disconnect();
-    const held: Animation[] = [];
     for (const element of elements()) {
       if (!element || typeof element.getAnimations !== "function") continue;
       // getAnimations forces a style flush: the release's animations exist
@@ -124,28 +163,17 @@ export function holdNativeClocksToFirstFrame(
       }
     }
     if (held.length === 0) return;
-    let backstop: ReturnType<typeof setTimeout> | null = null;
-    const resume = () => {
-      if (backstop !== null) clearTimeout(backstop);
-      backstop = null;
-      for (const animation of held) {
-        try {
-          if (animation.playState === "paused") animation.play();
-        } catch {
-          // A cancelled animation (rule un-matched, player takeover) simply
-          // stays wherever its driver left it.
-        }
-      }
-      onHeld?.();
-    };
     handle = requestAnimationFrame(resume);
     // rAF suspends in background tabs; a flight must never stay frozen.
     if (typeof setTimeout === "function") backstop = setTimeout(resume, FIRST_FRAME_BACKSTOP_MS);
     // Early stall watch: baselined at the NEXT rAF — the top of the very
     // frame whose layout/paint is the entering commit's block — so that
     // frame's span is a measured gap and the capped shift converts it into
-    // player-style steps instead of a swallowed opening.
-    const detachWatch = watchNativeStalls(elements, () => onHeld?.());
+    // player-style steps instead of a swallowed opening. Guarded against a
+    // post-teardown fire like every other onHeld path.
+    const detachWatch = watchNativeStalls(elements, () => {
+      if (!disposed) onHeld?.();
+    });
     stopEarlyWatch = detachWatch;
     if (typeof setTimeout === "function") {
       const timer = setTimeout(() => {
@@ -173,25 +201,18 @@ export function holdNativeClocksToFirstFrame(
     observer.observe(scope, { attributes: true, attributeFilter: ["data-flemo-anim-hold"] });
   }
   return () => {
+    disposed = true;
     observer.disconnect();
-    if (handle) cancelAnimationFrame(handle);
+    if (handle) {
+      cancelAnimationFrame(handle);
+      handle = 0;
+    }
+    clearBackstop(); // the internal backstop must never fire a stale resume
     stopEarlyWatch?.();
     stopEarlyWatch = null;
-    // A detach before the play tick must not leave clocks frozen.
-    if (released) {
-      for (const element of elements()) {
-        if (!element || typeof element.getAnimations !== "function") continue;
-        for (const animation of element.getAnimations({ subtree: true })) {
-          if (animation.playState === "paused" && startAnchored.has(animation)) {
-            try {
-              animation.play();
-            } catch {
-              // Already cancelled: nothing to resume.
-            }
-          }
-        }
-      }
-    }
+    // A detach before the play tick must not leave clocks frozen — but if the
+    // resume already ran, they're playing, so do this only when it hasn't.
+    if (released && !resumed) playHeld();
   };
 }
 

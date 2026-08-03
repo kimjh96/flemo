@@ -375,4 +375,39 @@ describe("holdNativeClocksToFirstFrame", () => {
     expect(calls).toEqual([]);
     scope.remove();
   });
+
+  it("a detach BEFORE the resume frame plays the held clocks and cancels the backstop", async () => {
+    vi.useFakeTimers();
+    const scope = makeScope();
+    const { animation, calls } = makeAnim(2);
+    const target = document.createElement("div");
+    (target as unknown as { getAnimations: unknown }).getAnimations = () => [animation];
+    const rafCbs: FrameRequestCallback[] = [];
+    const raf = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((cb: FrameRequestCallback) => (rafCbs.push(cb), rafCbs.length));
+    const onHeld = vi.fn();
+    const dispose = holdNativeClocksToFirstFrame(scope, () => [target], onHeld);
+
+    scope.setAttribute("data-flemo-anim-hold", "false");
+    await Promise.resolve();
+    expect(calls).toEqual(["pause"]); // engaged: the clock is held
+
+    // Teardown BEFORE the resume rAF fires: it must play the held clock (never
+    // leave it frozen) but NOT call onHeld (a superseding transition owns the
+    // scope now).
+    dispose();
+    expect(calls).toEqual(["pause", "play"]);
+    expect(onHeld).not.toHaveBeenCalled();
+
+    // The internal 1s backstop must be cancelled — no stale resume/onHeld.
+    vi.advanceTimersByTime(2000);
+    for (const cb of rafCbs.splice(0)) cb(0);
+    expect(onHeld).not.toHaveBeenCalled();
+    expect(calls).toEqual(["pause", "play"]); // no second play
+
+    raf.mockRestore();
+    vi.useRealTimers();
+    scope.remove();
+  });
 });
