@@ -167,8 +167,78 @@ export const isPlayerDrivable = (motion: VariantMotion): boolean =>
 // Parse a motion into channels. `element` supplies the percent base
 // (offsetWidth/offsetHeight — layout size, transform-independent); pass null
 // for a drivability probe.
+// Transform composition is NOT commutative: `rotate(90deg) translate(...)`
+// lands somewhere else than `translate(...) rotate(90deg)`. The numeric tier
+// recomposes channels in TRANSFORM_ORDER (x/y/z merged into one translate3d,
+// then scales, then rotates), which is faithful ONLY when the authored key
+// order already follows that shape. x/y/z may appear in any order among
+// themselves (they merge into a single function) and the scales commute with
+// each other, but a translation authored AFTER a rotate/scale — or rotates
+// authored out of canonical axis order — would be silently reordered. Those
+// motions fall through to the scrub-WAAPI tier, where the browser composes
+// the authored list exactly.
+const CLASS_OF: Record<TransformProp, number> = {
+  x: 0,
+  y: 0,
+  z: 0,
+  scale: 1,
+  scaleX: 1,
+  scaleY: 1,
+  rotate: 2,
+  rotateX: 2,
+  rotateY: 2,
+  rotateZ: 2
+};
+const authoredOrderIsCanonical = (props: Iterable<string>): boolean => {
+  let maxClass = 0;
+  let lastRotateIndex = -1;
+  for (const prop of props) {
+    if (!TRANSFORM_PROPS.has(prop)) continue;
+    const cls = CLASS_OF[prop as TransformProp];
+    if (cls < maxClass) return false; // a translate/scale after a later class
+    maxClass = cls;
+    if (cls === 2) {
+      const index = TRANSFORM_ORDER.indexOf(prop as TransformProp);
+      if (index < lastRotateIndex) return false; // rotates out of axis order
+      lastRotateIndex = index;
+    }
+  }
+  return true;
+};
+
+// The two endpoints must also be identity-padding COMPATIBLE: the compiler
+// preserves each endpoint's own authored function list, and CSS interpolates
+// mismatched lists per-function only when one is a prefix of the other
+// (identity-padded); anything else falls back to matrix interpolation — a
+// path the numeric recomposition cannot reproduce. Collapse x/y/z into one
+// translate token (they merge into a single translate3d) and require the
+// shorter endpoint's token sequence to be a prefix of the longer's.
+const endpointFunctionTokens = (props: Iterable<string>): string[] => {
+  const tokens: string[] = [];
+  for (const prop of props) {
+    if (!TRANSFORM_PROPS.has(prop)) continue;
+    const token = CLASS_OF[prop as TransformProp] === 0 ? "T" : prop;
+    if (token === "T" && tokens[tokens.length - 1] === "T") continue;
+    tokens.push(token);
+  }
+  return tokens;
+};
+const endpointsArePaddingCompatible = (from: Iterable<string>, to: Iterable<string>): boolean => {
+  const a = endpointFunctionTokens(from);
+  const b = endpointFunctionTokens(to);
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  return shorter.every((token, index) => longer[index] === token);
+};
+
 const parseMotion = (motion: VariantMotion, element: HTMLElement | null): ParsedMotion | null => {
-  const props = new Set([...targetProps(motion.from), ...targetProps(motion.to)]);
+  const fromProps = targetProps(motion.from);
+  const toProps = targetProps(motion.to);
+  // EACH endpoint's authored order must be canonical (a merged set masks a
+  // to-side authored rotate-before-translate), and the endpoints must be
+  // identity-padding compatible with each other.
+  if (!authoredOrderIsCanonical(fromProps) || !authoredOrderIsCanonical(toProps)) return null;
+  if (!endpointsArePaddingCompatible(fromProps, toProps)) return null;
+  const props = new Set([...fromProps, ...toProps]);
   const transforms: TransformChannel[] = [];
   let opacity: ParsedMotion["opacity"] = null;
   const strings: StringChannel[] = [];
@@ -438,6 +508,22 @@ const NOMINAL_FRAME_MS = 1000 / 60;
 // fake a 240Hz panel, and seeded at — never above — the 60Hz nominal).
 const PASS_THROUGH_FRAMES = 1.6;
 const MIN_FRAME_INTERVAL_MS = 1000 / 240;
+// A display genuinely pacing at ~30Hz (low-power throttling, constrained
+// embedders) delivers EVERY frame at ~33ms. Under a 60Hz-capped estimate
+// that reads as a per-frame stall: the clock advances 16.7ms per 33ms of
+// wall time, doubling every flight and (on Blink) feeding demotion strikes
+// with perfectly healthy frames. Slow gaps are admitted into the estimator
+// up to SLOW_CADENCE_MAX_MS, but a slow ESTIMATE additionally requires the
+// whole recent window to be slow (SUSTAINED cadence) — a burst of real
+// stalls on a fast display must not raise the bar and re-legitimize the
+// resume jumps the one-frame policy removed.
+const SLOW_CADENCE_MIN_MS = 28;
+const SLOW_CADENCE_MAX_MS = 42;
+
+// The last learned cadence, carried across players: each navigation builds a
+// fresh player, and on a genuinely slow display re-learning from the 60Hz
+// seed would lose a few frames of clock at the top of EVERY flight.
+let lastLearnedIntervalMs = NOMINAL_FRAME_MS;
 
 // ── Anchored-opening handoff (non-Blink) ────────────────────────────────────
 //
@@ -641,6 +727,8 @@ export const createTransitionPlayerRegistry = (
 ): TransitionPlayerRegistry => {
   interface Player {
     tracks: Track[];
+    navComplete: (() => void) | null;
+    navCompleted: boolean;
     // The display's measured frame interval (see PASS_THROUGH_FRAMES): the
     // MEDIAN of recent plausible gaps, clamped to [240Hz floor, 60Hz
     // nominal]. A median, not a minimum — one runt gap (a double-fired rAF,
@@ -692,9 +780,18 @@ export const createTransitionPlayerRegistry = (
       if (!player) {
         player = {
           tracks: [],
-          frameIntervalMs: NOMINAL_FRAME_MS,
+          frameIntervalMs: lastLearnedIntervalMs,
           recentGaps: [],
           navCutMs: null,
+          // The navigation-complete callback (the active join's onComplete),
+          // fired ONCE when EVERY track has finished on the player's own
+          // clock. Firing at the ACTIVE track's end + a wall-clock extra was
+          // stall-unsafe: the player re-anchors its logical time across
+          // frame gaps, so a stall after the active landed pushed the
+          // remaining tracks' completion PAST any wall timer and the flip
+          // cut them early — exactly the starvation case the clock defends.
+          navComplete: null,
+          navCompleted: false,
           started: false,
           ended: false,
           startTime: null,
@@ -713,6 +810,10 @@ export const createTransitionPlayerRegistry = (
 
       const track: Track = {
         ...input,
+        // The active join's onComplete is the NAVIGATION's completion, not
+        // the track's — it moves to the player and fires when every track
+        // is done (see navComplete above).
+        onComplete: undefined,
         parsed,
         scrub,
         cutMs: cut,
@@ -731,24 +832,32 @@ export const createTransitionPlayerRegistry = (
       // Pin the first frame synchronously in the same commit that joined the
       // track: the compiled animation is suppressed here, so without this
       // write the element would show its REST styles for one frame. Every
-      // inline write is registered with the animateInline tracker so the
-      // COMPLETED cleanup (clearInlineAnimation) strips them and the compiled
-      // rest rules take back over. A scrub track pins via the paused
-      // animation itself (fill "both" at currentTime 0).
+      // inline write is leased under THIS track's own writer token — two
+      // players (nested Routers' concurrent flights) can both hold a shared
+      // bar, and a shared token would let the first to detach restore the
+      // element out from under the other's still-running frames. A scrub
+      // track pins via the paused animation itself (fill "both" at
+      // currentTime 0).
+      const trackWriter = Symbol("flemo-player-track");
+      trackInlineWrite(track.element, "animation", trackWriter);
       track.element.style.animation = "none";
-      trackInlineWrite(track.element, "animation");
       if (parsed) {
-        if (parsed.transforms.length > 0) trackInlineWrite(track.element, "transform");
-        if (parsed.opacity) trackInlineWrite(track.element, "opacity");
-        for (const channel of parsed.strings) trackInlineWrite(track.element, channel.property);
-        for (const constant of parsed.constants) trackInlineWrite(track.element, constant.property);
+        if (parsed.transforms.length > 0) trackInlineWrite(track.element, "transform", trackWriter);
+        if (parsed.opacity) trackInlineWrite(track.element, "opacity", trackWriter);
+        for (const channel of parsed.strings)
+          trackInlineWrite(track.element, channel.property, trackWriter);
+        for (const constant of parsed.constants)
+          trackInlineWrite(track.element, constant.property, trackWriter);
         writeTrack(track, 0);
       }
 
-      if (input.role === "active" && !player.started) {
-        player.started = true;
-        driverPolicy.beginRun();
-        scheduleFrame(taskId, player);
+      if (input.role === "active") {
+        if (input.onComplete) player.navComplete = input.onComplete;
+        if (!player.started) {
+          player.started = true;
+          driverPolicy.beginRun();
+          scheduleFrame(taskId, player);
+        }
       }
 
       return () => {
@@ -759,9 +868,12 @@ export const createTransitionPlayerRegistry = (
         // runs this cleanup on the way into the freeze. Idempotent with the
         // engine's COMPLETED cleanup for unfrozen screens. A scrub's
         // fill-"both" end-state outranks the compiled rest rules (animation
-        // origin), so it must be cancelled here for the handoff.
+        // origin), so it must be cancelled here for the handoff. The clear is
+        // scoped to THIS track's writer: if another track (a nested Router's
+        // concurrent flight) still drives the same element, its stake keeps
+        // the inline values alive and only the LAST detach restores them.
         track.scrub?.cancel();
-        clearInlineAnimation(track.element);
+        clearInlineAnimation(track.element, undefined, trackWriter);
         const current = players.get(taskId);
         if (!current) return;
         current.tracks = current.tracks.filter((t) => t !== track);
@@ -827,7 +939,7 @@ export const createTransitionPlayerRegistry = (
   function endPolicyRun(player: Player) {
     if (player.ended) return;
     player.ended = true;
-    driverPolicy.endRun();
+    driverPolicy.endRun(player.frameIntervalMs);
   }
 
   // Hand a track's remainder to a FRESH Web Animation: the authored curve's
@@ -894,6 +1006,10 @@ export const createTransitionPlayerRegistry = (
       track.onComplete?.();
       if (players.get(taskId) !== player) return;
       if (player.tracks.every((t) => t.completed || t.detached)) {
+        if (!player.navCompleted) {
+          player.navCompleted = true;
+          player.navComplete?.();
+        }
         endPolicyRun(player);
         players.delete(taskId);
       }
@@ -921,15 +1037,19 @@ export const createTransitionPlayerRegistry = (
       // makes that guarantee structural, not incidental.
       driverPolicy.reportGap(gap);
       registry.onFrameGap?.(gap);
-      if (gap >= MIN_FRAME_INTERVAL_MS && gap <= NOMINAL_FRAME_MS * PASS_THROUGH_FRAMES) {
+      if (gap >= MIN_FRAME_INTERVAL_MS && gap <= SLOW_CADENCE_MAX_MS) {
         player.recentGaps.push(gap);
         if (player.recentGaps.length > 7) player.recentGaps.shift();
         const sorted = [...player.recentGaps].sort((a, b) => a - b);
         const median = sorted[Math.floor(sorted.length / 2)]!;
+        const sustainedSlow =
+          player.recentGaps.length >= 4 &&
+          player.recentGaps.every((sample) => sample >= SLOW_CADENCE_MIN_MS);
         player.frameIntervalMs = Math.min(
-          NOMINAL_FRAME_MS,
+          sustainedSlow ? SLOW_CADENCE_MAX_MS : NOMINAL_FRAME_MS,
           Math.max(MIN_FRAME_INTERVAL_MS, median)
         );
+        lastLearnedIntervalMs = player.frameIntervalMs;
       }
       // Re-anchor across a main-thread stall (see PASS_THROUGH_FRAMES):
       // beyond ordinary jitter the clock advances exactly ONE display frame,
@@ -1006,6 +1126,10 @@ export const createTransitionPlayerRegistry = (
     }
 
     if (allDone) {
+      if (!player.navCompleted) {
+        player.navCompleted = true;
+        player.navComplete?.();
+      }
       endPolicyRun(player);
       players.delete(taskId);
       return;

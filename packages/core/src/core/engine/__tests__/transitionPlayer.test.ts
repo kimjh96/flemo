@@ -102,6 +102,31 @@ describe("isPlayerDrivable", () => {
     ).toBe(true);
   });
 
+  it("rejects transform channels authored out of canonical order (non-commutative)", () => {
+    // rotate-then-translate is a DIFFERENT path than translate-then-rotate;
+    // the numeric tier recomposes canonically, so such motions must fall to
+    // the scrub tier where the browser composes the authored list exactly.
+    expect(isPlayerDrivable(linearMotion({ rotate: "90deg", x: 100 }, { rotate: 0, x: 0 }))).toBe(
+      false
+    );
+    expect(isPlayerDrivable(linearMotion({ x: 100, rotate: "90deg" }, { x: 0, rotate: 0 }))).toBe(
+      true
+    );
+    // x/y merge into one translate3d — their mutual order is free.
+    expect(isPlayerDrivable(linearMotion({ y: 10, x: 10 }, { y: 0, x: 0 }))).toBe(true);
+    // Rotates around different axes do not commute either.
+    expect(
+      isPlayerDrivable(
+        linearMotion({ rotateZ: "10deg", rotateX: "10deg" }, { rotateZ: 0, rotateX: 0 })
+      )
+    ).toBe(false);
+    expect(
+      isPlayerDrivable(
+        linearMotion({ rotateX: "10deg", rotateZ: "10deg" }, { rotateX: 0, rotateZ: 0 })
+      )
+    ).toBe(true);
+  });
+
   it("rejects mismatched string templates and unparseable transforms", () => {
     expect(
       isPlayerDrivable(linearMotion({ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }))
@@ -173,6 +198,99 @@ describe("transitionPlayer", () => {
     expect(entering.style.transform).toBe("none");
     expect(exiting.style.transform).toBe("translate3d(-140px, 0px, 0)");
     expect(completed).toBe(1);
+  });
+
+  it("a sustained 30Hz cadence advances the clock at the display's own pace", () => {
+    // Every frame arriving at ~33ms IS the display's cadence, not a stall:
+    // after a short sustained window the estimator adopts it and the clock
+    // stays wall-synced (a 60Hz-capped estimate would advance 16.7ms per
+    // 33ms frame and double the flight).
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    let completed = 0;
+    registry.join("task-30hz", {
+      element: el,
+      motion: linearMotion({ x: "100%" }, { x: 0 }, 0.6),
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+    let t = 0;
+    pump(t);
+    for (let i = 0; i < 22 && completed === 0; i++) {
+      t += 1000 / 30;
+      pump(t);
+    }
+    // 0.6s of motion in ~0.73s of 30Hz wall time (estimator warmup slack
+    // included). The old cap needed ~1.2s of wall time.
+    expect(completed).toBe(1);
+  });
+
+  it("a stall burst on a fast display keeps the one-frame resume (no cadence poisoning)", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    registry.join("task-burst", {
+      element: el,
+      motion: linearMotion({ x: "100%" }, { x: 0 }, 0.6),
+      role: "active"
+    });
+    // Healthy 60Hz frames to t=100...
+    pump(0);
+    for (const t of [16.67, 33.33, 50, 66.67, 83.33, 100]) pump(t);
+    // ...then a 40ms block. 40 sits inside the slow-cadence sample window,
+    // but the recent gaps are mostly 16.7ms — NOT sustained-slow — so the
+    // estimate stays at 60Hz and the clock advances exactly ONE frame.
+    pump(140);
+    // elapsed = 140 - (40 - 16.67) = 116.67 → x = 400 * (1 - 116.67/600).
+    expect(el.style.transform).toBe("translate3d(322px, 0px, 0)");
+  });
+
+  it("navigation completes only when the LONGEST track finishes — surviving a stall after the active landed", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const active = element();
+    const passive = element();
+    let completed = 0;
+    registry.join("task-stall", {
+      element: active,
+      motion: linearMotion({ x: "100%" }, { x: 0 }, 0.3),
+      role: "active",
+      onComplete: () => {
+        completed += 1;
+      }
+    });
+    registry.join("task-stall", {
+      element: passive,
+      motion: linearMotion({ x: 0 }, { x: "-35%" }, 1),
+      role: "passive"
+    });
+    pump(0);
+    let t = 0;
+    while (t < 350) {
+      t += 1000 / 60;
+      pump(t);
+    }
+    // The active track landed; the navigation must NOT have resolved (the
+    // passive still has ~650ms of motion).
+    expect(completed).toBe(0);
+    // A 600ms main-thread stall: the player clock advances ONE frame and
+    // re-anchors — the passive's remaining span now ends ~583ms later in
+    // wall time. A wall-clock timer would already have fired inside it.
+    pump(950);
+    expect(completed).toBe(0);
+    while (t < 1500) {
+      t = Math.max(t, 950) + 1000 / 60;
+      pump(t);
+    }
+    expect(completed).toBe(0); // passive's player clock is still mid-motion
+    while (t < 1650 && completed === 0) {
+      t += 1000 / 60;
+      pump(t);
+    }
+    expect(completed).toBe(1); // resolves on the player clock, ~583ms late
   });
 
   it("snaps x/y to device pixels", () => {
