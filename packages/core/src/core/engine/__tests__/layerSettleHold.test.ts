@@ -5,6 +5,7 @@ import createTransition from "@transition/createTransition";
 import { transitionMap } from "@transition/transition";
 
 import createTransitionEngine from "@core/engine/createTransitionEngine";
+import { beginFlightWindow, resetFlightWindowForTests } from "@core/engine/flightWindow";
 import {
   holdScopeLayer,
   LAYER_SETTLE_MS,
@@ -123,6 +124,41 @@ describe("layerSettleHold", () => {
     expect(scope.style.willChange).toBe("transform");
     vi.advanceTimersByTime(1);
     expect(scope.style.willChange).toBe("");
+  });
+
+  it("a demotion firing into an active flight re-queues for the flight's rest", () => {
+    const scope = document.createElement("div");
+    holdScopeLayer(scope, cupertino());
+    releaseScopeLayerAfterSettle(scope);
+    // A quick chained pop opens its flight window before the push's settle
+    // clock elapses — the demote repaint must NOT land mid-flight.
+    const release = beginFlightWindow();
+    vi.advanceTimersByTime(LAYER_SETTLE_MS + 1);
+    expect(scope.style.willChange).toBe("transform");
+    // The flight rests: the settle clock runs again from here.
+    release();
+    expect(scope.style.willChange).toBe("transform");
+    vi.advanceTimersByTime(LAYER_SETTLE_MS - 1);
+    expect(scope.style.willChange).toBe("transform");
+    vi.advanceTimersByTime(1);
+    expect(scope.style.willChange).toBe("");
+    resetFlightWindowForTests();
+  });
+
+  it("a re-hold during the flight-idle wait voids the queued demotion", () => {
+    const scope = document.createElement("div");
+    holdScopeLayer(scope, cupertino());
+    releaseScopeLayerAfterSettle(scope);
+    const release = beginFlightWindow();
+    vi.advanceTimersByTime(LAYER_SETTLE_MS + 1); // fires into the flight, queues on idle
+    holdScopeLayer(scope, cupertino()); // the flight re-holds this element
+    release();
+    vi.advanceTimersByTime(LAYER_SETTLE_MS * 3);
+    expect(scope.style.willChange).toBe("transform"); // still held — no stale demotion
+    releaseScopeLayerAfterSettle(scope);
+    vi.advanceTimersByTime(LAYER_SETTLE_MS);
+    expect(scope.style.willChange).toBe("");
+    resetFlightWindowForTests();
   });
 
   it("release on an unstamped scope is a no-op", () => {
@@ -414,6 +450,10 @@ describe("engine wiring", () => {
 
     drive(engine, scope, "COMPLETED", true);
     expect(scope.style.willChange).toBe("transform");
+    // jsdom + fake timers never run the landing's composed release (it rides
+    // the real rAF clock), so close the flight window the way the landing
+    // does before advancing the settle clock.
+    resetFlightWindowForTests();
     vi.advanceTimersByTime(LAYER_SETTLE_MS);
     expect(scope.style.willChange).toBe("");
     expect(scope.style.contain).toBe("");
@@ -432,6 +472,7 @@ describe("engine wiring", () => {
 
     drive(engine, scope, "COMPLETED", false);
     expect(scope.style.willChange).toBe("transform");
+    resetFlightWindowForTests();
     vi.advanceTimersByTime(LAYER_SETTLE_MS);
     expect(scope.style.willChange).toBe("");
     scope.remove();
@@ -458,6 +499,7 @@ describe("engine wiring", () => {
     drive(engine, scope, "COMPLETED", false, { decorator, bars: [ridingBar, idleBar, null] });
     expect(decorator.style.willChange).toBe("opacity");
     expect(ridingBar.style.willChange).toBe("transform");
+    resetFlightWindowForTests();
     vi.advanceTimersByTime(LAYER_SETTLE_MS);
     expect(decorator.style.willChange).toBe("");
     expect(ridingBar.style.willChange).toBe("");
@@ -495,6 +537,7 @@ describe("engine wiring", () => {
     part.setAttribute("data-flemo-status", "COMPLETED");
     drive(engine, scope, "COMPLETED", false);
     expect(part.style.willChange).toBe("opacity");
+    resetFlightWindowForTests();
     vi.advanceTimersByTime(LAYER_SETTLE_MS);
     expect(part.style.willChange).toBe("");
 

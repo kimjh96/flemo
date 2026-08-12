@@ -2,6 +2,7 @@ import { clearInlineAnimation, trackInlineWrite } from "@transition/animateInlin
 
 import { easingToCss, targetToDecls } from "@transition/compileTransitionStyles";
 import { resolveEasing, type EasingFunction } from "@transition/cubicBezier";
+import settleScrubber from "@transition/settleScrub";
 import type { MotionTarget, VariantMotion } from "@transition/variantMotion";
 
 import driverPolicy, { detectBlinkEngine } from "@core/engine/driverPolicy";
@@ -306,13 +307,36 @@ const parseMotion = (motion: VariantMotion, element: HTMLElement | null): Parsed
 // the receding screen's 0.35× parallax — the "shivering at the end"). At or
 // above one device pixel per frame the ±half-pixel rounding is invisible and
 // buys the crisp leading edge.
-const SNAP_MIN_DEVICE_PX_PER_FRAME = 1;
+// Judged at the 60Hz nominal frame: the gate's intent is a VELOCITY
+// threshold (trackable glide vs out-running motion), so the crossing must
+// not move with the display's refresh rate. Un-normalized, a 120Hz
+// ProMotion panel halves the per-frame travel and pulls the snap→fractional
+// character flip from the deep tail up to ~60% of the flight — an
+// eye-visible onset of judder on the built-in display that a 60Hz external
+// never shows.
+const SNAP_MIN_DEVICE_PX_PER_NOMINAL_FRAME = 1;
+// One nominal 60Hz frame: the gate's normalization base, and the amount of
+// progress a re-anchored clock may advance across a stall (one frame, not
+// the whole gap).
+const NOMINAL_FRAME_MS = 1000 / 60;
 
 // Per-track memory of the previous frame's RAW x/y so the snap gate can
 // measure per-frame velocity.
 export interface SnapMemory {
   x: number | null;
   y: number | null;
+  // The landing governor's last written value per axis (see composeTransform):
+  // non-null once the governor has taken the tail over.
+  landingX?: number | null;
+  landingY?: number | null;
+  // The last PRESENTED value per axis — the landing governor hands over from
+  // here so its first step continues what was actually on glass.
+  writtenX?: number | null;
+  writtenY?: number | null;
+  // Set by composeTransform whenever the governor's cap wrote SHORT of the
+  // end pose: the caller's completion paths (the perceptual cut) must keep
+  // ticking until the presented pose has actually landed.
+  pendingLanding?: boolean;
 }
 
 // Compose the per-frame transform string. x/y merge into one translate3d.
@@ -369,13 +393,16 @@ const handoffOverride = (): "on" | null => {
   return handoffOverrideCache;
 };
 
-let snapOverrideCache: "always" | "off" | "gate" | null | undefined;
-const snapOverride = (): "always" | "off" | "gate" | null => {
+let snapOverrideCache: "always" | "off" | "gate" | "hybrid" | null | undefined;
+const snapOverride = (): "always" | "off" | "gate" | "hybrid" | null => {
   if (snapOverrideCache !== undefined) return snapOverrideCache;
   try {
     const value =
       typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:snap") : null;
-    snapOverrideCache = value === "always" || value === "off" || value === "gate" ? value : null;
+    snapOverrideCache =
+      value === "always" || value === "off" || value === "gate" || value === "hybrid"
+        ? value
+        : null;
   } catch {
     snapOverrideCache = null;
   }
@@ -396,11 +423,30 @@ const snapOverride = (): "always" | "off" | "gate" | null => {
 const defaultAlwaysSnap = (devicePixelRatio: number): boolean =>
   !detectBlinkEngine() && devicePixelRatio > 0 && devicePixelRatio < 3;
 
+// The landing governor's engagement range (device pixels): once the curve's
+// per-frame travel drops below one device pixel INSIDE this range, the
+// governor closes the tail at exactly one device pixel per frame — see the
+// landing-governor comment in composeTransform. 12 covers the slowest case
+// measured (a parallax return's sub-pixel crawl begins ~9 device px out).
+const REST_LANDING_MAX_DEVICE_PX = 12;
+
+// The jitter band (device px per ACTUAL frame): below this step size,
+// integer snapping modulates the presented velocity by up to ±0.5px/frame —
+// 17-50% of the step. Used by the "hybrid" diagnostic (fractional through
+// the band, snapped above). On Blink the high-refresh COMPILED routing (see
+// createTransitionEngine) removes the player from the displays where this
+// modulation was eye-visible; a 2026-08 attempt to present the band at half
+// cadence on the player was eye-falsified (no improvement, and it would
+// have force-degraded true-120Hz WebKit devices), so the player keeps plain
+// per-frame snapping here.
+const JITTER_BAND_MAX_DEVICE_PX = 4;
+
 const composeTransform = (
   channels: TransformChannel[],
   eased: number,
   devicePixelRatio: number,
-  snapMemory: SnapMemory
+  snapMemory: SnapMemory,
+  frameIntervalMs: number = NOMINAL_FRAME_MS
 ): string => {
   let x = 0;
   let y = 0;
@@ -417,17 +463,78 @@ const composeTransform = (
     if (prop === "x" || prop === "y") {
       const last = prop === "x" ? snapMemory.x : snapMemory.y;
       const override = snapOverride();
+      // "hybrid" (diagnostic): fractional through the jitter band — phases
+      // sweep at least one device pixel per frame there, so the bilinear
+      // blur reads as ordinary motion blur instead of the snapped
+      // alternation — and snapped only above it; the governor still owns
+      // the sub-pixel tail.
+      const stepForGate = last === null ? Infinity : Math.abs(value - last) * devicePixelRatio;
       const fastEnough =
         override === "always" || (override === null && defaultAlwaysSnap(devicePixelRatio))
           ? true
           : override === "off"
             ? false
-            : last === null ||
-              Math.abs(value - last) * devicePixelRatio >= SNAP_MIN_DEVICE_PX_PER_FRAME;
-      const written =
-        fastEnough && devicePixelRatio > 0
-          ? Math.round(value * devicePixelRatio) / devicePixelRatio
-          : Math.round(value * 1000) / 1000;
+            : override === "hybrid"
+              ? stepForGate >= JITTER_BAND_MAX_DEVICE_PX
+              : last === null ||
+                (stepForGate * NOMINAL_FRAME_MS) / Math.max(1, frameIntervalMs) >=
+                  SNAP_MIN_DEVICE_PX_PER_NOMINAL_FRAME;
+      // The landing governor: a decelerating curve's flat tail spends its
+      // last ~100-150ms (a big screen's push) to ~300ms (a parallax return —
+      // less travel, so the SAME curve moves even slower in absolute pixels)
+      // crawling its final pixels below one device pixel per frame. That
+      // span cannot present as motion: it presents as PARKED short of the
+      // landing point — frame-diffed as a high-contrast sliver of the
+      // covered screen at the sheet's leading edge, or a whole parallax
+      // sitting offset — and then the remainder ticks in late (a jump on
+      // any all-at-once landing, a COMPLETED-flip tick otherwise). So once
+      // the curve can no longer sustain a device pixel per frame inside the
+      // engagement range, the player takes the tail over and closes it at
+      // EXACTLY one device pixel per frame — the crisp minimum the eye
+      // still reads as motion. No park, no jump: the settle finishes
+      // monotone, ahead of the authored asymptote, ending exactly on the
+      // rest pose. Engagement latches (landingX/landingY); an interrupted
+      // flight tears the track down, so no stale latch survives.
+      let end = channel.to.value;
+      if (channel.from.unit === "%") end *= channel.percentBase;
+      const landKey = prop === "x" ? "landingX" : "landingY";
+      const priorLanding = snapMemory[landKey];
+      const remainingDevice = Math.abs(value - end) * devicePixelRatio;
+      const stepDevice = last === null ? Infinity : Math.abs(value - last) * devicePixelRatio;
+      // The governor latches only on a SLOW tail (sub-pixel per frame): an
+      // overshooting ease crosses the end fast and must keep playing its
+      // bounce — its own final approach decelerates into the latch later.
+      const engaged =
+        devicePixelRatio > 0 &&
+        (priorLanding != null || (stepDevice < 1 && remainingDevice <= REST_LANDING_MAX_DEVICE_PX));
+      const writtenKey = prop === "x" ? "writtenX" : "writtenY";
+      let written: number;
+      if (engaged) {
+        // Hand over from the last PRESENTED pose, not the raw curve — a raw
+        // restart would jump a held half-cadence frame in one step.
+        const fromValue = priorLanding ?? snapMemory[writtenKey] ?? value;
+        const unitPx = 1 / devicePixelRatio;
+        const next =
+          Math.abs(end - fromValue) <= unitPx + 1e-6
+            ? end
+            : fromValue + Math.sign(end - fromValue) * unitPx;
+        written = Math.round(next * 1000) / 1000;
+        snapMemory[landKey] = next;
+        snapMemory[writtenKey] = null;
+        if (next !== end) snapMemory.pendingLanding = true;
+      } else if (devicePixelRatio > 0 && remainingDevice < 1) {
+        // A FAST arrival inside the last device pixel (a linear ramp, an
+        // overshoot crossing): the rest pose IS the nearest grid point —
+        // written without latching, so a bounce keeps playing.
+        written = Math.round(end * 1000) / 1000;
+        snapMemory[writtenKey] = null;
+      } else {
+        written =
+          fastEnough && devicePixelRatio > 0
+            ? Math.round(value * devicePixelRatio) / devicePixelRatio
+            : Math.round(value * 1000) / 1000;
+        snapMemory[writtenKey] = written;
+      }
       if (prop === "x") {
         snapMemory.x = value;
         x = written;
@@ -496,10 +603,6 @@ const createScrubAnimation = (element: HTMLElement, motion: VariantMotion): Anim
   }
 };
 
-// One nominal 60Hz frame. Used as the amount of progress a re-anchored clock
-// is allowed to advance across a stall (one frame, not the whole gap).
-const NOMINAL_FRAME_MS = 1000 / 60;
-
 // Stall semantics: how the clock treats one frame gap.
 //
 // - A gap up to PASS_THROUGH_FRAMES × the display interval is ordinary
@@ -538,6 +641,17 @@ const SLOW_CADENCE_MAX_MS = 42;
 // fresh player, and on a genuinely slow display re-learning from the 60Hz
 // seed would lose a few frames of clock at the top of EVERY flight.
 let lastLearnedIntervalMs = NOMINAL_FRAME_MS;
+
+// The engine's tier routing needs the display cadence OUTSIDE a live player
+// (a routed-compiled flight runs no player to learn from): expose the
+// learned interval, and accept refreshed samples from the engine's own
+// probe so a window moved between displays re-routes within a flight or two.
+export const learnedFrameIntervalMs = (): number => lastLearnedIntervalMs;
+export const reportDisplayIntervalMs = (intervalMs: number): void => {
+  if (!Number.isFinite(intervalMs)) return;
+  if (intervalMs < MIN_FRAME_INTERVAL_MS || intervalMs > SLOW_CADENCE_MAX_MS) return;
+  lastLearnedIntervalMs = Math.min(NOMINAL_FRAME_MS, Math.max(MIN_FRAME_INTERVAL_MS, intervalMs));
+};
 
 // ── Anchored-opening handoff (non-Blink) ────────────────────────────────────
 //
@@ -853,6 +967,14 @@ export const createTransitionPlayerRegistry = (
       // track pins via the paused animation itself (fill "both" at
       // currentTime 0).
       const trackWriter = Symbol("flemo-player-track");
+      // A NAVIGATION owns its participants: force-conclude any running
+      // settle (owner-less takeover pins the current pose) before pinning
+      // the from frame. Without this, a tap that grazed the swipe edge
+      // starts a 300ms cancel settle in the SAME gesture that starts this
+      // flight, and the settle's WAAPI outranks the player's inline writes
+      // for its whole span — device-captured as the pop gliding backward
+      // then teleporting to the player's true position.
+      settleScrubber.takeover(track.element);
       trackInlineWrite(track.element, "animation", trackWriter);
       track.element.style.animation = "none";
       if (parsed) {
@@ -916,7 +1038,7 @@ export const createTransitionPlayerRegistry = (
     return easing;
   };
 
-  function writeTrack(track: Track, easedProgress: number) {
+  function writeTrack(track: Track, easedProgress: number, frameIntervalMs?: number) {
     const { element, parsed } = track;
     if (!parsed || !element.isConnected) return;
 
@@ -925,13 +1047,22 @@ export const createTransitionPlayerRegistry = (
         parsed.transforms,
         easedProgress,
         scheduler.devicePixelRatio(),
-        track.snapMemory
+        track.snapMemory,
+        frameIntervalMs
       );
       if (transform !== "") element.style.transform = transform;
     }
     if (parsed.opacity) {
       const { from, to } = parsed.opacity;
-      element.style.opacity = `${from + (to - from) * easedProgress}`;
+      // Quantize to the display's alpha grid (1/255): the sub-step tail of a
+      // long fade otherwise lands its final imperceptible fraction in the
+      // COMPLETED flip's frame — measured on a real-display capture as a
+      // whole-window tone step at every landing (the dim decorator's last
+      // 0.8% arriving as a discrete rest-frame event). On the grid, the
+      // last representable alpha is reached while the motion still moves,
+      // and the flip writes nothing new.
+      const raw = from + (to - from) * easedProgress;
+      element.style.opacity = `${Math.round(raw * 255) / 255}`;
     }
     for (const channel of parsed.strings) {
       element.style.setProperty(channel.property, channel.mix(easedProgress));
@@ -1070,6 +1201,13 @@ export const createTransitionPlayerRegistry = (
       // so the resume step matches a normal frame's step — no velocity
       // discontinuity. Scrub-WAAPI tracks derive currentTime from this same
       // startTime, so they re-anchor with it automatically.
+      // (2026-08 iPhone note: a jitter-capped clock — never advancing more
+      // than one frame per step — plus a post-frame MessageChannel commit
+      // probe was ported here from a device-approved synthetic A/B and made
+      // the REAL app worse: live pages carry per-frame rendering cost that
+      // the probe reads as a blown commit window, so the compensation held
+      // frames constantly. Both were reverted; the synthetic win did not
+      // transfer. Do not re-attempt without an adaptive per-page baseline.)
       if (gap > PASS_THROUGH_FRAMES * player.frameIntervalMs) {
         startTime += gap - player.frameIntervalMs;
       }
@@ -1091,6 +1229,25 @@ export const createTransitionPlayerRegistry = (
       // the imperceptibility band: complete now, and the COMPLETED flip's
       // rest snap is sub-pixel by construction.
       if (player.navCutMs !== null && elapsed >= player.navCutMs) {
+        // Present the rest pose ON the cut frame. The cut's residue is
+        // sub-band by construction, but the snapped presentation can sit one
+        // device pixel short of it — and completing without a write parks
+        // that hairline (the sheet's leading-edge gap) until the COMPLETED
+        // flip's style teardown, measured ~80-120ms later under a busy React
+        // commit (real Chrome, 2560-device-px push: rem=1 held for five
+        // frames past the authored end). A governor latched mid-close keeps
+        // its one-pixel-per-frame rhythm: the track stays live until the
+        // presented pose has landed. Scrubbed tracks are the browser's to
+        // present.
+        if (!track.scrub) {
+          track.snapMemory.pendingLanding = false;
+          writeTrack(track, 1, player.frameIntervalMs);
+          if (track.snapMemory.pendingLanding) {
+            allDone = false;
+            needsFrame = true;
+            continue;
+          }
+        }
         track.completed = true;
         track.onComplete?.();
         continue;
@@ -1129,8 +1286,9 @@ export const createTransitionPlayerRegistry = (
 
       const local =
         durationMs <= 0 ? 1 : Math.min(1, Math.max(0, (elapsed - delayMs) / durationMs));
-      writeTrack(track, trackEasing(track)(local));
-      if (local >= 1) {
+      if (local >= 1) track.snapMemory.pendingLanding = false;
+      writeTrack(track, trackEasing(track)(local), player.frameIntervalMs);
+      if (local >= 1 && !track.snapMemory.pendingLanding) {
         track.completed = true;
         track.onComplete?.();
       } else {
