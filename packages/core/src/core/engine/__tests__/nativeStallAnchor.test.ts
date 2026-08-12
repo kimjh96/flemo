@@ -186,6 +186,7 @@ describe("watchNativeStalls", () => {
 });
 
 describe("anchorNativeFlightStart", () => {
+  const GUARD = 4000; // START_HOLD_GUARD_MS
   const makeAnimation = (currentTime: number, name = "flemo-screen-x-PUSHING-true") =>
     ({
       animationName: name,
@@ -200,107 +201,156 @@ describe("anchorNativeFlightStart", () => {
     return el;
   };
 
-  it("rewinds a just-started clock that aged past its allowance before first rAF", () => {
-    const fresh = makeAnimation(2);
+  const queuedRaf = () => {
     const rafCbs: FrameRequestCallback[] = [];
     const raf = vi
       .spyOn(window, "requestAnimationFrame")
       .mockImplementation((cb: FrameRequestCallback) => (rafCbs.push(cb), rafCbs.length));
-    const onShift = vi.fn();
-    anchorNativeFlightStart(() => [host([fresh])], onShift);
-    // The release frame's own rendering update blocked: by the first rAF the
-    // clock aged 150ms. Budget = base(2) + one-step slack: the excess is
-    // given back to the timeline.
-    (fresh as unknown as { currentTime: number }).currentTime = 150;
-    rafCbs.shift()!(0);
-    expect(fresh.startTime).toBeCloseTo(1000 + (150 - 2), 5); // rewound to its base exactly
-    expect(onShift).toHaveBeenCalled();
-    expect(rafCbs.length).toBe(0); // one rewind ends the watch
+    return { rafCbs, raf };
+  };
+
+  it("the first tick holds every fresh clock in the future (from-pose through the release block)", () => {
+    const fresh = makeAnimation(2);
+    const { rafCbs, raf } = queuedRaf();
+    const detach = anchorNativeFlightStart(() => [host([fresh])]);
+    rafCbs.shift()!(0); // HOLD: the block's own present now shows the from pose
+    expect(fresh.startTime).toBe(1000 + GUARD);
+    detach();
     raf.mockRestore();
   });
 
-  it("covers a block that lands AFTER a clean first frame (the co-flush window)", () => {
+  it("the restore tick lands the clock on base+allowance and reports the block", () => {
     const fresh = makeAnimation(2);
-    const rafCbs: FrameRequestCallback[] = [];
-    const raf = vi
-      .spyOn(window, "requestAnimationFrame")
-      .mockImplementation((cb: FrameRequestCallback) => (rafCbs.push(cb), rafCbs.length));
+    const { rafCbs, raf } = queuedRaf();
     const onShift = vi.fn();
-    anchorNativeFlightStart(() => [host([fresh])], onShift);
-    // Frame 1: healthy — nothing written, the watch continues.
-    (fresh as unknown as { currentTime: number }).currentTime = 16;
-    rafCbs.shift()!(1000);
-    expect(fresh.startTime).toBe(1000);
-    // Frame 2 arrives 300ms late (the release frame's co-flushed update).
-    // Allowance for the gap is capped at one player step; the rest rewinds.
-    (fresh as unknown as { currentTime: number }).currentTime = 316;
-    rafCbs.shift()!(1300);
-    const allowed = 2 + NATIVE_STALL_STEP_MS; /* base + capped gap allowance */
-    expect(fresh.startTime).toBeCloseTo(1000 + (316 - allowed), 5);
+    const detach = anchorNativeFlightStart(() => [host([fresh])], onShift);
+    rafCbs.shift()!(0); // hold
+    // The release block ran 150ms; the (guarded) clock aged with it.
+    (fresh as unknown as { currentTime: number }).currentTime = 2 + 150 - GUARD;
+    rafCbs.shift()!(150); // restore
+    const allowance = NATIVE_STALL_STEP_MS; // 150ms gap, capped
+    const desired = 2 + allowance;
+    // Net effect: the block's span beyond the allowance was given back.
+    expect(fresh.startTime).toBeCloseTo(1000 + (150 - allowance), 5);
     expect(onShift).toHaveBeenCalledTimes(1);
-    expect(rafCbs.length).toBe(0);
+    expect(onShift.mock.calls[0]![0]).toBeCloseTo(2 + 150 - desired, 5);
+    detach();
     raf.mockRestore();
   });
 
-  it("stands down at the window bound without touching a healthy flight", () => {
+  it("a healthy flight's hold+restore is a numeric no-op and never fires onShift", () => {
     const fresh = makeAnimation(2);
-    const rafCbs: FrameRequestCallback[] = [];
-    const raf = vi
-      .spyOn(window, "requestAnimationFrame")
-      .mockImplementation((cb: FrameRequestCallback) => (rafCbs.push(cb), rafCbs.length));
+    const { rafCbs, raf } = queuedRaf();
     const onShift = vi.fn();
-    anchorNativeFlightStart(() => [host([fresh])], onShift);
-    let t = 1000;
-    let ct = 10;
+    const detach = anchorNativeFlightStart(() => [host([fresh])], onShift);
+    rafCbs.shift()!(1000); // hold
+    (fresh as unknown as { currentTime: number }).currentTime = 2 + 16 - GUARD;
+    rafCbs.shift()!(1016); // restore: guard out, one frame's allowance in
+    expect(fresh.startTime).toBeCloseTo(1000, 5);
+    expect(onShift).not.toHaveBeenCalled();
+    // The co-flush watch stands down at the window bound without writing.
+    let t = 1016;
+    let ct = 18;
     while (rafCbs.length > 0) {
-      (fresh as unknown as { currentTime: number }).currentTime = ct;
-      rafCbs.shift()!(t);
       t += 16;
       ct += 16;
-      if (t > 3000) break; // safety: the window must terminate long before
+      (fresh as unknown as { currentTime: number }).currentTime = ct;
+      rafCbs.shift()!(t);
+      if (t > 3000) break; // safety
     }
-    expect(t).toBeLessThan(1400); // ~150ms window, not an endless watch
-    expect(fresh.startTime).toBe(1000);
+    expect(t).toBeLessThan(1400);
+    expect(fresh.startTime).toBeCloseTo(1000, 5);
     expect(onShift).not.toHaveBeenCalled();
+    detach();
+    raf.mockRestore();
+  });
+
+  it("covers a block that lands AFTER the restore (the co-flush window)", () => {
+    const fresh = makeAnimation(2);
+    const { rafCbs, raf } = queuedRaf();
+    const onShift = vi.fn();
+    const detach = anchorNativeFlightStart(() => [host([fresh])], onShift);
+    rafCbs.shift()!(1000); // hold
+    (fresh as unknown as { currentTime: number }).currentTime = 2 + 16 - GUARD;
+    rafCbs.shift()!(1016); // restore → base 18, allowance resets
+    // A 300ms co-flushed block: allowance caps at one step, the rest rewinds.
+    (fresh as unknown as { currentTime: number }).currentTime = 18 + 300;
+    rafCbs.shift()!(1316);
+    const allowed = 18 + NATIVE_STALL_STEP_MS;
+    expect(fresh.startTime).toBeCloseTo(1000 + (18 + 300 - allowed), 5);
+    expect(onShift).toHaveBeenCalledTimes(1);
+    expect(rafCbs.length).toBe(0); // the first co-flush rewind ends the watch
+    detach();
+    raf.mockRestore();
+  });
+
+  it("a detach between hold and restore gives the guard back", () => {
+    const fresh = makeAnimation(2);
+    const { rafCbs, raf } = queuedRaf();
+    const detach = anchorNativeFlightStart(() => [host([fresh])]);
+    rafCbs.shift()!(0); // hold
+    (fresh as unknown as { currentTime: number }).currentTime = 2 + 30 - GUARD;
+    detach();
+    // Restored with the one-step allowance — never stranded in the future.
+    expect(fresh.startTime).toBeCloseTo(1000 + (30 - NATIVE_STALL_STEP_MS), 5);
+    raf.mockRestore();
+  });
+
+  it("holdFirstFrame=false skips the hold (REPLACING) and keeps the legacy rewind", () => {
+    const fresh = makeAnimation(2);
+    const { rafCbs, raf } = queuedRaf();
+    const onShift = vi.fn();
+    const detach = anchorNativeFlightStart(() => [host([fresh])], onShift, false);
+    rafCbs.shift()!(0); // no hold: startTime untouched, watch begins
+    expect(fresh.startTime).toBe(1000);
+    // A 150ms release block: the one-shot rewind covers it, one frame late.
+    (fresh as unknown as { currentTime: number }).currentTime = 2 + 150;
+    rafCbs.shift()!(150);
+    const allowed = 2 + NATIVE_STALL_STEP_MS;
+    expect(fresh.startTime).toBeCloseTo(1000 + (2 + 150 - allowed), 5);
+    expect(onShift).toHaveBeenCalledTimes(1);
+    detach();
+    raf.mockRestore();
+  });
+
+  it("a PENDING clock (currentTime null at the release microtask) is held via the timeline", () => {
+    // The exact birth state at the release microtask: currentTime and
+    // startTime both null (play pending, resolving only at the first render
+    // tick — AFTER the block). The hold must pin an explicit future start
+    // off the document timeline, or the anchor silently no-ops on the very
+    // flights it exists for.
+    const pending = {
+      animationName: "flemo-screen-x-PUSHING-true",
+      playState: "running",
+      currentTime: null,
+      startTime: null,
+      timeline: { currentTime: 500 }
+    } as unknown as CSSAnimation;
+    const { rafCbs, raf } = queuedRaf();
+    const detach = anchorNativeFlightStart(() => [host([pending])]);
+    rafCbs.shift()!(0); // hold
+    expect(pending.startTime).toBe(500 + GUARD);
+    detach();
     raf.mockRestore();
   });
 
   it("never touches a mid-flight animation (an effect re-run) or the same animation twice", () => {
     const midFlight = makeAnimation(300);
-    const raf = vi
-      .spyOn(window, "requestAnimationFrame")
-      .mockImplementation((cb: FrameRequestCallback) => {
-        cb(performance.now());
-        return 1;
-      });
+    const { rafCbs, raf } = queuedRaf();
     anchorNativeFlightStart(() => [host([midFlight])]);
-    expect(midFlight.startTime).toBe(1000);
+    while (rafCbs.length) rafCbs.shift()!(performance.now());
+    expect(midFlight.startTime).toBe(1000); // never collected, never held
 
     // A fresh one, anchored once; a second arming must not re-anchor it.
     const fresh = makeAnimation(0);
-    let age = 0;
-    Object.defineProperty(fresh, "currentTime", { get: () => age, configurable: true });
-    age = 100;
-    anchorNativeFlightStart(() => [host([fresh])]);
-    const after = fresh.startTime;
-    age = 100; // fresh-looking? no: startAnchored remembers the object
-    anchorNativeFlightStart(() => [host([fresh])]);
-    expect(fresh.startTime).toBe(after);
-    raf.mockRestore();
-  });
-
-  it("a healthy first frame is a no-op", () => {
-    const fresh = makeAnimation(2);
-    const rafCbs: FrameRequestCallback[] = [];
-    const raf = vi
-      .spyOn(window, "requestAnimationFrame")
-      .mockImplementation((cb: FrameRequestCallback) => (rafCbs.push(cb), rafCbs.length));
-    const onShift = vi.fn();
-    anchorNativeFlightStart(() => [host([fresh])], onShift);
-    (fresh as unknown as { currentTime: number }).currentTime = 16;
-    rafCbs.shift()!(0);
-    expect(fresh.startTime).toBe(1000);
-    expect(onShift).not.toHaveBeenCalled();
+    const detach = anchorNativeFlightStart(() => [host([fresh])]);
+    rafCbs.shift()!(0); // hold
+    const heldStart = fresh.startTime;
+    expect(heldStart).toBe(1000 + GUARD);
+    const detachSecond = anchorNativeFlightStart(() => [host([fresh])]);
+    expect(fresh.startTime).toBe(heldStart); // startAnchored remembers the object
+    detach();
+    detachSecond();
     raf.mockRestore();
   });
 });

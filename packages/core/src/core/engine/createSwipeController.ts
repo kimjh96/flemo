@@ -105,6 +105,18 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     velocity: swipeVelocity
   });
 
+  // TAP-SLOP: a click/tap that merely grazes the swipe edge (1-5px of pointer
+  // jitter) engages the grab like any drag — and its release then played the
+  // full 300ms cancel settle on BOTH screens. When that same tap was a
+  // navigation trigger (the back button lives in the edge zone), the settle's
+  // WAAPI fought the navigation's driver for the whole 300ms — device-captured
+  // (2026-08-12, Chrome touch emulation): pop starts, glides BACKWARD to the
+  // pre-pop pose under the settle, then teleports to the driver's true
+  // position the instant the settle ends. Sub-slop gestures are TAPS: their
+  // cancel restores instantly (duration 0) and no settle animation is born.
+  const SWIPE_TAP_SLOP_PX = 6;
+  let swipeMaxDragPx = 0;
+
   const updateSwipeVelocity = (event: PointerEvent) => {
     const now = event.timeStamp;
     const dt = Math.max(1, now - swipeLastTime);
@@ -114,6 +126,11 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     };
     swipeLastPoint = { x: event.clientX, y: event.clientY };
     swipeLastTime = now;
+    swipeMaxDragPx = Math.max(
+      swipeMaxDragPx,
+      Math.abs(event.clientX - swipeStartPoint.x),
+      Math.abs(event.clientY - swipeStartPoint.y)
+    );
   };
 
   // Mirror every write to a screen onto the bars that ride along with it, in
@@ -241,6 +258,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     if (!prevScreen) return;
 
     swipeActive = true;
+    swipeMaxDragPx = 0;
     swipeStartPoint = { x: event.clientX, y: event.clientY };
     swipeLastPoint = { x: event.clientX, y: event.clientY };
     swipeLastTime = event.timeStamp;
@@ -307,8 +325,15 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     }
 
     const decoratorDef = config.getDecorator();
+    // Sub-slop release = a tap, not a swipe: clamp the handler's settle
+    // durations to zero so the restore is instantaneous and no settle
+    // animation exists to fight a navigation the same tap triggered.
+    const tapLike = swipeMaxDragPx < SWIPE_TAP_SLOP_PX;
+    const animateForEnd: typeof animateSwipe = tapLike
+      ? (target, value, options) => animateSwipe(target, value, { ...options, duration: 0 })
+      : animateSwipe;
     const isTriggered = await transition.onSwipeEnd(event, buildSwipeInfo(event), {
-      animate: animateSwipe,
+      animate: animateForEnd,
       currentScreen: scope as HTMLDivElement,
       prevScreen: prevScreen as HTMLDivElement,
       onStart: (triggered) => {

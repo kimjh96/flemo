@@ -243,9 +243,28 @@ export function holdNativeClocksToFirstFrame(
 // stands down for good so mid-flight presentation is never touched.
 const START_ANCHOR_WINDOW_MS = 150;
 
+// The hold guard: how far into the future the first tick dates each clock.
+// Far beyond any release block (device-measured blocks run 50-150ms, the
+// injected worst case 300ms), and given back IN FULL at the restore tick —
+// its magnitude never reaches the glass, only the from-pose hold does.
+const START_HOLD_GUARD_MS = 4000;
+
+// If the restore tick never comes (rAF suspends — a backgrounded tab right
+// at flight birth), the guard must not strand the animation 4s in the
+// future: a wall-clock backstop restores it the same way.
+const START_HOLD_BACKSTOP_MS = 400;
+
 export function anchorNativeFlightStart(
   elements: () => (HTMLElement | null | undefined)[],
-  onShift?: (excessMs: number) => void
+  onShift?: (excessMs: number) => void,
+  // Whether the two-phase hold applies. TRUE for slides (PUSHING/POPPING),
+  // where the from pose IS what the glass already shows, so the hold frame
+  // is invisible and the swallowed opening it prevents is the probe-measured
+  // 15-22% skip. FALSE for REPLACING: a tab switch's exiting screen holds at
+  // FULL presence over the already-committed new content — device-seen as
+  // the old screen flashing back — and its quick cross-fade has no tracked
+  // opening to protect; the legacy one-shot rewind is the right medicine.
+  holdFirstFrame = true
 ): () => void {
   /* v8 ignore next -- same rAF guard as the watcher below. */
   if (typeof requestAnimationFrame !== "function") return () => {};
@@ -258,25 +277,62 @@ export function anchorNativeFlightStart(
       if (typeof name !== "string" || !name.startsWith(FLEMO_ANIMATION_PREFIX)) continue;
       if (animation.playState !== "running") continue;
       if (startAnchored.has(animation)) continue;
+      // A just-born animation's start may still be PENDING (currentTime
+      // null) — the freshest state of all (the hold's own gate treats it
+      // the same way). Only a NUMERIC clock past one step marks a
+      // mid-flight animation, which must not be touched.
       const currentTime = animation.currentTime;
-      if (typeof currentTime !== "number" || currentTime > NATIVE_STALL_STEP_MS) continue;
+      if (typeof currentTime === "number" && currentTime > NATIVE_STALL_STEP_MS) continue;
+      if (currentTime !== null && typeof currentTime !== "number") continue;
       startAnchored.add(animation);
       candidates.push(animation);
-      baseTimes.set(animation, currentTime);
+      baseTimes.set(animation, typeof currentTime === "number" ? currentTime : 0);
     }
   }
   if (candidates.length === 0) return () => {};
-  // Player-clock semantics, one-shot: each observed frame gap may advance
-  // the clock by at most two nominal steps (an ordinary double-vsync drop);
-  // anything beyond that inside the window is a block the presentation
-  // could not have followed, and the excess is given back to the timeline.
-  // The FIRST rewind ends the watch — a healthy flight ends it at the
-  // window bound having written nothing.
+  // TWO-PHASE anchor. The one-shot rewind form was probe-falsified on device
+  // (iPhone, 2026-08): the release rendering update's style/layout/paint
+  // block ages the clock BETWEEN the first rAF and its own present, so the
+  // first frame the user sees is already 15-22% into the curve and the
+  // rewind lands one frame later as a visible backward snap. The aging is
+  // unavoidable — but its PRESENTATION isn't:
+  //   HOLD (first tick, before the block): future-date every clock by the
+  //   guard. The block's present then shows the FROM pose (fill backwards) —
+  //   identical to the park pose already on glass, so nothing changes.
+  //   RESTORE (next tick, block behind us): give the guard back so each
+  //   clock sits at exactly base + the capped allowance — the opening plays
+  //   in full from its first REAL presented frame. A healthy flight's
+  //   restore is a numeric no-op (guard out, one frame's allowance in), so
+  //   the hold costs it nothing but one from-pose frame.
+  // Then the allowance watch continues for the co-flush window, unchanged.
   let handle = 0;
+  let backstop: ReturnType<typeof setTimeout> | null = null;
   let cancelled = false;
+  let held = false;
+  let restored = false;
   let firstTick: number | null = null;
   let lastTick: number | null = null;
   let allowanceMs = 0;
+  const restoreGuard = (allowance: number) => {
+    if (restored) return 0;
+    restored = true;
+    let shifted = 0;
+    for (const animation of candidates) {
+      if (animation.playState !== "running") continue;
+      const currentTime = animation.currentTime;
+      const startTime = animation.startTime;
+      if (typeof currentTime !== "number" || typeof startTime !== "number") continue;
+      const base = baseTimes.get(animation) ?? 0;
+      const desired = base + allowance;
+      // Increasing startTime decreases currentTime and vice versa; land the
+      // clock exactly on `desired`, wherever the guard + block left it.
+      animation.startTime = startTime + (currentTime - desired);
+      baseTimes.set(animation, desired);
+      const natural = currentTime + START_HOLD_GUARD_MS;
+      shifted = Math.max(shifted, natural - desired);
+    }
+    return shifted;
+  };
   const frame = (now: number) => {
     if (cancelled) return;
     if (firstTick === null) firstTick = now;
@@ -285,6 +341,49 @@ export function anchorNativeFlightStart(
       allowanceMs += Math.min(Math.max(0, gap), NATIVE_STALL_STEP_MS);
     }
     lastTick = now;
+    if (!held) {
+      held = true;
+      if (!holdFirstFrame) {
+        restored = true; // straight to the co-flush watch (legacy semantics)
+        handle = requestAnimationFrame(frame);
+        return;
+      }
+      for (const animation of candidates) {
+        if (animation.playState !== "running") continue;
+        const startTime = animation.startTime;
+        if (typeof startTime === "number") {
+          animation.startTime = startTime + START_HOLD_GUARD_MS;
+          continue;
+        }
+        // PENDING start (startTime null — the clock resolves at the first
+        // render tick, i.e. AFTER the block this hold exists for): pin an
+        // explicit future start off the document timeline instead, the same
+        // guard by another route.
+        const timelineNow = animation.timeline?.currentTime;
+        if (typeof timelineNow === "number") {
+          animation.startTime = timelineNow + START_HOLD_GUARD_MS;
+        }
+      }
+      /* v8 ignore next 3 -- setTimeout exists in every runtime under test. */
+      if (typeof setTimeout === "function") {
+        backstop = setTimeout(
+          () => restoreGuard(allowanceMs + NATIVE_STALL_STEP_MS),
+          START_HOLD_BACKSTOP_MS
+        );
+      }
+      handle = requestAnimationFrame(frame);
+      return;
+    }
+    if (!restored) {
+      if (backstop !== null) clearTimeout(backstop);
+      const shifted = restoreGuard(allowanceMs);
+      allowanceMs = 0;
+      if (shifted > NATIVE_STALL_STEP_MS) onShift?.(shifted);
+      handle = requestAnimationFrame(frame);
+      return;
+    }
+    // Co-flush watch (unchanged semantics): a late block inside the window
+    // still rewinds to the allowance; the first rewind ends the watch.
     let shifted = 0;
     for (const animation of candidates) {
       if (animation.playState !== "running") continue;
@@ -292,10 +391,6 @@ export function anchorNativeFlightStart(
       const startTime = animation.startTime;
       if (typeof currentTime !== "number" || typeof startTime !== "number") continue;
       const base = baseTimes.get(animation) ?? 0;
-      // The slack step only decides WHETHER this is a block (a marginally
-      // late healthy frame must not be touched); the rewind itself lands on
-      // the allowance exactly — player semantics, at most the capped steps
-      // past where the presentation stalled.
       if (currentTime <= base + allowanceMs + NATIVE_STALL_STEP_MS) continue;
       const excess = currentTime - (base + allowanceMs);
       animation.startTime = startTime + excess;
@@ -313,6 +408,10 @@ export function anchorNativeFlightStart(
   return () => {
     cancelled = true;
     cancelAnimationFrame(handle);
+    if (backstop !== null) clearTimeout(backstop);
+    // A detach between hold and restore must not strand clocks in the
+    // future — give the guard back with the same one-step allowance.
+    if (held && !restored) restoreGuard(allowanceMs + NATIVE_STALL_STEP_MS);
   };
 }
 
@@ -354,3 +453,83 @@ export function watchNativeStalls(
     cancelAnimationFrame(handle);
   };
 }
+
+// One armed record per scope, REFCOUNTED with a zero-delay teardown grace:
+// the drive effect re-runs at the release (cleanup, then re-arm, same
+// commit), and a plain per-run observer would be torn down at exactly the
+// moment it exists for — the release microtask. The grace carries the armed
+// observer across the re-run; onShift is read through the caller's per-scope
+// slot so the surviving record always disarms the CURRENT run's deadlines.
+interface ReleaseAnchorRecord {
+  refs: number;
+  pendingDrop: ReturnType<typeof setTimeout> | null;
+  dispose: () => void;
+}
+const releaseAnchors = new WeakMap<HTMLElement, ReleaseAnchorRecord>();
+
+export function armFlightStartAnchorAtRelease(
+  scope: HTMLElement,
+  elements: () => (HTMLElement | null | undefined)[],
+  onShift?: (excessMs: number) => void,
+  holdFirstFrame = true
+): () => void {
+  if (typeof MutationObserver === "undefined" || typeof requestAnimationFrame !== "function") {
+    return () => {};
+  }
+  const existing = releaseAnchors.get(scope);
+  if (existing) {
+    existing.refs += 1;
+    if (existing.pendingDrop !== null) {
+      clearTimeout(existing.pendingDrop);
+      existing.pendingDrop = null;
+    }
+    return () => releaseRef(scope);
+  }
+  let detachAnchor: (() => void) | null = null;
+  let engaged = false;
+  let disposed = false;
+  const engage = () => {
+    if (engaged || disposed) return;
+    engaged = true;
+    observer.disconnect();
+    detachAnchor = anchorNativeFlightStart(elements, onShift, holdFirstFrame);
+  };
+  const observer = new MutationObserver(() => {
+    if (scope.getAttribute("data-flemo-anim-hold") !== "false") return;
+    engage();
+  });
+  if (scope.getAttribute("data-flemo-anim-hold") === "false") {
+    // Already released at arm time (a hold-free variant, or the arming lost
+    // the race): engage NOW — the anchor's first rAF still tops the coming
+    // update when this runs inside the release commit's own task.
+    engage();
+  } else {
+    observer.observe(scope, { attributes: true, attributeFilter: ["data-flemo-anim-hold"] });
+  }
+  const record: ReleaseAnchorRecord = {
+    refs: 1,
+    pendingDrop: null,
+    dispose: () => {
+      disposed = true;
+      observer.disconnect();
+      detachAnchor?.();
+      releaseAnchors.delete(scope);
+    }
+  };
+  releaseAnchors.set(scope, record);
+  return () => releaseRef(scope);
+}
+
+const releaseRef = (scope: HTMLElement) => {
+  const record = releaseAnchors.get(scope);
+  if (!record) return;
+  record.refs -= 1;
+  if (record.refs > 0) return;
+  /* v8 ignore next 4 -- setTimeout exists in every runtime under test. */
+  if (typeof setTimeout !== "function") {
+    record.dispose();
+    return;
+  }
+  if (record.pendingDrop !== null) clearTimeout(record.pendingDrop);
+  record.pendingDrop = setTimeout(record.dispose, 0);
+};

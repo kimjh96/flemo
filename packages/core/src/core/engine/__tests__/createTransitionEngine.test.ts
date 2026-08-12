@@ -7,6 +7,7 @@ import none from "@transition/none";
 import { transitionMap } from "@transition/transition";
 
 import createTransitionEngine from "@core/engine/createTransitionEngine";
+import { resetFlightWindowForTests } from "@core/engine/flightWindow";
 import { LAYER_SETTLE_MS } from "@core/engine/layerSettleHold";
 import { SKIP_ANIMATION_ATTR, type TransitionEngineDeps } from "@core/engine/types";
 
@@ -157,6 +158,9 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     // The bar's promoted layer demotes off-cadence, LAYER_SETTLE_MS past the
     // flip (see layerSettleHold.ts) — never in the flip commit itself.
     expect(bar.style.getPropertyValue("will-change")).toBe("transform");
+    // jsdom + fake timers never run the landing's composed flight-window
+    // release (it rides the real rAF clock) — close it as the landing does.
+    resetFlightWindowForTests();
     vi.advanceTimersByTime(LAYER_SETTLE_MS);
     expect(bar.style.getPropertyValue("will-change")).toBe("");
 
