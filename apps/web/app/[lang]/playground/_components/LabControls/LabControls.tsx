@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { Part, useNavigate, usePathname } from "@flemo/react";
 
@@ -54,6 +54,21 @@ function LabControls({ onOpenStressLab }: LabControlsProps) {
     if (step <= 1) return;
     navigate.pop();
   };
+
+  // DIAGNOSTIC (temporary): `?autodemo` drives an endless push/pop loop so a
+  // browser we cannot script from the outside (real Safari) reproduces the
+  // exact flight under external instruments. Session-scoped, off by default.
+  const autodemoRef = useRef({ next: handleNext, back: handleBack, step });
+  autodemoRef.current = { next: handleNext, back: handleBack, step };
+  useEffect(() => {
+    if (typeof location === "undefined" || !/[?&]autodemo\b/.test(location.search)) return;
+    const timer = setInterval(() => {
+      const current = autodemoRef.current;
+      if (current.step > 1) current.back();
+      else current.next();
+    }, 1800);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleOpenStressLab = () => {
     onOpenStressLab();

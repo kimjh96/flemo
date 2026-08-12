@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { Part, Screen, useParams, useStep } from "@flemo/react";
 
@@ -24,11 +24,29 @@ function LabPanelScreen() {
   const open = Boolean(params?.code);
 
   // Grain-free baked background (see labItems): the live CSS gradient only
-  // for SSR markup, swapped to the baked texels on mount — before any
-  // transition can slide the surface.
+  // for SSR markup, swapped to the baked texels in a LAYOUT effect — before
+  // the first paint, so neither the flight nor its rest ever presents a
+  // background change (a post-paint swap deferred to the flight's rest
+  // repainted the whole field one frame after landing — a visible settle
+  // pulse). The bake is measured against this panel's box, geometrically
+  // identical to the CSS gradient it replaces.
+  const panelRef = useRef<HTMLDivElement>(null);
   const [background, setBackground] = useState(() => gradientForHue(item.hue));
-  useEffect(() => {
-    setBackground(bakedGradientForHue(item.hue));
+  useLayoutEffect(() => {
+    // DIAGNOSTIC: `?nobake` keeps the live CSS gradient (the bake exists for
+    // Blink's dither; on WebKit the upscaled-PNG layer re-rasters with a
+    // different interpolation at the COMPLETED flip — a visible tone step).
+    if (typeof location !== "undefined" && /[?&]nobake\b/.test(location.search)) return;
+    // Blink-only, for the same reason: WebKit renders the analytic gradient
+    // dither-free already, and swapping it for the baked PNG CHANGES the
+    // field's tone there (~0.4% full-field, capture-measured). Worse, the
+    // route entry rides a transition that defers React commits, so the swap
+    // landed one frame after arrival — the "first-entry blink" on Safari.
+    // `userAgentData` is Blink's own surface — absent on WebKit and Gecko.
+    if (typeof navigator === "undefined" || !("userAgentData" in navigator)) return;
+    const box = panelRef.current?.getBoundingClientRect();
+    const aspect = box && box.height > 0 ? box.width / box.height : 1;
+    setBackground(bakedGradientForHue(item.hue, aspect));
   }, [item.hue]);
 
   const handleViewSource = () => {
@@ -42,6 +60,7 @@ function LabPanelScreen() {
   return (
     <Screen statusBarHeight="0px" systemNavigationBarHeight="0px" backgroundColor="var(--color-bg)">
       <div
+        ref={panelRef}
         className="relative flex h-full w-full flex-col items-center justify-center text-white"
         style={{ background }}
       >
