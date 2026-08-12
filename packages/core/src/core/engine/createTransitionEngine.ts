@@ -1368,14 +1368,19 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // document-wide early stall watcher that traverses the NEXT flight's
     // animations for up to 3s if left running. An interrupt/unmount must
     // stop all of it, not leak it into the following navigation.
-    // LPM-routed birth anchor, armed at the PRE-release run so its observer
-    // catches the anim-hold release in the microtask ahead of the release
-    // block's rendering update. ONE-SHOT rewind form only
-    // (holdFirstFrame=false): the R30-verified clock intervention. The
-    // refcounted registry inside carries the armed observer across the
-    // effect re-run at release.
+    // Birth anchor for EVERY routed non-Blink compiled flight (desktop
+    // WebKit and LPM alike — the 1.23.0 gate, briefly lost in a refactor
+    // and eye-caught as the compiled tier turning "whooshy": without it the
+    // release block's clock aging swallows the opening). Armed at the
+    // PRE-release run so its observer catches the anim-hold release in the
+    // microtask ahead of the release block's rendering update. ONE-SHOT
+    // rewind form only (holdFirstFrame=false): the R30-verified clock
+    // intervention. The refcounted registry inside carries the armed
+    // observer across the effect re-run at release. Blink stays excluded:
+    // its compositor plays through main-thread stalls, where a rewind
+    // would yank a smooth animation backwards.
     let detachLpmBirthAnchor: (() => void) | null = null;
-    if (playerCanDrive && routedLpmSupervision && !nativeSurgeryAllowed) {
+    if (playerCanDrive && !detectBlinkEngine() && !nativeSurgeryAllowed) {
       detachLpmBirthAnchor = armFlightStartAnchorAtRelease(
         scope,
         () => [scope.ownerDocument.documentElement],
