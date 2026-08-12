@@ -1,5 +1,6 @@
 ---
 "@flemo/core": minor
+"@flemo/react": patch
 "@flemo/web": patch
 ---
 
