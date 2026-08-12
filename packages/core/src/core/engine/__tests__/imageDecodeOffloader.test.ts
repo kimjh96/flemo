@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { beginFlightWindow, resetFlightWindowForTests } from "@core/engine/flightWindow";
 import ensureImageDecodeOffloader, {
   createImageDecodeOffloader,
   OFFLOADED_SRC_ATTR,
@@ -620,15 +621,30 @@ describe("createImageDecodeOffloader branch edges", () => {
     document.body.innerHTML = "";
   });
 
-  it("a responsive element that already painted is untouched", async () => {
+  it("a responsive element that painted before the offloader is untouched", async () => {
     installWorkerStubs();
+    const image = paintedImage("https://cdn.example/huge.jpg");
+    image.setAttribute("srcset", "https://cdn.example/huge.jpg 1x");
+    document.body.appendChild(image);
     const dispose = track(createImageDecodeOffloader(document.body));
+    await flush();
+    expect(image.style.visibility).toBe("");
+    expect(image.getAttribute("srcset")).not.toBeNull();
+    dispose();
+  });
+
+  it("a cache-complete responsive FRESH insert gets the load decision pre-paint", async () => {
+    const { posted } = installWorkerStubs();
+    const dispose = track(createImageDecodeOffloader(document.body));
+    // Complete at insertion (memory cache) but never painted: the chosen
+    // candidate's dimensions are already readable, so the oversize decision
+    // runs synchronously and the element stays unpainted through the probe.
     const image = paintedImage("https://cdn.example/huge.jpg");
     image.setAttribute("srcset", "https://cdn.example/huge.jpg 1x");
     document.body.appendChild(image);
     await flush();
-    expect(image.style.visibility).toBe("");
-    expect(image.getAttribute("srcset")).not.toBeNull();
+    expect(image.style.visibility).toBe("hidden");
+    expect(posted.map((p) => p.url)).toContain("https://cdn.example/huge.jpg");
     dispose();
   });
 
@@ -906,5 +922,252 @@ describe("createImageDecodeOffloader zero-layout and disposal races", () => {
     resolveMatch(new Blob(["late"]));
     await flush();
     expect(image.getAttribute("src")).toBe("https://cdn.example/huge.jpg");
+  });
+});
+
+// Re-entry semantics: a FRESH insert that is already complete (memory/HTTP
+// cache — the user re-enters a screen and the whole list remounts loaded) is
+// still pre-paint, so the offloader must keep owning it. Mistaking
+// "complete" for "painted" let a re-entered list paint every raw original
+// inside the entering commit — WebKit's synchronous paint-time decode made
+// that a tap-to-flight stall on device.
+describe("cache-warm fresh inserts (screen re-entry)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetFlightWindowForTests();
+    document.body.innerHTML = "";
+  });
+
+  const cacheWarmImage = (src: string) => {
+    const image = document.createElement("img");
+    Object.defineProperty(image, "complete", { value: true, configurable: true });
+    Object.defineProperty(image, "naturalWidth", { value: 4971, configurable: true });
+    Object.defineProperty(image, "naturalHeight", { value: 7456, configurable: true });
+    image.setAttribute("src", src);
+    image.getBoundingClientRect = () => ({ width: 44, height: 44 }) as DOMRect;
+    return image;
+  };
+
+  it("a known-oversized cache-warm insert swaps to the scaled result before paint", async () => {
+    const { reply } = installWorkerStubs();
+    const src = "https://example.test/press-original.jpg";
+    const dispose = createImageDecodeOffloader(document.body);
+
+    // First entry: a loading element settles the URL's scaled verdict.
+    const first = freshImage(src);
+    document.body.appendChild(first);
+    await flush();
+    reply({ url: src, blob: new Blob(["x"]) });
+    expect(first.getAttribute("src")).toContain("blob:scaled");
+
+    // Re-entry: the remounted element is complete from cache — swapped
+    // synchronously, the raw original never paints.
+    const again = cacheWarmImage(src);
+    document.body.appendChild(again);
+    await flush();
+    expect(again.getAttribute("src")).toContain("blob:scaled");
+    expect(again.getAttribute(OFFLOADED_SRC_ATTR)).toBe(src);
+    expect(again.style.visibility).toBe("");
+    dispose();
+  });
+
+  it("a well-sized cache-warm insert is left exactly as authored", async () => {
+    installWorkerStubs();
+    const src = "https://example.test/small-icon.png";
+    const dispose = createImageDecodeOffloader(document.body);
+    const image = cacheWarmImage(src);
+    Object.defineProperty(image, "naturalWidth", { value: 88 });
+    Object.defineProperty(image, "naturalHeight", { value: 88 });
+    document.body.appendChild(image);
+    await flush();
+    expect(image.getAttribute("src")).toBe(src);
+    expect(image.style.visibility).toBe("");
+    dispose();
+  });
+
+  it("an unknown-verdict cache-warm insert takes the normal pre-paint hold", async () => {
+    const { posted } = installWorkerStubs();
+    const src = "https://example.test/unprobed.jpg";
+    const dispose = createImageDecodeOffloader(document.body);
+    const image = cacheWarmImage(src);
+    document.body.appendChild(image);
+    await flush();
+    // Parked + hidden like any fresh insert: the release re-points from
+    // cache, still ahead of any paint.
+    expect(image.getAttribute("src")).toBe(PARKED_PIXEL);
+    expect(image.style.visibility).toBe("hidden");
+    expect(posted.map((p) => p.url)).toContain(src);
+    dispose();
+  });
+
+  it("an opaque original inserted mid-flight stays unpainted until the flight's rest", async () => {
+    const { reply } = installWorkerStubs();
+    const src = "https://gov.example/raw-37mp.jpg";
+    const dispose = createImageDecodeOffloader(document.body);
+
+    // First entry: the worker cannot fetch the source (non-CORS) — opaque.
+    const first = freshImage(src);
+    document.body.appendChild(first);
+    await flush();
+    reply({ url: src, error: "cors" });
+    // The held element reveals as authored (its own load is network-gated).
+    expect(first.getAttribute("src")).toBe(src);
+
+    // Re-entry mid-flight: the cache-warm original would paint (and decode)
+    // inside the entering commit — held hidden until the window closes.
+    const endFlight = beginFlightWindow();
+    const again = cacheWarmImage(src);
+    document.body.appendChild(again);
+    await flush();
+    expect(again.getAttribute("src")).toBe(src); // never re-pointed
+    expect(again.style.visibility).toBe("hidden");
+
+    endFlight();
+    expect(again.style.visibility).toBe("");
+    dispose();
+  });
+
+  it("an opaque original inside a transitional entering commit is held before the window opens", async () => {
+    const { reply } = installWorkerStubs();
+    const src = "https://gov.example/raw-commit-order.jpg";
+    const dispose = createImageDecodeOffloader(document.body);
+    const first = freshImage(src);
+    document.body.appendChild(first);
+    await flush();
+    reply({ url: src, error: "cors" });
+
+    // The entering commit inserts the screen (already stamped transitional)
+    // BEFORE the engine's drive effect opens the flight window.
+    const screen = document.createElement("div");
+    screen.setAttribute("data-flemo-screen", "");
+    screen.setAttribute("data-flemo-status", "REPLACING");
+    const again = cacheWarmImage(src);
+    screen.appendChild(again);
+    document.body.appendChild(screen);
+    await new Promise((resolve) => setTimeout(resolve, 0)); // observer microtask only
+    expect(again.style.visibility).toBe("hidden");
+
+    // The drive effect opens the window; the reveal's one-frame re-check
+    // then defers to the window's release.
+    const endFlight = beginFlightWindow();
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    expect(again.style.visibility).toBe("hidden");
+    endFlight();
+    expect(again.style.visibility).toBe("");
+    dispose();
+  });
+
+  it("re-asserts a swap that a framework re-render wrote back to the authored URL", async () => {
+    const { reply } = installWorkerStubs();
+    const src = "https://example.test/rerendered.jpg";
+    const dispose = createImageDecodeOffloader(document.body);
+    const first = freshImage(src);
+    document.body.appendChild(first);
+    await flush();
+    reply({ url: src, blob: new Blob(["x"]) });
+    expect(first.getAttribute("src")).toContain("blob:scaled");
+
+    // React's next render diffs its prop (the authored URL) against our
+    // object URL and writes the original back — one re-assertion wins.
+    first.setAttribute("src", src);
+    await flush();
+    expect(first.getAttribute("src")).toContain("blob:scaled");
+    dispose();
+  });
+
+  it("re-parks a held element whose authored URL a re-render echoed back", async () => {
+    installWorkerStubs();
+    const src = "https://example.test/held-echo.jpg";
+    const dispose = createImageDecodeOffloader(document.body);
+    const image = freshImage(src);
+    document.body.appendChild(image);
+    await flush();
+    expect(image.getAttribute("src")).toBe(PARKED_PIXEL);
+
+    image.setAttribute("src", src); // React echo mid-hold
+    await flush();
+    expect(image.getAttribute("src")).toBe(PARKED_PIXEL);
+    expect(image.style.visibility).toBe("hidden");
+    dispose();
+  });
+
+  it("a genuinely different consumer src releases ownership", async () => {
+    const { reply } = installWorkerStubs();
+    const src = "https://example.test/replaced.jpg";
+    const dispose = createImageDecodeOffloader(document.body);
+    const image = freshImage(src);
+    document.body.appendChild(image);
+    await flush();
+    reply({ url: src, blob: new Blob(["x"]) });
+    expect(image.getAttribute("src")).toContain("blob:scaled");
+
+    image.setAttribute("src", "https://example.test/other.jpg");
+    await flush();
+    expect(image.getAttribute("src")).toBe("https://example.test/other.jpg");
+    expect(image.getAttribute(OFFLOADED_SRC_ATTR)).toBe(null);
+    dispose();
+  });
+
+  it("a known-oversized insert mid-flight rides hidden and repairs a framework echo at rest", async () => {
+    const { reply } = installWorkerStubs();
+    const src = "https://example.test/echoed-oversized.jpg";
+    const dispose = createImageDecodeOffloader(document.body);
+    const first = freshImage(src);
+    document.body.appendChild(first);
+    await flush();
+    reply({ url: src, blob: new Blob(["x"]) });
+    const scaled = first.getAttribute("src")!;
+    expect(scaled).toContain("blob:scaled");
+
+    // Re-entry mid-flight: swapped pre-paint but hidden through the flight;
+    // a framework re-render echoes the authored URL over the swap.
+    const endFlight = beginFlightWindow();
+    const again = cacheWarmImage(src);
+    document.body.appendChild(again);
+    await flush();
+    expect(again.style.visibility).toBe("hidden");
+    again.setAttribute("src", src); // the echo
+
+    // Rest: the src is repaired once and the element reveals.
+    endFlight();
+    expect(again.getAttribute("src")).toBe(scaled);
+    expect(again.style.visibility).toBe("");
+    dispose();
+  });
+
+  it("an opaque cache-warm insert at rest reveals immediately", async () => {
+    const { reply } = installWorkerStubs();
+    const src = "https://gov.example/raw-other.jpg";
+    const dispose = createImageDecodeOffloader(document.body);
+    const first = freshImage(src);
+    document.body.appendChild(first);
+    await flush();
+    reply({ url: src, error: "cors" });
+
+    const again = cacheWarmImage(src);
+    document.body.appendChild(again);
+    await flush();
+    // No flight in progress: the decode is simply the cost of showing it.
+    expect(again.style.visibility).toBe("");
+    dispose();
+  });
+
+  it("disposal reveals a reveal still deferred to a flight window", async () => {
+    const { reply } = installWorkerStubs();
+    const src = "https://gov.example/raw-disposed.jpg";
+    const dispose = createImageDecodeOffloader(document.body);
+    const first = freshImage(src);
+    document.body.appendChild(first);
+    await flush();
+    reply({ url: src, error: "cors" });
+
+    const endFlight = beginFlightWindow();
+    const again = cacheWarmImage(src);
+    document.body.appendChild(again);
+    await flush();
+    expect(again.style.visibility).toBe("hidden");
+    dispose();
+    expect(again.style.visibility).toBe("");
+    endFlight();
   });
 });

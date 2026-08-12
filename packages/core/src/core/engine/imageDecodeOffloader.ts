@@ -25,12 +25,30 @@
 //   first-ever encounter never paints the full-resolution original.
 // - Fresh insert, verdict known (this session or the Cache API from a prior
 //   one) → swapped synchronously before any paint or download.
-// - An element that has ALREADY painted (offloader started late, authored
-//   src changes on a live element) is NEVER touched: re-pointing or hiding
-//   a visible image is a blink (measured on device). Its source is probed
-//   for future mounts only.
-// Well-sized, non-CORS, data:/blob: sources and engines without the needed
-// APIs are left exactly as authored.
+// - Fresh insert that is ALREADY COMPLETE (memory/HTTP cache — a screen the
+//   user re-enters remounts with every avatar instantly loaded) is still
+//   PRE-PAINT: mutation records deliver before the commit's rendering
+//   update. Its dimensions are readable, so the oversize decision runs
+//   locally — well-sized reveals untouched with zero added work; oversized
+//   swaps (known verdict) or holds through the probe like any fresh insert.
+//   Treating "complete" as "painted" here was the re-entry hole: the whole
+//   cached list painted full-resolution originals inside the entering
+//   commit, and WebKit's synchronous paint-time decode turned that into a
+//   tap-to-flight stall on device.
+// - An element that has ALREADY painted (present before this offloader
+//   started, authored src changes on a live element) is NEVER touched:
+//   re-pointing or hiding a visible image is a blink (measured on device).
+//   Its source is probed for future mounts only.
+// - An OPAQUE source (non-CORS — the worker cannot even learn its size, so
+//   it can never be scaled) must eventually paint as authored, and that
+//   paint carries the full synchronous decode. When a navigation is
+//   mid-flight, a fresh opaque insert stays hidden until the flight's rest
+//   (the flight-window latch) so the decode lands where every other held
+//   reveal lands — off the motion. At rest it reveals immediately.
+// Well-sized, data:/blob: sources and engines without the needed APIs are
+// left exactly as authored.
+
+import { flightWindowActive, onFlightWindowIdle } from "@core/engine/flightWindow";
 
 // An image is "oversized" when it carries more than this many times the
 // pixels its layout box (at device resolution) can show. 8× area is far
@@ -47,6 +65,11 @@ const MIN_TARGET_PX = 96;
 // measured at 5s for one original; a 4s timeout revealed the original
 // mid-probe — repainting the stall AND flickering when the verdict landed).
 const PROBE_REVEAL_TIMEOUT_MS = 15000;
+
+// An opaque reveal deferred to the flight's rest still needs a bound in case
+// the flight-window release path dies with its Router: past any plausible
+// choreography, reveal anyway.
+const OPAQUE_REVEAL_CAP_MS = 3000;
 
 // While held, the element's own request is parked on a transparent pixel so
 // the worker's fetch is the single download of the original.
@@ -68,6 +91,15 @@ export interface OversizeInput {
   boxHeight: number;
   devicePixelRatio: number;
 }
+
+// A screen mid-transition carries a transitional status from its very first
+// render — readable at insertion time, BEFORE the engine's drive effect has
+// opened the flight window.
+const TRANSITIONAL_STATUSES = new Set(["PUSHING", "POPPING", "REPLACING"]);
+const insideTransitionalScreen = (image: HTMLImageElement): boolean => {
+  const screen = image.closest("[data-flemo-screen]");
+  return !!screen && TRANSITIONAL_STATUSES.has(screen.getAttribute("data-flemo-status") ?? "");
+};
 
 export const shouldOffloadImage = (input: OversizeInput): boolean => {
   if (input.naturalWidth <= 0 || input.naturalHeight <= 0) return false;
@@ -148,8 +180,16 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
 
   let worker: Worker | null = null;
   let disposed = false;
-  // Per original URL: an object URL to swap to, or "skip".
+  // Per original URL: an object URL to swap to, "skip" (measured well-sized),
+  // or "opaque" (unfetchable — size unknowable, can never be scaled).
   const verdicts = new Map<string, string>();
+  // A verdict the element's src can be re-pointed to; "skip"/"opaque" reveal
+  // the authored source instead.
+  const isSwapVerdict = (verdict: string | null | undefined): verdict is string =>
+    !!verdict && verdict !== "skip" && verdict !== "opaque";
+  // Reveals deferred to the flight's rest (opaque originals inserted
+  // mid-flight); disposal must run them so nothing stays hidden.
+  const pendingReveals = new Set<() => void>();
   // URLs with a worker probe in flight.
   const probing = new Set<string>();
   // Elements currently held (hidden + parked) awaiting their URL's verdict.
@@ -176,7 +216,13 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
         skip?: boolean;
       };
       probing.delete(url);
-      if (error || skip || !blob) {
+      if (error) {
+        // Unfetchable (usually non-CORS): the size is unknowable and the
+        // source can never be scaled — opaque, not merely well-sized.
+        settle(url, "opaque");
+        return;
+      }
+      if (skip || !blob) {
         settle(url, "skip");
         return;
       }
@@ -198,6 +244,122 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     }
   };
 
+  // Restore an element's visibility — immediately, except an OPAQUE original
+  // while a navigation is mid-flight: its first paint carries the full
+  // synchronous decode (WebKit), so the reveal defers to the flight's rest
+  // window, bounded in case the window's release path dies with its Router.
+  const restoreVisibility = (
+    image: HTMLImageElement,
+    previousVisibility: string,
+    verdict: string | null
+  ) => {
+    const restore = () => {
+      if (previousVisibility) image.style.visibility = previousVisibility;
+      else image.style.removeProperty("visibility");
+    };
+    if (verdict !== "opaque" || !flightWindowActive()) {
+      restore();
+      return;
+    }
+    let done = false;
+    const reveal = () => {
+      /* v8 ignore next -- both triggers (idle + cap) can fire; second is a no-op. */
+      if (done) return;
+      done = true;
+      clearTimeout(cap);
+      pendingReveals.delete(reveal);
+      restore();
+    };
+    const cap = setTimeout(reveal, OPAQUE_REVEAL_CAP_MS);
+    pendingReveals.add(reveal);
+    onFlightWindowIdle(reveal);
+  };
+
+  // Schedule `atRest` for the current flight's rest. The entering commit's
+  // insertions run BEFORE the drive effect opens the flight window — and the
+  // effect can flush later than the first frame on a loaded main thread — so
+  // while the screen still reads transitional and no window is open yet,
+  // keep polling one frame at a time: whichever comes first — the window
+  // opening (park on its release) or the screen leaving its transitional
+  // status (flight over) — settles the reveal. The caller's cap bounds a
+  // window that never materializes.
+  const deferToFlightRest = (image: HTMLImageElement, atRest: () => void) => {
+    const tick = () => {
+      if (flightWindowActive()) {
+        onFlightWindowIdle(atRest);
+        return;
+      }
+      if (!insideTransitionalScreen(image) || typeof requestAnimationFrame !== "function") {
+        atRest();
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  };
+
+  // Hide `image` through the current flight and run `finish` at its rest
+  // (bounded in case the window's release path dies with its Router).
+  // Visibility is the ONLY React-safe lever mid-flight: frameworks own src
+  // as a prop and echo the authored URL over any swap, but they never
+  // manage a visibility they didn't render.
+  const holdHiddenUntilRest = (image: HTMLImageElement, finish: () => void): void => {
+    const previousVisibility = image.style.visibility;
+    image.style.visibility = "hidden";
+    let done = false;
+    const reveal = () => {
+      /* v8 ignore next -- both triggers (rest + cap) can fire; second is a no-op. */
+      if (done) return;
+      done = true;
+      clearTimeout(cap);
+      pendingReveals.delete(reveal);
+      finish();
+      if (previousVisibility) image.style.visibility = previousVisibility;
+      else image.style.removeProperty("visibility");
+    };
+    const cap = setTimeout(reveal, OPAQUE_REVEAL_CAP_MS);
+    pendingReveals.add(reveal);
+    deferToFlightRest(image, reveal);
+  };
+
+  // Keep a known-opaque original unpainted through the current flight: its
+  // first paint carries the full synchronous decode (WebKit), so mid-flight
+  // it stays hidden until the flight's rest. Returns false at rest (nothing
+  // to protect).
+  const holdOpaqueUntilRest = (image: HTMLImageElement, url: string): boolean => {
+    if (!flightWindowActive() && !insideTransitionalScreen(image)) return false;
+    // The ownership stamp doubles as the arrival hold's exemption marker —
+    // without it the hold would freeze-revert this very hide (see
+    // arrivalHold.exemptFromFreeze). The src stays authored.
+    image.setAttribute(OFFLOADED_SRC_ATTR, url);
+    holdHiddenUntilRest(image, () => {});
+    return true;
+  };
+
+  // Swap a known-oversized fresh insert while a flight is in (or entering)
+  // progress: the swap itself is applied now (pre-paint), but a framework
+  // echo of the authored URL can undo it inside the pre-hold window — and
+  // re-asserting mid-flight would ping-pong with the arrival hold's
+  // attribute freeze. So the element rides the flight hidden, and the rest
+  // repairs the src once (frameworks are quiet by then; their next diff
+  // sees authored==authored and stays silent).
+  const holdSwapUntilRest = (image: HTMLImageElement, url: string, verdict: string): void => {
+    image.setAttribute(OFFLOADED_SRC_ATTR, url);
+    image.src = verdict;
+    holdHiddenUntilRest(image, () => {
+      /* v8 ignore next -- disposal runs pending reveals; nothing to repair. */
+      if (disposed) return;
+      const settled = verdicts.get(url);
+      if (
+        isSwapVerdict(settled) &&
+        image.getAttribute(OFFLOADED_SRC_ATTR) === url &&
+        image.getAttribute("src") !== settled
+      ) {
+        image.src = settled;
+      }
+    });
+  };
+
   const release = (image: HTMLImageElement, verdict: string | null) => {
     const info = held.get(image);
     /* v8 ignore next -- release tears down its own triggers (listeners,
@@ -212,7 +374,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
       // <picture> <source> siblings — they outrank src). Responsiveness on a
       // later resize is knowingly given up for this element: the authored
       // candidate set was the pathology. A skip/timeout reveals as authored.
-      if (verdict && verdict !== "skip") {
+      if (isSwapVerdict(verdict)) {
         image.setAttribute(OFFLOADED_SRC_ATTR, info.url);
         image.removeAttribute("srcset");
         image.removeAttribute("sizes");
@@ -229,7 +391,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
       // src write while held wins untouched.
       const parked = image.getAttribute("src") === PARKED_PIXEL;
       if (parked) {
-        if (verdict && verdict !== "skip") {
+        if (isSwapVerdict(verdict)) {
           image.src = verdict; // OFFLOADED_SRC_ATTR keeps the authored source
         } else {
           image.removeAttribute(OFFLOADED_SRC_ATTR);
@@ -237,8 +399,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
         }
       }
     }
-    if (info.previousVisibility) image.style.visibility = info.previousVisibility;
-    else image.style.removeProperty("visibility");
+    restoreVisibility(image, info.previousVisibility, verdict);
   };
 
   const probe = (url: string, boxWidth: number, boxHeight: number) => {
@@ -262,9 +423,14 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
   // well-sized reveals as authored (no worker at all); oversized stays
   // hidden through the scale probe and first-appears as the scaled result
   // (release() strips the candidate markup so the swap wins).
-  const considerResponsive = (image: HTMLImageElement) => {
-    // Already painted: untouchable, same as the bare-img rule.
-    if (image.complete && image.naturalWidth > 0) return;
+  const considerResponsive = (image: HTMLImageElement, freshInsert: boolean) => {
+    // Complete on a fresh insert = cache-preloaded but PRE-PAINT (mutation
+    // records deliver before the commit's rendering update): the chosen
+    // candidate and its dimensions are already on the element, so the load
+    // decision can run synchronously. Complete on the initial sweep =
+    // already painted, untouchable.
+    const preloaded = image.complete && image.naturalWidth > 0;
+    if (preloaded && !freshInsert) return;
 
     const info: HeldElement = {
       url: "", // the chosen candidate is only known at load
@@ -316,6 +482,12 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
         probe(url, box.width || MIN_TARGET_PX, box.height || MIN_TARGET_PX);
       });
     };
+    if (preloaded) {
+      held.set(image, info);
+      image.style.visibility = "hidden";
+      onLoad();
+      return;
+    }
     const onError = () => release(image, null); // authored error path untouched
     info.detachListeners = () => {
       image.removeEventListener("load", onLoad);
@@ -327,7 +499,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     image.style.visibility = "hidden";
   };
 
-  const consider = (image: HTMLImageElement) => {
+  const consider = (image: HTMLImageElement, freshInsert: boolean) => {
     /* v8 ignore next -- `disposed` guard: disposal disconnects the observer
        in the same tick, so no delivery can race it; kept for direct calls. */
     if (disposed || seen.has(image)) return;
@@ -345,26 +517,82 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     // Piggyback on the browser instead of re-implementing its selection.
     if (image.getAttribute("srcset") !== null || image.closest("picture") !== null) {
       seen.add(image);
-      considerResponsive(image);
+      considerResponsive(image, freshInsert);
       return;
     }
     seen.add(image);
 
-    // An element that has ALREADY painted is untouchable — re-pointing or
-    // hiding a visible image is a blink (measured on device as intermittent
-    // avatar flicker). Probe its source for FUTURE mounts only.
     if (image.complete && image.naturalWidth > 0) {
+      // An element that has ALREADY painted (present before this offloader —
+      // the initial sweep) is untouchable: re-pointing or hiding a visible
+      // image is a blink (measured on device as intermittent avatar
+      // flicker). Probe its source for FUTURE mounts only.
+      if (!freshInsert) {
+        const box = image.getBoundingClientRect();
+        probe(url, box.width || MIN_TARGET_PX, box.height || MIN_TARGET_PX);
+        return;
+      }
+      // A FRESH insert that is already complete is the cache-warm remount (a
+      // re-entered screen): still pre-paint, and its dimensions are readable
+      // — decide locally instead of mistaking "complete" for "painted"
+      // (that misread let a re-entered list paint every raw original inside
+      // the entering commit; WebKit's synchronous paint-time decode made it
+      // a tap-to-flight stall).
       const box = image.getBoundingClientRect();
-      probe(url, box.width || MIN_TARGET_PX, box.height || MIN_TARGET_PX);
-      return;
+      const oversized = shouldOffloadImage({
+        naturalWidth: image.naturalWidth,
+        naturalHeight: image.naturalHeight,
+        boxWidth: box.width || MIN_TARGET_PX,
+        boxHeight: box.height || MIN_TARGET_PX,
+        devicePixelRatio: dpr()
+      });
+      if (!oversized) return;
+      const knownVerdict = verdicts.get(url);
+      if (isSwapVerdict(knownVerdict)) {
+        // Known-oversized with a scaled result: swap before any paint —
+        // riding out a flight hidden so a framework echo cannot resurface
+        // the original mid-motion.
+        if (flightWindowActive() || insideTransitionalScreen(image)) {
+          holdSwapUntilRest(image, url, knownVerdict);
+        } else {
+          image.setAttribute(OFFLOADED_SRC_ATTR, url);
+          image.src = knownVerdict;
+        }
+        return;
+      }
+      if (knownVerdict === "opaque") {
+        // Known-unscalable original about to paint at full resolution: at
+        // rest that is simply the cost; mid-flight, the decode relocates to
+        // the flight's rest.
+        holdOpaqueUntilRest(image, url);
+        return;
+      }
+      if (knownVerdict === "skip") return;
+      // No verdict yet: fall through to the standard pre-paint hold + probe
+      // (parking discards the cached bitmap; the release re-points from
+      // cache, still ahead of any paint).
     }
 
     const verdict = verdicts.get(url);
     if (verdict === "skip") return;
+    if (verdict === "opaque") {
+      // A known-unscalable original still loading: from the HTTP cache it
+      // completes within the entering commit's first frames and paints its
+      // full-resolution decode mid-flight. Same relocation as the complete
+      // case — hidden shows nothing an unloaded img wouldn't, and a slow
+      // network load simply finds the element revealed at rest.
+      holdOpaqueUntilRest(image, url);
+      return;
+    }
     if (verdict) {
-      // Known-oversized source: swap before any paint or download.
-      image.setAttribute(OFFLOADED_SRC_ATTR, url);
-      image.src = verdict;
+      // Known-oversized source: swap before any paint or download — through
+      // a flight, hidden (see holdSwapUntilRest).
+      if (flightWindowActive() || insideTransitionalScreen(image)) {
+        holdSwapUntilRest(image, url, verdict);
+      } else {
+        image.setAttribute(OFFLOADED_SRC_ATTR, url);
+        image.src = verdict;
+      }
       return;
     }
 
@@ -399,29 +627,99 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     });
   };
 
-  const sweep = (node: ParentNode) => {
-    if (node instanceof HTMLImageElement) consider(node);
+  const sweep = (node: ParentNode, freshInsert: boolean) => {
+    if (node instanceof HTMLImageElement) consider(node, freshInsert);
     /* v8 ignore next -- defensive: every DOM Element implements it. */
     if (typeof (node as Element).querySelectorAll !== "function") return;
-    for (const image of Array.from((node as Element).querySelectorAll("img"))) consider(image);
+    for (const image of Array.from((node as Element).querySelectorAll("img"))) {
+      consider(image, freshInsert);
+    }
   };
 
   const observer = new MutationObserver((records) => {
     for (const record of records) {
       for (const added of Array.from(record.addedNodes)) {
-        if (added instanceof Element) sweep(added);
+        // Observer-delivered nodes are PRE-PAINT (records arrive before the
+        // commit's rendering update), whatever their load state; only the
+        // initial sweep can meet already-painted elements.
+        if (added instanceof Element) sweep(added, true);
       }
     }
   });
   observer.observe(root, { childList: true, subtree: true });
-  sweep(root);
+  sweep(root, false);
+
+  // React owns `src` as a prop: any re-render after our swap diffs its
+  // virtual value (the authored URL) against the DOM (our object URL) and
+  // writes the original back — mount-adjacent re-renders undid every swap
+  // within a frame on a re-entered screen, so the raw originals loaded and
+  // paint-decoded inside the entering commit's window. The war is finite:
+  // React never reads the DOM back, so ONE re-assertion per React write is
+  // stable (the next diff sees authored==authored and stays silent). A src
+  // write to a DIFFERENT url is a genuine consumer change and releases
+  // ownership instead. Responsive elements are out of scope (their swap
+  // strips candidate markup; a consumer re-render rebuilding srcset is a
+  // legitimate takeover).
+  const reassert = (image: HTMLImageElement) => {
+    const current = image.getAttribute("src") ?? "";
+    const info = held.get(image);
+    if (info && !info.responsive) {
+      // Held (hidden + parked): React's echo of the authored URL would
+      // start the original's download mid-hold — re-park it.
+      if (current === info.url) image.src = PARKED_PIXEL;
+      return;
+    }
+    const authored = image.getAttribute(OFFLOADED_SRC_ATTR);
+    if (!authored) return;
+    if (current === authored) {
+      const verdict = verdicts.get(authored);
+      if (isSwapVerdict(verdict)) image.src = verdict;
+    } else if (current !== PARKED_PIXEL && !current.startsWith("blob:")) {
+      // A consumer pointed the element somewhere new: ours no longer.
+      image.removeAttribute(OFFLOADED_SRC_ATTR);
+    }
+  };
+  // Mid-flight the engine's arrival hold freezes in-place attribute writes
+  // (reverting them pre-paint and replaying at rest) — re-asserting there
+  // would ping-pong the two observers in an unbounded microtask loop. While
+  // a flight window is open, park ONE rest sweep instead: the hold's replay
+  // lands React's echoes at rest, and the sweep re-asserts every owned
+  // element once after them.
+  let restSweepParked = false;
+  const srcObserver = new MutationObserver((records) => {
+    /* v8 ignore next -- disposal disconnects in the same tick. */
+    if (disposed) return;
+    if (flightWindowActive()) {
+      if (restSweepParked) return;
+      restSweepParked = true;
+      onFlightWindowIdle(() => {
+        restSweepParked = false;
+        /* v8 ignore next -- disposal guard for a sweep landing after teardown. */
+        if (disposed) return;
+        for (const image of Array.from(
+          root.querySelectorAll<HTMLImageElement>(`img[${OFFLOADED_SRC_ATTR}]`)
+        )) {
+          reassert(image);
+        }
+        for (const image of [...held.keys()]) reassert(image);
+      });
+      return;
+    }
+    for (const record of records) {
+      if (record.attributeName !== "src") continue;
+      reassert(record.target as HTMLImageElement);
+    }
+  });
+  srcObserver.observe(root, { subtree: true, attributes: true, attributeFilter: ["src"] });
 
   return () => {
     disposed = true;
     observer.disconnect();
+    srcObserver.disconnect();
     worker?.terminate();
     worker = null;
     for (const image of [...held.keys()]) release(image, null);
+    for (const reveal of [...pendingReveals]) reveal();
     probing.clear();
     verdicts.clear();
     for (const url of objectUrls) URL.revokeObjectURL(url);
