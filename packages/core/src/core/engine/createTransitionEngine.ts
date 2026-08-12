@@ -21,6 +21,11 @@ import {
   snappedEasingForMotion
 } from "@core/engine/landingPixelSnap";
 import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
+import {
+  armLowPowerCadenceLifecycle,
+  lowPowerCadenceActive,
+  probeLowPowerCadence
+} from "@core/engine/lowPowerCadence";
 
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import { beginResponseHold } from "@core/engine/responseHold";
@@ -38,7 +43,11 @@ import { decoratorMap } from "@transition/decorator/decorator";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 import { classifyTransitionDriver } from "./motionDriverKind";
-import { holdNativeClocksToFirstFrame, watchNativeStalls } from "./nativeStallAnchor";
+import {
+  armFlightStartAnchorAtRelease,
+  holdNativeClocksToFirstFrame,
+  watchNativeStalls
+} from "./nativeStallAnchor";
 
 const noop = () => {};
 
@@ -524,6 +533,9 @@ const wireCancelResume = (config: CancelResumeConfig) => {
 // - Anything the player can't provably interpolate keeps the compiled CSS
 //   animation exactly as before.
 export default function createTransitionEngine(deps: TransitionEngineDeps): TransitionEngine {
+  // Low Power Mode cadence sampling (see lowPowerCadence.ts): boot probe +
+  // visibility-return re-probe, deduped module-wide; non-Blink touch only.
+  armLowPowerCadenceLifecycle();
   // This engine instance's layer-hold owner token, distinct per instance so
   // two nested Routers promoting the SAME shared bar refcount independently —
   // a module-global token would collapse both into one holder and let the
@@ -850,6 +862,29 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       //    and the only unfalsified route to it is making the release
       //    commit itself cheap (release scheduling), a design campaign of
       //    its own. Until then: player.
+      // 4. LOW-POWER-MODE touch WebKit runs single SLIDES on the COMPILED
+      //    tier (see lowPowerCadence.ts — isolated detection, never the
+      //    player's learned interval). Native parity: LPM caps rAF at ~30Hz
+      //    while the compositor presents at panel rate, so the player is
+      //    structurally half-density there. Routed flights arm the birth
+      //    anchor + stall watcher (see routedLpmSupervision) — trajectory-
+      //    verified: bare routing opened pushes 360-550 device px deep
+      //    after a 68-95ms release gap; the protected stack's flights
+      //    opened on the authored ramp, and the user eye-verified the LPM
+      //    round on device. REPLACING keeps the player (compiled REPLACING
+      //    presents the exiting screen over the new tab for a beat) and
+      //    chains keep the one-frame-swap protection.
+      if (
+        !detectBlinkEngine() &&
+        typeof navigator !== "undefined" &&
+        navigator.maxTouchPoints > 0 &&
+        lowPowerCadenceActive() &&
+        (status === "PUSHING" || status === "POPPING") &&
+        !TaskManger.pendingTaskIds.some((id) => id !== taskId)
+      ) {
+        probeLowPowerCadence(); // keep the flag fresh per routed flight
+        return null;
+      }
       // 4. A device whose main thread chronically starves the player even on
       //    single navigations (measured by the player's own frame gaps)
       //    earned a demotion; CSS drives everything there, as it always did.
@@ -1313,6 +1348,16 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // remain the right medicine.
     const nativeSurgeryAllowed =
       (currentTransition as { driver?: string }).driver === "native" && !detectBlinkEngine();
+    // LPM-routed flights supervise with plain startTime rewinds only (the
+    // R30-verified birth anchor + the stall watcher). The pause/play
+    // first-frame hold stays authored-native-only (falsified: it costs
+    // WebKit's accelerated representation), and the two-phase hold with
+    // pending-clock pins is on the do-not-reattempt list.
+    const routedLpmSupervision =
+      !detectBlinkEngine() &&
+      typeof navigator !== "undefined" &&
+      navigator.maxTouchPoints > 0 &&
+      lowPowerCadenceActive();
     // First-frame clock hold (see nativeStallAnchor): armed from the
     // engine's own observer, whatever the hold state at effect time — React
     // effect scheduling races both the release commit and its render pass,
@@ -1323,6 +1368,21 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // document-wide early stall watcher that traverses the NEXT flight's
     // animations for up to 3s if left running. An interrupt/unmount must
     // stop all of it, not leak it into the following navigation.
+    // LPM-routed birth anchor, armed at the PRE-release run so its observer
+    // catches the anim-hold release in the microtask ahead of the release
+    // block's rendering update. ONE-SHOT rewind form only
+    // (holdFirstFrame=false): the R30-verified clock intervention. The
+    // refcounted registry inside carries the armed observer across the
+    // effect re-run at release.
+    let detachLpmBirthAnchor: (() => void) | null = null;
+    if (playerCanDrive && routedLpmSupervision && !nativeSurgeryAllowed) {
+      detachLpmBirthAnchor = armFlightStartAnchorAtRelease(
+        scope,
+        () => [scope.ownerDocument.documentElement],
+        () => startHoldDisarms.get(scope)?.(),
+        false
+      );
+    }
     let detachFirstFrameHold: (() => void) | null = null;
     if (playerCanDrive && nativeSurgeryAllowed) {
       detachFirstFrameHold = holdNativeClocksToFirstFrame(
@@ -1593,7 +1653,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // render pass is the one block the stall watcher has no baseline for —
     // the swallowed opening of the covered screen's parallax. Same non-Blink
     // gate, same deadline pushes as a stall shift.
-    if (recovering && nativeSurgeryAllowed) {
+    if (recovering && (nativeSurgeryAllowed || routedLpmSupervision)) {
       startHoldDisarms.set(scope, () => {
         disarmPerceptualCut();
         disarmEarlyLanding();
@@ -1618,7 +1678,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // detachReleaseAnchor above; the recovering-run arming inherited the
     // effect's race with the release block and was retired for it.)
     const detachStallWatch =
-      recovering && nativeSurgeryAllowed
+      recovering && (nativeSurgeryAllowed || routedLpmSupervision)
         ? watchNativeStalls(
             // A main-thread stall freezes the WHOLE PAGE's presentation, so
             // every running flemo timeline must shift together — the sibling
@@ -1790,6 +1850,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (choreographyTimer !== undefined) clearTimeout(choreographyTimer);
       cancelLandingClear();
       detachFirstFrameHold?.();
+      detachLpmBirthAnchor?.();
       detachStallWatch?.();
       clearPerceptualCut();
       clearEarlyLanding();

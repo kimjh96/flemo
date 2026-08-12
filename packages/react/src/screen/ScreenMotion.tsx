@@ -20,7 +20,8 @@ import {
   enteringInitialStyle,
   observeBarHeight,
   resolveTransition,
-  type AnimHoldCoordinator
+  type AnimHoldCoordinator,
+  lowPowerCadenceActive
 } from "@flemo/core";
 
 import getScopeAnimHoldCoordinator from "@screen/scopeAnimHoldCoordinator";
@@ -505,7 +506,10 @@ function ScreenMotion({
         // each render, which as a dep would re-run this effect every render.
         const authoredNative =
           (swipeEnvRef.current.transition as { driver?: string }).driver === "native";
-        if (authoredNative && !detectBlinkEngine()) {
+        // LPM-routed flights run the compiled clock too — they need the
+        // same atomic flip (a state-routed release reopens the
+        // task-injection gap the flip closes).
+        if ((authoredNative || lowPowerCadenceActive()) && !detectBlinkEngine()) {
           for (const el of [
             scopeRef.current,
             sharedTopBarRef.current,
