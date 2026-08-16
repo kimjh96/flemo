@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createDriverPolicy,
   detectBlinkEngine,
+  isLegacyAndroidBlink,
   FORCE_PIN_TTL_MS,
   type DriverPolicyStorage
 } from "@core/engine/driverPolicy";
@@ -190,6 +191,58 @@ describe("detectBlinkEngine", () => {
     });
     expect(detectBlinkEngine()).toBe(true);
     delete (navigator as { userAgentData?: unknown }).userAgentData;
+  });
+});
+
+describe("isLegacyAndroidBlink", () => {
+  afterEach(() => {
+    delete (navigator as { userAgentData?: unknown }).userAgentData;
+    Object.defineProperty(navigator, "userAgent", { value: originalUA, configurable: true });
+    Object.defineProperty(navigator, "maxTouchPoints", {
+      value: originalMaxTouch,
+      configurable: true
+    });
+  });
+
+  const originalUA = navigator.userAgent;
+  const originalMaxTouch = navigator.maxTouchPoints;
+  const setUA = (ua: string) =>
+    Object.defineProperty(navigator, "userAgent", { value: ua, configurable: true });
+  const setTouch = (n: number) =>
+    Object.defineProperty(navigator, "maxTouchPoints", { value: n, configurable: true });
+
+  it("reads a touch Android Chromium with NO UA-CH brands as legacy", () => {
+    delete (navigator as { userAgentData?: unknown }).userAgentData; // no brands
+    setUA("Mozilla/5.0 (Linux; Android 10; SAMSUNG SM-N960N) AppleWebKit/537.36");
+    setTouch(5);
+    expect(isLegacyAndroidBlink()).toBe(true);
+  });
+
+  it("excludes a modern device that ships UA-CH brands (a flagship)", () => {
+    Object.defineProperty(navigator, "userAgentData", {
+      value: { brands: [{ brand: "Chromium", version: "130" }] },
+      configurable: true
+    });
+    setUA("Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36");
+    setTouch(5);
+    expect(isLegacyAndroidBlink()).toBe(false);
+  });
+
+  it("excludes desktop Chromium with no brands (no touch) and iOS", () => {
+    delete (navigator as { userAgentData?: unknown }).userAgentData;
+    setUA("Mozilla/5.0 (Macintosh; Intel Mac OS X) AppleWebKit/537.36");
+    setTouch(0);
+    expect(isLegacyAndroidBlink()).toBe(false);
+    setUA("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15");
+    setTouch(5);
+    expect(isLegacyAndroidBlink()).toBe(false);
+  });
+
+  it("excludes Android Firefox (Gecko, not Blink)", () => {
+    delete (navigator as { userAgentData?: unknown }).userAgentData;
+    setUA("Mozilla/5.0 (Android 10; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0");
+    setTouch(5);
+    expect(isLegacyAndroidBlink()).toBe(false);
   });
 });
 

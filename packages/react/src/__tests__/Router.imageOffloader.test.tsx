@@ -5,10 +5,15 @@ import Route from "@Route";
 
 const dispose = vi.fn();
 const ensure = vi.fn(() => dispose);
+const legacy = vi.fn(() => false);
 
 vi.mock("@flemo/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@flemo/core")>();
-  return { ...actual, ensureImageDecodeOffloader: ensure };
+  return {
+    ...actual,
+    ensureImageDecodeOffloader: ensure,
+    isLegacyAndroidBlink: () => legacy()
+  };
 });
 
 const { default: Router } = await import("../Router");
@@ -16,14 +21,18 @@ const { default: Router } = await import("../Router");
 beforeEach(() => {
   ensure.mockClear();
   dispose.mockClear();
+  legacy.mockReturnValue(false);
+  sessionStorage.clear();
 });
 
 afterEach(() => {
   vi.clearAllMocks();
+  sessionStorage.clear();
 });
 
 describe("Router image-decode offloader", () => {
-  it("mounts the offloader once and disposes it with the Router", () => {
+  it("auto-mounts on legacy Android Blink and disposes with the Router", () => {
+    legacy.mockReturnValue(true);
     const view = render(
       <Router>
         <Route path="/" element={<div>home</div>} />
@@ -38,7 +47,41 @@ describe("Router image-decode offloader", () => {
     expect(dispose).toHaveBeenCalledTimes(1);
   });
 
+  it("stays OFF on a modern engine (no UA-CH-brands signal, no flag)", () => {
+    render(
+      <Router>
+        <Route path="/" element={<div>home</div>} />
+      </Router>
+    );
+
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it("honors `flemo:imgoffload=on` as a manual override on any engine", () => {
+    sessionStorage.setItem("flemo:imgoffload", "on");
+    render(
+      <Router>
+        <Route path="/" element={<div>home</div>} />
+      </Router>
+    );
+
+    expect(ensure).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets `flemo:imgoffload=off` opt a legacy device back out", () => {
+    legacy.mockReturnValue(true);
+    sessionStorage.setItem("flemo:imgoffload", "off");
+    render(
+      <Router>
+        <Route path="/" element={<div>home</div>} />
+      </Router>
+    );
+
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
   it("lets each Router take its own refcounted hold", () => {
+    legacy.mockReturnValue(true);
     const first = render(
       <Router>
         <Route path="/" element={<div>a</div>} />
