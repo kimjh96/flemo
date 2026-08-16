@@ -17,6 +17,7 @@ import {
   createRouterScope,
   ensureGpuPipelinePrewarm,
   ensureImageDecodeOffloader,
+  isLegacyAndroidBlink,
   holdCompositorWarm,
   seedRouterEntry,
   isServer,
@@ -262,11 +263,29 @@ function Router({
   useTransitionStyles(transitions, decorators, partTransitions);
 
   // Off-main decode-to-scale for oversized images (see @flemo/core
-  // imageDecodeOffloader): WebKit decodes full-resolution originals
-  // synchronously on the main thread, which was measured eating a tab
-  // transition whole — a 190ms fade presented 5 of its 12 frames and ran for
-  // 384ms. Document-wide and refcounted, so nested Routers share one observer.
-  useEffect(() => ensureImageDecodeOffloader(), []);
+  // imageDecodeOffloader): a raw multi-megapixel original painted into a tiny
+  // box decodes at FULL resolution, which was measured eating a transition
+  // whole on a weak GPU — a members list of 37MP press originals stalled the
+  // opening on every re-entry. Document-wide and refcounted, so nested Routers
+  // share one observer.
+  //
+  // AUTO on legacy Android Blink only; OFF everywhere else. It rewrites
+  // oversized consumer <img> sources to re-encoded, downscaled blobs, so it
+  // must not run where the paint is already cheap. `isLegacyAndroidBlink()` is
+  // the targeting: a touch Chromium that ships NO UA-CH brands is confidently
+  // pre-2021, GPU-starved hardware (device-confirmed Galaxy Note 9 Samsung
+  // Internet). A flagship ships UA-CH brands → excluded; iOS carries no
+  // "Android" token → excluded; and even on a matched device only genuinely
+  // OVERSIZED sources (OVERSIZE_AREA_RATIO) are ever touched. `flemo:imgoffload`
+  // overrides both ways: `on` forces it on any engine, `off` opts a legacy
+  // device back out.
+  useEffect(() => {
+    const flag =
+      typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:imgoffload") : null;
+    if (flag === "off") return undefined;
+    const enabled = flag === "on" || isLegacyAndroidBlink();
+    return enabled ? ensureImageDecodeOffloader() : undefined;
+  }, []);
 
   // One-shot GPU pipeline prewarm (see @flemo/core gpuPipelinePrewarm):
   // Chrome's Graphite backend compiles the flight's GPU pipelines on their

@@ -157,7 +157,7 @@ export {
 // Engine probe (Blink vs everything else). Public for bindings whose release
 // policy branches per engine — the entry content-settle gate runs only where
 // the compiled (untouched) animation is the driver (non-Blink).
-export { detectBlinkEngine } from "@core/engine/driverPolicy";
+export { detectBlinkEngine, isLegacyAndroidBlink } from "@core/engine/driverPolicy";
 export { default as observeBarHeight } from "@screen/observeBarHeight";
 export { default as observeViewportScrollHeight } from "@screen/observeViewportScrollHeight";
 

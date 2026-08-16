@@ -183,6 +183,26 @@ export const detectBlinkEngine = (): boolean => {
   return brands.some((entry) => /chromium/i.test(entry?.brand ?? ""));
 };
 
+// LEGACY ANDROID Blink — a touch Chromium (Samsung Internet / old WebView on
+// Android-10-era hardware) that ships NO UA-CH brands list. Absence of UA-CH
+// is a strong proxy for pre-2021 Chromium: modern engines (Chrome/Edge and
+// current Samsung Internet) all expose `userAgentData.brands`, so a device that
+// exposes NONE yet is clearly Android Chromium (every Android browser is Blink
+// EXCEPT Firefox/Gecko) is confidently old, GPU-weak hardware. Device-confirmed
+// on a Galaxy Note 9 whose Samsung Internet reports no brands. A flagship ships
+// brands → excluded; iOS carries no "Android" token → excluded (and it is
+// WebKit, never Blink). The touch check drops desktop Chromium that somehow
+// lacks brands. Unlike `detectBlinkEngine`, this deliberately does NOT read the
+// brands as the Blink signal — the whole point is the devices that ship none.
+export const isLegacyAndroidBlink = (): boolean => {
+  if (typeof navigator === "undefined") return false;
+  const brands = (navigator as { userAgentData?: { brands?: ReadonlyArray<unknown> } })
+    .userAgentData?.brands;
+  if (Array.isArray(brands)) return false;
+  const ua = navigator.userAgent ?? "";
+  return /Android/i.test(ua) && !/Firefox|FxiOS/i.test(ua) && (navigator.maxTouchPoints ?? 0) > 0;
+};
+
 export const createDriverPolicy = (
   storage: DriverPolicyStorage = defaultStorage(),
   playerByDefault: boolean = false,
