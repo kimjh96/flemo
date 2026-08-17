@@ -1,3 +1,5 @@
+import type { SharedBarPresenceLike } from "@screen/computeBarRiding";
+
 import animateInline, { clearInlineAnimation } from "@transition/animateInline";
 
 import type { Transition } from "@transition/typing";
@@ -10,11 +12,10 @@ import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 import type { Decorator } from "@transition/decorator/typing";
 
-// Presence of a partner screen's shared bars, used to decide ride-along.
-export interface SharedBarPresenceLike {
-  topBar: boolean;
-  bottomBar: boolean;
-}
+// Presence of a partner screen's shared bars — owned by the pure decision
+// module (computeBarRiding); re-exported here for the controller's config
+// surface and the public barrel.
+export type { SharedBarPresenceLike } from "@screen/computeBarRiding";
 
 export interface SwipeControllerElements {
   scope: HTMLElement | null;
