@@ -39,6 +39,8 @@
     "dev": "vite build --watch",
     "lint": "eslint \"**/*.{js,mjs,ts,jsx,tsx,mts}\"",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
@@ -48,17 +50,21 @@
   "devDependencies": {
     "@flemo/eslint-config": "workspace:*",
     "@flemo/tsconfig": "workspace:*",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^24.13.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react-swc": "^4.3.3",
     "eslint": "^9.39.5",
+    "jsdom": "^29.1.1",
     "motion": "^12.40.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "typescript": "^6.0.3",
     "vite": "^8.2.1",
-    "vite-plugin-dts": "^5.0.3"
+    "vite-plugin-dts": "^5.0.3",
+    "vitest": "^4.1.10"
   },
   "peerDependencies": {
     "motion": "^12.40.0",

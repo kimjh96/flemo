@@ -125,9 +125,21 @@ const mountRouter = (model: ReturnType<typeof createBrowserModel>) => {
 
 // One drain window must exceed TaskManager's 100ms pending-poll, or a task
 // merely WAITING its poll tick reads as "stable" and the settle loop breaks
-// early (a flake under slow instrumentation like coverage).
+// early (a flake under slow instrumentation like coverage). Reserved for the
+// places that JUDGE stability (the final settle loop and the liveness probe);
+// paying it on every walk step made this file the whole suite's runtime.
 const drain = async () => {
   for (let i = 0; i < 12; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await TaskManager.resolveAllPending();
+  }
+};
+
+// Mid-walk settling doesn't judge stability — it only varies the interleaving
+// between rapid-fire and mostly-settled action, and the 5ms background sweeper
+// keeps the queue moving regardless — so a short window is enough there.
+const shortDrain = async () => {
+  for (let i = 0; i < 3; i++) {
     await new Promise((resolve) => setTimeout(resolve, 10));
     await TaskManager.resolveAllPending();
   }
@@ -161,7 +173,11 @@ describe("history convergence property", () => {
     stopSweeper = null;
   });
 
-  for (let seed = 1; seed <= 20; seed++) {
+  // 5 seeds x 60 steps keeps the walk depth (every verb + remount reseeding
+  // shows up many times per seed) while holding the file's wall time under
+  // ~10s; the earlier 20-seed round at full-length drains cost 102s and was
+  // the entire core suite's runtime.
+  for (let seed = 1; seed <= 5; seed++) {
     it(`random walk converges (seed ${seed})`, { timeout: 30000 }, async () => {
       const rnd = lcg(seed);
       const model = createBrowserModel();
@@ -188,14 +204,14 @@ describe("history convergence property", () => {
           // browser's current entry (the storm's cross-boundary case).
           trace.push("R");
           router.dispose();
-          await drain();
+          await shortDrain();
           router = mountRouter(model);
         }
         // Sometimes act rapid-fire, sometimes let things settle.
         if (rnd() < 0.5) {
           await new Promise((resolve) => setTimeout(resolve, 3));
         } else {
-          await drain();
+          await shortDrain();
         }
       }
 

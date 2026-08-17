@@ -35,6 +35,11 @@ import type { TransitionEngineDeps } from "@core/engine/types";
 // (mismatched clipPath templates, like createTransitionEngine.test.ts) so BOTH
 // the active and passive sides take the compiled-CSS path — the path the
 // recovery guards, and the path the affected device uses.
+//
+// NOTE: a future suspended-mount test must not chase the jsdom/act artifact —
+// jsdom + `act` withhold a suspended commit's passive effects (so the
+// anim-hold never releases in the harness), which is NOT the on-device cause;
+// see git history of ScreenMotion.suspendedMountEffects.test.tsx.
 // ─────────────────────────────────────────────────────────────────────────────
 
 beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`));

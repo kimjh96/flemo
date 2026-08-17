@@ -30,7 +30,10 @@ import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 // This suite mounts two REAL ScreenMotion instances as a depth-1 REPLACING pair,
 // releases the anim-hold, then delivers the WebKit-style cancels DIRECTLY (jsdom
 // cannot fire a compositor cancel, and rendering an actually-suspending child
-// deadlocks passive-effect flushing inside `act` — see diag.suspend.test.tsx).
+// deadlocks passive-effect flushing inside `act`). A future suspended-mount test
+// must not chase that jsdom/act artifact — it withholds the whole commit's
+// passive effects and is NOT the on-device cause; see git history of
+// ScreenMotion.suspendedMountEffects.test.tsx.
 // It proves, end-to-end through the binding, that the fix holds:
 //   1. the LEFTOVER (passive/exit) screen now RESUMES its cancelled exit fade
 //      (the restart trick runs) instead of dropping it; and

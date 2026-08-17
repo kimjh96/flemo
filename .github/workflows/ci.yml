@@ -80,7 +80,10 @@ jobs:
         run: pnpm turbo run build --filter=@flemo/web
 
       - name: Playwright
-        run: pnpm --filter @flemo/web exec playwright test --project=chromium
+        # Both projects: the player-tier specs in motion-perception.spec.ts
+        # skip on desktop chromium and only run under mobile-chromium (which
+        # shares the same chromium binary).
+        run: pnpm --filter @flemo/web exec playwright test --project=chromium --project=mobile-chromium
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}

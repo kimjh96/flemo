@@ -24,6 +24,11 @@ describe("animateInline", () => {
     vi.useRealTimers();
   });
 
+  it("resolves immediately when there is nothing to animate", async () => {
+    await animateInline(el, {});
+    expect(el.style.transition).toBe("");
+  });
+
   it("resolves immediately with duration 0 + no inline transition", async () => {
     await animateInline(el, { x: 100, opacity: 0.5 }, { duration: 0 });
     expect(el.style.transform).toContain("translate3d(100px, 0, 0)");

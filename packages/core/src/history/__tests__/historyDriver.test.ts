@@ -124,6 +124,58 @@ describe("createBrowserHistoryDriver (traversal)", () => {
   });
 });
 
+describe("createBrowserHistoryDriver (real jsdom traversal)", () => {
+  // Unlike the synthetic PopStateEvent suites above, these traverse jsdom's
+  // real history stack, so the popstate the driver reports carries the state
+  // the browser restored — the round trip the synthetic events can't prove.
+  const nextPopstate = () =>
+    new Promise<void>((resolve) => {
+      const handler = () => {
+        window.removeEventListener("popstate", handler);
+        resolve();
+      };
+      window.addEventListener("popstate", handler);
+    });
+
+  it("keyless: reads/writes the bare history state and reports traversals", async () => {
+    const driver = createBrowserHistoryDriver();
+
+    window.history.replaceState({ base: true }, "", "/base");
+    expect(driver.readState()).toEqual({ base: true });
+    expect(driver.readPathname()).toBe("/base");
+
+    driver.pushState({ next: true }, "/next");
+    expect(window.history.state).toEqual({ next: true });
+
+    const events: unknown[] = [];
+    const dispose = driver.subscribe((event) => events.push(event.state));
+
+    const traversed = nextPopstate();
+    driver.back();
+    await traversed;
+
+    expect(events).toEqual([{ base: true }]);
+    dispose();
+  });
+
+  it("keyed: namespaces its frame under the router key and traverses with go()", async () => {
+    const driver = createBrowserHistoryDriver("r1");
+
+    driver.replaceState({ mine: 1 }, "/keyed");
+    expect((window.history.state as Record<string, unknown>).r1).toEqual({ mine: 1 });
+    expect(driver.readState()).toEqual({ mine: 1 });
+
+    driver.pushState({ mine: 2 }, "/keyed-2");
+    expect(driver.readState()).toEqual({ mine: 2 });
+
+    const traversed = nextPopstate();
+    driver.go(-1);
+    await traversed;
+
+    expect(driver.readState()).toEqual({ mine: 1 });
+  });
+});
+
 describe("createBrowserHistoryDriver (readState)", () => {
   it("keyless reads the whole history.state back", () => {
     const driver = createBrowserHistoryDriver();
