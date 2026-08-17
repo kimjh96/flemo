@@ -18,6 +18,7 @@ import {
   ensureGpuPipelinePrewarm,
   ensureImageDecodeOffloader,
   isLegacyAndroidBlink,
+  readImageOffloadOverride,
   holdCompositorWarm,
   seedRouterEntry,
   isServer,
@@ -290,12 +291,12 @@ function Router({
   // A flagship ships UA-CH brands → excluded; iPhone carries no Android token →
   // excluded; and even on a matched device only genuinely OVERSIZED sources
   // (OVERSIZE_AREA_RATIO) are ever touched — a well-sized image is left as
-  // authored. `flemo:imgoffload` overrides both ways: `on` forces it (any
+  // authored. `flemo:imgoffload` (readImageOffloadOverride, from @flemo/core's
+  // diagnostic-flag registry) overrides both ways: `on` forces it (any
   // engine, for a consumer whose own measurement demands it), `off` opts a
   // legacy device back out.
   useEffect(() => {
-    const flag =
-      typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:imgoffload") : null;
+    const flag = readImageOffloadOverride();
     if (flag === "off") return undefined;
     const enabled = flag === "on" || isLegacyAndroidBlink();
     return enabled ? ensureImageDecodeOffloader() : undefined;
