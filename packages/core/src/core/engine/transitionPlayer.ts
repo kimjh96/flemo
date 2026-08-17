@@ -622,9 +622,16 @@ const createScrubAnimation = (element: HTMLElement, motion: VariantMotion): Anim
 // Both thresholds are measured against the DISPLAY'S OWN cadence: each
 // player estimates its interval as the MINIMUM plausible observed gap
 // (converges within a few frames; floored so a timer-jitter runt cannot
-// fake a 240Hz panel, and seeded at — never above — the 60Hz nominal).
+// fake an implausibly fast panel, and seeded at — never above — the 60Hz
+// nominal). The floor tracks the fastest panels actually shipping: consumer
+// esports monitors reach ~540-600Hz (2025), so the old 240Hz floor CLAMPED
+// a genuine high-refresh desktop's estimate down to 240Hz — the pacing
+// heuristics (jitter thresholds, pixel-snap budgets) then ran calibrated for
+// a slower display than the panel really is. Raised to 600Hz. The estimate is
+// a MEDIAN (a lone runt gap can't move it), so widening the floor does not
+// reopen the jitter-fakes-a-fast-panel hole the floor guards.
 const PASS_THROUGH_FRAMES = 1.6;
-const MIN_FRAME_INTERVAL_MS = 1000 / 240;
+const MIN_FRAME_INTERVAL_MS = 1000 / 600;
 // A display genuinely pacing at ~30Hz (low-power throttling, constrained
 // embedders) delivers EVERY frame at ~33ms. Under a 60Hz-capped estimate
 // that reads as a per-frame stall: the clock advances 16.7ms per 33ms of
