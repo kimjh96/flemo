@@ -131,6 +131,15 @@ export { default as animateInline, clearInlineAnimation } from "@transition/anim
 // cleanup for a screen; bindings feed it plain DOM elements + state.
 export { default as createTransitionEngine } from "@core/engine/createTransitionEngine";
 export { lowPowerCadenceActive, governedCompiledActive } from "@core/engine/lowPowerCadence";
+// The `flemo:*` diagnostic-flag registry (see the module's header table).
+// Only the readers a binding consumes are public: the render-settle gate
+// (shared with the engine's routing so both sides always agree), the
+// pre-raster probe, and the image-offloader override.
+export {
+  readSettleGateFlag,
+  readPrerasterFlag,
+  readImageOffloadOverride
+} from "@core/engine/diagnosticFlags";
 export {
   SKIP_ANIMATION_ATTR,
   type TransitionEngine,

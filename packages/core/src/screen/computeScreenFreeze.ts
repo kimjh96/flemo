@@ -1,5 +1,11 @@
 import type { NavigateStatus } from "@navigate/store";
 
+import { shallowFreeze } from "@core/engine/diagnosticFlags";
+
+// Test seam re-export: the cached `flemo:freeze` read lives in the flag
+// registry, but the suites reach it through this module.
+export { resetShallowFreezeForTesting } from "@core/engine/diagnosticFlags";
+
 // OPT-IN diagnostic: keep the DIRECT prev screen live (never freeze it).
 // Measurement motive (2026-08, Mac Safari glass): resident screen layers
 // halved the per-flight onset present-skip, but the POP-returning screen
@@ -9,7 +15,9 @@ import type { NavigateStatus } from "@navigate/store";
 // rasterized layer for the instant a pop needs it; DEEP screens keep
 // freezing (the O(depth) storm protection stays intact). Cost: one extra
 // live full-screen subtree at rest. Armed per session by a URL visit
-// (?flemo-freeze=shallow / ?flemo-freeze=off), read eagerly at module load.
+// (?flemo-freeze=shallow / ?flemo-freeze=off), synced to the `flemo:freeze`
+// storage key eagerly at module load; the (cached) read itself lives in
+// diagnosticFlags.ts.
 const syncShallowToggle = () => {
   try {
     if (typeof location === "undefined" || typeof sessionStorage === "undefined") return;
@@ -23,22 +31,6 @@ const syncShallowToggle = () => {
   }
 };
 syncShallowToggle();
-let shallowCache: boolean | undefined;
-const shallowFreeze = (): boolean => {
-  if (shallowCache !== undefined) return shallowCache;
-  try {
-    shallowCache =
-      typeof sessionStorage !== "undefined" && sessionStorage.getItem("flemo:freeze") === "shallow";
-  } catch {
-    shallowCache = false;
-  }
-  return shallowCache;
-};
-
-/* v8 ignore next 3 -- test hook: the toggle is read once per page load. */
-export const resetShallowFreezeForTesting = () => {
-  shallowCache = undefined;
-};
 
 export interface ScreenFreezeInput {
   isActive: boolean;

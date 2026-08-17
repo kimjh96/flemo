@@ -2,7 +2,12 @@ import { collectAnimatedProperties } from "@transition/compileTransitionStyles";
 
 import type { Transition } from "@transition/typing";
 
+import { residentScreenLayers } from "@core/engine/diagnosticFlags";
 import { flightWindowActive, onFlightWindowIdle } from "@core/engine/flightWindow";
+
+// Test seam re-export: the cached `flemo:layers` read lives in the flag
+// registry, but the suites reach it through this module.
+export { resetResidentLayersForTesting } from "@core/engine/diagnosticFlags";
 
 // Deferred compositor-layer demotion for the transition's rule-matched
 // participants: the screen scope, its decorator, riding shared bars, and
@@ -72,8 +77,9 @@ export const LAYER_SETTLE_MS = 300;
 // flight pays that creation raster again; keeping the screen layers
 // resident should delete the onset skip, at the cost of resident backing
 // stores. A URL visit arms it for the session (?flemo-layers=resident /
-// ?flemo-layers=off), read eagerly at module load — the first drive runs
-// after a navigation has already dropped the query.
+// ?flemo-layers=off), synced to the `flemo:layers` storage key eagerly at
+// module load — the first drive runs after a navigation has already dropped
+// the query; the (cached) read itself lives in diagnosticFlags.ts.
 const syncResidentToggle = () => {
   try {
     if (typeof location === "undefined" || typeof sessionStorage === "undefined") return;
@@ -87,23 +93,6 @@ const syncResidentToggle = () => {
   }
 };
 syncResidentToggle();
-let residentCache: boolean | undefined;
-const residentScreenLayers = (): boolean => {
-  if (residentCache !== undefined) return residentCache;
-  try {
-    residentCache =
-      typeof sessionStorage !== "undefined" &&
-      sessionStorage.getItem("flemo:layers") === "resident";
-  } catch {
-    residentCache = false;
-  }
-  return residentCache;
-};
-
-/* v8 ignore next 3 -- test hook: the toggle is read once per page load. */
-export const resetResidentLayersForTesting = () => {
-  residentCache = undefined;
-};
 
 // Per-element stamp record. `owners` maps each independent holder (an engine
 // transition, a swipe gesture — both promote riding bars, and their holds can
