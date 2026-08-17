@@ -41,6 +41,7 @@ import { armLpmReleaseLatencyProbe } from "@core/engine/lpmReleaseLatencyProbe";
 
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import { beginResponseHold } from "@core/engine/responseHold";
+import { reportInFlightCadence, steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 import transitionPlayers, {
   learnedFrameIntervalMs,
   reportDisplayIntervalMs
@@ -292,21 +293,41 @@ const armFramePacingKeepalive = (): (() => void) => {
 // Blink's governed-easing parameters mid-session. The 30fps even-stepped
 // player IS the correct response to an OS power policy.)
 let displayProbeActive = false;
+// Two skipped warm-up gaps + an 8-gap median: the probe arms in the same
+// commit that releases the flight, so its FIRST gaps ride the entering
+// screen's mount-commit stall — measured on the playground push, the raw
+// 6-gap median read 30ms+ on a healthy 60Hz panel and poisoned every
+// cadence consumer. The warm-up lets the commit clear while the compositor
+// animation (the panel-rate anchor this probe exists to observe) keeps
+// running; the wider window makes the median robust to one or two stragglers.
+const DISPLAY_PROBE_WARMUP_TICKS = 2;
+const DISPLAY_PROBE_GAPS = 8;
 const armDisplayIntervalProbe = () => {
   if (displayProbeActive || typeof requestAnimationFrame !== "function") return;
   displayProbeActive = true;
   const gaps: number[] = [];
+  let warmup = DISPLAY_PROBE_WARMUP_TICKS;
   let lastTick: number | null = null;
   const tick = (time: number) => {
-    if (lastTick !== null) gaps.push(time - lastTick);
+    if (lastTick !== null) {
+      if (warmup > 0) warmup -= 1;
+      else gaps.push(time - lastTick);
+    }
     lastTick = time;
-    if (gaps.length < 6) {
+    if (gaps.length < DISPLAY_PROBE_GAPS) {
       requestAnimationFrame(tick);
       return;
     }
     displayProbeActive = false;
     const sorted = [...gaps].sort((a, b) => a - b);
-    reportDisplayIntervalMs(sorted[Math.floor(sorted.length / 2)]!);
+    const median = sorted[Math.floor(sorted.length / 2)]!;
+    reportDisplayIntervalMs(median);
+    // The RAW median additionally feeds the steady-60 verdict (the learned
+    // interval above is clamped to the 60Hz nominal, which would erase the
+    // 60-vs-unmeasured distinction the verdict needs). This probe only runs
+    // during compiled flights — a compositor animation is live, so an
+    // adaptive panel is at its true rate (see steadySixtyCadence.ts).
+    reportInFlightCadence(median);
   };
   requestAnimationFrame(tick);
 };
@@ -929,10 +950,26 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // channel strip in the COMPLETED branch, where the full mechanism is
       // documented). With the cleanup fixed and e2e-guarded, the pin pierces
       // again. DEFAULT desktop routing is unchanged: compiled, always.
+      //    STEADY-60 CARVE-OUT (2026-08-17): "unconditionally" above is now
+      //    "until the in-flight cadence proves otherwise". The first flights
+      //    of a desktop session run compiled while the display-interval probe
+      //    measures the panel WITH a compositor animation live (the only
+      //    moment an adaptive panel shows its true rate); once two flights
+      //    verify a steady-60 cadence on a HiDPI display, the player takes
+      //    over — its per-frame device-pixel snap (always-snap on desktop
+      //    densities) closes the compiled tier's fractional-phase convergence
+      //    shimmer, the exact residual the device A/B pinned on 4K@60Hz 2x
+      //    panels (`?driver=raf&snap=always` cleared it). A single sub-12ms
+      //    in-flight median latches the session back to compiled permanently
+      //    (see steadySixtyCadence.ts): partial presents on a ramped panel
+      //    are invisible to rAF, so the latch — not the demotion machinery —
+      //    is the high-refresh protection.
       if (
         detectBlinkEngine() &&
         driverPolicy.pinnedDriver() !== "raf" &&
-        ((typeof navigator !== "undefined" && navigator.maxTouchPoints === 0) ||
+        ((typeof navigator !== "undefined" &&
+          navigator.maxTouchPoints === 0 &&
+          !steadySixtyPlayerEligible()) ||
           learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS ||
           !driverPolicy.playerAllowed() ||
           // A confidently-weak legacy Android (no UA-CH) skips the player probe

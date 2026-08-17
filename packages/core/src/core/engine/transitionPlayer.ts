@@ -371,10 +371,18 @@ export interface SnapMemory {
 // - WebKit at phone densities (dpr >= 3): the velocity gate. The same A/B on
 //   the phone judged the gate best (always-snap read as stepping on the slow
 //   parallax; raw glide sizzled) — at 3x the sub-pixel glide wins the tail.
-// - Blink: the velocity gate (its compositor path never showed the class).
+// - Blink on TOUCH devices: the velocity gate (device-judged on the phone —
+//   always-snap read as stepping on the slow parallax).
+// - Blink on DESKTOP (non-touch): snap EVERY frame. The player reaches a
+//   desktop Blink flight only via the steady-60 routing (or a raf pin), and
+//   there the same HiDPI resampling class as desktop WebKit applies —
+//   device-judged (2026-08-17, 4K@60Hz 2x panels): always-snap cleared the
+//   convergence shimmer, the velocity gate let it back in.
 // The session override (always/off/gate) replaces the default either way.
 const defaultAlwaysSnap = (devicePixelRatio: number): boolean =>
-  !detectBlinkEngine() && devicePixelRatio > 0 && devicePixelRatio < 3;
+  devicePixelRatio > 0 &&
+  devicePixelRatio < 3 &&
+  (!detectBlinkEngine() || (typeof navigator !== "undefined" && navigator.maxTouchPoints === 0));
 
 // The landing governor's engagement range (device pixels): once the curve's
 // per-frame travel drops below one device pixel INSIDE this range, the

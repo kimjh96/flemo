@@ -1,4 +1,5 @@
 import { governedCompiledActive } from "@core/engine/lowPowerCadence";
+import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The `flemo:*` diagnostic-flag registry.
@@ -76,17 +77,21 @@ export const readLandingSnapFlag = (): boolean => readStorageValue("flemo:landin
 export const readImageHoldFlag = (): boolean => readStorageValue("flemo:imghold") === "on";
 
 // `flemo:settle-gate` — the render-settle entry gate. ON BY DEFAULT for touch
-// WebKit (governedCompiledActive — the governed-compiled tier ships with it);
-// "off" opts out, "on" forces it elsewhere. Shared verbatim by the engine's
-// routing and the react binding's ScreenMotion (this is the one reader that
-// was byte-duplicated across core/react before the consolidation).
+// WebKit (governedCompiledActive — the governed-compiled tier ships with it)
+// AND for steady-60 desktop Blink sessions (the player rides the main thread
+// there, so the entering screen's mount commit would stall its opening — the
+// gate is the same protection the touch tiers ship with; it also targets the
+// measured ~50ms desktop mount hitch). "off" opts out, "on" forces it
+// elsewhere. Shared verbatim by the engine's routing and the react binding's
+// ScreenMotion (this is the one reader that was byte-duplicated across
+// core/react before the consolidation).
 export const readSettleGateFlag = (): boolean => {
   try {
     const value =
       typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:settle-gate") : null;
     if (value === "on") return true;
     if (value === "off") return false;
-    return governedCompiledActive();
+    return governedCompiledActive() || steadySixtyPlayerEligible();
   } catch {
     return false;
   }
