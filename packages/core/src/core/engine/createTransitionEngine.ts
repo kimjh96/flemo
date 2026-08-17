@@ -917,17 +917,21 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       //    demotion has judged chronically slow (the Note 9) route compiled.
       //    The demotion is faster now — one strike, see driverPolicy — so a
       //    weak device flips after a single bad flight instead of two.)
-      // NOT bypassed by the "raf" force pin (unlike the native-kind choice
-      // below). Forcing the rAF player onto desktop Blink here was tried to
-      // reach the per-frame device-pixel snap (a HiDPI convergence-shimmer
-      // fix), but the player has never driven a non-touch flight: device-
-      // reproduced, after a re-entry (push→pop→push) it leaves the entering
-      // screen pinned at its from-pose (translateX 100%) — the birth/play
-      // never fires — so the screen sits ENTIRELY off-screen and the viewport
-      // goes blank. Desktop Blink stays on the compiled compositor tier, which
-      // completes cleanly; the sub-pixel shimmer is a lesser cost than a blank.
+      // Bypassed by the "raf" force pin: a pinned session must player-drive
+      // everything to be a useful instrument (the same contract as the
+      // kind-scoped choice below), and it is the only route to the player's
+      // per-frame device-pixel snap on desktop (a HiDPI convergence-shimmer
+      // diagnostic). The pierce was briefly retired (PR #256) when a pinned
+      // desktop re-entry (push→pop→push) left the entering screen parked at
+      // its from-pose (translateX 100%) — a blank viewport. That blank was
+      // NOT a player defect: the flight drove perfectly and the COMPLETED
+      // cleanup then failed to strip a stale restored pose (see the pose-
+      // channel strip in the COMPLETED branch, where the full mechanism is
+      // documented). With the cleanup fixed and e2e-guarded, the pin pierces
+      // again. DEFAULT desktop routing is unchanged: compiled, always.
       if (
         detectBlinkEngine() &&
+        driverPolicy.pinnedDriver() !== "raf" &&
         ((typeof navigator !== "undefined" && navigator.maxTouchPoints === 0) ||
           learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS ||
           !driverPolicy.playerAllowed() ||
@@ -1323,6 +1327,22 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       const { scope, decorator, bars } = getElements();
       if (scope) {
         clearInlineAnimation(scope);
+        // The force clear above releases LEASED properties, but a pose channel
+        // can be ABSENT from the lease map at this exact instant: the player
+        // track's own detach (this same commit's effect cleanup) already
+        // released its transform stake — restoring the lease "original", which
+        // for the actively-entered scope is the entering-initial from-pose the
+        // binding rendered (flemo's own transient write, not a consumer value)
+        // — and dropped the entry. When ANOTHER lease survives into this
+        // commit (the governed easing stamp, released later by
+        // releaseParticipantLayers below), the keyed iteration in the force
+        // clear never visits the now-untracked pose and the empty-map fallback
+        // never runs — device-reproduced on desktop Blink as a re-entry
+        // parking the landed screen at translate3d(100%) (a blank viewport).
+        // The landed scope's pose belongs to the compiled rest rules
+        // unconditionally, so strip the two pose channels explicitly; the
+        // explicit-list force form removes untracked properties by contract.
+        clearInlineAnimation(scope, ["transform", "opacity"]);
         scope.removeAttribute(SKIP_ANIMATION_ATTR);
         for (const part of collectScreenParts(scope)) clearInlineAnimation(part);
       }

@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import TaskManger from "@core/TaskManger";
 
+import { trackInlineWrite } from "@transition/animateInline";
 import createTransition from "@transition/createTransition";
 import none from "@transition/none";
 import { transitionMap } from "@transition/transition";
@@ -166,6 +167,30 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
 
     decorator.remove();
     bar.remove();
+  });
+
+  // REGRESSION (desktop player blank, 2026-08-17): at the COMPLETED flip the
+  // player track's detach has already released its transform stake — restoring
+  // the entering-initial from-pose the binding rendered — and DROPPED the
+  // lease entry. With any OTHER lease still staked in that commit (the
+  // governed easing stamp, released later by releaseParticipantLayers), the
+  // force clear's keyed iteration never visited the now-untracked transform
+  // and the empty-map fallback never ran: the landed screen stayed parked at
+  // translate3d(100%) — a blank viewport. The COMPLETED branch now strips the
+  // pose channels explicitly.
+  it("strips a residual scope pose on COMPLETED even while another lease survives", () => {
+    // Simulate the post-detach state: a stale restored pose on the scope…
+    scope.style.transform = "translate3d(100%, 0px, 0px)";
+    scope.style.opacity = "0";
+    // …and a surviving lease on an unrelated property staked by another
+    // writer, which keeps the lease map non-empty at the flip.
+    trackInlineWrite(scope, "animation-timing-function", Symbol("other-writer"));
+    scope.style.animationTimingFunction = "linear";
+
+    drive({ status: "COMPLETED" });
+
+    expect(scope.style.transform).toBe("");
+    expect(scope.style.opacity).toBe("");
   });
 
   it("is a no-op on IDLE", () => {
