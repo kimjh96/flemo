@@ -603,6 +603,47 @@ test.describe("motion perception", () => {
     await page.evaluate(() => sessionStorage.removeItem("flemo:motion-driver-force"));
   });
 
+  // REGRESSION (the desktop player blank, PR #256 → root-caused 2026-08-17):
+  // a raf-pinned DESKTOP session's re-entry (push→pop→push) parked the landed
+  // screen at its from-pose (translateX 100%) — an entirely blank viewport.
+  // The flight itself drove perfectly; the COMPLETED cleanup failed to strip
+  // the stale restored pose whenever another inline lease survived the flip
+  // (see the pose-channel strip in createTransitionEngine's COMPLETED
+  // branch). The pin pierces the desktop compiled gate again specifically so
+  // this stays diagnosable — and this test guards both the pierce and the
+  // landing.
+  test("a pinned desktop player lands a re-entry on-screen", async ({ page }) => {
+    test.skip(
+      test.info().project.name !== "chromium",
+      "guards the desktop (non-touch) pin pierce; touch projects player-drive in production"
+    );
+    const { errors } = trackConsoleErrors(page);
+    await openPlaygroundWithPinnedPlayer(page);
+
+    for (const label of ["Next", "Back", "Next"]) {
+      await page.getByRole("button", { name: label }).click();
+      await waitForNavIdle(page);
+    }
+
+    const landed = await page.evaluate(() => {
+      const screens = [...document.querySelectorAll("[data-flemo-screen]")];
+      const top = screens[screens.length - 1] as HTMLElement;
+      return {
+        status: top.getAttribute("data-flemo-status"),
+        inlineTransform: top.style.transform || "",
+        computedTransform: getComputedStyle(top).transform
+      };
+    });
+    expect(landed.status, "the re-entered screen must have completed").toBe("COMPLETED");
+    expect(landed.inlineTransform, "no residual inline pose may survive the landing").toBe("");
+    expect(
+      landed.computedTransform === "none" ||
+        landed.computedTransform === "matrix(1, 0, 0, 1, 0, 0)",
+      `the re-entered screen must rest on-screen (got ${landed.computedTransform})`
+    ).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
   // INCIDENT: replay chains inherently stall a main-thread player (the next
   // screen's mount commits land mid-flight), and the driver policy read that
   // as a slow device — a persisted, silent demotion that put the user's
