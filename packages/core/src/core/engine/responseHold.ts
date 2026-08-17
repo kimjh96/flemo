@@ -50,6 +50,15 @@ const install = () => {
     return original(...args).then(
       (response) => {
         if (holdDepth <= 0 || isStream(response)) return response;
+        // DIAGNOSTIC (temporary): count parks so an on-device probe can confirm
+        // the hold is actually catching the app's queries (vs a data client
+        // that captured `fetch` before this wrap installed).
+        try {
+          const w = window as { __flemoParked?: number };
+          w.__flemoParked = (w.__flemoParked ?? 0) + 1;
+        } catch {
+          // ignore
+        }
         return new Promise<Response>((resolve) => {
           parked.push(() => resolve(response));
         });
@@ -93,6 +102,28 @@ export function beginResponseHold(backstopMs = MIN_HOLD_BACKSTOP_MS): () => void
   return release;
 }
 
+// Install the fetch wrap EAGERLY at module load — not lazily on the first
+// beginResponseHold. A data client (Supabase, TanStack Query, etc.) resolves
+// its `fetch` reference ONCE when its client is constructed, at app init; if
+// the wrap is installed only when the first transition runs, that reference is
+// already the original and every query bypasses the hold (device-measured:
+// twelve member-detail queries all resolving mid-flight, each a render on the
+// opening frames — the residual "detail-push 버벅" no driver could touch). By
+// installing at THIS module's import — pulled in by the engine, pulled in by
+// the React Router, so it runs before the app's own modules construct their
+// clients — flemo's wrap wins the capture race. The wrap is transparent while
+// no hold is active (holdDepth 0 passes straight through), so eager install
+// costs a bound closure per fetch and nothing else.
+install();
+
 // Test seams.
 export const heldResponseCount = (): number => parked.length;
 export const responseHoldDepth = (): number => holdDepth;
+// Re-wrap the CURRENT window.fetch (tests install a controllable fetch AFTER
+// this module's eager install; production never reassigns window.fetch out
+// from under the wrap — Supabase et al. capture it, the probe composes atop
+// it). Test-only.
+export const reinstallResponseHoldForTests = (): void => {
+  installed = false;
+  install();
+};

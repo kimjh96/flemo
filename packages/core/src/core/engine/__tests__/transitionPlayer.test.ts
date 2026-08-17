@@ -1019,27 +1019,26 @@ describe("anchored-opening handoff (non-Blink, diagnostic opt-in)", () => {
     expect(scrub.currentTime).toBe(96);
     expect(scrub.canceled).toBe(false);
 
-    // Past the opening: a FRESH animation takes the remainder — the curve's
-    // tail baked into evenly-spaced keyframes over the remaining duration,
-    // plain linear easing — and the scrub is cancelled in the same step.
-    // Every ingredient unremarkable by design (see tryHandOff).
+    // Past the opening: a FRESH animation takes the remainder — the SAME two
+    // endpoints and bezier easing as the scrub, started mid-curve by a NEGATIVE
+    // delay so its currentTime begins at the presented pose (no keyframe-bake
+    // approximation at the seam). The scrub is cancelled in the same step.
     pump(112);
     expect(animate).toHaveBeenCalledTimes(2);
     const [keyframes, options] = animate.mock.calls[1]! as [
       Record<string, string>[],
       KeyframeAnimationOptions
     ];
-    expect(keyframes.length).toBe(41);
-    // First keyframe = the pose at the handoff frame (11.2% of a linear 1s
-    // slide across a 400px-wide element: 400 * (1 - 0.112) = 355.2px), last
-    // keyframe = the rest pose.
-    expect(keyframes[0]!.transform).toBe("translate3d(355.2px, 0px, 0)");
-    expect(keyframes[0]!.opacity).toBe("0.112");
-    expect(keyframes[40]!.transform).toBe("none");
-    expect(keyframes[40]!.opacity).toBe("1");
-    expect(options.duration).toBe(888); // 1000 - 112 already played
-    expect(options.delay).toBe(0);
-    expect(options.easing).toBe("linear");
+    // Exact-curve remainder: the endpoints are identical to the scrub's (both
+    // [from, to]); the browser plays the real curve, not a linear-chord bake.
+    expect(keyframes.length).toBe(2);
+    expect(keyframes).toEqual(animate.mock.calls[0]![0]);
+    // Full duration, but started at the PRESENTED pose via a negative delay:
+    // the scrub's last-committed currentTime was 96ms (one frame behind the
+    // 112ms clock), so delay = -96 lands currentTime there at birth.
+    expect(options.duration).toBe(1000);
+    expect(options.delay).toBe(-96);
+    expect(options.easing).toBe("linear"); // the motion's own (linear) easing
     expect(options.fill).toBe("both");
     expect(scrub.canceled).toBe(true);
     expect(el.style.animation).toBe("none"); // compiled stays suppressed for the whole flight
@@ -1231,26 +1230,21 @@ describe("anchored-opening handoff — remainder bake and decline paths", () => 
     climbTo(pump, 0, 112); // frame cadence to just past HANDOFF_MS
 
     expect(animate).toHaveBeenCalledTimes(2);
-    const keyframes = animate.mock.calls[1]![0] as Record<string, string>[];
-    expect(keyframes.length).toBe(41);
-    // The first keyframe is the pose at 11.2% of the linear curve, raw
-    // (round4) values — no snap machinery in baked keyframes. y is 100% of
-    // offsetHeight 800 → 88.8% remaining = 710.4px.
-    expect(keyframes[0]!.transform).toBe(
-      "translate3d(0px, 710.4px, 0) translateZ(7.104px) scale(0.556) scaleX(0.334) " +
-        "scaleY(0.556) rotate(39.96deg) rotateX(8.88deg) rotateY(17.76deg)"
-    );
-    expect(keyframes[0]!.filter).toBe("blur(7.104px)");
-    expect(keyframes[0]!.opacity).toBeUndefined(); // no opacity channel authored
-    // Constants ride only the first and last keyframes — WAAPI holds a
-    // property between the keyframes that carry it.
-    expect(keyframes[0]!.boxShadow).toBe("0 0 12px rgba(0, 0, 0, 0.3)");
-    expect(keyframes[1]!.boxShadow).toBeUndefined();
-    expect(keyframes[40]!.boxShadow).toBe("0 0 12px rgba(0, 0, 0, 0.3)");
-    // Every transform channel lands on identity → the rest pose collapses
-    // to "none", mirroring the compiler's rest semantics.
-    expect(keyframes[40]!.transform).toBe("none");
-    expect(keyframes[40]!.filter).toBe("blur(0px)");
+    const [keyframes, options] = animate.mock.calls[1]! as [
+      Record<string, string>[],
+      KeyframeAnimationOptions
+    ];
+    // Exact-curve remainder: the SAME two endpoints as the scrub (the browser
+    // plays the real curve via a negative delay, not a per-channel bake), so
+    // every authored channel — transforms, string templates, and held
+    // constants alike — rides through unchanged from the scrub's own frames.
+    expect(keyframes.length).toBe(2);
+    expect(keyframes).toEqual(animate.mock.calls[0]![0]);
+    // Full duration, started mid-curve at the presented pose (climb last set
+    // the scrub to 96ms, one frame behind the 112ms clock) via a negative delay.
+    expect(options.duration).toBe(1000);
+    expect(options.delay).toBe(-96);
+    expect(options.fill).toBe("both");
   });
 
   it("a transform-less motion bakes opacity-only keyframes (no transform key)", () => {
@@ -1272,8 +1266,13 @@ describe("anchored-opening handoff — remainder bake and decline paths", () => 
 
     expect(animate).toHaveBeenCalledTimes(2);
     const keyframes = animate.mock.calls[1]![0] as Record<string, string>[];
-    expect(keyframes[0]!).toEqual({ opacity: "0.112" });
-    expect(keyframes[40]!).toEqual({ opacity: "1" });
+    // Transform-less motion → opacity-only endpoints, identical to the scrub's
+    // frames (negative-delay exact curve, no per-channel bake), no transform key.
+    expect(keyframes.length).toBe(2);
+    expect(keyframes).toEqual(animate.mock.calls[0]![0]);
+    expect(keyframes[0]!.transform).toBeUndefined();
+    expect(keyframes[0]!).toEqual({ opacity: "0" });
+    expect(keyframes[1]!).toEqual({ opacity: "1" });
   });
 
   it("a delay-only motion (zero duration) declines the handoff and stays scrubbed", () => {

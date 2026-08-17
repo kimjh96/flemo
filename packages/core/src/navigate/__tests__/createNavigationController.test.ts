@@ -332,7 +332,7 @@ describe("createNavigationController distance options (skip / until / collapse)"
     expect(stores.history.getState().histories).toHaveLength(1);
   });
 
-  it("replace mid-flight supersedes the running transition instead of dropping", async () => {
+  it("replace mid-flight is IGNORED — the hard guard, identical to push", async () => {
     const { stores, controller } = setup();
     await controller.push("/x");
     // From here the test owns gate resolution: the first replace must be
@@ -345,17 +345,19 @@ describe("createNavigationController distance options (skip / until / collapse)"
       expect(stores.navigate.getState().status).toBe("REPLACING");
     });
 
-    // A tap on another tab while the previous tab transition is still
-    // flying: this used to return silently (the intermittent swallowed
-    // transition); now it fast-forwards the flight and runs.
+    // Input landing while a transition is in flight is dropped (user policy
+    // 2026-08-13, superseding both the #220 supersede — device-read as
+    // "연타 시 전부 스킵" — and the brief queue-everything policy): the
+    // first tap wins, and a double-tap can never run the same switch twice.
     const second = controller.replace("/b");
+    await second; // resolves immediately: guarded out
     await vi.waitFor(async () => {
       await TaskManager.resolveAllPending();
       expect(stores.navigate.getState().status).toBe("COMPLETED");
-      expect(stores.history.getState().histories.at(-1)?.pathname).toBe("/b");
     });
-    await Promise.all([first, second]);
+    await first;
 
+    expect(stores.history.getState().histories.at(-1)?.pathname).toBe("/a");
     expect(stores.history.getState().index).toBe(1);
     expect(stores.history.getState().histories).toHaveLength(2);
   });

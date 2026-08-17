@@ -219,7 +219,7 @@ describe("compiled-tier routing", () => {
     }
   });
 
-  it("a touch WebKit device (a real phone) keeps the player — singles included", () => {
+  it("a touch WebKit device (a real phone) routes to the compiled tier — singles included", () => {
     Object.defineProperty(navigator, "platform", { value: "iPhone", configurable: true });
     Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
     try {
@@ -240,7 +240,7 @@ describe("compiled-tier routing", () => {
         isActive: true,
         animHoldReleased: true
       });
-      expect(scope.style.animation).toBe("none"); // the player pinned its suppression
+      expect(scope.style.animation).toBe(""); // governed-compiled: the player does NOT drive (no inline pin)
       cleanup();
       scope.remove();
     } finally {
@@ -249,7 +249,7 @@ describe("compiled-tier routing", () => {
     }
   });
 
-  it("a touch WebKit REPLACING navigation (tab switch) keeps the player", () => {
+  it("a touch WebKit REPLACING navigation (tab switch) routes to the compiled tier", () => {
     Object.defineProperty(navigator, "platform", { value: "iPhone", configurable: true });
     Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
     try {
@@ -268,7 +268,7 @@ describe("compiled-tier routing", () => {
         isActive: true,
         animHoldReleased: true
       });
-      expect(scope.style.animation).toBe("none"); // the player pinned its suppression
+      expect(scope.style.animation).toBe(""); // governed-compiled: the player does NOT drive (no inline pin)
       cleanup();
       scope.remove();
     } finally {
@@ -277,7 +277,7 @@ describe("compiled-tier routing", () => {
     }
   });
 
-  it("a touch WebKit CHAINED navigation keeps the player (one-frame-swap protection)", () => {
+  it("a touch WebKit CHAINED navigation routes to the compiled tier (governed head)", () => {
     Object.defineProperty(navigator, "platform", { value: "iPhone", configurable: true });
     Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
     const pending = vi
@@ -299,7 +299,7 @@ describe("compiled-tier routing", () => {
         isActive: true,
         animHoldReleased: true
       });
-      expect(scope.style.animation).toBe("none"); // the player pinned its suppression
+      expect(scope.style.animation).toBe(""); // governed-compiled: the player does NOT drive (no inline pin)
       cleanup();
       scope.remove();
     } finally {

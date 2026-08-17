@@ -313,6 +313,42 @@ describe("anchorNativeFlightStart", () => {
     raf.mockRestore();
   });
 
+  it("firstTickOnly rewinds the release-frame aging at tick one and stands down for good", () => {
+    const fresh = makeAnimation(2);
+    const { rafCbs, raf } = queuedRaf();
+    const onShift = vi.fn();
+    const detach = anchorNativeFlightStart(() => [host([fresh])], onShift, false, true);
+    // One LPM frame (48ms) of clock aging between the release microtask and
+    // the first rendering update — nothing has presented yet.
+    (fresh as unknown as { currentTime: number }).currentTime = 2 + 48;
+    rafCbs.shift()!(48);
+    const allowed = 2 + NATIVE_STALL_STEP_MS;
+    expect(fresh.startTime).toBeCloseTo(1000 + (2 + 48 - allowed), 5);
+    expect(onShift).toHaveBeenCalledTimes(1);
+    // Stands down: no co-flush watch — later capped-rAF gaps (which are NOT
+    // presentation gaps under LPM) can never rewind the presenting flight.
+    expect(rafCbs.length).toBe(0);
+    // Detach after the tick must not restore-guard the clock backwards.
+    const settled = fresh.startTime;
+    detach();
+    expect(fresh.startTime).toBe(settled);
+    raf.mockRestore();
+  });
+
+  it("firstTickOnly leaves a barely-aged clock untouched and never fires onShift", () => {
+    const fresh = makeAnimation(2);
+    const { rafCbs, raf } = queuedRaf();
+    const onShift = vi.fn();
+    const detach = anchorNativeFlightStart(() => [host([fresh])], onShift, false, true);
+    (fresh as unknown as { currentTime: number }).currentTime = 2 + 30; // inside one step
+    rafCbs.shift()!(30);
+    expect(fresh.startTime).toBe(1000);
+    expect(onShift).not.toHaveBeenCalled();
+    expect(rafCbs.length).toBe(0);
+    detach();
+    raf.mockRestore();
+  });
+
   it("a PENDING clock (currentTime null at the release microtask) is held via the timeline", () => {
     // The exact birth state at the release microtask: currentTime and
     // startTime both null (play pending, resolving only at the first render

@@ -48,7 +48,12 @@
 // Well-sized, data:/blob: sources and engines without the needed APIs are
 // left exactly as authored.
 
-import { flightWindowActive, onFlightWindowIdle } from "@core/engine/flightWindow";
+import { detectBlinkEngine } from "@core/engine/driverPolicy";
+import {
+  flightWindowActive,
+  onFlightWindowIdle,
+  onFlightWindowStart
+} from "@core/engine/flightWindow";
 
 // An image is "oversized" when it carries more than this many times the
 // pixels its layout box (at device resolution) can show. 8× area is far
@@ -244,20 +249,22 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     }
   };
 
-  // Restore an element's visibility — immediately, except an OPAQUE original
-  // while a navigation is mid-flight: its first paint carries the full
-  // synchronous decode (WebKit), so the reveal defers to the flight's rest
-  // window, bounded in case the window's release path dies with its Router.
-  const restoreVisibility = (
-    image: HTMLImageElement,
-    previousVisibility: string,
-    verdict: string | null
-  ) => {
+  // Restore an element's visibility — immediately at rest, but DEFERRED to the
+  // flight's rest window while a navigation is mid-flight. Any held reveal (an
+  // opaque original's full-res paint, OR a scaled blob's first paint) is still
+  // a rendering-update commit; landing it mid-flight competes with the
+  // transition driver's per-frame work and, on device, reads as an
+  // intermittent hitch exactly when a scrolled list's in-flight avatar probes
+  // resolve during a push. Both classes now defer to rest — the same window
+  // arrivalHold/responseHold deliver into — so the motion never carries a
+  // reveal commit. Bounded (OPAQUE_REVEAL_CAP_MS) in case the window's release
+  // path dies with its Router.
+  const restoreVisibility = (image: HTMLImageElement, previousVisibility: string) => {
     const restore = () => {
       if (previousVisibility) image.style.visibility = previousVisibility;
       else image.style.removeProperty("visibility");
     };
-    if (verdict !== "opaque" || !flightWindowActive()) {
+    if (!flightWindowActive()) {
       restore();
       return;
     }
@@ -399,11 +406,42 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
         }
       }
     }
-    restoreVisibility(image, info.previousVisibility, verdict);
+    restoreVisibility(image, info.previousVisibility);
   };
 
+  // Low-core Blink ONLY: the worker's full-original decode contends with the
+  // compositor for a flight's frames (device 2026-08-14, Note 9). Deferred
+  // probes flush past the convergence into true idle. WebKit probes
+  // immediately (verified engine-neutral: the pre-campaign build janks the
+  // same on Safari, so this machinery is not the cause there).
+  const deferredProbes = new Map<string, { boxWidth: number; boxHeight: number }>();
+  let probeFlushParked = false;
+  const flushDeferredProbes = () => {
+    probeFlushParked = false;
+    if (disposed) return;
+    const pending = [...deferredProbes];
+    deferredProbes.clear();
+    for (const [pendingUrl, box] of pending) probe(pendingUrl, box.boxWidth, box.boxHeight);
+  };
+  const parkProbeFlush = () => {
+    if (probeFlushParked) return;
+    probeFlushParked = true;
+    onFlightWindowIdle(() => {
+      if (disposed) return;
+      const ric = (globalThis as { requestIdleCallback?: (cb: () => void) => void })
+        .requestIdleCallback;
+      if (typeof ric === "function") ric(() => flushDeferredProbes());
+      else if (typeof setTimeout === "function") setTimeout(flushDeferredProbes, 400);
+      else flushDeferredProbes();
+    });
+  };
   const probe = (url: string, boxWidth: number, boxHeight: number) => {
     if (verdicts.has(url) || probing.has(url)) return;
+    if (flightWindowActive() && detectBlinkEngine()) {
+      if (!deferredProbes.has(url)) deferredProbes.set(url, { boxWidth, boxHeight });
+      parkProbeFlush();
+      return;
+    }
     const activeWorker = ensureWorker();
     if (!activeWorker) return;
     probing.add(url);
@@ -413,6 +451,30 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     const neededArea = Math.max(boxWidth * boxHeight, MIN_TARGET_PX * MIN_TARGET_PX) * dpr() ** 2;
     activeWorker.postMessage({ url, targetWidth, neededArea, ratio: OVERSIZE_AREA_RATIO });
   };
+
+  // Flight opening: kill in-flight worker decodes (no cancel API otherwise)
+  // and re-queue them for rest. Blink-only. Results reveal at rest anyway
+  // (holdSwapUntilRest), so nothing visible is lost.
+  const yieldWorkerForFlight = () => {
+    if (!detectBlinkEngine()) return;
+    if (!worker || probing.size === 0) return;
+    worker.terminate();
+    worker = null;
+    for (const url of probing) {
+      if (deferredProbes.has(url)) continue;
+      let box = { boxWidth: MIN_TARGET_PX, boxHeight: MIN_TARGET_PX };
+      for (const [image, info] of held) {
+        if (info.url !== url) continue;
+        const rect = image.getBoundingClientRect();
+        box = { boxWidth: rect.width || MIN_TARGET_PX, boxHeight: rect.height || MIN_TARGET_PX };
+        break;
+      }
+      deferredProbes.set(url, box);
+    }
+    probing.clear();
+    if (deferredProbes.size > 0) parkProbeFlush();
+  };
+  const detachFlightStart = onFlightWindowStart(yieldWorkerForFlight);
 
   // Responsive path: let the browser pick and download its candidate as
   // authored (single download, selection stays correct — no re-implementation
@@ -714,6 +776,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
 
   return () => {
     disposed = true;
+    detachFlightStart();
     observer.disconnect();
     srcObserver.disconnect();
     worker?.terminate();

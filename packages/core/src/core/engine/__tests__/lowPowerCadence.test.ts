@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   lowPowerCadenceActive,
+  lowPowerFrameIntervalMs,
   probeLowPowerCadence,
   resetLowPowerCadenceForTests
 } from "@core/engine/lowPowerCadence";
@@ -51,6 +52,17 @@ describe("lowPowerCadence", () => {
   it("one outlier does not blind the detection", () => {
     withTouch(() => pumpProbe([33, 33.4, 66, 33.6, 33.2, 33.4]));
     expect(lowPowerCadenceActive()).toBe(true);
+  });
+
+  it("a conclusive slow cluster learns its median frame interval; a lift forgets it", () => {
+    withTouch(() => pumpProbe([36, 36.4, 36.1, 36.6, 36.2, 36.4]));
+    expect(lowPowerCadenceActive()).toBe(true);
+    const learned = lowPowerFrameIntervalMs();
+    expect(learned).not.toBeNull();
+    expect(learned!).toBeGreaterThanOrEqual(36);
+    expect(learned!).toBeLessThanOrEqual(36.6);
+    withTouch(() => pumpProbe([16.7, 16.6, 16.8, 16.7, 16.6, 16.7]));
+    expect(lowPowerFrameIntervalMs()).toBeNull();
   });
 
   it("a regular fast cluster clears the flag (LPM lifted) and persists it", () => {

@@ -67,14 +67,152 @@ const persist = (value: boolean): void => {
 let active = false;
 let probing = false;
 let lifecycleArmed = false;
+let learnedFrameMs: number | null = null;
 
-export const lowPowerCadenceActive = (): boolean => active;
+// CONTINUOUS cadence monitor — the readiness fix for the FIRST flight. The
+// discrete probe above needs a clean 6-sample window and RETRIES 400ms apart
+// when the window is noisy; app bootstrap and a rapid tap both starve it, so
+// its verdict routinely isn't ready when the very first navigation's driver is
+// chosen — and under LPM that first flight then runs on the 30Hz rAF player
+// (device: "저전력모드에서만 문제"). This monitor runs from module load and
+// keeps a rolling window of raw rAF gaps, so a fresh verdict is ALWAYS
+// available the instant a flight asks — no clean window required. It never
+// produces a false LPM on a fast-but-loaded device: genuine starvation is
+// IRREGULAR (16-100ms jitter), while the LPM cap is a REGULAR ~33ms cluster,
+// so the read demands both a slow-band median AND low spread.
+const MONITOR_WINDOW = 12;
+const MONITOR_MIN_SAMPLES = 8;
+const monitorGaps: number[] = [];
+let monitorLastTs: number | null = null;
+let monitorArmed = false;
+// LATCHED verdict. The window is only TRUSTED when it is REGULAR (low spread) —
+// that is an IDLE window, and idle cleanly separates 16ms (normal) from ~33ms
+// (LPM). A jittery window is a NAVIGATION in progress (the very moment a flight
+// asks) and must NOT overwrite the verdict, or the read fails exactly when it's
+// needed (device: lpm detected-and-persisted, yet the flight still chose the
+// 30Hz player because the read at flight time saw navigation jitter). So the
+// monitor latches the last CLEAN idle read and holds it across the jitter.
+let monitorLatchLpm = false;
+let monitorHasLatch = false;
+const armContinuousCadenceMonitor = (): void => {
+  if (monitorArmed || !eligible()) return;
+  monitorArmed = true;
+  const tick = (ts: number): void => {
+    if (monitorLastTs !== null) {
+      monitorGaps.push(ts - monitorLastTs);
+      if (monitorGaps.length > MONITOR_WINDOW) monitorGaps.shift();
+      if (monitorGaps.length >= MONITOR_MIN_SAMPLES) {
+        const sorted = [...monitorGaps].sort((a, b) => a - b);
+        const trimmed = sorted.slice(1, sorted.length - 1);
+        const median = trimmed[trimmed.length >> 1]!;
+        const spread = trimmed[trimmed.length - 1]! - trimmed[0]!;
+        // Only a REGULAR window (idle) updates the latch; a jittery window
+        // (a navigation, GC, or load work) leaves the last idle verdict intact.
+        if (spread <= SLOW_BAND_SPREAD_MS) {
+          monitorLatchLpm = median >= SLOW_BAND_MIN_MS && median <= SLOW_BAND_MAX_MS;
+          monitorHasLatch = true;
+        }
+      }
+    }
+    monitorLastTs = ts;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+};
+
+export const lowPowerCadenceActive = (): boolean => active || (monitorHasLatch && monitorLatchLpm);
+
+// The touch-WebKit COMPILED-GOVERNED default. LPM detection proved the compiled
+// tier + governed head (data-flemo-lpm: flat head, front-softened easing, fade
+// stretch) is the smooth, un-swallowed opening on touch WebKit — and it holds
+// at the panel rate whether or not the device is actually in Low Power Mode
+// (device-confirmed 2026-08 on a 60Hz iPhone with LPM off). So the whole
+// governed-compiled treatment is the DEFAULT for EVERY touch-WebKit flight, not
+// only detected-LPM ones: routing to the compiled tier, raising data-flemo-lpm,
+// and the synchronous atomic release all key off this. `eligible()` is exactly
+// non-Blink + touch. lowPowerFrameIntervalMs deliberately stays LPM-only — it
+// must never assert a 30Hz cadence on a 60Hz panel.
+export const governedCompiledActive = (): boolean => eligible();
+
+// The measured LPM frame interval (median of the last conclusive slow
+// cluster), for callers that predict pipeline latency from the cadence —
+// null until a slow cluster has actually been measured this session.
+export const lowPowerFrameIntervalMs = (): number | null => (active ? learnedFrameMs : null);
 
 /* v8 ignore next 5 -- test hook. */
 export const resetLowPowerCadenceForTests = () => {
   active = false;
   probing = false;
+  learnedFrameMs = null;
+  latencySamples.length = 0;
+  sessionWorstLatency = null;
 };
+
+// ---- Release-latency ledger (fed by lpmReleaseLatencyProbe) ----
+//
+// The rolling worst release→present starvation this device has actually
+// shown, for sizing the NEXT flight's birth hold. Observation-only input;
+// pre-birth consumption only — the one adaptive loop the falsification
+// series left standing.
+const LATENCY_SAMPLES_MAX = 8;
+const LATENCY_SAMPLE_CAP_MS = 600;
+const LATENCY_PERSIST_KEY = "flemo:lat";
+const latencySamples: number[] = [];
+
+// The ledger PERSISTS (2026-08-13 device round): the in-memory-only version
+// relearned from scratch on every reload, so real sessions spent their
+// first cold switches back inside the trouble window — the round's two
+// fully-clean tab fades were exactly the flights whose learned hold had
+// reached its target. Same pattern as the flemo:lpm flag: seed from the
+// last session, correct from live samples.
+// The session-worst NEVER decays (2026-08-13 second round: the rolling
+// max alone let eight warm switches evict a cold switch's 300ms lesson —
+// the next cold entry swallowed again, 274ms gap / Δopacity 0.82). Entry
+// paths that must NEVER swallow (REPLACING) read the worst; paths that
+// trade a rare tail for reaction time (PUSHING) read the rolling budget.
+let sessionWorstLatency: number | null = null;
+
+const persistLatency = () => {
+  try {
+    if (typeof sessionStorage !== "undefined" && sessionWorstLatency !== null) {
+      sessionStorage.setItem(LATENCY_PERSIST_KEY, String(Math.round(sessionWorstLatency)));
+    }
+  } catch {
+    // Storage unavailable: the session simply re-learns.
+  }
+};
+const seedLatency = () => {
+  try {
+    if (typeof sessionStorage === "undefined") return;
+    const raw = Number(sessionStorage.getItem(LATENCY_PERSIST_KEY));
+    if (Number.isFinite(raw) && raw > 0) {
+      const seeded = Math.min(raw, LATENCY_SAMPLE_CAP_MS);
+      latencySamples.push(seeded);
+      sessionWorstLatency = seeded;
+    }
+  } catch {
+    // ignore
+  }
+};
+seedLatency();
+
+export const reportLpmReleaseLatency = (ms: number): void => {
+  if (!Number.isFinite(ms) || ms <= 0) return;
+  const sample = Math.min(ms, LATENCY_SAMPLE_CAP_MS);
+  latencySamples.push(sample);
+  if (latencySamples.length > LATENCY_SAMPLES_MAX) latencySamples.shift();
+  sessionWorstLatency =
+    sessionWorstLatency === null ? sample : Math.max(sessionWorstLatency, sample);
+  persistLatency();
+};
+
+// Rolling budget (recent 8, max): adapts down when the device calms.
+export const lpmReleaseLatencyBudgetMs = (): number | null =>
+  latencySamples.length === 0 ? null : Math.max(...latencySamples);
+
+// Session worst (never decays, persisted): for entries that must never
+// open inside the trouble window.
+export const lpmWorstReleaseLatencyMs = (): number | null => sessionWorstLatency;
 
 export const probeLowPowerCadence = (attempt = 0): void => {
   if (probing || !eligible()) return;
@@ -100,6 +238,7 @@ export const probeLowPowerCadence = (attempt = 0): void => {
     const regularFast = core[core.length - 1]! <= FAST_MAX_MS;
     if (regularSlow || regularFast) {
       active = regularSlow;
+      if (regularSlow) learnedFrameMs = core[Math.floor(core.length / 2)]!;
       persist(active);
       return;
     }
@@ -114,6 +253,7 @@ export const probeLowPowerCadence = (attempt = 0): void => {
 // Boot + resume sampling: the routing must know the cadence BEFORE the first
 // flight, and LPM commonly toggles while the app is backgrounded.
 export const armLowPowerCadenceLifecycle = (): void => {
+  armContinuousCadenceMonitor();
   probeLowPowerCadence();
   if (
     lifecycleArmed ||
@@ -134,5 +274,6 @@ export const armLowPowerCadenceLifecycle = (): void => {
 // hundreds of milliseconds before any engine or React tree exists.
 if (eligible()) {
   active = readPersisted();
+  armContinuousCadenceMonitor();
   probeLowPowerCadence();
 }

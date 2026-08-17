@@ -81,6 +81,7 @@ describe("shouldOffloadImage", () => {
 // it once, right after construction.
 const installWorkerStubs = () => {
   const posted: { url: string }[] = [];
+  const terminated = { count: 0 };
   let handler: ((e: MessageEvent) => void) | null = null;
   class FakeWorker {
     set onmessage(next: (e: MessageEvent) => void) {
@@ -89,18 +90,24 @@ const installWorkerStubs = () => {
     postMessage(message: { url: string }) {
       posted.push(message);
     }
-    terminate() {}
+    terminate() {
+      terminated.count += 1;
+    }
   }
   vi.stubGlobal("Worker", FakeWorker);
   vi.stubGlobal("OffscreenCanvas", class {});
   vi.stubGlobal("createImageBitmap", () => Promise.resolve());
+  vi.stubGlobal("requestIdleCallback", (cb: () => void) => {
+    cb();
+    return 0;
+  });
   let created = 0;
   vi.stubGlobal("URL", {
     createObjectURL: (input: unknown) =>
       typeof input === "string" ? input : `blob:scaled-${created++}`,
     revokeObjectURL: vi.fn()
   });
-  return { posted, reply: (data: unknown) => handler!({ data } as MessageEvent) };
+  return { posted, terminated, reply: (data: unknown) => handler!({ data } as MessageEvent) };
 };
 
 // Insertion → observer microtask → readScaled microtask → rAF box measurement
@@ -132,9 +139,20 @@ const paintedImage = (src: string) => {
   return image;
 };
 
+// The flight-yield (probe defer + worker terminate) is Blink-only; these two
+// tests present a Chromium userAgentData so detectBlinkEngine() is true.
+const asBlink = () => {
+  Object.defineProperty(navigator, "userAgentData", {
+    value: { brands: [{ brand: "Chromium" }] },
+    configurable: true
+  });
+};
+
 describe("createImageDecodeOffloader", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (navigator as any).userAgentData;
     document.body.innerHTML = "";
   });
 
@@ -167,6 +185,51 @@ describe("createImageDecodeOffloader", () => {
     expect(image.getAttribute(OFFLOADED_SRC_ATTR)).toBe(src);
     expect(image.style.visibility).toBe("");
 
+    dispose();
+  });
+
+  it("defers the worker decode while a flight is in progress, flushing at rest (Blink)", async () => {
+    asBlink();
+    const { posted, reply } = installWorkerStubs();
+    const release = beginFlightWindow();
+    const src = "https://example.test/raw-original.jpg";
+    const image = freshImage(src);
+    document.body.appendChild(image);
+
+    const dispose = createImageDecodeOffloader(document.body);
+    expect(image.style.visibility).toBe("hidden");
+    await flush();
+    expect(posted).toHaveLength(0);
+
+    release();
+    await flush();
+    expect(posted).toHaveLength(1);
+    expect(posted[0].url).toBe(src);
+    reply({ url: src, blob: new Blob(["x"]) });
+    expect(image.getAttribute("src")).toContain("blob:scaled");
+    dispose();
+  });
+
+  it("terminates the worker when a flight opens mid-decode, re-queuing for rest (Blink)", async () => {
+    asBlink();
+    const { posted, terminated, reply } = installWorkerStubs();
+    const src = "https://example.test/raw-original.jpg";
+    const image = freshImage(src);
+    document.body.appendChild(image);
+
+    const dispose = createImageDecodeOffloader(document.body);
+    await flush();
+    expect(posted).toHaveLength(1);
+    expect(terminated.count).toBe(0);
+
+    const release = beginFlightWindow();
+    expect(terminated.count).toBe(1);
+
+    release();
+    await flush();
+    expect(posted).toHaveLength(2);
+    reply({ url: src, blob: new Blob(["x"]) });
+    expect(image.getAttribute("src")).toContain("blob:scaled");
     dispose();
   });
 

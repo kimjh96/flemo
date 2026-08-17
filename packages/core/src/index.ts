@@ -130,7 +130,7 @@ export { default as animateInline, clearInlineAnimation } from "@transition/anim
 // Framework-neutral transition engine. Owns the navigation-task lifecycle and
 // cleanup for a screen; bindings feed it plain DOM elements + state.
 export { default as createTransitionEngine } from "@core/engine/createTransitionEngine";
-export { lowPowerCadenceActive } from "@core/engine/lowPowerCadence";
+export { lowPowerCadenceActive, governedCompiledActive } from "@core/engine/lowPowerCadence";
 export {
   SKIP_ANIMATION_ATTR,
   type TransitionEngine,

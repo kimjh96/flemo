@@ -122,6 +122,15 @@ export interface AnimHoldReleaseOptions {
     // own skeleton commits, which land immediately and would otherwise satisfy
     // the gate before any data exists.
     minNodes: number;
+    // RENDER-settle mode: wait only for the mount RENDER to quiesce (the
+    // commit storm to stop), NOT for in-flight data. The original gate waited
+    // for requests to land — a ~300ms-plus floor (React throttles suspense
+    // reveals to fallback+300ms) that read as a dead tap. The device-measured
+    // jank, though, is the RENDER blocking the opening, not the data (async,
+    // deferred to rest anyway). So this mode releases as soon as the render
+    // settles: a light screen releases in ~1 frame (no felt delay), a heavy
+    // one after its render finishes (adaptive), and neither waits on the wire.
+    renderSettleOnly?: boolean;
   };
 }
 
@@ -293,8 +302,15 @@ export function scheduleAnimHoldReadiness(
     //   Measured on a production list at the anchor: cold 165 chars over 235
     //   elements (0.7), the same screen warm 1716 over 196 (8.8) — a factor of
     //   twelve, and the threshold sits an order of magnitude from both.
-    // A screen that already carries its content is warm: never wait.
-    if (!looksLikeShell(scope)) {
+    // Render-settle mode watches for the commit wave to quiesce regardless of
+    // shell/warm state (a warm screen simply sees no qualifying commit and
+    // gives up at `firstWaitMs` — no felt delay), and never consults the wire.
+    const loadingWait = () =>
+      !settle.renderSettleOnly && (somethingLoading() || awaitingThrottledReveal());
+    // A screen that already carries its content is warm: never wait. (Skipped
+    // in render-settle mode, which relies on the commit-quiet path + the
+    // firstWaitMs give-up to keep a warm screen delay-free.)
+    if (!settle.renderSettleOnly && !looksLikeShell(scope)) {
       done();
       return;
     }
@@ -342,24 +358,58 @@ export function scheduleAnimHoldReadiness(
     // motion latency on cold screens, so spend the minimum.
     const QUIET_FRAMES_AFTER_REVEAL = 2;
     const quietSpan = () =>
-      !looksLikeShell(scope) && !somethingLoading() ? QUIET_FRAMES_AFTER_REVEAL : QUIET_FRAMES;
+      // Render-settle waits out the mount STORM (React commits the heavy
+      // subtree over several passes, plus any straggler effect commit) — the
+      // long window, not the two-frame reveal anchor, or a late commit lands on
+      // the release frame (device-measured: the intermittent detail-push "시작
+      // 직후 끊김", always-on on the 30Hz Note 9 where the storm runs longer).
+      settle.renderSettleOnly
+        ? QUIET_FRAMES
+        : !looksLikeShell(scope) && !loadingWait()
+          ? QUIET_FRAMES_AFTER_REVEAL
+          : QUIET_FRAMES;
+    // RASTER-settle (renderSettleOnly): the DOM going quiet is not the same as
+    // the pixels being READY. On WebKit a heavy screen's first raster is a
+    // 200-500ms paint/layout block that is not a DOM mutation and not a JS long
+    // task — so a gate that releases on DOM-quiescence alone still hands the
+    // slide an unrasterized layer, and the raster lands mid-flight (compiled:
+    // the clock runs through the block and the slide jumps; player: it freezes)
+    // — device-reproduced as the rapid-LPM detail-push jump. The pre-raster
+    // hold (react ScreenMotion: the entering screen is painted at ~0 opacity
+    // during park-under) makes WebKit raster the tiles DURING this wait, and a
+    // raster in progress shows as a long rAF gap. So a quiet frame must also be
+    // a FAST frame: a gap past the block threshold resets the countdown, and
+    // the gate only releases once the pixels have gone quiet too. Bounded by
+    // capMs; a light screen never blocks, so it never waits.
+    const RASTER_BLOCK_GAP_MS = 48;
     const quiet = () => {
       quietFrames.forEach((frame) => cancelAnimationFrame(frame));
       quietFrames = [];
+      let lastFrameTs: number | null = null;
       const step = (remaining: number) => {
         if (remaining <= 0) {
           // Still fetching means another beat is coming; a scope that is
           // STILL an animated shell means the throttled reveal has not landed
           // yet — release now and it lands mid-flight. Keep waiting for
           // either (the cap is the backstop).
-          if ((somethingLoading() || awaitingThrottledReveal()) && elapsed() < settle.capMs) {
+          if (loadingWait() && elapsed() < settle.capMs) {
             quietFrames.push(requestAnimationFrame(() => step(quietSpan())));
             return;
           }
           finish();
           return;
         }
-        quietFrames.push(requestAnimationFrame(() => step(remaining - 1)));
+        quietFrames.push(
+          requestAnimationFrame((ts) => {
+            const rasterBlocked =
+              settle.renderSettleOnly &&
+              lastFrameTs !== null &&
+              ts - lastFrameTs > RASTER_BLOCK_GAP_MS &&
+              elapsed() < settle.capMs;
+            lastFrameTs = ts;
+            step(rasterBlocked ? quietSpan() : remaining - 1);
+          })
+        );
       };
       step(quietSpan());
     };
@@ -396,7 +446,7 @@ export function scheduleAnimHoldReadiness(
     // must not fire; the give-up deadline and the settle cap remain the
     // bounds.
     const graceTimer = setTimeout(() => {
-      if (!seen && !somethingLoading() && !awaitingThrottledReveal()) finish();
+      if (!seen && !loadingWait()) finish();
     }, settle.graceMs);
     // Giving up at a fixed deadline is what leaves the slow screens exposed:
     // measured at an emulated mobile viewport, a flight whose content lands
@@ -406,7 +456,7 @@ export function scheduleAnimHoldReadiness(
     // content is genuinely coming and the wait continues to the cap.
     const firstTimer = setTimeout(function giveUp() {
       if (seen) return;
-      if ((somethingLoading() || awaitingThrottledReveal()) && elapsed() < settle.capMs) {
+      if (loadingWait() && elapsed() < settle.capMs) {
         setTimeout(giveUp, 100);
         return;
       }

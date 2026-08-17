@@ -264,7 +264,22 @@ export function anchorNativeFlightStart(
   // FULL presence over the already-committed new content — device-seen as
   // the old screen flashing back — and its quick cross-fade has no tracked
   // opening to protect; the legacy one-shot rewind is the right medicine.
-  holdFirstFrame = true
+  holdFirstFrame = true,
+  // FIRST-TICK-ONLY mode, for rAF-capped sessions (iOS Low Power Mode). LPM
+  // caps rAF ~30Hz while the compositor keeps presenting at panel rate, so
+  // every gap-based watch here reads a healthy flight as a stall: the
+  // co-flush window's allowance (capped at one step per tick) falls behind
+  // wall time within 2-3 ticks and rewinds an animation the user has ALREADY
+  // watched reach 40-60% of travel — device-measured (iPhone LPM, 2026-08)
+  // as a backward jump on every push, up to 570 device px. The one
+  // correction that IS safe lands at the first tick: the anchor's rAF is
+  // requested in the release microtask, so its first tick tops the very
+  // rendering update whose paint first commits the animation — nothing has
+  // presented yet, and the clock's aging (release microtask style flush →
+  // this update, one full LPM frame of 33-62ms) is exactly the swallowed
+  // opening. Rewind it to one step there, invisibly, then stand down: every
+  // later tick's eyes are capped and must not touch the clock.
+  firstTickOnly = false
 ): () => void {
   /* v8 ignore next -- same rAF guard as the watcher below. */
   if (typeof requestAnimationFrame !== "function") return () => {};
@@ -343,6 +358,30 @@ export function anchorNativeFlightStart(
     lastTick = now;
     if (!held) {
       held = true;
+      if (firstTickOnly) {
+        // Pre-presentation birth rewind (see the parameter note): pull every
+        // clock that aged past one step back to exactly one step, before
+        // this update's paint first commits it to the compositor. A pending
+        // clock (startTime unresolved) anchors itself to the first render
+        // tick natively and needs nothing. Then stand down for good.
+        // `restored` blocks the disposer's restoreGuard — a teardown-time
+        // clock write is exactly the backward jump this mode exists to end.
+        restored = true;
+        let shifted = 0;
+        for (const animation of candidates) {
+          if (animation.playState !== "running") continue;
+          const currentTime = animation.currentTime;
+          const startTime = animation.startTime;
+          if (typeof currentTime !== "number" || typeof startTime !== "number") continue;
+          const base = baseTimes.get(animation) ?? 0;
+          if (currentTime <= base + NATIVE_STALL_STEP_MS) continue;
+          const excess = currentTime - (base + NATIVE_STALL_STEP_MS);
+          animation.startTime = startTime + excess;
+          shifted = Math.max(shifted, excess);
+        }
+        if (shifted > 0) onShift?.(shifted);
+        return;
+      }
       if (!holdFirstFrame) {
         restored = true; // straight to the co-flush watch (legacy semantics)
         handle = requestAnimationFrame(frame);
@@ -471,7 +510,8 @@ export function armFlightStartAnchorAtRelease(
   scope: HTMLElement,
   elements: () => (HTMLElement | null | undefined)[],
   onShift?: (excessMs: number) => void,
-  holdFirstFrame = true
+  holdFirstFrame = true,
+  firstTickOnly = false
 ): () => void {
   if (typeof MutationObserver === "undefined" || typeof requestAnimationFrame !== "function") {
     return () => {};
@@ -492,7 +532,7 @@ export function armFlightStartAnchorAtRelease(
     if (engaged || disposed) return;
     engaged = true;
     observer.disconnect();
-    detachAnchor = anchorNativeFlightStart(elements, onShift, holdFirstFrame);
+    detachAnchor = anchorNativeFlightStart(elements, onShift, holdFirstFrame, firstTickOnly);
   };
   const observer = new MutationObserver(() => {
     if (scope.getAttribute("data-flemo-anim-hold") !== "false") return;
