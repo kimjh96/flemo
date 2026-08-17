@@ -6,7 +6,11 @@ import createTransition from "@transition/createTransition";
 import { transitionMap } from "@transition/transition";
 
 import createTransitionEngine from "@core/engine/createTransitionEngine";
-import { reportInFlightCadence, resetSteadySixtyForTests } from "@core/engine/steadySixtyCadence";
+import {
+  reportInFlightCadence,
+  resetSteadySixtyForTests,
+  steadySixtyVerified
+} from "@core/engine/steadySixtyCadence";
 
 import type { TransitionEngineDeps } from "@core/engine/types";
 
@@ -110,6 +114,53 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
     reportInFlightCadence(16.7);
     drive();
     expect(playerDrove()).toBe(false);
+  });
+
+  // End-to-end through the REAL display-interval probe: each declined desktop
+  // flight arms it (2 warm-up ticks + 8 gaps off the live rAF clock), its
+  // median feeds the verdict, and the third flight graduates. jsdom's rAF
+  // ticks ~17ms — inside the steady-60 window — so this also covers the
+  // probe's warm-up/median path itself.
+  it("graduates through the real display probe after two compiled flights", async () => {
+    const frames = (count: number) =>
+      new Promise<void>((resolve) => {
+        let remaining = count;
+        const tick = () => {
+          remaining -= 1;
+          if (remaining <= 0) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+    // Runner-cadence guard (same shape as the e2e's): a machine that cannot
+    // hold a steady rAF clock legitimately never verifies — the conservative
+    // design working, not a regression.
+    const gaps: number[] = [];
+    let last: number | null = null;
+    await new Promise<void>((resolve) => {
+      const tick = (t: number) => {
+        if (last !== null) gaps.push(t - last);
+        last = t;
+        if (gaps.length < 10) requestAnimationFrame(tick);
+        else resolve();
+      };
+      requestAnimationFrame(tick);
+    });
+    const median = [...gaps].sort((a, b) => a - b)[5]!;
+
+    drive(); // flight 1 — declined (unverified), probe armed
+    await frames(14);
+    drive(); // flight 2 — declined, probe armed again
+    await frames(14);
+    drive(); // flight 3 — decided by whatever the probe measured
+
+    if (median >= 14 && median <= 22) {
+      expect(steadySixtyVerified()).toBe(true);
+      expect(playerDrove()).toBe(true);
+    } else {
+      // Off-window cadence must stay compiled — the same property, inverted.
+      expect(playerDrove()).toBe(false);
+    }
   });
 
   it("touch Blink routing is untouched by the desktop verdict", () => {
