@@ -1,6 +1,12 @@
 import type { NavigateStatus } from "@navigate/store";
 
-import type { SharedBarPresenceLike } from "@core/engine/createSwipeController";
+// Presence of a partner screen's shared bars, used to decide ride-along.
+// Defined HERE (the pure decision module) — the swipe controller re-exports
+// it, so the engine layer depends on the screen layer, never the reverse.
+export interface SharedBarPresenceLike {
+  topBar: boolean;
+  bottomBar: boolean;
+}
 
 export interface BarRidingInput {
   status: NavigateStatus;
