@@ -108,6 +108,47 @@ describe("attachFlightRecorder branches", () => {
     expect(flight.anomalies.some((entry) => entry.includes("opening-swallow risk"))).toBe(true);
   });
 
+  it("files a long task inside the hold as absorbed, not opening-swallow", async () => {
+    let observerCallback: ((list: { getEntries: () => unknown[] }) => void) | null = null;
+    class FakePerformanceObserver {
+      static supportedEntryTypes = ["longtask"];
+      constructor(callback: (list: { getEntries: () => unknown[] }) => void) {
+        observerCallback = callback;
+      }
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("PerformanceObserver", FakePerformanceObserver);
+
+    const screen = mountScreen();
+    attach();
+    await settle();
+
+    screen.setAttribute("data-flemo-status", "PUSHING");
+    screen.setAttribute("data-flemo-active", "true");
+    screen.setAttribute("data-flemo-anim-hold", "park-under");
+    await settle();
+    // A heavy commit fully inside the hold window (ending before the
+    // release) — the absorption the hold exists for. Backdated so its END
+    // predates the upcoming release regardless of jsdom frame timing.
+    observerCallback!({
+      getEntries: () => [{ startTime: performance.now() - 200, duration: 150 }]
+    });
+    await frames(3);
+    screen.setAttribute("data-flemo-anim-hold", "false");
+    await settle();
+    await frames(2);
+    screen.setAttribute("data-flemo-status", "COMPLETED");
+    await settle();
+    await frames(3);
+
+    const flight = handle!.report().flights[0];
+    expect(flight.holdLongTasks.length).toBeGreaterThanOrEqual(1);
+    expect(flight.longTasks).toEqual([]);
+    expect(flight.anomalies.some((entry) => entry.includes("absorbed by the hold"))).toBe(true);
+    expect(flight.anomalies.some((entry) => entry.includes("opening-swallow"))).toBe(false);
+  });
+
   it("counts bar, decorator, and part participants", async () => {
     const screen = mountScreen();
     const bar = document.createElement("div");

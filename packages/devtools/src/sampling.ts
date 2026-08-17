@@ -1,22 +1,58 @@
 import { LONG_GAP_MS } from "./anomalies";
 
-import type { FlightDriver, FlightKind, FrameSampleStats, PlayerGapStats } from "./types";
+import type {
+  FlightDriver,
+  FlightKind,
+  FramePhaseStats,
+  FrameSampleStats,
+  PlayerGapStats
+} from "./types";
 
 // Pure helpers over sampled flight data. Kept free of DOM access so anomaly
 // pipelines are testable with synthetic inputs.
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
 
-export const computeFrameStats = (gaps: readonly number[]): FrameSampleStats => {
+export const computePhaseStats = (gaps: readonly number[]): FramePhaseStats => {
   if (gaps.length === 0) {
-    return { count: 0, medianGapMs: 0, maxGapMs: 0, longGaps: [] };
+    return { count: 0, medianGapMs: 0, maxGapMs: 0, over30Count: 0 };
   }
   const sorted = [...gaps].sort((left, right) => left - right);
   return {
     count: gaps.length,
     medianGapMs: round1(sorted[Math.floor(sorted.length / 2)]),
     maxGapMs: round1(sorted[sorted.length - 1]),
-    longGaps: gaps.filter((gap) => gap >= LONG_GAP_MS).map(round1)
+    over30Count: gaps.filter((gap) => gap >= LONG_GAP_MS).length
+  };
+};
+
+/**
+ * Combined frame stats: `heldGaps` are frames sampled while any transitional
+ * screen still carried an active anim-hold; `releasedGaps` are frames after
+ * every hold released. The hold phase precedes release, so the overall
+ * ordered gap list is their concatenation.
+ */
+export const computeFrameStats = (
+  heldGaps: readonly number[],
+  releasedGaps: readonly number[] = []
+): FrameSampleStats => {
+  const gaps = [...heldGaps, ...releasedGaps];
+  const overall =
+    gaps.length === 0
+      ? { count: 0, medianGapMs: 0, maxGapMs: 0 }
+      : (() => {
+          const sorted = [...gaps].sort((left, right) => left - right);
+          return {
+            count: gaps.length,
+            medianGapMs: round1(sorted[Math.floor(sorted.length / 2)]),
+            maxGapMs: round1(sorted[sorted.length - 1])
+          };
+        })();
+  return {
+    ...overall,
+    longGaps: gaps.filter((gap) => gap >= LONG_GAP_MS).map(round1),
+    held: computePhaseStats(heldGaps),
+    released: computePhaseStats(releasedGaps)
   };
 };
 

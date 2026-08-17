@@ -44,17 +44,40 @@ export interface FlightParticipants {
 export interface FlightHolds {
   /** "park-under" | "park-over" | "park" | "true", or null if no hold ran. */
   kind: string | null;
-  /** Milliseconds after t0 at which the hold released, if observed. */
+  /**
+   * Milliseconds after t0 at which the LAST hold released (every
+   * transitional screen's data-flemo-anim-hold at "false"). Null when no
+   * hold ran — or when a hold never released (then the whole flight is the
+   * held phase).
+   */
   releasedAtMs: number | null;
 }
 
-/** Stats over the recorder's own rAF-observed frame gaps during the flight. */
+/** Frame-gap stats for one phase of a flight (held vs released). */
+export interface FramePhaseStats {
+  count: number;
+  medianGapMs: number;
+  maxGapMs: number;
+  over30Count: number;
+}
+
+/**
+ * Stats over the recorder's own rAF-observed frame gaps during the flight,
+ * segmented by the anim-hold phase. The engine deliberately absorbs heavy
+ * commits INTO the hold (the screen is posed, not moving), so a gap during
+ * `held` is the engine working as designed — only `released` gaps are
+ * user-visible jank, and only they drive anomaly rules.
+ */
 export interface FrameSampleStats {
   count: number;
   medianGapMs: number;
   maxGapMs: number;
   /** Every observed gap >= 30ms (a missed 60Hz frame), in order. */
   longGaps: number[];
+  /** Frames while any transitional screen still carried an active hold. */
+  held: FramePhaseStats;
+  /** Frames after every hold released — the phase the eye watches. */
+  released: FramePhaseStats;
 }
 
 /** Stats over the transition player's own gap mirror (__flemoPlayerGaps). */
@@ -102,7 +125,17 @@ export interface FlightRecord {
   frameSamples: FrameSampleStats;
   /** Present only when the player's gap mirror grew during the flight. */
   playerGaps?: PlayerGapStats;
+  /**
+   * Long tasks intersecting the RELEASED phase (visible motion) — these
+   * drive the anomaly rules.
+   */
   longTasks: LongTaskSpan[];
+  /**
+   * Long tasks fully absorbed by the hold phase: the screen was posed, not
+   * moving, so these are the engine's commit-absorption working as designed,
+   * not user-visible jank.
+   */
+  holdLongTasks: LongTaskSpan[];
   landing: LandingAudit;
   /** Human/agent-readable findings derived from the data above. */
   anomalies: string[];

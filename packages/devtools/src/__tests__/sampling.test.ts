@@ -3,22 +3,53 @@ import { describe, expect, it } from "vitest";
 import {
   classifyDriver,
   computeFrameStats,
+  computePhaseStats,
   computePlayerGapStats,
   kindFromStatus,
   parseTranslateX
 } from "../sampling";
 
-describe("computeFrameStats", () => {
+describe("computePhaseStats", () => {
   it("handles the empty case", () => {
-    expect(computeFrameStats([])).toEqual({ count: 0, medianGapMs: 0, maxGapMs: 0, longGaps: [] });
+    expect(computePhaseStats([])).toEqual({
+      count: 0,
+      medianGapMs: 0,
+      maxGapMs: 0,
+      over30Count: 0
+    });
   });
 
-  it("computes median, max, and long gaps in order", () => {
-    const stats = computeFrameStats([16.7, 16.6, 41.2, 16.8, 33.0]);
+  it("computes median, max, and over-30 count", () => {
+    expect(computePhaseStats([16.7, 16.6, 41.2, 16.8, 33.0])).toEqual({
+      count: 5,
+      medianGapMs: 16.8,
+      maxGapMs: 41.2,
+      over30Count: 2
+    });
+  });
+});
+
+describe("computeFrameStats", () => {
+  it("handles the empty case", () => {
+    const stats = computeFrameStats([], []);
+    expect(stats.count).toBe(0);
+    expect(stats.longGaps).toEqual([]);
+    expect(stats.held.count).toBe(0);
+    expect(stats.released.count).toBe(0);
+  });
+
+  it("computes overall median, max, and ordered long gaps across both phases", () => {
+    const stats = computeFrameStats([16.7, 41.2], [16.6, 16.8, 33.0]);
     expect(stats.count).toBe(5);
     expect(stats.medianGapMs).toBe(16.8);
     expect(stats.maxGapMs).toBe(41.2);
     expect(stats.longGaps).toEqual([41.2, 33]);
+  });
+
+  it("segments held and released phases separately", () => {
+    const stats = computeFrameStats([16.7, 80.0], [16.6, 16.8]);
+    expect(stats.held).toEqual({ count: 2, medianGapMs: 80, maxGapMs: 80, over30Count: 1 });
+    expect(stats.released).toEqual({ count: 2, medianGapMs: 16.8, maxGapMs: 16.8, over30Count: 0 });
   });
 });
 

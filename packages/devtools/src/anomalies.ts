@@ -26,13 +26,22 @@ export interface FlightAnomalyInput {
   driver: FlightDriver;
   frameSamples: FrameSampleStats;
   playerGaps: PlayerGapStats | null;
+  /** Long tasks intersecting the RELEASED (visible-motion) phase. */
   longTasks: LongTaskSpan[];
+  /** Long tasks fully absorbed by the hold phase (informational only). */
+  holdLongTasks: LongTaskSpan[];
+  /** Hold release offset from t0 — the start of visible motion (null: no hold). */
+  releasedAtMs: number | null;
   landing: LandingAudit;
 }
 
 export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
   const anomalies: string[] = [];
-  const { t0Ms, driver, frameSamples, playerGaps, longTasks, landing } = input;
+  const { t0Ms, driver, frameSamples, playerGaps, longTasks, holdLongTasks, landing } = input;
+  // The visible motion starts at the hold release, not the status flip —
+  // the engine absorbs heavy commits INTO the hold on purpose, so both the
+  // opening window and the gap rules key on the released phase.
+  const visibleStartMs = t0Ms + (input.releasedAtMs ?? 0);
 
   if (playerGaps && playerGaps.over30Count > 0) {
     anomalies.push(
@@ -41,28 +50,39 @@ export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
     );
   }
 
-  if (frameSamples.longGaps.length > 0) {
+  if (frameSamples.released.over30Count > 0) {
     const suffix =
       driver === "compiled"
         ? " (compiled/compositor flights can still present cleanly through main-thread gaps)"
         : "";
     anomalies.push(
-      `main-thread rAF gap up to ${frameSamples.maxGapMs}ms ×${frameSamples.longGaps.length} ` +
-        `during flight${suffix}`
+      `main-thread rAF gap up to ${frameSamples.released.maxGapMs}ms ` +
+        `×${frameSamples.released.over30Count} during visible motion${suffix}`
     );
   }
 
   for (const task of longTasks) {
     const overlapsOpening =
-      task.startMs <= t0Ms + OPENING_WINDOW_TAIL_MS &&
-      task.startMs + task.durationMs >= t0Ms - OPENING_WINDOW_LEAD_MS;
+      task.startMs <= visibleStartMs + OPENING_WINDOW_TAIL_MS &&
+      task.startMs + task.durationMs >= visibleStartMs - OPENING_WINDOW_LEAD_MS;
     if (overlapsOpening) {
       anomalies.push(
-        `long task ${Math.round(task.durationMs)}ms overlapped flight start (opening-swallow risk: ` +
-          "the first frames of the transition may never have been presented)"
+        `long task ${Math.round(task.durationMs)}ms overlapped the visible-motion start ` +
+          "(opening-swallow risk: the first presented frames of the transition may have been lost)"
       );
     } else if (task.durationMs >= MID_FLIGHT_TASK_MS) {
       anomalies.push(`long task ${Math.round(task.durationMs)}ms mid-flight`);
+    }
+  }
+
+  for (const task of holdLongTasks) {
+    if (task.durationMs >= MID_FLIGHT_TASK_MS) {
+      // Informational, not a defect: absorbing exactly these commits is what
+      // the hold exists for — worth showing so an agent sees it working.
+      anomalies.push(
+        `long task ${Math.round(task.durationMs)}ms absorbed by the hold ` +
+          "(screen posed, not yet moving — the hold doing its job, not user-visible jank)"
+      );
     }
   }
 

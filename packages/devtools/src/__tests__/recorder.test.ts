@@ -149,7 +149,7 @@ describe("attachFlightRecorder", () => {
     ).toBe(true);
   });
 
-  it("tracks anim-holds and their release", async () => {
+  it("tracks anim-holds, their release, and segments frame gaps by phase", async () => {
     const screen = mountScreen();
     attach();
     await settle();
@@ -158,9 +158,10 @@ describe("attachFlightRecorder", () => {
     screen.setAttribute("data-flemo-active", "true");
     screen.setAttribute("data-flemo-anim-hold", "park-under");
     await settle();
-    await frames(2);
+    await frames(3);
     screen.setAttribute("data-flemo-anim-hold", "false");
     await settle();
+    await frames(3);
     screen.setAttribute("data-flemo-status", "COMPLETED");
     await settle();
     await frames(3);
@@ -168,6 +169,13 @@ describe("attachFlightRecorder", () => {
     const flight = handle!.report().flights[0];
     expect(flight.holds.kind).toBe("park-under");
     expect(flight.holds.releasedAtMs).toBeGreaterThanOrEqual(0);
+    // Frames sampled on both sides of the release boundary land in their
+    // phase buckets, and the overall stats cover both.
+    expect(flight.frameSamples.held.count).toBeGreaterThanOrEqual(1);
+    expect(flight.frameSamples.released.count).toBeGreaterThanOrEqual(1);
+    expect(flight.frameSamples.count).toBe(
+      flight.frameSamples.held.count + flight.frameSamples.released.count
+    );
   });
 
   it("summarizes the player gap mirror growth during the flight", async () => {

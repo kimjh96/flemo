@@ -3,14 +3,32 @@ import { describe, expect, it } from "vitest";
 import { deriveFlightAnomalies, deriveReportAnomalies } from "../anomalies";
 
 import type { FlightAnomalyInput } from "../anomalies";
+import type { FramePhaseStats } from "../types";
+
+const phase = (over: Partial<FramePhaseStats> = {}): FramePhaseStats => ({
+  count: 24,
+  medianGapMs: 16.7,
+  maxGapMs: 18.2,
+  over30Count: 0,
+  ...over
+});
 
 const cleanFlight = (): FlightAnomalyInput => ({
   t0Ms: 1000,
   t1Ms: 1400,
   driver: "compiled",
-  frameSamples: { count: 24, medianGapMs: 16.7, maxGapMs: 18.2, longGaps: [] },
+  frameSamples: {
+    count: 24,
+    medianGapMs: 16.7,
+    maxGapMs: 18.2,
+    longGaps: [],
+    held: phase({ count: 0, medianGapMs: 0, maxGapMs: 0 }),
+    released: phase()
+  },
   playerGaps: null,
   longTasks: [],
+  holdLongTasks: [],
+  releasedAtMs: null,
   landing: { residualInlineTransforms: [], offViewportAtRest: false, stuckStatuses: [] }
 });
 
@@ -28,24 +46,53 @@ describe("deriveFlightAnomalies", () => {
     expect(anomalies.some((entry) => entry.includes("player frame gap up to 42ms ×3"))).toBe(true);
   });
 
-  it("flags main-thread rAF gaps, softened for compiled flights", () => {
+  it("flags released-phase main-thread rAF gaps, softened for compiled flights", () => {
+    const base = cleanFlight();
     const anomalies = deriveFlightAnomalies({
-      ...cleanFlight(),
-      frameSamples: { count: 24, medianGapMs: 16.7, maxGapMs: 55, longGaps: [41, 55] }
+      ...base,
+      frameSamples: {
+        ...base.frameSamples,
+        maxGapMs: 55,
+        longGaps: [41, 55],
+        released: phase({ maxGapMs: 55, over30Count: 2 })
+      }
     });
     const line = anomalies.find((entry) => entry.includes("main-thread rAF gap"));
     expect(line).toContain("up to 55ms ×2");
+    expect(line).toContain("during visible motion");
     expect(line).toContain("can still present cleanly");
   });
 
   it("does not soften main-thread gaps for player flights", () => {
+    const base = cleanFlight();
     const anomalies = deriveFlightAnomalies({
-      ...cleanFlight(),
+      ...base,
       driver: "player",
-      frameSamples: { count: 24, medianGapMs: 16.7, maxGapMs: 55, longGaps: [55] }
+      frameSamples: {
+        ...base.frameSamples,
+        maxGapMs: 55,
+        longGaps: [55],
+        released: phase({ maxGapMs: 55, over30Count: 1 })
+      }
     });
     const line = anomalies.find((entry) => entry.includes("main-thread rAF gap"));
     expect(line).not.toContain("can still present cleanly");
+  });
+
+  it("does NOT flag gaps confined to the hold phase (absorbed by design)", () => {
+    const base = cleanFlight();
+    const anomalies = deriveFlightAnomalies({
+      ...base,
+      releasedAtMs: 120,
+      frameSamples: {
+        ...base.frameSamples,
+        maxGapMs: 80,
+        longGaps: [80],
+        held: phase({ maxGapMs: 80, over30Count: 1 }),
+        released: phase()
+      }
+    });
+    expect(anomalies).toEqual([]);
   });
 
   it("classifies a long task overlapping flight start as opening-swallow risk", () => {
@@ -54,6 +101,38 @@ describe("deriveFlightAnomalies", () => {
       longTasks: [{ startMs: 920, durationMs: 180 }]
     });
     expect(anomalies.some((entry) => entry.includes("opening-swallow risk"))).toBe(true);
+  });
+
+  it("anchors the opening window at the hold release, not the status flip", () => {
+    // Release at t0+200: a task at the release point is an opening risk; the
+    // same task without a hold (release at t0) would be plain mid-flight.
+    const anomalies = deriveFlightAnomalies({
+      ...cleanFlight(),
+      releasedAtMs: 200,
+      longTasks: [{ startMs: 1180, durationMs: 120 }]
+    });
+    expect(anomalies.some((entry) => entry.includes("opening-swallow risk"))).toBe(true);
+  });
+
+  it("reports hold-phase long tasks as absorbed, not as jank", () => {
+    const anomalies = deriveFlightAnomalies({
+      ...cleanFlight(),
+      releasedAtMs: 250,
+      holdLongTasks: [{ startMs: 1010, durationMs: 180 }]
+    });
+    const line = anomalies.find((entry) => entry.includes("absorbed by the hold"));
+    expect(line).toContain("long task 180ms");
+    expect(line).toContain("not user-visible jank");
+    expect(anomalies.some((entry) => entry.includes("opening-swallow"))).toBe(false);
+  });
+
+  it("keeps small hold-phase long tasks silent", () => {
+    const anomalies = deriveFlightAnomalies({
+      ...cleanFlight(),
+      releasedAtMs: 250,
+      holdLongTasks: [{ startMs: 1010, durationMs: 60 }]
+    });
+    expect(anomalies).toEqual([]);
   });
 
   it("labels a large mid-flight long task without the opening tag", () => {

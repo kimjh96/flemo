@@ -32,6 +32,7 @@ export type { FlagClass, FlagDescriptor } from "./overrides";
 export {
   classifyDriver,
   computeFrameStats,
+  computePhaseStats,
   computePlayerGapStats,
   kindFromStatus,
   parseTranslateX
@@ -50,6 +51,7 @@ export type {
   FlightRecorderHandle,
   FlightRecorderOptions,
   FlightTimestamp,
+  FramePhaseStats,
   FrameSampleStats,
   LandingAudit,
   LongTaskSpan,

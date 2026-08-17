@@ -53,7 +53,10 @@ interface ActiveFlight {
   holdKind: string | null;
   holdReleasedAtMs: number | null;
   playerGapStartIndex: number;
-  gaps: number[];
+  /** Frame gaps while any participant still carried an active anim-hold. */
+  heldGaps: number[];
+  /** Frame gaps after every hold released (the visible-motion phase). */
+  releasedGaps: number[];
   lastFrameAt: number | null;
   evidence: DriverEvidence;
   lastPose: Map<Element, string>;
@@ -192,12 +195,27 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
     }
   };
 
+  // A hold is active while ANY participating screen still carries an active
+  // data-flemo-anim-hold value; the flight is "released" once every one of
+  // them reads "false" (or drops the attribute). The engine deliberately
+  // absorbs heavy commits INTO the hold — the screen is posed, not moving —
+  // so gaps and long tasks are segmented on this boundary.
+  const holdActive = (flight: ActiveFlight): boolean =>
+    flight.elements.some((element) => {
+      const value = element.getAttribute(HOLD_ATTR);
+      return value !== null && HOLD_KINDS.has(value);
+    });
+
   const sampleFrame = () => {
     const flight = current;
     if (!flight || detached) return;
     const now = performance.now();
-    if (flight.lastFrameAt !== null && flight.gaps.length < MAX_FRAME_GAPS) {
-      flight.gaps.push(now - flight.lastFrameAt);
+    if (
+      flight.lastFrameAt !== null &&
+      flight.heldGaps.length + flight.releasedGaps.length < MAX_FRAME_GAPS
+    ) {
+      const phase = holdActive(flight) ? flight.heldGaps : flight.releasedGaps;
+      phase.push(now - flight.lastFrameAt);
     }
     flight.lastFrameAt = now;
     sampleDriverEvidence(flight);
@@ -245,7 +263,8 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       holdKind,
       holdReleasedAtMs: null,
       playerGapStartIndex: windowSlot().__flemoPlayerGaps?.length ?? 0,
-      gaps: [],
+      heldGaps: [],
+      releasedGaps: [],
       lastFrameAt: null,
       evidence: { compiledAnimation: false, playerSuppression: false, playerAdvance: false },
       lastPose: new Map(),
@@ -325,9 +344,10 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       driver: classifyDriver(flight.evidence),
       participants: flight.participants,
       holds: { kind: flight.holdKind, releasedAtMs: flight.holdReleasedAtMs },
-      frameSamples: computeFrameStats(flight.gaps),
+      frameSamples: computeFrameStats(flight.heldGaps, flight.releasedGaps),
       ...(playerGaps ? { playerGaps } : {}),
       longTasks: [], // correlated lazily at report() — entries arrive async
+      holdLongTasks: [],
       landing: { residualInlineTransforms: [], offViewportAtRest: false, stuckStatuses },
       anomalies: [] // derived lazily at report()
     };
@@ -354,8 +374,10 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       (value === "false" || value === null) &&
       mutation.oldValue !== null &&
       HOLD_KINDS.has(mutation.oldValue) &&
-      flight.holdReleasedAtMs === null
+      flight.holdReleasedAtMs === null &&
+      !holdActive(flight)
     ) {
+      // The LAST hold released: from here the motion is visible.
       flight.holdReleasedAtMs = round1(performance.now() - flight.t0Ms);
     }
   };
@@ -430,15 +452,38 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
     document.addEventListener("DOMContentLoaded", onDomReady, { once: true });
   }
 
-  const correlateLongTasks = (record: FlightRecord): LongTaskSpan[] =>
-    longTasks.filter(
+  // Split the flight's long tasks on the hold-release boundary: a task fully
+  // inside the hold was absorbed by design (the screen is posed, not
+  // moving); a task straddling or past the release impinges on visible
+  // motion. A hold that never released (releasedAtMs null with a hold kind)
+  // makes the whole flight the held phase.
+  const correlateLongTasks = (
+    record: FlightRecord
+  ): { released: LongTaskSpan[]; held: LongTaskSpan[] } => {
+    const all = longTasks.filter(
       (task) => task.startMs + task.durationMs >= record.t0.ms - 120 && task.startMs <= record.t1.ms
     );
+    const releaseBoundaryMs =
+      record.holds.kind === null
+        ? record.t0.ms
+        : record.holds.releasedAtMs === null
+          ? record.t1.ms
+          : record.t0.ms + record.holds.releasedAtMs;
+    return {
+      released: all.filter((task) => task.startMs + task.durationMs > releaseBoundaryMs),
+      held: all.filter((task) => task.startMs + task.durationMs <= releaseBoundaryMs)
+    };
+  };
 
   const materializeFlights = (): FlightRecord[] => {
     const now = performance.now();
     const closed = flights.map((record) => {
-      const withTasks: FlightRecord = { ...record, longTasks: correlateLongTasks(record) };
+      const tasks = correlateLongTasks(record);
+      const withTasks: FlightRecord = {
+        ...record,
+        longTasks: tasks.released,
+        holdLongTasks: tasks.held
+      };
       withTasks.anomalies = deriveFlightAnomalies({
         t0Ms: withTasks.t0.ms,
         t1Ms: withTasks.t1.ms,
@@ -446,6 +491,8 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
         frameSamples: withTasks.frameSamples,
         playerGaps: withTasks.playerGaps ?? null,
         longTasks: withTasks.longTasks,
+        holdLongTasks: withTasks.holdLongTasks,
+        releasedAtMs: withTasks.holds.releasedAtMs,
         landing: withTasks.landing
       });
       return withTasks;
@@ -465,8 +512,9 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       driver: classifyDriver(flight.evidence),
       participants: flight.participants,
       holds: { kind: flight.holdKind, releasedAtMs: flight.holdReleasedAtMs },
-      frameSamples: computeFrameStats(flight.gaps),
+      frameSamples: computeFrameStats(flight.heldGaps, flight.releasedGaps),
       longTasks: [],
+      holdLongTasks: [],
       landing: {
         residualInlineTransforms: [],
         offViewportAtRest: false,
@@ -474,7 +522,9 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       },
       anomalies: []
     };
-    provisional.longTasks = correlateLongTasks(provisional);
+    const provisionalTasks = correlateLongTasks(provisional);
+    provisional.longTasks = provisionalTasks.released;
+    provisional.holdLongTasks = provisionalTasks.held;
     provisional.anomalies = deriveFlightAnomalies({
       t0Ms: provisional.t0.ms,
       t1Ms: provisional.t1.ms,
@@ -482,6 +532,8 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       frameSamples: provisional.frameSamples,
       playerGaps: provisional.playerGaps ?? null,
       longTasks: provisional.longTasks,
+      holdLongTasks: provisional.holdLongTasks,
+      releasedAtMs: provisional.holds.releasedAtMs,
       landing: provisional.landing
     });
     return [...closed, provisional];

@@ -89,10 +89,24 @@ inert handle.
       // platform always routes one tier; routing policies evolve.
       "driver": "compiled",
       "participants": { "screens": 2, "bars": 0, "decorators": 1, "parts": 0 },
-      "holds": { "kind": "park-under", "releasedAtMs": 120 }, // data-flemo-anim-hold
-      "frameSamples": { "count": 36, "medianGapMs": 16.7, "maxGapMs": 17.2, "longGaps": [] },
+      // data-flemo-anim-hold: releasedAtMs = when the LAST hold released,
+      // relative to t0. The engine absorbs heavy commits INTO the hold (the
+      // screen is posed, not moving), so everything below is segmented on
+      // this boundary.
+      "holds": { "kind": "park-under", "releasedAtMs": 120 },
+      "frameSamples": {
+        "count": 36,
+        "medianGapMs": 16.7,
+        "maxGapMs": 17.2,
+        "longGaps": [],
+        // held-phase gaps are absorbed by design — no anomaly ever fires on them;
+        "held": { "count": 7, "medianGapMs": 18.1, "maxGapMs": 45.0, "over30Count": 1 },
+        // released-phase gaps are visible motion — the anomaly rules key on these.
+        "released": { "count": 29, "medianGapMs": 16.7, "maxGapMs": 17.2, "over30Count": 0 }
+      },
       "playerGaps": { "maxMs": 42.3, "over30Count": 1 }, // only if the player mirror grew
-      "longTasks": [{ "startMs": 1200.0, "durationMs": 180.0 }], // overlapping the flight
+      "longTasks": [{ "startMs": 1200.0, "durationMs": 180.0 }], // intersecting visible motion
+      "holdLongTasks": [], // fully absorbed by the hold — engine working as designed
       "landing": {
         // Audited 2 rAF after COMPLETED:
         "residualInlineTransforms": [], // inline transform/opacity leftovers
