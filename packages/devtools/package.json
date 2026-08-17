@@ -1,0 +1,62 @@
+{
+  "name": "@flemo/devtools",
+  "version": "0.0.0",
+  "description": "Zero-config flight recorder for flemo screen transitions: captures per-flight driver routing, frame pacing, long tasks, landing residues, active debug overrides, and environment/observation-trap fingerprints into one JSON report readable by humans and coding agents.",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "keywords": [
+    "flemo",
+    "devtools",
+    "diagnostics",
+    "flight-recorder",
+    "transition",
+    "performance"
+  ],
+  "author": {
+    "name": "kimjh96",
+    "email": "kimjhs@kakao.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kimjh96/flemo.git",
+    "directory": "packages/devtools"
+  },
+  "bugs": {
+    "url": "https://github.com/kimjh96/flemo/issues",
+    "email": "kimjhs@kakao.com"
+  },
+  "homepage": "https://flemo.dev",
+  "license": "MIT",
+  "scripts": {
+    "build": "vite build",
+    "watch": "vite build --watch",
+    "dev": "vite build --watch",
+    "lint": "eslint \"**/*.{js,mjs,ts,jsx,tsx,mts}\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist .turbo"
+  },
+  "devDependencies": {
+    "@flemo/eslint-config": "workspace:*",
+    "@flemo/tsconfig": "workspace:*",
+    "@types/node": "^24.13.1",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^9.39.5",
+    "jsdom": "^29.1.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.2.1",
+    "vite-plugin-dts": "^5.0.3",
+    "vitest": "^4.1.10"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

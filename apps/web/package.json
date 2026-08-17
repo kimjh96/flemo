@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@flemo/core": "workspace:*",
+    "@flemo/devtools": "workspace:*",
     "@flemo/react": "workspace:*",
     "@flemo/react-layout": "workspace:*",
     "motion": "^12.40.0",

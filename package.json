@@ -21,7 +21,7 @@
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "turbo run build --filter=\"./packages/*\" && changeset publish",
-    "build:packages": "turbo run build --filter=@flemo/core --filter=@flemo/react --filter=@flemo/react-layout",
+    "build:packages": "turbo run build --filter=@flemo/core --filter=@flemo/react --filter=@flemo/react-layout --filter=@flemo/devtools",
     "size": "size-limit",
     "prepare": "husky"
   },
