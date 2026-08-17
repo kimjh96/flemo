@@ -382,24 +382,53 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
     }
   };
 
-  const observer = new MutationObserver((mutations) => {
-    if (detached) return;
-    for (const mutation of mutations) {
-      if (mutation.type === "attributes" && mutation.attributeName === HOLD_ATTR) {
-        trackHoldMutation(mutation);
+  let observer: MutationObserver | null = null;
+  let pendingDomReady: (() => void) | null = null;
+
+  // Wire the mutation observer onto the document root. At document-start
+  // (e.g. a Playwright addInitScript, a <head> inline script in a streaming
+  // document) `document.documentElement` can still be null and observe()
+  // throws "parameter 1 is not of type 'Node'" — so wiring is deferred to
+  // DOMContentLoaded when the root isn't there yet. The returned handle is
+  // valid either way; only the observation starts late.
+  const wireObserver = (): boolean => {
+    const root = document.documentElement;
+    if (!root) return false;
+    const wired = new MutationObserver((mutations) => {
+      if (detached) return;
+      for (const mutation of mutations) {
+        if (mutation.type === "attributes" && mutation.attributeName === HOLD_ATTR) {
+          trackHoldMutation(mutation);
+        }
       }
+      evaluate();
+    });
+    try {
+      wired.observe(root, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeOldValue: true,
+        attributeFilter: [STATUS_ATTR, ACTIVE_ATTR, HOLD_ATTR]
+      });
+    } catch {
+      // A detached/replaced root: leave the recorder inert rather than throw.
+      return false;
     }
+    observer = wired;
+    // Catch a flight already in progress at wiring time.
     evaluate();
-  });
-  observer.observe(document.documentElement, {
-    subtree: true,
-    childList: true,
-    attributes: true,
-    attributeOldValue: true,
-    attributeFilter: [STATUS_ATTR, ACTIVE_ATTR, HOLD_ATTR]
-  });
-  // Catch a flight already in progress at attach time.
-  evaluate();
+    return true;
+  };
+
+  if (!wireObserver()) {
+    const onDomReady = () => {
+      pendingDomReady = null;
+      if (!detached) wireObserver();
+    };
+    pendingDomReady = onDomReady;
+    document.addEventListener("DOMContentLoaded", onDomReady, { once: true });
+  }
 
   const correlateLongTasks = (record: FlightRecord): LongTaskSpan[] =>
     longTasks.filter(
@@ -507,7 +536,11 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
   const detach = () => {
     if (detached) return;
     detached = true;
-    observer.disconnect();
+    observer?.disconnect();
+    if (pendingDomReady !== null) {
+      document.removeEventListener("DOMContentLoaded", pendingDomReady);
+      pendingDomReady = null;
+    }
     longTaskObserver?.disconnect();
     if (current?.rafId != null) cancelAnimationFrame(current.rafId);
     current = null;

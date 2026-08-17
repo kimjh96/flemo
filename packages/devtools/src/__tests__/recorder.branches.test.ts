@@ -270,6 +270,54 @@ describe("attachFlightRecorder branches", () => {
     expect(globalApi.stale).toBeUndefined();
   });
 
+  it("defers observer wiring to DOMContentLoaded when attached before the root exists", async () => {
+    // Simulate a document-start attach (Playwright addInitScript): no
+    // documentElement yet, so MutationObserver.observe would throw.
+    const root = document.documentElement;
+    root.remove();
+    expect(document.documentElement).toBeNull();
+
+    let recorder: FlightRecorderHandle | null = null;
+    expect(() => {
+      recorder = attach();
+    }).not.toThrow();
+    // The handle is valid immediately, before any DOM exists.
+    expect(recorder!.report().flights).toEqual([]);
+
+    // The document finishes parsing: root returns, DOMContentLoaded fires.
+    document.appendChild(root);
+    document.dispatchEvent(new Event("DOMContentLoaded"));
+    await settle();
+
+    // Observation is live from here: a flight records normally.
+    const screen = mountScreen();
+    await settle();
+    await runFlight(screen);
+    expect(handle!.report().flights).toHaveLength(1);
+  });
+
+  it("cancels pending deferred wiring on detach", async () => {
+    const root = document.documentElement;
+    root.remove();
+    const recorder = attach();
+    recorder.detach();
+    handle = null;
+
+    document.appendChild(root);
+    document.dispatchEvent(new Event("DOMContentLoaded"));
+    await settle();
+
+    // The detached recorder never wired: a status flip is not observed by it,
+    // and a fresh recorder attaches cleanly and owns the flight.
+    const fresh = attach();
+    await settle();
+    const screen = mountScreen();
+    await settle();
+    await runFlight(screen);
+    expect(fresh.report().flights).toHaveLength(1);
+    expect(recorder.report().flights).toEqual([]);
+  });
+
   it("cancels the sampler when detached mid-flight", async () => {
     const screen = mountScreen();
     const recorder = attach();
