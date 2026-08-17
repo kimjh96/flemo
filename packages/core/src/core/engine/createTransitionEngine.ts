@@ -910,6 +910,12 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       const taskId = deps.getTransitionTaskId();
       if (!taskId) return null;
 
+      // Surface an active diagnostic force pin exactly once. Routing below may
+      // short-circuit (desktop Blink returns the compiled tier before ever
+      // reading the pin), so read it here unconditionally: a forgotten pin must
+      // never run silently, whichever tier the context resolves to.
+      driverPolicy.pinnedDriver();
+
       // Per-context driver selection, both decided by the library:
       // 1. A REPLAY CHAIN (more navigations queued behind this one — a rapid
       //    back/forward storm) runs on the compiled CSS path on BLINK ONLY:
