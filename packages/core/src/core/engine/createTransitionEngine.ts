@@ -818,6 +818,15 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       //    by the engine's own probe (armed below), still routes genuine
       //    high-refresh cadences.
       if (
+        // A "raf" force pin bypasses this desktop/high-refresh gate, same as it
+        // bypasses the native-kind choice below: a pinned session must
+        // player-drive EVERYTHING to be a useful instrument. Without this,
+        // `driver=raf` silently stayed on the compiled tier for desktop Blink
+        // (maxTouchPoints === 0 fired first), so the player+per-frame-snap path
+        // — the only tier that can quantize a HiDPI transform to device pixels
+        // every frame and kill the sub-pixel convergence shimmer — was
+        // unreachable on desktop even when explicitly pinned.
+        driverPolicy.pinnedDriver() !== "raf" &&
         detectBlinkEngine() &&
         ((typeof navigator !== "undefined" && navigator.maxTouchPoints === 0) ||
           learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS)
