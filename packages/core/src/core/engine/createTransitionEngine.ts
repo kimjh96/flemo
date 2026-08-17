@@ -14,6 +14,12 @@ import { resolveVariantMotion, type VariantMotion } from "@transition/variantMot
 
 import createArrivalHold from "@core/engine/arrivalHold";
 import holdCompositorWarm from "@core/engine/compositorWarmUp";
+import {
+  readHandoffFlag,
+  readImageHoldFlag,
+  readLandingSnapFlag,
+  readSettleGateFlag
+} from "@core/engine/diagnosticFlags";
 import driverPolicy, { detectBlinkEngine, isLegacyAndroidBlink } from "@core/engine/driverPolicy";
 import { noticeDeviceEmulationOnce } from "@core/engine/emulationNotice";
 import { beginFlightWindow } from "@core/engine/flightWindow";
@@ -28,7 +34,6 @@ import {
 import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
 import {
   armLowPowerCadenceLifecycle,
-  lowPowerCadenceActive,
   governedCompiledActive,
   probeLowPowerCadence
 } from "@core/engine/lowPowerCadence";
@@ -196,52 +201,6 @@ const statusChoreographySpanMs = (
   return spanMs;
 };
 
-const readLandingSnapFlag = (): boolean => {
-  try {
-    return (
-      typeof sessionStorage !== "undefined" && sessionStorage.getItem("flemo:landing-snap") === "on"
-    );
-  } catch {
-    return false;
-  }
-};
-
-// Image reveal hold (see imageRevealHold.ts): parks an entering screen's
-// still-loading (and oversized cached) <img> paints to rest so a mid-flight
-// image load OR a re-entry's giant-texture re-composite can't re-raster the
-// sliding layer. ON BY DEFAULT FOR BLINK, off elsewhere: on Blink an image
-// decodes off the main thread, so the reveal is a cheap composite in the quiet
-// rest window — but on WebKit the deferred decode is SYNCHRONOUS at the reveal,
-// which stacks the stall at rest instead of removing it (device: WebKit got
-// worse with the hold on, Blink/Note 9's re-entry swallow needs it). Explicit
-// `flemo:imghold=on|off` overrides. The fetch-level responseHold ships on by
-// default for every engine; this is its <img> analog, engine-scoped.
-const readImageHoldFlag = (): boolean => {
-  try {
-    return (
-      typeof sessionStorage !== "undefined" && sessionStorage.getItem("flemo:imghold") === "on"
-    );
-  } catch {
-    return false;
-  }
-};
-
-// EXPERIMENT (2026-08-14): `flemo:compiled=on` routes ALL touch WebKit to the
-// COMPILED compositor tier (the one already driving low-power WebKit, desktop
-// Safari, and demoted Blink) instead of the rAF player — unifying WebKit on a
-// single compositor path. It carries the governed-head kit (the LPM flat-head
-// keyframes) so the opening commit lands inside an invisible held head rather
-// than swallowing the curve's start (the reason the player owned touch WebKit).
-const readForceCompiledWebKit = (): boolean => {
-  try {
-    return (
-      typeof sessionStorage !== "undefined" && sessionStorage.getItem("flemo:compiled") === "on"
-    );
-  } catch {
-    return false;
-  }
-};
-
 // The render-settle gate (react ScreenMotion, `flemo:settle-gate`) holds the
 // anim-hold release until the entering screen's MOUNT render storm quiesces —
 // so by release the heavy commit is already painted and the release update is
@@ -253,18 +212,9 @@ const readForceCompiledWebKit = (): boolean => {
 // The render-settle gate is ON BY DEFAULT for touch WebKit (governedCompiledActive):
 // the governed-compiled opening only presents cleanly when the release waits for
 // the entering mount's render to quiesce, so it ships with the tier. An explicit
-// `flemo:settle-gate=off` opts out; `=on` is redundant now but still honored.
-const readSettleGateActive = (): boolean => {
-  try {
-    const v =
-      typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:settle-gate") : null;
-    if (v === "on") return true;
-    if (v === "off") return false;
-    return governedCompiledActive();
-  } catch {
-    return false;
-  }
-};
+// `flemo:settle-gate=off` opts out; `=on` is redundant now but still honored
+// (see readSettleGateFlag in diagnosticFlags.ts — shared with react's
+// ScreenMotion so both sides always agree).
 
 // The anchored-opening handoff (see transitionPlayer): when on, PUSH stays on
 // the PLAYER — its clock anchors the opening (caps the entry-commit monster
@@ -275,17 +225,11 @@ const readSettleGateActive = (): boolean => {
 // anchored (no jump), smooth accelerated tail. Without this exemption the
 // settle gate below silently routes PUSH to the compiled tier, which can't
 // anchor and jumps on the raster stall — masking the player+handoff path.
-const readHandoffActive = (): boolean => {
-  try {
-    return (
-      typeof sessionStorage !== "undefined" && sessionStorage.getItem("flemo:handoff") === "on"
-    );
-  } catch {
-    return false;
-  }
-};
+// (`flemo:handoff=on`, read uncached via readHandoffFlag so a DevTools toggle
+// takes effect on the next navigation.)
 
-// Which touch-WebKit statuses `flemo:compiled=on` routes to the compiled tier:
+// Which touch-WebKit statuses route to the compiled tier (the fall-through
+// branch in joinPlayer below):
 // POP defaults to compiled (its return-to-mounted commit was ASSUMED light) —
 // but device-measured, a heavy returning screen's re-commit swallows POP's
 // opening exactly like PUSH's, so the handoff exemption now covers POP too:
@@ -293,8 +237,8 @@ const readHandoffActive = (): boolean => {
 // freeze-on-stall opening (no wall-clock advance across the return commit).
 // PUSH: compiled only when the settle gate is on AND handoff is off.
 const forceCompiledStatus = (status: string): boolean =>
-  (status === "POPPING" && !readHandoffActive()) ||
-  (status === "PUSHING" && readSettleGateActive() && !readHandoffActive());
+  (status === "POPPING" && !readHandoffFlag()) ||
+  (status === "PUSHING" && readSettleGateFlag() && !readHandoffFlag());
 
 // High-refresh routing (see joinPlayer): below this display interval the
 // compiled tier drives on Blink. 12ms sits between 120Hz (8.3) and 90Hz
@@ -877,9 +821,18 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           status
         );
         const releaseResponses = beginResponseHold(holdSpanMs + GATE_MOTION_MARGIN_MS);
-        // The <img> analog of responseHold: park this screen's still-loading
-        // image paints to rest so a mid-flight load can't re-raster the sliding
-        // layer (fetch parking never sees an <img> load). Opt-in for now.
+        // Image reveal hold (see imageRevealHold.ts): parks an entering
+        // screen's still-loading (and oversized cached) <img> paints to rest
+        // so a mid-flight image load OR a re-entry's giant-texture
+        // re-composite can't re-raster the sliding layer. OPT-IN on every
+        // engine (`flemo:imghold=on`), shipped OFF by default: on WebKit the
+        // deferred decode is SYNCHRONOUS at the reveal, which stacks the
+        // stall at rest instead of removing it (device: WebKit got worse
+        // with the hold on), and the Blink case that motivated it (the
+        // Note 9's re-entry swallow) is solved by the auto-gated image
+        // decode offloader instead (isLegacyAndroidBlink). The fetch-level
+        // responseHold above ships on by default for every engine; this is
+        // its <img> analog, retained as a measurement instrument.
         const releaseImages = readImageHoldFlag()
           ? beginImageRevealHold(scope, holdSpanMs + GATE_MOTION_MARGIN_MS)
           : noop;
@@ -1004,28 +957,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       ) {
         return null;
       }
-      // DIAGNOSTIC (temporary): record the routing inputs for the active
-      // screen so an on-device probe can see WHY a flight chose player vs
-      // compiled.
-      try {
-        const w = window as unknown as { __flemoRoute?: unknown[] };
-        w.__flemoRoute = w.__flemoRoute ?? [];
-        if (w.__flemoRoute.length < 40) {
-          w.__flemoRoute.push({
-            v: variant,
-            role,
-            fc: readForceCompiledWebKit(),
-            sg: readSettleGateActive(),
-            fcs: forceCompiledStatus(variant.split("-")[0]),
-            blink: detectBlinkEngine(),
-            lpm: lowPowerCadenceActive(),
-            touch: typeof navigator !== "undefined" ? navigator.maxTouchPoints : -1
-          });
-        }
-      } catch {
-        // ignore
-      }
-      // EXPERIMENT (flemo:compiled=on): route the compiled compositor tier —
+      // Touch-WebKit compiled routing: route the compiled compositor tier —
       // no per-frame device-px snap (no convergence drr), no seam, and no
       // per-frame main-thread transform write to compete with the entering
       // screen's content paint (the residual iPhone opening hitch the player

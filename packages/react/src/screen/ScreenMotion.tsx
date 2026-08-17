@@ -18,10 +18,12 @@ import {
   createTransitionEngine,
   decoratorMap,
   enteringInitialStyle,
+  governedCompiledActive,
   observeBarHeight,
+  readPrerasterFlag,
+  readSettleGateFlag,
   resolveTransition,
-  type AnimHoldCoordinator,
-  governedCompiledActive
+  type AnimHoldCoordinator
 } from "@flemo/core";
 
 import getScopeAnimHoldCoordinator from "@screen/scopeAnimHoldCoordinator";
@@ -41,36 +43,19 @@ import useStores from "@stores/useStores";
 
 import RouterIdContext from "../RouterIdContext";
 
-// The RENDER-settle entry gate holds the motion until the entering screen's
+// The RENDER-settle entry gate (readSettleGateFlag, from @flemo/core's
+// diagnostic-flag registry — the same reader the engine's routing uses, so
+// both sides always agree) holds the motion until the entering screen's
 // mount render quiesces, so a heavy screen's own commit storm can't drop the
 // opening frames. ON BY DEFAULT for touch WebKit (governedCompiledActive) — it
 // ships with the governed-compiled tier that needs a quiet opening. Explicit
 // `flemo:settle-gate=off` opts out; `=on` is redundant but honored.
-const readSettleGateFlag = (): boolean => {
-  try {
-    const v =
-      typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:settle-gate") : null;
-    if (v === "on") return true;
-    if (v === "off") return false;
-    return governedCompiledActive();
-  } catch {
-    return false;
-  }
-};
-
-// EXPERIMENT (flemo:preraster=on): promote the entering content layer from the
-// hold onward (will-change: transform below) so its tiles keep a live backing
-// store across the flight. Retained as an opt-in probe; the swallow itself is
-// solved by the scrub tier's freeze-on-block opening, not by pre-raster.
-const readPrerasterFlag = (): boolean => {
-  try {
-    return (
-      typeof sessionStorage !== "undefined" && sessionStorage.getItem("flemo:preraster") === "on"
-    );
-  } catch {
-    return false;
-  }
-};
+//
+// readPrerasterFlag (`flemo:preraster=on`): promote the entering content
+// layer from the hold onward (will-change: transform below) so its tiles keep
+// a live backing store across the flight. Retained as an opt-in probe; the
+// swallow itself is solved by the scrub tier's freeze-on-block opening, not
+// by pre-raster.
 
 function ScreenMotion({
   children,

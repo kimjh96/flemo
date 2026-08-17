@@ -5,8 +5,19 @@ import { resolveEasing, type EasingFunction } from "@transition/cubicBezier";
 import settleScrubber from "@transition/settleScrub";
 import type { MotionTarget, VariantMotion } from "@transition/variantMotion";
 
+import {
+  handoffMs,
+  handoffOverride,
+  jitterBandMaxDevicePx,
+  snapOverride,
+  snapshotApplyOverride
+} from "@core/engine/diagnosticFlags";
 import driverPolicy, { detectBlinkEngine } from "@core/engine/driverPolicy";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
+
+// Test seam re-export: the session override caches now live in the flag
+// registry, but the suites reach them through this module.
+export { resetSessionOverrideCachesForTests } from "@core/engine/diagnosticFlags";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The rAF transition player: drives transition MOTION by writing inline
@@ -345,97 +356,11 @@ export interface SnapMemory {
 // erratic-under-load snapping was the source of both judder (2D path) and
 // edge shimmer (3D path)); sub-pixel-per-frame motion writes the raw value so
 // the 3D path's texture filtering glides it instead of stepping it.
-// Session-scoped diagnostic override for the velocity-gated snap below:
-// "always" snaps every frame, "off" always writes raw sub-pixel values.
-// An on-device A/B instrument (the gate itself stays the shipped default);
-// read once per page load.
-// Session-scoped diagnostic for the VALUE-APPLICATION path: "scrub" forces
-// the scrub-WAAPI driver for every track (see the join below); read once per
-// page load.
-let applyOverrideCache: "scrub" | null | undefined;
-const snapshotApplyOverride = (): "scrub" | null => {
-  if (applyOverrideCache !== undefined) return applyOverrideCache;
-  try {
-    const value =
-      typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:apply") : null;
-    applyOverrideCache = value === "scrub" ? value : null;
-  } catch {
-    applyOverrideCache = null;
-  }
-  return applyOverrideCache;
-};
-
-// Test-only: the session override caches are read once per page load; tests
-// reset them to exercise each override path in one module instance.
-export const resetSessionOverrideCachesForTests = () => {
-  applyOverrideCache = undefined;
-  snapOverrideCache = undefined;
-  handoffOverrideCache = undefined;
-  nativePlayOverrideCache = undefined;
-  jitterBandCache = undefined;
-  handoffMsCache = undefined;
-};
-
-// Session-scoped OPT-IN for the anchored-opening HANDOFF below: "on" enables
-// it. Default OFF everywhere — the 2026-08 iPhone falsification series ended
-// with mid-flight-born animations (however unremarkable their timing)
-// intermittently desyncing WebKit's accelerated re-sync at a suspense
-// reveal's commit, so no production flight may hand its remainder to one.
-// The machinery is retained as a measured instrument (and as the record of
-// the series — see the handoff header).
-// EXPERIMENT (2026-08-14, motion-inspired): born-at-START native WAAPI drive.
-// `flemo:native=on` routes the WHOLE non-Blink flight through a fresh, PLAYING
-// Web Animation (never paused, never scrubbed, never re-born mid-flight) — the
-// authored bezier over from→to, resolved on its finish event. The compositor
-// owns every frame off the main thread (no per-frame write, no device-px snap
-// → no convergence "드르륵", full display rate incl. 120Hz), and because the
-// animation is born ONCE from the joining commit's from-pose — not stamped
-// with a wall-clock delay (the compiled path's opening-swallow) and not
-// re-born mid-flight (the handoff's accelerated-re-sync desync) — it is the
-// one untested cell of the 2026-08 falsification grid: exactly how motion.dev
-// drives, applied to a screen transition. Diagnostic while it earns device
-// trust; default stays the per-frame player.
-let nativePlayOverrideCache: "on" | null | undefined;
-const nativePlayOverride = (): "on" | null => {
-  if (nativePlayOverrideCache !== undefined) return nativePlayOverrideCache;
-  try {
-    const value =
-      typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:native") : null;
-    nativePlayOverrideCache = value === "on" ? value : null;
-  } catch {
-    nativePlayOverrideCache = null;
-  }
-  return nativePlayOverrideCache;
-};
-
-let handoffOverrideCache: "on" | null | undefined;
-const handoffOverride = (): "on" | null => {
-  if (handoffOverrideCache !== undefined) return handoffOverrideCache;
-  try {
-    const value =
-      typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:handoff") : null;
-    handoffOverrideCache = value === "on" ? value : null;
-  } catch {
-    handoffOverrideCache = null;
-  }
-  return handoffOverrideCache;
-};
-
-let snapOverrideCache: "always" | "off" | "gate" | "hybrid" | null | undefined;
-const snapOverride = (): "always" | "off" | "gate" | "hybrid" | null => {
-  if (snapOverrideCache !== undefined) return snapOverrideCache;
-  try {
-    const value =
-      typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:snap") : null;
-    snapOverrideCache =
-      value === "always" || value === "off" || value === "gate" || value === "hybrid"
-        ? value
-        : null;
-  } catch {
-    snapOverrideCache = null;
-  }
-  return snapOverrideCache;
-};
+//
+// Session-scoped diagnostic overrides (`flemo:snap`, `flemo:apply`,
+// `flemo:handoff`, `flemo:snapband`, `flemo:handoffms`) live in the flag
+// registry (diagnosticFlags.ts) — read once per page load and cached there;
+// tests reset the caches through resetSessionOverrideCachesForTests.
 
 // The DEFAULT snap policy, per platform — both ends device-judged (2026-08):
 // - WebKit at DESKTOP densities (dpr < 3): snap EVERY frame. The felt "지글"
@@ -461,31 +386,13 @@ const REST_LANDING_MAX_DEVICE_PX = 12;
 // The jitter band (device px per ACTUAL frame): below this step size,
 // integer snapping modulates the presented velocity by up to ±0.5px/frame —
 // 17-50% of the step. Used by the "hybrid" diagnostic (fractional through
-// the band, snapped above). On Blink the high-refresh COMPILED routing (see
+// the band, snapped above; width tunable via `flemo:snapband`, see
+// diagnosticFlags.ts). On Blink the high-refresh COMPILED routing (see
 // createTransitionEngine) removes the player from the displays where this
 // modulation was eye-visible; a 2026-08 attempt to present the band at half
 // cadence on the player was eye-falsified (no improvement, and it would
 // have force-degraded true-120Hz WebKit devices), so the player keeps plain
 // per-frame snapping here.
-const JITTER_BAND_MAX_DEVICE_PX = 4;
-
-// DIAGNOSTIC (temporary, 2026-08-14): the hybrid jitter-band width is
-// device-tuned per session — `flemo:snapband=<n>` narrows the fractional band
-// so only the SLOWEST tail (sub-n device px/frame) goes sub-pixel while faster
-// motion keeps crisp snapping. Read once, cached; default is the constant.
-let jitterBandCache: number | undefined;
-const jitterBandMaxDevicePx = (): number => {
-  if (jitterBandCache !== undefined) return jitterBandCache;
-  try {
-    const raw =
-      typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:snapband") : null;
-    const n = raw === null ? NaN : Number(raw);
-    jitterBandCache = Number.isFinite(n) && n > 0 ? n : JITTER_BAND_MAX_DEVICE_PX;
-  } catch {
-    jitterBandCache = JITTER_BAND_MAX_DEVICE_PX;
-  }
-  return jitterBandCache;
-};
 
 const composeTransform = (
   channels: TransformChannel[],
@@ -649,35 +556,6 @@ const createScrubAnimation = (element: HTMLElement, motion: VariantMotion): Anim
   }
 };
 
-// Born-at-START native drive (see nativePlayOverride): the SAME WAAPI
-// animation as the scrub, but left PLAYING — the compositor owns every frame
-// off the main thread. `fill: "both"` pins from-pose in the joining commit and
-// holds to-pose after finish (until detach cancels and the compiled rest rules
-// take over), exactly like the scrub's pin.
-const createPlayingAnimation = (
-  element: HTMLElement,
-  motion: VariantMotion,
-  // Extra positive delay to hold the from-pose through the animation's own
-  // birth-advance (the ~1 frame between el.animate() and its first composite).
-  // Without it the first PRESENTED frame is already that fraction into the
-  // curve — on a front-loaded ease (cupertino) the eye reads the omitted
-  // opening as a skipped start ("띡하고 휙"). Holding one frame lands the first
-  // paint exactly on the from-pose, so the motion eases in from rest.
-  openingHoldMs: number = 0
-): Animation | null => {
-  if (typeof element.animate !== "function") return null;
-  try {
-    return element.animate([motionKeyframe(motion.from), motionKeyframe(motion.to)], {
-      duration: Math.max(0, motion.duration * 1000),
-      delay: Math.max(0, motion.delay * 1000) + Math.max(0, openingHoldMs),
-      easing: easingToCss(motion.ease),
-      fill: "both"
-    });
-  } catch {
-    return null;
-  }
-};
-
 // Stall semantics: how the clock treats one frame gap.
 //
 // - A gap up to PASS_THROUGH_FRAMES × the display interval is ordinary
@@ -723,55 +601,6 @@ const SLOW_CADENCE_MAX_MS = 42;
 // fresh player, and on a genuinely slow display re-learning from the 60Hz
 // seed would lose a few frames of clock at the top of EVERY flight.
 let lastLearnedIntervalMs = NOMINAL_FRAME_MS;
-
-// DIAGNOSTIC (temporary, 2026-08-14 iOS pop-opening probe): record the FIRST
-// inter-frame gap of each flight — the "monster entering-commit frame" window
-// — so an on-device capture can confirm whether an inflated carried cadence
-// lets that opening gap pass through as a wall-clock lurch instead of
-// re-anchoring. `seed` is the flight's frameIntervalMs at the gap (= carried
-// lastLearnedIntervalMs when the opening gap exceeds SLOW_CADENCE_MAX and so
-// is not admitted to the estimator); `thr` is the pass-through threshold; a
-// gap ABOVE thr re-anchors, a gap BELOW it passes through (the lurch).
-const openingFrames = new WeakMap<object, { n: number; t0: number; trace: number[][] }>();
-const recordOpeningFrame = (
-  player: object,
-  time: number,
-  elapsedMs: number,
-  gap: number,
-  reanchored: boolean
-): void => {
-  let rec = openingFrames.get(player);
-  if (!rec) {
-    rec = { n: 0, t0: time, trace: [] };
-    openingFrames.set(player, rec);
-  }
-  if (rec.n >= 8) return;
-  rec.n += 1;
-  // [frame#, t-since-frame1, elapsed(=clock age), gap-since-last, reanchored,
-  //  abs perf.now] — the absolute stamp on frame1 lets the probe subtract the
-  // popstate time (same performance.now clock) to see popstate→frame1 latency,
-  // which separates a LATE first frame from a writeTrack from-pose delay.
-  const nowAbs =
-    typeof performance !== "undefined" && typeof performance.now === "function"
-      ? Math.round(performance.now())
-      : 0;
-  rec.trace.push([
-    rec.n,
-    Math.round(time - rec.t0),
-    Math.round(elapsedMs),
-    Math.round(gap),
-    reanchored ? 1 : 0,
-    nowAbs
-  ]);
-  if (typeof window === "undefined") return;
-  const log = ((window as { __flemoOpenings?: unknown[] }).__flemoOpenings ??= []);
-  // Keep the LAST trace array in place (overwrite the tail entry each frame so
-  // one flight = one growing row) — cheap and lets the probe slice the newest.
-  if (rec.n === 1) {
-    log.push(rec.trace);
-    if (log.length > 20) log.splice(0, log.length - 20);
-  }
-};
 
 // The engine's tier routing needs the display cadence OUTSIDE a live player
 // (a routed-compiled flight runs no player to learn from): expose the
@@ -828,28 +657,18 @@ export const reportDisplayIntervalMs = (intervalMs: number): void => {
 // exists — see the file header), and rAF gaps do not mean presentation gaps.
 
 // How much of the flight the anchored player clock drives before the
-// handoff: six nominal frames. Enough for the entry storm to have landed
-// (the entering commit blocks the FIRST frame or two) and for the capped
-// clock to have absorbed it; early enough that the browser owns the long
-// middle and the whole convergence.
-const HANDOFF_MS_DEFAULT = 6 * NOMINAL_FRAME_MS;
-// DIAGNOSTIC (temporary, 2026-08-14): `flemo:handoffms=<n>` moves the handoff
-// point per session so an on-device round can tell whether a PERCEIVED jump
-// tracks the handoff (→ compositor-transition artifact, dial it) or stays put
-// (→ presentation/curve, not the handoff). Read once, cached.
-let handoffMsCache: number | undefined;
-const handoffMs = (): number => {
-  if (handoffMsCache !== undefined) return handoffMsCache;
-  try {
-    const raw =
-      typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:handoffms") : null;
-    const n = raw === null ? NaN : Number(raw);
-    handoffMsCache = Number.isFinite(n) && n >= 0 ? n : HANDOFF_MS_DEFAULT;
-  } catch {
-    handoffMsCache = HANDOFF_MS_DEFAULT;
-  }
-  return handoffMsCache;
-};
+// handoff: six nominal frames by default (HANDOFF_MS_DEFAULT, tunable per
+// session via `flemo:handoffms` — see handoffMs in diagnosticFlags.ts).
+// Enough for the entry storm to have landed (the entering commit blocks the
+// FIRST frame or two) and for the capped clock to have absorbed it; early
+// enough that the browser owns the long middle and the whole convergence.
+// Session-scoped OPT-IN (`flemo:handoff=on`, see handoffOverride in
+// diagnosticFlags.ts). Default OFF everywhere — the 2026-08 iPhone
+// falsification series ended with mid-flight-born animations (however
+// unremarkable their timing) intermittently desyncing WebKit's accelerated
+// re-sync at a suspense reveal's commit, so no production flight may hand
+// its remainder to one. The machinery is retained as a measured instrument
+// (and as the record of the series — see above).
 
 export interface PlayerScheduler {
   request: (callback: (time: number) => void) => number;
@@ -945,19 +764,6 @@ export const createTransitionPlayerRegistry = (
   }
 
   const players = new Map<string, Player>();
-  // Born-at-start native drive: per-navigation set of playing WAAPI animations.
-  // The navigation resolves (active's onComplete) when EVERY participant's
-  // animation has fired its finish event — the compositor-side mirror of the
-  // player's "every track done".
-  const nativeNavs = new Map<
-    string,
-    {
-      pending: Set<object>;
-      onComplete?: () => void;
-      done: boolean;
-      anims: Set<Animation>;
-    }
-  >();
 
   const registry: TransitionPlayerRegistry = {
     join: (taskId, input) => {
@@ -967,103 +773,6 @@ export const createTransitionPlayerRegistry = (
       // deliberately does NOT hand off — it isolates the value-application
       // path, so the whole flight stays scrubbed.
       const forceScrub = snapshotApplyOverride() === "scrub";
-      // EXPERIMENT — born-at-start native drive (see nativePlayOverride). The
-      // whole non-Blink flight runs on ONE playing WAAPI animation: compositor
-      // frames end-to-end, no per-frame write, no device-px snap (→ no
-      // convergence drr), and no scrub→compositor handoff (→ no seam). The
-      // opening-swallow that shelved a full-flight compositor drive is a
-      // PUSH/REPLACE hazard — the entering screen's heavy mount commit runs the
-      // compositor clock forward before first glass. A POP returns to an
-      // ALREADY-MOUNTED screen (device-measured: only light status-attr commits,
-      // zero long tasks), so its birth doesn't collide with a heavy commit —
-      // scope the native drive to POP (and unspecified-status unit tests).
-      // Completion is the union of every participant's finish event.
-      if (
-        !forceScrub &&
-        !detectBlinkEngine() &&
-        nativePlayOverride() === "on" &&
-        input.status !== "PUSHING" &&
-        input.status !== "REPLACING"
-      ) {
-        const el = input.element;
-        // Pin the from-pose SYNCHRONOUSLY in the joining commit — a paused
-        // scrub at currentTime 0 with fill "both" — so the returning screen
-        // shows its from-pose, never a rest flash. The real motion is NOT born
-        // here: born in this commit, the compositor clock would run through the
-        // commit's own main-thread block and swallow the opening (device-seen
-        // as the returning screen starting already past its from-pose). Instead
-        // the playing animation is born ONE scheduler frame later, AFTER the
-        // commit has painted, so its clock starts clean from the from-pose.
-        const nativePin =
-          parseMotion(input.motion, input.element) &&
-          createScrubAnimation(input.element, input.motion);
-        if (nativePin) {
-          const nativeWriter = Symbol("flemo-native-track");
-          settleScrubber.takeover(el);
-          trackInlineWrite(el, "animation", nativeWriter);
-          el.style.animation = "none";
-          let nav = nativeNavs.get(taskId);
-          if (!nav) {
-            nav = {
-              pending: new Set<object>(),
-              onComplete: undefined,
-              done: false,
-              anims: new Set<Animation>()
-            };
-            nativeNavs.set(taskId, nav);
-          }
-          const navRec = nav;
-          const token = {};
-          navRec.pending.add(token);
-          navRec.anims.add(nativePin);
-          if (input.role === "active" && input.onComplete) navRec.onComplete = input.onComplete;
-          const settle = () => {
-            if (!navRec.pending.delete(token)) return;
-            if (navRec.pending.size === 0 && !navRec.done) {
-              navRec.done = true;
-              nativeNavs.delete(taskId);
-              navRec.onComplete?.();
-            }
-          };
-          let playing: Animation | null = null;
-          let disposed = false;
-          const birthHandle = scheduler.request(() => {
-            if (disposed) return;
-            playing = createPlayingAnimation(el, input.motion, NOMINAL_FRAME_MS);
-            if (!playing) {
-              // No WAAPI at birth (should not happen — the pin proved it): the
-              // pin's fill holds the from-pose; complete so the flip's rest
-              // rules take over rather than stranding the navigation.
-              settle();
-              return;
-            }
-            navRec.anims.add(playing);
-            navRec.anims.delete(nativePin);
-            try {
-              nativePin.cancel();
-            } catch {
-              // Already gone.
-            }
-            playing.onfinish = settle;
-          });
-          return () => {
-            disposed = true;
-            scheduler.cancel(birthHandle);
-            navRec.pending.delete(token);
-            for (const anim of [nativePin, playing]) {
-              if (!anim) continue;
-              navRec.anims.delete(anim);
-              try {
-                anim.cancel();
-              } catch {
-                // Already cancelled/finished.
-              }
-            }
-            clearInlineAnimation(el, undefined, nativeWriter);
-          };
-        }
-        // Unparseable motion or no WAAPI: fall through to the player.
-      }
       // Anchored-opening handoff (see HANDOFF_MS) — diagnostic OPT-IN only
       // (see handoffOverride): the scrub tier is then PREFERRED for
       // numerically drivable motion, because the handoff needs the browser
@@ -1205,17 +914,6 @@ export const createTransitionPlayerRegistry = (
       };
     },
     dispose: (taskId) => {
-      const nav = nativeNavs.get(taskId);
-      if (nav) {
-        for (const anim of nav.anims) {
-          try {
-            anim.cancel();
-          } catch {
-            // Already gone.
-          }
-        }
-        nativeNavs.delete(taskId);
-      }
       const player = players.get(taskId);
       if (!player) return;
       if (player.frameHandle !== null) scheduler.cancel(player.frameHandle);
@@ -1360,20 +1058,6 @@ export const createTransitionPlayerRegistry = (
     // (detach, dispose) cancels the LIVE animation and its fill.
     track.scrub = remainder;
     track.handedOff = true;
-    // DIAGNOSTIC (temporary, 2026-08-14 handoff-seam): a born-playing WAAPI
-    // animation advances between el.animate() and its first composite. Log the
-    // presented pose it was baked from and the currentTime it has actually
-    // reached one rAF later — the exact birth-advance to compensate.
-    if (typeof window !== "undefined" && typeof requestAnimationFrame === "function") {
-      const bakedFromMs = Math.round(presentedMs);
-      requestAnimationFrame(() => {
-        const ct =
-          typeof remainder.currentTime === "number" ? Math.round(remainder.currentTime) : -1;
-        const log = ((window as { __flemoSeam?: unknown[] }).__flemoSeam ??= []);
-        log.push({ baked: bakedFromMs, ct });
-        if (log.length > 40) log.splice(0, log.length - 40);
-      });
-    }
     remainder.onfinish = () => {
       if (track.completed || track.detached) return;
       track.completed = true;
@@ -1388,24 +1072,15 @@ export const createTransitionPlayerRegistry = (
         players.delete(taskId);
       }
     };
-    // On-device diagnostics: handoff moments, mirrored like the frame gaps.
-    if (typeof window !== "undefined") {
-      const log = ((window as { __flemoHandoffs?: number[] }).__flemoHandoffs ??= []);
-      log.push(Math.round(currentTimeMs));
-      if (log.length > 100) log.splice(0, log.length - 100);
-    }
     return true;
   }
 
   function stepPlayer(taskId: string, player: Player, time: number) {
     // This frame's anchor. `??` (not `||`) so a legitimate t0 of 0 stays 0.
     let startTime = player.startTime ?? time;
-    let diagGap = 0;
-    let diagReanchored = false;
 
     if (player.lastTime !== null) {
       const gap = time - player.lastTime;
-      diagGap = gap;
       // Report the RAW gap — the true time since our last frame — to the driver
       // policy and the diagnostic hook BEFORE any re-anchor. The policy demotes
       // a device off its OWN measured stalls (driverPolicy.ts); re-anchoring
@@ -1440,18 +1115,12 @@ export const createTransitionPlayerRegistry = (
       // the probe reads as a blown commit window, so the compensation held
       // frames constantly. Both were reverted; the synthetic win did not
       // transfer. Do not re-attempt without an adaptive per-page baseline.)
-      const reanchored = gap > PASS_THROUGH_FRAMES * player.frameIntervalMs;
-      if (reanchored) {
+      if (gap > PASS_THROUGH_FRAMES * player.frameIntervalMs) {
         startTime += gap - player.frameIntervalMs;
       }
-      diagReanchored = reanchored;
     }
     player.startTime = startTime;
     player.lastTime = time;
-    // DIAGNOSTIC: elapsed (= clock age against the finalized anchor) per
-    // opening frame — tells whether the clock is ADVANCING (delay/curve) or
-    // pinned at 0 (deferred start) while the transform sits at from-pose.
-    recordOpeningFrame(player, time, time - startTime, diagGap, diagReanchored);
 
     let allDone = true;
     let needsFrame = false;
