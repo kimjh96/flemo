@@ -50,15 +50,6 @@ const install = () => {
     return original(...args).then(
       (response) => {
         if (holdDepth <= 0 || isStream(response)) return response;
-        // DIAGNOSTIC (temporary): count parks so an on-device probe can confirm
-        // the hold is actually catching the app's queries (vs a data client
-        // that captured `fetch` before this wrap installed).
-        try {
-          const w = window as { __flemoParked?: number };
-          w.__flemoParked = (w.__flemoParked ?? 0) + 1;
-        } catch {
-          // ignore
-        }
         return new Promise<Response>((resolve) => {
           parked.push(() => resolve(response));
         });

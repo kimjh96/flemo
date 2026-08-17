@@ -1,3 +1,4 @@
+import { parse } from "path-to-regexp";
 import { describe, expect, it } from "vitest";
 
 import buildRoutePath from "@utils/buildRoutePath";
@@ -54,5 +55,12 @@ describe("buildRoutePath", () => {
     const result = buildRoutePath("/q", { q: "hello world" });
 
     expect(result.pathname).toBe("/q?q=hello+world");
+  });
+
+  it("accepts pre-parsed token data instead of a string pattern", () => {
+    const result = buildRoutePath(parse("/posts/:id"), { id: "7", tab: "x" });
+
+    expect(result.toPathname).toBe("/posts/7");
+    expect(result.pathname).toBe("/posts/7?tab=x");
   });
 });

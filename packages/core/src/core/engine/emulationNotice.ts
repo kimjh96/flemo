@@ -10,9 +10,10 @@ import { detectBlinkEngine } from "@core/engine/driverPolicy";
 // resamples glyph AA through the fractional scale), and the engine's
 // post-landing housekeeping (layer demotion, warm-up teardown — pixel-silent
 // in a plain window, measured) becomes a visible one-frame re-raster flash.
-// A multi-week jank hunt (docs/postmortem-2026-08-motion-jank.md) chased
-// exactly these phantoms because every instrument reads the pre-scale
-// surface and reports "clean" while the eye watches the post-scale one.
+// A multi-week jank hunt (2026-08) chased exactly these phantoms because
+// every instrument reads the pre-scale surface and reports "clean" while the
+// eye watches the post-scale one — so establish the viewing configuration
+// (plain window or real device) BEFORE judging any motion artifact.
 //
 // So the engine says it out loud, once per session, the first time a
 // transition runs under emulation. Detection: the device toolbar force-
