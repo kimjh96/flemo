@@ -1,5 +1,3 @@
-import type { SharedBarPresenceLike } from "@screen/computeBarRiding";
-
 import animateInline, { clearInlineAnimation } from "@transition/animateInline";
 
 import type { Transition } from "@transition/typing";
@@ -9,6 +7,8 @@ import findScrollable from "@utils/findScrollable";
 import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
 
 import { partTransitionMap } from "@transition/partTransition/partTransition";
+
+import type { SharedBarPresenceLike } from "@screen/computeBarRiding";
 
 import type { Decorator } from "@transition/decorator/typing";
 
