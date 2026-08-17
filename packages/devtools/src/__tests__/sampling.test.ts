@@ -85,4 +85,10 @@ describe("parseTranslateX", () => {
     expect(parseTranslateX("")).toBeNull();
     expect(parseTranslateX("translate3d(100%, 0, 0)")).toBeNull();
   });
+
+  it("returns null for malformed matrix payloads", () => {
+    expect(parseTranslateX("matrix3d(1, 2, 3)")).toBeNull();
+    expect(parseTranslateX("matrix(1, 0, 0, 1, abc, 0)")).toBeNull();
+    expect(parseTranslateX("matrix(1, 0, 0)")).toBeNull();
+  });
 });

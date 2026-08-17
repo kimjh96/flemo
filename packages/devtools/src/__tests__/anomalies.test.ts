@@ -142,6 +142,22 @@ describe("deriveReportAnomalies", () => {
     expect(anomalies.some((entry) => entry.includes("was present at attach"))).toBe(true);
   });
 
+  it("does not double-report a cleared pin while an active pin exists", () => {
+    const anomalies = deriveReportAnomalies({
+      ...base,
+      forcePin: "css@1700000000000",
+      clearedForcePin: "raf"
+    });
+    expect(anomalies.filter((entry) => entry.includes("flemo:motion-driver-force"))).toHaveLength(
+      1
+    );
+  });
+
+  it("flags the legacy localStorage pin at report level", () => {
+    const anomalies = deriveReportAnomalies({ ...base, legacyLocalForcePin: "raf" });
+    expect(anomalies.some((entry) => entry.includes("legacy localStorage driver pin"))).toBe(true);
+  });
+
   it("flags DevTools device emulation, with the Windows caveat only on Windows", () => {
     const mac = deriveReportAnomalies({ ...base, emulationSuspected: true });
     expect(mac.some((entry) => entry.includes("device emulation suspected"))).toBe(true);

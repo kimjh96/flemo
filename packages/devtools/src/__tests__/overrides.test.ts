@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   deriveOverrideWarnings,
@@ -64,6 +64,40 @@ describe("snapshotOverrides", () => {
     expect(key).toBeDefined();
     expect(key).toContain("unknown key");
     expect(active[key as string]).toBe("42");
+  });
+
+  it("returns an empty record when storage access throws entirely", () => {
+    const throwing = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("partitioned");
+        }
+      }
+    );
+    vi.stubGlobal("sessionStorage", throwing);
+    vi.stubGlobal("localStorage", throwing);
+    expect(snapshotOverrides()).toEqual({});
+    vi.unstubAllGlobals();
+  });
+
+  it("tolerates a storage whose getItem throws after a healthy probe", () => {
+    sessionStorage.setItem("flemo:apply", "scrub");
+    const flaky = {
+      get length() {
+        return 1;
+      },
+      key: () => {
+        throw new Error("blocked");
+      },
+      getItem: () => {
+        throw new Error("blocked");
+      }
+    };
+    vi.stubGlobal("sessionStorage", flaky);
+    // Registry reads degrade to unset; enumeration degrades to nothing.
+    expect(snapshotOverrides()).toEqual({});
+    vi.unstubAllGlobals();
   });
 });
 
