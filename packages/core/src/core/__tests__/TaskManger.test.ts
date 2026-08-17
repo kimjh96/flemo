@@ -107,6 +107,48 @@ describe("TaskManger: manual control", () => {
   });
 });
 
+describe("TaskManger: condition control (non-manual)", () => {
+  it("parks a task whose condition is not yet met, then resolveAllPending releases it", async () => {
+    let conditionMet = false;
+    const order: string[] = [];
+
+    const pending = (async () => {
+      const { result } = await TaskManger.addTask(
+        async () => {
+          order.push("ran");
+          return async () => order.push("completed");
+        },
+        { control: { condition: async () => conditionMet } }
+      );
+      await result?.();
+    })();
+
+    // Let the task run up to its condition gate.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(order).toEqual(["ran"]);
+
+    conditionMet = true;
+    await TaskManger.resolveAllPending();
+    await pending;
+
+    expect(order).toEqual(["ran", "completed"]);
+  });
+
+  it("passes straight through when the condition is already met", async () => {
+    const order: string[] = [];
+    const { result } = await TaskManger.addTask(
+      async () => {
+        order.push("ran");
+        return async () => order.push("completed");
+      },
+      { control: { condition: async () => true } }
+    );
+    await result?.();
+
+    expect(order).toEqual(["ran", "completed"]);
+  });
+});
+
 describe("TaskManger: signal control", () => {
   it("stays SIGNAL_PENDING until emitSignal fires the matching signal", async () => {
     const id = `sig-${Math.random().toString(36).slice(2)}`;

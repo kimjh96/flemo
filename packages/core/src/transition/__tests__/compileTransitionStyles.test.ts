@@ -4,7 +4,9 @@ import {
   animationName,
   collectAnimatedProperties,
   compileTransitionStyles,
+  easingToCss,
   softenFrontLoadedEasing,
+  targetToDecls,
   variantHasAnimation
 } from "@transition/compileTransitionStyles";
 import createTransition from "@transition/createTransition";
@@ -1046,5 +1048,23 @@ describe("in-flight arrival hold rule", () => {
     const idx = css.indexOf("[data-flemo-held-arrival]");
     expect(idx).toBeGreaterThan(-1);
     expect(css.slice(idx)).toContain("display: none !important;");
+  });
+});
+
+describe("targetToDecls", () => {
+  it("supports rotate transform parts", () => {
+    const decls = targetToDecls({ rotate: "45deg", rotateX: "10deg", rotateY: "20deg" });
+    const transform = decls.find((decl) => decl.property === "transform");
+    expect(transform?.value).toContain("rotate(45deg)");
+    expect(transform?.value).toContain("rotateX(10deg)");
+    expect(transform?.value).toContain("rotateY(20deg)");
+  });
+});
+
+describe("easingToCss", () => {
+  it("maps named easings, malformed arrays, and bezier arrays", () => {
+    expect(easingToCss("easeInOut")).toBe("ease-in-out");
+    expect(easingToCss([0.1, 0.2, 0.3] as never)).toBe("linear");
+    expect(easingToCss([0.1, 0.2, 0.3, 0.4])).toBe("cubic-bezier(0.1, 0.2, 0.3, 0.4)");
   });
 });
