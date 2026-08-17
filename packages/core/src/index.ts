@@ -1,5 +1,8 @@
 // Core primitives
-export { default as TaskManger } from "@core/TaskManger";
+// `TaskManger` is the historical (misspelled) name — kept for compatibility;
+// `TaskManager` is the same singleton under the correct spelling. New code
+// should import `TaskManager`.
+export { default as TaskManger, default as TaskManager } from "@core/TaskManger";
 
 // History
 export {
