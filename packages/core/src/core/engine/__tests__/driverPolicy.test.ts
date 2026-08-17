@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   createDriverPolicy,
@@ -6,6 +6,37 @@ import {
   FORCE_PIN_TTL_MS,
   type DriverPolicyStorage
 } from "@core/engine/driverPolicy";
+
+// Node >= 22 ships an experimental global `localStorage` that reads as
+// `undefined` unless --localstorage-file is passed. In the vitest jsdom
+// environment `window === globalThis`, so that Node global shadows jsdom's
+// storage for BOTH this file and driverPolicy's default storage. Back it with
+// an in-memory Storage-shaped stub when it's unavailable; where jsdom's real
+// storage resolves (e.g. CI's Node 24) this is a no-op.
+beforeAll(() => {
+  const available = (() => {
+    try {
+      return typeof localStorage !== "undefined" && localStorage != null;
+    } catch {
+      return false;
+    }
+  })();
+  if (available) return;
+  const store = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => (store.has(key) ? store.get(key)! : null),
+      setItem: (key: string, value: string) => void store.set(key, String(value)),
+      removeItem: (key: string) => void store.delete(key),
+      clear: () => store.clear(),
+      key: (index: number) => Array.from(store.keys())[index] ?? null,
+      get length() {
+        return store.size;
+      }
+    }
+  });
+});
 
 const memoryStorage = (initial: string | null = null) => {
   let value = initial;
@@ -195,14 +226,15 @@ describe("detectBlinkEngine", () => {
 
 describe("driverPolicy default storage", () => {
   it("round-trips through localStorage and tolerates absence", () => {
-    localStorage.removeItem("flemo:motion-driver");
+    // Relies on the beforeAll storage backfill above on Node >= 22.
+    window.localStorage.removeItem("flemo:motion-driver");
     const policy = createDriverPolicy(undefined, true);
     expect(policy.playerAllowed()).toBe(true);
     stalledRun(policy);
     stalledRun(policy);
     expect(policy.playerAllowed()).toBe(false);
-    expect(localStorage.getItem("flemo:motion-driver")).toBe("css");
-    localStorage.removeItem("flemo:motion-driver");
+    expect(window.localStorage.getItem("flemo:motion-driver")).toBe("css");
+    window.localStorage.removeItem("flemo:motion-driver");
   });
 
   it("the force key pins the driver, bypassing strikes and probation, and warns", () => {
@@ -245,9 +277,9 @@ describe("driverPolicy default storage", () => {
     // decision, and reading the policy must delete it so the profile heals.
     const { storage } = memoryStorage();
     const policy = createDriverPolicy(storage, false);
-    localStorage.setItem("flemo:motion-driver-force", "raf");
+    window.localStorage.setItem("flemo:motion-driver-force", "raf");
     expect(policy.playerAllowed()).toBe(false); // never honored
-    expect(localStorage.getItem("flemo:motion-driver-force")).toBe(null); // healed
+    expect(window.localStorage.getItem("flemo:motion-driver-force")).toBe(null); // healed
   });
 
   it("tolerates a throwing localStorage during the legacy pin strip", () => {
