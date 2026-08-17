@@ -130,10 +130,21 @@ function Router({
   // Nesting controls ONLY the contained rendering; the history backend is chosen
   // by the `history` prop, independent of depth.
   const depth = useContext(RouterDepthContext);
-  // This Router's flight-boundary identity (see RouterIdContext). useId is
-  // fine here: the marker only needs page-load uniqueness, not cross-restore
-  // stability.
+  // This Router's flight-boundary identity (see RouterIdContext). useId gives
+  // page-load uniqueness, but its value encodes the component's position from
+  // the HYDRATION ROOT — so a consumer whose server render root differs from
+  // its client hydrate root (e.g. server renders <Html><App/></Html> while the
+  // client hydrateRoot's just <App/> at #root) produces a DIFFERENT useId on
+  // each side, and this id is the one flemo attribute that reaches the DOM
+  // (data-flemo-router), so it surfaces as a hydration mismatch. The engine
+  // only ever reads this attribute CLIENT-side (it scopes live flights; SSR
+  // never runs it), so the marker is withheld until after hydration: the
+  // server and the first client render both emit nothing (a match), and an
+  // effect exposes the id once mounted. Robust to any consumer's root config.
   const routerId = useId();
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+  const exposedRouterId = hydrated ? routerId : null;
   const isNested = depth > 0;
 
   // The history backend. "browser" (the default, even when nested) participates
@@ -373,7 +384,7 @@ function Router({
   // its own keyed driver + guard. A memory Router runs none (its driver's
   // traversals are awaited inline by the controller).
   const content = (
-    <RouterIdContext.Provider value={routerId}>
+    <RouterIdContext.Provider value={exposedRouterId}>
       <RouterDepthContext.Provider value={depth + 1}>
         <StoreContext.Provider value={stores}>
           {!useMemory && <HistoryListener />}
