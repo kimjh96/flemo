@@ -96,7 +96,10 @@ test.describe("motion perception", () => {
     page,
     browserName
   }) => {
-    test.skip(browserName === "webkit", "the player tier is exercised on Blink");
+    test.skip(
+      browserName === "webkit" || test.info().project.name === "chromium",
+      "the rAF player is production only on touch Blink; desktop and WebKit route the compiled tier"
+    );
     const { errors } = trackConsoleErrors(page);
     await openPlaygroundWithPinnedPlayer(page);
 
@@ -332,7 +335,10 @@ test.describe("motion perception", () => {
     page,
     browserName
   }) => {
-    test.skip(browserName === "webkit", "the player tier is exercised on Blink");
+    test.skip(
+      browserName === "webkit" || test.info().project.name === "chromium",
+      "the rAF player is production only on touch Blink; desktop and WebKit route the compiled tier"
+    );
     const { errors } = trackConsoleErrors(page);
     await page.addInitScript(() =>
       sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`)
@@ -384,7 +390,10 @@ test.describe("motion perception", () => {
   // compositor clock while their screen ran on the player — the mixed-clock
   // class, per part. Parts must join the shared player.
   test("a <Part> rides the player clock with its screen", async ({ page, browserName }) => {
-    test.skip(browserName === "webkit", "the player tier is exercised on Blink");
+    test.skip(
+      browserName === "webkit" || test.info().project.name === "chromium",
+      "the rAF player is production only on touch Blink; desktop and WebKit route the compiled tier"
+    );
     await openPlaygroundWithPinnedPlayer(page);
 
     const sample = page.evaluate(() => {
@@ -426,7 +435,10 @@ test.describe("motion perception", () => {
     page,
     browserName
   }) => {
-    test.skip(browserName === "webkit", "the player tier is exercised on Blink");
+    test.skip(
+      browserName === "webkit" || test.info().project.name === "chromium",
+      "the rAF player is production only on touch Blink; desktop and WebKit route the compiled tier"
+    );
     await openPlaygroundWithPinnedPlayer(page);
     await page.getByRole("button", { name: "Next" }).click();
     await waitForNavIdle(page); // land on a non-root, swipeable screen
@@ -596,7 +608,10 @@ test.describe("motion perception", () => {
   // as a slow device — a persisted, silent demotion that put the user's
   // whole session back on the janky compositor path.
   test("a back/forward storm never demotes the motion driver", async ({ page, browserName }) => {
-    test.skip(browserName === "webkit", "the player tier is exercised on Blink");
+    test.skip(
+      browserName === "webkit" || test.info().project.name === "chromium",
+      "the rAF player is production only on touch Blink; desktop and WebKit route the compiled tier"
+    );
     await openPlaygroundWithPinnedPlayer(page);
 
     for (let i = 0; i < 3; i++) {
