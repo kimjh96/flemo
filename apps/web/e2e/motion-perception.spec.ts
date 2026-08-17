@@ -513,37 +513,42 @@ test.describe("motion perception", () => {
   // WebKit presents compiled CSS animations from the main thread, so a
   // wall-clocked fade snaps across a mid-flight commit, while the player's
   // re-anchoring resumes from the freeze and completes.
-  test("the default driver is the player on every engine", async ({ page }) => {
+  test("the playground (desktop Blink) drives the compiled compositor tier", async ({ page }) => {
     const { errors } = trackConsoleErrors(page);
     await openPlaygroundWithCupertino(page);
 
     const sample = page.evaluate(() => {
-      return new Promise<{ transitional: number; suppressed: number }>((resolve) => {
-        let transitional = 0;
-        let suppressed = 0;
-        const start = performance.now();
-        const loop = () => {
-          for (const element of document.querySelectorAll<HTMLElement>("[data-flemo-screen]")) {
-            if (element.getAttribute("data-flemo-status") !== "PUSHING") continue;
-            transitional += 1;
-            if (element.style.animation !== "") suppressed += 1;
-          }
-          if (performance.now() - start < 900) requestAnimationFrame(loop);
-          else resolve({ transitional, suppressed });
-        };
-        requestAnimationFrame(loop);
-      });
+      return new Promise<{ transitional: number; compiled: number; suppressed: number }>(
+        (resolve) => {
+          let transitional = 0;
+          let compiled = 0;
+          let suppressed = 0;
+          const start = performance.now();
+          const loop = () => {
+            for (const element of document.querySelectorAll<HTMLElement>("[data-flemo-screen]")) {
+              if (element.getAttribute("data-flemo-status") !== "PUSHING") continue;
+              transitional += 1;
+              if (element.style.animation !== "") suppressed += 1;
+              if (/flemo-screen/.test(getComputedStyle(element).animationName)) compiled += 1;
+            }
+            if (performance.now() - start < 900) requestAnimationFrame(loop);
+            else resolve({ transitional, compiled, suppressed });
+          };
+          requestAnimationFrame(loop);
+        }
+      );
     });
     await page.getByRole("button", { name: "Next" }).click();
-    const { transitional, suppressed } = await sample;
+    const { transitional, compiled, suppressed } = await sample;
 
     expect(transitional, "the transition must run").toBeGreaterThan(5);
-    // The unified driver: the rAF player rides EVERY engine (it suppresses
-    // the compiled animation inline). What stays engine-scoped is the
-    // FALLBACK — Blink may demote a chronically-starved device to its
-    // healthy compiled compositor path; non-Blink never does (its compiled
-    // tier presents from the main thread: freeze-and-jump).
-    expect(suppressed, "the player suppresses the compiled animation").toBeGreaterThan(5);
+    // Desktop Blink (Chromium, no touch — the Playwright engine) routes to the
+    // compiled compositor tier UNCONDITIONALLY: an adaptive 120Hz panel idles
+    // at 60Hz so the load-time cadence probe can't be trusted, and the per-
+    // frame main-thread player write misses presentation deadlines there. The
+    // CSS keyframes drive; the player never suppresses them inline.
+    expect(compiled, "the compiled CSS animation drives the slide").toBeGreaterThan(5);
+    expect(suppressed, "the player does not run (compiled tier, not player)").toBe(0);
     expect(errors).toEqual([]);
   });
 
