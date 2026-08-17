@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { beginResponseHold, heldResponseCount, responseHoldDepth } from "@core/engine/responseHold";
+import {
+  beginResponseHold,
+  heldResponseCount,
+  reinstallResponseHoldForTests,
+  responseHoldDepth
+} from "@core/engine/responseHold";
 
 // The module patches window.fetch once, lazily; these tests drive the patch
 // through a controllable original that resolves with a stubbed Response.
@@ -11,8 +16,12 @@ const fakeFetch = () =>
     resolvers.push(resolve as never);
     rejecters.push(reject as never);
   });
-// Installed ONCE, before the module's lazy patch, and never reassigned.
+// Install the controllable fetch, then re-wrap it: the module now installs its
+// patch EAGERLY at import (to win the fetch-capture race against a data client
+// created at app init), so the wrap must be pointed at this controllable fetch
+// after it is assigned.
 (window as { fetch: unknown }).fetch = fakeFetch;
+reinstallResponseHoldForTests();
 
 const res = (contentType = "application/json") =>
   ({ headers: { get: (k: string) => (/content-type/i.test(k) ? contentType : null) } }) as Response;

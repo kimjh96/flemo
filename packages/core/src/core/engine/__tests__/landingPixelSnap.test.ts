@@ -5,6 +5,8 @@ import { resolveEasing } from "@transition/cubicBezier";
 import type { VariantMotion } from "@transition/variantMotion";
 
 import {
+  governedBezierForMotion,
+  governedEasingForMotion,
   snappedEasingForMotion,
   SNAP_BAND_MAX_DEVICE_PX,
   SNAP_VELOCITY_DEVICE_PX_PER_FRAME
@@ -177,5 +179,99 @@ describe("snappedEasingForMotion", () => {
     const velocityDevice =
       Math.abs(authored((entryT + frameFraction) / 100) - authored(entryT / 100)) * dominantDevice;
     expect(velocityDevice).toBeLessThanOrEqual(SNAP_VELOCITY_DEVICE_PX_PER_FRAME + 1);
+  });
+});
+
+// The compiled-tier landing governor (governedEasingForMotion): the
+// reshaped curve follows the authored easing until its velocity drops below
+// one device pixel per frame inside the engagement range, then sprints the
+// remainder at exactly that velocity and rests early.
+describe("governedEasingForMotion", () => {
+  const box = { clientWidth: 1400, clientHeight: 800 } as unknown as HTMLElement;
+  const cupertino = {
+    from: { x: "100%" },
+    to: { x: 0 },
+    duration: 0.7,
+    delay: 0,
+    ease: [0.32, 0.72, 0, 1]
+  } as VariantMotion;
+
+  it("reshapes a flat-tailed slide into an early linear landing", () => {
+    const easing = governedEasingForMotion(cupertino, box, 1, 1000 / 120);
+    expect(easing).toMatch(/^linear\(/);
+    // The reshaped curve reaches 1 strictly before 100% and holds it.
+    const match = /1 (\d+\.?\d*)%, 1 100%\)$/.exec(easing!);
+    expect(match).not.toBeNull();
+    expect(parseFloat(match![1]!)).toBeLessThan(100);
+    expect(parseFloat(match![1]!)).toBeGreaterThan(80);
+  });
+
+  it("bails on non-translation channels and tiny motions", () => {
+    expect(
+      governedEasingForMotion(
+        {
+          ...cupertino,
+          from: { x: "100%", opacity: 0 },
+          to: { x: 0, opacity: 1 }
+        } as VariantMotion,
+        box,
+        1,
+        1000 / 120
+      )
+    ).toBeNull();
+    expect(
+      governedEasingForMotion({ ...cupertino, from: { x: 8 } } as VariantMotion, box, 1, 1000 / 120)
+    ).toBeNull();
+  });
+
+  it("preserves an overshooting ease", () => {
+    const bounce = { ...cupertino, ease: [0.34, 1.56, 0.64, 1] } as VariantMotion;
+    expect(governedEasingForMotion(bounce, box, 1, 1000 / 120)).toBeNull();
+  });
+});
+
+// The accelerated-WebKit governor (governedBezierForMotion): the governed
+// curve as a pure cubic-bezier fit over a shortened duration — Core
+// Animation carries nothing else.
+describe("governedBezierForMotion", () => {
+  const box = { clientWidth: 393, clientHeight: 760 } as unknown as HTMLElement;
+  const cupertino = {
+    from: { x: "100%" },
+    to: { x: 0 },
+    duration: 0.7,
+    delay: 0,
+    ease: [0.32, 0.72, 0, 1]
+  } as VariantMotion;
+
+  it("fits a firm early landing: shorter duration, bezier easing", () => {
+    const fit = governedBezierForMotion(cupertino, box, 3, 1000 / 60);
+    expect(fit).not.toBeNull();
+    expect(fit!.durationMs).toBeLessThan(700);
+    expect(fit!.durationMs).toBeGreaterThan(400);
+    expect(fit!.easing).toMatch(/^cubic-bezier\(/);
+  });
+
+  it("bails on non-translation channels and overshoot", () => {
+    expect(
+      governedBezierForMotion(
+        {
+          ...cupertino,
+          from: { x: "100%", opacity: 0 },
+          to: { x: 0, opacity: 1 }
+        } as VariantMotion,
+        box,
+        3,
+        1000 / 60
+      )
+    ).toBeNull();
+    expect(
+      governedBezierForMotion(
+        { ...cupertino, ease: [0.34, 1.56, 0.64, 1] } as VariantMotion,
+        box,
+        3,
+        1000 / 60
+      )
+    ).toBeNull();
+    expect(governedBezierForMotion(null, box, 3, 1000 / 60)).toBeNull();
   });
 });

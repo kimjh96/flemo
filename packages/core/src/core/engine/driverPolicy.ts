@@ -138,7 +138,13 @@ const LONG_GAP_MS = 30;
 const STALLED_RUN_THRESHOLD = 2;
 // Stalled transitions before the device earns the persisted demotion. Two,
 // not one: a single stall can be a cold-start artifact (first navigation
-// compiling code, warming caches).
+// compiling code, warming caches), and demotion is NOT reversible within a
+// session AND persists — so a one-strike floor would stick a genuinely-fast
+// device (a Pixel 9) on the compiled path off cold-start noise, which is
+// itself a regression. The weak device (Note 9) pays the two-flight cost
+// only on its FIRST-EVER session: from then on the persisted "css" verdict
+// makes the session-start probe re-demote on flight ONE (the probing path
+// below), so the wait is a one-time cost, not per-session.
 const DEMOTION_STRIKES = 2;
 
 export interface DriverPolicy {
@@ -179,8 +185,40 @@ export const detectBlinkEngine = (): boolean => {
   if (typeof navigator === "undefined") return false;
   const brands = (navigator as { userAgentData?: { brands?: ReadonlyArray<{ brand?: string }> } })
     .userAgentData?.brands;
-  if (!Array.isArray(brands)) return false;
-  return brands.some((entry) => /chromium/i.test(entry?.brand ?? ""));
+  if (Array.isArray(brands)) return brands.some((entry) => /chromium/i.test(entry?.brand ?? ""));
+  // UA fallback for engines that ship NO userAgentData at all — notably older
+  // Android Chromium browsers (Samsung Internet on a Galaxy Note 9 reports no
+  // userAgentData, so the brands path read it as non-Blink and stranded it on
+  // the rAF player, whose per-frame transform write re-paints a heavy screen at
+  // ~30Hz on that GPU; on the compiled compositor tier the same flight is
+  // clean). EVERY Android browser is Chromium EXCEPT Firefox (Gecko), so
+  // "Android and not Firefox" is Blink. iOS browsers carry no "Android" token —
+  // they stay WebKit here, as they must (their compiled tier freeze-and-jumps).
+  // Only reached when userAgentData is absent, so a modern spoofing WebKit
+  // (which DOES ship userAgentData) never lands in this branch.
+  const ua = navigator.userAgent ?? "";
+  return /Android/i.test(ua) && !/Firefox|FxiOS/i.test(ua);
+};
+
+// LEGACY ANDROID Blink (Samsung Internet / old WebView on Android-10-era
+// hardware): a touch Chromium that ships NO UA-CH brands list. The reactive
+// demotion above needs one bad flight to learn a device is slow AND re-probes
+// on flight one every session (so a genuinely-fast device is never stranded on
+// the compositor) — which means a truly weak device janks its FIRST push on
+// the player every session before demoting, device-reported as "최초만 버벅,
+// 이후 괜찮음". These devices are confidently slow: no UA-CH is a strong proxy
+// for pre-2021 Chromium, and the "don't strand a fast device" caution the
+// probe exists for simply does not apply to them. So route them to the
+// compositor from flight ONE — no player probe. A modern device (UA-CH brands
+// present) is excluded and still probes normally. iOS carries no "Android"
+// token, so this never touches WebKit.
+export const isLegacyAndroidBlink = (): boolean => {
+  if (typeof navigator === "undefined") return false;
+  const brands = (navigator as { userAgentData?: { brands?: ReadonlyArray<unknown> } })
+    .userAgentData?.brands;
+  if (Array.isArray(brands)) return false;
+  const ua = navigator.userAgent ?? "";
+  return /Android/i.test(ua) && !/Firefox|FxiOS/i.test(ua) && (navigator.maxTouchPoints ?? 0) > 0;
 };
 
 export const createDriverPolicy = (

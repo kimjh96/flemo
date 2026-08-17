@@ -26,7 +26,12 @@ module.exports = [
     // decode, platform-density snap defaults, slow-cadence clock) measured
     // 31.9 KB — deliberate, device-justified growth; re-based to 33 KB with
     // ~3% headroom tightened back until the next feature wave.
-    limit: "33 KB",
+    // The pop-convergence round (image-reveal hold, layer settle, governed
+    // touch-WebKit routing, compiled landing governor + easing, LPM
+    // release-latency probing, legacy-Blink image offloader gating) measured
+    // 36.9 KB — all device-verified in the final185 build. Re-based to 40 KB
+    // with ~8% headroom so the gate still trips on a multi-KB balloon.
+    limit: "40 KB",
     gzip: true
   },
   {

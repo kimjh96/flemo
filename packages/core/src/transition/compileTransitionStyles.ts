@@ -269,6 +269,92 @@ export const easingToCss = (ease: AnimationOptions["ease"] | undefined): string 
   return "ease";
 };
 
+// ---- LPM front-softening: compile-time, per authored curve ----
+//
+// Under iOS Low Power Mode the main pipeline runs ~30Hz, so a curve that
+// packs half its travel into the first ~20% of its duration crosses the
+// opening in 5-6 presented frames — faster than the eye locks on (the
+// device-judged "60-100 jump"). For every SCREEN-scope rule the compiler
+// pre-computes a softened variant of ITS OWN authored curve and emits it
+// behind a `:root[data-flemo-lpm]` gate the engine toggles: no runtime
+// math, no one-size-fits-all override, and a curve that is not
+// front-loaded (ease-in, linear, gentle ease-out…) is left exactly as
+// authored. Softening blends the control points toward a device-judged
+// reference in proportion to how front-loaded the curve actually is —
+// cupertino (half travel at x≈0.17) maps to the full reference, milder
+// curves move proportionally less.
+const KEYWORD_BEZIERS: Record<string, [number, number, number, number]> = {
+  ease: [0.25, 0.1, 0.25, 1],
+  "ease-in": [0.42, 0, 1, 1],
+  "ease-out": [0, 0, 0.58, 1],
+  "ease-in-out": [0.42, 0, 0.58, 1]
+};
+
+const parseBezierCss = (css: string): [number, number, number, number] | null => {
+  const keyword = KEYWORD_BEZIERS[css];
+  if (keyword) return keyword;
+  const match = css.match(/^cubic-bezier\(([^)]+)\)$/);
+  if (!match) return null; // linear, steps(), springs: never softened
+  const parts = match[1]!.split(",").map((part) => Number(part.trim()));
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return null;
+  return parts as unknown as [number, number, number, number];
+};
+
+// The x (time fraction) at which the curve reaches half its travel, from
+// the parametric form — sampled once at compile time.
+const halfTravelX = ([x1, y1, x2, y2]: [number, number, number, number]): number => {
+  let prevX = 0;
+  let prevY = 0;
+  for (let i = 1; i <= 100; i += 1) {
+    const t = i / 100;
+    const mt = 1 - t;
+    const x = 3 * mt * mt * t * x1 + 3 * mt * t * t * x2 + t * t * t;
+    const y = 3 * mt * mt * t * y1 + 3 * mt * t * t * y2 + t * t * t;
+    if (y >= 0.5) {
+      const f = (0.5 - prevY) / (y - prevY || 1);
+      return prevX + (x - prevX) * f;
+    }
+    prevX = x;
+    prevY = y;
+  }
+  return 1;
+};
+
+// Device-judged reference (iPhone LPM, 2026-08-12): the softened cupertino.
+const SOFT_REFERENCE: [number, number, number, number] = [0.4, 0.3, 0.1, 1];
+// Half travel later than this: the curve is not front-loaded — untouched.
+const FRONT_LOAD_ONSET_X = 0.3;
+// Cupertino-grade front-loading maps to the full reference blend.
+const FULL_SOFTEN_X = 0.19;
+
+// Whoosh is an ABSOLUTE-time phenomenon (the eye needs ~350ms to lock on
+// moving content), so the gate reads the front segment's absolute span,
+// not its fraction: a 10s authored curve that reaches half travel in 1.7s
+// is perfectly trackable however front-loaded its SHAPE is, and must stay
+// exactly as authored.
+const HALF_TRAVEL_TRACKABLE_MS = 350;
+const HALF_TRAVEL_FULL_SOFTEN_MS = 120;
+
+export const softenFrontLoadedEasing = (easingCss: string, durationS: number): string | null => {
+  const bezier = parseBezierCss(easingCss);
+  if (!bezier || durationS <= 0) return null;
+  const halfX = halfTravelX(bezier);
+  if (halfX >= FRONT_LOAD_ONSET_X) return null;
+  const halfTimeMs = halfX * durationS * 1000;
+  if (halfTimeMs >= HALF_TRAVEL_TRACKABLE_MS) return null;
+  const shapeW = Math.min((FRONT_LOAD_ONSET_X - halfX) / (FRONT_LOAD_ONSET_X - FULL_SOFTEN_X), 1);
+  const timeW = Math.min(
+    (HALF_TRAVEL_TRACKABLE_MS - halfTimeMs) /
+      (HALF_TRAVEL_TRACKABLE_MS - HALF_TRAVEL_FULL_SOFTEN_MS),
+    1
+  );
+  const w = shapeW * timeW;
+  const soft = bezier.map(
+    (value, i) => Math.round((value + (SOFT_REFERENCE[i]! - value) * w) * 1000) / 1000
+  );
+  return `cubic-bezier(${soft.join(", ")})`;
+};
+
 const restAttrSelector = (transitionName: string, variant: TransitionVariant): string => {
   const [status, active] = variant.split("-");
   return (
@@ -379,6 +465,122 @@ const compileVariantBlock = (
     .filter(Boolean)
     .join(" ");
 
+  // LPM overrides, consumed as longhand declarations after the shorthand.
+  // Both vars are published by the engine before the release and stay unset
+  // (fallbacks: 0ms / 1) everywhere else — pure style, resolved at the
+  // animation's own birth: no WAAPI touch, so WebKit's accelerated
+  // (out-of-process) playback is never at risk.
+  //
+  // --flemo-lpm-birth-hold: a compiled clock is born at the release
+  // update's style resolution but its first frame reaches the glass only
+  // after that update's paint and the compositor's commit — under iOS Low
+  // Power Mode (main pipeline ~30Hz) that's 2-3 frames of aging, so the
+  // first PRESENTED frame sits 25-40% into a fast curve: the device-
+  // reported "starts at 60" jump. The engine predicts that latency (see
+  // lowPowerCadence) and the delay moves the clock's zero to the first
+  // presented frame while fill-mode `both` (backwards) holds the authored
+  // from-pose — the same pose the hold already shows.
+  //
+  // --flemo-lpm-stretch: the user-selected LPM time dilation, applied to
+  // the COMPILED animation so it keeps its panel-rate presentation (the
+  // 60fps screen-recording round proved compiled flights present at panel
+  // rate under LPM while rAF is capped ~30Hz). At wall-clock playback the
+  // authored curve's front-loaded 0-60% crosses in 5-6 capped-eye frames —
+  // faster than the eye locks on; stretching the duration by the measured
+  // cadence ratio (~2x) gives the opening enough presented frames to READ
+  // as motion. Authored per-part delays stretch by the same factor so the
+  // choreography's relative timing is preserved.
+  // LITERAL timing only — no var()/calc() in animation-delay or -duration.
+  // Device-bisected (2026-08-13, tab-starve rig): a screen fade whose
+  // timing depended on custom properties (the earlier
+  // calc(var(--flemo-lpm-*)) plumbing) lost WebKit's compositor playback
+  // and collapsed to a 2-frame snap under main-thread starvation, while
+  // literalizing EITHER property restored a fully presented fade. The LPM
+  // birth hold and REPLACING stretch are applied by the ENGINE as inline
+  // literal longhands on the participants instead (pre-birth, style-only).
+  const delayDecl = "";
+  const durationDecl = "";
+  // LPM front-softening (see softenFrontLoadedEasing): SCREEN scope (and
+  // its riding bar) only — parts keep their authored per-element easing so
+  // choreography internals never re-time. Emitted as a separate rule behind
+  // the engine-toggled `:root[data-flemo-lpm]` gate; nothing changes for
+  // any other session.
+  // A/B 2026-08-13: softening RETIRED (flag off) — it was prescribed
+  // against the broken pipeline (var-timing demotion + opening skips), and
+  // with those cured the softened curve is itself the "different
+  // transition" the user senses vs the player's authored iOS curve. Flip
+  // the flag to re-arm if the whoosh returns.
+  const LPM_SOFTEN_ENABLED = false;
+  const softened =
+    LPM_SOFTEN_ENABLED && scope === "screen" ? softenFrontLoadedEasing(easing, duration) : null;
+  const softenedBlock =
+    softened !== null
+      ? `\n${selector
+          .split(",\n")
+          .map((one) => `:root[data-flemo-lpm] ${one}`)
+          .join(",\n")} {\n  animation-timing-function: ${softened};\n}`
+      : "";
+
+  // LPM REPLACING: the hold lives INSIDE the keyframes as a flat head,
+  // not in animation-delay. Device-chased to the end (2026-08-13): with a
+  // delay-based hold the fade-start starvation rode the delay expiry at
+  // every hold size — WebKit commits the accelerated animation only when
+  // the ACTIVE phase begins, and that layerization is the ~100ms cliff on
+  // a governor-throttled phone. A flat-head keyframe form is active from
+  // birth: the accelerated commit happens during the (invisible) held
+  // head, the UI process then plays the whole fade autonomously, and the
+  // authored from→to curve is reproduced exactly after the head. Static,
+  // literal, gate-scoped — the engine only raises data-flemo-lpm.
+  // Per-status head lengths, shared with the engine's deadline math (see
+  // LPM_HEAD_MS below). REPLACING's 0.35 is the device-verified value that
+  // closed the tab swallow; PUSHING covers the measured release latency
+  // tier; POPPING stays short — its release is measured clean and it is
+  // the most latency-sensitive gesture.
+  // FLOOR (device-dialed 2026-08-13): 180/100/80. One notch below
+  // (120/70/60) the whole flight fit inside a worst-case governor
+  // starvation window and transitions vanished ("무반응 후 즉시 전환");
+  // battle-era 350/200/120 was 2x too pessimistic.: walked down from the battle-era 350/200/120
+  // — the pipeline is healthy now (literal timing, active-from-birth) so
+  // the pessimistic covers are being re-sized against this device's floor.
+  const headForVariant = (v: string): number =>
+    v.startsWith("REPLACING")
+      ? 0.18
+      : v.startsWith("PUSHING")
+        ? 0.1
+        : v.startsWith("POPPING")
+          ? 0.08
+          : 0;
+  const lpmHeadBlock = (() => {
+    if (scope === "part") return "";
+    const headS = headForVariant(variant);
+    if (headS <= 0 || duration <= 0) return "";
+    if (fromDecls.length === 0 && toDecls.length === 0) return "";
+    const total = duration + headS;
+    const headPct = ((headS / total) * 100).toFixed(3);
+    const kf = `${keyframe}-lpm`;
+    const gatedSelector = selector
+      .split(",\n")
+      .map((one) => `:root[data-flemo-lpm] ${one}`)
+      .join(",\n");
+    return (
+      `\n@keyframes ${kf} {\n  0%, ${headPct}% {\n${declsToBlock(fromDecls).replace(/^/gm, "  ")}\n  }\n  100% {\n${declsToBlock(toDecls).replace(/^/gm, "  ")}\n  }\n}\n` +
+      `${gatedSelector} {\n  animation-name: ${kf};\n  animation-duration: ${total.toFixed(3)}s;\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`
+    );
+  })();
+  // Parts keep their own keyframes but ride the same head via a gated
+  // LITERAL delay so the choreography's relative timing to the screens is
+  // preserved under LPM.
+  const lpmPartDelayBlock = (() => {
+    if (scope !== "part") return "";
+    const headS = headForVariant(variant);
+    if (headS <= 0 || duration <= 0) return "";
+    const gatedSelector = selector
+      .split(",\n")
+      .map((one) => `:root[data-flemo-lpm] ${one}`)
+      .join(",\n");
+    return `\n${gatedSelector} {\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`;
+  })();
+
   // `will-change` is scoped to the variant-active rule (PUSHING/POPPING/...)
   // and lists exactly the properties this variant writes, whatever the
   // author put in their `initial` / variant `value`. The browser promotes a
@@ -419,7 +621,7 @@ const compileVariantBlock = (
   const wantsContainment = status === "PUSHING" || status === "REPLACING";
   const containmentDecl = wantsContainment ? `  contain: layout;\n  pointer-events: none;\n` : "";
 
-  const ruleBlock = `${selector} {\n  animation: ${animationProp};\n${willChangeDecl}${containmentDecl}}`;
+  const ruleBlock = `${selector} {\n  animation: ${animationProp};\n${delayDecl}${durationDecl}${willChangeDecl}${containmentDecl}}`;
 
   // Destination pre-raster park. While a freshly started transition is held
   // (see the hold rule appended to the sheet), a COVERED screen whose `from`
@@ -467,7 +669,22 @@ const compileVariantBlock = (
         )}\n}`
       : "";
 
-  return `${keyframeBlock}\n${ruleBlock}${parkBlock}${parkUnderBlock}`;
+  // park-over: hold the entering screen at its DESTINATION but ON TOP at a
+  // near-zero opacity, so the browser genuinely PAINTS/composites its tiles
+  // (giant image textures included) during the hold — the slide then rides the
+  // cached composite instead of paying the first paint mid-flight. opacity last.
+  const parkOverBlock =
+    scope === "screen" &&
+    variant.endsWith("-true") &&
+    (variant.startsWith("PUSHING") || variant.startsWith("REPLACING")) &&
+    targetHidesScreen(fromValue) &&
+    toDecls.length > 0
+      ? `\n${screenSelector}[data-flemo-anim-hold="park-over"] {\n  animation: none;\n${declsToBlock(
+          toDecls
+        )}\n  opacity: 0.02;\n}`
+      : "";
+
+  return `${keyframeBlock}\n${ruleBlock}${softenedBlock}${lpmHeadBlock}${lpmPartDelayBlock}${parkBlock}${parkUnderBlock}${parkOverBlock}`;
 };
 
 // Whether a variant's `from` target leaves the screen invisible on its first
@@ -590,9 +807,11 @@ const ANIM_HOLD_RULE = [
   `[data-flemo-anim-hold="true"],`,
   `[data-flemo-anim-hold="park"],`,
   `[data-flemo-anim-hold="park-under"],`,
+  `[data-flemo-anim-hold="park-over"],`,
   `[data-flemo-anim-hold="true"] [data-flemo-part-name],`,
   `[data-flemo-anim-hold="park"] [data-flemo-part-name],`,
-  `[data-flemo-anim-hold="park-under"] [data-flemo-part-name] {`,
+  `[data-flemo-anim-hold="park-under"] [data-flemo-part-name],`,
+  `[data-flemo-anim-hold="park-over"] [data-flemo-part-name] {`,
   `  animation-play-state: paused !important;`,
   `}`
 ].join("\n");
@@ -633,4 +852,12 @@ export const variantHasAnimation = (
   const toDecls = targetToDecls(variantValue.value);
 
   return fromDecls.length > 0 || toDecls.length > 0;
+};
+
+// Engine-shared head lengths (ms) for the LPM flat-head keyframes above:
+// wall-clock deadlines (watchdog, cut) must ride the head.
+export const LPM_HEAD_MS: Record<string, number> = {
+  REPLACING: 180,
+  PUSHING: 100,
+  POPPING: 80
 };

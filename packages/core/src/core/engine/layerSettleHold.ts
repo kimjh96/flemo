@@ -2,6 +2,8 @@ import { collectAnimatedProperties } from "@transition/compileTransitionStyles";
 
 import type { Transition } from "@transition/typing";
 
+import { flightWindowActive, onFlightWindowIdle } from "@core/engine/flightWindow";
+
 // Deferred compositor-layer demotion for the transition's rule-matched
 // participants: the screen scope, its decorator, riding shared bars, and
 // <Part> elements — every element whose compiled variant rule carries a
@@ -291,7 +293,36 @@ export const releaseScopeLayerAfterSettle = (scope: HTMLElement, owner: symbol =
     stamps.delete(scope);
     return;
   }
+  scheduleDemotion(scope, stamp);
+};
+
+// The demotion clock, gated on the flight window. A quick pop chained onto a
+// push's landing overlaps the push's LAYER_SETTLE window — and the elements
+// the pop does NOT re-hold (the push's dim decorator, its parts, a deep
+// screen) would demote MID-FLIGHT: device-measured (iPhone, 2026-08) as the
+// intermittent ~30ms rAF gap + stutter step on the pop-returning parallax,
+// position-locked to landing+300ms. So when the timer fires into an active
+// flight, the demotion re-queues for the flight's rest and runs the settle
+// clock again from there — the repaint only ever lands where it was designed
+// to: with the glass at rest. Re-holds still cancel through `stamp.pending`;
+// the idle callback re-checks the stamp's state so a voided window (re-hold,
+// unmount, a newer owner) never demotes.
+const scheduleDemotion = (scope: HTMLElement, stamp: LayerStamp) => {
   stamp.pending = setTimeout(() => {
+    stamp.pending = null;
+    if (flightWindowActive()) {
+      onFlightWindowIdle(() => {
+        if (
+          stamps.get(scope) === stamp &&
+          stamp.owners.size === 0 &&
+          stamp.settleOwner !== null &&
+          stamp.pending === null
+        ) {
+          scheduleDemotion(scope, stamp);
+        }
+      });
+      return;
+    }
     restoreLayer(scope, stamp);
     stamps.delete(scope);
   }, LAYER_SETTLE_MS);

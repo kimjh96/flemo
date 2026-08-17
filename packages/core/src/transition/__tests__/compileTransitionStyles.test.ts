@@ -4,6 +4,7 @@ import {
   animationName,
   collectAnimatedProperties,
   compileTransitionStyles,
+  softenFrontLoadedEasing,
   variantHasAnimation
 } from "@transition/compileTransitionStyles";
 import createTransition from "@transition/createTransition";
@@ -48,6 +49,96 @@ describe("compileTransitionStyles", () => {
     );
     expect(css).toContain("cubic-bezier(0.32, 0.72, 0, 1)");
     expect(css).toContain("0.7s");
+  });
+
+  it("emits LITERAL animation timing only — no var()/calc() plumbing", () => {
+    const css = compileTransitionStyles([cupertino], []);
+    // Device-bisected (2026-08-13): var-dependent timing cost WebKit's
+    // compositor playback of screen fades. The LPM birth hold / stretch
+    // are applied by the engine as inline literals instead.
+    expect(css).not.toContain("--flemo-lpm-birth-hold");
+    expect(css).not.toContain("--flemo-lpm-stretch");
+    expect(css).not.toContain("animation-delay: calc(");
+    expect(css).not.toContain("animation-duration: calc(");
+  });
+
+  it("keeps the authored delay as a literal in the shorthand", () => {
+    const staggered = createTransition({
+      name: "custom-slide-fade",
+      initial: { x: "100%" },
+      idle: { value: { x: 0 }, options: { duration: 0 } },
+      enter: { value: { x: 0 }, options: { duration: 0.4, delay: 0.15 } },
+      exit: { value: { x: "100%" }, options: { duration: 0.4 } },
+      enterBack: { value: { x: 0 }, options: { duration: 0.4 } },
+      exitBack: { value: { x: "100%" }, options: { duration: 0.4 } }
+    });
+    const css = compileTransitionStyles([staggered], []);
+
+    expect(css).toMatch(/animation: [^;]*0\.15s[^;]*;/);
+  });
+
+  it("keeps the authored duration as a literal in the shorthand", () => {
+    const css = compileTransitionStyles([cupertino], []);
+    expect(css).toMatch(/animation: [^;]*0\.7s[^;]*;/);
+  });
+
+  it("softening is retired (flag off): the authored curve plays under LPM too", () => {
+    const css = compileTransitionStyles([cupertino], []);
+    // The softener was a prescription for the broken pipeline (var-timing
+    // demotion, opening skips); with those cured the softened curve read
+    // as a different transition vs the player. The pure function and its
+    // tests stay for a possible re-arm.
+    expect(css).not.toContain("animation-timing-function: cubic-bezier(0.4, 0.3, 0.1, 1);");
+  });
+
+  it("softenFrontLoadedEasing leaves non-front-loaded curves untouched", () => {
+    expect(softenFrontLoadedEasing("cubic-bezier(0.32, 0.72, 0, 1)", 0.7)).toBe(
+      "cubic-bezier(0.4, 0.3, 0.1, 1)"
+    );
+    expect(softenFrontLoadedEasing("ease-in", 0.7)).toBeNull();
+    expect(softenFrontLoadedEasing("linear", 0.7)).toBeNull();
+    expect(softenFrontLoadedEasing("ease-out", 0.7)).toBeNull();
+    // Mildly front-loaded: softened proportionally, not snapped to the
+    // reference.
+    const mild = softenFrontLoadedEasing("cubic-bezier(0.25, 0.55, 0.2, 1)", 0.7);
+    if (mild !== null) {
+      expect(mild).not.toBe("cubic-bezier(0.4, 0.3, 0.1, 1)");
+    }
+  });
+
+  it("softening is ABSOLUTE-time aware: a long authored flight keeps its curve", () => {
+    // The same cupertino shape over 10s reaches half travel in ~1.7s —
+    // trackable by any eye, so the authored motion is untouched however
+    // front-loaded the SHAPE is.
+    expect(softenFrontLoadedEasing("cubic-bezier(0.32, 0.72, 0, 1)", 10)).toBeNull();
+    // And a mid-length flight softens only partially.
+    const mid = softenFrontLoadedEasing("cubic-bezier(0.32, 0.72, 0, 1)", 1.8);
+    expect(mid).not.toBeNull();
+    expect(mid).not.toBe("cubic-bezier(0.4, 0.3, 0.1, 1)");
+  });
+
+  it("keeps part easing authored — no LPM ease var outside the screen scope", () => {
+    const css = compileTransitionStyles(
+      [],
+      [],
+      [
+        createPartTransition({
+          name: "test-title-fade",
+          initial: { opacity: 0 },
+          idle: { value: { opacity: 1 }, options: { duration: 0.4 } },
+          enter: { value: { opacity: 0 }, options: { duration: 0.3 } },
+          exit: { value: { opacity: 1 }, options: { duration: 0.3 } }
+        })
+      ]
+    );
+    // Parts DO get a gated literal-delay ride-along under LPM (the flat
+    // head), but never an easing override — their authored curves stay
+    // exactly as written.
+    expect(css).not.toContain("animation-timing-function: var(");
+    for (const block of css.split("\n\n")) {
+      if (!block.includes("data-flemo-lpm")) continue;
+      expect(block).not.toContain("animation-timing-function");
+    }
   });
 
   it("uses the previous-exit position as the from-state for POPPING-false", () => {

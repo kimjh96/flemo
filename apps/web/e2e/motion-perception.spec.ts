@@ -513,37 +513,53 @@ test.describe("motion perception", () => {
   // WebKit presents compiled CSS animations from the main thread, so a
   // wall-clocked fade snaps across a mid-flight commit, while the player's
   // re-anchoring resumes from the freeze and completes.
-  test("the default driver is the player on every engine", async ({ page }) => {
+  test("the playground drives the right tier for its engine (compiled on desktop Blink, player on touch)", async ({
+    page
+  }) => {
     const { errors } = trackConsoleErrors(page);
     await openPlaygroundWithCupertino(page);
 
     const sample = page.evaluate(() => {
-      return new Promise<{ transitional: number; suppressed: number }>((resolve) => {
+      return new Promise<{
+        transitional: number;
+        compiled: number;
+        suppressed: number;
+        touch: boolean;
+      }>((resolve) => {
         let transitional = 0;
+        let compiled = 0;
         let suppressed = 0;
+        const touch = (navigator.maxTouchPoints ?? 0) > 0;
         const start = performance.now();
         const loop = () => {
           for (const element of document.querySelectorAll<HTMLElement>("[data-flemo-screen]")) {
             if (element.getAttribute("data-flemo-status") !== "PUSHING") continue;
             transitional += 1;
             if (element.style.animation !== "") suppressed += 1;
+            if (/flemo-screen/.test(getComputedStyle(element).animationName)) compiled += 1;
           }
           if (performance.now() - start < 900) requestAnimationFrame(loop);
-          else resolve({ transitional, suppressed });
+          else resolve({ transitional, compiled, suppressed, touch });
         };
         requestAnimationFrame(loop);
       });
     });
     await page.getByRole("button", { name: "Next" }).click();
-    const { transitional, suppressed } = await sample;
+    const { transitional, compiled, suppressed, touch } = await sample;
 
     expect(transitional, "the transition must run").toBeGreaterThan(5);
-    // The unified driver: the rAF player rides EVERY engine (it suppresses
-    // the compiled animation inline). What stays engine-scoped is the
-    // FALLBACK — Blink may demote a chronically-starved device to its
-    // healthy compiled compositor path; non-Blink never does (its compiled
-    // tier presents from the main thread: freeze-and-jump).
-    expect(suppressed, "the player suppresses the compiled animation").toBeGreaterThan(5);
+    if (touch) {
+      // Fast touch Blink (the Pixel 7 project) keeps the device-verified rAF
+      // player: it suppresses the compiled animation and writes the pose each
+      // frame.
+      expect(suppressed, "fast touch Blink drives the player").toBeGreaterThan(5);
+    } else {
+      // Desktop Blink (Chromium, no touch) routes to the compiled compositor
+      // tier UNCONDITIONALLY — an adaptive 120Hz panel idles at 60Hz so the
+      // load-time cadence probe can't be trusted. The CSS keyframes drive.
+      expect(compiled, "desktop Blink drives the compiled tier").toBeGreaterThan(5);
+      expect(suppressed, "desktop Blink does not run the player").toBe(0);
+    }
     expect(errors).toEqual([]);
   });
 

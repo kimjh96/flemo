@@ -29,7 +29,7 @@ export function gradientForHue(hue: number): string {
 // buys nothing, so the panels use a grain-FREE bake: pixels computed
 // directly (plain rounding, no dither) into a small canvas, upscaled by the
 // GPU's bilinear filter. Texels are fixed, so the surface slides rigidly.
-const bakedGradients = new Map<number, string>();
+const bakedGradients = new Map<string, string>();
 
 const hslChannel = (h: number, s: number, l: number, n: number): number => {
   const k = (n + h / 30) % 12;
@@ -37,9 +37,13 @@ const hslChannel = (h: number, s: number, l: number, n: number): number => {
   return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))));
 };
 
-export function bakedGradientForHue(hue: number): string {
+export function bakedGradientForHue(hue: number, aspect = 1): string {
   if (typeof document === "undefined") return gradientForHue(hue);
-  const cached = bakedGradients.get(hue);
+  // Aspect buckets keep the cache small across resizes while staying within
+  // a couple of pixels of the exact geometry.
+  const ratio = Math.round(Math.max(0.1, Math.min(10, aspect)) * 20) / 20;
+  const key = `${hue}:${ratio}`;
+  const cached = bakedGradients.get(key);
   if (cached) return cached;
   const SIZE = 256;
   const canvas = document.createElement("canvas");
@@ -50,10 +54,17 @@ export function bakedGradientForHue(hue: number): string {
   const from = [0, 8, 4].map((n) => hslChannel(hue, 0.82, 0.62, n));
   const to = [0, 8, 4].map((n) => hslChannel((hue + 28) % 360, 0.76, 0.5, n));
   const image = context.createImageData(SIZE, SIZE);
+  // 135deg in the TARGET box's pixel space: CSS distributes the stops along
+  // the true 135° axis (t ∝ X+Y in pixels), so a square bake must weigh its
+  // texels by the box it will stretch onto — t = (x·W + y·H) / (W+H) with
+  // W/H the target aspect. A plain (x+y)/2 bake is only equivalent on a
+  // square box; stretched onto a wide screen its ramp tilts and compresses,
+  // which made the at-rest swap from the SSR gradient visibly pop.
+  const w = ratio;
+  const h = 1;
   for (let y = 0; y < SIZE; y++) {
     for (let x = 0; x < SIZE; x++) {
-      // 135deg: progress along the top-left → bottom-right diagonal.
-      const t = (x + y) / (2 * (SIZE - 1));
+      const t = (x * w + y * h) / ((SIZE - 1) * (w + h));
       const i = (y * SIZE + x) * 4;
       image.data[i] = Math.round(from[0] + (to[0] - from[0]) * t);
       image.data[i + 1] = Math.round(from[1] + (to[1] - from[1]) * t);
@@ -63,7 +74,7 @@ export function bakedGradientForHue(hue: number): string {
   }
   context.putImageData(image, 0, 0);
   const value = `url(${canvas.toDataURL("image/png")}) center / 100% 100%`;
-  bakedGradients.set(hue, value);
+  bakedGradients.set(key, value);
   return value;
 }
 

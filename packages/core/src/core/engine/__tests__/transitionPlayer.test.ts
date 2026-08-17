@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import animateInline from "@transition/animateInline";
 import type { VariantMotion } from "@transition/variantMotion";
 
 import driverPolicy from "@core/engine/driverPolicy";
@@ -149,6 +150,28 @@ describe("isPlayerDrivable", () => {
 });
 
 describe("transitionPlayer", () => {
+  it("join force-concludes a running settle on its element (navigation authority)", async () => {
+    // A tap grazing the swipe edge starts a cancel settle in the same
+    // gesture that starts the navigation — the join must end that settle or
+    // its WAAPI outranks the player's writes for its whole span
+    // (device-captured: backward glide then teleport).
+    const { scheduler } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    const settleAnim = fakeAnimation();
+    withAnimate(el, settleAnim);
+    const settle = animateInline(el, { x: 0 }, { duration: 0.3, ease: "linear" });
+    expect(settleAnim.canceled).toBe(false);
+    registry.join("task-settle-war", {
+      element: el,
+      motion: linearMotion({ x: "100%" }, { x: 0 }),
+      role: "active"
+    });
+    // The settle's animation was concluded at join (pinned + cancelled).
+    expect(settleAnim.canceled).toBe(true);
+    await settle; // and its promise resolves rather than hanging
+  });
+
   it("pins the from frame synchronously on join and suppresses the CSS animation", () => {
     const { scheduler } = createFakeScheduler();
     const registry = createTransitionPlayerRegistry(scheduler);
@@ -669,6 +692,10 @@ describe("transitionPlayer block-resilient re-anchor", () => {
   const fadeOut = (durationSeconds: number) =>
     linearMotion({ opacity: 1 }, { opacity: 0 }, durationSeconds);
   const progressOf = (el: HTMLElement) => 1 - parseFloat(el.style.opacity);
+  // Opacity writes land on the display's alpha grid (1/255) — see the
+  // quantization note in writeTrack — so a progress read back through an
+  // opacity proxy carries up to half a grid step of rounding.
+  const alphaGrid = (progress: number) => 1 - Math.round((1 - progress) * 255) / 255;
   const ONE_FRAME_MS = 1000 / 60;
 
   it("a gap inside the pass-through window advances the full gap (ordinary jitter)", () => {
@@ -680,7 +707,7 @@ describe("transitionPlayer block-resilient re-anchor", () => {
 
     pump(0);
     pump(25); // a slightly late frame (≤1.6 nominal) → elapsed IS the gap
-    expect(progressOf(el)).toBeCloseTo(25 / 1000, 5);
+    expect(progressOf(el)).toBeCloseTo(alphaGrid(25 / 1000), 5);
   });
 
   it("a block resumes at exactly ONE frame's step — no velocity discontinuity", () => {
@@ -692,7 +719,7 @@ describe("transitionPlayer block-resilient re-anchor", () => {
 
     pump(0);
     pump(90); // a 90ms block: the resume step must look like a normal frame
-    expect(progressOf(el)).toBeCloseTo(ONE_FRAME_MS / 1000, 5);
+    expect(progressOf(el)).toBeCloseTo(alphaGrid(ONE_FRAME_MS / 1000), 5);
   });
 
   it("re-anchors across a long stall: progress resumes one frame past the stall, not fast-forwarded", () => {
@@ -711,14 +738,15 @@ describe("transitionPlayer block-resilient re-anchor", () => {
     });
 
     pump(0);
-    pump(25); // normal frame → progress 0.25
+    pump(16); // normal frame → one frame of a 100ms motion
     const preProgress = progressOf(el);
-    expect(preProgress).toBeCloseTo(0.25, 5);
+    expect(preProgress).toBeCloseTo(alphaGrid(16 / 100), 5);
 
-    pump(400); // 375ms stall: without re-anchor a 100ms motion would be DONE
+    pump(400); // 384ms stall: without re-anchor a 100ms motion would be DONE
     const postProgress = progressOf(el);
-    // Resumes exactly ONE nominal frame past where it stalled, not at the end.
-    expect(postProgress).toBeCloseTo(preProgress + ONE_FRAME_MS / 100, 5);
+    // Resumes exactly ONE learned frame (16ms — the median of the gaps so
+    // far) past where it stalled, not at the end.
+    expect(postProgress).toBeCloseTo(alphaGrid((16 + 16) / 100), 5);
     expect(postProgress).toBeLessThan(0.7);
     expect(completed).toBe(0);
 
@@ -991,27 +1019,26 @@ describe("anchored-opening handoff (non-Blink, diagnostic opt-in)", () => {
     expect(scrub.currentTime).toBe(96);
     expect(scrub.canceled).toBe(false);
 
-    // Past the opening: a FRESH animation takes the remainder — the curve's
-    // tail baked into evenly-spaced keyframes over the remaining duration,
-    // plain linear easing — and the scrub is cancelled in the same step.
-    // Every ingredient unremarkable by design (see tryHandOff).
+    // Past the opening: a FRESH animation takes the remainder — the SAME two
+    // endpoints and bezier easing as the scrub, started mid-curve by a NEGATIVE
+    // delay so its currentTime begins at the presented pose (no keyframe-bake
+    // approximation at the seam). The scrub is cancelled in the same step.
     pump(112);
     expect(animate).toHaveBeenCalledTimes(2);
     const [keyframes, options] = animate.mock.calls[1]! as [
       Record<string, string>[],
       KeyframeAnimationOptions
     ];
-    expect(keyframes.length).toBe(41);
-    // First keyframe = the pose at the handoff frame (11.2% of a linear 1s
-    // slide across a 400px-wide element: 400 * (1 - 0.112) = 355.2px), last
-    // keyframe = the rest pose.
-    expect(keyframes[0]!.transform).toBe("translate3d(355.2px, 0px, 0)");
-    expect(keyframes[0]!.opacity).toBe("0.112");
-    expect(keyframes[40]!.transform).toBe("none");
-    expect(keyframes[40]!.opacity).toBe("1");
-    expect(options.duration).toBe(888); // 1000 - 112 already played
-    expect(options.delay).toBe(0);
-    expect(options.easing).toBe("linear");
+    // Exact-curve remainder: the endpoints are identical to the scrub's (both
+    // [from, to]); the browser plays the real curve, not a linear-chord bake.
+    expect(keyframes.length).toBe(2);
+    expect(keyframes).toEqual(animate.mock.calls[0]![0]);
+    // Full duration, but started at the PRESENTED pose via a negative delay:
+    // the scrub's last-committed currentTime was 96ms (one frame behind the
+    // 112ms clock), so delay = -96 lands currentTime there at birth.
+    expect(options.duration).toBe(1000);
+    expect(options.delay).toBe(-96);
+    expect(options.easing).toBe("linear"); // the motion's own (linear) easing
     expect(options.fill).toBe("both");
     expect(scrub.canceled).toBe(true);
     expect(el.style.animation).toBe("none"); // compiled stays suppressed for the whole flight
@@ -1203,26 +1230,21 @@ describe("anchored-opening handoff — remainder bake and decline paths", () => 
     climbTo(pump, 0, 112); // frame cadence to just past HANDOFF_MS
 
     expect(animate).toHaveBeenCalledTimes(2);
-    const keyframes = animate.mock.calls[1]![0] as Record<string, string>[];
-    expect(keyframes.length).toBe(41);
-    // The first keyframe is the pose at 11.2% of the linear curve, raw
-    // (round4) values — no snap machinery in baked keyframes. y is 100% of
-    // offsetHeight 800 → 88.8% remaining = 710.4px.
-    expect(keyframes[0]!.transform).toBe(
-      "translate3d(0px, 710.4px, 0) translateZ(7.104px) scale(0.556) scaleX(0.334) " +
-        "scaleY(0.556) rotate(39.96deg) rotateX(8.88deg) rotateY(17.76deg)"
-    );
-    expect(keyframes[0]!.filter).toBe("blur(7.104px)");
-    expect(keyframes[0]!.opacity).toBeUndefined(); // no opacity channel authored
-    // Constants ride only the first and last keyframes — WAAPI holds a
-    // property between the keyframes that carry it.
-    expect(keyframes[0]!.boxShadow).toBe("0 0 12px rgba(0, 0, 0, 0.3)");
-    expect(keyframes[1]!.boxShadow).toBeUndefined();
-    expect(keyframes[40]!.boxShadow).toBe("0 0 12px rgba(0, 0, 0, 0.3)");
-    // Every transform channel lands on identity → the rest pose collapses
-    // to "none", mirroring the compiler's rest semantics.
-    expect(keyframes[40]!.transform).toBe("none");
-    expect(keyframes[40]!.filter).toBe("blur(0px)");
+    const [keyframes, options] = animate.mock.calls[1]! as [
+      Record<string, string>[],
+      KeyframeAnimationOptions
+    ];
+    // Exact-curve remainder: the SAME two endpoints as the scrub (the browser
+    // plays the real curve via a negative delay, not a per-channel bake), so
+    // every authored channel — transforms, string templates, and held
+    // constants alike — rides through unchanged from the scrub's own frames.
+    expect(keyframes.length).toBe(2);
+    expect(keyframes).toEqual(animate.mock.calls[0]![0]);
+    // Full duration, started mid-curve at the presented pose (climb last set
+    // the scrub to 96ms, one frame behind the 112ms clock) via a negative delay.
+    expect(options.duration).toBe(1000);
+    expect(options.delay).toBe(-96);
+    expect(options.fill).toBe("both");
   });
 
   it("a transform-less motion bakes opacity-only keyframes (no transform key)", () => {
@@ -1244,8 +1266,13 @@ describe("anchored-opening handoff — remainder bake and decline paths", () => 
 
     expect(animate).toHaveBeenCalledTimes(2);
     const keyframes = animate.mock.calls[1]![0] as Record<string, string>[];
-    expect(keyframes[0]!).toEqual({ opacity: "0.112" });
-    expect(keyframes[40]!).toEqual({ opacity: "1" });
+    // Transform-less motion → opacity-only endpoints, identical to the scrub's
+    // frames (negative-delay exact curve, no per-channel bake), no transform key.
+    expect(keyframes.length).toBe(2);
+    expect(keyframes).toEqual(animate.mock.calls[0]![0]);
+    expect(keyframes[0]!.transform).toBeUndefined();
+    expect(keyframes[0]!).toEqual({ opacity: "0" });
+    expect(keyframes[1]!).toEqual({ opacity: "1" });
   });
 
   it("a delay-only motion (zero duration) declines the handoff and stays scrubbed", () => {
@@ -1428,5 +1455,175 @@ describe("perceptual tail cut (player clock)", () => {
     expect(completed).toBe(0); // no cut: the full authored span plays
     climbTo(pump, 900, 1000);
     expect(completed).toBe(1);
+  });
+});
+
+// The last device pixel belongs to rest: once a translate channel's
+// remainder enters the device-pixel band (the same imperceptibility band the
+// perceptual cut and early landing use), the player writes the EXACT end
+// pose. Without it a decelerating curve crawls sub-pixel for its last
+// ~100ms — snapped displays park one device pixel short and tick the final
+// pixel at the COMPLETED flip, a visibly late landing.
+describe("last-pixel landing", () => {
+  it("writes the exact end pose once the remainder enters the device-pixel band", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    withAnimate(el, fakeAnimation());
+    registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ x: 400 }, { x: 0 }, 1),
+      role: "active"
+    });
+    pump(0);
+    climbTo(pump, 0, 990);
+    // 10ms out on a linear 400px/s curve: 4px remain — outside the band.
+    expect(el.style.transform).toBe("translate3d(4px, 0px, 0)");
+    pump(999.5);
+    // 0.2px remain: inside the band — the write IS the rest pose.
+    expect(el.style.transform).toBe("none");
+  });
+
+  it("the governor closes a parallax return's slow tail at one device pixel per frame", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    withAnimate(el, fakeAnimation());
+    registry.join("task-1", {
+      element: el,
+      // The pop-returning parallax: less travel on the same curve, so its
+      // absolute tail is even slower — the case that read as a whole screen
+      // parked short of its landing, then jumping.
+      motion: {
+        from: { x: -420 },
+        to: { x: 0 },
+        duration: 0.7,
+        delay: 0,
+        ease: [0.32, 0.72, 0, 1]
+      } as VariantMotion,
+      role: "active"
+    });
+    pump(0);
+    climbTo(pump, 0, 520);
+    const at = () => {
+      const m = /translate3d\((-?\d*\.?\d+)px/.exec(el.style.transform);
+      return m ? parseFloat(m[1]!) : el.style.transform === "none" ? 0 : NaN;
+    };
+    // Walk frame by frame through the tail: once the governor engages, every
+    // frame moves EXACTLY one device pixel until rest — no park, no jump.
+    let previous = at();
+    let engagedSteps = 0;
+    for (let t = 536; t <= 700 && previous !== 0; t += 16) {
+      pump(t);
+      const current = at();
+      const step = Math.abs(current - previous);
+      expect(step).toBeLessThanOrEqual(1 + 1e-6);
+      if (Math.abs(step - 1) < 1e-6) engagedSteps += 1;
+      previous = current;
+    }
+    expect(previous).toBe(0); // landed before the authored end
+    expect(engagedSteps).toBeGreaterThan(1); // via the governor's 1px cadence
+  });
+
+  it("a flat decelerating tail lands as soon as it can no longer step a full pixel", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    withAnimate(el, fakeAnimation());
+    registry.join("task-1", {
+      element: el,
+      // The cupertino-class ease: its tail crawls the last 2-3px for over
+      // 100ms — the span that presented as a parked sheet with the covered
+      // screen's dim sliver exposed at its edge.
+      motion: {
+        from: { x: 1400 },
+        to: { x: 0 },
+        duration: 0.7,
+        delay: 0,
+        ease: [0.32, 0.72, 0, 1]
+      } as VariantMotion,
+      role: "active"
+    });
+    // An unanalyzable participant vetoes the perceptual cut, so the governor
+    // itself is what closes the tail (mirroring the real choreography, where
+    // decorator/part vetoes routinely disable the cut).
+    const vetoEl = element();
+    withAnimate(vetoEl, fakeAnimation());
+    registry.join("task-1", {
+      element: vetoEl,
+      motion: linearMotion({ clipPath: "inset(0 0 0 100%)" }, { clipPath: "inset(0)" }, 1),
+      role: "passive"
+    });
+    pump(0);
+    climbTo(pump, 0, 560);
+    // Walk the tail at the display cadence and log the landing frame: the
+    // governor engages once the per-frame travel drops below a device pixel
+    // and closes at 1px/frame — at rest strictly before the authored end.
+    let landedAt: number | null = null;
+    for (let t = 576; t <= 696 && landedAt === null; t += 16) {
+      pump(t);
+      if (el.style.transform === "none") landedAt = t;
+    }
+    expect(landedAt).not.toBeNull();
+    expect(landedAt!).toBeLessThan(700);
+  });
+
+  it("the perceptual cut presents the rest pose instead of parking a hairline", () => {
+    // The real-Chrome trace this encodes (60Hz cadence, 2560-device-px push):
+    // the authored tail stepped 2,2,1 device px without ever latching the
+    // governor, the cut then completed the track WITHOUT a write, and the
+    // presented pose parked one device pixel short until the COMPLETED
+    // flip's teardown ~120ms later — the "gap filled late" hairline at the
+    // sheet's leading edge. The cut must land the rest pose itself.
+    const { scheduler, pump } = createFakeScheduler(2);
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = document.createElement("div");
+    Object.defineProperty(el, "offsetWidth", { value: 1280, configurable: true });
+    Object.defineProperty(el, "offsetHeight", { value: 800, configurable: true });
+    // The perceptual box reads clientWidth/Height — without them the cut
+    // computes null and this test silently stops exercising the cut branch.
+    Object.defineProperty(el, "clientWidth", { value: 1280, configurable: true });
+    Object.defineProperty(el, "clientHeight", { value: 800, configurable: true });
+    Object.defineProperty(el, "isConnected", { value: true, configurable: true });
+    document.body.appendChild(el);
+    withAnimate(el, fakeAnimation());
+    registry.join("task-cut-landing", {
+      element: el,
+      motion: {
+        from: { x: "100%" },
+        to: { x: 0 },
+        duration: 0.7,
+        delay: 0,
+        ease: [0.32, 0.72, 0, 1]
+      } as VariantMotion,
+      role: "active"
+    });
+    pump(0);
+    climbTo(pump, 0, 560);
+    let landedAt: number | null = null;
+    for (let t = 576; t <= 900 && landedAt === null; t += 16) {
+      pump(t);
+      if (el.style.transform === "none") landedAt = t;
+    }
+    expect(landedAt).not.toBeNull();
+    // Landed by the player itself, at most a couple frames past the authored
+    // end — never parked for an external teardown.
+    expect(landedAt!).toBeLessThanOrEqual(752);
+    el.remove();
+  });
+
+  it("a non-zero destination lands on its exact authored value", () => {
+    const { scheduler, pump } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    withAnimate(el, fakeAnimation());
+    registry.join("task-1", {
+      element: el,
+      motion: linearMotion({ x: 0 }, { x: -120 }, 1),
+      role: "active"
+    });
+    pump(0);
+    climbTo(pump, 0, 999.6);
+    expect(el.style.transform).toBe("translate3d(-120px, 0px, 0)");
   });
 });

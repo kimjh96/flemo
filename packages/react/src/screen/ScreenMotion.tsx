@@ -20,7 +20,8 @@ import {
   enteringInitialStyle,
   observeBarHeight,
   resolveTransition,
-  type AnimHoldCoordinator
+  type AnimHoldCoordinator,
+  governedCompiledActive
 } from "@flemo/core";
 
 import getScopeAnimHoldCoordinator from "@screen/scopeAnimHoldCoordinator";
@@ -39,6 +40,37 @@ import useScreenStore from "@stores/useScreenStore";
 import useStores from "@stores/useStores";
 
 import RouterIdContext from "../RouterIdContext";
+
+// The RENDER-settle entry gate holds the motion until the entering screen's
+// mount render quiesces, so a heavy screen's own commit storm can't drop the
+// opening frames. ON BY DEFAULT for touch WebKit (governedCompiledActive) — it
+// ships with the governed-compiled tier that needs a quiet opening. Explicit
+// `flemo:settle-gate=off` opts out; `=on` is redundant but honored.
+const readSettleGateFlag = (): boolean => {
+  try {
+    const v =
+      typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:settle-gate") : null;
+    if (v === "on") return true;
+    if (v === "off") return false;
+    return governedCompiledActive();
+  } catch {
+    return false;
+  }
+};
+
+// EXPERIMENT (flemo:preraster=on): promote the entering content layer from the
+// hold onward (will-change: transform below) so its tiles keep a live backing
+// store across the flight. Retained as an opt-in probe; the swallow itself is
+// solved by the scrub tier's freeze-on-block opening, not by pre-raster.
+const readPrerasterFlag = (): boolean => {
+  try {
+    return (
+      typeof sessionStorage !== "undefined" && sessionStorage.getItem("flemo:preraster") === "on"
+    );
+  } catch {
+    return false;
+  }
+};
 
 function ScreenMotion({
   children,
@@ -431,7 +463,9 @@ function ScreenMotion({
       : isActive &&
           (status === "PUSHING" || status === "REPLACING") &&
           partnerSurface?.opaqueBackground
-        ? "park-under"
+        ? readPrerasterFlag()
+          ? "park-over"
+          : "park-under"
         : "true";
 
   // Drive the navigation-task lifecycle through the framework-neutral engine.
@@ -505,7 +539,10 @@ function ScreenMotion({
         // each render, which as a dep would re-run this effect every render.
         const authoredNative =
           (swipeEnvRef.current.transition as { driver?: string }).driver === "native";
-        if (authoredNative && !detectBlinkEngine()) {
+        // LPM-routed flights run the compiled clock too — they need the
+        // same atomic flip (a state-routed release reopens the
+        // task-injection gap the flip closes).
+        if ((authoredNative || governedCompiledActive()) && !detectBlinkEngine()) {
           for (const el of [
             scopeRef.current,
             sharedTopBarRef.current,
@@ -532,34 +569,54 @@ function ScreenMotion({
         // or freshly-mounted screen never pays the wait, which is what keeps a
         // paired push/replace release free.
         scope: scopeRef.current,
-        decodeWait: decodeWaitRef.current
-        // NO enter content-settle gate — the third and FINAL flip, each
-        // direction device-judged (2026-08). Gate ON (arrive-complete): the
-        // cold-push dead wait was rejected twice, and dependent-query chains
-        // can still land a wave after the release. Gate OFF + nothing else:
-        // the reveal render co-flushes with the release frame and the
-        // compiled clock ages before first paint (the swallowed opening).
-        // The resolution lives in the ENGINE now: motion starts immediately,
-        // and the flight-start anchor (anchorNativeFlightStart, birth-window
-        // startTime rewind — the one clock intervention the falsification
-        // series never implicated) rewinds a clock the release frame aged,
-        // so the opening plays in full either way. Mid-flight commits are
-        // survived by the untouched accelerated animation plus the
-        // early-armed arrival hold. The core capability
-        // (AnimHoldReleaseOptions.contentSettle) remains for bindings that
-        // want the arrive-complete trade.
+        decodeWait: decodeWaitRef.current,
+        // RENDER-settle gate (flemo:settle-gate=on): hold the motion until the
+        // ENTERING screen's mount render quiesces, so the opening plays in a
+        // quiet window instead of losing frames to the screen's own commit
+        // storm (device-measured detail-push jank — driver-independent). Unlike
+        // the #226 gate this does NOT wait on data (renderSettleOnly): a light
+        // screen sees no qualifying commit and releases at firstWaitMs (no felt
+        // delay); a heavy one waits out its render (adaptive) then starts clean.
+        // PUSH and POP: a fresh push mounts a heavy screen; a pop returns to a
+        // screen that re-renders on arrival (device-measured: 46-commit pops
+        // with flip 288ms — a data refetch storm). Render-settle stays adaptive
+        // either way (a truly warm return pays nothing). REPLACE (tab fade)
+        // stays ungated — a whole-screen fade reads a wait as a dead tap.
+        contentSettle:
+          // ALL engines. The gate holds the release until the entering mount
+          // render quiesces. It was thought WebKit-only (Blink rides the
+          // compiled compositor through main-thread stalls), but device A/B on
+          // a demoted Note 9 falsified that: its heavy detail mount runs a
+          // ~290ms main-thread task that stalls even the compositor's initial
+          // commit/layerization, so gating the release to AFTER that task
+          // measurably helped (gate on = slight hitch, gate off = worse).
+          readSettleGateFlag() && isActive && (status === "PUSHING" || status === "POPPING")
+            ? {
+                // firstWaitMs: no qualifying mount commit within this → warm/
+                // light screen, release with no felt delay. capMs: the hard
+                // backstop (one flight span) so even a pathological render can
+                // never strand the motion. Render-settle waits the full quiet
+                // window (see quietSpan) so a straggler commit can't hit the
+                // release frame.
+                firstWaitMs: 120,
+                capMs: 700,
+                graceMs: 60,
+                minNodes: 30,
+                renderSettleOnly: true
+              }
+            : undefined
       }
     );
   }, [animHold, holdKey, holdAttr, isActive, status, stores.navigate]);
 
   const initialStyle =
-    holdAttr === "park-under"
-      ? // The compiled park-under rule holds this screen at its DESTINATION
-        // beneath the previous screen so its tiles pre-rasterize; the inline
-        // entering style (the hidden `from`) would override that stylesheet
-        // rule and defeat the park. On release the attribute drops, this
-        // inline style returns in the same commit, and the animation replays
-        // from its own `from` keyframe over the already-rasterized layer.
+    holdAttr === "park-under" || holdAttr === "park-over"
+      ? // The compiled park rule holds this screen at its DESTINATION beneath
+        // the previous screen; the inline entering style (the hidden `from`)
+        // would override that stylesheet rule and defeat the park. On release
+        // the attribute drops, this inline style returns in the same commit,
+        // and the animation replays from its own `from` keyframe over the
+        // already-rasterized layer.
         {}
       : enteringInitialStyle({ initial, isActive, status });
 
@@ -621,6 +678,14 @@ function ScreenMotion({
           backgroundColor,
           overflowY: contentScrollable ? undefined : "auto",
           touchAction: swipeDirection === "x" ? "pan-y" : swipeDirection === "y" ? "pan-x" : "auto",
+          // preraster: promote the CONTENT layer from the hold onward so the
+          // tiles the outer near-zero-opacity forces WebKit to paint during
+          // park-under rasterize into a composited backing store that SURVIVES
+          // the release jump to the off-screen from-pose (an unpromoted layer
+          // is discarded there and re-rasters on the slide — the reveal block).
+          // Continuous with holdScopeLayer's own flight-time will-change, so
+          // the one promoted layer spans hold → slide.
+          ...(readPrerasterFlag() && holdAttr !== "false" ? { willChange: "transform" } : {}),
           ...initialStyle,
           ...props.style
         }}
@@ -652,7 +717,7 @@ function ScreenMotion({
             display: "flex",
             flexDirection: "column",
             flexGrow: 1,
-            // No compositing-layer promotion here anymore. The translateZ(0)
+            // No compositing-layer promotion here by default. The translateZ(0)
             // content isolation (#117 → #127) targeted a WebKit stall whose real
             // root cause turned out to be the animation-start anchoring, fixed
             // by data-flemo-anim-hold: with the anchor in place, isolated and

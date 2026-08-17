@@ -17,6 +17,7 @@ import {
   createRouterScope,
   ensureGpuPipelinePrewarm,
   ensureImageDecodeOffloader,
+  isLegacyAndroidBlink,
   holdCompositorWarm,
   seedRouterEntry,
   isServer,
@@ -129,10 +130,21 @@ function Router({
   // Nesting controls ONLY the contained rendering; the history backend is chosen
   // by the `history` prop, independent of depth.
   const depth = useContext(RouterDepthContext);
-  // This Router's flight-boundary identity (see RouterIdContext). useId is
-  // fine here: the marker only needs page-load uniqueness, not cross-restore
-  // stability.
+  // This Router's flight-boundary identity (see RouterIdContext). useId gives
+  // page-load uniqueness, but its value encodes the component's position from
+  // the HYDRATION ROOT — so a consumer whose server render root differs from
+  // its client hydrate root (e.g. server renders <Html><App/></Html> while the
+  // client hydrateRoot's just <App/> at #root) produces a DIFFERENT useId on
+  // each side, and this id is the one flemo attribute that reaches the DOM
+  // (data-flemo-router), so it surfaces as a hydration mismatch. The engine
+  // only ever reads this attribute CLIENT-side (it scopes live flights; SSR
+  // never runs it), so the marker is withheld until after hydration: the
+  // server and the first client render both emit nothing (a match), and an
+  // effect exposes the id once mounted. Robust to any consumer's root config.
   const routerId = useId();
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+  const exposedRouterId = hydrated ? routerId : null;
   const isNested = depth > 0;
 
   // The history backend. "browser" (the default, even when nested) participates
@@ -266,7 +278,28 @@ function Router({
   // synchronously on the main thread, which was measured eating a tab
   // transition whole — a 190ms fade presented 5 of its 12 frames and ran for
   // 384ms. Document-wide and refcounted, so nested Routers share one observer.
-  useEffect(() => ensureImageDecodeOffloader(), []);
+  //
+  // AUTO on legacy Android Blink only; OFF everywhere else. It rewrites
+  // oversized consumer <img> sources to re-encoded, downscaled blobs, so it
+  // must never run where the paint is already cheap — the old blanket opt-in
+  // existed only because the library "could not tell a GPU-starved phone from
+  // a flagship at load." `isLegacyAndroidBlink()` closes exactly that gap: a
+  // touch Chromium that ships NO UA-CH brands is confidently pre-2021 hardware
+  // (device-confirmed: Galaxy Note 9 Samsung Internet reports no brands, and
+  // its 37MP-original members list stalled the opening on every re-entry).
+  // A flagship ships UA-CH brands → excluded; iPhone carries no Android token →
+  // excluded; and even on a matched device only genuinely OVERSIZED sources
+  // (OVERSIZE_AREA_RATIO) are ever touched — a well-sized image is left as
+  // authored. `flemo:imgoffload` overrides both ways: `on` forces it (any
+  // engine, for a consumer whose own measurement demands it), `off` opts a
+  // legacy device back out.
+  useEffect(() => {
+    const flag =
+      typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:imgoffload") : null;
+    if (flag === "off") return undefined;
+    const enabled = flag === "on" || isLegacyAndroidBlink();
+    return enabled ? ensureImageDecodeOffloader() : undefined;
+  }, []);
 
   // One-shot GPU pipeline prewarm (see @flemo/core gpuPipelinePrewarm):
   // Chrome's Graphite backend compiles the flight's GPU pipelines on their
@@ -354,7 +387,7 @@ function Router({
   // its own keyed driver + guard. A memory Router runs none (its driver's
   // traversals are awaited inline by the controller).
   const content = (
-    <RouterIdContext.Provider value={routerId}>
+    <RouterIdContext.Provider value={exposedRouterId}>
       <RouterDepthContext.Provider value={depth + 1}>
         <StoreContext.Provider value={stores}>
           {!useMemory && <HistoryListener />}

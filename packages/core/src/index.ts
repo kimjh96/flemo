@@ -130,6 +130,7 @@ export { default as animateInline, clearInlineAnimation } from "@transition/anim
 // Framework-neutral transition engine. Owns the navigation-task lifecycle and
 // cleanup for a screen; bindings feed it plain DOM elements + state.
 export { default as createTransitionEngine } from "@core/engine/createTransitionEngine";
+export { lowPowerCadenceActive, governedCompiledActive } from "@core/engine/lowPowerCadence";
 export {
   SKIP_ANIMATION_ATTR,
   type TransitionEngine,
@@ -156,7 +157,7 @@ export {
 // Engine probe (Blink vs everything else). Public for bindings whose release
 // policy branches per engine — the entry content-settle gate runs only where
 // the compiled (untouched) animation is the driver (non-Blink).
-export { detectBlinkEngine } from "@core/engine/driverPolicy";
+export { detectBlinkEngine, isLegacyAndroidBlink } from "@core/engine/driverPolicy";
 export { default as observeBarHeight } from "@screen/observeBarHeight";
 export { default as observeViewportScrollHeight } from "@screen/observeViewportScrollHeight";
 
