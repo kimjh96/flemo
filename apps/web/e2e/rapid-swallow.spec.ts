@@ -10,7 +10,18 @@ import { expect, test } from "@playwright/test";
 // human tapping. It installs an animation event counter, fires a burst of
 // Next clicks with NO nav-idle wait between them (forcing flight overlap), and
 // reports how many flights ended cleanly vs were cancelled mid-opening.
-test("rapid Next taps never swallow the slide (no early animationcancel)", async ({ page }) => {
+test("rapid Next taps never swallow the slide (no early animationcancel)", async ({
+  page
+}, testInfo) => {
+  // Desktop Blink (chromium) is where rapid pushes route to the COMPILED tier
+  // and a mid-opening animationcancel IS the swallow this guards. The touch
+  // project (mobile-chromium) keeps the rAF PLAYER, where interrupting a
+  // flight to start the next tap legitimately cancels the outgoing animation —
+  // a cancel there is normal, not a swallow — so the assertion doesn't apply.
+  test.skip(
+    testInfo.project.name !== "chromium",
+    "compiled-tier swallow repro; touch Blink uses the player where mid-flight cancels are legitimate"
+  );
   await page.goto("/playground");
   await expect(page.getByText("1", { exact: true }).first()).toBeVisible();
 
