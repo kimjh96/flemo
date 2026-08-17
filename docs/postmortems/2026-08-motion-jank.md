@@ -240,3 +240,42 @@ player bug:
     entry-suppression flips, no demands on consumer code like prefetch). Prescriptions
     must take the form "authored motion intact + internal scheduling/raster work";
     explicit user-selected trades are the only exception.
+
+## Addendum — 2026-08-17 evening: the attribution re-verified live, twice refuted defaults
+
+The steady-60 desktop player routing (PR #261) shipped and was feel-tested in plen
+(the real consumer app, fully-loaded infinite member list) the same day. Findings,
+in order:
+
+1. **Pop unfreeze stall (reachable, fixed).** Every heavy-list pop opened with one
+   50-66ms frame gap: the settle gate's wave detector keys on ADDED nodes, and a
+   pop's returning screen re-uses its frozen DOM — so the wall-clock give-up timers
+   released straight into the unfreeze's style/layout block. Fixed: give-up releases
+   now ride two consecutive fast frames (`animStartAnchor.ts`). Hold-aware
+   re-measurement: pop post-release max gap 17.7ms, zero 30ms+ gaps, blocks absorbed
+   into the hold.
+2. **Desktop always-snap default refuted on the player (spatial).** The pop
+   parallax's long sub-pixel tail presented as "드르륵" ratcheting under always-snap
+   (integer holds-and-steps). Reverted to the velocity gate — consistent with the
+   original same-display verdict (fractional glide wins slow tracked motion).
+3. **The residual, once frame timing AND value generation were both clean, was
+   still felt** — and the falsification triangle closed cleanly: compiled,
+   player+always, player+gate, and the historical no-`<script>` pure-CSS control all
+   exhibit it; Safari and old Android Chrome (a Note 9!) do not. Forcing continuous
+   present made it smooth on the spot, user-confirmed ("매끄럽긴 합니다"):
+   **the residual is the macOS Chrome present pipeline. Full stop, re-verified.**
+
+Instrumentation notes for the next round:
+
+- `--show-fps-counter` could NOT be confirmed effective on Chrome 151 (no visible
+  HUD in a fresh-profile instance; the user felt no change there — but that instance
+  was ALSO a cold GPU-pipeline profile, a double confound; see the cold-cache
+  section). The RELIABLE present-forcing switch today: the DevTools "Frame Rate"
+  HUD, enable-able remotely via CDP (`DOM.enable` → `Overlay.enable` →
+  `Overlay.setShowFPSCounter {show:true}`) with a persistent session holding it on.
+- Never hand a fresh-profile browser instance to a user for a jank verdict: cold
+  Graphite/Dawn pipeline caches produce real first-flight stalls that read as the
+  bug under investigation.
+- The @flemo/devtools flight recorder (PR #263) segments frame gaps by
+  hold/released phase — measurements that ignore the hold phase misattribute
+  absorbed blocks as in-flight jank (this happened in-session).
