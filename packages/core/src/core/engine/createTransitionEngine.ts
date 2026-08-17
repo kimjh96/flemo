@@ -958,16 +958,16 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       //    demotion has judged chronically slow (the Note 9) route compiled.
       //    The demotion is faster now — one strike, see driverPolicy — so a
       //    weak device flips after a single bad flight instead of two.)
+      // NOT bypassed by the "raf" force pin (unlike the native-kind choice
+      // below). Forcing the rAF player onto desktop Blink here was tried to
+      // reach the per-frame device-pixel snap (a HiDPI convergence-shimmer
+      // fix), but the player has never driven a non-touch flight: device-
+      // reproduced, after a re-entry (push→pop→push) it leaves the entering
+      // screen pinned at its from-pose (translateX 100%) — the birth/play
+      // never fires — so the screen sits ENTIRELY off-screen and the viewport
+      // goes blank. Desktop Blink stays on the compiled compositor tier, which
+      // completes cleanly; the sub-pixel shimmer is a lesser cost than a blank.
       if (
-        // A "raf" force pin bypasses this desktop/high-refresh/demotion gate,
-        // same as it bypasses the native-kind choice below: a pinned session
-        // must player-drive EVERYTHING to be a useful instrument. Without this,
-        // `driver=raf` silently stayed on the compiled tier for desktop Blink
-        // (maxTouchPoints === 0 fired first), so the player+per-frame-snap path
-        // — the only tier that can quantize a HiDPI transform to device pixels
-        // every frame and kill the sub-pixel convergence shimmer — was
-        // unreachable on desktop even when explicitly pinned.
-        driverPolicy.pinnedDriver() !== "raf" &&
         detectBlinkEngine() &&
         ((typeof navigator !== "undefined" && navigator.maxTouchPoints === 0) ||
           learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS ||
