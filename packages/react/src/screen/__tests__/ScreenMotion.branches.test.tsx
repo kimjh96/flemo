@@ -139,10 +139,13 @@ describe("ScreenMotion chrome rendering", () => {
 
     const scope = container.querySelector<HTMLElement>("[data-flemo-screen]")!;
     const button = getByRole("button");
+    const onNativeClick = vi.fn();
+    button.addEventListener("click", onNativeClick);
     expect(scope.style.pointerEvents).toBe("");
     fireEvent.click(button);
 
     expect(onClick).not.toHaveBeenCalled();
+    expect(onNativeClick).not.toHaveBeenCalled();
   });
 });
 
