@@ -132,13 +132,13 @@ export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
   // The image rule. Glass-measured 2026-08-18: one mid-flight decode cost
   // exactly one skipped present, and the engine answers it by holding
   // still-loading images for the flight span.
-  const unheldCompletions = images.completedDuringFlight - images.heldDuringFlight;
-  if (unheldCompletions > 0) {
+  if (images.completedUnheld > 0) {
     anomalies.push(
-      `${unheldCompletions} image(s) finished loading mid-flight without a hold ` +
-        `(${images.completedDuringFlight} completed, ${images.heldDuringFlight} held of ` +
-        `${images.loadingAtStart} still loading at t0) — each decode rasters on the moving ` +
-        "layer and costs a present; this is the warm-side image-hold regression"
+      `${images.completedUnheld} image(s) finished loading mid-flight without a hold ` +
+        `(${images.completedDuringFlight} completed, ${images.heldDuringFlight} held; ` +
+        `${images.loadingAtStart} were loading at t0, ${images.addedDuringFlight} arrived ` +
+        "mid-flight) — each decode rasters on the moving layer and costs a present; this is " +
+        "the warm-side image-hold regression"
     );
   }
 

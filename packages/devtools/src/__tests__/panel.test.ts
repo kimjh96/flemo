@@ -393,6 +393,48 @@ describe("attachDevtoolsPanel — copy report JSON", () => {
     expect(copyButton()?.textContent).toBe("Copy report JSON");
   });
 
+  it("holds the copied label until the flight lands", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    setClipboard({ writeText });
+    mount({ recorder: stub(() => report({ flights: [flight()] })), initialOpen: true });
+    vi.advanceTimersByTime(400);
+
+    // The clipboard resolves on its own schedule, and a navigation can start
+    // in that window. Writing the label then would repaint the panel during
+    // the very motion it is measuring.
+    const screen = mountScreen("PUSHING");
+    copyButton()?.click();
+    await flushMicrotasks();
+    expect(copyButton()?.textContent).toBe("Copy report JSON");
+
+    screen.setAttribute("data-flemo-status", "COMPLETED");
+    vi.advanceTimersByTime(400);
+    expect(copyButton()?.textContent).toBe("Copied ✓");
+
+    // …and the restore timer waits for the same condition.
+    screen.setAttribute("data-flemo-status", "POPPING");
+    vi.advanceTimersByTime(2000);
+    expect(copyButton()?.textContent).toBe("Copied ✓");
+    screen.setAttribute("data-flemo-status", "COMPLETED");
+    vi.advanceTimersByTime(400);
+    expect(copyButton()?.textContent).toBe("Copy report JSON");
+  });
+
+  it("drops the pending label restore when the panel detaches first", async () => {
+    setClipboard({ writeText: () => Promise.resolve() });
+    mount({ recorder: stub(() => report({ flights: [flight()] })), initialOpen: true });
+    vi.advanceTimersByTime(400);
+    copyButton()?.click();
+    await flushMicrotasks();
+    expect(copyButton()?.textContent).toBe("Copied ✓");
+
+    panel?.detach();
+    panel = null;
+    // The restore timer is still queued; it must find the panel gone and do
+    // nothing rather than write into a detached tree.
+    expect(() => vi.advanceTimersByTime(2000)).not.toThrow();
+  });
+
   it("falls back to execCommand when the clipboard rejects", async () => {
     const execCommand = vi.fn(() => true);
     setClipboard({ writeText: () => Promise.reject(new Error("denied")) });

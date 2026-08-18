@@ -313,13 +313,30 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
 
   const markCopied = (): void => {
     if (detached) return;
+    // The clipboard write resolves on its own schedule, which can be mid-
+    // flight — and the label restore fires on a timer that has no idea
+    // either. Both are DOM writes, so both wait exactly like a render does.
+    if (flightInProgress()) {
+      window.clearTimeout(copyTimer);
+      copyTimer = window.setTimeout(markCopied, OPEN_REFRESH_MS);
+      return;
+    }
     setText(copyButton, "Copied ✓");
     window.clearTimeout(copyTimer);
-    copyTimer = window.setTimeout(() => {
-      copyTimer = 0;
-      setText(copyButton, COPY_LABEL);
-    }, 1200);
+    copyTimer = window.setTimeout(restoreCopyLabel, 1200);
   };
+
+  // No detached guard: detach() clears this timer, so it cannot fire after
+  // teardown. markCopied needs one because the clipboard promise CAN resolve
+  // after detach; this cannot.
+  function restoreCopyLabel(): void {
+    if (flightInProgress()) {
+      copyTimer = window.setTimeout(restoreCopyLabel, OPEN_REFRESH_MS);
+      return;
+    }
+    copyTimer = 0;
+    setText(copyButton, COPY_LABEL);
+  }
 
   const fallbackCopy = (json: string): void => {
     const area = el("textarea");

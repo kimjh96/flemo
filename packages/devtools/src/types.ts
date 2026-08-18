@@ -126,10 +126,23 @@ export interface MotionProgress {
 export interface ImageActivity {
   /** Participant images not yet complete when the flight opened. */
   loadingAtStart: number;
-  /** Of those, how many completed before the landing audit ran. */
+  /**
+   * Images that appeared INSIDE a participant after the flight opened and
+   * were still loading — a data commit landing mid-navigation. The engine's
+   * own image hold watches for exactly these, so the recorder must too.
+   */
+  addedDuringFlight: number;
+  /** Of the tracked images, how many completed before the flight ended. */
   completedDuringFlight: number;
-  /** Participant images carrying the engine's hold marker during the flight. */
+  /** Tracked images seen carrying the engine's hold marker. */
   heldDuringFlight: number;
+  /**
+   * The number that actually matters: images that completed during the
+   * flight WITHOUT a hold, counted per image. Subtracting the two counts
+   * above would cancel out a held-but-still-loading image against an
+   * unheld completed one and report nothing.
+   */
+  completedUnheld: number;
 }
 
 /** Post-landing residue audit, taken 2 rAF after the flight completed. */

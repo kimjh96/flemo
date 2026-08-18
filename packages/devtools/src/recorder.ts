@@ -14,6 +14,7 @@ import {
 import type { DriverEvidence } from "./sampling";
 import type {
   FlemoReport,
+  ImageActivity,
   FlightKind,
   FlightRecord,
   FlightRecorderHandle,
@@ -48,6 +49,12 @@ const HELD_ARRIVAL_ATTR = "data-flemo-held-arrival";
  * compiled animation's clock legitimately reads 0 on it.
  */
 const STALL_MIN_FRAMES = 2;
+/**
+ * Ceiling on tracked images per flight. A list commit can append hundreds at
+ * once, and the recorder must never become the cost it is measuring — past
+ * this point the sample is already conclusive either way.
+ */
+const MAX_TRACKED_IMAGES = 200;
 const MAX_LONG_TASKS = 1000;
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
@@ -79,7 +86,10 @@ interface ActiveFlight {
   longestStallMs: number;
   pausedAfterRelease: boolean;
   holdReassertedAtMs: number | null;
-  imagesLoadingAtStart: HTMLImageElement[];
+  /** Images being tracked for this flight: loading at t0, plus mid-flight arrivals. */
+  imagesTracked: Set<HTMLImageElement>;
+  imagesLoadingAtStart: number;
+  imagesAddedDuringFlight: number;
   imagesHeld: Set<Element>;
   rafId: number | null;
 }
@@ -198,12 +208,64 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
     return images;
   };
 
+  /**
+   * Per-image accounting. Counting completions and holds separately and
+   * subtracting would cancel a held-but-still-loading image against an
+   * unheld completed one, hiding the exact regression this exists to catch.
+   */
+  const imageActivity = (flight: ActiveFlight): ImageActivity => {
+    let completed = 0;
+    let completedUnheld = 0;
+    for (const img of flight.imagesTracked) {
+      if (!img.complete) continue;
+      completed += 1;
+      if (!flight.imagesHeld.has(img)) completedUnheld += 1;
+    }
+    return {
+      loadingAtStart: flight.imagesLoadingAtStart,
+      addedDuringFlight: flight.imagesAddedDuringFlight,
+      completedDuringFlight: completed,
+      heldDuringFlight: flight.imagesHeld.size,
+      completedUnheld
+    };
+  };
+
+  /**
+   * Images that arrive DURING the flight — a data commit landing mid-
+   * navigation, which is the case core's image hold watches for with its own
+   * observer. Without this the recorder would only ever see the screens as
+   * they looked at t0.
+   */
+  const trackAddedImages = (added: NodeList): void => {
+    const flight = current;
+    if (!flight || flight.imagesTracked.size >= MAX_TRACKED_IMAGES) return;
+    for (const node of Array.from(added)) {
+      if (!(node instanceof Element)) continue;
+      // Only inside this flight's participants: a mutation elsewhere on the
+      // page is not on the moving layer.
+      if (!flight.elements.some((screen) => screen === node || screen.contains(node))) continue;
+      const images =
+        node instanceof HTMLImageElement ? [node] : Array.from(node.querySelectorAll("img"));
+      for (const img of images) {
+        if (img.complete || flight.imagesTracked.has(img)) continue;
+        if (flight.imagesTracked.size >= MAX_TRACKED_IMAGES) return;
+        flight.imagesTracked.add(img);
+        flight.imagesAddedDuringFlight += 1;
+      }
+    }
+  };
+
   /** One query per flight, on the first moving frame: which images the engine parked. */
   const snapshotHeldImages = (flight: ActiveFlight) => {
     for (const screen of flight.elements) {
       for (const held of Array.from(screen.querySelectorAll(`img[${IMAGE_HOLD_ATTR}]`))) {
         flight.imagesHeld.add(held);
       }
+    }
+    // A mid-flight arrival can be parked after that sweep, so re-check the
+    // tracked set directly rather than relying on one query.
+    for (const img of flight.imagesTracked) {
+      if (img.hasAttribute(IMAGE_HOLD_ATTR)) flight.imagesHeld.add(img);
     }
   };
 
@@ -387,10 +449,13 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       longestStallMs: 0,
       pausedAfterRelease: false,
       holdReassertedAtMs: null,
-      imagesLoadingAtStart: participantImages(screens).filter((img) => !img.complete),
+      imagesTracked: new Set(participantImages(screens).filter((img) => !img.complete)),
+      imagesLoadingAtStart: 0,
+      imagesAddedDuringFlight: 0,
       imagesHeld: new Set(),
       rafId: null
     };
+    current.imagesLoadingAtStart = current.imagesTracked.size;
     sampleDriverEvidence(current);
     current.rafId = requestAnimationFrame(sampleFrame);
   };
@@ -414,8 +479,15 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
    * gone by the landing: whatever they hide has no owner left to reveal it.
    * Scanned document-wide on purpose — an orphan's screen is often exactly
    * the one that was swapped out from under the hold.
+   *
+   * Skipped entirely when another flight is already running: the audit lands
+   * two frames after the previous flight ended, and by then a fast
+   * back-to-back navigation legitimately owns hold markers of its own. A
+   * missed detection is recoverable; blaming a flight for its successor's
+   * working holds would train the reader to ignore the signal.
    */
   const orphanedHolds = (): string[] => {
+    if (current !== null || transitionalScreens().length > 0) return [];
     const found: string[] = [];
     for (const [attribute, label] of [
       [IMAGE_HOLD_ATTR, "image reveal hold"],
@@ -470,6 +542,9 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
   const finalizeFlight = (endNow: number, stuckStatuses: string[]) => {
     const flight = current;
     if (!flight) return;
+    // Last sweep before the numbers are frozen: an image parked late in the
+    // flight (or one that arrived mid-flight) must not read as unheld.
+    snapshotHeldImages(flight);
     current = null;
     if (flight.rafId !== null) cancelAnimationFrame(flight.rafId);
     const playerGapsSlice = (windowSlot().__flemoPlayerGaps ?? []).slice(
@@ -494,11 +569,7 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
         pausedAfterRelease: flight.pausedAfterRelease,
         holdReassertedAtMs: flight.holdReassertedAtMs
       },
-      images: {
-        loadingAtStart: flight.imagesLoadingAtStart.length,
-        completedDuringFlight: flight.imagesLoadingAtStart.filter((img) => img.complete).length,
-        heldDuringFlight: flight.imagesHeld.size
-      },
+      images: imageActivity(flight),
       ...(playerGaps ? { playerGaps } : {}),
       longTasks: [], // correlated lazily at report() — entries arrive async
       holdLongTasks: [],
@@ -598,6 +669,8 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       for (const mutation of mutations) {
         if (mutation.type === "attributes" && mutation.attributeName === HOLD_ATTR) {
           trackHoldMutation(mutation);
+        } else if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
+          trackAddedImages(mutation.addedNodes);
         }
       }
       evaluate();
@@ -709,11 +782,7 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
         pausedAfterRelease: flight.pausedAfterRelease,
         holdReassertedAtMs: flight.holdReassertedAtMs
       },
-      images: {
-        loadingAtStart: flight.imagesLoadingAtStart.length,
-        completedDuringFlight: flight.imagesLoadingAtStart.filter((img) => img.complete).length,
-        heldDuringFlight: flight.imagesHeld.size
-      },
+      images: imageActivity(flight),
       longTasks: [],
       holdLongTasks: [],
       landing: {

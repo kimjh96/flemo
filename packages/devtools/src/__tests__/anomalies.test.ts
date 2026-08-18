@@ -42,7 +42,13 @@ const cleanFlight = (): FlightAnomalyInput => ({
     pausedAfterRelease: false,
     holdReassertedAtMs: null
   },
-  images: { loadingAtStart: 0, completedDuringFlight: 0, heldDuringFlight: 0 }
+  images: {
+    loadingAtStart: 0,
+    addedDuringFlight: 0,
+    completedDuringFlight: 0,
+    heldDuringFlight: 0,
+    completedUnheld: 0
+  }
 });
 
 describe("deriveFlightAnomalies", () => {

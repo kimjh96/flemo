@@ -162,7 +162,17 @@ Do not turn it into a live-updating dashboard.
       // Images inside the participants. One still-loading <img> completing
       // mid-flight costs one skipped present (glass-measured 1:1), which is
       // why the engine holds them; an unheld completion is that regression.
-      "images": { "loadingAtStart": 12, "completedDuringFlight": 0, "heldDuringFlight": 12 },
+      // completedUnheld is the number that matters, counted PER IMAGE: a
+      // held-but-still-loading image must not cancel out an unheld completed
+      // one. addedDuringFlight covers images a data commit inserts mid-
+      // navigation, which is the case core's image hold also watches for.
+      "images": {
+        "loadingAtStart": 12,
+        "addedDuringFlight": 0,
+        "completedDuringFlight": 0,
+        "heldDuringFlight": 12,
+        "completedUnheld": 0
+      },
       "playerGaps": { "maxMs": 42.3, "over30Count": 1 }, // only if the player mirror grew
       "longTasks": [{ "startMs": 1200.0, "durationMs": 180.0 }], // intersecting visible motion
       "holdLongTasks": [], // fully absorbed by the hold — engine working as designed
@@ -171,7 +181,10 @@ Do not turn it into a live-updating dashboard.
         "residualInlineTransforms": [], // inline transform/opacity leftovers
         "offViewportAtRest": false, // the blank-viewport (PR #259) signature
         "stuckStatuses": [], // transitional statuses >10s old
-        "orphanedHolds": [] // hold markers still on the page at rest
+        // Hold markers still on the page at rest. Skipped (left empty) when
+        // another flight is already running: two frames after a landing, a
+        // fast back-to-back navigation legitimately owns holds of its own.
+        "orphanedHolds": []
       },
       "anomalies": ["long task 180ms overlapped flight start (opening-swallow risk)"]
     }

@@ -344,6 +344,143 @@ describe("regression net: a report taken mid-flight still carries the new sectio
   });
 });
 
+// The review round on PR #264: four ways the first cut of these detectors
+// could have lied. Each of these fails without its fix.
+describe("regression net: image accounting is per image, not per count", () => {
+  const addImage = (parent: HTMLElement, complete: boolean, held = false) => {
+    const img = document.createElement("img");
+    Object.defineProperty(img, "complete", { value: complete, configurable: true });
+    if (held) img.setAttribute("data-flemo-img-hold", "");
+    parent.appendChild(img);
+    return img;
+  };
+
+  it("does not let a held-but-loading image cancel out an unheld completed one", async () => {
+    const screen = mountScreen();
+    // A stays held and unfinished; B finishes with no hold. Subtracting the
+    // two counts gives 1 - 1 = 0 and reports nothing — the bug.
+    addImage(screen, false, true);
+    const b = addImage(screen, false);
+    handle = attachFlightRecorder();
+    await settle();
+
+    await openFlight(screen);
+    await release(screen);
+    await frames(2);
+    Object.defineProperty(b, "complete", { value: true, configurable: true });
+    await land(screen);
+
+    const flight = handle.report().flights[0];
+    expect(flight.images.completedUnheld).toBe(1);
+    expect(flight.anomalies.some((entry) => entry.includes("without a hold"))).toBe(true);
+  });
+
+  it("tracks an image inserted mid-flight by a data commit", async () => {
+    const screen = mountScreen();
+    handle = attachFlightRecorder();
+    await settle();
+
+    await openFlight(screen);
+    await release(screen);
+    await frames(1);
+    // The commit the arrival hold exists for: content lands mid-navigation.
+    const late = addImage(screen, false);
+    await settle();
+    await frames(1);
+    Object.defineProperty(late, "complete", { value: true, configurable: true });
+    await land(screen);
+
+    const flight = handle.report().flights[0];
+    expect(flight.images.addedDuringFlight).toBe(1);
+    expect(flight.images.completedUnheld).toBe(1);
+  });
+
+  it("counts a mid-flight arrival the engine parked as held", async () => {
+    const screen = mountScreen();
+    handle = attachFlightRecorder();
+    await settle();
+
+    await openFlight(screen);
+    await release(screen);
+    await frames(1);
+    const late = addImage(screen, false);
+    await settle();
+    await frames(1);
+    late.setAttribute("data-flemo-img-hold", "");
+    Object.defineProperty(late, "complete", { value: true, configurable: true });
+    await land(screen);
+
+    const flight = handle.report().flights[0];
+    expect(flight.images.heldDuringFlight).toBe(1);
+    expect(flight.images.completedUnheld).toBe(0);
+    expect(flight.anomalies.some((entry) => entry.includes("without a hold"))).toBe(false);
+  });
+});
+
+describe("regression net: mid-flight tracking stays cheap and total", () => {
+  it("ignores non-element additions", async () => {
+    const screen = mountScreen();
+    handle = attachFlightRecorder();
+    await settle();
+
+    await openFlight(screen);
+    await release(screen);
+    screen.appendChild(document.createTextNode("a data commit's text"));
+    await settle();
+    await frames(1);
+    await land(screen);
+
+    expect(handle.report().flights[0].images.addedDuringFlight).toBe(0);
+  });
+
+  it("caps how many images one flight will track", async () => {
+    const screen = mountScreen();
+    handle = attachFlightRecorder();
+    await settle();
+
+    await openFlight(screen);
+    await release(screen);
+    // A list commit can append hundreds at once; the recorder must not turn
+    // into the cost it is measuring.
+    const batch = document.createElement("div");
+    for (let i = 0; i < 260; i += 1) {
+      const img = document.createElement("img");
+      Object.defineProperty(img, "complete", { value: false, configurable: true });
+      batch.appendChild(img);
+    }
+    screen.appendChild(batch);
+    await settle();
+    await frames(1);
+    await land(screen);
+
+    expect(handle.report().flights[0].images.addedDuringFlight).toBe(200);
+  });
+});
+
+describe("regression net: an orphan must belong to the flight it is reported on", () => {
+  it("does not blame a flight for the next one's working holds", async () => {
+    const screen = mountScreen();
+    handle = attachFlightRecorder();
+    await settle();
+
+    await openFlight(screen);
+    await release(screen);
+    // The first flight lands, and a back-to-back navigation opens before the
+    // +2rAF audit runs — with legitimate hold markers of its own.
+    screen.setAttribute("data-flemo-status", "COMPLETED");
+    await settle();
+    const holder = document.createElement("img");
+    holder.setAttribute("data-flemo-img-hold", "");
+    screen.appendChild(holder);
+    screen.setAttribute("data-flemo-status", "POPPING");
+    await settle();
+    await frames(4);
+
+    const first = handle.report().flights[0];
+    expect(first.landing.orphanedHolds).toEqual([]);
+  });
+});
+
 describe("regression net: the judging protocol travels with the report", () => {
   it("states the DevTools-closed, no-capture, real-input preconditions", () => {
     handle = attachFlightRecorder();
