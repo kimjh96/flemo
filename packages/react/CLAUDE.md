@@ -67,9 +67,14 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
    through `swipeEnvRef` (latest-ref pattern); pointer handlers forward native events;
    an active `touchmove` listener prevents scroll during grabs and on the 8px
    edge-zone strips.
-5. **Bar riding**: `computeBarRiding` in RENDER sets `data-flemo-bar-riding` in the
-   same commit as the bar's status attribute (the compiled sibling selector keys on
-   both); swipe mirrors bars synchronously inside the controller instead.
+5. **Bar riding and identity**: `computeBarRiding` in RENDER sets
+   `data-flemo-bar-riding` in the same commit as the bar's status attribute (the
+   compiled sibling selector keys on both); swipe mirrors bars synchronously inside
+   the controller instead. Bars hand over only when position and optional ID match:
+   two unlabelled bars retain the legacy match, while a labelled bar never aliases an
+   unlabelled or differently labelled bar. DOM fallback IDs carry
+   `data-flemo-bar-id-type`, so numeric `3` remains distinct from string `"3"` when a
+   frozen partner has not reconnected its registry yet.
 6. **Entering-initial style AND its lease hazard**: `enteringInitialStyle` renders the
    active entering screen's from-pose as an _inline style_ for the first styled frame
    (withheld while parked — it would defeat the park rule). Because it is inline and
@@ -77,10 +82,16 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
    "original" — the root cause of the desktop player blank (PR #259; the engine now
    strips the scope's pose channels at COMPLETED). If you add inline styles here,
    assume the engine may capture and restore them.
-7. **Chrome**: status/system bars, shared top/bottom bars (heights observed via core's
-   `observeBarHeight`), the decorator, `data-swipe-at-edge-bar` strips, and the
-   surface registry (`registerScreenSurface`, computed-style opacity, re-measured per
-   status flip).
+7. **Chrome**: status/system bars, shared top/bottom bars, the decorator,
+   `data-swipe-at-edge-bar` strips, and the surface registry
+   (`registerScreenSurface`, computed-style opacity, re-measured per status flip).
+   Shared-bar spacing has a pre-paint ordering contract: the ref callback measures
+   first and writes both the spacer and a measurement ref; the registration layout
+   effect publishes identity + that height in one store notification; then
+   `observeBarHeight` performs an idempotent initial report and keeps dynamic resizes
+   current. A matching partner's registered height seeds the destination spacer in
+   render, before its own bar measures. Same-ID re-registration preserves the cached
+   height; changing ID discards it.
 
 ## Screen / freeze
 
@@ -90,6 +101,10 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
   COMPLETED effect never runs (player tracks clean up in their detach instead) and why
   mount effects re-fire on every unfreeze (`eagerlyDecodeImages` uses exactly that).
   `flemo:freeze=shallow` (URL-armable) keeps the direct prev screen live.
+- Activity hiding disconnects `ScreenMotion` layout effects, so shared-bar cleanup
+  unregisters the entry. State and measurement refs survive; the unfreeze registration
+  republishes the complete ID + height before the observer reconnects. Do not move the
+  measurement solely into an effect or reintroduce an identity-only registry window.
 
 ## Renderer / Part / decorator / hooks
 

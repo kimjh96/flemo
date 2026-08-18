@@ -378,6 +378,115 @@ describe("createSwipeController", () => {
       expect(prevNav.style.transform).toBe(prevScreenEl.style.transform);
     });
 
+    it("keeps a same-ID current bar fixed during swipe hand-over", async () => {
+      config.getSharedTopBarId = () => "builder-header";
+      config.getPartnerBars = () => ({ topBar: true, bottomBar: false });
+      config.getPartnerBarMetadata = () => ({ topBar: { id: "builder-header" } });
+      const c = createSwipeController(config);
+      await drag(c);
+
+      expect(dom.scope.style.transform).not.toBe("");
+      expect(topBar.style.transform).toBe("");
+    });
+
+    it("rides a different-ID current bar with its screen during a swipe", async () => {
+      config.getSharedTopBarId = () => "builder-header";
+      config.getPartnerBars = () => ({ topBar: true, bottomBar: false });
+      config.getPartnerBarMetadata = () => ({ topBar: { id: "work-header" } });
+      const c = createSwipeController(config);
+      await drag(c);
+
+      expect(topBar.style.transform).toBe(dom.scope.style.transform);
+    });
+
+    it("uses matching string and number IDs from the partner DOM before metadata reconnects", async () => {
+      const bottomBar = document.createElement("div");
+      document.body.appendChild(bottomBar);
+      const prevTop = document.createElement("div");
+      prevTop.setAttribute("data-flemo-bar", "app");
+      prevTop.setAttribute("data-flemo-bar-id", "builder-header");
+      prevTop.setAttribute("data-flemo-bar-id-type", "string");
+      (dom.root.firstElementChild as HTMLElement).appendChild(prevTop);
+      prevNav.setAttribute("data-flemo-bar-id", "7");
+      prevNav.setAttribute("data-flemo-bar-id-type", "number");
+
+      config.getElements = () => ({
+        scope: dom.scope,
+        screenContainer: dom.screenContainer,
+        decorator: null,
+        sharedTopBar: topBar,
+        sharedBottomBar: bottomBar
+      });
+      config.hasSharedTopBar = () => true;
+      config.hasSharedBottomBar = () => true;
+      config.getSharedTopBarId = () => "builder-header";
+      config.getSharedBottomBarId = () => 7;
+
+      const c = createSwipeController(config);
+      await drag(c);
+
+      expect(topBar.style.transform).toBe("");
+      expect(bottomBar.style.transform).toBe("");
+      expect(prevTop.style.transform).toBe("");
+      expect(prevNav.style.transform).toBe("");
+
+      bottomBar.remove();
+    });
+
+    it("rides both sides when DOM fallback bars have different identities", async () => {
+      const bottomBar = document.createElement("div");
+      document.body.appendChild(bottomBar);
+      const prevTop = document.createElement("div");
+      prevTop.setAttribute("data-flemo-bar", "app");
+      (dom.root.firstElementChild as HTMLElement).appendChild(prevTop);
+
+      config.getElements = () => ({
+        scope: dom.scope,
+        screenContainer: dom.screenContainer,
+        decorator: null,
+        sharedTopBar: topBar,
+        sharedBottomBar: bottomBar
+      });
+      config.hasSharedTopBar = () => true;
+      config.hasSharedBottomBar = () => true;
+      config.getSharedTopBarId = () => "builder-header";
+      config.getSharedBottomBarId = () => "builder-actions";
+
+      const c = createSwipeController(config);
+      await drag(c);
+
+      expect(topBar.style.transform).toBe(dom.scope.style.transform);
+      expect(bottomBar.style.transform).toBe(dom.scope.style.transform);
+      expect(prevTop.style.transform).toBe(dom.prevScope.style.transform);
+      expect(prevNav.style.transform).toBe(dom.prevScope.style.transform);
+
+      bottomBar.remove();
+    });
+
+    it("uses legacy partner presence while its metadata reconnects", async () => {
+      const bottomBar = document.createElement("div");
+      document.body.appendChild(bottomBar);
+      config.getElements = () => ({
+        scope: dom.scope,
+        screenContainer: dom.screenContainer,
+        decorator: null,
+        sharedTopBar: topBar,
+        sharedBottomBar: bottomBar
+      });
+      config.hasSharedTopBar = () => true;
+      config.hasSharedBottomBar = () => true;
+      config.getPartnerBars = () => ({ topBar: true, bottomBar: true });
+
+      const c = createSwipeController(config);
+      await drag(c);
+
+      expect(topBar.style.transform).toBe("");
+      expect(bottomBar.style.transform).toBe("");
+      expect(prevNav.style.transform).toBe("");
+
+      bottomBar.remove();
+    });
+
     it("a cancelled swipe restores every riding bar's inline state", async () => {
       const c = createSwipeController(config);
       await drag(c);

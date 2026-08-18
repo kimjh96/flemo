@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -24,6 +25,7 @@ import {
   readPrerasterFlag,
   readSettleGateFlag,
   resolveTransition,
+  sharedBarsMatch,
   steadySixtyPlayerEligible,
   type AnimHoldCoordinator
 } from "@flemo/core";
@@ -66,7 +68,9 @@ function ScreenMotion({
   systemNavigationBarHeight,
   systemNavigationBarColor,
   sharedTopBar,
+  sharedTopBarId,
   sharedBottomBar,
+  sharedBottomBarId,
   topBar,
   bottomBar,
   hideStatusBar,
@@ -118,6 +122,9 @@ function ScreenMotion({
   const partnerBars = useScreenStore((state) =>
     partnerId ? state.sharedBars[partnerId] : undefined
   );
+  const partnerBarMetadata = useScreenStore((state) =>
+    partnerId ? state.sharedBarMetadata[partnerId] : undefined
+  );
   // The partner's scope surface: a prev screen entering on pop parks at its
   // destination during the hold ONLY when the screen covering it (its partner,
   // the current top) has an opaque background — otherwise the park would shine
@@ -156,14 +163,107 @@ function ScreenMotion({
 
   const isKeyboardVisible = viewportScrollHeight > 0;
 
-  const [sharedTopBarHeight, setSharedTopBarHeight] = useState(0);
-  const [sharedBottomBarHeight, setSharedBottomBarHeight] = useState(0);
+  const hasSharedTopBar = !!sharedTopBar;
+  const hasSharedBottomBar = !!sharedBottomBar;
+  const topBarKey = hasSharedTopBar ? `${typeof sharedTopBarId}:${String(sharedTopBarId)}` : null;
+  const bottomBarKey = hasSharedBottomBar
+    ? `${typeof sharedBottomBarId}:${String(sharedBottomBarId)}`
+    : null;
+
+  const [topBarMeasurement, setTopBarMeasurement] = useState({
+    key: topBarKey,
+    height: 0
+  });
+  const [bottomBarMeasurement, setBottomBarMeasurement] = useState({
+    key: bottomBarKey,
+    height: 0
+  });
+  // Ref callbacks run in the mutation phase, before layout effects. Mirror the
+  // latest positive measurement outside React state so the registration layout
+  // effect can publish identity + height in its very first store write.
+  const topBarMeasurementRef = useRef(topBarMeasurement);
+  const bottomBarMeasurementRef = useRef(bottomBarMeasurement);
+
+  const measuredTopBarHeight = topBarMeasurement.key === topBarKey ? topBarMeasurement.height : 0;
+  const measuredBottomBarHeight =
+    bottomBarMeasurement.key === bottomBarKey ? bottomBarMeasurement.height : 0;
+  const partnerTopBarHeight = sharedBarsMatch(
+    hasSharedTopBar ? { id: sharedTopBarId } : undefined,
+    partnerBarMetadata?.topBar
+  )
+    ? (partnerBarMetadata?.topBar?.height ?? 0)
+    : 0;
+  const partnerBottomBarHeight = sharedBarsMatch(
+    hasSharedBottomBar ? { id: sharedBottomBarId } : undefined,
+    partnerBarMetadata?.bottomBar
+  )
+    ? (partnerBarMetadata?.bottomBar?.height ?? 0)
+    : 0;
+  // A matching partner's last real measurement seeds the destination's FIRST
+  // render. A local measurement wins as soon as this screen's own bar lays out.
+  const sharedTopBarHeight = measuredTopBarHeight || partnerTopBarHeight;
+  const sharedBottomBarHeight = measuredBottomBarHeight || partnerBottomBarHeight;
 
   const screenRef = useRef<HTMLDivElement | null>(null);
   const scopeRef = useRef<HTMLDivElement | null>(null);
   const decoratorRef = useRef<HTMLDivElement | null>(null);
+  const sharedTopBarSpacerRef = useRef<HTMLDivElement | null>(null);
+  const sharedBottomBarSpacerRef = useRef<HTMLDivElement | null>(null);
   const sharedTopBarRef = useRef<HTMLDivElement | null>(null);
   const sharedBottomBarRef = useRef<HTMLDivElement | null>(null);
+
+  const commitTopBarHeight = useCallback(
+    (height: number) => {
+      if (height <= 0 || topBarKey === null) return;
+      // Ref attachment and ResizeObserver callbacks can run before React's
+      // follow-up render. Write the spacer in the same commit so no browser
+      // paint can observe a real bar paired with a zero-height reservation.
+      if (sharedTopBarSpacerRef.current) {
+        sharedTopBarSpacerRef.current.style.minHeight = `${height}px`;
+      }
+      topBarMeasurementRef.current = { key: topBarKey, height };
+      setTopBarMeasurement((current) =>
+        current.key === topBarKey && current.height === height
+          ? current
+          : { key: topBarKey, height }
+      );
+      stores.screen.getState().updateSharedBarHeight(id, "topBar", height);
+    },
+    [id, stores.screen, topBarKey]
+  );
+
+  const commitBottomBarHeight = useCallback(
+    (height: number) => {
+      if (height <= 0 || bottomBarKey === null) return;
+      if (sharedBottomBarSpacerRef.current) {
+        sharedBottomBarSpacerRef.current.style.minHeight = `${height}px`;
+      }
+      bottomBarMeasurementRef.current = { key: bottomBarKey, height };
+      setBottomBarMeasurement((current) =>
+        current.key === bottomBarKey && current.height === height
+          ? current
+          : { key: bottomBarKey, height }
+      );
+      stores.screen.getState().updateSharedBarHeight(id, "bottomBar", height);
+    },
+    [bottomBarKey, id, stores.screen]
+  );
+
+  const attachSharedTopBar = useCallback(
+    (element: HTMLDivElement | null) => {
+      sharedTopBarRef.current = element;
+      if (element?.offsetHeight) commitTopBarHeight(element.offsetHeight);
+    },
+    [commitTopBarHeight]
+  );
+
+  const attachSharedBottomBar = useCallback(
+    (element: HTMLDivElement | null) => {
+      sharedBottomBarRef.current = element;
+      if (element?.offsetHeight) commitBottomBarHeight(element.offsetHeight);
+    },
+    [commitBottomBarHeight]
+  );
 
   // Framework-neutral swipe-back controller, stable for this screen's lifetime.
   // It holds the gesture state and drives the transition/decorator swipe
@@ -175,6 +275,8 @@ function ScreenMotion({
     decorator,
     hasSharedTopBar: !!sharedTopBar,
     hasSharedBottomBar: !!sharedBottomBar,
+    sharedTopBarId,
+    sharedBottomBarId,
     viewportScrollHeight,
     isRoot,
     isActive,
@@ -187,6 +289,8 @@ function ScreenMotion({
     decorator,
     hasSharedTopBar: !!sharedTopBar,
     hasSharedBottomBar: !!sharedBottomBar,
+    sharedTopBarId,
+    sharedBottomBarId,
     viewportScrollHeight,
     isRoot,
     isActive,
@@ -209,6 +313,8 @@ function ScreenMotion({
       }),
       hasSharedTopBar: () => swipeEnvRef.current.hasSharedTopBar,
       hasSharedBottomBar: () => swipeEnvRef.current.hasSharedBottomBar,
+      getSharedTopBarId: () => swipeEnvRef.current.sharedTopBarId,
+      getSharedBottomBarId: () => swipeEnvRef.current.sharedBottomBarId,
       getViewportScrollHeight: () => swipeEnvRef.current.viewportScrollHeight,
       isReadyForDrag: () => {
         const env = swipeEnvRef.current;
@@ -226,6 +332,12 @@ function ScreenMotion({
         const histories = stores.history.getState().histories;
         const partnerId = env.isActive ? histories[env.index - 1]?.id : histories[env.index]?.id;
         return partnerId ? stores.screen.getState().sharedBars[partnerId] : undefined;
+      },
+      getPartnerBarMetadata: () => {
+        const env = swipeEnvRef.current;
+        const histories = stores.history.getState().histories;
+        const partnerId = env.isActive ? histories[env.index - 1]?.id : histories[env.index]?.id;
+        return partnerId ? stores.screen.getState().sharedBarMetadata[partnerId] : undefined;
       },
       setDragStatus,
       back: () => window.history.back()
@@ -274,35 +386,64 @@ function ScreenMotion({
     };
   }, [swipeController]);
 
+  // Ref attachment has already measured any laid-out bar. Register that local
+  // height together with its identity so the first store notification is never
+  // an intermediate height-less entry. Activity hidden mode disconnects this
+  // effect (and its cleanup removes the registry entry); on unfreeze the refs /
+  // state survive and this same registration restores the complete metadata.
+  // The following observer effect is then only an idempotent initial check plus
+  // the long-lived dynamic resize channel.
+  useLayoutEffect(() => {
+    const { registerSharedBars, unregisterSharedBars } = stores.screen.getState();
+    const topMeasurement = topBarMeasurementRef.current;
+    const bottomMeasurement = bottomBarMeasurementRef.current;
+    registerSharedBars(
+      id,
+      {
+        topBar: hasSharedTopBar,
+        bottomBar: hasSharedBottomBar
+      },
+      {
+        topBar: hasSharedTopBar
+          ? {
+              id: sharedTopBarId,
+              height: topMeasurement.key === topBarKey ? topMeasurement.height : undefined
+            }
+          : undefined,
+        bottomBar: hasSharedBottomBar
+          ? {
+              id: sharedBottomBarId,
+              height: bottomMeasurement.key === bottomBarKey ? bottomMeasurement.height : undefined
+            }
+          : undefined
+      }
+    );
+    return () => unregisterSharedBars(id);
+  }, [
+    bottomBarKey,
+    hasSharedBottomBar,
+    hasSharedTopBar,
+    id,
+    sharedBottomBarId,
+    sharedTopBarId,
+    stores.screen,
+    topBarKey
+  ]);
+
   // Bar-height tracking (incl. the ignore-0-while-frozen WebKit gotcha) lives
-  // in @flemo/core's observeBarHeight; this binding only stores the height.
+  // in @flemo/core's observeBarHeight. The commit callbacks also update the
+  // spacer directly so the reservation and real bar cannot paint out of sync.
   useLayoutEffect(() => {
     const element = sharedTopBarRef.current;
-    if (!element) {
-      setSharedTopBarHeight(0);
-      return;
-    }
-    return observeBarHeight(element, setSharedTopBarHeight);
-  }, [sharedTopBar]);
+    if (!element) return undefined;
+    return observeBarHeight(element, commitTopBarHeight);
+  }, [commitTopBarHeight, sharedTopBar]);
 
   useLayoutEffect(() => {
     const element = sharedBottomBarRef.current;
-    if (!element) {
-      setSharedBottomBarHeight(0);
-      return;
-    }
-    return observeBarHeight(element, setSharedBottomBarHeight);
-  }, [sharedBottomBar]);
-
-  // Register this screen's shared-bar presence so other screens can read it.
-  useLayoutEffect(() => {
-    const { registerSharedBars, unregisterSharedBars } = stores.screen.getState();
-    registerSharedBars(id, {
-      topBar: !!sharedTopBar,
-      bottomBar: !!sharedBottomBar
-    });
-    return () => unregisterSharedBars(id);
-  }, [id, sharedTopBar, sharedBottomBar, stores.screen]);
+    if (!element) return undefined;
+    return observeBarHeight(element, commitBottomBarHeight);
+  }, [commitBottomBarHeight, sharedBottomBar]);
 
   // Register this screen's scope surface (is its background opaque?) so the
   // screen beneath can decide between the destination park and the paused
@@ -342,15 +483,16 @@ function ScreenMotion({
   //    bars in the SAME JS tick. No rAF loop, no `getComputedStyle` reads.
   //    The bars and the screen commit in the same paint pass.
   const isTopOrTopPrev = participatesInTransition;
-  const hasSharedTopBar = !!sharedTopBar;
-  const hasSharedBottomBar = !!sharedBottomBar;
 
   const { app: rideTopBar, nav: rideBottomBar } = computeBarRiding({
     status,
     isTopOrTopPrev,
     hasTopBar: hasSharedTopBar,
     hasNavBar: hasSharedBottomBar,
-    partnerBars
+    topBarId: sharedTopBarId,
+    bottomBarId: sharedBottomBarId,
+    partnerBars,
+    partnerMetadata: partnerBarMetadata
   });
 
   // Anchor the transition START to the first PAINTED frame. iOS WebKit anchors
@@ -788,6 +930,8 @@ function ScreenMotion({
         )}
         {sharedTopBar && (
           <div
+            ref={sharedTopBarSpacerRef}
+            data-flemo-bar-spacer="app"
             style={{
               width: "100%",
               minHeight: sharedTopBarHeight
@@ -817,6 +961,8 @@ function ScreenMotion({
         {bottomBar}
         {sharedBottomBar && (
           <div
+            ref={sharedBottomBarSpacerRef}
+            data-flemo-bar-spacer="nav"
             style={{
               display: isKeyboardVisible ? "none" : undefined,
               width: "100%",
@@ -845,8 +991,10 @@ function ScreenMotion({
       </div>
       {sharedTopBar && (
         <div
-          ref={sharedTopBarRef}
+          ref={attachSharedTopBar}
           data-flemo-bar="app"
+          data-flemo-bar-id={sharedTopBarId}
+          data-flemo-bar-id-type={sharedTopBarId === undefined ? undefined : typeof sharedTopBarId}
           data-flemo-router={routerId ?? undefined}
           data-flemo-bar-transition={transitionName}
           data-flemo-bar-status={status}
@@ -866,8 +1014,12 @@ function ScreenMotion({
       )}
       {sharedBottomBar && (
         <div
-          ref={sharedBottomBarRef}
+          ref={attachSharedBottomBar}
           data-flemo-bar="nav"
+          data-flemo-bar-id={sharedBottomBarId}
+          data-flemo-bar-id-type={
+            sharedBottomBarId === undefined ? undefined : typeof sharedBottomBarId
+          }
           data-flemo-router={routerId ?? undefined}
           data-flemo-bar-transition={transitionName}
           data-flemo-bar-status={status}

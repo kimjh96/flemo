@@ -6,7 +6,7 @@ import {
   type ReactNode
 } from "react";
 
-import { computeScreenFreezeMode } from "@flemo/core";
+import { computeScreenFreezeMode, type SharedBarId } from "@flemo/core";
 
 import ScreenFreeze from "@screen/ScreenFreeze";
 import ScreenMotion from "@screen/ScreenMotion";
@@ -28,7 +28,9 @@ export interface ScreenProps extends PropsWithChildren<
   systemNavigationBarColor?: string;
   backgroundColor?: string;
   sharedTopBar?: ReactNode;
+  sharedTopBarId?: SharedBarId;
   sharedBottomBar?: ReactNode;
+  sharedBottomBarId?: SharedBarId;
   topBar?: ReactNode;
   bottomBar?: ReactNode;
   hideStatusBar?: boolean;

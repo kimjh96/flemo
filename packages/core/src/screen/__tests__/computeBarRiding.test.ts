@@ -26,6 +26,41 @@ describe("computeBarRiding", () => {
     });
   });
 
+  it("hands over explicitly identified bars only when their IDs match", () => {
+    expect(
+      computeBarRiding({
+        ...base,
+        topBarId: "builder-header",
+        bottomBarId: "builder-actions",
+        partnerBars: { topBar: true, bottomBar: true },
+        partnerMetadata: {
+          topBar: { id: "builder-header" },
+          bottomBar: { id: "main-tabs" }
+        }
+      })
+    ).toEqual({ app: false, nav: true });
+  });
+
+  it("does not alias an identified bar with a legacy unlabelled bar", () => {
+    expect(
+      computeBarRiding({
+        ...base,
+        bottomBarId: "builder-actions",
+        partnerBars: { topBar: true, bottomBar: true }
+      })
+    ).toEqual({ app: false, nav: true });
+  });
+
+  it("keeps the legacy position-only hand-over when both IDs are omitted", () => {
+    expect(
+      computeBarRiding({
+        ...base,
+        partnerBars: { topBar: true, bottomBar: true },
+        partnerMetadata: { topBar: {}, bottomBar: {} }
+      })
+    ).toEqual({ app: false, nav: false });
+  });
+
   it("rides nothing when not transitioning", () => {
     expect(computeBarRiding({ ...base, status: "COMPLETED" })).toEqual({ app: false, nav: false });
     expect(computeBarRiding({ ...base, status: "IDLE" })).toEqual({ app: false, nav: false });

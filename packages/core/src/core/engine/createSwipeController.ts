@@ -6,9 +6,11 @@ import findScrollable from "@utils/findScrollable";
 
 import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
 
+import { sharedBarsMatch, type SharedBarPresenceLike } from "@screen/computeBarRiding";
+
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
-import type { SharedBarPresenceLike } from "@screen/computeBarRiding";
+import type { SharedBarId, SharedBarsMetadata } from "@screen/store";
 
 import type { Decorator } from "@transition/decorator/typing";
 
@@ -35,6 +37,8 @@ export interface SwipeControllerConfig {
   getElements: () => SwipeControllerElements;
   hasSharedTopBar: () => boolean;
   hasSharedBottomBar: () => boolean;
+  getSharedTopBarId?: () => SharedBarId | undefined;
+  getSharedBottomBarId?: () => SharedBarId | undefined;
   getViewportScrollHeight: () => number;
   // The full readiness gate for starting a drag (isRoot / isActive / status /
   // dragStatus / swipeDirection / keyboard), computed by the binding.
@@ -42,6 +46,7 @@ export interface SwipeControllerConfig {
   // The partner screen's shared-bar presence (active screen looks one below,
   // an entering screen looks at the current top).
   getPartnerBars: () => SharedBarPresenceLike | undefined;
+  getPartnerBarMetadata?: () => SharedBarsMetadata | undefined;
   setDragStatus: (status: "IDLE" | "PENDING") => void;
   // Commit a swipe-back navigation (window.history.back in the browser binding).
   back: () => void;
@@ -150,13 +155,35 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
 
   const captureRidingBars = (prevScreenContainer: HTMLElement | null) => {
     const partnerBars = config.getPartnerBars();
+    const partnerMetadata = config.getPartnerBarMetadata?.();
+    // A previous screen can have committed its DOM before its Activity-
+    // reconnected layout effects republish the registry. Use that DOM as the
+    // synchronous fallback so the first swipe tick keeps legacy behavior.
+    const prevTopBar = prevScreenContainer?.querySelector<HTMLElement>('[data-flemo-bar="app"]');
+    const prevNavBar = prevScreenContainer?.querySelector<HTMLElement>('[data-flemo-bar="nav"]');
+    const domMetadata = (bar: HTMLElement | null | undefined) => {
+      if (!bar) return undefined;
+      const value = bar.getAttribute("data-flemo-bar-id");
+      if (value === null) return {};
+      return {
+        id: bar.getAttribute("data-flemo-bar-id-type") === "number" ? Number(value) : value
+      };
+    };
+    const currentTop = config.hasSharedTopBar() ? { id: config.getSharedTopBarId?.() } : undefined;
+    const currentBottom = config.hasSharedBottomBar()
+      ? { id: config.getSharedBottomBarId?.() }
+      : undefined;
+    const partnerTop =
+      partnerMetadata?.topBar ?? (partnerBars?.topBar ? {} : domMetadata(prevTopBar));
+    const partnerBottom =
+      partnerMetadata?.bottomBar ?? (partnerBars?.bottomBar ? {} : domMetadata(prevNavBar));
 
     // Current side: this screen's own bars ride if the partner lacks a match.
     const current: HTMLElement[] = [];
     const { sharedTopBar, sharedBottomBar } = config.getElements();
-    if (sharedTopBar && config.hasSharedTopBar() && !partnerBars?.topBar)
+    if (sharedTopBar && currentTop && !sharedBarsMatch(currentTop, partnerTop))
       current.push(sharedTopBar);
-    if (sharedBottomBar && config.hasSharedBottomBar() && !partnerBars?.bottomBar) {
+    if (sharedBottomBar && currentBottom && !sharedBarsMatch(currentBottom, partnerBottom)) {
       current.push(sharedBottomBar);
     }
 
@@ -165,10 +192,11 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // partner instance.
     const prev: HTMLElement[] = [];
     if (prevScreenContainer) {
-      const prevTopBar = prevScreenContainer.querySelector<HTMLElement>('[data-flemo-bar="app"]');
-      const prevNavBar = prevScreenContainer.querySelector<HTMLElement>('[data-flemo-bar="nav"]');
-      if (prevTopBar && !config.hasSharedTopBar()) prev.push(prevTopBar);
-      if (prevNavBar && !config.hasSharedBottomBar()) prev.push(prevNavBar);
+      if (prevTopBar && partnerTop && !sharedBarsMatch(partnerTop, currentTop))
+        prev.push(prevTopBar);
+      if (prevNavBar && partnerBottom && !sharedBarsMatch(partnerBottom, currentBottom)) {
+        prev.push(prevNavBar);
+      }
     }
 
     ridingBars = { current, prev };

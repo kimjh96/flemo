@@ -1,5 +1,7 @@
 import type { NavigateStatus } from "@navigate/store";
 
+import type { SharedBarId, SharedBarMetadata, SharedBarsMetadata } from "@screen/store";
+
 // Presence of a partner screen's shared bars, used to decide ride-along.
 // Defined HERE (the pure decision module) — the swipe controller re-exports
 // it, so the engine layer depends on the screen layer, never the reverse.
@@ -15,11 +17,24 @@ export interface BarRidingInput {
   isTopOrTopPrev: boolean;
   hasTopBar: boolean;
   hasNavBar: boolean;
+  topBarId?: SharedBarId;
+  bottomBarId?: SharedBarId;
   // The partner screen's shared-bar presence (the screen this one would hand its
   // bars over to): the active top's partner is the screen beneath; a prev
   // screen's partner is the top. The binding resolves it and can subscribe to
   // just that entry.
   partnerBars: SharedBarPresenceLike | undefined;
+  partnerMetadata?: SharedBarsMetadata;
+}
+
+// A metadata object represents a present bar. Missing IDs deliberately retain
+// the legacy position-only hand-over: two unlabelled bars at the same position
+// match, while an explicitly labelled bar never aliases an unlabelled one.
+export function sharedBarsMatch(
+  current: SharedBarMetadata | undefined,
+  partner: SharedBarMetadata | undefined
+): boolean {
+  return !!current && !!partner && current.id === partner.id;
 }
 
 // Whether each of a screen's shared bars should "ride along" with the screen
@@ -36,8 +51,13 @@ export default function computeBarRiding(input: BarRidingInput): { app: boolean;
   if (!transitioning || !input.isTopOrTopPrev) {
     return { app: false, nav: false };
   }
+  const currentTop = input.hasTopBar ? { id: input.topBarId } : undefined;
+  const currentBottom = input.hasNavBar ? { id: input.bottomBarId } : undefined;
+  const partnerTop = input.partnerMetadata?.topBar ?? (input.partnerBars?.topBar ? {} : undefined);
+  const partnerBottom =
+    input.partnerMetadata?.bottomBar ?? (input.partnerBars?.bottomBar ? {} : undefined);
   return {
-    app: input.hasTopBar && !input.partnerBars?.topBar,
-    nav: input.hasNavBar && !input.partnerBars?.bottomBar
+    app: input.hasTopBar && !sharedBarsMatch(currentTop, partnerTop),
+    nav: input.hasNavBar && !sharedBarsMatch(currentBottom, partnerBottom)
   };
 }
