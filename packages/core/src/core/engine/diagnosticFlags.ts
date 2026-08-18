@@ -22,6 +22,7 @@ import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 // | flemo:motion-driver-force | session | "css@<epoch-ms>"/"raf@<epoch-ms>" | unset                    | opt-in diagnostic                | hard driver pin (24h TTL) — owned by driverPolicy.ts, not read here    |
 // | flemo:lpm                 | session | "1"/"0"                         | (learned)                  | production-state                 | low-power cadence seed — owned by lowPowerCadence.ts, not read here    |
 // | flemo:lat                 | session | integer ms                      | (learned)                  | production-state                 | LPM release-latency seed — owned by lowPowerCadence.ts, not read here  |
+// | flemo:sixty               | session | "high" / streak count           | (learned)                  | production-state                 | steady-60 desktop verdict seed — owned by steadySixtyCadence.ts        |
 // | flemo:landing-snap        | session | "on"                            | off                        | opt-in diagnostic                | Blink landing pixel-snap easing A/B (landingPixelSnap.ts)              |
 // | flemo:imghold             | session | "on"                            | off                        | opt-in diagnostic                | flight-scoped <img> reveal hold (imageRevealHold.ts)                   |
 // | flemo:settle-gate         | session | "on"/"off"                      | governedCompiledActive()   | production-default-with-override | render-settle entry gate (engine routing + react ScreenMotion)         |

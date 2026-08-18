@@ -43,8 +43,11 @@ import { detectBlinkEngine } from "@core/engine/driverPolicy";
 
 // Below this in-flight median the display is presenting faster than the
 // player's per-frame main-thread write can survive. Mirrors the engine's
-// COMPILED_TIER_MAX_INTERVAL_MS (createTransitionEngine.ts).
-const HIGH_REFRESH_MAX_INTERVAL_MS = 12;
+// COMPILED_TIER_MAX_INTERVAL_MS (createTransitionEngine.ts). Exported for
+// the player's own cadence feed (it reports only high-refresh CANDIDATES —
+// a mid-band median from its longer, noisier stream must not reset the
+// streak the probe windows built).
+export const HIGH_REFRESH_MAX_INTERVAL_MS = 12;
 // The steady-60 acceptance window: 14ms (~71Hz — generous headroom over an
 // honest 16.7ms median) to 22ms (~45Hz — a momentarily loaded 60Hz panel
 // still qualifies; a 30Hz governor's 33ms never does).
@@ -56,28 +59,70 @@ const STEADY_SIXTY_FLIGHTS = 2;
 // at 1x there is no shimmer to fix and the compiled tier keeps its record.
 const STEADY_SIXTY_MIN_DPR = 1.5;
 
-let sawHighRefresh = false;
-let sixtyStreak = 0;
+// PERSISTED across reloads (`flemo:sixty`, sessionStorage — production-state,
+// same class as flemo:lpm): the verdict is a property of the tab's display
+// environment, not of one page load. Without the seed, EVERY reload re-ran
+// the two-flight compiled warm-up — a user who reloads while evaluating
+// effectively lives in the old tier and never sees the graduated behavior
+// (device-reported 2026-08-18: "둘 다 심하다" from the user's own tab while
+// the clean instance was already judged improved — they were watching the
+// warm-up). "high" latches; a numeric value seeds the streak.
+const STORAGE_KEY = "flemo:sixty";
+const readPersisted = (): string | null => {
+  try {
+    return typeof sessionStorage !== "undefined" ? sessionStorage.getItem(STORAGE_KEY) : null;
+  } catch {
+    return null;
+  }
+};
+const persist = (value: string): void => {
+  try {
+    if (typeof sessionStorage !== "undefined") sessionStorage.setItem(STORAGE_KEY, value);
+  } catch {
+    // A partitioned context loses the seed, never the session's own verdict.
+  }
+};
+
+const seed = readPersisted();
+let sawHighRefresh = seed === "high";
+let sixtyStreak =
+  seed !== null && seed !== "high"
+    ? Math.min(STEADY_SIXTY_FLIGHTS, Math.max(0, parseInt(seed, 10) || 0))
+    : 0;
 
 // Feed one in-flight cadence median (RAW, unclamped — the learned-interval
 // clamp in transitionPlayer would erase the 60-vs-default distinction).
 // Called by the engine's display-interval probe during compiled flights, so
 // the verdict only ever forms from measurements taken while a compositor
 // animation had the panel at its true rate.
-export const reportInFlightCadence = (rawMedianMs: number): void => {
+export const reportInFlightCadence = (rawMedianMs: number, rawMaxMs?: number): void => {
   if (!Number.isFinite(rawMedianMs) || rawMedianMs <= 0) return;
   if (rawMedianMs < HIGH_REFRESH_MAX_INTERVAL_MS) {
+    // The high latch demands a UNIFORM fast window, not merely a fast
+    // median: a genuine 120Hz panel reports 8.3ms gaps wall to wall, while
+    // a busy real-world tab recovering from a main-thread jam fires rAF in
+    // CATCH-UP BURSTS (1-8ms gaps right after a long one) whose median can
+    // dip below the threshold — device-reported 2026-08-18 as a tab stuck
+    // on the compiled tier ("갈색") on a measured-60Hz display, now with
+    // the false latch PERSISTED by the reload seed. A window whose max gap
+    // betrays a stall is jam noise: ignore it entirely.
+    if (rawMaxMs !== undefined && rawMaxMs > HIGH_REFRESH_MAX_INTERVAL_MS * 2) return;
     sawHighRefresh = true;
     sixtyStreak = 0;
+    persist("high");
     return;
   }
   if (rawMedianMs >= STEADY_SIXTY_MIN_MS && rawMedianMs <= STEADY_SIXTY_MAX_MS) {
     sixtyStreak = Math.min(STEADY_SIXTY_FLIGHTS, sixtyStreak + 1);
+    if (!sawHighRefresh) persist(String(sixtyStreak));
     return;
   }
   // The ambiguous 12-14ms band resets; a slow (>22ms) median is neutral —
   // see the header.
-  if (rawMedianMs < STEADY_SIXTY_MIN_MS) sixtyStreak = 0;
+  if (rawMedianMs < STEADY_SIXTY_MIN_MS) {
+    sixtyStreak = 0;
+    if (!sawHighRefresh) persist("0");
+  }
 };
 
 // The verified verdict alone (no environment gates) — exposed for the
@@ -99,8 +144,13 @@ export const steadySixtyPlayerEligible = (): boolean =>
   typeof window !== "undefined" &&
   (window.devicePixelRatio || 1) >= STEADY_SIXTY_MIN_DPR;
 
-/* v8 ignore next 4 -- test hook: the verdict is session-scoped module state. */
+/* v8 ignore next 8 -- test hook: the verdict is session-scoped module state. */
 export const resetSteadySixtyForTests = (): void => {
   sawHighRefresh = false;
   sixtyStreak = 0;
+  try {
+    if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // ignore
+  }
 };

@@ -97,3 +97,46 @@ describe("steadySixtyCadence verdict", () => {
     }
   });
 });
+
+describe("steadySixtyCadence persistence", () => {
+  afterEach(() => {
+    resetSteadySixtyForTests();
+    delete NAV.userAgentData;
+  });
+
+  it("mirrors the verdict into sessionStorage for reload seeding", () => {
+    reportInFlightCadence(16.7);
+    expect(sessionStorage.getItem("flemo:sixty")).toBe("1");
+    reportInFlightCadence(16.7);
+    expect(sessionStorage.getItem("flemo:sixty")).toBe("2");
+    reportInFlightCadence(8.3);
+    expect(sessionStorage.getItem("flemo:sixty")).toBe("high");
+  });
+
+  it("the test reset clears the persisted seed", () => {
+    reportInFlightCadence(16.7);
+    resetSteadySixtyForTests();
+    expect(sessionStorage.getItem("flemo:sixty")).toBeNull();
+  });
+});
+
+describe("high-latch uniformity guard", () => {
+  afterEach(() => {
+    resetSteadySixtyForTests();
+  });
+
+  it("a fast median with a jam-sized max gap is noise, not a high-refresh panel", () => {
+    // rAF catch-up burst after a main-thread jam: median 6ms, one 80ms gap.
+    reportInFlightCadence(6, 80);
+    reportInFlightCadence(16.7, 18);
+    reportInFlightCadence(16.7, 18);
+    expect(steadySixtyVerified()).toBe(true);
+  });
+
+  it("a uniform fast window still latches high", () => {
+    reportInFlightCadence(8.3, 9.1);
+    reportInFlightCadence(16.7, 18);
+    reportInFlightCadence(16.7, 18);
+    expect(steadySixtyVerified()).toBe(false);
+  });
+});

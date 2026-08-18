@@ -325,8 +325,10 @@ const armDisplayIntervalProbe = () => {
     // interval above is clamped to the 60Hz nominal, which would erase the
     // 60-vs-unmeasured distinction the verdict needs). This probe only runs
     // during compiled flights — a compositor animation is live, so an
-    // adaptive panel is at its true rate (see steadySixtyCadence.ts).
-    reportInFlightCadence(median);
+    // adaptive panel is at its true rate (see steadySixtyCadence.ts). The
+    // window's max gap rides along so the verdict can reject jam-noise
+    // windows (rAF catch-up bursts fake a fast median).
+    reportInFlightCadence(median, sorted[sorted.length - 1]!);
   };
   requestAnimationFrame(tick);
 };
@@ -963,17 +965,28 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       //    (see steadySixtyCadence.ts): partial presents on a ramped panel
       //    are invisible to rAF, so the latch — not the demotion machinery —
       //    is the high-refresh protection.
+      //    DESKTOP decides by the steady-60 verdict ALONE — the learned rAF
+      //    interval is a TOUCH routing input (desktop never consulted it
+      //    before the carve-out, short-circuiting on maxTouchPoints first),
+      //    and exposing a verified desktop session to it made the route FLAP:
+      //    one catch-up burst in the player's own gap stream dipped the
+      //    learned median under the threshold and the next flight fell back
+      //    to the compiled tier (device-reported as intermittent "갈색"
+      //    flights mid-session). A real display change re-latches through
+      //    the verdict instead: the player feeds its own uniform cadence
+      //    into reportInFlightCadence, where the jam-noise guard separates a
+      //    genuine 120Hz stream from burst noise.
       if (
         detectBlinkEngine() &&
         driverPolicy.pinnedDriver() !== "raf" &&
-        ((typeof navigator !== "undefined" &&
-          navigator.maxTouchPoints === 0 &&
-          !steadySixtyPlayerEligible()) ||
-          learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS ||
-          !driverPolicy.playerAllowed() ||
-          // A confidently-weak legacy Android (no UA-CH) skips the player probe
-          // that janked its first push every session (see isLegacyAndroidBlink).
-          isLegacyAndroidBlink())
+        (typeof navigator !== "undefined" && navigator.maxTouchPoints === 0
+          ? !steadySixtyPlayerEligible() || !driverPolicy.playerAllowed()
+          : learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS ||
+            !driverPolicy.playerAllowed() ||
+            // A confidently-weak legacy Android (no UA-CH) skips the player
+            // probe that janked its first push every session (see
+            // isLegacyAndroidBlink).
+            isLegacyAndroidBlink())
       ) {
         armDisplayIntervalProbe();
         return null;
