@@ -69,6 +69,9 @@ export const sampleRafCadence = (
   frames = 20
 ): Promise<{ medianGapMs: number | null; sampleCount: number }> =>
   new Promise((resolveCadence) => {
+    // Public API: clamp the sample count, or `frames <= 0` resolves the
+    // median off an empty window (undefined → NaN → serialized as null).
+    const target = Number.isFinite(frames) ? Math.max(1, Math.floor(frames)) : 20;
     if (typeof requestAnimationFrame !== "function" || typeof performance === "undefined") {
       resolveCadence({ medianGapMs: null, sampleCount: 0 });
       return;
@@ -79,7 +82,7 @@ export const sampleRafCadence = (
       const now = performance.now();
       if (last !== null) gaps.push(now - last);
       last = now;
-      if (gaps.length >= frames) {
+      if (gaps.length >= target) {
         const sorted = [...gaps].sort((left, right) => left - right);
         const median = sorted[Math.floor(sorted.length / 2)];
         resolveCadence({

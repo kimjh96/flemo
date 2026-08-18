@@ -141,6 +141,9 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
   const flights: FlightRecord[] = [];
   let flightSeq = 0;
   let current: ActiveFlight | null = null;
+  // Screens a stuck-watchdog finalization locked out of re-arming (see
+  // evaluate) — cleared once they leave the transitional statuses.
+  let stuckElements: Element[] = [];
   let detached = false;
   let installedGlobal = false;
 
@@ -222,7 +225,11 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
     if (now - flight.t0Ms > STUCK_STATUS_MS) {
       // Watchdog: a flight this old is a locked queue, not a navigation.
       // Record it as stuck and stop burning frames; the observer keeps
-      // running, so a later recovery starts a fresh flight normally.
+      // running, so a later recovery starts a fresh flight normally. The
+      // locked screens are remembered so the next mutation does not re-arm
+      // a duplicate flight on the very same stuck statuses (a locked queue
+      // would otherwise fill the bounded buffer and evict real flights).
+      stuckElements = [...flight.elements];
       finalizeFlight(now, currentStuckStatuses(flight));
       return;
     }
@@ -384,6 +391,13 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
 
   const evaluate = () => {
     const transitional = transitionalScreens();
+    if (stuckElements.length > 0) {
+      // A watchdog-finalized queue stays suppressed until its screens
+      // actually leave the transitional statuses; only then can a fresh
+      // navigation arm a new flight.
+      if (transitional.some((element) => stuckElements.includes(element))) return;
+      stuckElements = [];
+    }
     if (!current && transitional.length > 0) {
       beginFlight(transitional);
       return;
@@ -482,7 +496,16 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       const withTasks: FlightRecord = {
         ...record,
         longTasks: tasks.released,
-        holdLongTasks: tasks.held
+        holdLongTasks: tasks.held,
+        // Copy, don't alias: the +2rAF landing audit mutates the stored
+        // record after finalization, and a report is documented as a
+        // point-in-time snapshot — an aliased `landing` would change value
+        // in the caller's hands (with anomalies still pre-audit).
+        landing: {
+          residualInlineTransforms: [...record.landing.residualInlineTransforms],
+          offViewportAtRest: record.landing.offViewportAtRest,
+          stuckStatuses: [...record.landing.stuckStatuses]
+        }
       };
       withTasks.anomalies = deriveFlightAnomalies({
         t0Ms: withTasks.t0.ms,

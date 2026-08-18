@@ -214,6 +214,68 @@ describe("attachFlightRecorder branches", () => {
     expect(handle!.report().flights).toHaveLength(2);
   });
 
+  it("does not re-arm on the same locked queue after a stuck finalization", async () => {
+    const screen = mountScreen();
+    attach();
+    await settle();
+
+    screen.setAttribute("data-flemo-status", "PUSHING");
+    screen.setAttribute("data-flemo-active", "true");
+    await settle();
+    await frames(1);
+
+    const realNow = performance.now.bind(performance);
+    const nowSpy = vi.spyOn(performance, "now").mockImplementation(() => realNow() + 11_000);
+    await frames(2);
+    nowSpy.mockRestore();
+    expect(handle!.report().flights).toHaveLength(1);
+
+    // The queue is still locked (status unchanged): further filtered
+    // mutations must NOT begin a duplicate flight on the same screens —
+    // a locked queue would repeat forever and evict real flights from the
+    // bounded buffer.
+    screen.setAttribute("data-flemo-active", "false");
+    await settle();
+    screen.setAttribute("data-flemo-active", "true");
+    await settle();
+    await frames(1);
+    expect(handle!.report().flights).toHaveLength(1);
+
+    // Once the locked screens clear, a fresh navigation records normally.
+    screen.setAttribute("data-flemo-status", "COMPLETED");
+    await settle();
+    await runFlight(screen, "POPPING");
+    expect(handle!.report().flights).toHaveLength(2);
+  });
+
+  it("a report taken before the landing audit is a stable snapshot", async () => {
+    const screen = mountScreen();
+    attach();
+    await settle();
+
+    screen.setAttribute("data-flemo-status", "PUSHING");
+    screen.setAttribute("data-flemo-active", "true");
+    await settle();
+    await frames(1);
+    // Leave a residue the +2rAF audit will flag on the STORED record.
+    screen.style.transform = "translateX(120px)";
+    screen.setAttribute("data-flemo-status", "COMPLETED");
+    await settle();
+
+    // Report BEFORE the audit frames elapse: landing must be a copy…
+    const early = handle!.report().flights[0].landing;
+    expect(early.residualInlineTransforms).toEqual([]);
+
+    await frames(4);
+    // …that does not mutate in the caller's hands once the audit lands…
+    expect(early.residualInlineTransforms).toEqual([]);
+    // …while a fresh report sees the audited residue.
+    const audited = handle!.report().flights[0].landing;
+    expect(audited.residualInlineTransforms.some((entry) => entry.includes("translateX"))).toBe(
+      true
+    );
+  });
+
   it("reports a still-open flight provisionally, and a stuck one at report time", async () => {
     const screen = mountScreen();
     attach();

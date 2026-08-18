@@ -136,6 +136,15 @@ describe("sampleRafCadence", () => {
     const cadence = await sampleRafCadence(5);
     expect(cadence).toEqual({ medianGapMs: null, sampleCount: 0 });
   });
+
+  it("clamps a non-positive sample count instead of resolving NaN", async () => {
+    const cadence = await sampleRafCadence(0);
+    expect(cadence.sampleCount).toBe(1);
+    expect(Number.isFinite(cadence.medianGapMs)).toBe(true);
+    const negative = await sampleRafCadence(-3);
+    expect(negative.sampleCount).toBe(1);
+    expect(Number.isFinite(negative.medianGapMs)).toBe(true);
+  });
 });
 
 describe("captureEnvironment", () => {
