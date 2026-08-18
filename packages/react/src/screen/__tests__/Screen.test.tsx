@@ -311,6 +311,15 @@ describe("Screen", () => {
 
   it("synchronously reserves a newly mounted bar's measured height", () => {
     stores.history.setState({ index: 0, histories: [historyEntry("top")] });
+    const metadataWrites: unknown[] = [];
+    let previousMetadata = stores.screen.getState().sharedBarMetadata.top;
+    const unsubscribe = stores.screen.subscribe((state) => {
+      const nextMetadata = state.sharedBarMetadata.top;
+      if (nextMetadata !== previousMetadata) {
+        previousMetadata = nextMetadata;
+        if (nextMetadata) metadataWrites.push(nextMetadata);
+      }
+    });
     const offsetHeight = vi
       .spyOn(HTMLElement.prototype, "offsetHeight", "get")
       .mockImplementation(function (this: HTMLElement) {
@@ -341,6 +350,16 @@ describe("Screen", () => {
       topBar: { id: "pattern-builder-header", height: 106 },
       bottomBar: { id: "pattern-builder-actions", height: 81 }
     });
+    // Ref attachment precedes layout effects. Registration must consume that
+    // measurement so subscribers never observe an identity-only entry followed
+    // by a second height update in the same commit.
+    expect(metadataWrites).toEqual([
+      {
+        topBar: { id: "pattern-builder-header", height: 106 },
+        bottomBar: { id: "pattern-builder-actions", height: 81 }
+      }
+    ]);
+    unsubscribe();
     offsetHeight.mockRestore();
   });
 

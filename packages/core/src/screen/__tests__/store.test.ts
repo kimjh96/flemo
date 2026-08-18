@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import createScreenStore, { type ScreenStoreApi } from "@screen/store";
 
@@ -55,6 +55,68 @@ describe("createScreenStore: shared bar registry", () => {
     );
     updateSharedBarHeight("a", "topBar", 0);
     expect(useScreenStore.getState().sharedBarMetadata.a?.topBar?.height).toBe(106);
+  });
+
+  it("preserves measured heights and does not notify when the same bars re-register", () => {
+    const { registerSharedBars, updateSharedBarHeight } = useScreenStore.getState();
+    registerSharedBars(
+      "builder",
+      { topBar: true, bottomBar: true },
+      {
+        topBar: { id: "builder-header" },
+        bottomBar: { id: "builder-actions" }
+      }
+    );
+    updateSharedBarHeight("builder", "topBar", 106);
+    updateSharedBarHeight("builder", "bottomBar", 81);
+    const before = useScreenStore.getState();
+    const listener = vi.fn();
+    const unsubscribe = useScreenStore.subscribe(listener);
+
+    registerSharedBars(
+      "builder",
+      { topBar: true, bottomBar: true },
+      {
+        topBar: { id: "builder-header" },
+        bottomBar: { id: "builder-actions" }
+      }
+    );
+
+    expect(useScreenStore.getState()).toBe(before);
+    expect(useScreenStore.getState().sharedBarMetadata.builder).toEqual({
+      topBar: { id: "builder-header", height: 106 },
+      bottomBar: { id: "builder-actions", height: 81 }
+    });
+    expect(listener).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  it("drops a cached height when the bar identity changes", () => {
+    const { registerSharedBars, updateSharedBarHeight } = useScreenStore.getState();
+    registerSharedBars(
+      "builder",
+      { topBar: true, bottomBar: true },
+      {
+        topBar: { id: "old-header" },
+        bottomBar: { id: "builder-actions" }
+      }
+    );
+    updateSharedBarHeight("builder", "topBar", 106);
+    updateSharedBarHeight("builder", "bottomBar", 81);
+
+    registerSharedBars(
+      "builder",
+      { topBar: true, bottomBar: true },
+      {
+        topBar: { id: "new-header" },
+        bottomBar: { id: "builder-actions" }
+      }
+    );
+
+    expect(useScreenStore.getState().sharedBarMetadata.builder).toEqual({
+      topBar: { id: "new-header" },
+      bottomBar: { id: "builder-actions", height: 81 }
+    });
   });
 
   it("removes an entry on unregister without touching others", () => {

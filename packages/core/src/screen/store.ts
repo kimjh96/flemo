@@ -47,6 +47,15 @@ export interface ScreenStore {
 
 export type ScreenStoreApi = StoreApi<ScreenStore>;
 
+const mergeRegisteredBarMetadata = (
+  next: SharedBarMetadata | undefined,
+  current: SharedBarMetadata | undefined
+): SharedBarMetadata | undefined => {
+  if (!next) return undefined;
+  if (next.height !== undefined || next.id !== current?.id) return next;
+  return { ...next, height: current?.height };
+};
+
 // Request-scoped (see history/store.ts, navigate/store.ts), created per Router
 // mount. Holds transition-UI state (drag / replace status) and the shared-bar
 // registry the swipe controller and bar-riding read. Framework-neutral.
@@ -61,7 +70,7 @@ export default function createScreenStore(): ScreenStoreApi {
     setReplaceTransitionStatus: (replaceTransitionStatus) => set({ replaceTransitionStatus }),
     registerSharedBars: (id, presence, metadata) =>
       set((state) => {
-        const nextMetadata =
+        const declaredMetadata =
           metadata ??
           ({
             topBar: presence.topBar ? {} : undefined,
@@ -69,6 +78,17 @@ export default function createScreenStore(): ScreenStoreApi {
           } satisfies SharedBarsMetadata);
         const currentPresence = state.sharedBars[id];
         const currentMetadata = state.sharedBarMetadata[id];
+        // Activity reconnects registration effects. A declaration carries the
+        // bar identity, not a request to erase its last real measurement: keep
+        // the height only while the identity is unchanged. A replacement bar
+        // must measure itself instead of inheriting unrelated layout.
+        const nextMetadata = {
+          topBar: mergeRegisteredBarMetadata(declaredMetadata.topBar, currentMetadata?.topBar),
+          bottomBar: mergeRegisteredBarMetadata(
+            declaredMetadata.bottomBar,
+            currentMetadata?.bottomBar
+          )
+        } satisfies SharedBarsMetadata;
         const samePresence =
           currentPresence?.topBar === presence.topBar &&
           currentPresence?.bottomBar === presence.bottomBar;

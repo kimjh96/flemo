@@ -178,6 +178,11 @@ function ScreenMotion({
     key: bottomBarKey,
     height: 0
   });
+  // Ref callbacks run in the mutation phase, before layout effects. Mirror the
+  // latest positive measurement outside React state so the registration layout
+  // effect can publish identity + height in its very first store write.
+  const topBarMeasurementRef = useRef(topBarMeasurement);
+  const bottomBarMeasurementRef = useRef(bottomBarMeasurement);
 
   const measuredTopBarHeight = topBarMeasurement.key === topBarKey ? topBarMeasurement.height : 0;
   const measuredBottomBarHeight =
@@ -216,6 +221,7 @@ function ScreenMotion({
       if (sharedTopBarSpacerRef.current) {
         sharedTopBarSpacerRef.current.style.minHeight = `${height}px`;
       }
+      topBarMeasurementRef.current = { key: topBarKey, height };
       setTopBarMeasurement((current) =>
         current.key === topBarKey && current.height === height
           ? current
@@ -232,6 +238,7 @@ function ScreenMotion({
       if (sharedBottomBarSpacerRef.current) {
         sharedBottomBarSpacerRef.current.style.minHeight = `${height}px`;
       }
+      bottomBarMeasurementRef.current = { key: bottomBarKey, height };
       setBottomBarMeasurement((current) =>
         current.key === bottomBarKey && current.height === height
           ? current
@@ -379,10 +386,17 @@ function ScreenMotion({
     };
   }, [swipeController]);
 
-  // Register identities before observation. The observer's immediate reading
-  // can then atomically publish its height into the same metadata entry.
+  // Ref attachment has already measured any laid-out bar. Register that local
+  // height together with its identity so the first store notification is never
+  // an intermediate height-less entry. Activity hidden mode disconnects this
+  // effect (and its cleanup removes the registry entry); on unfreeze the refs /
+  // state survive and this same registration restores the complete metadata.
+  // The following observer effect is then only an idempotent initial check plus
+  // the long-lived dynamic resize channel.
   useLayoutEffect(() => {
     const { registerSharedBars, unregisterSharedBars } = stores.screen.getState();
+    const topMeasurement = topBarMeasurementRef.current;
+    const bottomMeasurement = bottomBarMeasurementRef.current;
     registerSharedBars(
       id,
       {
@@ -390,12 +404,31 @@ function ScreenMotion({
         bottomBar: hasSharedBottomBar
       },
       {
-        topBar: hasSharedTopBar ? { id: sharedTopBarId } : undefined,
-        bottomBar: hasSharedBottomBar ? { id: sharedBottomBarId } : undefined
+        topBar: hasSharedTopBar
+          ? {
+              id: sharedTopBarId,
+              height: topMeasurement.key === topBarKey ? topMeasurement.height : undefined
+            }
+          : undefined,
+        bottomBar: hasSharedBottomBar
+          ? {
+              id: sharedBottomBarId,
+              height: bottomMeasurement.key === bottomBarKey ? bottomMeasurement.height : undefined
+            }
+          : undefined
       }
     );
     return () => unregisterSharedBars(id);
-  }, [hasSharedBottomBar, hasSharedTopBar, id, sharedBottomBarId, sharedTopBarId, stores.screen]);
+  }, [
+    bottomBarKey,
+    hasSharedBottomBar,
+    hasSharedTopBar,
+    id,
+    sharedBottomBarId,
+    sharedTopBarId,
+    stores.screen,
+    topBarKey
+  ]);
 
   // Bar-height tracking (incl. the ignore-0-while-frozen WebKit gotcha) lives
   // in @flemo/core's observeBarHeight. The commit callbacks also update the
