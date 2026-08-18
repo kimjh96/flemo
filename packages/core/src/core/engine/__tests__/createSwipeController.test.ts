@@ -463,6 +463,30 @@ describe("createSwipeController", () => {
       bottomBar.remove();
     });
 
+    it("uses legacy partner presence while its metadata reconnects", async () => {
+      const bottomBar = document.createElement("div");
+      document.body.appendChild(bottomBar);
+      config.getElements = () => ({
+        scope: dom.scope,
+        screenContainer: dom.screenContainer,
+        decorator: null,
+        sharedTopBar: topBar,
+        sharedBottomBar: bottomBar
+      });
+      config.hasSharedTopBar = () => true;
+      config.hasSharedBottomBar = () => true;
+      config.getPartnerBars = () => ({ topBar: true, bottomBar: true });
+
+      const c = createSwipeController(config);
+      await drag(c);
+
+      expect(topBar.style.transform).toBe("");
+      expect(bottomBar.style.transform).toBe("");
+      expect(prevNav.style.transform).toBe("");
+
+      bottomBar.remove();
+    });
+
     it("a cancelled swipe restores every riding bar's inline state", async () => {
       const c = createSwipeController(config);
       await drag(c);

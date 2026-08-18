@@ -164,12 +164,9 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const domMetadata = (bar: HTMLElement | null | undefined) => {
       if (!bar) return undefined;
       const value = bar.getAttribute("data-flemo-bar-id");
+      if (value === null) return {};
       return {
-        id: bar.hasAttribute("data-flemo-bar-id")
-          ? bar.getAttribute("data-flemo-bar-id-type") === "number"
-            ? Number(value)
-            : (value ?? undefined)
-          : undefined
+        id: bar.getAttribute("data-flemo-bar-id-type") === "number" ? Number(value) : value
       };
     };
     const currentTop = config.hasSharedTopBar() ? { id: config.getSharedTopBarId?.() } : undefined;
