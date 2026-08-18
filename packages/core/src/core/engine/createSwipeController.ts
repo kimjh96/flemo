@@ -8,13 +8,14 @@ import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layer
 
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
+import type { SharedBarPresenceLike } from "@screen/computeBarRiding";
+
 import type { Decorator } from "@transition/decorator/typing";
 
-// Presence of a partner screen's shared bars, used to decide ride-along.
-export interface SharedBarPresenceLike {
-  topBar: boolean;
-  bottomBar: boolean;
-}
+// Presence of a partner screen's shared bars — owned by the pure decision
+// module (computeBarRiding); re-exported here for the controller's config
+// surface and the public barrel.
+export type { SharedBarPresenceLike } from "@screen/computeBarRiding";
 
 export interface SwipeControllerElements {
   scope: HTMLElement | null;

@@ -39,6 +39,12 @@ import {
 } from "@core/engine/lowPowerCadence";
 import { armLpmReleaseLatencyProbe } from "@core/engine/lpmReleaseLatencyProbe";
 
+import { classifyTransitionDriver } from "@core/engine/motionDriverKind";
+import {
+  armFlightStartAnchorAtRelease,
+  holdNativeClocksToFirstFrame,
+  watchNativeStalls
+} from "@core/engine/nativeStallAnchor";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import { beginResponseHold } from "@core/engine/responseHold";
 import transitionPlayers, {
@@ -53,13 +59,6 @@ import {
 } from "@core/engine/types";
 import { decoratorMap } from "@transition/decorator/decorator";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
-
-import { classifyTransitionDriver } from "./motionDriverKind";
-import {
-  armFlightStartAnchorAtRelease,
-  holdNativeClocksToFirstFrame,
-  watchNativeStalls
-} from "./nativeStallAnchor";
 
 const noop = () => {};
 
