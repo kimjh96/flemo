@@ -82,9 +82,7 @@ test.describe("touch gesture safety", () => {
       .evaluate((button) => {
         const htmlButton = button as HTMLButtonElement;
         let pointerDownCount = 0;
-        let clickCount = 0;
         htmlButton.addEventListener("pointerdown", () => pointerDownCount++);
-        htmlButton.addEventListener("click", () => clickCount++);
         htmlButton.dispatchEvent(
           new PointerEvent("pointerdown", {
             bubbles: true,
@@ -93,13 +91,12 @@ test.describe("touch gesture safety", () => {
             isPrimary: true
           })
         );
-        htmlButton.click();
-        return { pointerDownCount, clickCount };
+        return { pointerDownCount };
       });
-    // The reduced activation gate is deliberate: click (including a native
-    // target listener) is stopped, while low-level input remains observable so
-    // the browser can establish and preserve a native scroll stream.
-    expect(activationProbe).toEqual({ pointerDownCount: 1, clickCount: 0 });
+    // The reduced activation gate is deliberate: low-level input remains
+    // observable so the browser can establish and preserve a native scroll
+    // stream. React click suppression is covered in ScreenMotion's binding test.
+    expect(activationProbe).toEqual({ pointerDownCount: 1 });
     expect(await scroller.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
       true
     );

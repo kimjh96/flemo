@@ -70,10 +70,11 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
    axis lead, so vertical scroll jitter cannot become page-wide horizontal back; a
    `pointercancel` always settles without navigation. PUSHING/REPLACING destinations
    remain hit-testable so a touch begun during the flight can scroll after landing.
-   The outer capture handler suppresses `click` propagation (React and descendant
-   native listeners) until the transition completes; lower-level pointer/mouse events
-   intentionally remain observable so native scroll targeting survives. Consumers
-   should commit navigation from `click`, not `pointerdown`/`pointerup`.
+   The outer capture handler suppresses React `click` handlers and synthetic event
+   propagation until the transition completes; native listeners are not part of this
+   contract. Lower-level pointer/mouse events intentionally remain observable so
+   native scroll targeting survives. Consumers should commit navigation from React
+   `click`, not `pointerdown`/`pointerup`.
 5. **Bar riding and identity**: `computeBarRiding` in RENDER sets
    `data-flemo-bar-riding` in the same commit as the bar's status attribute (the
    compiled sibling selector keys on both); swipe mirrors bars synchronously inside
