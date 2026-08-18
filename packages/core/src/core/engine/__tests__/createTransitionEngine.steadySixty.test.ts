@@ -93,11 +93,11 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
     expect(playerDrove()).toBe(false);
   });
 
-  it("routes the player once two in-flight medians verify steady-60", () => {
+  it("stays COMPILED even after two in-flight medians verify steady-60 (the settled 2026-08-18 verdict: on the target hardware every per-frame writer — rAF player, snap masks, pre-quantized WAAPI — was live-judged worse than the compiled compositor; the verdict now gates desktop-profile DEFAULTS, not the driver)", () => {
     reportInFlightCadence(16.7);
     reportInFlightCadence(16.7);
     drive();
-    expect(playerDrove()).toBe(true);
+    expect(playerDrove()).toBe(false);
   });
 
   it("stays compiled on a verified-60 display at 1x density", () => {
@@ -156,7 +156,9 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
 
     if (median >= 14 && median <= 22) {
       expect(steadySixtyVerified()).toBe(true);
-      expect(playerDrove()).toBe(true);
+      // Verification feeds the desktop-profile defaults; the DRIVER stays
+      // compiled (see the settled-verdict test above).
+      expect(playerDrove()).toBe(false);
     } else {
       // Off-window cadence must stay compiled — the same property, inverted.
       expect(playerDrove()).toBe(false);

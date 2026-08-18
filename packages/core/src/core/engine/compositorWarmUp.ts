@@ -18,6 +18,8 @@
 // emitting keyframes into the sheet would break the contract that a `none`
 // transition emits no rules.
 
+import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
+
 export const WARM_ATTR = "data-flemo-warm";
 
 // A flight that never reports its end (an engine torn down mid-transition)
@@ -25,10 +27,14 @@ export const WARM_ATTR = "data-flemo-warm";
 // transition, so it never fires for a flight that ends normally.
 const WARM_BACKSTOP_MS = 3000;
 
-const WARM_KEYFRAMES = [
-  { transform: "translate3d(0, 0, 0)" },
-  { transform: "translate3d(1px, 0, 0)" }
-];
+// RASTER-CLASS damage (2026-08-18): the original 1px translate produced
+// composite-only frames, and the machine-level judder it targets survived it
+// — while a DevTools FPS-counter overlay (whose digits REPAINT every frame)
+// visibly cleared the same judder, the postmortem's own control. So the warm
+// element now mirrors the counter's damage profile: a background-position
+// sweep is main-thread painted, guaranteeing changed PIXELS (not just a
+// recomposited quad) on every single frame for the flight's whole span.
+const WARM_KEYFRAMES = [{ backgroundPosition: "0px 0px" }, { backgroundPosition: "48px 0px" }];
 
 const WARM_TIMING: KeyframeAnimationOptions = {
   duration: 500,
@@ -51,9 +57,24 @@ const WARM_TIMING: KeyframeAnimationOptions = {
 // One painted pixel at 2% opacity is imperceptible but is real damage every
 // frame.
 const WARM_STYLE =
-  "position:fixed;top:0;left:0;width:1px;height:1px;" +
-  "pointer-events:none;opacity:0.02;background:#888;will-change:transform;";
+  "position:fixed;top:0;left:0;width:48px;height:48px;" +
+  "pointer-events:none;opacity:0.02;" +
+  "background-image:linear-gradient(90deg,#808080 0 24px,#909090 24px 48px);" +
+  "background-repeat:repeat;background-size:48px 48px;";
 
+// VIZ-level cadence lock (2026-08-18): the DevTools FPS-counter overlay -
+// drawn by the GPU process itself - was the one measured intervention that
+// cleared this machine's residual present judder (postmortem 2026-08-16),
+// and RENDERER-level damage (1px..48px, raster-class) did not replicate it.
+// The only viz-level surface a web page can contribute is VIDEO: decoded on
+// media threads, composited by viz at the video's own cadence, independent
+// of both the main thread and the renderer's frame production. A 2KB 8x8
+// 60fps loop plays for exactly the flight span (same holders as the warm
+// element). Blink only composites a video it considers visible, so it sits
+// at the warm element's 2% opacity, out of flow and inert.
+const WARM_VIDEO_SRC =
+  "data:video/webm;base64,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";
+let video: HTMLVideoElement | null = null;
 let element: HTMLElement | null = null;
 let animation: Animation | null = null;
 let holders = 0;
@@ -64,6 +85,9 @@ const teardown = () => {
   animation = null;
   element?.remove();
   element = null;
+  // The cadence-lock video is deliberately NOT torn down (see its creation
+  // note): it is session-persistent on the platforms that get one — but the
+  // flight-scoped forcing size shrinks back to the idle tick.
 };
 
 export default function holdCompositorWarm(): () => void {
@@ -74,6 +98,15 @@ export default function holdCompositorWarm(): () => void {
   }
 
   holders += 1;
+  // FLIGHT-SCOPED FORCING SURFACE (2026-08-18, the observer-effect round):
+  // the user independently noticed the residual pop stutter is REDUCED
+  // WHENEVER A SCREEN CAPTURE IS RUNNING — a capture client forces
+  // WindowServer to composite every vsync, machine-wide. That names the
+  // residual layer (WindowServer's demand-adaptive composition pacing) and
+  // the countermeasure: during the flight window the persistent cadence
+  // video grows to a LARGE quad (40vw, still 2% opacity), forcing a big
+  // per-frame composition the way a capture does — then shrinks back at
+  // settle so the idle cost stays at the 8px tick.
   if (!element) {
     element = document.createElement("div");
     element.setAttribute(WARM_ATTR, "");
@@ -86,6 +119,40 @@ export default function holdCompositorWarm(): () => void {
       // An engine that refuses the effect simply goes unwarmed; the element is
       // still harmless, and the release below removes it.
       animation = null;
+    }
+    // The viz-level cadence lock (see WARM_VIDEO_SRC) — steady-60 desktops
+    // only, and SESSION-PERSISTENT once created: tearing it down at settle
+    // and re-creating it on the next tap reintroduced a pacing transient at
+    // exactly the flight boundaries (live-judged "전환 간 끊김" after the
+    // per-flight version already helped), and a first frame takes ~100ms to
+    // reach the compositor — an opening the per-flight lifecycle left
+    // uncovered. It pauses while the document is hidden. Failures are
+    // silent: an engine without webm/autoplay keeps the element-only warm-up.
+    if (!video && steadySixtyPlayerEligible()) {
+      try {
+        video = document.createElement("video");
+        video.muted = true;
+        video.loop = true;
+        video.playsInline = true;
+        video.setAttribute("aria-hidden", "true");
+        // NOT the WARM_ATTR: the element is the warm-up's public contract
+        // (tests and diagnostics count it); the video is an internal auxiliary.
+        video.setAttribute("data-flemo-warm-video", "");
+        video.setAttribute(
+          "style",
+          "position:fixed;top:0;left:52px;width:8px;height:8px;pointer-events:none;opacity:0.02;"
+        );
+        video.src = WARM_VIDEO_SRC;
+        document.body.appendChild(video);
+        void video.play()?.catch?.(() => {});
+        document.addEventListener("visibilitychange", () => {
+          if (!video) return;
+          if (document.visibilityState === "hidden") video.pause();
+          else void video.play()?.catch?.(() => {});
+        });
+      } catch {
+        video = null;
+      }
     }
   }
 

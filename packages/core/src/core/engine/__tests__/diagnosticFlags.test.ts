@@ -51,7 +51,7 @@ afterEach(() => {
 describe("uncached boolean flags", () => {
   it("default OFF and arm on their exact value", () => {
     expect(readLandingSnapFlag()).toBe(false);
-    expect(readImageHoldFlag()).toBe(false);
+    expect(readImageHoldFlag()).toBe(null); // tri-state since 2026-08-18: "on" | "off" | null(default: steady-60 desktops hold unpainted-only)
     expect(readHandoffFlag()).toBe(false);
     expect(readPrerasterFlag()).toBe(false);
     sessionStorage.setItem("flemo:landing-snap", "on");
@@ -59,14 +59,14 @@ describe("uncached boolean flags", () => {
     sessionStorage.setItem("flemo:handoff", "on");
     sessionStorage.setItem("flemo:preraster", "on");
     expect(readLandingSnapFlag()).toBe(true);
-    expect(readImageHoldFlag()).toBe(true);
+    expect(readImageHoldFlag()).toBe("on");
     expect(readHandoffFlag()).toBe(true);
     expect(readPrerasterFlag()).toBe(true);
   });
 
   it("ignore any other value", () => {
     sessionStorage.setItem("flemo:imghold", "true");
-    expect(readImageHoldFlag()).toBe(false);
+    expect(readImageHoldFlag()).toBe(null); // tri-state since 2026-08-18: "on" | "off" | null(default: steady-60 desktops hold unpainted-only)
   });
 
   it("are UNCACHED — a toggle takes effect on the next read", () => {
@@ -172,7 +172,7 @@ describe("storage degradation", () => {
   it("a runtime without sessionStorage reads every flag at its default", () => {
     vi.stubGlobal("sessionStorage", undefined);
     expect(readLandingSnapFlag()).toBe(false);
-    expect(readImageHoldFlag()).toBe(false);
+    expect(readImageHoldFlag()).toBe(null); // tri-state since 2026-08-18: "on" | "off" | null(default: steady-60 desktops hold unpainted-only)
     expect(readHandoffFlag()).toBe(false);
     expect(readPrerasterFlag()).toBe(false);
     expect(readSettleGateFlag()).toBe(false);

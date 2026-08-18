@@ -150,7 +150,55 @@ export default function ensureGpuPipelinePrewarm(): () => void {
       textured.textContent = "flemo";
       const translucent = document.createElement("div");
       translucent.setAttribute("style", TRANSLUCENT_LAYER_STYLE);
-      host.append(textured, translucent);
+      // WIDENED SCENE (2026-08-18): a cold-profile trace still showed
+      // 120-150ms GPU-channel raster tasks landing inside the FIRST flight
+      // (pre-release and at the landing reveal) with the two-layer probe
+      // above — the real flights draw variants it never exercised. The
+      // additions mirror the actual app surface: a decoded IMAGE texture
+      // under a circular (border-radius + overflow) clip, a gradient, CJK
+      // glyph runs, hairline borders and a soft shadow — each of these is a
+      // distinct raster pipeline permutation that otherwise compiles on its
+      // first real draw.
+      const extras = document.createElement("div");
+      extras.setAttribute(
+        "style",
+        "width:96px;font-size:11px;color:#123;will-change:transform;transform:translate3d(0,0,0);"
+      );
+      const clipImg = document.createElement("div");
+      clipImg.setAttribute(
+        "style",
+        "width:24px;height:24px;border-radius:50%;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.3);"
+      );
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 24;
+        canvas.height = 24;
+        const ctx2d = canvas.getContext("2d");
+        if (ctx2d) {
+          ctx2d.fillStyle = "#7a8";
+          ctx2d.fillRect(0, 0, 24, 24);
+          ctx2d.fillStyle = "#345";
+          ctx2d.beginPath();
+          ctx2d.arc(12, 10, 6, 0, Math.PI * 2);
+          ctx2d.fill();
+          const img = document.createElement("img");
+          img.src = canvas.toDataURL();
+          img.setAttribute("style", "width:24px;height:24px;object-fit:cover;");
+          clipImg.appendChild(img);
+        }
+      } catch {
+        /* canvas-less host: the div still draws its clip + shadow variants */
+      }
+      const gradient = document.createElement("div");
+      gradient.setAttribute(
+        "style",
+        "width:96px;height:10px;background:linear-gradient(90deg,#eee,#bbb,#eee);"
+      );
+      const text = document.createElement("div");
+      text.setAttribute("style", "border-top:1px solid #ccd;padding:2px 0;");
+      text.textContent = "의원 기록 표결 발의 가나다라";
+      extras.append(clipImg, gradient, text);
+      host.append(textured, translucent, extras);
       document.body.appendChild(host);
       try {
         textured.animate(
@@ -161,6 +209,10 @@ export default function ensureGpuPipelinePrewarm(): () => void {
           duration: PROBE_ANIMATION_MS,
           iterations: PROBE_ITERATIONS
         });
+        extras.animate(
+          [{ transform: "translate3d(0,0,0)" }, { transform: "translate3d(2px,0,0)" }],
+          { duration: PROBE_ANIMATION_MS, iterations: PROBE_ITERATIONS }
+        );
       } catch {
         // An engine that refuses the effects still draws the styled layers
         // for the span — most variants compile from the static draws alone.

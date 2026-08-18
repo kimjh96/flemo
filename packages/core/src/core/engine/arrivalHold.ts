@@ -142,6 +142,15 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
         // flemo's own runtime stamps (status, hold, this shield's marker)
         // must always flow.
         if (name.startsWith("data-flemo")) continue;
+        // The image reveal hold hides via INLINE display on <img> — a `style`
+        // mutation this freeze would otherwise revert mid-flight (undoing the
+        // hold) and replay at rest AFTER the hold's own restore (the mutation
+        // record for the restore is still in the observer queue when the
+        // synchronous release replays), resurrecting `display:none` with no
+        // owner — live-reproduced as ~100 orphaned blank avatars per
+        // pop-with-arrival-hold. A held image's style channel belongs to the
+        // image hold; leave it out of the freeze entirely.
+        if (name === "style" && element.hasAttribute("data-flemo-img-hold")) continue;
         if (!element.isConnected || exemptFromFreeze(element)) continue;
         let firsts = attrFirst.get(element);
         if (!firsts) attrFirst.set(element, (firsts = new Map()));

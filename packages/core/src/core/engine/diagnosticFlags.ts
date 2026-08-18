@@ -75,7 +75,10 @@ export const readLandingSnapFlag = (): boolean => readStorageValue("flemo:landin
 // `flemo:imghold=on` — the <img> analog of responseHold: park an entering
 // screen's still-loading image paints to rest (imageRevealHold.ts). OPT-IN on
 // every engine — see the call-site comment in createTransitionEngine.
-export const readImageHoldFlag = (): boolean => readStorageValue("flemo:imghold") === "on";
+export const readImageHoldFlag = (): "on" | "off" | null => {
+  const value = readStorageValue("flemo:imghold");
+  return value === "on" || value === "off" ? value : null;
+};
 
 // `flemo:settle-gate` — the render-settle entry gate. ON BY DEFAULT for touch
 // WebKit (governedCompiledActive — the governed-compiled tier ships with it)
@@ -102,6 +105,12 @@ export const readSettleGateFlag = (): boolean => {
 // forceCompiledStatus reacts to a DevTools toggle immediately. The player's
 // own cached view of the same key is `handoffOverride` below.
 export const readHandoffFlag = (): boolean => readStorageValue("flemo:handoff") === "on";
+
+// `flemo:arrivalhold=off` — diagnostic kill-switch for the whole in-flight
+// arrival armor (response/arrival/invisible-animation/image holds). Added
+// 2026-08-18 for live A/B isolation of the hold machinery itself as a felt-
+// jank suspect; default ON (armor engaged) everywhere.
+export const readArrivalHoldFlag = (): boolean => readStorageValue("flemo:arrivalhold") !== "off";
 
 // `flemo:preraster=on` — promote the entering content layer from the hold
 // onward (react ScreenMotion). Retained as an opt-in probe; the swallow it

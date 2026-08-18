@@ -71,8 +71,8 @@ describe("gpuPipelinePrewarm", () => {
     expect(mounted!.getAttribute("aria-hidden")).toBe("true");
     expect(mounted!.style.opacity).toBe("0.02");
     expect(mounted!.style.pointerEvents).toBe("none");
-    // Both draw shapes animate: the textured/text layer and the translucent quad.
-    expect(animate).toHaveBeenCalledTimes(2);
+    // All three probe layers animate: textured/text, translucent, and the quad.
+    expect(animate).toHaveBeenCalledTimes(3);
 
     vi.advanceTimersByTime(PREWARM_SPAN_MS);
     expect(host()).toBeNull();
@@ -87,7 +87,7 @@ describe("gpuPipelinePrewarm", () => {
     ensureGpuPipelinePrewarm();
     vi.runAllTimers();
     expect(host()).toBeNull();
-    expect(animate).toHaveBeenCalledTimes(2);
+    expect(animate).toHaveBeenCalledTimes(3);
   });
 
   it("the LAST owner leaving before firing cancels; a surviving owner keeps it", () => {
@@ -97,7 +97,7 @@ describe("gpuPipelinePrewarm", () => {
     disposeA();
     vi.advanceTimersByTime(0);
     expect(host()).not.toBeNull();
-    expect(animate).toHaveBeenCalledTimes(2);
+    expect(animate).toHaveBeenCalledTimes(3);
     vi.runAllTimers();
     disposeB(); // after firing: no-op (host self-tore-down)
   });
@@ -139,7 +139,7 @@ describe("gpuPipelinePrewarm", () => {
     screen.setAttribute("data-flemo-status", "COMPLETED");
     vi.runOnlyPendingTimers();
     expect(host()).not.toBeNull();
-    expect(animate).toHaveBeenCalledTimes(2);
+    expect(animate).toHaveBeenCalledTimes(3);
 
     screen.remove();
   });
