@@ -1085,7 +1085,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
             // animation carries the least felt stutter; its residual is the
             // slow-band fractional shimmer, which is a rendering-physics
             // floor no per-frame writer beat on this hardware. Diagnostic
-            // pins and `flemo:quantized=on` remain as instruments.
+            // The diagnostic force pins remain as instruments. (An earlier
+            // draft of this note offered `flemo:quantized=on`; that flag was
+            // never implemented — the pre-quantized ladder was deleted, not
+            // retained behind a toggle.)
             true
           : learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS ||
             !driverPolicy.playerAllowed() ||

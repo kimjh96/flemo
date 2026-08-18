@@ -72,12 +72,15 @@ Chronologically:
 - Release scheduling lives in core (`scheduleAnimHoldRelease` +
   `createAnimHoldCoordinator`): double-rAF + image-decode readiness, a pop _pair
   barrier_ (both screens of a pop release together on one clock), and the optional
-  **render-settle gate** (`contentSettle`, default-on for touch WebKit via
-  `readSettleGateFlag()`): holds the release until the entering screen's mount render
-  storm quiesces (firstWaitMs 120 / capMs 700 / graceMs 60 / minNodes 30,
-  `renderSettleOnly: true` — it waits on _render_ commits, never on data). Runs for
-  active PUSHING and POPPING on **all engines** (a demoted Note 9 falsified the
-  "Blink doesn't need it" assumption); REPLACING stays ungated.
+  **render-settle gate** (`contentSettle`, default-on for touch WebKit, touch Blink
+  and the steady-60 desktop profile via `readSettleGateFlag()`): holds the release
+  until the entering screen's mount render storm quiesces (firstWaitMs 120 / capMs
+  700 / graceMs 60, `renderSettleOnly: true` — it waits on _render_ commits, never on
+  data). Runs on **all engines** for the active side of PUSHING/POPPING **and for the
+  INACTIVE returning screen of a pop**, whose unfreeze storm is node-light, so it
+  carries `minNodes: 1` where the active side uses 30; REPLACING stays ungated. Note
+  the gate only protects the START of a flight — a block landing mid-flight ages a
+  wall-clocked compiled animation regardless.
 - **Atomic release flip**: on non-Blink, for authored `driver:"native"` pins and for the
   governed-compiled touch-WebKit tier, the release callback writes
   `data-flemo-anim-hold="false"` directly on the DOM inside the readiness rAF (rAF →
@@ -105,7 +108,9 @@ Chronologically:
     _resolutions_ (every method, streams excluded) and delivers them in one batch at
     rest; moves the reveal's React render (script cost `display:none` can't touch) out
     of the flight. Backstopped by the whole choreography span + 1500ms.
-  - **imageRevealHold** — the `<img>` analog; opt-in only (`flemo:imghold=on`, WebKit
+  - **imageRevealHold** — the `<img>` analog. Default ON (strictly-unpainted images
+    only) on the steady-60 desktop profile since 2026-08-18; elsewhere opt-in
+    (`flemo:imghold=on`, WebKit
     got worse with it on).
   - **beginFlightWindow** — global latch for out-of-engine machinery (the image decode
     offloader defers reveals to the same rest).
@@ -138,7 +143,8 @@ Chronologically:
 - **Early landing**: the arrival hold's release fires when every participant is within
   one _CSS_ pixel / alpha step (dpr=1 band — at or before the cut), so the reveal
   commit's layout/paint hides under the playing sub-pixel tail instead of stacking on
-  the convergence. Same disarm rules as the cut.
+  the convergence. Same disarm rules as the cut, plus a stand-down on the steady-60
+  desktop profile (`!steadySixtyPlayerEligible()`).
 - **Landing governor** (player, `composeTransform`): a decelerating tail that can no
   longer sustain 1 device px/frame inside the last ~12 device px is closed at exactly
   one device pixel per frame — monotone, no park-then-tick.
@@ -222,13 +228,14 @@ is not a consumer value; the landed scope belongs to the compiled rest rules.**
 | `arrivalHold.ts`            | In-flight commit hold: mid-flight swaps/additions/in-place writes held and reflected in one commit at rest (delayed-but-complete contract).                                                                                                                                                                                                    |
 | `responseHold.ts`           | Flight-scoped fetch-resolution park (every method, minus streams) delivered in one batch at rest.                                                                                                                                                                                                                                              |
 | `invisibleAnimationHold.ts` | Pauses invisible consumer animations for the flight (the culled-subtree first-composite stall).                                                                                                                                                                                                                                                |
-| `imageRevealHold.ts`        | `<img>`-load analog of responseHold; opt-in `flemo:imghold`.                                                                                                                                                                                                                                                                                   |
+| `imageRevealHold.ts`        | `<img>`-load analog of responseHold. Unpainted-only by default on the steady-60 desktop profile; `flemo:imghold` overrides both ways.                                                                                                                                                                                                          |
 | `imageDecodeHygiene.ts`     | Stamps `decoding="async"` on transition participants' images (respects authored attributes).                                                                                                                                                                                                                                                   |
 | `imageDecodeOffloader.ts`   | Off-main decode-to-scale for oversized images (WebKit-style sync decode reproduced at page level); auto-gated to legacy Android Blink, overridable via `flemo:imgoffload`.                                                                                                                                                                     |
 | `flightWindow.ts`           | Global nestable "a flight is in progress" latch for out-of-engine modules.                                                                                                                                                                                                                                                                     |
 | `layerSettleHold.ts`        | Inline-pinned compositor promotions + deferred off-cadence demotion past the flip; `flemo:layers=resident`.                                                                                                                                                                                                                                    |
-| `compositorWarmUp.ts`       | 1-px invisible compositor animation keeping the frame cadence alive through the flight + settle window; refcounted.                                                                                                                                                                                                                            |
+| `compositorWarmUp.ts`       | Invisible 48x48 raster-class animation (a background-position sweep — it must repaint, not merely recomposite) keeping the frame cadence alive through the flight + settle window; refcounted. On the steady-60 desktop profile it also mounts a session-persistent 8x8 60fps video as a viz-level cadence lock.                               |
 | `gpuPipelinePrewarm.ts`     | One-shot boot-idle probes compiling Chrome Graphite's GPU pipelines before the first flight.                                                                                                                                                                                                                                                   |
+| `steadySixtyCadence.ts`     | In-flight display-cadence verdict for the desktop PROFILE (settle gate, unpainted-only image hold, warm-up video, rest promotion). It does not route the driver — desktop is settled on the compiled tier.                                                                                                                                     |
 | `landingPixelSnap.ts`       | Blink compiled-tier landing treatments: governed easing (default desktop/high-refresh — sprints the sub-pixel tail at 1 device px/frame) and the opt-in full snap easing (`flemo:landing-snap`).                                                                                                                                               |
 | `perceptualSpan.ts`         | The imperceptibility-band math (`perceptualCutMs`, `channelValue`) shared by the cut, the early landing, and the player.                                                                                                                                                                                                                       |
 | `nativeStallAnchor.ts`      | Native-clock surgery for main-thread-presenting engines: birth-window start anchor (one-shot startTime rewind), first-frame pause/play hold (authored `driver:"native"` only), continuous stall watcher (authored pins only).                                                                                                                  |
