@@ -279,3 +279,34 @@ Instrumentation notes for the next round:
 - The @flemo/devtools flight recorder (PR #263) segments frame gaps by
   hold/released phase — measurements that ignore the hold phase misattribute
   absorbed blocks as in-flight jank (this happened in-session).
+
+## Addendum 2 — 2026-08-18: the glass-measurement campaign and the recorder artifact
+
+A full day of closed-loop glass measurement (drive + `screencapture -v` + per-frame
+motion/pts analysis) produced one instrument lesson that must not be re-learned:
+
+- **`screencapture -v` (VFR, window or display) injects a metronomic ~1-frame
+  "drop" every ~400ms.** It appears as a 33ms pts gap during continuous motion and
+  is indistinguishable from a real dropped frame. Proven by parity: the identical
+  periodic pattern appears in Chromium, in Playwright-WebKit, in REAL Safari (the
+  user's smooth reference), and in a zero-JS pure-CSS compositor slide. Any
+  single-frame-level verdict taken through `screencapture -v` is void.
+- Playwright's WebKit port is NOT a Safari smoothness proxy (it measured worse
+  than Chromium on the same harness).
+- macOS Spaces: `screencapture -v` (display mode) records the ACTIVE space — a
+  fullscreen IDE means the driven browser is off-glass and possibly throttled;
+  window-id mode (`-v -l<id>`) captures across spaces but still carries the VFR
+  artifact. AVFoundation CFR capture also sees only the active space.
+- Net: after the governor removal, rest-side arrival release, and pre-raster
+  rounds, Chromium pristine-compiled == real Safari == pure-CSS control at every
+  layer measurable in-machine. The only instruments that can go deeper are a
+  visible-space CFR capture (needs the space on glass) or an external camera.
+
+Engine changes that DID move the needle this round (all device-correlated):
+
+1. PR #251's compiled landing-governor easing was itself the reported desktop pop
+   "드르륵" — removed for desktop; authored easing runs untouched.
+2. Arrival-hold early landing moved off the flight (release at rest) for
+   steady-60 desktops — the per-push skipped-frame at the perceptual cut.
+3. Pre-raster (will-change through the hold) default for steady-60 desktops —
+   the push "뚝뚝" from mid-slide tile rasterization of the occluded parked layer.
