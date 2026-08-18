@@ -97,7 +97,22 @@ the force pin now carries a TTL and a warning.
    warning always fires. Do not remove that call as "dead"; an e2e test asserts it.
 3. Pins expire (24h TTL) and malformed/legacy values are deleted on read.
 
-## 2. URL arming: `?flemo-layers=` / `?flemo-freeze=`
+## 2. URL arming: device flags
+
+On a phone you cannot set `sessionStorage` without attaching a desktop debugger,
+which is the friction that makes weak-device A/B not happen. These flags arm from
+the URL instead (synced at module load — the router drops the query before the
+first drive, so a decision-time read would be too late):
+
+- `?flemo-settle=on|off|auto` — the render-settle entry gate. `auto` restores the
+  platform default. **The gate only protects the START of a flight** (it holds the
+  release past the entering mount storm); a block landing mid-flight ages a
+  wall-clocked compiled animation regardless.
+- `?flemo-driver=css|raf|off` — the force pin, stamped with a fresh timestamp so
+  `driverPolicy` honors it (an unstamped pin is stripped on sight). `off` clears it.
+  A pin overrides EVERY routing decision for the session — clear it before judging
+  default behavior.
+- `?flemo-layers=resident|off` / `?flemo-freeze=shallow|off`
 
 For sessions where you can't open a console (real phones): visiting a URL with
 `?flemo-layers=resident` (or `=off`) writes `flemo:layers` for the session at module

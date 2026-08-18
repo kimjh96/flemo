@@ -202,3 +202,61 @@ describe("storage degradation", () => {
     expect(shallowFreeze()).toBe(false);
   });
 });
+
+// URL arming (?flemo-settle= / ?flemo-driver=). The module syncs at LOAD, so
+// each case re-imports with the search string already in place — the same
+// shape the shipped instruments use, and the reason a phone no longer needs a
+// desktop debugger attached to run an A/B.
+describe("device URL arming", () => {
+  const withSearch = async (search: string) => {
+    vi.stubGlobal("location", { search } as unknown as Location);
+    vi.resetModules();
+    return import("@core/engine/diagnosticFlags");
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+    sessionStorage.clear();
+  });
+
+  it("arms and clears the settle gate", async () => {
+    await withSearch("?flemo-settle=on");
+    expect(sessionStorage.getItem("flemo:settle-gate")).toBe("on");
+
+    await withSearch("?flemo-settle=off");
+    expect(sessionStorage.getItem("flemo:settle-gate")).toBe("off");
+
+    // "auto" returns the key to the platform default rather than pinning it.
+    await withSearch("?flemo-settle=auto");
+    expect(sessionStorage.getItem("flemo:settle-gate")).toBeNull();
+  });
+
+  it("stamps the driver pin so driverPolicy honors it, and clears on off", async () => {
+    await withSearch("?flemo-driver=css");
+    const pinned = sessionStorage.getItem("flemo:motion-driver-force") ?? "";
+    const [driver, stamp] = pinned.split("@");
+    expect(driver).toBe("css");
+    // An unstamped pin is stripped on sight by driverPolicy — the URL form
+    // must carry a fresh timestamp or it would be silently dropped.
+    expect(Number.isFinite(Number(stamp))).toBe(true);
+    expect(Math.abs(Date.now() - Number(stamp))).toBeLessThan(60_000);
+
+    await withSearch("?flemo-driver=off");
+    expect(sessionStorage.getItem("flemo:motion-driver-force")).toBeNull();
+  });
+
+  it("ignores an unrelated or malformed query", async () => {
+    sessionStorage.setItem("flemo:settle-gate", "on");
+    await withSearch("?flemo-settle=maybe&flemo-driver=turbo&page=2");
+    expect(sessionStorage.getItem("flemo:settle-gate")).toBe("on");
+    expect(sessionStorage.getItem("flemo:motion-driver-force")).toBeNull();
+  });
+
+  it("stays inert where storage or location is unavailable", async () => {
+    vi.stubGlobal("sessionStorage", undefined);
+    vi.stubGlobal("location", { search: "?flemo-settle=on" } as unknown as Location);
+    vi.resetModules();
+    await expect(import("@core/engine/diagnosticFlags")).resolves.toBeDefined();
+  });
+});

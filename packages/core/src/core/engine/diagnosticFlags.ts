@@ -80,6 +80,45 @@ export const readImageHoldFlag = (): "on" | "off" | null => {
   return value === "on" || value === "off" ? value : null;
 };
 
+// URL arming for the two flags a DEVICE session actually needs, mirroring
+// `?flemo-layers=` / `?flemo-freeze=` (layerSettleHold.ts,
+// computeScreenFreeze.ts). Setting sessionStorage by hand means attaching a
+// desktop debugger to the phone, which is exactly the friction that makes a
+// weak-device A/B not happen — and these two are the flags that decide what a
+// throttled device does: which tier drives, and whether the entry gate holds
+// the release past the mount storm.
+//
+//   ?flemo-settle=on|off   -> flemo:settle-gate
+//   ?flemo-driver=css|raf  -> flemo:motion-driver-force (stamped, 24h TTL)
+//   ?flemo-driver=off      -> clears the pin
+//
+// Synced eagerly at module load: the first drive runs after the router has
+// already dropped the query, so reading location at decision time is too late.
+const syncDeviceToggles = () => {
+  try {
+    if (typeof location === "undefined" || typeof sessionStorage === "undefined") return;
+    const search = location.search;
+    if (/[?&]flemo-settle=on\b/.test(search)) {
+      sessionStorage.setItem("flemo:settle-gate", "on");
+    } else if (/[?&]flemo-settle=off\b/.test(search)) {
+      sessionStorage.setItem("flemo:settle-gate", "off");
+    } else if (/[?&]flemo-settle=auto\b/.test(search)) {
+      sessionStorage.removeItem("flemo:settle-gate");
+    }
+    // The pin carries its own timestamp: driverPolicy honors it for 24h and
+    // strips anything unstamped, so the URL form must stamp it too.
+    const driver = /[?&]flemo-driver=(css|raf|off)\b/.exec(search)?.[1];
+    if (driver === "off") {
+      sessionStorage.removeItem("flemo:motion-driver-force");
+    } else if (driver) {
+      sessionStorage.setItem("flemo:motion-driver-force", `${driver}@${Date.now()}`);
+    }
+  } catch {
+    // Storage unavailable (partitioned context): the instruments stay off.
+  }
+};
+syncDeviceToggles();
+
 // `flemo:settle-gate` — the render-settle entry gate. ON BY DEFAULT for touch
 // WebKit (governedCompiledActive — the governed-compiled tier ships with it)
 // AND for steady-60 desktop Blink sessions (the player rides the main thread
