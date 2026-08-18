@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { waitForNavIdle } from "./helpers/flemo";
 
@@ -27,9 +27,25 @@ test.describe("devtools flight recorder", () => {
     );
   });
 
+  // The playground arms the recorder in development, or in a build that opted
+  // in with NEXT_PUBLIC_FLEMO_DEVTOOLS=1 — the config sets it for the e2e
+  // build. A locally reused server started without it has no window.flemo,
+  // which would otherwise surface as "Cannot read properties of undefined".
+  const expectRecorder = async (page: Page) => {
+    const armed = await page.evaluate(
+      () => (window as unknown as { flemo?: unknown }).flemo !== undefined
+    );
+    expect(
+      armed,
+      "no window.flemo: rebuild the server with NEXT_PUBLIC_FLEMO_DEVTOOLS=1 (the " +
+        "playground keeps the recorder out of ordinary production builds)"
+    ).toBe(true);
+  };
+
   test("records a cupertino push as a clean compiled flight", async ({ page }) => {
     await page.goto("/playground?devtools=on");
     await waitForNavIdle(page);
+    await expectRecorder(page);
 
     // The default transition is Cupertino; "Next" pushes the next panel.
     await page.getByRole("button", { name: "Next" }).click();
@@ -77,6 +93,7 @@ test.describe("devtools flight recorder", () => {
 
     await page.goto("/playground?devtools=on");
     await waitForNavIdle(page);
+    await expectRecorder(page);
     await page.getByRole("button", { name: "Next" }).click();
     await waitForNavIdle(page);
     await page.waitForTimeout(250);
@@ -99,6 +116,7 @@ test.describe("devtools flight recorder", () => {
   test("classifies both a push and a pop", async ({ page }) => {
     await page.goto("/playground?devtools=on");
     await waitForNavIdle(page);
+    await expectRecorder(page);
 
     await page.getByRole("button", { name: "Next" }).click();
     await waitForNavIdle(page);
@@ -132,6 +150,7 @@ test.describe("devtools flight recorder", () => {
 
     await page.goto("/playground?devtools=on");
     await waitForNavIdle(page);
+    await expectRecorder(page);
 
     await page.getByRole("button", { name: "Next" }).click();
     await waitForNavIdle(page);

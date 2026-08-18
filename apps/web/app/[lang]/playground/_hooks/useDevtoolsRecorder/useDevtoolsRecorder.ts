@@ -22,7 +22,14 @@ import { useEffect } from "react";
 // it — is eliminated from the production build entirely.
 const useDevtoolsRecorder = () => {
   useEffect(() => {
-    if (process.env.NODE_ENV === "production") return undefined;
+    // Development always, plus an explicit build-time opt-in so the e2e suite
+    // (which builds for production on purpose — dev's fast-refresh work flakes
+    // timing-sensitive specs) can still exercise the real integration. A
+    // deployment sets neither, so both terms fold to false at build time and
+    // the dynamic import below is eliminated.
+    const enabled =
+      process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_FLEMO_DEVTOOLS === "1";
+    if (!enabled) return undefined;
 
     let armed = false;
     try {
