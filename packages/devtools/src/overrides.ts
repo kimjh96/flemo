@@ -44,6 +44,12 @@ export const FLAG_REGISTRY: readonly FlagDescriptor[] = [
     description: "low-power-mode cadence seed (learned)"
   },
   {
+    key: "flemo:sixty",
+    storage: "session",
+    kind: "production-state",
+    description: "steady-60 display verdict seed ('high' latches, a count seeds the streak)"
+  },
+  {
     key: "flemo:lat",
     storage: "session",
     kind: "production-state",

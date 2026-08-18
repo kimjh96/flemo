@@ -29,7 +29,26 @@ const cleanFlight = (): FlightAnomalyInput => ({
   longTasks: [],
   holdLongTasks: [],
   releasedAtMs: null,
-  landing: { residualInlineTransforms: [], offViewportAtRest: false, stuckStatuses: [] }
+  landing: {
+    residualInlineTransforms: [],
+    offViewportAtRest: false,
+    stuckStatuses: [],
+    orphanedHolds: []
+  },
+  motion: {
+    sampledFrames: 24,
+    stalledFrames: 0,
+    longestStallMs: 0,
+    pausedAfterRelease: false,
+    holdReassertedAtMs: null
+  },
+  images: {
+    loadingAtStart: 0,
+    addedDuringFlight: 0,
+    completedDuringFlight: 0,
+    heldDuringFlight: 0,
+    completedUnheld: 0
+  }
 });
 
 describe("deriveFlightAnomalies", () => {
@@ -158,7 +177,8 @@ describe("deriveFlightAnomalies", () => {
       landing: {
         residualInlineTransforms: ["screen[1] (active) transform=translate3d(100%, 0px, 0px)"],
         offViewportAtRest: false,
-        stuckStatuses: []
+        stuckStatuses: [],
+        orphanedHolds: []
       }
     });
     expect(anomalies.some((entry) => entry.includes("residual inline style after COMPLETED"))).toBe(
@@ -169,7 +189,12 @@ describe("deriveFlightAnomalies", () => {
   it("flags the blank-viewport signature", () => {
     const anomalies = deriveFlightAnomalies({
       ...cleanFlight(),
-      landing: { residualInlineTransforms: [], offViewportAtRest: true, stuckStatuses: [] }
+      landing: {
+        residualInlineTransforms: [],
+        offViewportAtRest: true,
+        stuckStatuses: [],
+        orphanedHolds: []
+      }
     });
     expect(anomalies.some((entry) => entry.includes("blank-viewport signature"))).toBe(true);
   });
@@ -180,7 +205,8 @@ describe("deriveFlightAnomalies", () => {
       landing: {
         residualInlineTransforms: [],
         offViewportAtRest: false,
-        stuckStatuses: ["PUSHING"]
+        stuckStatuses: ["PUSHING"],
+        orphanedHolds: []
       }
     });
     expect(anomalies.some((entry) => entry.includes("stuck >10s: PUSHING"))).toBe(true);

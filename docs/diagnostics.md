@@ -5,6 +5,25 @@ flag semantics is the header table in
 `packages/core/src/core/engine/diagnosticFlags.ts` (landed in PR #258) — this document
 adds _how to use them_ and the observation pitfalls that cost the 2026 campaigns weeks.
 
+## 0. Start with the flight recorder
+
+Before setting any flag by hand, attach `@flemo/devtools` (playground:
+`/playground?devtools=on`) and reproduce once. `window.flemo.report()` answers, in one
+JSON blob, the questions this document otherwise asks you to establish manually: which
+tier drove each flight, whether the session carries A/B residue, whether the observation
+itself is trustworthy — and it names the defect classes the 2026 campaigns actually
+shipped fixes for, so a returning regression arrives as a sentence instead of a hunt.
+
+Two of its sections exist because the campaign learned them the hard way:
+
+- `flights[].motion` — whether the pose ADVANCED, not merely whether frames arrived.
+  Every defect in the 2026-08-18 round (release race, hold re-assert, freeze-then-leap)
+  had clean frame timing while the screen stood still. Timing alone would have called
+  those sessions healthy.
+- `judgingProtocol` — the preconditions a verdict needs (DevTools closed, no capture
+  running, real input). A page cannot verify these, so the report states them; a clean
+  report from a DevTools-open session is not evidence. See pitfall #1 below.
+
 ## 1. The `flemo:*` storage keys
 
 All keys live in `sessionStorage` except `flemo:motion-driver` (localStorage). Set them

@@ -1,3 +1,7 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { expect, test } from "@playwright/test";
 
 import { waitForNavIdle } from "./helpers/flemo";
@@ -37,7 +41,7 @@ test.describe("devtools flight recorder", () => {
       (window as unknown as { flemo: { report: () => unknown } }).flemo.report()
     )) as FlemoReport;
 
-    expect(report.version).toBe("1");
+    expect(report.version).toBe("2");
     expect(report.blindSpots.length).toBeGreaterThanOrEqual(4);
     expect(report.flights.length).toBeGreaterThanOrEqual(1);
 
@@ -87,5 +91,77 @@ test.describe("devtools flight recorder", () => {
     // The malformed pin never routed anything: desktop stays compiled.
     const push = report.flights.find((flight) => flight.kind === "PUSH");
     expect(push?.driver).toBe("compiled");
+  });
+  // The pop's driver classification, in a browser. The compiled animation is
+  // cached while still PAUSED (the hold poses the screen before releasing
+  // it), which is exactly the shape that once reported an ordinary pop as
+  // driver "unknown" — jsdom did not catch it, a real Chromium did.
+  test("classifies both a push and a pop", async ({ page }) => {
+    await page.goto("/playground?devtools=on");
+    await waitForNavIdle(page);
+
+    await page.getByRole("button", { name: "Next" }).click();
+    await waitForNavIdle(page);
+    await page.getByRole("button", { name: "Back" }).click();
+    await waitForNavIdle(page);
+    await page.waitForTimeout(250);
+
+    const report = (await page.evaluate(() =>
+      (window as unknown as { flemo: { report: () => unknown } }).flemo.report()
+    )) as FlemoReport;
+
+    expect(report.flights.length).toBeGreaterThanOrEqual(2);
+    for (const flight of report.flights) {
+      expect(flight.driver, `${flight.kind} must be classified`).not.toBe("unknown");
+    }
+  });
+
+  // The panel is a real UI: jsdom proves its logic, only a browser proves it
+  // paints. It is NOT wired into the app — the playground arms the recorder
+  // only — so the test injects the built bundle itself, which also keeps the
+  // panel out of the site's shipped JS.
+  test("the visual panel mounts, lists the flights and renders their detail", async ({ page }) => {
+    const bundle = resolve(
+      fileURLToPath(import.meta.url),
+      "../../../../packages/devtools/dist/index.mjs"
+    );
+    if (!existsSync(bundle)) {
+      test.skip(true, `@flemo/devtools is not built at ${bundle}`);
+      return;
+    }
+
+    await page.goto("/playground?devtools=on");
+    await waitForNavIdle(page);
+
+    await page.getByRole("button", { name: "Next" }).click();
+    await waitForNavIdle(page);
+    await page.waitForTimeout(250);
+
+    // The dist is dependency-free ESM but minified, so its local names are
+    // mangled — import it as a module through a blob URL and use the real
+    // export instead of guessing an identifier.
+    await page.evaluate(
+      async (source) => {
+        const url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+        const loaded = (await import(/* webpackIgnore: true */ url)) as {
+          attachDevtoolsPanel: (options: { recorder: unknown }) => unknown;
+        };
+        loaded.attachDevtoolsPanel({ recorder: (window as unknown as { flemo: unknown }).flemo });
+      },
+      readFileSync(bundle, "utf8")
+    );
+
+    const host = page.locator("[data-flemo-devtools-panel]");
+    await expect(host).toHaveCount(1);
+    // Closed by default: the toggle is all that renders.
+    const toggle = host.locator("button.toggle");
+    await expect(toggle).toBeVisible();
+
+    await toggle.click();
+    await expect(host.locator(".panel")).toBeVisible();
+    const row = host.locator(".row").first();
+    await expect(row).toContainText("PUSH");
+    await row.click();
+    await expect(host.locator(".detail")).toContainText("motion (did it move)");
   });
 });
