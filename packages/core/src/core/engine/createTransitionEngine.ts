@@ -16,6 +16,7 @@ import createArrivalHold from "@core/engine/arrivalHold";
 import holdCompositorWarm from "@core/engine/compositorWarmUp";
 import {
   readHandoffFlag,
+  readArrivalHoldFlag,
   readImageHoldFlag,
   readLandingSnapFlag,
   readSettleGateFlag
@@ -47,6 +48,7 @@ import {
 } from "@core/engine/nativeStallAnchor";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import { beginResponseHold } from "@core/engine/responseHold";
+import { reportInFlightCadence, steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 import transitionPlayers, {
   learnedFrameIntervalMs,
   reportDisplayIntervalMs
@@ -291,21 +293,63 @@ const armFramePacingKeepalive = (): (() => void) => {
 // Blink's governed-easing parameters mid-session. The 30fps even-stepped
 // player IS the correct response to an OS power policy.)
 let displayProbeActive = false;
+// Bumped on every arm AND every cancel; a tick whose generation is stale
+// stops scheduling and reports nothing. Cancellation matters on adaptive
+// panels: a probe outliving its compiled flight measures the IDLE clock,
+// which reads ~60Hz there — exactly the value that must never feed the
+// steady-60 verdict (in-flight is the only honest window, see
+// steadySixtyCadence.ts).
+let displayProbeGeneration = 0;
+const cancelDisplayIntervalProbe = () => {
+  if (!displayProbeActive) return;
+  displayProbeGeneration += 1;
+  displayProbeActive = false;
+};
+// Module state outlives a test file's cases (a probe armed by one test would
+// block every later arm); same pattern as diagnosticFlags' reset exports.
+export const resetDisplayProbeForTests = () => {
+  displayProbeGeneration += 1;
+  displayProbeActive = false;
+};
+// Two skipped warm-up gaps + an 8-gap median: the probe arms in the same
+// commit that releases the flight, so its FIRST gaps ride the entering
+// screen's mount-commit stall — measured on the playground push, the raw
+// 6-gap median read 30ms+ on a healthy 60Hz panel and poisoned every
+// cadence consumer. The warm-up lets the commit clear while the compositor
+// animation (the panel-rate anchor this probe exists to observe) keeps
+// running; the wider window makes the median robust to one or two stragglers.
+const DISPLAY_PROBE_WARMUP_TICKS = 2;
+const DISPLAY_PROBE_GAPS = 8;
 const armDisplayIntervalProbe = () => {
   if (displayProbeActive || typeof requestAnimationFrame !== "function") return;
   displayProbeActive = true;
+  const generation = ++displayProbeGeneration;
   const gaps: number[] = [];
+  let warmup = DISPLAY_PROBE_WARMUP_TICKS;
   let lastTick: number | null = null;
   const tick = (time: number) => {
-    if (lastTick !== null) gaps.push(time - lastTick);
+    if (generation !== displayProbeGeneration) return;
+    if (lastTick !== null) {
+      if (warmup > 0) warmup -= 1;
+      else gaps.push(time - lastTick);
+    }
     lastTick = time;
-    if (gaps.length < 6) {
+    if (gaps.length < DISPLAY_PROBE_GAPS) {
       requestAnimationFrame(tick);
       return;
     }
     displayProbeActive = false;
     const sorted = [...gaps].sort((a, b) => a - b);
-    reportDisplayIntervalMs(sorted[Math.floor(sorted.length / 2)]!);
+    const median = sorted[Math.floor(sorted.length / 2)]!;
+    reportDisplayIntervalMs(median);
+    // The RAW median additionally feeds the steady-60 verdict (the learned
+    // interval above is clamped to the 60Hz nominal, which would erase the
+    // 60-vs-unmeasured distinction the verdict needs). This probe only runs
+    // during compiled flights — a compositor animation is live, so an
+    // adaptive panel is at its true rate (see steadySixtyCadence.ts). The
+    // window's max gap rides along so the verdict can reject jam-noise
+    // windows (rAF catch-up bursts fake a fast median).
+    reportInFlightCadence(median, sorted[sorted.length - 1]!);
   };
   requestAnimationFrame(tick);
 };
@@ -348,8 +392,13 @@ const holdParticipantLayers = (
   const governEasing =
     !snapEasing &&
     detectBlinkEngine() &&
-    ((typeof navigator !== "undefined" && navigator.maxTouchPoints === 0) ||
-      learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS);
+    // Desktop removed (2026-08-18): the governor's 1-device-px tail sprint IS
+    // the reported pop "드르륵" on 60Hz HiDPI desktops — the compiled tier
+    // runs the AUTHORED easing untouched there, exactly like any well-made
+    // compositor animation. Touch high-refresh keeps it (device-verified).
+    typeof navigator !== "undefined" &&
+    navigator.maxTouchPoints > 0 &&
+    learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS;
   const governBezier = false;
   const dpr =
     (snapEasing || governEasing || governBezier) && typeof window !== "undefined"
@@ -628,6 +677,9 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   // re-runs mid-transition (the anim-hold release), and the hold must span
   // those re-runs and release only at COMPLETED or on an interrupt.
   let releaseArrivalHold: (() => void) | null = null;
+  // The WARM side's image-only hold (see the holdsFlightImages block in the
+  // drive). Engine-level for the same spanning reason as the arrival hold.
+  let releaseFlightImageHold: (() => void) | null = null;
   // This screen's hold on the compositor warm-up (see compositorWarmUp.ts).
   // Engine-level for the same reason as the arrival hold: the driver effect
   // re-runs mid-transition, and the warm-up must span those re-runs and end
@@ -775,6 +827,37 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const holdsArrivals =
       isTransitional &&
       (isActive ? status === "PUSHING" || status === "REPLACING" : status === "POPPING");
+
+    // The WARM side of the navigation — the screens the arrival hold below
+    // never covers (the leaving screen of a push/replace, the leaving top of
+    // a pop) — is a MOVING layer too, and an <img> still loading there
+    // decodes and first-rasters ON that sliding layer: the list page's lazy
+    // avatars spawned by the scroll that preceded this push, or a detail
+    // photo resolving during the pop back out of it. Glass-measured
+    // (2026-08-18, CDP presentation feedback on the live app with delayed
+    // image responses): every such mid-flight decode landed a skipped
+    // present, 1:1 — the push-side "뚝뚝" that survived the cold-side hold.
+    // So the warm side holds its UNPAINTED images for the flight span too,
+    // revealed at rest through the same two-rAF landing scheduler (armed
+    // further below). Strictly unpainted-only even under flemo:imghold=on:
+    // this screen is VISIBLE, and a painted image must never blink out
+    // mid-flight. The RELEASE half runs here, BEFORE the arrival blocks: on
+    // an interrupt that flips this screen warm→cold, the arrival arm's own
+    // beginImageRevealHold would otherwise capture this hold's display:none
+    // as the "original" and re-park the image forever.
+    const holdsFlightImages = isTransitional && !holdsArrivals;
+    if (!holdsFlightImages && releaseFlightImageHold) {
+      const release = releaseFlightImageHold;
+      releaseFlightImageHold = null;
+      if (isTransitional) {
+        // Interrupt: a new flight owns this screen — reveal before its
+        // first frame.
+        release();
+      } else {
+        scheduleLanding(release);
+      }
+    }
+
     if (!holdsArrivals && releaseArrivalHold) {
       // COMPLETED, IDLE, or an interrupt that flipped this screen's role.
       const release = releaseArrivalHold;
@@ -787,7 +870,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         scheduleLanding(release);
       }
     }
-    if (holdsArrivals && !releaseArrivalHold) {
+    if (holdsArrivals && !releaseArrivalHold && readArrivalHoldFlag()) {
       // A navigation starting inside a still-pending landing window: land it
       // now so the deferred reveal can never punch into the new flight.
       landNow();
@@ -832,9 +915,25 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // decode offloader instead (isLegacyAndroidBlink). The fetch-level
         // responseHold above ships on by default for every engine; this is
         // its <img> analog, retained as a measurement instrument.
-        const releaseImages = readImageHoldFlag()
-          ? beginImageRevealHold(scope, holdSpanMs + GATE_MOTION_MARGIN_MS)
-          : noop;
+        // DEFAULT-ON for steady-60 desktops (2026-08-18, staircase-controlled
+        // on the live app): an image that finishes loading MID-FLIGHT decodes
+        // and first-rasters on the sliding layer — the user-verified F
+        // condition ("이미지 로딩 중 전환만 버벅; 캐시된 이미지는 무결").
+        // Parking still-loading paints to rest is scheduling-only (the same
+        // contract as responseHold). The WebKit worse-with-hold verdict keeps
+        // it off elsewhere; flemo:imghold on/off still overrides both ways.
+        // Steady-60 desktops hold STRICTLY-UNPAINTED images by default (the
+        // user-verified F condition: only 이미지-로딩-중 전환 janks; cached
+        // images are innocent and must never blink out). The full hold
+        // (oversized-cached re-park included) stays behind flemo:imghold=on;
+        // "off" disables both.
+        const imageHoldOverride = readImageHoldFlag();
+        const releaseImages =
+          imageHoldOverride === "on"
+            ? beginImageRevealHold(scope, holdSpanMs + GATE_MOTION_MARGIN_MS)
+            : imageHoldOverride === null && steadySixtyPlayerEligible()
+              ? beginImageRevealHold(scope, holdSpanMs + GATE_MOTION_MARGIN_MS, true)
+              : noop;
         // The global flight-window latch (see flightWindow.ts): insertion-time
         // machinery outside this drive (the image decode offloader) defers
         // opaque-original reveals to the same rest this release lands.
@@ -846,6 +945,23 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           releaseHold();
           releaseFlightWindow();
         };
+      }
+    }
+
+    if (holdsFlightImages && !releaseFlightImageHold && readArrivalHoldFlag()) {
+      // Same protection as the arrival arm: a navigation starting inside a
+      // still-pending landing window lands it now, so the deferred reveal
+      // can never punch into the new flight.
+      landNow();
+      const { scope } = getElements();
+      const flagValue = readImageHoldFlag();
+      if (scope && (flagValue === "on" || (flagValue === null && steadySixtyPlayerEligible()))) {
+        releaseFlightImageHold = beginImageRevealHold(
+          scope,
+          statusChoreographySpanMs(scope, resolveTransition(transitionName), status) +
+            GATE_MOTION_MARGIN_MS,
+          true
+        );
       }
     }
 
@@ -928,15 +1044,55 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // channel strip in the COMPLETED branch, where the full mechanism is
       // documented). With the cleanup fixed and e2e-guarded, the pin pierces
       // again. DEFAULT desktop routing is unchanged: compiled, always.
+      //    STEADY-60 CARVE-OUT (2026-08-17): "unconditionally" above is now
+      //    "until the in-flight cadence proves otherwise". The first flights
+      //    of a desktop session run compiled while the display-interval probe
+      //    measures the panel WITH a compositor animation live (the only
+      //    moment an adaptive panel shows its true rate); once two flights
+      //    verify a steady-60 cadence on a HiDPI display, the player takes
+      //    over — its per-frame device-pixel snap (always-snap on desktop
+      //    densities) closes the compiled tier's fractional-phase convergence
+      //    shimmer, the exact residual the device A/B pinned on 4K@60Hz 2x
+      //    panels (`?driver=raf&snap=always` cleared it). A single sub-12ms
+      //    in-flight median latches the session back to compiled permanently
+      //    (see steadySixtyCadence.ts): partial presents on a ramped panel
+      //    are invisible to rAF, so the latch — not the demotion machinery —
+      //    is the high-refresh protection.
+      //    DESKTOP decides by the steady-60 verdict ALONE — the learned rAF
+      //    interval is a TOUCH routing input (desktop never consulted it
+      //    before the carve-out, short-circuiting on maxTouchPoints first),
+      //    and exposing a verified desktop session to it made the route FLAP:
+      //    one catch-up burst in the player's own gap stream dipped the
+      //    learned median under the threshold and the next flight fell back
+      //    to the compiled tier (device-reported as intermittent "갈색"
+      //    flights mid-session). A real display change re-latches through
+      //    the verdict instead: the player feeds its own uniform cadence
+      //    into reportInFlightCadence, where the jam-noise guard separates a
+      //    genuine 120Hz stream from burst noise.
       if (
         detectBlinkEngine() &&
         driverPolicy.pinnedDriver() !== "raf" &&
-        ((typeof navigator !== "undefined" && navigator.maxTouchPoints === 0) ||
-          learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS ||
-          !driverPolicy.playerAllowed() ||
-          // A confidently-weak legacy Android (no UA-CH) skips the player probe
-          // that janked its first push every session (see isLegacyAndroidBlink).
-          isLegacyAndroidBlink())
+        (typeof navigator !== "undefined" && navigator.maxTouchPoints === 0
+          ? // Desktop: COMPILED — the settled verdict of the 2026-08-18
+            // live-judged ladder. Every driver was tried on the target
+            // machine back-to-back with its known poisons individually
+            // fixed: the rAF player (best texture via true device-px snap,
+            // but main-thread-coupled — judged "버벅과 끊김 심하다"), the
+            // per-frame !important snap mask (manufactured its own
+            // staircase + stale-mask stalls), and the pre-quantized
+            // step-end WAAPI ladder (judged much worse — most plausibly
+            // demoted off the compositor). The compiled compositor
+            // animation carries the least felt stutter; its residual is the
+            // slow-band fractional shimmer, which is a rendering-physics
+            // floor no per-frame writer beat on this hardware. Diagnostic
+            // pins and `flemo:quantized=on` remain as instruments.
+            true
+          : learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS ||
+            !driverPolicy.playerAllowed() ||
+            // A confidently-weak legacy Android (no UA-CH) skips the player
+            // probe that janked its first push every session (see
+            // isLegacyAndroidBlink).
+            isLegacyAndroidBlink())
       ) {
         armDisplayIntervalProbe();
         return null;
@@ -1317,6 +1473,9 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     }
 
     if (status === "COMPLETED") {
+      // A probe still mid-window at the flip would go on to sample post-flight
+      // idle gaps — discard it (see cancelDisplayIntervalProbe).
+      cancelDisplayIntervalProbe();
       deps.setDragStatus("IDLE");
       deps.setReplaceTransitionStatus("IDLE");
       // Strip inline styles a swipe, the rAF player, or an interleaved
@@ -1368,6 +1527,12 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
 
     const { scope } = getElements();
     if (!scope) return noop;
+
+    // NOTE (consumer animation pause, REMOVED 2026-08-18): a flight-scoped
+    // pause of running consumer CSS animations (skeleton pulses) was tried
+    // here for steady-60 desktops and removed the same day on the user's
+    // direction — flemo does not manipulate consumer-authored animation
+    // state, and the pause measurably didn't cure the felt jank anyway.
 
     // The task this transition gates, captured HERE (never the live one — a
     // late resolver must not cut a NEWER transition). Shared by the resolver,
@@ -2220,7 +2385,19 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       earlyLanding = undefined;
     };
     disarmEarlyLanding = clearEarlyLanding;
-    if (recovering && releaseArrivalHold && !lpmSoftenActive && !routedForceCompiled) {
+    // Steady-60 desktops release AT REST, never at the perceptual cut: the
+    // cut lands the reveal commit + raster in the decel tail, and the live
+    // stream showed exactly one skipped-frame-class gap (max 21-29ms) on
+    // essentially EVERY push — the reported compiled-tier "버벅임" — while
+    // pops (tiny reveals) stayed at 17-20ms. Post-flip landing costs the
+    // content ~150ms of visibility, invisible next to a mid-motion hitch.
+    if (
+      recovering &&
+      releaseArrivalHold &&
+      !lpmSoftenActive &&
+      !routedForceCompiled &&
+      !steadySixtyPlayerEligible()
+    ) {
       const activeRest = perceptualCutMs(activeMotion!, scope, 1);
       const passiveRest = passiveMotion ? perceptualCutMs(passiveMotion, scope, 1) : 0;
       let partsRest: number | null = 0;

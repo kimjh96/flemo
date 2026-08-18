@@ -1527,3 +1527,180 @@ describe("settle gate image loads", () => {
     expect(onReady).toHaveBeenCalledTimes(1);
   });
 });
+
+// REGRESSION (steady-60 desktop, 2026-08-17): the settle gate's wave detector
+// keys on ADDED nodes, but a POP's returning screen re-uses its frozen DOM —
+// the unfreeze commits almost no added nodes, so the grace/firstWait give-up
+// timers were the release path and released on a wall clock while the
+// unfreeze's style/layout/paint block was still due. Device-measured: every
+// heavy-list pop opened with one ~50-60ms frame gap overlapping flight start.
+// In render-settle mode a give-up release now requires TWO consecutive fast
+// frames; a slow frame restarts the pair; capMs bounds the wait.
+describe("render-settle give-up raster guard", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let frameId: number;
+  const flushFrame = () => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((frameCallback) => frameCallback(performance.now()));
+  };
+  const SETTLE = {
+    graceMs: 60,
+    firstWaitMs: 120,
+    capMs: 700,
+    minNodes: 30,
+    renderSettleOnly: true
+  };
+
+  const popScope = () => {
+    // A returning (already-populated) screen: content exists, no new commits.
+    const scope = document.createElement("div");
+    for (let i = 0; i < 10; i++) scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    return scope;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    frames = new Map();
+    frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.textContent = "";
+    setPendingForTests(false);
+  });
+
+  const arm = () => {
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope: popScope(), contentSettle: SETTLE });
+    // The two-frame paint anchor that precedes the settle gate.
+    flushFrame();
+    flushFrame();
+    return onReady;
+  };
+  const fastFrame = () => {
+    vi.advanceTimersByTime(16);
+    flushFrame();
+  };
+
+  it("a healthy give-up releases after two fast frames — no felt regression", () => {
+    const onReady = arm();
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    expect(onReady).not.toHaveBeenCalled();
+    fastFrame();
+    expect(onReady).not.toHaveBeenCalled();
+    fastFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("a rendering block inside the give-up window defers the release past it", () => {
+    const onReady = arm();
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    // Baseline fast frame, then the unfreeze's 60ms style/layout/paint block.
+    fastFrame();
+    vi.advanceTimersByTime(60);
+    flushFrame();
+    expect(onReady).not.toHaveBeenCalled();
+    // The pair restarts: one fast frame is still not enough…
+    fastFrame();
+    expect(onReady).not.toHaveBeenCalled();
+    // …two consecutive fast frames release.
+    fastFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("a block starting AT the give-up timer defers the release — the baseline is the timer, not the first frame", () => {
+    const onReady = arm();
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    // The unfreeze's style/layout block runs immediately after the timer
+    // fires: the FIRST guard frame arrives late and must not read as fast
+    // (a null baseline would count it, halving the pair).
+    vi.advanceTimersByTime(60);
+    flushFrame();
+    expect(onReady).not.toHaveBeenCalled();
+    fastFrame();
+    expect(onReady).not.toHaveBeenCalled();
+    fastFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("capMs bounds the guard even under sustained slow frames", () => {
+    const onReady = arm();
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    for (let i = 0; i < 12; i++) {
+      vi.advanceTimersByTime(60);
+      flushFrame();
+      if (vi.mocked(onReady).mock.calls.length > 0) break;
+    }
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+});
+
+// A runtime without `performance` (the guards at the top of the module and
+// in the give-up baseline exist for exactly this): the gate must still make
+// its two-fast-frame decision off the rAF timestamps alone.
+describe("render-settle give-up without a performance clock", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let frameId: number;
+  const flushFrame = (timestamp: number) => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((frameCallback) => frameCallback(timestamp));
+  };
+  const SETTLE = {
+    graceMs: 60,
+    firstWaitMs: 120,
+    capMs: 700,
+    minNodes: 30,
+    renderSettleOnly: true
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    frames = new Map();
+    frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+    vi.stubGlobal("performance", undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.textContent = "";
+    setPendingForTests(false);
+  });
+
+  it("releases on two fast frames measured off the rAF timestamps", () => {
+    const scope = document.createElement("div");
+    for (let i = 0; i < 10; i++) scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    const onReady = vi.fn();
+
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    // The two-frame paint anchor, then the give-up timer.
+    flushFrame(0);
+    flushFrame(16);
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+
+    flushFrame(32);
+    expect(onReady).not.toHaveBeenCalled();
+    flushFrame(48);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+});

@@ -46,9 +46,20 @@ const isOversizedComplete = (img: HTMLImageElement): boolean => {
   return img.naturalWidth * img.naturalHeight > boxArea * OVERSIZE_AREA_RATIO;
 };
 
-const shouldHold = (img: HTMLImageElement): boolean => isUnpainted(img) || isOversizedComplete(img);
+const shouldHold = (img: HTMLImageElement, unpaintedOnly: boolean): boolean =>
+  isUnpainted(img) || (!unpaintedOnly && isOversizedComplete(img));
 
-export function beginImageRevealHold(scope: Element | null, backstopMs: number): () => void {
+// `unpaintedOnly`: hold only images that have not painted yet — never a
+// complete/cached one. The oversized-cached re-park (the Note 9 re-entry
+// case) makes ALREADY-VISIBLE avatars vanish for the flight and pop back at
+// rest, which reads as a glitch on desktop (user-reported 2026-08-18); the
+// steady-60 default therefore holds strictly-unpainted images, and the full
+// behavior stays behind the explicit `flemo:imghold=on` instrument.
+export function beginImageRevealHold(
+  scope: Element | null,
+  backstopMs: number,
+  unpaintedOnly = false
+): () => void {
   if (
     !scope ||
     typeof document === "undefined" ||
@@ -69,7 +80,16 @@ export function beginImageRevealHold(scope: Element | null, backstopMs: number):
   const originals = new Map<HTMLImageElement, string>();
 
   const hold = (img: HTMLImageElement) => {
-    if (originals.has(img) || !shouldHold(img)) return;
+    // ONE HOLDER AT A TIME (2026-08-18, live-reproduced): consecutive flights
+    // arm fresh hold instances (warm-side push hold, cold-side pop hold) and
+    // an image still held by a previous instance carries display:none as its
+    // CURRENT inline value — capturing that as the "original" makes the later
+    // reveal restore `none` permanently (180-row list audited with 143
+    // orphaned hidden avatars, zero hold attributes). The attribute is the
+    // cross-instance marker: an image some other hold owns is left entirely
+    // to that hold's reveal.
+    if (img.getAttribute(HOLD_ATTR) !== null) return;
+    if (originals.has(img) || !shouldHold(img, unpaintedOnly)) return;
     originals.set(img, img.style.display);
     img.style.display = "none";
     img.setAttribute(HOLD_ATTR, ""); // inspectable marker; the Map owns the value

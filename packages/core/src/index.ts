@@ -170,6 +170,10 @@ export {
 // policy branches per engine — the entry content-settle gate runs only where
 // the compiled (untouched) animation is the driver (non-Blink).
 export { detectBlinkEngine, isLegacyAndroidBlink } from "@core/engine/driverPolicy";
+// Steady-60 desktop session predicate (see steadySixtyCadence.ts): bindings
+// consult it for desktop-profile defaults (e.g. pre-rasterizing the parked
+// entering layer so the slide never rasters mid-motion).
+export { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 export { default as observeBarHeight } from "@screen/observeBarHeight";
 export { default as observeViewportScrollHeight } from "@screen/observeViewportScrollHeight";
 

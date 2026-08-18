@@ -91,4 +91,22 @@ describe("imageRevealHold", () => {
   it("is a no-op for a null scope", () => {
     expect(() => beginImageRevealHold(null, 2000)()).not.toThrow();
   });
+
+  it("a second overlapping hold never captures the first hold's display:none", () => {
+    const scope = document.createElement("div");
+    const img = document.createElement("img");
+    scope.appendChild(img);
+    document.body.appendChild(scope);
+    // First hold hides the unpainted image.
+    const release1 = beginImageRevealHold(scope, 5000, true);
+    expect(img.style.display).toBe("none");
+    // Second hold arms while the first still owns the image (consecutive
+    // flights) — it must skip it entirely.
+    const release2 = beginImageRevealHold(scope, 5000, true);
+    release2();
+    expect(img.style.display).toBe("none"); // still owned by hold 1
+    release1();
+    expect(img.style.display).toBe(""); // restored by its true owner
+    scope.remove();
+  });
 });

@@ -14,6 +14,11 @@ import {
 } from "@core/engine/diagnosticFlags";
 import driverPolicy, { detectBlinkEngine } from "@core/engine/driverPolicy";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
+import {
+  HIGH_REFRESH_MAX_INTERVAL_MS,
+  reportInFlightCadence,
+  steadySixtyPlayerEligible
+} from "@core/engine/steadySixtyCadence";
 
 // Test seam re-export: the session override caches now live in the flag
 // registry, but the suites reach them through this module.
@@ -348,6 +353,10 @@ export interface SnapMemory {
   // end pose: the caller's completion paths (the perceptual cut) must keep
   // ticking until the presented pose has actually landed.
   pendingLanding?: boolean;
+  // Steady-60 desktop pure-glide, decided PER TRACK at join (see
+  // glidePreferredForParsed): true only for slow parallax-class tracks in an
+  // eligible session. Fast movers keep the gate's snapping and the governor.
+  glide?: boolean;
 }
 
 // Compose the per-frame transform string. x/y merge into one translate3d.
@@ -371,10 +380,70 @@ export interface SnapMemory {
 // - WebKit at phone densities (dpr >= 3): the velocity gate. The same A/B on
 //   the phone judged the gate best (always-snap read as stepping on the slow
 //   parallax; raw glide sizzled) — at 3x the sub-pixel glide wins the tail.
-// - Blink: the velocity gate (its compositor path never showed the class).
-// The session override (always/off/gate) replaces the default either way.
+// - Blink (touch AND desktop): the velocity gate. Touch was device-judged on
+//   the phone (always-snap read as stepping on the slow parallax). Desktop
+//   was BRIEFLY flipped to always-snap when the steady-60 routing landed —
+//   inferred from a session note taken against the COMPILED tier's artifacts
+//   — and immediately device-refuted on the player itself: the pop
+//   parallax's long sub-pixel tail presented as "드르륵" ratcheting (integer
+//   holds-and-steps, made salient by this platform's uneven present pacing,
+//   the proven out-of-reach layer), while the direct same-display verdict on
+//   the player has always been that the fractional glide wins slow tracked
+//   motion — the bilinear blur masks both the phases and the present
+//   cadence. Fast spans still snap via the gate; the landing governor still
+//   owns the sub-pixel tail's close.
+// The session override (always/off/gate/hybrid) replaces the default either
+// way.
 const defaultAlwaysSnap = (devicePixelRatio: number): boolean =>
   !detectBlinkEngine() && devicePixelRatio > 0 && devicePixelRatio < 3;
+
+// STEADY-60 DESKTOP (the only route by which a desktop Blink flight reaches
+// this player — see steadySixtyCadence): the snap treatment splits PER
+// TRACK, because the two motion classes of one navigation were device-judged
+// (4K@60Hz 2x, 2026-08-18) to want OPPOSITE cures:
+//
+// - SLOW PARALLAX tracks (a pop's returning screen, a push's exiting
+//   screen — ~30% travel, long sub-device-pixel tails): every
+//   integer-stepping variant — always-snap, the gate's 1-device-px minimum
+//   steps, and the landing governor's 1px/frame staircase over the last 12
+//   device px (snap-mode-independent, so even `snap=off` stepped the tail)
+//   — presents as deterministic "드르륵" ratcheting, because this
+//   platform's uneven present pacing (the proven out-of-reach layer) turns
+//   a metronomic 1-device-px cadence into visible 0-2px stutters. These
+//   tracks GLIDE: raw fractional writes, governor stood down — bilinear
+//   filtering masks both the sub-pixel phases and the present cadence, and
+//   the flight still ends exactly on the rest pose via the perceptual cut.
+//   (Applying the glide to EVERYTHING was tried and immediately refuted:
+//   the push's entering screen got visibly worse — see the next class.)
+// - FAST FULL-TRAVEL tracks (a push's entering screen, a pop's exiting
+//   screen — ~full-viewport travel): unsnapped fractional motion
+//   resamples the screen's dense content through the whole flight (texture
+//   sizzle — the same-day verdict that made always-snap the 8/17 fix), so
+//   they KEEP the gate's snapping and the governor's crisp close.
+//
+// Touch and WebKit keep their device-verified snapping and governor
+// unchanged; the flemo:snap session override still replaces everything.
+// The slow/fast boundary. cupertino's classes sit far on either side of it:
+// the parallax travels 30% (fraction 0.3) while the entering/exiting slide
+// travels 100% (fraction 1.0); px-authored motion classifies by absolute
+// device travel instead (600 device px ≈ a 300-CSS-px slide at 2x).
+const GLIDE_MAX_TRAVEL_FRACTION = 0.6;
+const GLIDE_MAX_TRAVEL_DEVICE_PX = 600;
+const glidePreferredForParsed = (parsed: ParsedMotion, devicePixelRatio: number): boolean => {
+  if (!steadySixtyPlayerEligible()) return false;
+  for (const channel of parsed.transforms) {
+    if (channel.prop !== "x" && channel.prop !== "y") continue;
+    const travel = Math.abs(channel.to.value - channel.from.value);
+    if (channel.from.unit === "%") {
+      // Percent-authored travel classifies by its fraction of the element
+      // box — viewport-size-independent (a pop parallax is 30% at any width).
+      if (travel / 100 >= GLIDE_MAX_TRAVEL_FRACTION) return false;
+    } else if (travel * Math.max(1, devicePixelRatio) >= GLIDE_MAX_TRAVEL_DEVICE_PX) {
+      return false;
+    }
+  }
+  return true;
+};
 
 // The landing governor's engagement range (device pixels): once the curve's
 // per-frame travel drops below one device pixel INSIDE this range, the
@@ -422,8 +491,10 @@ const composeTransform = (
       // alternation — and snapped only above it; the governor still owns
       // the sub-pixel tail.
       const stepForGate = last === null ? Infinity : Math.abs(value - last) * devicePixelRatio;
-      const fastEnough =
-        override === "always" || (override === null && defaultAlwaysSnap(devicePixelRatio))
+      const glide = override === null && snapMemory.glide === true;
+      const fastEnough = glide
+        ? false
+        : override === "always" || (override === null && defaultAlwaysSnap(devicePixelRatio))
           ? true
           : override === "off"
             ? false
@@ -458,6 +529,7 @@ const composeTransform = (
       // overshooting ease crosses the end fast and must keep playing its
       // bounce — its own final approach decelerates into the latch later.
       const engaged =
+        !glide &&
         devicePixelRatio > 0 &&
         (priorLanding != null || (stepDevice < 1 && remainingDevice <= REST_LANDING_MAX_DEVICE_PX));
       const writtenKey = prop === "x" ? "writtenX" : "writtenY";
@@ -844,7 +916,11 @@ export const createTransitionPlayerRegistry = (
         remainderPlan: wantsHandoff && scrub !== null ? numeric : null,
         completed: false,
         detached: false,
-        snapMemory: { x: null, y: null }
+        snapMemory: {
+          x: null,
+          y: null,
+          glide: parsed ? glidePreferredForParsed(parsed, scheduler.devicePixelRatio() || 1) : false
+        }
       };
       player.tracks.push(track);
       player.navCutMs = player.tracks.some((t) => t.cutMs === null)
@@ -1102,6 +1178,19 @@ export const createTransitionPlayerRegistry = (
           Math.max(MIN_FRAME_INTERVAL_MS, median)
         );
         lastLearnedIntervalMs = player.frameIntervalMs;
+        // The steady-60 verdict listens to the player's own cadence for the
+        // HIGH-REFRESH question only — with the window's max gap, so the
+        // jam-noise guard can tell a GENUINE high-refresh stream (a window
+        // moved onto a 120Hz panel: uniform 8.3ms, re-latches the session
+        // compiled) from a catch-up burst (fast median, jam-sized max:
+        // ignored). Mid-band medians from this longer, noisier stream are
+        // NOT reported — they must not reset the streak the probe windows
+        // built. The routing never consults the learned interval on
+        // desktop, so this is the only cadence path that can demote a
+        // graduated session.
+        if (median < HIGH_REFRESH_MAX_INTERVAL_MS) {
+          reportInFlightCadence(median, sorted[sorted.length - 1]!);
+        }
       }
       // Re-anchor across a main-thread stall (see PASS_THROUGH_FRAMES):
       // beyond ordinary jitter the clock advances exactly ONE display frame,

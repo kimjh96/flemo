@@ -382,6 +382,48 @@ export function scheduleAnimHoldReadiness(
     // the gate only releases once the pixels have gone quiet too. Bounded by
     // capMs; a light screen never blocks, so it never waits.
     const RASTER_BLOCK_GAP_MS = 48;
+    // GIVE-UP raster guard (renderSettleOnly). The wave detector above keys on
+    // ADDED nodes (minNodes) — correct for a mounting PUSH, but a POP's
+    // returning screen re-uses its frozen DOM: the unfreeze commits almost no
+    // added nodes, so no wave ever qualifies and the grace/firstWait timers
+    // become the release path — releasing on a wall clock while the unfreeze's
+    // own style/layout/paint block (not a mutation, not a JS long task) is
+    // still due. Device-measured on a fully-loaded infinite list (desktop
+    // steady-60 player): EVERY heavy pop opened with one ~50-60ms frame gap
+    // overlapping flight start — the exact stutter class this gate exists to
+    // absorb. So in render-settle mode a give-up release must ride TWO
+    // consecutive FAST frames: a slow frame (the block just ran, or the timer
+    // fired right before one) restarts the pair, capMs bounds the wait. A
+    // healthy warm screen's frames are all fast — the guard adds ~2 frames
+    // there, inside the same budget the readiness gate always cost.
+    const GIVEUP_FAST_FRAMES = 2;
+    let givingUp = false;
+    const finishWhenFramesFast = () => {
+      if (!settle.renderSettleOnly) {
+        finish();
+        return;
+      }
+      if (givingUp || finished) return;
+      givingUp = true;
+      // Baseline at the timer, not the first frame: with a null seed the
+      // first rAF always reads "fast", so a block that starts right after
+      // the give-up timer fires would slip past half the pair.
+      let lastTs: number | null = typeof performance !== "undefined" ? performance.now() : null;
+      const step = (remaining: number) => {
+        if (remaining <= 0 || elapsed() >= settle.capMs) {
+          finish();
+          return;
+        }
+        quietFrames.push(
+          requestAnimationFrame((ts) => {
+            const blocked = lastTs !== null && ts - lastTs > RASTER_BLOCK_GAP_MS;
+            lastTs = ts;
+            step(blocked ? GIVEUP_FAST_FRAMES : remaining - 1);
+          })
+        );
+      };
+      step(GIVEUP_FAST_FRAMES);
+    };
     const quiet = () => {
       quietFrames.forEach((frame) => cancelAnimationFrame(frame));
       quietFrames = [];
@@ -446,7 +488,7 @@ export function scheduleAnimHoldReadiness(
     // must not fire; the give-up deadline and the settle cap remain the
     // bounds.
     const graceTimer = setTimeout(() => {
-      if (!seen && !loadingWait()) finish();
+      if (!seen && !loadingWait()) finishWhenFramesFast();
     }, settle.graceMs);
     // Giving up at a fixed deadline is what leaves the slow screens exposed:
     // measured at an emulated mobile viewport, a flight whose content lands
@@ -460,7 +502,7 @@ export function scheduleAnimHoldReadiness(
         setTimeout(giveUp, 100);
         return;
       }
-      finish();
+      finishWhenFramesFast();
     }, settle.firstWaitMs);
     const capTimer = setTimeout(finish, settle.capMs);
     cancellers.push(finish);

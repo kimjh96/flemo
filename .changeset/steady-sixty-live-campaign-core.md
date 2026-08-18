@@ -1,0 +1,5 @@
+---
+"@flemo/core": minor
+---
+
+Fix the live-judged desktop Chrome jank sources found in the 2026-08-18 campaign: hold the warm side's still-loading images too (a leaving list's lazy avatars were decoding onto the sliding layer, one skipped present per decode), make image holds single-owner (an overlapping hold captured another hold's display:none as the "original" and blanked already-loaded avatars), exempt held images' style channel from the arrival hold's in-place freeze (it was undoing the hold mid-flight and resurrecting the hide at rest), widen the GPU pipeline prewarm scene to the draw variants real screens use (image texture under a circular clip, gradient, CJK text, hairline border, shadow; cold-profile first flights carried 120-150ms of in-flight pipeline compiles), and keep a 2KB always-on 60fps video surface on steady-60 desktop sessions so the display pipeline holds a steady compositing cadence between and during flights. Desktop routing is settled on the compiled tier; the steady-60 verdict now gates desktop-profile defaults only.

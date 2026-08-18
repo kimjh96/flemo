@@ -1627,3 +1627,94 @@ describe("last-pixel landing", () => {
     expect(el.style.transform).toBe("translate3d(-120px, 0px, 0)");
   });
 });
+
+// STEADY-60 DESKTOP pure-glide profile (see pureGlideProfile): a desktop
+// Blink session whose in-flight cadence verified steady-60 writes RAW
+// fractional values everywhere — no gate snapping, no landing-governor
+// staircase. Device-judged on the 4K@60Hz 2x class: every integer-stepping
+// variant presented as deterministic pop-parallax ratcheting under the
+// platform's uneven present pacing; the bilinear glide masks it.
+describe("steady-60 desktop pure-glide profile", () => {
+  const NAV = navigator as { userAgentData?: unknown };
+  const slide = () => linearMotion({ x: 0 }, { x: -100 }, 1);
+  let originalDpr: number;
+  beforeEach(async () => {
+    NAV.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 0, configurable: true });
+    originalDpr = window.devicePixelRatio;
+    Object.defineProperty(window, "devicePixelRatio", { value: 2, configurable: true });
+    const { reportInFlightCadence } = await import("@core/engine/steadySixtyCadence");
+    reportInFlightCadence(16.7);
+    reportInFlightCadence(16.7);
+  });
+  afterEach(async () => {
+    const { resetSteadySixtyForTests } = await import("@core/engine/steadySixtyCadence");
+    resetSteadySixtyForTests();
+    delete NAV.userAgentData;
+    delete (navigator as unknown as Record<string, unknown>).maxTouchPoints;
+    Object.defineProperty(window, "devicePixelRatio", { value: originalDpr, configurable: true });
+    sessionStorage.removeItem("flemo:snap");
+    resetSessionOverrideCachesForTests();
+  });
+
+  it("writes raw fractional values with no gate snapping", () => {
+    const { scheduler, pump } = createFakeScheduler(2);
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    registry.join("task-glide", { element: el, motion: slide(), role: "active" });
+    pump(0);
+    pump(17); // -1.7px would snap to -1.5 under always/gate; glide keeps it raw
+    expect(el.style.transform).toBe("translate3d(-1.7px, 0px, 0)");
+  });
+
+  it("the landing governor stands down: the tail approaches fractionally", () => {
+    const { scheduler, pump } = createFakeScheduler(2);
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    // 10px of travel over 1s: the whole flight sits inside the governor's
+    // 12-device-px engagement range at sub-device-pixel velocity.
+    registry.join("task-tail", {
+      element: el,
+      motion: linearMotion({ x: -10 }, { x: 0 }, 1),
+      role: "active"
+    });
+    pump(0);
+    climbTo(pump, 0, 500); // halfway: -5px, velocity 0.1 CSS px/frame — the governor would latch
+    const m = /translate3d\((-?[\d.]+)px/.exec(el.style.transform)!;
+    // Raw curve value (-5), not a 1-device-px staircase step from the start.
+    expect(parseFloat(m[1])).toBeCloseTo(-5, 0);
+    pump(517);
+    const m2 = /translate3d\((-?[\d.]+)px/.exec(el.style.transform)!;
+    // The next frame advances by the curve's own fraction (~0.17px), not by
+    // the governor's fixed half-CSS-px step.
+    expect(Math.abs(parseFloat(m2[1]) - parseFloat(m[1]))).toBeLessThan(0.3);
+  });
+
+  it("a fast full-travel mover keeps the gate's snapping (per-track split)", () => {
+    const { scheduler, pump } = createFakeScheduler(2);
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    // 800 CSS px of travel = 1600 device px: the push-slide class.
+    registry.join("task-fast", {
+      element: el,
+      motion: linearMotion({ x: 0 }, { x: -800 }, 1),
+      role: "active"
+    });
+    pump(0);
+    pump(17); // raw -13.6px; the gate snaps fast motion to the device grid
+    const m = /translate3d\((-?[\d.]+)px/.exec(el.style.transform)!;
+    expect((Math.abs(parseFloat(m[1])) * 2) % 1).toBe(0);
+  });
+
+  it("an explicit session override still wins over the profile", () => {
+    sessionStorage.setItem("flemo:snap", "always");
+    resetSessionOverrideCachesForTests();
+    const { scheduler, pump } = createFakeScheduler(2);
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+    registry.join("task-ovr", { element: el, motion: slide(), role: "active" });
+    pump(0);
+    pump(17);
+    expect(el.style.transform).toBe("translate3d(-1.5px, 0px, 0)");
+  });
+});

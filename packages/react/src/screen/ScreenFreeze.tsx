@@ -1,9 +1,23 @@
-import { Activity, type ReactNode } from "react";
+import { Activity, useEffect, useRef, useState, type ReactNode } from "react";
+
+import { steadySixtyPlayerEligible } from "@flemo/core";
 
 interface ScreenFreezeProps {
   freeze: boolean;
   children: ReactNode;
 }
+
+// How long a covered screen stays LIVE at rest before the hide actually
+// applies (steady-60 desktops). The hide/unhide pair is the expensive part of
+// Activity for a large screen (an infinite-scroll list): hiding tears down its
+// layers and raster, unhiding re-styles, re-lays-out and re-rasters the whole
+// subtree. Glass-measured (2026-08-18): at the natural browse rhythm — detail
+// for a second, then back — the push's hide landed ~170ms before the pop's
+// unhide, and that overlapping thrash froze 8-12 consecutive pop frames.
+// Debouncing the hide means a quick round-trip never freezes at all (the pop
+// cancels the pending hide), while a genuine stay still freezes and reclaims
+// memory once the user has settled.
+const FREEZE_REST_DEBOUNCE_MS = 3000;
 
 // An inactive screen is kept mounted so it preserves its DOM state — scroll
 // position, form values, media playback — and restores instantly when shown
@@ -13,7 +27,32 @@ interface ScreenFreezeProps {
 // that state. This replaces the manual display:none wrapper and frozen-children
 // snapshot with React's built-in offscreen handling.
 function ScreenFreeze({ freeze, children }: ScreenFreezeProps) {
-  return <Activity mode={freeze ? "hidden" : "visible"}>{children}</Activity>;
+  const [applied, setApplied] = useState(freeze);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // UNFREEZE is instant, in this very commit: the returning screen must be
+  // visible in the same paint as its status flip (render-phase adjustment,
+  // same pattern as ScreenMotion's hold release).
+  if (!freeze && applied) setApplied(false);
+  useEffect(() => {
+    if (!freeze || applied) return undefined;
+    // Freeze: immediate everywhere except steady-60 desktops, where the hide
+    // debounces past the browse-rhythm window (see FREEZE_REST_DEBOUNCE_MS).
+    if (!steadySixtyPlayerEligible()) {
+      setApplied(true);
+      return undefined;
+    }
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      setApplied(true);
+    }, FREEZE_REST_DEBOUNCE_MS);
+    return () => {
+      if (timer.current !== null) {
+        clearTimeout(timer.current);
+        timer.current = null;
+      }
+    };
+  }, [freeze, applied]);
+  return <Activity mode={freeze && applied ? "hidden" : "visible"}>{children}</Activity>;
 }
 
 export default ScreenFreeze;
