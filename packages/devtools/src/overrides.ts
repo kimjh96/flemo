@@ -184,7 +184,6 @@ export const snapshotOverrides = (): Record<string, string> => {
       for (let index = 0; index < storage.length; index += 1) {
         const key = storage.key(index);
         if (!key || !key.startsWith("flemo:") || registryKeys.has(key)) continue;
-        if (key === FORCE_PIN_KEY) continue; // legacy location, handled above
         active[`${key} (${label}, unknown key)`] = storage.getItem(key) ?? "";
       }
     } catch {

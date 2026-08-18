@@ -84,11 +84,7 @@ describe("snapshotOverrides", () => {
     expect(active["flemo:ghost (sessionStorage, unknown key)"]).toBe("");
   });
 
-  it("never re-lists the force pin as an unknown key during enumeration", () => {
-    // Defense in depth: the registry index already subsumes the force-pin
-    // key, so the dedicated enumeration guard only becomes reachable if the
-    // index ever misses it. Neutralize the index for that single key to
-    // prove the pin still lands only in its own (legacy-location) entry.
+  it("lists the force pin from its registry entry, never as an unknown key", () => {
     const pinned = {
       get length() {
         return 1;
@@ -97,16 +93,10 @@ describe("snapshotOverrides", () => {
       getItem: () => "raf@1700000000000"
     };
     vi.stubGlobal("sessionStorage", pinned);
-    const realHas = Set.prototype.has;
-    const spy = vi.spyOn(Set.prototype, "has").mockImplementation(function (
-      this: Set<unknown>,
-      value: unknown
-    ) {
-      return value === "flemo:motion-driver-force" ? false : realHas.call(this, value);
-    });
-    const active = snapshotOverrides();
-    spy.mockRestore();
 
+    const active = snapshotOverrides();
+
+    // The registry index covers the pin, so enumeration must not re-list it.
     expect(Object.keys(active).some((key) => key.includes("unknown key"))).toBe(false);
     expect(active["flemo:motion-driver-force"]).toBe("raf@1700000000000");
   });
