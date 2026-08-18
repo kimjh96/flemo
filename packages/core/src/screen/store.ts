@@ -5,6 +5,18 @@ export interface SharedBarPresence {
   bottomBar: boolean;
 }
 
+export type SharedBarId = string | number;
+
+export interface SharedBarMetadata {
+  id?: SharedBarId;
+  height?: number;
+}
+
+export interface SharedBarsMetadata {
+  topBar?: SharedBarMetadata;
+  bottomBar?: SharedBarMetadata;
+}
+
 // What a screen's scope SURFACE looks like to the screen beneath it. A prev
 // screen entering on pop may pre-raster by parking at its destination during
 // the anim-hold window, but ONLY when the screen covering it is opaque —
@@ -18,10 +30,16 @@ export interface ScreenStore {
   dragStatus: "IDLE" | "PENDING";
   replaceTransitionStatus: "IDLE" | "PENDING";
   sharedBars: Record<string, SharedBarPresence>;
+  sharedBarMetadata: Record<string, SharedBarsMetadata>;
   screenSurfaces: Record<string, ScreenSurface>;
   setDragStatus: (dragStatus: "IDLE" | "PENDING") => void;
   setReplaceTransitionStatus: (replaceTransitionStatus: "IDLE" | "PENDING") => void;
-  registerSharedBars: (id: string, presence: SharedBarPresence) => void;
+  registerSharedBars: (
+    id: string,
+    presence: SharedBarPresence,
+    metadata?: SharedBarsMetadata
+  ) => void;
+  updateSharedBarHeight: (id: string, position: keyof SharedBarsMetadata, height: number) => void;
   unregisterSharedBars: (id: string) => void;
   registerScreenSurface: (id: string, surface: ScreenSurface) => void;
   unregisterScreenSurface: (id: string) => void;
@@ -37,16 +55,56 @@ export default function createScreenStore(): ScreenStoreApi {
     dragStatus: "IDLE",
     replaceTransitionStatus: "IDLE",
     sharedBars: {},
+    sharedBarMetadata: {},
     screenSurfaces: {},
     setDragStatus: (dragStatus) => set({ dragStatus }),
     setReplaceTransitionStatus: (replaceTransitionStatus) => set({ replaceTransitionStatus }),
-    registerSharedBars: (id, presence) =>
-      set((state) => ({ sharedBars: { ...state.sharedBars, [id]: presence } })),
+    registerSharedBars: (id, presence, metadata) =>
+      set((state) => {
+        const nextMetadata =
+          metadata ??
+          ({
+            topBar: presence.topBar ? {} : undefined,
+            bottomBar: presence.bottomBar ? {} : undefined
+          } satisfies SharedBarsMetadata);
+        const currentPresence = state.sharedBars[id];
+        const currentMetadata = state.sharedBarMetadata[id];
+        const samePresence =
+          currentPresence?.topBar === presence.topBar &&
+          currentPresence?.bottomBar === presence.bottomBar;
+        const sameMetadata =
+          currentMetadata?.topBar?.id === nextMetadata.topBar?.id &&
+          currentMetadata?.topBar?.height === nextMetadata.topBar?.height &&
+          currentMetadata?.bottomBar?.id === nextMetadata.bottomBar?.id &&
+          currentMetadata?.bottomBar?.height === nextMetadata.bottomBar?.height &&
+          !!currentMetadata?.topBar === !!nextMetadata.topBar &&
+          !!currentMetadata?.bottomBar === !!nextMetadata.bottomBar;
+        if (samePresence && sameMetadata) return state;
+        return {
+          sharedBars: { ...state.sharedBars, [id]: presence },
+          sharedBarMetadata: { ...state.sharedBarMetadata, [id]: nextMetadata }
+        };
+      }),
+    updateSharedBarHeight: (id, position, height) =>
+      set((state) => {
+        if (height <= 0) return state;
+        const bars = state.sharedBarMetadata[id];
+        const bar = bars?.[position];
+        if (!bars || !bar || bar.height === height) return state;
+        return {
+          sharedBarMetadata: {
+            ...state.sharedBarMetadata,
+            [id]: { ...bars, [position]: { ...bar, height } }
+          }
+        };
+      }),
     unregisterSharedBars: (id) =>
       set((state) => {
         const sharedBars = { ...state.sharedBars };
+        const sharedBarMetadata = { ...state.sharedBarMetadata };
         delete sharedBars[id];
-        return { sharedBars };
+        delete sharedBarMetadata[id];
+        return { sharedBars, sharedBarMetadata };
       }),
     registerScreenSurface: (id, surface) =>
       set((state) => {

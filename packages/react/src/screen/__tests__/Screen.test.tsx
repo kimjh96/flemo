@@ -223,6 +223,167 @@ describe("Screen", () => {
     expect(bar.getAttribute("data-flemo-bar-riding")).toBe("false");
   });
 
+  it("hands over same-ID bars while different-ID bars ride with their screen", () => {
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+    stores.screen.setState({
+      sharedBars: { below: { topBar: true, bottomBar: true } },
+      sharedBarMetadata: {
+        below: {
+          topBar: { id: "pattern-builder-header", height: 106 },
+          bottomBar: { id: "main-tabs", height: 64 }
+        }
+      }
+    });
+
+    const { container } = render(
+      <Screen
+        sharedTopBar={<div>builder</div>}
+        sharedTopBarId="pattern-builder-header"
+        sharedBottomBar={<div>next</div>}
+        sharedBottomBarId="pattern-builder-actions"
+      >
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true, id: "top" }) }
+    );
+
+    expect(
+      container.querySelector('[data-flemo-bar="app"]')!.getAttribute("data-flemo-bar-riding")
+    ).toBe("false");
+    expect(
+      container.querySelector('[data-flemo-bar="nav"]')!.getAttribute("data-flemo-bar-riding")
+    ).toBe("true");
+  });
+
+  it("seeds both spacers from matching partner measurements on the first render", () => {
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+    stores.screen.setState({
+      sharedBars: { below: { topBar: true, bottomBar: true } },
+      sharedBarMetadata: {
+        below: {
+          topBar: { id: "pattern-builder-header", height: 106 },
+          bottomBar: { id: "pattern-builder-actions", height: 81 }
+        }
+      }
+    });
+
+    const { container } = render(
+      <Screen
+        sharedTopBar={<div>builder</div>}
+        sharedTopBarId="pattern-builder-header"
+        sharedBottomBar={<div>next</div>}
+        sharedBottomBarId="pattern-builder-actions"
+      >
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true, id: "top" }) }
+    );
+
+    expect(
+      container.querySelector<HTMLElement>('[data-flemo-bar-spacer="app"]')!.style.minHeight
+    ).toBe("106px");
+    expect(
+      container.querySelector<HTMLElement>('[data-flemo-bar-spacer="nav"]')!.style.minHeight
+    ).toBe("81px");
+  });
+
+  it("does not seed a spacer from a different bar ID", () => {
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+    stores.screen.setState({
+      sharedBars: { below: { topBar: false, bottomBar: true } },
+      sharedBarMetadata: { below: { bottomBar: { id: "main-tabs", height: 64 } } }
+    });
+
+    const { container } = render(
+      <Screen sharedBottomBar={<div>next</div>} sharedBottomBarId="pattern-builder-actions">
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true, id: "top" }) }
+    );
+
+    expect(
+      container.querySelector<HTMLElement>('[data-flemo-bar-spacer="nav"]')!.style.minHeight
+    ).toBe("0px");
+  });
+
+  it("synchronously reserves a newly mounted bar's measured height", () => {
+    stores.history.setState({ index: 0, histories: [historyEntry("top")] });
+    const offsetHeight = vi
+      .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        if (this.dataset.flemoBar === "app") return 106;
+        if (this.dataset.flemoBar === "nav") return 81;
+        return 0;
+      });
+
+    const { container } = render(
+      <Screen
+        sharedTopBar={<div>builder</div>}
+        sharedTopBarId="pattern-builder-header"
+        sharedBottomBar={<div>next</div>}
+        sharedBottomBarId="pattern-builder-actions"
+      >
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true, id: "top" }) }
+    );
+
+    expect(
+      container.querySelector<HTMLElement>('[data-flemo-bar-spacer="app"]')!.style.minHeight
+    ).toBe("106px");
+    expect(
+      container.querySelector<HTMLElement>('[data-flemo-bar-spacer="nav"]')!.style.minHeight
+    ).toBe("81px");
+    expect(stores.screen.getState().sharedBarMetadata.top).toEqual({
+      topBar: { id: "pattern-builder-header", height: 106 },
+      bottomBar: { id: "pattern-builder-actions", height: 81 }
+    });
+    offsetHeight.mockRestore();
+  });
+
+  it("keeps the spacer and metadata current when ResizeObserver reports a dynamic resize", () => {
+    stores.history.setState({ index: 0, histories: [historyEntry("top")] });
+    const OriginalResizeObserver = globalThis.ResizeObserver;
+    let resize: ResizeObserverCallback | undefined;
+    globalThis.ResizeObserver = class {
+      constructor(callback: ResizeObserverCallback) {
+        resize = callback;
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as typeof ResizeObserver;
+
+    try {
+      const { container } = render(
+        <Screen sharedBottomBar={<div>next</div>} sharedBottomBarId="pattern-builder-actions">
+          <div>hello</div>
+        </Screen>,
+        { wrapper: buildHarness({ isActive: true, id: "top" }) }
+      );
+
+      act(() => {
+        resize?.(
+          [{ contentRect: { height: 93 } } as ResizeObserverEntry],
+          undefined as unknown as ResizeObserver
+        );
+      });
+
+      expect(
+        container.querySelector<HTMLElement>('[data-flemo-bar-spacer="nav"]')!.style.minHeight
+      ).toBe("93px");
+      expect(stores.screen.getState().sharedBarMetadata.top?.bottomBar).toEqual({
+        id: "pattern-builder-actions",
+        height: 93
+      });
+    } finally {
+      globalThis.ResizeObserver = OriginalResizeObserver;
+    }
+  });
+
   it("mounts an entering screen's content in its FIRST commit (no shell-first deferral)", () => {
     // Regression guard for the reverted shell-first experiment: deferring
     // children unconditionally made every light screen enter as a blank shell

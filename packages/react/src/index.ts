@@ -19,7 +19,12 @@ export { default as useScreenStore } from "@stores/useScreenStore";
 export { default as useStores } from "@stores/useStores";
 export { default as RouterScopeProvider } from "@stores/RouterScopeProvider";
 export { type FlemoStores } from "@stores/StoreContext";
-export { type SharedBarPresence } from "@screen/store";
+export {
+  type SharedBarId,
+  type SharedBarMetadata,
+  type SharedBarPresence,
+  type SharedBarsMetadata
+} from "@screen/store";
 export { default as useViewportScrollHeight } from "@screen/useViewportScrollHeight";
 
 // Framework-agnostic primitives re-exported so users importing from

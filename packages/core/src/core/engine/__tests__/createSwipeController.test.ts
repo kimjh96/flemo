@@ -378,6 +378,27 @@ describe("createSwipeController", () => {
       expect(prevNav.style.transform).toBe(prevScreenEl.style.transform);
     });
 
+    it("keeps a same-ID current bar fixed during swipe hand-over", async () => {
+      config.getSharedTopBarId = () => "builder-header";
+      config.getPartnerBars = () => ({ topBar: true, bottomBar: false });
+      config.getPartnerBarMetadata = () => ({ topBar: { id: "builder-header" } });
+      const c = createSwipeController(config);
+      await drag(c);
+
+      expect(dom.scope.style.transform).not.toBe("");
+      expect(topBar.style.transform).toBe("");
+    });
+
+    it("rides a different-ID current bar with its screen during a swipe", async () => {
+      config.getSharedTopBarId = () => "builder-header";
+      config.getPartnerBars = () => ({ topBar: true, bottomBar: false });
+      config.getPartnerBarMetadata = () => ({ topBar: { id: "work-header" } });
+      const c = createSwipeController(config);
+      await drag(c);
+
+      expect(topBar.style.transform).toBe(dom.scope.style.transform);
+    });
+
     it("a cancelled swipe restores every riding bar's inline state", async () => {
       const c = createSwipeController(config);
       await drag(c);

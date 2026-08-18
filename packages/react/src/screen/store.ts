@@ -2,4 +2,11 @@
 // the history and navigate stores. Re-exported here so the React-side
 // `@screen/store` import sites stay unchanged.
 export { createScreenStore as default } from "@flemo/core";
-export type { ScreenStore, ScreenStoreApi, SharedBarPresence } from "@flemo/core";
+export type {
+  ScreenStore,
+  ScreenStoreApi,
+  SharedBarId,
+  SharedBarMetadata,
+  SharedBarPresence,
+  SharedBarsMetadata
+} from "@flemo/core";

@@ -68,6 +68,9 @@ export {
   type ScreenStore,
   type ScreenStoreApi,
   type SharedBarPresence,
+  type SharedBarId,
+  type SharedBarMetadata,
+  type SharedBarsMetadata,
   type ScreenSurface
 } from "@screen/store";
 export {
@@ -156,7 +159,11 @@ export {
   type SwipeControllerElements,
   type SharedBarPresenceLike
 } from "@core/engine/createSwipeController";
-export { default as computeBarRiding, type BarRidingInput } from "@screen/computeBarRiding";
+export {
+  default as computeBarRiding,
+  sharedBarsMatch,
+  type BarRidingInput
+} from "@screen/computeBarRiding";
 export {
   animHoldKey,
   scheduleAnimHoldRelease,

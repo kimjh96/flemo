@@ -222,7 +222,7 @@ const EN: DocSection[] = [
           { type: "h", text: "Top bar and bottom bar" },
           {
             type: "p",
-            text: "Two slots, two flavors each. Per-screen bars (`topBar`, `bottomBar`) mount and unmount with the screen. Shared bars (`sharedTopBar`, `sharedBottomBar`) are kept out of the transition, so they do not animate on every push. Use shared bars for global UI like a bottom tab bar."
+            text: "Two slots, two flavors each. Per-screen bars (`topBar`, `bottomBar`) mount and unmount with the screen. Matching shared bars (`sharedTopBar`, `sharedBottomBar`) are kept out of the transition, so they do not animate on every push. Use shared bars for global UI like a bottom tab bar."
           },
           {
             type: "code",
@@ -231,7 +231,16 @@ const EN: DocSection[] = [
           },
           {
             type: "note",
-            text: "A shared bar overlaps with `Slot` (see the previous page), but they fit different cases. `Slot` puts one element, the same on every screen, outside the screen stack, so it never moves with a transition. A shared bar belongs to each screen, but when you move between two screens that both have one it is left out of the transition and stays in place, so its contents can differ from screen to screen. Use `Slot` for a fixed frame that is identical everywhere, and a shared bar for a per-screen bar that should still look continuous."
+            text: "A shared bar overlaps with `Slot` (see the previous page), but they fit different cases. `Slot` puts one element, the same on every screen, outside the screen stack, so it never moves with a transition. A shared bar belongs to each screen, but when you move between two screens with matching bars it is left out of the transition and stays in place, so its contents can differ from screen to screen. Use `Slot` for a fixed frame that is identical everywhere, and a shared bar for a per-screen bar that should still look continuous."
+          },
+          {
+            type: "p",
+            text: "When the same position serves different roles, label it with `sharedTopBarId` or `sharedBottomBarId`. Bars hand over in place only when both IDs match; different IDs enter and leave with their own screens. Omitting both IDs keeps the legacy position-only behavior."
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: '<Screen\n  sharedBottomBar={<TabBar />}\n  sharedBottomBarId="main-tabs"\n/>\n\n<Screen\n  sharedBottomBar={<BuilderActions />}\n  sharedBottomBarId="pattern-builder-actions"\n/>'
           },
           { type: "h", text: "Safe areas" },
           {
@@ -255,6 +264,7 @@ const EN: DocSection[] = [
             rows: [
               ["`topBar` / `bottomBar`", "`ReactNode`", "—"],
               ["`sharedTopBar` / `sharedBottomBar`", "`ReactNode`", "—"],
+              ["`sharedTopBarId` / `sharedBottomBarId`", "`string | number`", "—"],
               ["`backgroundColor`", "`string`", "`white`"],
               ["`statusBarHeight` / `statusBarColor`", "`string`", "—"],
               ["`systemNavigationBarHeight` / `systemNavigationBarColor`", "`string`", "—"],
@@ -982,7 +992,7 @@ const KO: DocSection[] = [
           { type: "h", text: "상단 바와 하단 바" },
           {
             type: "p",
-            text: "슬롯 둘, 각각 두 종류예요. 화면별 바(`topBar`, `bottomBar`)는 화면과 함께 마운트·언마운트돼요. 공유 바(`sharedTopBar`, `sharedBottomBar`)는 전환에서 빠져서 push마다 애니메이션되지 않아요. 하단 탭 바 같은 전역 UI에 공유 바를 사용해요."
+            text: "슬롯 둘, 각각 두 종류예요. 화면별 바(`topBar`, `bottomBar`)는 화면과 함께 마운트·언마운트돼요. 서로 일치하는 공유 바(`sharedTopBar`, `sharedBottomBar`)는 전환에서 빠져서 push마다 애니메이션되지 않아요. 하단 탭 바 같은 전역 UI에 공유 바를 사용해요."
           },
           {
             type: "code",
@@ -991,7 +1001,16 @@ const KO: DocSection[] = [
           },
           {
             type: "note",
-            text: "공유 바는 이전 페이지의 `Slot`과 겹쳐 보이지만 용도가 달라요. `Slot`은 모든 화면에 공통인 요소 하나를 화면 스택 바깥에 두어서, 화면이 바뀌어도 함께 움직이지 않고 늘 제자리에 있어요. 공유 바는 화면마다 각자 가지되, 바를 둘 다 가진 화면끼리 오갈 땐 전환에서 빠져 제자리에 그대로 보여요. 그래서 바 안의 내용은 화면마다 달라도 돼요. 어느 화면에서나 똑같은 고정 틀이면 `Slot`을, 화면마다 내용은 달라도 끊김 없이 이어져 보여야 하는 바면 공유 바를 사용하세요."
+            text: "공유 바는 이전 페이지의 `Slot`과 겹쳐 보이지만 용도가 달라요. `Slot`은 모든 화면에 공통인 요소 하나를 화면 스택 바깥에 두어서, 화면이 바뀌어도 함께 움직이지 않고 늘 제자리에 있어요. 공유 바는 화면마다 각자 가지되, 서로 일치하는 바를 가진 화면끼리 오갈 땐 전환에서 빠져 제자리에 그대로 보여요. 그래서 바 안의 내용은 화면마다 달라도 돼요. 어느 화면에서나 똑같은 고정 틀이면 `Slot`을, 화면마다 내용은 달라도 끊김 없이 이어져 보여야 하는 바면 공유 바를 사용하세요."
+          },
+          {
+            type: "p",
+            text: "같은 위치의 바가 서로 다른 역할이라면 `sharedTopBarId`나 `sharedBottomBarId`로 구분하세요. 양쪽 ID가 같을 때만 제자리에서 이어지고, ID가 다르면 각자의 화면과 함께 진입·퇴장해요. 양쪽 모두 ID를 생략하면 기존의 위치 기반 동작을 유지해요."
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: '<Screen\n  sharedBottomBar={<TabBar />}\n  sharedBottomBarId="main-tabs"\n/>\n\n<Screen\n  sharedBottomBar={<BuilderActions />}\n  sharedBottomBarId="pattern-builder-actions"\n/>'
           },
           { type: "h", text: "세이프 에어리어" },
           {
@@ -1015,6 +1034,7 @@ const KO: DocSection[] = [
             rows: [
               ["`topBar` / `bottomBar`", "`ReactNode`", "—"],
               ["`sharedTopBar` / `sharedBottomBar`", "`ReactNode`", "—"],
+              ["`sharedTopBarId` / `sharedBottomBarId`", "`string | number`", "—"],
               ["`backgroundColor`", "`string`", "`white`"],
               ["`statusBarHeight` / `statusBarColor`", "`string`", "—"],
               ["`systemNavigationBarHeight` / `systemNavigationBarColor`", "`string`", "—"],
