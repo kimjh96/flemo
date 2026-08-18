@@ -93,8 +93,9 @@ export const readImageHoldFlag = (): "on" | "off" | null => {
 // about the phenomenon (a heavy mount commit stalling even the compositor's
 // initial layerization), which does not care whether the device already earned
 // a demotion.
-const isTouchBlink = (): boolean =>
-  detectBlinkEngine() && typeof navigator !== "undefined" && (navigator.maxTouchPoints ?? 0) > 0;
+// No navigator guard: detectBlinkEngine() returns false without one, so the
+// short circuit already covers it.
+const isTouchBlink = (): boolean => detectBlinkEngine() && (navigator.maxTouchPoints ?? 0) > 0;
 
 // `flemo:settle-gate` — the render-settle entry gate. ON BY DEFAULT for touch
 // WebKit (governedCompiledActive — the governed-compiled tier ships with it),

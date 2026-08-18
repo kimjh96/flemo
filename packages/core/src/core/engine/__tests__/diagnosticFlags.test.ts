@@ -104,6 +104,14 @@ describe("readSettleGateFlag defaults", () => {
     expect(readSettleGateFlag()).toBe(false);
   });
 
+  it("treats an engine without maxTouchPoints as non-touch", () => {
+    // Older Chromium builds ship no maxTouchPoints at all; absent must read as
+    // "not a touch device", never as a truthy value.
+    NAV.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
+    delete (navigator as unknown as Record<string, unknown>).maxTouchPoints;
+    expect(readSettleGateFlag()).toBe(false);
+  });
+
   it("still lets an explicit off win on the widened class", () => {
     asTouchBlink();
     sessionStorage.setItem("flemo:settle-gate", "off");
