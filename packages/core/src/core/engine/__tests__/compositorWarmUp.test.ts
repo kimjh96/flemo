@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import holdCompositorWarm, { WARM_ATTR } from "@core/engine/compositorWarmUp";
+import holdCompositorWarm, {
+  resetCompositorWarmForTesting,
+  WARM_ATTR
+} from "@core/engine/compositorWarmUp";
+import { reportInFlightCadence, resetSteadySixtyForTests } from "@core/engine/steadySixtyCadence";
 
 const warmElement = () => document.querySelector(`[${WARM_ATTR}]`);
 
@@ -184,5 +188,139 @@ describe("holdCompositorWarm backstop with siblings", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// The viz-level cadence lock: on steady-60 desktops the warm-up also mounts a
+// session-persistent 8x8 60fps video, because only a VIDEO surface reaches
+// viz's own compositing cadence (see WARM_VIDEO_SRC). Everything about it is
+// best-effort — an engine without webm or autoplay keeps the element-only
+// warm-up — so every failure path here must stay silent.
+describe("holdCompositorWarm cadence video", () => {
+  const warmVideo = () => document.querySelector<HTMLVideoElement>("[data-flemo-warm-video]");
+  let play: ReturnType<typeof vi.fn>;
+  let pause: ReturnType<typeof vi.fn>;
+  let originalDpr: number;
+  const NAV = navigator as { userAgentData?: unknown };
+
+  const eligible = () => {
+    // steadySixtyPlayerEligible(): a verified steady-60 verdict on a
+    // non-touch Blink session at HiDPI.
+    reportInFlightCadence(16.7);
+    reportInFlightCadence(16.7);
+    NAV.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 0, configurable: true });
+    Object.defineProperty(window, "devicePixelRatio", { value: 2, configurable: true });
+  };
+
+  beforeEach(() => {
+    resetCompositorWarmForTesting();
+    resetSteadySixtyForTests();
+    originalDpr = window.devicePixelRatio;
+    // jsdom implements neither play nor pause on HTMLMediaElement.
+    play = vi.fn(() => Promise.resolve());
+    pause = vi.fn();
+    HTMLMediaElement.prototype.play = play as unknown as () => Promise<void>;
+    HTMLMediaElement.prototype.pause = pause as unknown as () => void;
+  });
+
+  afterEach(() => {
+    resetCompositorWarmForTesting();
+    resetSteadySixtyForTests();
+    delete NAV.userAgentData;
+    delete (navigator as unknown as Record<string, unknown>).maxTouchPoints;
+    Object.defineProperty(window, "devicePixelRatio", { value: originalDpr, configurable: true });
+  });
+
+  it("mounts one muted, inert, looping video on a steady-60 desktop", () => {
+    stubAnimate();
+    eligible();
+
+    const release = holdCompositorWarm();
+
+    const video = warmVideo();
+    expect(video).not.toBeNull();
+    expect(video?.muted).toBe(true);
+    expect(video?.loop).toBe(true);
+    expect(video?.playsInline).toBe(true);
+    expect(video?.getAttribute("aria-hidden")).toBe("true");
+    expect(video?.getAttribute("style")).toContain("pointer-events:none");
+    expect(video?.src.startsWith("data:video/webm;base64,")).toBe(true);
+    expect(play).toHaveBeenCalled();
+    // NOT the warm element's own attribute: the video is an internal
+    // auxiliary, and the element remains the warm-up's public contract.
+    expect(video?.hasAttribute(WARM_ATTR)).toBe(false);
+
+    release();
+    // Session-persistent: the release tears the element down, never the video.
+    expect(warmElement()).toBeNull();
+    expect(warmVideo()).not.toBeNull();
+  });
+
+  it("keeps the one video across holds", () => {
+    stubAnimate();
+    eligible();
+
+    holdCompositorWarm()();
+    holdCompositorWarm()();
+
+    expect(document.querySelectorAll("[data-flemo-warm-video]")).toHaveLength(1);
+  });
+
+  it("pauses while the document is hidden and resumes when it returns", () => {
+    stubAnimate();
+    eligible();
+    holdCompositorWarm();
+    play.mockClear();
+
+    Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(pause).toHaveBeenCalledTimes(1);
+    expect(play).not.toHaveBeenCalled();
+
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(play).toHaveBeenCalledTimes(1);
+  });
+
+  it("survives an engine whose play() returns nothing", () => {
+    stubAnimate();
+    eligible();
+    HTMLMediaElement.prototype.play = vi.fn(() => undefined) as unknown as () => Promise<void>;
+
+    expect(() => holdCompositorWarm()()).not.toThrow();
+    expect(warmVideo()).not.toBeNull();
+  });
+
+  it("skips the video entirely off the steady-60 desktop profile", () => {
+    stubAnimate();
+    // Verdict verified, but a 1x display is outside the profile.
+    reportInFlightCadence(16.7);
+    reportInFlightCadence(16.7);
+    NAV.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 0, configurable: true });
+    Object.defineProperty(window, "devicePixelRatio", { value: 1, configurable: true });
+
+    holdCompositorWarm()();
+
+    expect(warmVideo()).toBeNull();
+  });
+
+  it("keeps the element-only warm-up when the video cannot be created", () => {
+    stubAnimate();
+    eligible();
+    const createElement = document.createElement.bind(document);
+    const spy = vi
+      .spyOn(document, "createElement")
+      .mockImplementation((tagName: string, options?: ElementCreationOptions) => {
+        if (tagName === "video") throw new Error("no media element");
+        return createElement(tagName, options);
+      });
+
+    expect(() => holdCompositorWarm()).not.toThrow();
+    expect(warmVideo()).toBeNull();
+    expect(warmElement()).not.toBeNull();
+
+    spy.mockRestore();
   });
 });

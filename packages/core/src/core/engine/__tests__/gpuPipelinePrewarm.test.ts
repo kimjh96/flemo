@@ -71,11 +71,65 @@ describe("gpuPipelinePrewarm", () => {
     expect(mounted!.getAttribute("aria-hidden")).toBe("true");
     expect(mounted!.style.opacity).toBe("0.02");
     expect(mounted!.style.pointerEvents).toBe("none");
-    // Both draw shapes animate: the textured/text layer and the translucent quad.
-    expect(animate).toHaveBeenCalledTimes(2);
+    // All three probe layers animate: textured/text, translucent, and the quad.
+    expect(animate).toHaveBeenCalledTimes(3);
 
     vi.advanceTimersByTime(PREWARM_SPAN_MS);
     expect(host()).toBeNull();
+  });
+
+  it("draws the avatar variant through a real 2D context when the host has one", () => {
+    // jsdom ships no canvas backend, so the clipped-image variant (the draw
+    // class a member list's avatars use) never compiles without a stub — the
+    // very variant the widened scene exists to precompile.
+    const ctx = {
+      fillStyle: "",
+      fillRect: vi.fn(),
+      beginPath: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn()
+    };
+    const getContext = vi
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
+    const toDataURL = vi
+      .spyOn(HTMLCanvasElement.prototype, "toDataURL")
+      .mockReturnValue("data:image/png;base64,probe");
+
+    ensureGpuPipelinePrewarm();
+    vi.advanceTimersByTime(0);
+
+    const img = host()!.querySelector("img");
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute("src")).toBe("data:image/png;base64,probe");
+    expect(img!.getAttribute("style")).toContain("object-fit:cover");
+    // The generated texture is a filled disc on a filled square: both the
+    // clip and the image-decode paths get a real draw.
+    expect(ctx.fillRect).toHaveBeenCalled();
+    expect(ctx.arc).toHaveBeenCalled();
+
+    vi.advanceTimersByTime(PREWARM_SPAN_MS);
+    getContext.mockRestore();
+    toDataURL.mockRestore();
+  });
+
+  it("keeps the clip and shadow variants when the host has no canvas backend", () => {
+    const getContext = vi
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockImplementation(() => {
+        throw new Error("canvas unavailable");
+      });
+
+    ensureGpuPipelinePrewarm();
+    vi.advanceTimersByTime(0);
+
+    // The throw is swallowed: the probe scene still mounts and animates.
+    expect(host()).not.toBeNull();
+    expect(host()!.querySelector("img")).toBeNull();
+    expect(animate).toHaveBeenCalledTimes(3);
+
+    vi.advanceTimersByTime(PREWARM_SPAN_MS);
+    getContext.mockRestore();
   });
 
   it("runs once per page — a second Router draws nothing extra", () => {
@@ -87,7 +141,7 @@ describe("gpuPipelinePrewarm", () => {
     ensureGpuPipelinePrewarm();
     vi.runAllTimers();
     expect(host()).toBeNull();
-    expect(animate).toHaveBeenCalledTimes(2);
+    expect(animate).toHaveBeenCalledTimes(3);
   });
 
   it("the LAST owner leaving before firing cancels; a surviving owner keeps it", () => {
@@ -97,7 +151,7 @@ describe("gpuPipelinePrewarm", () => {
     disposeA();
     vi.advanceTimersByTime(0);
     expect(host()).not.toBeNull();
-    expect(animate).toHaveBeenCalledTimes(2);
+    expect(animate).toHaveBeenCalledTimes(3);
     vi.runAllTimers();
     disposeB(); // after firing: no-op (host self-tore-down)
   });
@@ -139,7 +193,7 @@ describe("gpuPipelinePrewarm", () => {
     screen.setAttribute("data-flemo-status", "COMPLETED");
     vi.runOnlyPendingTimers();
     expect(host()).not.toBeNull();
-    expect(animate).toHaveBeenCalledTimes(2);
+    expect(animate).toHaveBeenCalledTimes(3);
 
     screen.remove();
   });

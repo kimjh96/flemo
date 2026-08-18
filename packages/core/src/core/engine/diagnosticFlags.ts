@@ -1,4 +1,5 @@
 import { governedCompiledActive } from "@core/engine/lowPowerCadence";
+import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The `flemo:*` diagnostic-flag registry.
@@ -21,6 +22,7 @@ import { governedCompiledActive } from "@core/engine/lowPowerCadence";
 // | flemo:motion-driver-force | session | "css@<epoch-ms>"/"raf@<epoch-ms>" | unset                    | opt-in diagnostic                | hard driver pin (24h TTL) — owned by driverPolicy.ts, not read here    |
 // | flemo:lpm                 | session | "1"/"0"                         | (learned)                  | production-state                 | low-power cadence seed — owned by lowPowerCadence.ts, not read here    |
 // | flemo:lat                 | session | integer ms                      | (learned)                  | production-state                 | LPM release-latency seed — owned by lowPowerCadence.ts, not read here  |
+// | flemo:sixty               | session | "high" / streak count           | (learned)                  | production-state                 | steady-60 desktop verdict seed — owned by steadySixtyCadence.ts        |
 // | flemo:landing-snap        | session | "on"                            | off                        | opt-in diagnostic                | Blink landing pixel-snap easing A/B (landingPixelSnap.ts)              |
 // | flemo:imghold             | session | "on"                            | off                        | opt-in diagnostic                | flight-scoped <img> reveal hold (imageRevealHold.ts)                   |
 // | flemo:settle-gate         | session | "on"/"off"                      | governedCompiledActive()   | production-default-with-override | render-settle entry gate (engine routing + react ScreenMotion)         |
@@ -73,20 +75,27 @@ export const readLandingSnapFlag = (): boolean => readStorageValue("flemo:landin
 // `flemo:imghold=on` — the <img> analog of responseHold: park an entering
 // screen's still-loading image paints to rest (imageRevealHold.ts). OPT-IN on
 // every engine — see the call-site comment in createTransitionEngine.
-export const readImageHoldFlag = (): boolean => readStorageValue("flemo:imghold") === "on";
+export const readImageHoldFlag = (): "on" | "off" | null => {
+  const value = readStorageValue("flemo:imghold");
+  return value === "on" || value === "off" ? value : null;
+};
 
 // `flemo:settle-gate` — the render-settle entry gate. ON BY DEFAULT for touch
-// WebKit (governedCompiledActive — the governed-compiled tier ships with it);
-// "off" opts out, "on" forces it elsewhere. Shared verbatim by the engine's
-// routing and the react binding's ScreenMotion (this is the one reader that
-// was byte-duplicated across core/react before the consolidation).
+// WebKit (governedCompiledActive — the governed-compiled tier ships with it)
+// AND for steady-60 desktop Blink sessions (the player rides the main thread
+// there, so the entering screen's mount commit would stall its opening — the
+// gate is the same protection the touch tiers ship with; it also targets the
+// measured ~50ms desktop mount hitch). "off" opts out, "on" forces it
+// elsewhere. Shared verbatim by the engine's routing and the react binding's
+// ScreenMotion (this is the one reader that was byte-duplicated across
+// core/react before the consolidation).
 export const readSettleGateFlag = (): boolean => {
   try {
     const value =
       typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:settle-gate") : null;
     if (value === "on") return true;
     if (value === "off") return false;
-    return governedCompiledActive();
+    return governedCompiledActive() || steadySixtyPlayerEligible();
   } catch {
     return false;
   }
@@ -96,6 +105,12 @@ export const readSettleGateFlag = (): boolean => {
 // forceCompiledStatus reacts to a DevTools toggle immediately. The player's
 // own cached view of the same key is `handoffOverride` below.
 export const readHandoffFlag = (): boolean => readStorageValue("flemo:handoff") === "on";
+
+// `flemo:arrivalhold=off` — diagnostic kill-switch for the whole in-flight
+// arrival armor (response/arrival/invisible-animation/image holds). Added
+// 2026-08-18 for live A/B isolation of the hold machinery itself as a felt-
+// jank suspect; default ON (armor engaged) everywhere.
+export const readArrivalHoldFlag = (): boolean => readStorageValue("flemo:arrivalhold") !== "off";
 
 // `flemo:preraster=on` — promote the entering content layer from the hold
 // onward (react ScreenMotion). Retained as an opt-in probe; the swallow it

@@ -51,6 +51,30 @@ describe("createArrivalHold", () => {
     scope.remove();
   });
 
+  it("leaves a held image's style channel to the image hold", async () => {
+    const { scope, section } = buildScreen();
+    const img = document.createElement("img");
+    // The image reveal hold owns this element's inline display.
+    img.setAttribute("data-flemo-img-hold", "");
+    img.style.display = "none";
+    section.appendChild(img);
+    const release = createArrivalHold(scope);
+
+    // The image hold's own restore lands mid-flight. If the freeze captured
+    // it, the release would replay display:none with no owner left to undo
+    // it — live-reproduced as orphaned blank avatars after a pop.
+    img.style.display = "";
+    await observerFlush();
+
+    // MID-FLIGHT is where it shows: an in-place freeze would have written
+    // display:none straight back, undoing the hold's own restore.
+    expect(img.style.display).toBe("");
+    release();
+    expect(img.style.display).toBe("");
+    expect(img.hasAttribute(HELD_ARRIVAL_ATTR)).toBe(false);
+    scope.remove();
+  });
+
   it("treats a same-value in-place write as glass-neutral", async () => {
     const { scope, section } = buildScreen();
     const label = document.createElement("span");

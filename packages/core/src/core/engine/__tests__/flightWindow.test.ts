@@ -154,7 +154,11 @@ describe("compiled-tier routing", () => {
         isActive: true,
         animHoldReleased: true
       });
-      expect(scope.style.animationTimingFunction).toContain("linear(");
+      // SETTLED 2026-08-18: the desktop landing governor is GONE — its
+      // one-device-px staircase was live-judged as the pop "드르륵" and its
+      // removal fixed it. Desktop compiled flights play the authored curve
+      // untouched; the governor remains a touch-tier mechanism only.
+      expect(scope.style.animationTimingFunction).toBe("");
       cleanup();
       scope.remove();
     });
@@ -182,7 +186,11 @@ describe("compiled-tier routing", () => {
         animHoldReleased: true
       });
       expect(scope.style.animation).toBe(""); // compiled path: no player suppression
-      expect(scope.style.animationTimingFunction).toContain("linear(");
+      // SETTLED 2026-08-18: the desktop landing governor is GONE — its
+      // one-device-px staircase was live-judged as the pop "드르륵" and its
+      // removal fixed it. Desktop compiled flights play the authored curve
+      // untouched; the governor remains a touch-tier mechanism only.
+      expect(scope.style.animationTimingFunction).toBe("");
       cleanup();
       scope.remove();
     });
