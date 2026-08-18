@@ -21,6 +21,8 @@ import {
   snapshotApplyOverride
 } from "@core/engine/diagnosticFlags";
 
+const NAV = navigator as { userAgentData?: unknown };
+
 const FLAG_KEYS = [
   "flemo:landing-snap",
   "flemo:imghold",
@@ -73,6 +75,39 @@ describe("uncached boolean flags", () => {
     expect(readHandoffFlag()).toBe(false);
     sessionStorage.setItem("flemo:handoff", "on");
     expect(readHandoffFlag()).toBe(true);
+  });
+});
+
+describe("readSettleGateFlag defaults", () => {
+  const asTouchBlink = () => {
+    NAV.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
+  };
+
+  afterEach(() => {
+    delete NAV.userAgentData;
+    delete (navigator as unknown as Record<string, unknown>).maxTouchPoints;
+    sessionStorage.removeItem("flemo:settle-gate");
+  });
+
+  // The pop-convergence round proved the gate on a Note 9 and wrote that into
+  // ScreenMotion, but the default stayed WebKit-only — so every Android
+  // session ran ungated while the code documented the opposite.
+  it("is ON for touch Blink, the class it was validated on", () => {
+    asTouchBlink();
+    expect(readSettleGateFlag()).toBe(true);
+  });
+
+  it("stays OFF for desktop Blink with no verdict", () => {
+    NAV.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 0, configurable: true });
+    expect(readSettleGateFlag()).toBe(false);
+  });
+
+  it("still lets an explicit off win on the widened class", () => {
+    asTouchBlink();
+    sessionStorage.setItem("flemo:settle-gate", "off");
+    expect(readSettleGateFlag()).toBe(false);
   });
 });
 

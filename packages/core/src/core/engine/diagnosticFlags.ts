@@ -1,3 +1,4 @@
+import { detectBlinkEngine } from "@core/engine/driverPolicy";
 import { governedCompiledActive } from "@core/engine/lowPowerCadence";
 import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 
@@ -80,13 +81,34 @@ export const readImageHoldFlag = (): "on" | "off" | null => {
   return value === "on" || value === "off" ? value : null;
 };
 
+// A touch Blink session — the phone class the gate was actually validated on.
+// See the default below: this is NOT a weak-device predicate. The evidence is
+// about the phenomenon (a heavy mount commit stalling even the compositor's
+// initial layerization), which does not care whether the device already earned
+// a demotion.
+const isTouchBlink = (): boolean =>
+  detectBlinkEngine() && typeof navigator !== "undefined" && (navigator.maxTouchPoints ?? 0) > 0;
+
 // `flemo:settle-gate` — the render-settle entry gate. ON BY DEFAULT for touch
-// WebKit (governedCompiledActive — the governed-compiled tier ships with it)
-// AND for steady-60 desktop Blink sessions (the player rides the main thread
+// WebKit (governedCompiledActive — the governed-compiled tier ships with it),
+// for steady-60 desktop Blink sessions (the player rides the main thread
 // there, so the entering screen's mount commit would stall its opening — the
 // gate is the same protection the touch tiers ship with; it also targets the
-// measured ~50ms desktop mount hitch). "off" opts out, "on" forces it
-// elsewhere. Shared verbatim by the engine's routing and the react binding's
+// measured ~50ms desktop mount hitch), AND for touch Blink.
+//
+// Touch Blink was the gap: the pop-convergence round (de35c13) widened the
+// ARMING to "ALL engines" and wrote the reason into ScreenMotion — "it was
+// thought WebKit-only … but device A/B on a demoted Note 9 falsified that:
+// its heavy detail mount runs a ~290ms main-thread task that stalls even the
+// compositor's initial commit/layerization, so gating the release to AFTER
+// that task measurably helped". The DEFAULT never followed that finding, so
+// every Android session kept running ungated while the code documented the
+// opposite. Re-confirmed on the same device class 2026-08-19.
+//
+// The gate is adaptive, which is why this is safe to widen: with no
+// qualifying mount commit inside firstWaitMs it releases with no felt delay,
+// so a fast phone pays nothing for carrying it. "off" opts out, "on" forces
+// it elsewhere. Shared verbatim by the engine's routing and the react binding's
 // ScreenMotion (this is the one reader that was byte-duplicated across
 // core/react before the consolidation).
 export const readSettleGateFlag = (): boolean => {
@@ -95,7 +117,7 @@ export const readSettleGateFlag = (): boolean => {
       typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:settle-gate") : null;
     if (value === "on") return true;
     if (value === "off") return false;
-    return governedCompiledActive() || steadySixtyPlayerEligible();
+    return governedCompiledActive() || steadySixtyPlayerEligible() || isTouchBlink();
   } catch {
     return false;
   }

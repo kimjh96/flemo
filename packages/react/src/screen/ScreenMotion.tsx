@@ -748,6 +748,10 @@ function ScreenMotion({
           // ~290ms main-thread task that stalls even the compositor's initial
           // commit/layerization, so gating the release to AFTER that task
           // measurably helped (gate on = slight hitch, gate off = worse).
+          // That finding took until 2026-08-19 to reach the DEFAULT — the
+          // arming widened here while readSettleGateFlag stayed WebKit-only,
+          // so Android ran ungated for two rounds. If you widen an arming
+          // condition, widen the flag that enables it in the same change.
           // The gate arms on the screen whose render storm threatens the
           // flight: the ACTIVE side on push (fresh mount) — and on pop BOTH
           // sides, because the pop's storm belongs to the INACTIVE returning
