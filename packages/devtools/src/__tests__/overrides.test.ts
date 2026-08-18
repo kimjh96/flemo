@@ -8,6 +8,8 @@ import {
 } from "../overrides";
 
 afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   sessionStorage.clear();
   localStorage.clear();
 });
@@ -64,6 +66,49 @@ describe("snapshotOverrides", () => {
     expect(key).toBeDefined();
     expect(key).toContain("unknown key");
     expect(active[key as string]).toBe("42");
+  });
+
+  it("records an unknown key that vanishes between enumeration and read as empty", () => {
+    // Another tab can remove a key in the window between key(index) and
+    // getItem() — the entry must still be reported, with an empty value,
+    // never as the string "null".
+    const racing = {
+      get length() {
+        return 1;
+      },
+      key: () => "flemo:ghost",
+      getItem: () => null
+    };
+    vi.stubGlobal("sessionStorage", racing);
+    const active = snapshotOverrides();
+    expect(active["flemo:ghost (sessionStorage, unknown key)"]).toBe("");
+  });
+
+  it("never re-lists the force pin as an unknown key during enumeration", () => {
+    // Defense in depth: the registry index already subsumes the force-pin
+    // key, so the dedicated enumeration guard only becomes reachable if the
+    // index ever misses it. Neutralize the index for that single key to
+    // prove the pin still lands only in its own (legacy-location) entry.
+    const pinned = {
+      get length() {
+        return 1;
+      },
+      key: () => "flemo:motion-driver-force",
+      getItem: () => "raf@1700000000000"
+    };
+    vi.stubGlobal("sessionStorage", pinned);
+    const realHas = Set.prototype.has;
+    const spy = vi.spyOn(Set.prototype, "has").mockImplementation(function (
+      this: Set<unknown>,
+      value: unknown
+    ) {
+      return value === "flemo:motion-driver-force" ? false : realHas.call(this, value);
+    });
+    const active = snapshotOverrides();
+    spy.mockRestore();
+
+    expect(Object.keys(active).some((key) => key.includes("unknown key"))).toBe(false);
+    expect(active["flemo:motion-driver-force"]).toBe("raf@1700000000000");
   });
 
   it("returns an empty record when storage access throws entirely", () => {

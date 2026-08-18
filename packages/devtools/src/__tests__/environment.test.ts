@@ -100,6 +100,23 @@ describe("isEmulationSuspected", () => {
     expect(isEmulationSuspected()).toBe(false);
   });
 
+  it("does not flag a navigator without a platform string at all", () => {
+    // No `platform` (removed by a privacy shield / non-browser embedding):
+    // the desktop-platform precondition cannot be met, so no suspicion.
+    vi.stubGlobal("navigator", { userAgentData: { brands: CHROMIUM_BRANDS } });
+    expect(isEmulationSuspected()).toBe(false);
+  });
+
+  it("does not flag a desktop platform whose touch/UA reads are absent", () => {
+    // Blink + MacIntel, but neither `userAgent` nor `maxTouchPoints` exists —
+    // the touch-point read must default to 0 instead of throwing.
+    vi.stubGlobal("navigator", {
+      userAgentData: { brands: CHROMIUM_BRANDS },
+      platform: "MacIntel"
+    });
+    expect(isEmulationSuspected()).toBe(false);
+  });
+
   it("flags Android emulation on a desktop Linux platform", () => {
     stubNavigator({
       brands: CHROMIUM_BRANDS,
@@ -121,6 +138,17 @@ describe("detectEngine edge cases", () => {
   it("returns unknown for a brandless, unrecognizable UA", () => {
     stubNavigator({ userAgent: "SomeBot/1.0", platform: "Unknown" });
     expect(detectEngine()).toBe("unknown");
+  });
+
+  it("survives a navigator that exposes neither userAgent nor complete UA-CH entries", () => {
+    // A hardened/embedded navigator: userAgentData is present but its brand
+    // entries are partial, and userAgent itself is absent. Every read must
+    // degrade to a string rather than stringify `undefined`.
+    vi.stubGlobal("navigator", { userAgentData: { brands: [{}] } });
+    expect(detectEngine()).toBe("webkit"); // UA-CH present, no Chromium brand
+    const environment = captureEnvironment({ medianGapMs: null, sampleCount: 0 });
+    expect(environment.uaBrands).toEqual([{ brand: "", version: "" }]);
+    expect(environment.userAgent).toBe("");
   });
 });
 
@@ -144,6 +172,12 @@ describe("sampleRafCadence", () => {
     const negative = await sampleRafCadence(-3);
     expect(negative.sampleCount).toBe(1);
     expect(Number.isFinite(negative.medianGapMs)).toBe(true);
+  });
+
+  it("falls back to the default window for a non-finite sample count", async () => {
+    const cadence = await sampleRafCadence(Number.NaN);
+    expect(cadence.sampleCount).toBe(20);
+    expect(Number.isFinite(cadence.medianGapMs)).toBe(true);
   });
 });
 
