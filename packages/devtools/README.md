@@ -55,6 +55,10 @@ const panel = attachDevtoolsPanel(); // reads window.flemo, or attaches its own
 // panel.detach();
 ```
 
+The panel is opt-in and mounted by the consumer: nothing in flemo attaches it
+for you, and the flemo playground deliberately arms the recorder only (the
+site should not ship a debug UI). Mount it behind your own dev-only flag.
+
 Options: `recorder` (a handle from `attachFlightRecorder`; defaults to this
 package's `window.flemo`, otherwise the panel attaches — and owns — one),
 `initialOpen` (default false), `position` (`"bottom-right"` default, or

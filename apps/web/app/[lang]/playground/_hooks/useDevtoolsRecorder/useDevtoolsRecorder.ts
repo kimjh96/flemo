@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { attachDevtoolsPanel, attachFlightRecorder } from "@flemo/devtools";
+import { attachFlightRecorder } from "@flemo/devtools";
 
 // Arms the flight recorder for the playground session. Mirrors the engine's
 // URL-arming pattern (layerSettleHold's ?flemo-layers= sync): a URL visit
@@ -12,9 +12,7 @@ import { attachDevtoolsPanel, attachFlightRecorder } from "@flemo/devtools";
 //   ?devtools=off → key removed (disarmed)
 // While armed, the recorder installs window.flemo — run
 // `copy(JSON.stringify(window.flemo.report()))` in the console and hand the
-// JSON to a coding agent — and the visual panel mounts alongside it for the
-// human reading. The panel never touches the DOM during a flight (see its
-// entry file), so having it up does not change the motion being judged.
+// JSON to a coding agent.
 const useDevtoolsRecorder = () => {
   useEffect(() => {
     let armed = false;
@@ -31,11 +29,7 @@ const useDevtoolsRecorder = () => {
     }
     if (!armed) return undefined;
     const recorder = attachFlightRecorder({ log: true });
-    const panel = attachDevtoolsPanel({ recorder });
-    return () => {
-      panel.detach();
-      recorder.detach();
-    };
+    return () => recorder.detach();
   }, []);
 };
 
