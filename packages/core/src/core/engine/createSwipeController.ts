@@ -56,6 +56,7 @@ export interface SwipeController {
   pointerDown: (event: PointerEvent) => void;
   pointerMove: (event: PointerEvent) => void;
   pointerUp: (event: PointerEvent) => void;
+  pointerCancel: (event: PointerEvent) => void;
   // Whether an in-progress drag wants touchmove default suppressed.
   shouldPreventTouch: () => boolean;
 }
@@ -64,8 +65,8 @@ const SKIP_ANIMATION_ATTR = "data-flemo-skip-animation";
 
 // Framework-neutral swipe-back gesture controller. Holds the gesture state that
 // used to live as refs in ScreenMotion; the binding forwards native pointer
-// events and supplies the live environment. A faithful port of the former
-// ScreenMotion swipe handlers, so any binding gets identical behavior.
+// events and supplies the live environment, so every binding shares the same
+// intent arbitration, cancellation, and settle behavior.
 export default function createSwipeController(config: SwipeControllerConfig): SwipeController {
   // This controller's per-instance layer-hold owner token, distinct from the
   // engine's and from any other controller's. A riding bar can be promoted by
@@ -84,6 +85,9 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   let shouldStartDrag = false;
   let isTouchPrevented = false;
   let swipeActive = false;
+  let activePointerId: number | null = null;
+  let swipeStartPromise: Promise<void> | null = null;
+  let forceCancelRequested = false;
 
   let swipeStartPoint = { x: 0, y: 0 };
   let swipeLastPoint = { x: 0, y: 0 };
@@ -121,7 +125,24 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   // position the instant the settle ends. Sub-slop gestures are TAPS: their
   // cancel restores instantly (duration 0) and no settle animation is born.
   const SWIPE_TAP_SLOP_PX = 6;
+  // Do not arbitrate on sensor noise. Android commonly reports a small
+  // positive X component at the start of a fast vertical fling; claiming on
+  // that first pixel turns a scroll into swipe-back. Eight CSS pixels matches
+  // the platform-scale touch slop while keeping a deliberate drag responsive.
+  const SWIPE_INTENT_SLOP_PX = 8;
+  // Page-wide recognition needs a narrow directional cone: unlike an edge-
+  // only gesture, every ordinary vertical fling is a candidate. Requiring a
+  // 3:1 primary-axis lead preserves intentional diagonal tolerance over the
+  // old fixed 2px rule without letting scroll flings alias as back swipes.
+  const SWIPE_AXIS_DOMINANCE_RATIO = 3;
   let swipeMaxDragPx = 0;
+
+  const releasePointerCapture = (event: PointerEvent) => {
+    const { scope } = config.getElements();
+    if (scope?.hasPointerCapture(event.pointerId)) {
+      scope.releasePointerCapture(event.pointerId);
+    }
+  };
 
   const updateSwipeVelocity = (event: PointerEvent) => {
     const now = event.timeStamp;
@@ -269,10 +290,16 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
 
   const beginSwipe = async (event: PointerEvent) => {
     const transition = config.getTransition();
-    if (!transition.swipeDirection || config.getViewportScrollHeight() > 10) return;
+    if (!transition.swipeDirection || config.getViewportScrollHeight() > 10) {
+      isTouchPrevented = false;
+      return;
+    }
 
     const { scope, screenContainer, decorator } = config.getElements();
-    if (!scope) return;
+    if (!scope) {
+      isTouchPrevented = false;
+      return;
+    }
 
     // Screen containers render as direct siblings: the <Activity>-based freeze
     // adds no wrapper element, so the previous screen sits in the immediately
@@ -284,7 +311,10 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     prevDecorator =
       prevScreenContainer?.querySelector<HTMLElement>("[data-flemo-decorator]") ?? null;
 
-    if (!prevScreen) return;
+    if (!prevScreen) {
+      isTouchPrevented = false;
+      return;
+    }
 
     swipeActive = true;
     swipeMaxDragPx = 0;
@@ -311,18 +341,35 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       }
     });
 
-    if (isTriggered) {
+    if (isTriggered && !forceCancelRequested) {
       config.setDragStatus("PENDING");
-    } else {
+    } else if (!isTriggered) {
       config.setDragStatus("IDLE");
       swipeActive = false;
+      isTouchPrevented = false;
+      releasePointerCapture(event);
       releaseRidingBars();
+      releasePartTransitions();
     }
+  };
+
+  const startSwipe = (event: PointerEvent) => {
+    const promise = beginSwipe(event);
+    swipeStartPromise = promise;
+    void promise.finally(() => {
+      swipeStartPromise = null;
+    });
   };
 
   const continueSwipe = (event: PointerEvent) => {
     const transition = config.getTransition();
-    if (!transition.swipeDirection || !swipeActive || config.getViewportScrollHeight() > 10) return;
+    if (
+      !transition.swipeDirection ||
+      !swipeActive ||
+      swipeStartPromise ||
+      config.getViewportScrollHeight() > 10
+    )
+      return;
 
     updateSwipeVelocity(event);
 
@@ -343,37 +390,50 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     });
   };
 
-  const endSwipe = async (event: PointerEvent) => {
+  const endSwipe = async (event: PointerEvent, forceCancel = false) => {
+    if (swipeStartPromise) await swipeStartPromise;
     const transition = config.getTransition();
     if (!transition.swipeDirection || !swipeActive) return;
 
     swipeActive = false;
     const { scope, decorator } = config.getElements();
-    if (scope && scope.hasPointerCapture(event.pointerId)) {
-      scope.releasePointerCapture(event.pointerId);
-    }
+    releasePointerCapture(event);
 
     const decoratorDef = config.getDecorator();
     // Sub-slop release = a tap, not a swipe: clamp the handler's settle
     // durations to zero so the restore is instantaneous and no settle
     // animation exists to fight a navigation the same tap triggered.
-    const tapLike = swipeMaxDragPx < SWIPE_TAP_SLOP_PX;
+    const tapLike = forceCancel || swipeMaxDragPx < SWIPE_TAP_SLOP_PX;
     const animateForEnd: typeof animateSwipe = tapLike
       ? (target, value, options) => animateSwipe(target, value, { ...options, duration: 0 })
       : animateSwipe;
-    const isTriggered = await transition.onSwipeEnd(event, buildSwipeInfo(event), {
+    // `pointercancel` means the browser/OS took ownership (usually a native
+    // scroll). It can arrive with a noisy offset and velocity; feeding those
+    // into an ordinary swipe end may satisfy a consumer's commit threshold.
+    // Settle from a neutral sample and ignore any trigger result instead.
+    const swipeInfo = forceCancel
+      ? {
+          point: { x: event.clientX, y: event.clientY },
+          offset: { x: 0, y: 0 },
+          delta: { x: 0, y: 0 },
+          velocity: { x: 0, y: 0 }
+        }
+      : buildSwipeInfo(event);
+    const handlerTriggered = await transition.onSwipeEnd(event, swipeInfo, {
       animate: animateForEnd,
       currentScreen: scope as HTMLDivElement,
       prevScreen: prevScreen as HTMLDivElement,
       onStart: (triggered) => {
-        decoratorDef?.onSwipeEnd?.(triggered, {
+        const settledTrigger = forceCancel ? false : triggered;
+        decoratorDef?.onSwipeEnd?.(settledTrigger, {
           animate: animateInline,
           currentDecorator: decorator as HTMLDivElement,
           prevDecorator: prevDecorator as HTMLDivElement
         });
-        drivePartTransitions("end", triggered, 0);
+        drivePartTransitions("end", settledTrigger, 0);
       }
     });
+    const isTriggered = !forceCancel && handlerTriggered;
 
     if (isTriggered) {
       // The swipe already animated the screen out. Suppress the upcoming
@@ -413,23 +473,29 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   };
 
   const pointerDown = (event: PointerEvent) => {
-    if (!config.isReadyForDrag()) return;
+    if (
+      !config.isReadyForDrag() ||
+      swipeActive ||
+      activePointerId !== null ||
+      event.isPrimary === false ||
+      (event.pointerType === "mouse" && event.button !== 0)
+    )
+      return;
+
+    activePointerId = event.pointerId;
+    forceCancelRequested = false;
+    shouldStartDrag = true;
+    isTouchPrevented = false;
 
     scrollableX = findScrollable(event.target, { direction: "x", verifyByScroll: true });
     scrollableY = findScrollable(event.target, { direction: "y", verifyByScroll: true });
 
     startX = event.clientX;
     startY = event.clientY;
-
-    const hasNoScrollable = !scrollableX.element && !scrollableY.element;
-    if (hasNoScrollable) {
-      shouldStartDrag = true;
-    } else if (!!scrollableX.element || !!scrollableY.element) {
-      shouldStartDrag = true;
-    }
   };
 
   const pointerMove = (event: PointerEvent) => {
+    if (event.pointerId !== activePointerId) return;
     if (config.getViewportScrollHeight() > 10) return;
 
     if (swipeActive) {
@@ -437,56 +503,67 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       return;
     }
 
-    const swipeDirection = config.getTransition().swipeDirection;
-    const hasNoScrollable = !scrollableX.element && !scrollableY.element;
-
-    if (shouldStartDrag && hasNoScrollable) {
+    if (!shouldStartDrag) return;
+    if (!config.isReadyForDrag()) {
       shouldStartDrag = false;
+      return;
+    }
+
+    const swipeDirection = config.getTransition().swipeDirection;
+    if (!swipeDirection) {
+      shouldStartDrag = false;
+      return;
+    }
+    const hasNoScrollable = !scrollableX.element && !scrollableY.element;
+    const x = event.clientX - startX;
+    const y = event.clientY - startY;
+    const primary = swipeDirection === "x" ? x : y;
+    const cross = swipeDirection === "x" ? y : x;
+
+    if (Math.max(Math.abs(primary), Math.abs(cross)) < SWIPE_INTENT_SLOP_PX) return;
+
+    // Resolve the stream exactly once. An opposite or cross-axis-dominant
+    // movement belongs to native scrolling for the rest of this pointer;
+    // it must never be reconsidered after the finger changes course.
+    shouldStartDrag = false;
+    if (primary <= 0 || Math.abs(primary) <= Math.abs(cross) * SWIPE_AXIS_DOMINANCE_RATIO) return;
+
+    if (hasNoScrollable) {
       isTouchPrevented = true;
-
-      const y = event.clientY - startY;
-      const x = event.clientX - startX;
-
-      if (swipeDirection === "y" && y > 0) {
-        void beginSwipe(event);
-      } else if (swipeDirection === "x" && x > 0) {
-        void beginSwipe(event);
-      }
-    } else if (shouldStartDrag && !hasNoScrollable) {
-      const x = event.clientX - startX;
-      const y = event.clientY - startY;
-
+      startSwipe(event);
+    } else {
       const isTopAtEdge = scrollableY.element && scrollableY.element.scrollTop <= 0;
       const isLeftAtEdge =
         scrollableX.element && scrollableX.element.scrollLeft <= 0 && scrollableX.hasMarker;
 
-      if (
-        swipeDirection === "y" &&
-        (isTopAtEdge || !!scrollableX.element) &&
-        y > 0 &&
-        Math.abs(x) < 2
-      ) {
-        shouldStartDrag = false;
+      if (swipeDirection === "y" && (isTopAtEdge || !!scrollableX.element)) {
         isTouchPrevented = true;
-        void beginSwipe(event);
-      } else if (
-        swipeDirection === "x" &&
-        (isLeftAtEdge || !!scrollableY.element) &&
-        x > 0 &&
-        Math.abs(y) < 2
-      ) {
-        shouldStartDrag = false;
+        startSwipe(event);
+      } else if (swipeDirection === "x" && (isLeftAtEdge || !!scrollableY.element)) {
         isTouchPrevented = true;
-        void beginSwipe(event);
+        startSwipe(event);
       }
     }
   };
 
   const pointerUp = (event: PointerEvent) => {
+    if (event.pointerId !== activePointerId) return;
     shouldStartDrag = false;
     isTouchPrevented = false;
+    activePointerId = null;
     if (swipeActive) {
       void endSwipe(event);
+    }
+  };
+
+  const pointerCancel = (event: PointerEvent) => {
+    if (event.pointerId !== activePointerId) return;
+    shouldStartDrag = false;
+    isTouchPrevented = false;
+    activePointerId = null;
+    forceCancelRequested = true;
+    if (swipeActive) {
+      void endSwipe(event, true);
     }
   };
 
@@ -494,6 +571,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     pointerDown,
     pointerMove,
     pointerUp,
+    pointerCancel,
     shouldPreventTouch: () => isTouchPrevented
   };
 }

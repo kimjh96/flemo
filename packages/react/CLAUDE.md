@@ -65,8 +65,13 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
    state-only path.
 4. **Swipe wiring**: a stable `createSwipeController` (core) reads live render values
    through `swipeEnvRef` (latest-ref pattern); pointer handlers forward native events;
-   an active `touchmove` listener prevents scroll during grabs and on the 8px
-   edge-zone strips.
+   an active `touchmove` listener prevents native scroll only after the controller has
+   claimed a drag. Recognition waits for 8px of movement and requires a 3:1 primary-
+   axis lead, so vertical scroll jitter cannot become page-wide horizontal back; a
+   `pointercancel` always settles without navigation. The 8px edge-zone strips are
+   pointer-transparent layout markers. PUSHING/REPLACING destinations remain hit-
+   testable so a touch begun during the flight can scroll after landing, while an
+   outer capture handler suppresses click activation until the transition completes.
 5. **Bar riding and identity**: `computeBarRiding` in RENDER sets
    `data-flemo-bar-riding` in the same commit as the bar's status attribute (the
    compiled sibling selector keys on both); swipe mirrors bars synchronously inside

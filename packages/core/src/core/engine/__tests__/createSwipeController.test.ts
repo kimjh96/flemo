@@ -139,12 +139,155 @@ describe("createSwipeController", () => {
 
   it("releases back to IDLE when the transition declines the swipe", async () => {
     onSwipeStart.mockResolvedValueOnce(false);
+    dom.scope.hasPointerCapture = vi.fn(() => false);
     const c = createSwipeController(config);
     c.pointerDown(event({ target: dom.scope }));
     c.pointerMove(event({ clientX: 40 }));
     await flush();
     expect(vi.mocked(setDragStatus)).toHaveBeenCalledWith("IDLE");
     expect(vi.mocked(setDragStatus)).not.toHaveBeenCalledWith("PENDING");
+    expect(c.shouldPreventTouch()).toBe(false);
+  });
+
+  it("finishes cleanly when pointer-up waits on a declined async start", async () => {
+    let resolveStart!: (triggered: boolean) => void;
+    onSwipeStart.mockImplementation(
+      () => new Promise<boolean>((resolve) => (resolveStart = resolve))
+    );
+    const c = createSwipeController(config);
+    c.pointerDown(event({ target: dom.scope }));
+    c.pointerMove(event({ clientX: 40 }));
+    c.pointerUp(event({ clientX: 40 }));
+
+    resolveStart(false);
+    await flush();
+    await flush();
+
+    expect(onSwipeEnd).not.toHaveBeenCalled();
+    expect(vi.mocked(setDragStatus)).toHaveBeenCalledWith("IDLE");
+    expect(c.shouldPreventTouch()).toBe(false);
+  });
+
+  it("abandons a pending gesture if transition readiness closes before intent resolves", async () => {
+    let ready = true;
+    config.isReadyForDrag = () => ready;
+    const c = createSwipeController(config);
+    c.pointerDown(event({ target: dom.scope }));
+    ready = false;
+    c.pointerMove(event({ clientX: 40 }));
+    await flush();
+
+    expect(onSwipeStart).not.toHaveBeenCalled();
+    expect(c.shouldPreventTouch()).toBe(false);
+  });
+
+  it("ignores movement from a different pointer", async () => {
+    const c = createSwipeController(config);
+    c.pointerDown(event({ target: dom.scope, pointerId: 1 }));
+    c.pointerMove(event({ clientX: 40, pointerId: 2 }));
+    await flush();
+
+    expect(onSwipeStart).not.toHaveBeenCalled();
+    expect(c.shouldPreventTouch()).toBe(false);
+  });
+
+  it("ignores secondary, non-primary, and concurrent pointer starts", async () => {
+    const c = createSwipeController(config);
+
+    c.pointerDown(event({ target: dom.scope, pointerId: 1, pointerType: "mouse", button: 2 }));
+    c.pointerMove(event({ clientX: 40, pointerId: 1 }));
+    c.pointerDown(event({ target: dom.scope, pointerId: 2, isPrimary: false }));
+    c.pointerMove(event({ clientX: 40, pointerId: 2 }));
+    expect(onSwipeStart).not.toHaveBeenCalled();
+
+    c.pointerDown(event({ target: dom.scope, pointerId: 3 }));
+    c.pointerDown(event({ target: dom.scope, pointerId: 4 }));
+    c.pointerMove(event({ clientX: 40, pointerId: 4 }));
+    await flush();
+
+    expect(onSwipeStart).not.toHaveBeenCalled();
+  });
+
+  it("abandons intent when the live transition no longer supports swipe", async () => {
+    const c = createSwipeController(config);
+    c.pointerDown(event({ target: dom.scope }));
+    transition = { ...transition, swipeDirection: undefined } as unknown as Transition;
+    c.pointerMove(event({ clientX: 40 }));
+    await flush();
+
+    expect(onSwipeStart).not.toHaveBeenCalled();
+    expect(c.shouldPreventTouch()).toBe(false);
+  });
+
+  it("releases touch ownership if swipe preconditions change at begin", async () => {
+    let viewportReads = 0;
+    config.getViewportScrollHeight = () => (viewportReads++ === 0 ? 0 : 100);
+    const c = createSwipeController(config);
+    c.pointerDown(event({ target: dom.scope }));
+    c.pointerMove(event({ clientX: 40 }));
+    await flush();
+
+    expect(onSwipeStart).not.toHaveBeenCalled();
+    expect(c.shouldPreventTouch()).toBe(false);
+  });
+
+  it("releases touch ownership if the scope disappears at begin", async () => {
+    config.getElements = () => ({
+      scope: null,
+      screenContainer: dom.screenContainer,
+      decorator: null,
+      sharedTopBar: null,
+      sharedBottomBar: null
+    });
+    const c = createSwipeController(config);
+    c.pointerDown(event({ target: dom.scope }));
+    c.pointerMove(event({ clientX: 40 }));
+    await flush();
+
+    expect(onSwipeStart).not.toHaveBeenCalled();
+    expect(c.shouldPreventTouch()).toBe(false);
+  });
+
+  it("does not drive swipe progress until an async start has resolved", async () => {
+    let resolveStart!: (triggered: boolean) => void;
+    onSwipeStart.mockImplementation(
+      () => new Promise<boolean>((resolve) => (resolveStart = resolve))
+    );
+    const c = createSwipeController(config);
+    c.pointerDown(event({ target: dom.scope }));
+    c.pointerMove(event({ clientX: 40 }));
+    c.pointerMove(event({ clientX: 80, timeStamp: 8 }));
+    expect(onSwipe).not.toHaveBeenCalled();
+
+    resolveStart(true);
+    await flush();
+    c.pointerMove(event({ clientX: 100, timeStamp: 16 }));
+    expect(onSwipe).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels safely while an async swipe start is unresolved", async () => {
+    let resolveStart!: (triggered: boolean) => void;
+    onSwipeStart.mockImplementation(
+      () => new Promise<boolean>((resolve) => (resolveStart = resolve))
+    );
+    onSwipeEnd.mockImplementation(async (_event, _info, options) => {
+      options.onStart?.(true);
+      await options.animate(dom.scope, { x: 0 }, { duration: 99 });
+      return true;
+    });
+    const c = createSwipeController(config);
+    c.pointerDown(event({ target: dom.scope }));
+    c.pointerMove(event({ clientX: 40 }));
+    c.pointerCancel(event({ clientX: 160 }));
+    expect(c.shouldPreventTouch()).toBe(false);
+
+    resolveStart(true);
+    await flush();
+    await flush();
+
+    expect(onSwipeEnd).toHaveBeenCalledTimes(1);
+    expect(back).not.toHaveBeenCalled();
+    expect(vi.mocked(setDragStatus)).toHaveBeenCalledWith("IDLE");
   });
 
   it("forwards continued moves to the transition with built swipe info", async () => {

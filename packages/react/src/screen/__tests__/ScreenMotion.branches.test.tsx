@@ -1,6 +1,6 @@
 import { createElement, type PropsWithChildren, type ReactNode } from "react";
 
-import { act, render, renderHook } from "@testing-library/react";
+import { act, fireEvent, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TransitionName } from "@flemo/core";
@@ -127,7 +127,7 @@ describe("ScreenMotion chrome rendering", () => {
     expect(scope.getAttribute("data-flemo-status")).toBe("COMPLETED");
   });
 
-  it("prevents touch scrolling that starts on a swipe edge bar", () => {
+  it("keeps edge strips transparent to pointer input", () => {
     const { container } = render(
       <Screen>
         <div>hello</div>
@@ -135,13 +135,27 @@ describe("ScreenMotion chrome rendering", () => {
       { wrapper: buildHarness() }
     );
 
-    const edge = container.querySelector<HTMLElement>("[data-swipe-at-edge-bar]")!;
-    const scope = container.querySelector<HTMLElement>("[data-flemo-screen]")!;
-    scope.appendChild(edge); // ensure the listener's scope contains the target
-    const touchMove = new Event("touchmove", { bubbles: true, cancelable: true });
-    edge.dispatchEvent(touchMove);
+    const edges = Array.from(container.querySelectorAll<HTMLElement>("[data-swipe-at-edge-bar]"));
 
-    expect(touchMove.defaultPrevented).toBe(true);
+    expect(edges).toHaveLength(2);
+    for (const edge of edges) expect(edge.style.pointerEvents).toBe("none");
+  });
+
+  it("suppresses click activation during push while leaving the screen hit-testable", () => {
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: "push-1" });
+    const onClick = vi.fn();
+    const { getByRole, container } = render(
+      <Screen>
+        <button onClick={onClick}>Open</button>
+      </Screen>,
+      { wrapper: buildHarness({ isRoot: false }) }
+    );
+
+    const scope = container.querySelector<HTMLElement>("[data-flemo-screen]")!;
+    expect(scope.style.pointerEvents).toBe("");
+    fireEvent.click(getByRole("button"));
+
+    expect(onClick).not.toHaveBeenCalled();
   });
 });
 
