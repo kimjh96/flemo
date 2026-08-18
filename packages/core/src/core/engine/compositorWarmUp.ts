@@ -75,6 +75,14 @@ const WARM_STYLE =
 const WARM_VIDEO_SRC =
   "data:video/webm;base64,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";
 let video: HTMLVideoElement | null = null;
+// Named (not inline) so the listener is registered exactly once per document
+// and can be detached again: the video outlives every hold, so an anonymous
+// handler per creation would be unremovable.
+const syncWarmVideoPlayback = (): void => {
+  if (!video) return;
+  if (document.visibilityState === "hidden") video.pause();
+  else void video.play()?.catch?.(() => {});
+};
 let element: HTMLElement | null = null;
 let animation: Animation | null = null;
 let holders = 0;
@@ -88,6 +96,16 @@ const teardown = () => {
   // The cadence-lock video is deliberately NOT torn down (see its creation
   // note): it is session-persistent on the platforms that get one — but the
   // flight-scoped forcing size shrinks back to the idle tick.
+};
+
+/* v8 ignore next 7 -- test hook: the cadence video is session-persistent by
+   design, so a suite that exercises its creation needs the module state
+   cleared between cases. */
+export const resetCompositorWarmForTesting = (): void => {
+  teardown();
+  document.removeEventListener("visibilitychange", syncWarmVideoPlayback);
+  video?.remove();
+  video = null;
 };
 
 export default function holdCompositorWarm(): () => void {
@@ -145,11 +163,7 @@ export default function holdCompositorWarm(): () => void {
         video.src = WARM_VIDEO_SRC;
         document.body.appendChild(video);
         void video.play()?.catch?.(() => {});
-        document.addEventListener("visibilitychange", () => {
-          if (!video) return;
-          if (document.visibilityState === "hidden") video.pause();
-          else void video.play()?.catch?.(() => {});
-        });
+        document.addEventListener("visibilitychange", syncWarmVideoPlayback);
       } catch {
         video = null;
       }

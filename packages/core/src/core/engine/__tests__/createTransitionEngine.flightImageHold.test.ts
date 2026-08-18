@@ -135,6 +135,36 @@ describe("createTransitionEngine warm-side flight image hold", () => {
     expect(loadingImg.hasAttribute("data-flemo-img-hold")).toBe(false);
   });
 
+  it("hands a warm→cold interrupt over without stranding the image", async () => {
+    verifySixty();
+    const engine = createTransitionEngine(deps);
+    drive(engine, "PUSHING", false);
+    expect(loadingImg.style.display).toBe("none");
+
+    // A new flight claims this screen as the ARRIVING side before the first
+    // one landed. The warm-side hold releases inside this same drive, AHEAD
+    // of the arrival block — otherwise the arrival's own image hold captures
+    // this hold's display:none as the "original" and restores it at rest,
+    // stranding the image invisible forever.
+    drive(engine, "POPPING", false);
+    drive(engine, "COMPLETED", false);
+    await frames(3);
+
+    expect(loadingImg.style.display).not.toBe("none");
+    expect(loadingImg.hasAttribute("data-flemo-img-hold")).toBe(false);
+  });
+
+  it("flemo:imghold=on holds the ARRIVING screen's images off the steady-60 profile", () => {
+    // No steady-60 verdict here: the explicit override is the whole point —
+    // it is the measurement instrument the default profile grew out of.
+    window.sessionStorage.setItem("flemo:imghold", "on");
+    const engine = createTransitionEngine(deps);
+    drive(engine, "PUSHING", true);
+
+    expect(loadingImg.style.display).toBe("none");
+    expect(loadingImg.hasAttribute("data-flemo-img-hold")).toBe(true);
+  });
+
   it("stays unarmed while the session is not steady-60 verified", () => {
     const engine = createTransitionEngine(deps);
     drive(engine, "PUSHING", false);

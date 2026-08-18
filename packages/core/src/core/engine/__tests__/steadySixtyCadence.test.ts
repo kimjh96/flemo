@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   reportInFlightCadence,
@@ -138,5 +138,102 @@ describe("high-latch uniformity guard", () => {
     reportInFlightCadence(16.7, 18);
     reportInFlightCadence(16.7, 18);
     expect(steadySixtyVerified()).toBe(false);
+  });
+});
+
+// The verdict is PERSISTED (flemo:sixty) so a reload does not re-run the
+// two-flight compiled warm-up. The seed is read once at module load, which
+// makes a fresh module instance the only way to exercise it.
+describe("steadySixtyCadence reload seeding", () => {
+  const freshModule = async () => {
+    vi.resetModules();
+    return import("@core/engine/steadySixtyCadence");
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+    sessionStorage.clear();
+    resetSteadySixtyForTests();
+  });
+
+  it("resumes a partial streak from the persisted count", async () => {
+    sessionStorage.setItem("flemo:sixty", "1");
+    const seeded = await freshModule();
+
+    expect(seeded.steadySixtyVerified()).toBe(false);
+    // One qualifying flight is enough — the reload kept the first one.
+    seeded.reportInFlightCadence(16.7);
+    expect(seeded.steadySixtyVerified()).toBe(true);
+  });
+
+  it("resumes the high-refresh latch across a reload", async () => {
+    sessionStorage.setItem("flemo:sixty", "high");
+    const seeded = await freshModule();
+
+    seeded.reportInFlightCadence(16.7);
+    seeded.reportInFlightCadence(16.7);
+    expect(seeded.steadySixtyVerified()).toBe(false);
+  });
+
+  it("starts from zero on a garbage seed", async () => {
+    sessionStorage.setItem("flemo:sixty", "not-a-number");
+    const seeded = await freshModule();
+
+    seeded.reportInFlightCadence(16.7);
+    expect(seeded.steadySixtyVerified()).toBe(false);
+    seeded.reportInFlightCadence(16.7);
+    expect(seeded.steadySixtyVerified()).toBe(true);
+  });
+
+  it("runs verdict-only where sessionStorage is absent", async () => {
+    vi.stubGlobal("sessionStorage", undefined);
+    const storageless = await freshModule();
+
+    storageless.reportInFlightCadence(16.7);
+    storageless.reportInFlightCadence(16.7);
+    // The session's own verdict still forms; only the reload seed is lost.
+    expect(storageless.steadySixtyVerified()).toBe(true);
+  });
+
+  it("survives a storage that throws on read and on write", async () => {
+    vi.stubGlobal("sessionStorage", {
+      getItem() {
+        throw new Error("storage blocked");
+      },
+      setItem() {
+        throw new Error("storage blocked");
+      }
+    });
+    const blocked = await freshModule();
+
+    expect(() => blocked.reportInFlightCadence(16.7)).not.toThrow();
+    blocked.reportInFlightCadence(16.7);
+    expect(blocked.steadySixtyVerified()).toBe(true);
+  });
+
+  it("leaves the latched seed alone when an ambiguous median follows", () => {
+    reportInFlightCadence(8.3);
+    expect(sessionStorage.getItem("flemo:sixty")).toBe("high");
+    // The 12-14ms band resets the streak, but a latched session must never
+    // overwrite "high" with a streak count.
+    reportInFlightCadence(13);
+    expect(sessionStorage.getItem("flemo:sixty")).toBe("high");
+  });
+
+  it("treats a missing devicePixelRatio as 1x, outside the HiDPI profile", () => {
+    reportInFlightCadence(16.7);
+    reportInFlightCadence(16.7);
+    NAV.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 0, configurable: true });
+    const originalDpr = window.devicePixelRatio;
+    try {
+      Object.defineProperty(window, "devicePixelRatio", { value: 0, configurable: true });
+      expect(steadySixtyPlayerEligible()).toBe(false);
+    } finally {
+      Object.defineProperty(window, "devicePixelRatio", { value: originalDpr, configurable: true });
+      delete (navigator as unknown as Record<string, unknown>).maxTouchPoints;
+      delete NAV.userAgentData;
+    }
   });
 });

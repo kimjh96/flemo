@@ -1645,3 +1645,62 @@ describe("render-settle give-up raster guard", () => {
     expect(onReady).toHaveBeenCalledTimes(1);
   });
 });
+
+// A runtime without `performance` (the guards at the top of the module and
+// in the give-up baseline exist for exactly this): the gate must still make
+// its two-fast-frame decision off the rAF timestamps alone.
+describe("render-settle give-up without a performance clock", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let frameId: number;
+  const flushFrame = (timestamp: number) => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((frameCallback) => frameCallback(timestamp));
+  };
+  const SETTLE = {
+    graceMs: 60,
+    firstWaitMs: 120,
+    capMs: 700,
+    minNodes: 30,
+    renderSettleOnly: true
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    frames = new Map();
+    frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+    vi.stubGlobal("performance", undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.textContent = "";
+    setPendingForTests(false);
+  });
+
+  it("releases on two fast frames measured off the rAF timestamps", () => {
+    const scope = document.createElement("div");
+    for (let i = 0; i < 10; i++) scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    const onReady = vi.fn();
+
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+    // The two-frame paint anchor, then the give-up timer.
+    flushFrame(0);
+    flushFrame(16);
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+
+    flushFrame(32);
+    expect(onReady).not.toHaveBeenCalled();
+    flushFrame(48);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+});
