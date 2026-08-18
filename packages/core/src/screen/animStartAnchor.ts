@@ -405,7 +405,10 @@ export function scheduleAnimHoldReadiness(
       }
       if (givingUp || finished) return;
       givingUp = true;
-      let lastTs: number | null = null;
+      // Baseline at the timer, not the first frame: with a null seed the
+      // first rAF always reads "fast", so a block that starts right after
+      // the give-up timer fires would slip past half the pair.
+      let lastTs: number | null = typeof performance !== "undefined" ? performance.now() : null;
       const step = (remaining: number) => {
         if (remaining <= 0 || elapsed() >= settle.capMs) {
           finish();

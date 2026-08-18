@@ -5,7 +5,9 @@ import TaskManger from "@core/TaskManger";
 import createTransition from "@transition/createTransition";
 import { transitionMap } from "@transition/transition";
 
-import createTransitionEngine from "@core/engine/createTransitionEngine";
+import createTransitionEngine, {
+  resetDisplayProbeForTests
+} from "@core/engine/createTransitionEngine";
 import {
   reportInFlightCadence,
   resetSteadySixtyForTests,
@@ -56,11 +58,13 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
     Object.defineProperty(navigator, "maxTouchPoints", { value: 0, configurable: true });
     originalDpr = window.devicePixelRatio;
     Object.defineProperty(window, "devicePixelRatio", { value: 2, configurable: true });
+    resetDisplayProbeForTests();
     disposers = [];
   });
 
   afterEach(() => {
     for (const dispose of disposers) dispose();
+    vi.unstubAllGlobals();
     scope.remove();
     transitionMap.delete("sixty-test" as never);
     resolveSpy.mockRestore();
@@ -122,38 +126,33 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
   // ticks ~17ms — inside the steady-60 window — so this also covers the
   // probe's warm-up/median path itself.
   it("graduates through the real display probe after two compiled flights", async () => {
-    const frames = (count: number) =>
+    // The runner-cadence oracle rides the SAME frames the probes measure: a
+    // window sampled before the flights can drift from the probe's own (a
+    // loaded runner, a throttling dip between windows) and mis-predict the
+    // verdict. Collecting the gaps inside the two inter-flight waits makes
+    // oracle and probe share one clock and one window.
+    const gaps: number[] = [];
+    const framesMeasured = (count: number) =>
       new Promise<void>((resolve) => {
         let remaining = count;
-        const tick = () => {
+        let last: number | null = null;
+        const tick = (t: number) => {
+          if (last !== null) gaps.push(t - last);
+          last = t;
           remaining -= 1;
           if (remaining <= 0) resolve();
           else requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
       });
-    // Runner-cadence guard (same shape as the e2e's): a machine that cannot
-    // hold a steady rAF clock legitimately never verifies — the conservative
-    // design working, not a regression.
-    const gaps: number[] = [];
-    let last: number | null = null;
-    await new Promise<void>((resolve) => {
-      const tick = (t: number) => {
-        if (last !== null) gaps.push(t - last);
-        last = t;
-        if (gaps.length < 10) requestAnimationFrame(tick);
-        else resolve();
-      };
-      requestAnimationFrame(tick);
-    });
-    const median = [...gaps].sort((a, b) => a - b)[5]!;
 
     drive(); // flight 1 — declined (unverified), probe armed
-    await frames(14);
+    await framesMeasured(14);
     drive(); // flight 2 — declined, probe armed again
-    await frames(14);
+    await framesMeasured(14);
     drive(); // flight 3 — decided by whatever the probe measured
 
+    const median = [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)]!;
     if (median >= 14 && median <= 22) {
       expect(steadySixtyVerified()).toBe(true);
       // Verification feeds the desktop-profile defaults; the DRIVER stays
@@ -163,6 +162,51 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
       // Off-window cadence must stay compiled — the same property, inverted.
       expect(playerDrove()).toBe(false);
     }
+  });
+
+  it("a flight that completes mid-probe discards the window — idle gaps must not verify", () => {
+    // Deterministic rAF: a manual queue with hand-fed timestamps.
+    const queue: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      queue.push(frameCallback);
+      return queue.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    let now = 0;
+    const tickAll = (gapMs: number) => {
+      const callbacks = queue.splice(0, queue.length);
+      now += gapMs;
+      callbacks.forEach((frameCallback) => frameCallback(now));
+    };
+    const driveCompleted = () => {
+      const engine = createTransitionEngine(deps);
+      const dispose = engine.driveScreenLifecycle({
+        getElements: () => ({ scope }),
+        transitionName: "sixty-test" as never,
+        prevTransitionName: "sixty-test" as never,
+        status: "COMPLETED",
+        isActive: true,
+        animHoldReleased: true
+      });
+      disposers.push(dispose);
+    };
+
+    // Flight 1: the probe runs its full window at a steady 16.7ms — one
+    // verified median banked.
+    drive();
+    for (let i = 0; i < 12; i++) tickAll(16.7);
+
+    // Flight 2: the probe arms, but the flight lands before the window fills.
+    drive();
+    for (let i = 0; i < 4; i++) tickAll(16.7);
+    driveCompleted();
+    // Post-flight idle gaps ALSO read ~16.7ms on an adaptive panel — the
+    // exact trap: they must not complete the discarded window into the
+    // second verifying median.
+    for (let i = 0; i < 12; i++) tickAll(16.7);
+    expect(steadySixtyVerified()).toBe(false);
+    drive();
+    expect(playerDrove()).toBe(false);
   });
 
   it("touch Blink routing is untouched by the desktop verdict", () => {

@@ -1619,6 +1619,21 @@ describe("render-settle give-up raster guard", () => {
     expect(onReady).toHaveBeenCalledTimes(1);
   });
 
+  it("a block starting AT the give-up timer defers the release — the baseline is the timer, not the first frame", () => {
+    const onReady = arm();
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    // The unfreeze's style/layout block runs immediately after the timer
+    // fires: the FIRST guard frame arrives late and must not read as fast
+    // (a null baseline would count it, halving the pair).
+    vi.advanceTimersByTime(60);
+    flushFrame();
+    expect(onReady).not.toHaveBeenCalled();
+    fastFrame();
+    expect(onReady).not.toHaveBeenCalled();
+    fastFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
   it("capMs bounds the guard even under sustained slow frames", () => {
     const onReady = arm();
     vi.advanceTimersByTime(SETTLE.graceMs + 1);

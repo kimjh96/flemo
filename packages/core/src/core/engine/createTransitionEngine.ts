@@ -293,6 +293,24 @@ const armFramePacingKeepalive = (): (() => void) => {
 // Blink's governed-easing parameters mid-session. The 30fps even-stepped
 // player IS the correct response to an OS power policy.)
 let displayProbeActive = false;
+// Bumped on every arm AND every cancel; a tick whose generation is stale
+// stops scheduling and reports nothing. Cancellation matters on adaptive
+// panels: a probe outliving its compiled flight measures the IDLE clock,
+// which reads ~60Hz there — exactly the value that must never feed the
+// steady-60 verdict (in-flight is the only honest window, see
+// steadySixtyCadence.ts).
+let displayProbeGeneration = 0;
+const cancelDisplayIntervalProbe = () => {
+  if (!displayProbeActive) return;
+  displayProbeGeneration += 1;
+  displayProbeActive = false;
+};
+// Module state outlives a test file's cases (a probe armed by one test would
+// block every later arm); same pattern as diagnosticFlags' reset exports.
+export const resetDisplayProbeForTests = () => {
+  displayProbeGeneration += 1;
+  displayProbeActive = false;
+};
 // Two skipped warm-up gaps + an 8-gap median: the probe arms in the same
 // commit that releases the flight, so its FIRST gaps ride the entering
 // screen's mount-commit stall — measured on the playground push, the raw
@@ -305,10 +323,12 @@ const DISPLAY_PROBE_GAPS = 8;
 const armDisplayIntervalProbe = () => {
   if (displayProbeActive || typeof requestAnimationFrame !== "function") return;
   displayProbeActive = true;
+  const generation = ++displayProbeGeneration;
   const gaps: number[] = [];
   let warmup = DISPLAY_PROBE_WARMUP_TICKS;
   let lastTick: number | null = null;
   const tick = (time: number) => {
+    if (generation !== displayProbeGeneration) return;
     if (lastTick !== null) {
       if (warmup > 0) warmup -= 1;
       else gaps.push(time - lastTick);
@@ -1453,6 +1473,9 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     }
 
     if (status === "COMPLETED") {
+      // A probe still mid-window at the flip would go on to sample post-flight
+      // idle gaps — discard it (see cancelDisplayIntervalProbe).
+      cancelDisplayIntervalProbe();
       deps.setDragStatus("IDLE");
       deps.setReplaceTransitionStatus("IDLE");
       // Strip inline styles a swipe, the rAF player, or an interleaved
