@@ -399,6 +399,70 @@ describe("createSwipeController", () => {
       expect(topBar.style.transform).toBe(dom.scope.style.transform);
     });
 
+    it("uses matching string and number IDs from the partner DOM before metadata reconnects", async () => {
+      const bottomBar = document.createElement("div");
+      document.body.appendChild(bottomBar);
+      const prevTop = document.createElement("div");
+      prevTop.setAttribute("data-flemo-bar", "app");
+      prevTop.setAttribute("data-flemo-bar-id", "builder-header");
+      prevTop.setAttribute("data-flemo-bar-id-type", "string");
+      (dom.root.firstElementChild as HTMLElement).appendChild(prevTop);
+      prevNav.setAttribute("data-flemo-bar-id", "7");
+      prevNav.setAttribute("data-flemo-bar-id-type", "number");
+
+      config.getElements = () => ({
+        scope: dom.scope,
+        screenContainer: dom.screenContainer,
+        decorator: null,
+        sharedTopBar: topBar,
+        sharedBottomBar: bottomBar
+      });
+      config.hasSharedTopBar = () => true;
+      config.hasSharedBottomBar = () => true;
+      config.getSharedTopBarId = () => "builder-header";
+      config.getSharedBottomBarId = () => 7;
+
+      const c = createSwipeController(config);
+      await drag(c);
+
+      expect(topBar.style.transform).toBe("");
+      expect(bottomBar.style.transform).toBe("");
+      expect(prevTop.style.transform).toBe("");
+      expect(prevNav.style.transform).toBe("");
+
+      bottomBar.remove();
+    });
+
+    it("rides both sides when DOM fallback bars have different identities", async () => {
+      const bottomBar = document.createElement("div");
+      document.body.appendChild(bottomBar);
+      const prevTop = document.createElement("div");
+      prevTop.setAttribute("data-flemo-bar", "app");
+      (dom.root.firstElementChild as HTMLElement).appendChild(prevTop);
+
+      config.getElements = () => ({
+        scope: dom.scope,
+        screenContainer: dom.screenContainer,
+        decorator: null,
+        sharedTopBar: topBar,
+        sharedBottomBar: bottomBar
+      });
+      config.hasSharedTopBar = () => true;
+      config.hasSharedBottomBar = () => true;
+      config.getSharedTopBarId = () => "builder-header";
+      config.getSharedBottomBarId = () => "builder-actions";
+
+      const c = createSwipeController(config);
+      await drag(c);
+
+      expect(topBar.style.transform).toBe(dom.scope.style.transform);
+      expect(bottomBar.style.transform).toBe(dom.scope.style.transform);
+      expect(prevTop.style.transform).toBe(dom.prevScope.style.transform);
+      expect(prevNav.style.transform).toBe(dom.prevScope.style.transform);
+
+      bottomBar.remove();
+    });
+
     it("a cancelled swipe restores every riding bar's inline state", async () => {
       const c = createSwipeController(config);
       await drag(c);
