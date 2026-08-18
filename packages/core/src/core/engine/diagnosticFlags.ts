@@ -25,8 +25,9 @@ import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 // | flemo:lat                 | session | integer ms                      | (learned)                  | production-state                 | LPM release-latency seed — owned by lowPowerCadence.ts, not read here  |
 // | flemo:sixty               | session | "high" / streak count           | (learned)                  | production-state                 | steady-60 desktop verdict seed — owned by steadySixtyCadence.ts        |
 // | flemo:landing-snap        | session | "on"                            | off                        | opt-in diagnostic                | Blink landing pixel-snap easing A/B (landingPixelSnap.ts)              |
-// | flemo:imghold             | session | "on"                            | off                        | opt-in diagnostic                | flight-scoped <img> reveal hold (imageRevealHold.ts)                   |
-// | flemo:settle-gate         | session | "on"/"off"                      | governedCompiledActive()   | production-default-with-override | render-settle entry gate (engine routing + react ScreenMotion)         |
+// | flemo:imghold             | session | "on"/"off"                      | unpainted-only on steady-60 desktop, else off | production-default-with-override | flight-scoped <img> reveal hold (imageRevealHold.ts)   |
+// | flemo:arrivalhold         | session | "off"                           | on                         | production-default-with-override | arrival hold (freeze-and-replay of in-flight arrivals) — arrivalHold.ts |
+// | flemo:settle-gate         | session | "on"/"off"                      | touch WebKit + touch Blink + steady-60 desktop | production-default-with-override | render-settle entry gate (engine routing + react ScreenMotion) |
 // | flemo:handoff             | session | "on"                            | off                        | opt-in diagnostic                | anchored-opening handoff, POP-scoped (transitionPlayer.ts)             |
 // | flemo:handoffms           | session | number ms                       | 100 (six 60Hz frames)      | opt-in diagnostic                | moves the handoff point per session                                    |
 // | flemo:apply               | session | "scrub"                         | off                        | opt-in diagnostic                | force the scrub-WAAPI value-application tier for every track           |
@@ -34,8 +35,14 @@ import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 // | flemo:snapband            | session | number (device px)              | 4                          | opt-in diagnostic                | "hybrid" snap's jitter-band width                                      |
 // | flemo:layers              | session | "resident"                      | off                        | opt-in diagnostic                | resident screen layers at rest; armed by ?flemo-layers= (layerSettleHold.ts) |
 // | flemo:freeze              | session | "shallow"                       | off                        | opt-in diagnostic                | keep the direct prev screen live; armed by ?flemo-freeze= (computeScreenFreeze.ts) |
-// | flemo:preraster           | session | "on"                            | off                        | opt-in diagnostic                | promote the entering content layer through the hold (react ScreenMotion) |
+// | flemo:preraster           | session | "on"                            | off (but the rest-promotion half is default-on for steady-60 desktop) | production-default-with-override | promote the entering content layer through the hold; also selects the park-over hold variant (react ScreenMotion) |
 // | flemo:imgoffload          | session | "on"/"off"                      | auto (legacy Android Blink)| production-default-with-override | image decode offloader override (react Router)                         |
+//
+// THIS TABLE IS TESTED. `__tests__/documentedDefaults.test.ts` asserts every
+// computable default above against the reader that implements it, because the
+// table drifted from the code four keys at a time (2026-08-17 → 08-19) while
+// `docs/diagnostics.md` was pointing readers here as the source of truth. If
+// you change a default, the test fails until the row matches.
 //
 // (The one surviving `window.__flemo*` global is `__flemoPlayerGaps` — the
 // player's frame-gap mirror in transitionPlayer.ts, read by the e2e suite.)
