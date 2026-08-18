@@ -1,8 +1,10 @@
 import type {
   FlightDriver,
   FrameSampleStats,
+  ImageActivity,
   LandingAudit,
   LongTaskSpan,
+  MotionProgress,
   PlayerGapStats
 } from "./types";
 
@@ -19,6 +21,12 @@ export const OPENING_WINDOW_LEAD_MS = 50;
 export const OPENING_WINDOW_TAIL_MS = 120;
 /** Mid-flight long tasks at/over this get their own anomaly line. */
 export const MID_FLIGHT_TASK_MS = 100;
+/**
+ * A stall this long is user-visible. Two dropped 60Hz frames is the smallest
+ * run the eye reliably catches on a tracked slide; the release race that
+ * motivated this rule froze flights for ~250ms.
+ */
+export const STALL_MS = 48;
 
 export interface FlightAnomalyInput {
   t0Ms: number;
@@ -33,6 +41,8 @@ export interface FlightAnomalyInput {
   /** Hold release offset from t0 — the start of visible motion (null: no hold). */
   releasedAtMs: number | null;
   landing: LandingAudit;
+  motion: MotionProgress;
+  images: ImageActivity;
 }
 
 export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
@@ -84,6 +94,59 @@ export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
           "(screen posed, not yet moving — the hold doing its job, not user-visible jank)"
       );
     }
+  }
+
+  const { motion, images } = input;
+
+  // The pose/clock rules. These exist because frame timing can be perfect
+  // while nothing moves: the 2026-08-18 release race paused running flights
+  // for ~250ms with rAF ticking at a clean 16.7ms throughout.
+  if (motion.holdReassertedAtMs !== null) {
+    anomalies.push(
+      `hold re-asserted ${motion.holdReassertedAtMs}ms into the flight, after it had already ` +
+        "released (an interleaved commit wrote the stale paused hold attribute over a running " +
+        "flight — the flemo 2026-08-18 release-race signature; the motion pauses while every " +
+        "timing metric stays clean)"
+    );
+  }
+  if (motion.pausedAfterRelease) {
+    anomalies.push(
+      "compiled animation reported playState=paused after its release (the flight was posed " +
+        "and then stopped mid-motion, not merely starved of frames)"
+    );
+  }
+  if (motion.longestStallMs >= STALL_MS) {
+    anomalies.push(
+      `motion stalled ${motion.longestStallMs}ms mid-flight ` +
+        `(${motion.stalledFrames}/${motion.sampledFrames} released frames advanced neither the ` +
+        "animation clock nor the pose — freeze, or freeze-then-leap if the flight still landed on time)"
+    );
+  }
+  if (motion.sampledFrames === 0 && input.releasedAtMs !== null) {
+    anomalies.push(
+      "no released frames were sampled (the flight ended at or before its own hold release — " +
+        "the visible motion, if any, was never observed)"
+    );
+  }
+
+  // The image rule. Glass-measured 2026-08-18: one mid-flight decode cost
+  // exactly one skipped present, and the engine answers it by holding
+  // still-loading images for the flight span.
+  const unheldCompletions = images.completedDuringFlight - images.heldDuringFlight;
+  if (unheldCompletions > 0) {
+    anomalies.push(
+      `${unheldCompletions} image(s) finished loading mid-flight without a hold ` +
+        `(${images.completedDuringFlight} completed, ${images.heldDuringFlight} held of ` +
+        `${images.loadingAtStart} still loading at t0) — each decode rasters on the moving ` +
+        "layer and costs a present; this is the warm-side image-hold regression"
+    );
+  }
+
+  if (landing.orphanedHolds.length > 0) {
+    anomalies.push(
+      `hold markers left on the page at rest: ${landing.orphanedHolds.join("; ")} ` +
+        "(whatever they hide has no owner left to reveal it — the permanently-blank-avatar class)"
+    );
   }
 
   if (landing.residualInlineTransforms.length > 0) {

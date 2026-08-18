@@ -66,7 +66,7 @@ describe("attachFlightRecorder", () => {
     const recorder = attach();
     expect((window as unknown as { flemo: unknown }).flemo).toBe(foreign);
     // The handle still works without the global.
-    expect(recorder.report().version).toBe("1");
+    expect(recorder.report().version).toBe("2");
     recorder.detach();
     expect((window as unknown as { flemo: unknown }).flemo).toBe(foreign);
   });
@@ -79,7 +79,7 @@ describe("attachFlightRecorder", () => {
   it("produces a JSON-serializable, self-describing report shape", () => {
     const recorder = attach();
     const report = recorder.report();
-    expect(report.version).toBe("1");
+    expect(report.version).toBe("2");
     expect(report.blindSpots.length).toBeGreaterThanOrEqual(4);
     expect(report.flights).toEqual([]);
     expect(report.driverPolicy).toEqual({ demotion: null, forcePin: null });

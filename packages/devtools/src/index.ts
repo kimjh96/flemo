@@ -14,6 +14,9 @@ export type { FlightAnomalyInput, ReportAnomalyInput } from "./anomalies";
 
 export { BLIND_SPOTS } from "./blindSpots";
 
+export { attachDevtoolsPanel } from "./panel";
+export type { DevtoolsPanelHandle, DevtoolsPanelOptions } from "./panel";
+
 export {
   captureEnvironment,
   detectEngine,

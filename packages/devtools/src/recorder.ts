@@ -1,6 +1,7 @@
 import { deriveFlightAnomalies, deriveReportAnomalies, STUCK_STATUS_MS } from "./anomalies";
 import { BLIND_SPOTS } from "./blindSpots";
 import { captureEnvironment, sampleRafCadence } from "./environment";
+import { JUDGING_PROTOCOL } from "./judging";
 import { deriveOverrideWarnings, LEGACY_LOCAL_PIN_KEY, snapshotOverrides } from "./overrides";
 import {
   classifyDriver,
@@ -26,7 +27,7 @@ import type {
 // rAF). It imports nothing from @flemo/core or @flemo/react and changes no
 // behavior; attaching it must never alter the motion it measures.
 
-export const REPORT_SCHEMA_VERSION = "1";
+export const REPORT_SCHEMA_VERSION = "2";
 
 const TRANSITIONAL = new Set(["PUSHING", "POPPING", "REPLACING"]);
 const HOLD_KINDS = new Set(["true", "park", "park-under", "park-over"]);
@@ -38,6 +39,15 @@ const HOLD_ATTR = "data-flemo-anim-hold";
  *  own COMPLETED cleanup and the deferred freeze land in those commits). */
 const LANDING_AUDIT_FRAMES = 2;
 const MAX_FRAME_GAPS = 2000;
+/** The engine's hold markers, checked for orphans at rest (core owns these). */
+const IMAGE_HOLD_ATTR = "data-flemo-img-hold";
+const HELD_ARRIVAL_ATTR = "data-flemo-held-arrival";
+/**
+ * A released frame counts as stalled only once the flight has moved at least
+ * once — the first released frame has nothing to compare against, and a
+ * compiled animation's clock legitimately reads 0 on it.
+ */
+const STALL_MIN_FRAMES = 2;
 const MAX_LONG_TASKS = 1000;
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
@@ -60,6 +70,17 @@ interface ActiveFlight {
   lastFrameAt: number | null;
   evidence: DriverEvidence;
   lastPose: Map<Element, string>;
+  /** Cached compiled animations, so the clock read never re-queries per frame. */
+  clocks: Map<Element, Animation>;
+  lastClock: Map<Element, number>;
+  releasedFrames: number;
+  stalledFrames: number;
+  stallRunMs: number;
+  longestStallMs: number;
+  pausedAfterRelease: boolean;
+  holdReassertedAtMs: number | null;
+  imagesLoadingAtStart: HTMLImageElement[];
+  imagesHeld: Set<Element>;
   rafId: number | null;
 }
 
@@ -96,7 +117,8 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
         driverPolicy: { demotion: null, forcePin: null },
         flights: [],
         anomalies: [],
-        blindSpots: [...BLIND_SPOTS]
+        blindSpots: [...BLIND_SPOTS],
+        judgingProtocol: [...JUDGING_PROTOCOL]
       })
     };
   }
@@ -167,21 +189,95 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
     return { screens: screens.length, bars, decorators, parts };
   };
 
+  /** Every <img> inside the flight's participating screens. */
+  const participantImages = (screens: Element[]): HTMLImageElement[] => {
+    const images: HTMLImageElement[] = [];
+    for (const screen of screens) {
+      for (const img of Array.from(screen.querySelectorAll("img"))) images.push(img);
+    }
+    return images;
+  };
+
+  /** One query per flight, on the first moving frame: which images the engine parked. */
+  const snapshotHeldImages = (flight: ActiveFlight) => {
+    for (const screen of flight.elements) {
+      for (const held of Array.from(screen.querySelectorAll(`img[${IMAGE_HOLD_ATTR}]`))) {
+        flight.imagesHeld.add(held);
+      }
+    }
+  };
+
+  /**
+   * Did this frame MOVE? Read from the cheapest honest source per tier: a
+   * compiled flight's own animation clock (getAnimations, no style flush) and
+   * a player flight's inline pose (already in the style attribute). A frame
+   * where neither moved is a stall — the signature that timing metrics miss
+   * (see MotionProgress).
+   */
+  const sampleProgress = (flight: ActiveFlight, frameGapMs: number) => {
+    flight.releasedFrames += 1;
+    let advanced = false;
+    for (const element of flight.elements) {
+      const clock = flight.clocks.get(element);
+      if (clock) {
+        if (clock.playState === "paused") flight.pausedAfterRelease = true;
+        const time = typeof clock.currentTime === "number" ? clock.currentTime : null;
+        if (time !== null) {
+          const previous = flight.lastClock.get(element);
+          if (previous !== undefined && time !== previous) advanced = true;
+          flight.lastClock.set(element, time);
+        }
+      }
+      const style = (element as HTMLElement).style;
+      if (style && style.animation !== "") {
+        const pose = `${style.transform}/${style.opacity}`;
+        if (flight.lastPose.get(element) !== pose) advanced = true;
+      }
+    }
+    // Nothing to compare against on the first released frame.
+    if (flight.releasedFrames < STALL_MIN_FRAMES) return;
+    if (advanced) {
+      flight.stallRunMs = 0;
+      return;
+    }
+    flight.stalledFrames += 1;
+    flight.stallRunMs += frameGapMs;
+    if (flight.stallRunMs > flight.longestStallMs) flight.longestStallMs = flight.stallRunMs;
+  };
+
   const sampleDriverEvidence = (flight: ActiveFlight) => {
     for (const element of flight.elements) {
       const style = (element as HTMLElement).style;
       const getAnimations = (element as Element & { getAnimations?: () => Animation[] })
         .getAnimations;
+      const cached = flight.clocks.get(element);
+      // getAnimations() allocates an array per call; once this element's
+      // compiled animation is in hand, re-reading it every frame is pure
+      // overhead on the very thread the flight is competing for.
+      if (cached !== undefined && cached.playState !== "finished") {
+        // The cached animation still counts as evidence: it is usually
+        // CACHED WHILE PAUSED (the hold poses the screen before releasing
+        // it), so skipping this would classify a perfectly normal compiled
+        // flight as "unknown" the moment it starts running.
+        if (cached.playState === "running") flight.evidence.compiledAnimation = true;
+        if (style && style.animation !== "") {
+          flight.evidence.playerSuppression = true;
+          const pose = `${style.transform}/${style.opacity}`;
+          const previous = flight.lastPose.get(element);
+          if (previous !== undefined && previous !== pose) flight.evidence.playerAdvance = true;
+          flight.lastPose.set(element, pose);
+        }
+        continue;
+      }
       if (typeof getAnimations === "function") {
         try {
           for (const animation of getAnimations.call(element)) {
             const name = (animation as { animationName?: string }).animationName;
-            if (
-              typeof name === "string" &&
-              name.startsWith("flemo-") &&
-              animation.playState === "running"
-            ) {
-              flight.evidence.compiledAnimation = true;
+            if (typeof name === "string" && name.startsWith("flemo-")) {
+              // Cached for the per-frame clock read; re-queried only while the
+              // element has no live animation yet.
+              flight.clocks.set(element, animation);
+              if (animation.playState === "running") flight.evidence.compiledAnimation = true;
             }
           }
         } catch {
@@ -217,8 +313,16 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       flight.lastFrameAt !== null &&
       flight.heldGaps.length + flight.releasedGaps.length < MAX_FRAME_GAPS
     ) {
-      const phase = holdActive(flight) ? flight.heldGaps : flight.releasedGaps;
-      phase.push(now - flight.lastFrameAt);
+      const gapMs = now - flight.lastFrameAt;
+      const held = holdActive(flight);
+      (held ? flight.heldGaps : flight.releasedGaps).push(gapMs);
+      // Progress is only meaningful once the screen is actually moving, and
+      // must read the PREVIOUS frame's pose — so it runs before the evidence
+      // pass overwrites it.
+      if (!held) {
+        sampleProgress(flight, gapMs);
+        if (flight.releasedFrames === 1) snapshotHeldImages(flight);
+      }
     }
     flight.lastFrameAt = now;
     sampleDriverEvidence(flight);
@@ -275,6 +379,16 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       lastFrameAt: null,
       evidence: { compiledAnimation: false, playerSuppression: false, playerAdvance: false },
       lastPose: new Map(),
+      clocks: new Map(),
+      lastClock: new Map(),
+      releasedFrames: 0,
+      stalledFrames: 0,
+      stallRunMs: 0,
+      longestStallMs: 0,
+      pausedAfterRelease: false,
+      holdReassertedAtMs: null,
+      imagesLoadingAtStart: participantImages(screens).filter((img) => !img.complete),
+      imagesHeld: new Set(),
       rafId: null
     };
     sampleDriverEvidence(current);
@@ -293,6 +407,26 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       auditLanding(record, elements);
     };
     requestAnimationFrame(step);
+  };
+
+  /**
+   * Hold markers still on the page at rest. Both of these are supposed to be
+   * gone by the landing: whatever they hide has no owner left to reveal it.
+   * Scanned document-wide on purpose — an orphan's screen is often exactly
+   * the one that was swapped out from under the hold.
+   */
+  const orphanedHolds = (): string[] => {
+    const found: string[] = [];
+    for (const [attribute, label] of [
+      [IMAGE_HOLD_ATTR, "image reveal hold"],
+      [HELD_ARRIVAL_ATTR, "arrival hold"]
+    ] as const) {
+      // The selector is built from a constant attribute name, so it cannot
+      // be invalid — no guard needed here.
+      const count = document.querySelectorAll(`[${attribute}]`).length;
+      if (count > 0) found.push(`${count} × ${label} (${attribute}) still marked at rest`);
+    }
+    return found;
   };
 
   const auditLanding = (record: FlightRecord, elements: Element[]) => {
@@ -330,6 +464,7 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
     });
     record.landing.residualInlineTransforms = residual;
     record.landing.offViewportAtRest = offViewport;
+    record.landing.orphanedHolds = orphanedHolds();
   };
 
   const finalizeFlight = (endNow: number, stuckStatuses: string[]) => {
@@ -352,10 +487,27 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       participants: flight.participants,
       holds: { kind: flight.holdKind, releasedAtMs: flight.holdReleasedAtMs },
       frameSamples: computeFrameStats(flight.heldGaps, flight.releasedGaps),
+      motion: {
+        sampledFrames: flight.releasedFrames,
+        stalledFrames: flight.stalledFrames,
+        longestStallMs: round1(flight.longestStallMs),
+        pausedAfterRelease: flight.pausedAfterRelease,
+        holdReassertedAtMs: flight.holdReassertedAtMs
+      },
+      images: {
+        loadingAtStart: flight.imagesLoadingAtStart.length,
+        completedDuringFlight: flight.imagesLoadingAtStart.filter((img) => img.complete).length,
+        heldDuringFlight: flight.imagesHeld.size
+      },
       ...(playerGaps ? { playerGaps } : {}),
       longTasks: [], // correlated lazily at report() — entries arrive async
       holdLongTasks: [],
-      landing: { residualInlineTransforms: [], offViewportAtRest: false, stuckStatuses },
+      landing: {
+        residualInlineTransforms: [],
+        offViewportAtRest: false,
+        stuckStatuses,
+        orphanedHolds: []
+      },
       anomalies: [] // derived lazily at report()
     };
     flights.push(record);
@@ -376,6 +528,17 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
     const value = mutation.target.getAttribute(HOLD_ATTR);
     if (value !== null && HOLD_KINDS.has(value) && flight.holdKind === null) {
       flight.holdKind = value;
+    }
+    if (
+      value !== null &&
+      HOLD_KINDS.has(value) &&
+      flight.holdReleasedAtMs !== null &&
+      flight.holdReassertedAtMs === null
+    ) {
+      // A hold going back ON after the release is the 2026-08-18 race: an
+      // interleaved commit writing the stale paused attribute over a running
+      // flight, which pauses the animation while rAF keeps ticking cleanly.
+      flight.holdReassertedAtMs = round1(performance.now() - flight.t0Ms);
     }
     if (
       (value === "false" || value === null) &&
@@ -504,7 +667,8 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
         landing: {
           residualInlineTransforms: [...record.landing.residualInlineTransforms],
           offViewportAtRest: record.landing.offViewportAtRest,
-          stuckStatuses: [...record.landing.stuckStatuses]
+          stuckStatuses: [...record.landing.stuckStatuses],
+          orphanedHolds: [...record.landing.orphanedHolds]
         }
       };
       withTasks.anomalies = deriveFlightAnomalies({
@@ -516,7 +680,9 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
         longTasks: withTasks.longTasks,
         holdLongTasks: withTasks.holdLongTasks,
         releasedAtMs: withTasks.holds.releasedAtMs,
-        landing: withTasks.landing
+        landing: withTasks.landing,
+        motion: withTasks.motion,
+        images: withTasks.images
       });
       return withTasks;
     });
@@ -536,12 +702,25 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       participants: flight.participants,
       holds: { kind: flight.holdKind, releasedAtMs: flight.holdReleasedAtMs },
       frameSamples: computeFrameStats(flight.heldGaps, flight.releasedGaps),
+      motion: {
+        sampledFrames: flight.releasedFrames,
+        stalledFrames: flight.stalledFrames,
+        longestStallMs: round1(flight.longestStallMs),
+        pausedAfterRelease: flight.pausedAfterRelease,
+        holdReassertedAtMs: flight.holdReassertedAtMs
+      },
+      images: {
+        loadingAtStart: flight.imagesLoadingAtStart.length,
+        completedDuringFlight: flight.imagesLoadingAtStart.filter((img) => img.complete).length,
+        heldDuringFlight: flight.imagesHeld.size
+      },
       longTasks: [],
       holdLongTasks: [],
       landing: {
         residualInlineTransforms: [],
         offViewportAtRest: false,
-        stuckStatuses: stuck ? currentStuckStatuses(flight) : []
+        stuckStatuses: stuck ? currentStuckStatuses(flight) : [],
+        orphanedHolds: []
       },
       anomalies: []
     };
@@ -557,7 +736,9 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       longTasks: provisional.longTasks,
       holdLongTasks: provisional.holdLongTasks,
       releasedAtMs: provisional.holds.releasedAtMs,
-      landing: provisional.landing
+      landing: provisional.landing,
+      motion: provisional.motion,
+      images: provisional.images
     });
     return [...closed, provisional];
   };
@@ -604,7 +785,8 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
           openFlight !== null && performance.now() - openFlight.t0Ms > STUCK_STATUS_MS,
         flightAnomalies: flightRecords.map((record) => record.anomalies)
       }),
-      blindSpots: [...BLIND_SPOTS]
+      blindSpots: [...BLIND_SPOTS],
+      judgingProtocol: [...JUDGING_PROTOCOL]
     };
   };
 

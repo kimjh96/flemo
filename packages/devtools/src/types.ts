@@ -92,6 +92,46 @@ export interface LongTaskSpan {
   durationMs: number;
 }
 
+/**
+ * Whether the motion actually MOVED, as opposed to whether frames arrived.
+ *
+ * Frame timing and pose progress are different questions, and the 2026-08
+ * campaign turned on the difference: a hold attribute re-asserted over a
+ * running flight paused the animation for ~250ms while rAF kept ticking at a
+ * perfect 16.7ms — every timing metric clean, the screen frozen. The decisive
+ * instrument was a pose encoder, so the recorder carries one: for a compiled
+ * flight it reads the animation's own clock, for a player flight the inline
+ * pose it writes. Neither forces a style flush.
+ */
+export interface MotionProgress {
+  /** Frames sampled during the RELEASED (visible-motion) phase. */
+  sampledFrames: number;
+  /** Released frames where neither the clock nor the pose moved. */
+  stalledFrames: number;
+  /** Longest unbroken run of stalled released frames, in ms. */
+  longestStallMs: number;
+  /** A compiled animation reported playState "paused" after its release. */
+  pausedAfterRelease: boolean;
+  /** Offset from t0 at which a hold was re-asserted AFTER the release. */
+  holdReassertedAtMs: number | null;
+}
+
+/**
+ * Images inside the flight's participants. A still-loading <img> that
+ * finishes DURING the flight decodes and first-rasters on the moving layer —
+ * glass-measured at one skipped present per decode (2026-08-18). The engine
+ * holds those images for the flight span; an unheld one completing mid-flight
+ * is that regression coming back.
+ */
+export interface ImageActivity {
+  /** Participant images not yet complete when the flight opened. */
+  loadingAtStart: number;
+  /** Of those, how many completed before the landing audit ran. */
+  completedDuringFlight: number;
+  /** Participant images carrying the engine's hold marker during the flight. */
+  heldDuringFlight: number;
+}
+
 /** Post-landing residue audit, taken 2 rAF after the flight completed. */
 export interface LandingAudit {
   /**
@@ -107,6 +147,13 @@ export interface LandingAudit {
   offViewportAtRest: boolean;
   /** Transitional statuses still present ~10s after the flight began. */
   stuckStatuses: string[];
+  /**
+   * Engine hold markers still on the page at rest. Every hold is supposed to
+   * be released when the flight lands; a leftover marker means something is
+   * still hidden with no owner left to reveal it — the class that produced
+   * ~130 permanently blank avatars before the single-owner guard landed.
+   */
+  orphanedHolds: string[];
 }
 
 /** One recorded navigation flight. */
@@ -123,6 +170,10 @@ export interface FlightRecord {
   participants: FlightParticipants;
   holds: FlightHolds;
   frameSamples: FrameSampleStats;
+  /** Did the motion advance, frame by frame — not just: did frames arrive. */
+  motion: MotionProgress;
+  /** Image load/hold activity inside the participants during the flight. */
+  images: ImageActivity;
   /** Present only when the player's gap mirror grew during the flight. */
   playerGaps?: PlayerGapStats;
   /**
@@ -223,6 +274,13 @@ export interface FlemoReport {
    * of these — do not chase them with in-page tooling.
    */
   blindSpots: string[];
+  /**
+   * Constant list of preconditions a motion verdict is only valid under (see
+   * judging.ts). The report cannot verify them from inside the page — an
+   * agent must confirm them with the user before trusting any judgement,
+   * including a clean one.
+   */
+  judgingProtocol: string[];
 }
 
 export interface FlightRecorderOptions {

@@ -37,7 +37,7 @@ test.describe("devtools flight recorder", () => {
       (window as unknown as { flemo: { report: () => unknown } }).flemo.report()
     )) as FlemoReport;
 
-    expect(report.version).toBe("1");
+    expect(report.version).toBe("2");
     expect(report.blindSpots.length).toBeGreaterThanOrEqual(4);
     expect(report.flights.length).toBeGreaterThanOrEqual(1);
 
@@ -87,5 +87,47 @@ test.describe("devtools flight recorder", () => {
     // The malformed pin never routed anything: desktop stays compiled.
     const push = report.flights.find((flight) => flight.kind === "PUSH");
     expect(push?.driver).toBe("compiled");
+  });
+  // The panel is a real UI: jsdom proves its logic, only a browser proves it
+  // paints. It lives in a shadow root, so every query here pierces it.
+  test("mounts the visual panel and shows the flight it recorded", async ({ page }) => {
+    await page.goto("/playground?devtools=on");
+    await waitForNavIdle(page);
+
+    const host = page.locator("[data-flemo-devtools-panel]");
+    await expect(host).toHaveCount(1);
+    // Closed by default: the toggle is all that renders.
+    const toggle = host.locator("button.toggle");
+    await expect(toggle).toBeVisible();
+
+    await page.getByRole("button", { name: "Next" }).click();
+    await waitForNavIdle(page);
+    await page.waitForTimeout(250);
+
+    // A POP too: the pop's compiled animation is cached while still PAUSED
+    // (the hold poses the screen before releasing it), which is exactly the
+    // shape that once classified an ordinary pop as driver "unknown".
+    await page.getByRole("button", { name: "Back" }).click();
+    await waitForNavIdle(page);
+    await page.waitForTimeout(250);
+
+    const classified = (await page.evaluate(() =>
+      (window as unknown as { flemo: { report: () => unknown } }).flemo.report()
+    )) as FlemoReport;
+    expect(classified.flights.length).toBeGreaterThanOrEqual(2);
+    for (const flight of classified.flights) {
+      expect(flight.driver, `${flight.kind} must be classified`).not.toBe("unknown");
+    }
+
+    await toggle.click();
+    const panel = host.locator(".panel");
+    await expect(panel).toBeVisible();
+    // Newest first, so the pop leads; both flights are listed.
+    await expect(host.locator(".row")).toHaveCount(2);
+    const row = host.locator(".row").first();
+    await expect(row).toContainText("POP");
+    await expect(host.locator(".row").nth(1)).toContainText("PUSH");
+    await row.click();
+    await expect(host.locator(".detail")).toContainText("motion (did it move)");
   });
 });
