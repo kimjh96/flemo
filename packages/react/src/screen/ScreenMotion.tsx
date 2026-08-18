@@ -6,6 +6,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent
 } from "react";
+import { flushSync } from "react-dom";
 
 import {
   animHoldKey,
@@ -23,6 +24,7 @@ import {
   readPrerasterFlag,
   readSettleGateFlag,
   resolveTransition,
+  steadySixtyPlayerEligible,
   type AnimHoldCoordinator
 } from "@flemo/core";
 
@@ -527,7 +529,20 @@ function ScreenMotion({
         // LPM-routed flights run the compiled clock too — they need the
         // same atomic flip (a state-routed release reopens the
         // task-injection gap the flip closes).
-        if ((authoredNative || governedCompiledActive()) && !detectBlinkEngine()) {
+        // Steady-60 desktop Blink (2026-08-18): the current desktop round
+        // routes the COMPILED tier there, and its state-routed release
+        // reproduced this exact swallow on glass — the push opening frozen
+        // ~100-400ms, then a leap to mid-curve (the clock aged before first
+        // present). Same cure, same reasoning. REVISIT if desktop routing
+        // hands back to the player: an early compiled start under a player
+        // join would play frames the player then restarts.
+        // Steady-60 desktop routes the PLAYER again (2026-08-18): the direct
+        // DOM flip must NOT fire there — it starts the compiled animation in
+        // the release rAF and the player then restarts the motion, the
+        // double-start that poisoned the earlier player verdict. The flip
+        // stays for the paths whose COMPILED clock needs it.
+        const directFlip = (authoredNative || governedCompiledActive()) && !detectBlinkEngine();
+        if (directFlip) {
           for (const el of [
             scopeRef.current,
             sharedTopBarRef.current,
@@ -543,9 +558,25 @@ function ScreenMotion({
           // starts, not a React commit later.
           if (screenRef.current) screenRef.current.style.zIndex = "";
         }
-        setAnimRelease((current) =>
-          current.key === key && !current.released ? { key, released: true } : current
-        );
+        {
+          // The state must reconcile IN THIS TASK, not "one commit later":
+          // any unrelated commit landing in the flip→reconcile window renders
+          // this screen with the STALE held state and writes the paused hold
+          // attribute back over the RUNNING animation — trace-proved
+          // (2026-08-18): presents kept flowing at 60fps while the pop stood
+          // frozen ~250ms mid-flight (cc drawing the same paused pose) until
+          // the reconciling commit re-released it; intermittent because it
+          // needs an interleaved commit, and pop-biased because the returning
+          // screen's arrival re-renders supply one. flushSync closes the
+          // window by construction — DOM flip and state commit in one task.
+          // Universal now (not just the flip paths): the stale-held-state
+          // window is a defect for every driver.
+          flushSync(() =>
+            setAnimRelease((current) =>
+              current.key === key && !current.released ? { key, released: true } : current
+            )
+          );
+        }
       },
       {
         // Decode-wait: a frozen screen's discarded image bitmaps re-decode
@@ -575,7 +606,19 @@ function ScreenMotion({
           // ~290ms main-thread task that stalls even the compositor's initial
           // commit/layerization, so gating the release to AFTER that task
           // measurably helped (gate on = slight hitch, gate off = worse).
-          readSettleGateFlag() && isActive && (status === "PUSHING" || status === "POPPING")
+          // The gate arms on the screen whose render storm threatens the
+          // flight: the ACTIVE side on push (fresh mount) — and on pop BOTH
+          // sides, because the pop's storm belongs to the INACTIVE returning
+          // screen (its Activity unfreeze re-renders the whole stack entry:
+          // device-measured 46-commit pops). Glass-proved 2026-08-18: with
+          // the atomic flip closing the release gap, an ungated returning
+          // screen lands its unfreeze storm MID-flight — 133-233ms frozen
+          // blocks in the pop motion — where the state-routed release had
+          // been hiding it as a (felt-as-dead-tap) delayed start. The pair
+          // coordinator already barriers the pop pair, so gating the
+          // returning side moves the WHOLE pair's departure past the storm.
+          readSettleGateFlag() &&
+          (isActive ? status === "PUSHING" || status === "POPPING" : status === "POPPING")
             ? {
                 // firstWaitMs: no qualifying mount commit within this → warm/
                 // light screen, release with no felt delay. capMs: the hard
@@ -586,7 +629,18 @@ function ScreenMotion({
                 firstWaitMs: 120,
                 capMs: 700,
                 graceMs: 60,
-                minNodes: 30,
+                // The RETURNING side of a pop must wait out the PREVIOUS
+                // push's landing storm (the batched arrival reveal + query
+                // writes land two frames past that flight's rest — exactly
+                // when a natural browse rhythm pops back). Those reveal
+                // commits are node-light, so the mount-sized threshold
+                // ignored them and launched the pop INTO the storm —
+                // live-correlated (2026-08-18) with the cold-path-only,
+                // rhythm-dependent "끊김" (warm revisits, which have no
+                // landing storm, were judged smooth). Any commit re-arms
+                // the quiet window there; the ACTIVE side keeps the
+                // mount-sized threshold.
+                minNodes: isActive ? 30 : 1,
                 renderSettleOnly: true
               }
             : undefined
@@ -670,7 +724,51 @@ function ScreenMotion({
           // is discarded there and re-rasters on the slide — the reveal block).
           // Continuous with holdScopeLayer's own flight-time will-change, so
           // the one promoted layer spans hold → slide.
-          ...(readPrerasterFlag() && holdAttr !== "false" ? { willChange: "transform" } : {}),
+          // DEFAULT-ON for steady-60 desktop sessions (2026-08-18): Blink
+          // culls the raster of the occluded park-under layer, so the push's
+          // tiles rasterized MID-SLIDE — the live-judged "뚝뚝" chop (pop was
+          // smooth: its returning layer is already rastered). The promotion
+          // forces the backing store to fill DURING the hold instead, where
+          // the settle gate's fast-frame requirement absorbs the cost. Only
+          // the will-change half engages by default — the park-over hold
+          // strategy stays behind the explicit flemo:preraster flag.
+          // …and on steady-60 desktops the promotion also PERSISTS on the top
+          // screen AT REST (2026-08-18, glass-measured): a resting top screen
+          // is a plain document paint, so the next push must promote and
+          // raster the WHOLE list layer at flight start — captured as the
+          // push-opening crawl-freeze-leap (100-400ms, longer the more
+          // infinite-scroll pages are loaded) while pops launch at full
+          // velocity on their first frame BECAUSE the covered screen's parked
+          // transform kept it composited the whole time. Keeping the top
+          // screen promoted at rest pre-pays that raster where nobody is
+          // watching. Root routers only (`!contained`): will-change makes
+          // this element the containing block for `position: fixed`
+          // descendants, which is visually identity-preserving when the
+          // screen box IS the viewport but would break consumer overlays in
+          // a nested region.
+          // The COVERED direct-prev screen keeps the promotion too
+          // (2026-08-18, marker-synced glass): with the top screen fully
+          // occluding it at rest, cc EVICTS its tiles under a long-lived
+          // session's GPU memory pressure — and the pop that re-reveals it
+          // then froze the whole output 216-316ms (13-19 frames, every pop,
+          // start of motion) waiting on its re-raster, while rAF ticked
+          // clean (activation-blocked, not main-thread-blocked). will-change
+          // marks the layer animation-bound so its backing store stays
+          // resident and raster-prioritized while covered.
+          // REST promotion, CORRECT PREDICATE this time (2026-08-18): the
+          // earlier attempt keyed on `isActive`, which is false at rest, so
+          // it never applied and its null A/B result was meaningless. The
+          // top screen at rest is the entry whose zIndex equals the current
+          // history index — keeping ITS layer promoted means the next
+          // push's leaving side starts the flight with a live backing store
+          // instead of paying promotion + full-layer raster on the opening
+          // frames (the biggest structural GPU cost a flight still carries).
+          // Root routers only (`!contained`), same containing-block
+          // reasoning as before.
+          ...((readPrerasterFlag() || steadySixtyPlayerEligible()) &&
+          (holdAttr !== "false" || (zIndex === index && !contained))
+            ? { willChange: "transform" }
+            : {}),
           ...initialStyle,
           ...props.style
         }}
