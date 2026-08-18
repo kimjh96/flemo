@@ -53,5 +53,15 @@ module.exports = [
     limit: "1 KB",
     gzip: true,
     ignore: ["react", "react-dom", "motion", "@flemo/core", "@flemo/react"]
+  },
+  {
+    name: "@flemo/devtools",
+    path: "packages/devtools/dist/index.mjs",
+    // Zero-dependency flight recorder (~8 KB at birth: report schema
+    // constants, flag registry, anomaly derivation, recorder). Generous
+    // headroom for anomaly-rule growth; a dependency creeping in would blow
+    // straight through it.
+    limit: "10 KB",
+    gzip: true
   }
 ];

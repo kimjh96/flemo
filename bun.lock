@@ -20,6 +20,7 @@
       "version": "0.10.8",
       "dependencies": {
         "@flemo/core": "workspace:*",
+        "@flemo/devtools": "workspace:*",
         "@flemo/react": "workspace:*",
         "@flemo/react-layout": "workspace:*",
         "motion": "^12.40.0",
@@ -58,6 +59,22 @@
         "@types/node": "^24.13.1",
         "@vitest/coverage-v8": "^4.1.10",
         "csstype": "^3.2.3",
+        "eslint": "^9.39.5",
+        "jsdom": "^29.1.1",
+        "typescript": "^6.0.3",
+        "vite": "^8.2.1",
+        "vite-plugin-dts": "^5.0.3",
+        "vitest": "^4.1.10",
+      },
+    },
+    "packages/devtools": {
+      "name": "@flemo/devtools",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@flemo/eslint-config": "workspace:*",
+        "@flemo/tsconfig": "workspace:*",
+        "@types/node": "^24.13.1",
+        "@vitest/coverage-v8": "^4.1.10",
         "eslint": "^9.39.5",
         "jsdom": "^29.1.1",
         "typescript": "^6.0.3",
@@ -335,6 +352,8 @@
     "@exodus/bytes": ["@exodus/bytes@1.15.1", "", {}, "sha512-S6mL0yNB/Abt9Ei4tq8gDhcczc4S3+vQ4ra7vxnAf+YHC02srtqxKKZghx2Dq6p0e66THKwR6r8N6P95wEty7Q=="],
 
     "@flemo/core": ["@flemo/core@workspace:packages/core"],
+
+    "@flemo/devtools": ["@flemo/devtools@workspace:packages/devtools"],
 
     "@flemo/eslint-config": ["@flemo/eslint-config@workspace:packages/eslint-config"],
 

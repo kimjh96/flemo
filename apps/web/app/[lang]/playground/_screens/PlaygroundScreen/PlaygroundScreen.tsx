@@ -2,6 +2,7 @@
 
 import { Screen, useParams } from "@flemo/react";
 
+import useDevtoolsRecorder from "../../_hooks/useDevtoolsRecorder";
 import LabSettingsProvider from "../../_providers/LabSettingsProvider";
 import LabRouter from "../../_router/LabRouter";
 
@@ -12,6 +13,9 @@ import LabRouter from "../../_router/LabRouter";
 // shell's matched panel number seeds the nested Router on both server and
 // client, so a deep link server-renders the right panel with no mismatch.
 function PlaygroundScreen() {
+  // Opt-in flight recorder (?devtools=on) — playground-scoped on purpose:
+  // the stage is where transition problems get reproduced and reported.
+  useDevtoolsRecorder();
   const params = useParams<"/playground/:n">();
   // Forward the `code` step query so a deep link (/playground/1?code=x) seeds the
   // nested Router with the source panel open, on both server and client.
