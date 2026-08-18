@@ -132,8 +132,9 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   const SWIPE_INTENT_SLOP_PX = 8;
   // Page-wide recognition needs a narrow directional cone: unlike an edge-
   // only gesture, every ordinary vertical fling is a candidate. Requiring a
-  // 3:1 primary-axis lead preserves intentional diagonal tolerance over the
-  // old fixed 2px rule without letting scroll flings alias as back swipes.
+  // 3:1 primary-axis lead (about an 18.4° cone from the intended axis)
+  // preserves intentional diagonal tolerance over the old fixed 2px rule
+  // without letting scroll flings alias as back swipes.
   const SWIPE_AXIS_DOMINANCE_RATIO = 3;
   let swipeMaxDragPx = 0;
 
@@ -473,10 +474,13 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   };
 
   const pointerDown = (event: PointerEvent) => {
+    // Before intent resolves we do not own pointer capture, so a release
+    // outside the scope may never deliver pointerup/pointercancel. Let the
+    // next primary pointer replace that stale candidate. `swipeActive` guards
+    // captured gestures, while `isPrimary` rejects an actual second finger.
     if (
       !config.isReadyForDrag() ||
       swipeActive ||
-      activePointerId !== null ||
       event.isPrimary === false ||
       (event.pointerType === "mouse" && event.button !== 0)
     )

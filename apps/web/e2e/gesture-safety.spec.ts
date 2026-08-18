@@ -76,6 +76,30 @@ test.describe("touch gesture safety", () => {
     const scroller = incomingScope.getByTestId("docs-scroll");
     const scrollerHandle = await scroller.elementHandle();
     expect(scrollerHandle).not.toBeNull();
+    const activationProbe = await scroller
+      .getByRole("button")
+      .first()
+      .evaluate((button) => {
+        const htmlButton = button as HTMLButtonElement;
+        let pointerDownCount = 0;
+        let clickCount = 0;
+        htmlButton.addEventListener("pointerdown", () => pointerDownCount++);
+        htmlButton.addEventListener("click", () => clickCount++);
+        htmlButton.dispatchEvent(
+          new PointerEvent("pointerdown", {
+            bubbles: true,
+            pointerId: 99,
+            pointerType: "mouse",
+            isPrimary: true
+          })
+        );
+        htmlButton.click();
+        return { pointerDownCount, clickCount };
+      });
+    // The reduced activation gate is deliberate: click (including a native
+    // target listener) is stopped, while low-level input remains observable so
+    // the browser can establish and preserve a native scroll stream.
+    expect(activationProbe).toEqual({ pointerDownCount: 1, clickCount: 0 });
     expect(await scroller.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
       true
     );

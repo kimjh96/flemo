@@ -68,10 +68,12 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
    an active `touchmove` listener prevents native scroll only after the controller has
    claimed a drag. Recognition waits for 8px of movement and requires a 3:1 primary-
    axis lead, so vertical scroll jitter cannot become page-wide horizontal back; a
-   `pointercancel` always settles without navigation. The 8px edge-zone strips are
-   pointer-transparent layout markers. PUSHING/REPLACING destinations remain hit-
-   testable so a touch begun during the flight can scroll after landing, while an
-   outer capture handler suppresses click activation until the transition completes.
+   `pointercancel` always settles without navigation. PUSHING/REPLACING destinations
+   remain hit-testable so a touch begun during the flight can scroll after landing.
+   The outer capture handler suppresses `click` propagation (React and descendant
+   native listeners) until the transition completes; lower-level pointer/mouse events
+   intentionally remain observable so native scroll targeting survives. Consumers
+   should commit navigation from `click`, not `pointerdown`/`pointerup`.
 5. **Bar riding and identity**: `computeBarRiding` in RENDER sets
    `data-flemo-bar-riding` in the same commit as the bar's status attribute (the
    compiled sibling selector keys on both); swipe mirrors bars synchronously inside
@@ -87,9 +89,9 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
    "original" — the root cause of the desktop player blank (PR #259; the engine now
    strips the scope's pose channels at COMPLETED). If you add inline styles here,
    assume the engine may capture and restore them.
-7. **Chrome**: status/system bars, shared top/bottom bars, the decorator,
-   `data-swipe-at-edge-bar` strips, and the surface registry
-   (`registerScreenSurface`, computed-style opacity, re-measured per status flip).
+7. **Chrome**: status/system bars, shared top/bottom bars, the decorator, and the
+   surface registry (`registerScreenSurface`, computed-style opacity, re-measured per
+   status flip).
    Shared-bar spacing has a pre-paint ordering contract: the ref callback measures
    first and writes both the spacer and a measurement ref; the registration layout
    effect publishes identity + that height in one store notification; then

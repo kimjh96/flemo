@@ -127,20 +127,6 @@ describe("ScreenMotion chrome rendering", () => {
     expect(scope.getAttribute("data-flemo-status")).toBe("COMPLETED");
   });
 
-  it("keeps edge strips transparent to pointer input", () => {
-    const { container } = render(
-      <Screen>
-        <div>hello</div>
-      </Screen>,
-      { wrapper: buildHarness() }
-    );
-
-    const edges = Array.from(container.querySelectorAll<HTMLElement>("[data-swipe-at-edge-bar]"));
-
-    expect(edges).toHaveLength(2);
-    for (const edge of edges) expect(edge.style.pointerEvents).toBe("none");
-  });
-
   it("suppresses click activation during push while leaving the screen hit-testable", () => {
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: "push-1" });
     const onClick = vi.fn();
@@ -152,10 +138,14 @@ describe("ScreenMotion chrome rendering", () => {
     );
 
     const scope = container.querySelector<HTMLElement>("[data-flemo-screen]")!;
+    const button = getByRole("button");
+    const onNativeClick = vi.fn();
+    button.addEventListener("click", onNativeClick);
     expect(scope.style.pointerEvents).toBe("");
-    fireEvent.click(getByRole("button"));
+    fireEvent.click(button);
 
     expect(onClick).not.toHaveBeenCalled();
+    expect(onNativeClick).not.toHaveBeenCalled();
   });
 });
 

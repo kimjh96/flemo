@@ -191,7 +191,7 @@ describe("createSwipeController", () => {
     expect(c.shouldPreventTouch()).toBe(false);
   });
 
-  it("ignores secondary, non-primary, and concurrent pointer starts", async () => {
+  it("ignores secondary and non-primary pointer starts", async () => {
     const c = createSwipeController(config);
 
     c.pointerDown(event({ target: dom.scope, pointerId: 1, pointerType: "mouse", button: 2 }));
@@ -201,11 +201,39 @@ describe("createSwipeController", () => {
     expect(onSwipeStart).not.toHaveBeenCalled();
 
     c.pointerDown(event({ target: dom.scope, pointerId: 3 }));
-    c.pointerDown(event({ target: dom.scope, pointerId: 4 }));
-    c.pointerMove(event({ clientX: 40, pointerId: 4 }));
+    c.pointerDown(event({ target: dom.scope, pointerId: 4, isPrimary: false }));
+    c.pointerMove(event({ clientX: 40, pointerId: 4, isPrimary: false }));
     await flush();
 
     expect(onSwipeStart).not.toHaveBeenCalled();
+    c.pointerMove(event({ clientX: 40, pointerId: 3, isPrimary: true }));
+    await flush();
+    expect(onSwipeStart).toHaveBeenCalledTimes(1);
+  });
+
+  it("recovers when a pre-capture pointer stream ends outside the scope", async () => {
+    const c = createSwipeController(config);
+    c.pointerDown(event({ target: dom.scope, pointerId: 1, isPrimary: true }));
+    // No pointerup/pointercancel reaches this controller. Before intent is
+    // resolved there is no pointer capture to guarantee either event.
+    c.pointerDown(event({ target: dom.scope, pointerId: 2, isPrimary: true }));
+    c.pointerMove(event({ clientX: 40, pointerId: 2, isPrimary: true }));
+    await flush();
+
+    expect(onSwipeStart).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not replace the captured pointer of an active swipe", async () => {
+    const c = createSwipeController(config);
+    c.pointerDown(event({ target: dom.scope, pointerId: 1, isPrimary: true }));
+    c.pointerMove(event({ clientX: 40, pointerId: 1, isPrimary: true }));
+    await flush();
+
+    c.pointerDown(event({ target: dom.scope, pointerId: 2, isPrimary: true }));
+    c.pointerMove(event({ clientX: 80, pointerId: 2, isPrimary: true }));
+    await flush();
+
+    expect(onSwipeStart).toHaveBeenCalledTimes(1);
   });
 
   it("abandons intent when the live transition no longer supports swipe", async () => {

@@ -839,21 +839,6 @@ function ScreenMotion({
       }}
     >
       <div
-        data-swipe-at-edge-bar
-        style={{
-          position: screenPosition,
-          top: 0,
-          left: 0,
-          width: 8,
-          height: "100%",
-          zIndex: 1,
-          // The strip is a layout marker only. Let the scope underneath own
-          // the pointer stream so edge-originated vertical scrolls are not an
-          // 8px dead zone and page-wide swipe recognition stays consistent.
-          pointerEvents: "none"
-        }}
-      />
-      <div
         ref={scopeRef}
         {...props}
         onPointerDown={handlePointerDown}
@@ -1053,18 +1038,6 @@ function ScreenMotion({
         </div>
       )}
       {decorator && <ScreenDecorator ref={decoratorRef} data-flemo-anim-hold={holdAttr} />}
-      <div
-        data-swipe-at-edge-bar
-        style={{
-          position: screenPosition,
-          top: 0,
-          right: 0,
-          width: 8,
-          height: "100%",
-          zIndex: 1,
-          pointerEvents: "none"
-        }}
-      />
     </div>
   );
 }
