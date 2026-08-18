@@ -339,6 +339,15 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
   }
 
   const fallbackCopy = (json: string): void => {
+    // The async Clipboard API can reject after a navigation has started (or
+    // after the panel detached). The legacy textarea path is still a DOM
+    // write, so it follows the same flight gate as every other panel update.
+    if (detached) return;
+    if (flightInProgress()) {
+      window.clearTimeout(copyTimer);
+      copyTimer = window.setTimeout(() => fallbackCopy(json), OPEN_REFRESH_MS);
+      return;
+    }
     const area = el("textarea");
     area.value = json;
     area.setAttribute("aria-hidden", "true");

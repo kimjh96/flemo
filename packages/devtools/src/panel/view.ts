@@ -223,14 +223,27 @@ export const renderFlightDetail = (node: Element, flight: FlightRecord | null): 
   const images = section(node, "images");
   const completed = flight.images?.completedDuringFlight ?? 0;
   const held = flight.images?.heldDuringFlight ?? 0;
+  const completedUnheld = flight.images?.completedUnheld;
+  // Older/partial reports may not carry completedUnheld. Preserve the old
+  // best-effort tone only for those; schema-v2 reports use the per-image
+  // result so an unrelated held image cannot hide an unheld completion.
+  const hasUnheldCompletion =
+    typeof completedUnheld === "number" ? completedUnheld > 0 : completed > held;
   kv(images, "loading at t0", formatCount(flight.images?.loadingAtStart));
+  kv(images, "added mid-flight", formatCount(flight.images?.addedDuringFlight));
   kv(
     images,
     "completed mid-flight",
     formatCount(flight.images?.completedDuringFlight),
-    completed > held ? "bad" : undefined
+    hasUnheldCompletion ? "bad" : undefined
   );
   kv(images, "held by the engine", formatCount(flight.images?.heldDuringFlight));
+  kv(
+    images,
+    "completed without hold",
+    formatCount(completedUnheld),
+    hasUnheldCompletion ? "bad" : undefined
+  );
 
   renderLongTasks(section(node, "long tasks"), flight);
 

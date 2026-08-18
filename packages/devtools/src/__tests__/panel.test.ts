@@ -448,6 +448,53 @@ describe("attachDevtoolsPanel — copy report JSON", () => {
     expect(copyButton()?.textContent).toBe("Copied ✓");
   });
 
+  it("defers the rejected-clipboard fallback until the flight lands", async () => {
+    let reject = (_error: Error): void => {};
+    const execCommand = vi.fn(() => true);
+    setClipboard({
+      writeText: () =>
+        new Promise<void>((_resolve, rejectPromise) => {
+          reject = rejectPromise;
+        })
+    });
+    setExecCommand(execCommand);
+    mount({ recorder: stub(() => report()), initialOpen: true });
+    vi.advanceTimersByTime(400);
+
+    const screen = mountScreen("PUSHING");
+    copyButton()?.click();
+    reject(new Error("denied"));
+    await flushMicrotasks();
+    expect(execCommand).not.toHaveBeenCalled();
+    expect(document.querySelectorAll("textarea")).toHaveLength(0);
+
+    screen.setAttribute("data-flemo-status", "COMPLETED");
+    vi.advanceTimersByTime(400);
+    expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(document.querySelectorAll("textarea")).toHaveLength(0);
+  });
+
+  it("does not run the rejected-clipboard fallback after detach", async () => {
+    let reject = (_error: Error): void => {};
+    const execCommand = vi.fn(() => true);
+    setClipboard({
+      writeText: () =>
+        new Promise<void>((_resolve, rejectPromise) => {
+          reject = rejectPromise;
+        })
+    });
+    setExecCommand(execCommand);
+    mount({ recorder: stub(() => report()), initialOpen: true });
+    copyButton()?.click();
+    panel?.detach();
+    panel = null;
+
+    reject(new Error("denied"));
+    await flushMicrotasks();
+    expect(execCommand).not.toHaveBeenCalled();
+    expect(document.querySelectorAll("textarea")).toHaveLength(0);
+  });
+
   it("falls back when there is no clipboard at all, and survives a denied execCommand", () => {
     setClipboard(undefined);
     setExecCommand(() => {
@@ -555,7 +602,13 @@ describe("attachDevtoolsPanel — the motion/images sections", () => {
         pausedAfterRelease: true,
         holdReassertedAtMs: 180
       },
-      images: { loadingAtStart: 12, completedDuringFlight: 5, heldDuringFlight: 0 },
+      images: {
+        loadingAtStart: 12,
+        addedDuringFlight: 3,
+        completedDuringFlight: 5,
+        heldDuringFlight: 5,
+        completedUnheld: 1
+      },
       landing: {
         residualInlineTransforms: [],
         offViewportAtRest: false,
@@ -577,6 +630,8 @@ describe("attachDevtoolsPanel — the motion/images sections", () => {
     expect(detail).toContain("180ms");
     expect(detail).toContain("still marked at rest");
     expect(detail).toContain("completed mid-flight");
+    expect(detail).toContain("added mid-flight3");
+    expect(detail).toContain("completed without hold1");
   });
 
   it("marks a real finding, and leaves a clean flight unmarked", () => {
@@ -605,7 +660,13 @@ describe("attachDevtoolsPanel — the motion/images sections", () => {
                 pausedAfterRelease: false,
                 holdReassertedAtMs: null
               },
-              images: { loadingAtStart: 12, completedDuringFlight: 4, heldDuringFlight: 12 },
+              images: {
+                loadingAtStart: 12,
+                addedDuringFlight: 0,
+                completedDuringFlight: 4,
+                heldDuringFlight: 12,
+                completedUnheld: 0
+              },
               landing: {
                 residualInlineTransforms: [],
                 offViewportAtRest: false,

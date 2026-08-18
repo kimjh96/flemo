@@ -646,6 +646,10 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       for (const element of transitional) {
         if (!current.elements.includes(element)) {
           current.elements.push(element);
+          // A whole screen can mount after the flight opened. Its childList
+          // record was processed before this screen belonged to the flight,
+          // so sweep the subtree again now that containment is authoritative.
+          trackAddedImages(element.querySelectorAll("img"));
           current.participants = countParticipants(current.elements);
         }
       }

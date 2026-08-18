@@ -395,6 +395,39 @@ describe("regression net: image accounting is per image, not per count", () => {
     expect(flight.images.completedUnheld).toBe(1);
   });
 
+  it("tracks images inside a screen that joins after the flight opened", async () => {
+    const first = mountScreen();
+    handle = attachFlightRecorder();
+    await settle();
+
+    await openFlight(first);
+    await release(first);
+    await frames(1);
+
+    // React prepares an entering screen off-DOM and appends the complete
+    // subtree in one commit. The childList callback sees this node before
+    // evaluate() has unioned it into the flight participants.
+    const joined = document.createElement("div");
+    joined.setAttribute("data-flemo-screen", "");
+    joined.setAttribute("data-flemo-status", "PUSHING");
+    joined.setAttribute("data-flemo-active", "false");
+    const late = addImage(joined, false);
+    document.body.appendChild(joined);
+    await settle();
+    await frames(1);
+
+    Object.defineProperty(late, "complete", { value: true, configurable: true });
+    first.setAttribute("data-flemo-status", "COMPLETED");
+    joined.setAttribute("data-flemo-status", "COMPLETED");
+    await settle();
+    await frames(4);
+
+    const flight = handle.report().flights[0];
+    expect(flight.participants.screens).toBe(2);
+    expect(flight.images.addedDuringFlight).toBe(1);
+    expect(flight.images.completedUnheld).toBe(1);
+  });
+
   it("counts a mid-flight arrival the engine parked as held", async () => {
     const screen = mountScreen();
     handle = attachFlightRecorder();
