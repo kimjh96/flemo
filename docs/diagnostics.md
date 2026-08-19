@@ -40,7 +40,9 @@ in DevTools (`sessionStorage.setItem("flemo:apply", "scrub")`) and — for the c
 **Production default with override**
 
 - `flemo:settle-gate` = `on`/`off` — render-settle entry gate; default ON for touch
-  WebKit (`governedCompiledActive()`), off elsewhere.
+  WebKit (`governedCompiledActive()`), touch Blink, and verified steady-60 desktop
+  Blink; off elsewhere. It only protects the START of a flight — a block landing
+  mid-flight ages a wall-clocked compiled animation regardless.
 - `flemo:snap` = `always`/`off`/`gate`/`hybrid` — player device-pixel snap policy.
   Platform default: WebKit at dpr<3 snaps always; dpr≥3 and Blink use the velocity
   gate.

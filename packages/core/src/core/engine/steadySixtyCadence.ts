@@ -130,12 +130,16 @@ export const reportInFlightCadence = (rawMedianMs: number, rawMaxMs?: number): v
 export const steadySixtyVerified = (): boolean =>
   !sawHighRefresh && sixtyStreak >= STEADY_SIXTY_FLIGHTS;
 
-// The full routing predicate: a desktop (non-touch) Blink session on a HiDPI
-// display whose in-flight cadence has verified steady-60. Consulted by the
-// engine's joinPlayer desktop gate AND by the settle-gate default (a
-// main-thread player must not be born into the entering screen's mount
-// commit — the render-settle gate is the same protection the touch tiers
-// ship with).
+// The desktop-PROFILE predicate: a desktop (non-touch) Blink session on a
+// HiDPI display whose in-flight cadence has verified steady-60.
+//
+// It does NOT route the driver. The 2026-08-18 live ladder settled desktop on
+// the compiled tier unconditionally (see the verdict block in
+// createTransitionEngine's joinPlayer), so this gates desktop-profile DEFAULTS
+// only: the render-settle gate, the unpainted-only image hold, the compositor
+// warm-up's cadence video, and the rest-promotion term in the binding. The
+// name is historical — read it as "this session qualifies for the steady-60
+// desktop profile", not "the player drives here".
 export const steadySixtyPlayerEligible = (): boolean =>
   steadySixtyVerified() &&
   detectBlinkEngine() &&

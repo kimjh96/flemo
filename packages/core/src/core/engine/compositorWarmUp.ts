@@ -116,15 +116,12 @@ export default function holdCompositorWarm(): () => void {
   }
 
   holders += 1;
-  // FLIGHT-SCOPED FORCING SURFACE (2026-08-18, the observer-effect round):
-  // the user independently noticed the residual pop stutter is REDUCED
-  // WHENEVER A SCREEN CAPTURE IS RUNNING — a capture client forces
-  // WindowServer to composite every vsync, machine-wide. That names the
-  // residual layer (WindowServer's demand-adaptive composition pacing) and
-  // the countermeasure: during the flight window the persistent cadence
-  // video grows to a LARGE quad (40vw, still 2% opacity), forcing a big
-  // per-frame composition the way a capture does — then shrinks back at
-  // settle so the idle cost stays at the 8px tick.
+  // NOT a flight-scoped forcing surface. The observer-effect round tried
+  // growing this video to a large quad (40vw) during the flight to mimic what
+  // a running screen capture does to WindowServer's composition pacing; it was
+  // falsified on device (it never replicated the capture effect and added
+  // layer churn per interaction) and only the resident 8px tick survived.
+  // See docs/postmortems/2026-08-motion-jank.md — do not re-add the resize.
   if (!element) {
     element = document.createElement("div");
     element.setAttribute(WARM_ATTR, "");
