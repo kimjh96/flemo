@@ -1,5 +1,34 @@
 # @flemo/web
 
+## 0.10.9
+
+### Patch Changes
+
+- [`7e7a96b`](https://github.com/kimjh96/flemo/commit/7e7a96b5701818c5c4e251a5d3fa84a5def983ac) Introduce @flemo/devtools: a zero-dependency flight recorder that captures per-transition driver routing, frame pacing, long tasks, landing residues, active debug overrides, and environment/observation-trap fingerprints into a single JSON report for humans and coding agents. Attach with attachFlightRecorder() or ?devtools=on in the playground.
+
+- [`455739c`](https://github.com/kimjh96/flemo/commit/455739c3d2428c4890eda63ee1c2d0346454e20b) Load the flight recorder through a dev-only dynamic import so it no longer ships in the playground's production bundle, and document the same pattern in the `@flemo/devtools` README. Installing the package as a devDependency controls what is installed, not what is bundled — a plain top-level import of a package you call at runtime reaches every visitor.
+
+- [`945eaba`](https://github.com/kimjh96/flemo/commit/945eabace0200a7693271e9433e28da62f2e848a) Fix the pop-convergence round: post-landing layer demotions now wait out any
+  in-flight navigation (the intermittent mid-pop stall), the player's
+  perceptual cut lands its final pixel on the cut frame instead of the
+  COMPLETED flip, and a navigation force-concludes swipe settles on its
+  participants — a tap grazing the swipe-back edge no longer fights the pop it
+  triggered. Desktop WebKit and desktop Blink now ride the compositor-driven
+  compiled tier deterministically, with the landing governor expressed as an
+  easing reshape. The image decode offloader holds re-entry reveals to the
+  flight's rest, and the playground's baked gradient is scoped to Blink (the
+  swap itself was Safari's first-entry blink). On iOS, Low Power Mode is now
+  detected (a regular ~33ms rAF cluster, isolated from the player's learned
+  interval, persisted per session) and single slide navigations route to the
+  compositor-driven compiled tier with the birth anchor and stall watcher
+  armed — rAF is capped at ~30Hz under LPM while the compositor keeps the
+  panel rate, so transitions stay smooth instead of half-density.
+- Updated dependencies ([`30c2a54`](https://github.com/kimjh96/flemo/commit/30c2a5428e3561aa0d43295df852031c02975e39), [`9b16d8f`](https://github.com/kimjh96/flemo/commit/9b16d8fcd5b267b0e8865001c8db505be56814cf), [`707442e`](https://github.com/kimjh96/flemo/commit/707442e1ec67612f016aba93685750dc21a32541), [`7e7a96b`](https://github.com/kimjh96/flemo/commit/7e7a96b5701818c5c4e251a5d3fa84a5def983ac), [`14e0a76`](https://github.com/kimjh96/flemo/commit/14e0a767c83a0a0cb4ebdb14c5e6a46e75437e48), [`cec6ab6`](https://github.com/kimjh96/flemo/commit/cec6ab66d6334fe8203ea304fe496ff6849fa559), [`0473551`](https://github.com/kimjh96/flemo/commit/0473551b5911d203ae7984ba53623baa6268396b), [`fca7692`](https://github.com/kimjh96/flemo/commit/fca7692bfccdb9d3e5a9cd89ecdb97d99640ad80), [`de35c13`](https://github.com/kimjh96/flemo/commit/de35c13ae4639ef42627b213f74f6387d5ce3745), [`f6463d9`](https://github.com/kimjh96/flemo/commit/f6463d97d08c722b036ee4f436112d016460f45b), [`b495c99`](https://github.com/kimjh96/flemo/commit/b495c99651e2eb73f720d2f802525b538a782c95), [`20744c0`](https://github.com/kimjh96/flemo/commit/20744c0f2ed1bcfd8d50a5c4b6c9fb52bc7d9226), [`945eaba`](https://github.com/kimjh96/flemo/commit/945eabace0200a7693271e9433e28da62f2e848a), [`88c5cff`](https://github.com/kimjh96/flemo/commit/88c5cff30f3edd580b4a52513e287aa1c082882f), [`14923eb`](https://github.com/kimjh96/flemo/commit/14923eb8d7f6c9c3574d8c95db606ff190b2ca54), [`de35c13`](https://github.com/kimjh96/flemo/commit/de35c13ae4639ef42627b213f74f6387d5ce3745), [`b6c62f6`](https://github.com/kimjh96/flemo/commit/b6c62f67569a5cb5901e7de7ad9536eeefb0a3e9), [`2be1e05`](https://github.com/kimjh96/flemo/commit/2be1e05a6d18883830edeaffbe5db7d724ebb204), [`6d6dae8`](https://github.com/kimjh96/flemo/commit/6d6dae8f98b159d3faa5b0b57a637288fffc6c53), [`6d3cc23`](https://github.com/kimjh96/flemo/commit/6d3cc238755a1a7d2d25edbf9113ea7c27fc571e), [`707442e`](https://github.com/kimjh96/flemo/commit/707442e1ec67612f016aba93685750dc21a32541), [`707442e`](https://github.com/kimjh96/flemo/commit/707442e1ec67612f016aba93685750dc21a32541), [`bfd077a`](https://github.com/kimjh96/flemo/commit/bfd077a0b67181da88f73d46ccadcff73b7ff65d), [`b6c62f6`](https://github.com/kimjh96/flemo/commit/b6c62f67569a5cb5901e7de7ad9536eeefb0a3e9)):
+  - @flemo/core@1.24.0
+  - @flemo/react@1.11.0
+  - @flemo/devtools@0.1.0
+  - @flemo/react-layout@0.1.42
+
 ## 0.10.8
 
 ### Patch Changes

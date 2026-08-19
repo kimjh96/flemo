@@ -1,5 +1,44 @@
 # @flemo/react
 
+## 1.11.0
+
+### Minor Changes
+
+- [`30c2a54`](https://github.com/kimjh96/flemo/commit/30c2a5428e3561aa0d43295df852031c02975e39) Add optional shared top and bottom bar IDs so only semantically matching bars hand over in place. Reuse matching partner measurements and synchronously reserve newly measured bar heights before paint, while retaining the legacy position-only behavior when IDs are omitted.
+
+- [`b495c99`](https://github.com/kimjh96/flemo/commit/b495c99651e2eb73f720d2f802525b538a782c95) Scope the image-decode offloader to legacy Android Blink instead of running it on every device. A touch Chromium that ships no UA-CH brands (device-confirmed Galaxy Note 9 Samsung Internet) is confidently pre-2021, GPU-starved hardware whose oversized-image decode stalls the transition opening on re-entry; the offloader now auto-engages there and downscales only its genuinely oversized `<img>` sources. Modern devices (which ship UA-CH brands) and iOS are excluded, so a flagship is never touched, and `flemo:imgoffload` still overrides both ways (`on` forces it anywhere, `off` opts a legacy device out). Exposes `isLegacyAndroidBlink` from `@flemo/core`.
+
+- [`707442e`](https://github.com/kimjh96/flemo/commit/707442e1ec67612f016aba93685750dc21a32541) Close the release race that intermittently froze flights mid-motion on desktop Chrome: the hold release now reconciles React state in the same task as the readiness rAF (flushSync), so an interleaved commit can no longer write the stale paused hold attribute over a running animation. The render-settle gate also arms on a pop's returning screen (its landing-storm commits are node-light and slipped the mount-sized threshold), and a covered screen's Activity freeze is debounced past the natural browse rhythm so a quick detail-and-back never pays the hide/unhide raster thrash mid-flight.
+
+### Patch Changes
+
+- [`cec6ab6`](https://github.com/kimjh96/flemo/commit/cec6ab66d6334fe8203ea304fe496ff6849fa559) Remove dead diagnostic instrumentation (the write-only `window.__flemoRoute`/`__flemoOpenings`/`__flemoSeam`/`__flemoHandoffs`/`__flemoParked` globals and the unused `flemo:compiled` and `flemo:native` toggles) and consolidate the surviving `flemo:*` debug flags into one documented registry (`diagnosticFlags.ts`). No behavior change — every shipped default, storage key, and per-page-load caching contract is preserved, and `window.__flemoPlayerGaps` keeps working.
+
+- [`fca7692`](https://github.com/kimjh96/flemo/commit/fca7692bfccdb9d3e5a9cd89ecdb97d99640ad80) Emit `data-flemo-router` only after hydration so the router marker can't cause a hydration mismatch. The id comes from `useId`, whose value encodes the component's position from the hydration root; a consumer whose server render root differs from its client hydrate root (e.g. SSR renders `<Html><App/></Html>` but the client hydrates just `<App/>` at `#root`) produces a different id on each side, surfacing as a mismatch on the one flemo attribute that reaches the DOM. The engine only reads the attribute client-side, so it is now withheld until mount — server and first client render both emit nothing (a match), and an effect exposes it once hydrated.
+
+- [`945eaba`](https://github.com/kimjh96/flemo/commit/945eabace0200a7693271e9433e28da62f2e848a) Fix the pop-convergence round: post-landing layer demotions now wait out any
+  in-flight navigation (the intermittent mid-pop stall), the player's
+  perceptual cut lands its final pixel on the cut frame instead of the
+  COMPLETED flip, and a navigation force-concludes swipe settles on its
+  participants — a tap grazing the swipe-back edge no longer fights the pop it
+  triggered. Desktop WebKit and desktop Blink now ride the compositor-driven
+  compiled tier deterministically, with the landing governor expressed as an
+  easing reshape. The image decode offloader holds re-entry reveals to the
+  flight's rest, and the playground's baked gradient is scoped to Blink (the
+  swap itself was Safari's first-entry blink). On iOS, Low Power Mode is now
+  detected (a regular ~33ms rAF cluster, isolated from the player's learned
+  interval, persisted per session) and single slide navigations route to the
+  compositor-driven compiled tier with the birth anchor and stall watcher
+  armed — rAF is capped at ~30Hz under LPM while the compositor keeps the
+  panel rate, so transitions stay smooth instead of half-density.
+
+- [`6d6dae8`](https://github.com/kimjh96/flemo/commit/6d6dae8f98b159d3faa5b0b57a637288fffc6c53) Keep transition-adjacent scrolling responsive and reject cross-axis touch jitter before page-wide swipe-back can claim or cancel into an unintended pop.
+
+  During push and replace transitions, Flemo suppresses `click` activation for React handlers and native click listeners below the React root. Listeners above the root, plus lower-level pointer and mouse events, remain observable so the browser can preserve native scroll targeting across the transition.
+
+- Updated dependencies ([`30c2a54`](https://github.com/kimjh96/flemo/commit/30c2a5428e3561aa0d43295df852031c02975e39), [`9b16d8f`](https://github.com/kimjh96/flemo/commit/9b16d8fcd5b267b0e8865001c8db505be56814cf), [`707442e`](https://github.com/kimjh96/flemo/commit/707442e1ec67612f016aba93685750dc21a32541), [`cec6ab6`](https://github.com/kimjh96/flemo/commit/cec6ab66d6334fe8203ea304fe496ff6849fa559), [`0473551`](https://github.com/kimjh96/flemo/commit/0473551b5911d203ae7984ba53623baa6268396b), [`de35c13`](https://github.com/kimjh96/flemo/commit/de35c13ae4639ef42627b213f74f6387d5ce3745), [`b495c99`](https://github.com/kimjh96/flemo/commit/b495c99651e2eb73f720d2f802525b538a782c95), [`20744c0`](https://github.com/kimjh96/flemo/commit/20744c0f2ed1bcfd8d50a5c4b6c9fb52bc7d9226), [`945eaba`](https://github.com/kimjh96/flemo/commit/945eabace0200a7693271e9433e28da62f2e848a), [`88c5cff`](https://github.com/kimjh96/flemo/commit/88c5cff30f3edd580b4a52513e287aa1c082882f), [`14923eb`](https://github.com/kimjh96/flemo/commit/14923eb8d7f6c9c3574d8c95db606ff190b2ca54), [`de35c13`](https://github.com/kimjh96/flemo/commit/de35c13ae4639ef42627b213f74f6387d5ce3745), [`b6c62f6`](https://github.com/kimjh96/flemo/commit/b6c62f67569a5cb5901e7de7ad9536eeefb0a3e9), [`2be1e05`](https://github.com/kimjh96/flemo/commit/2be1e05a6d18883830edeaffbe5db7d724ebb204), [`6d6dae8`](https://github.com/kimjh96/flemo/commit/6d6dae8f98b159d3faa5b0b57a637288fffc6c53), [`6d3cc23`](https://github.com/kimjh96/flemo/commit/6d3cc238755a1a7d2d25edbf9113ea7c27fc571e), [`707442e`](https://github.com/kimjh96/flemo/commit/707442e1ec67612f016aba93685750dc21a32541), [`bfd077a`](https://github.com/kimjh96/flemo/commit/bfd077a0b67181da88f73d46ccadcff73b7ff65d), [`b6c62f6`](https://github.com/kimjh96/flemo/commit/b6c62f67569a5cb5901e7de7ad9536eeefb0a3e9)):
+  - @flemo/core@1.24.0
+
 ## 1.10.0
 
 ### Minor Changes
