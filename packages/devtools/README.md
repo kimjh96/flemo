@@ -38,7 +38,16 @@ Two things to know:
   not, keep the module behind a dynamic import guarded by a build-time
   constant (`process.env.NODE_ENV !== "production"`, Vite's
   `import.meta.env.DEV`) so the branch — and the module behind it — is
-  eliminated.
+  eliminated. There is no automatic fallback for that case, and the shape of
+  this package is why: `@tanstack/react-query-devtools` gets one by importing
+  its implementation statically and swapping it on `process.env.NODE_ENV`, so
+  the bundler folds the constant and drops the now-unreferenced module. That
+  works because their implementation stays a separate module file. Ours cannot
+  — `dist/index.mjs` is self-contained on purpose, so it can be loaded
+  directly in a page — and measured with esbuild (which sets neither
+  condition), the same swap strips nothing: production and development bundles
+  came out byte-identical in size with the recorder present in both. The guard
+  is the answer there, not a trick inside the package.
 - **`@flemo/devtools/force` is the escape hatch.** It resolves to the real
   tool whatever the build mode, for when you deliberately want the recorder in
   a production build (a staging deploy, an e2e suite that must run against a
