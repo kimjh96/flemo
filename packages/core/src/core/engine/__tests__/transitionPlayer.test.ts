@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import animateInline from "@transition/animateInline";
 import type { VariantMotion } from "@transition/variantMotion";
 
-import driverPolicy from "@core/engine/driverPolicy";
 import {
   createTransitionPlayerRegistry,
   isPlayerDrivable,
@@ -759,19 +758,20 @@ describe("transitionPlayer block-resilient re-anchor", () => {
     expect(completed).toBe(1);
   });
 
-  it("reports the RAW stall gap to the driver policy even when it re-anchors", () => {
+  it("reports the RAW stall gap to the diagnostic hook even when it re-anchors", () => {
     const { scheduler, pump } = createFakeScheduler();
     const registry = createTransitionPlayerRegistry(scheduler);
     const el = element();
-    const reportGap = vi.spyOn(driverPolicy, "reportGap");
+    const gaps: number[] = [];
+    registry.onFrameGap = (gapMs) => gaps.push(Math.round(gapMs));
 
     registry.join("task-1", { element: el, motion: fadeOut(1), role: "active" });
 
     pump(0);
     pump(30);
-    pump(400); // re-anchors, but the policy must still see the raw 370ms gap
+    pump(400); // re-anchors, but an observer must still see the raw 370ms gap
 
-    expect(reportGap.mock.calls.map(([gap]) => Math.round(gap))).toEqual([30, 370]);
+    expect(gaps).toEqual([30, 370]);
   });
 
   it("re-anchors a scrub-WAAPI track's clock too (one shared startTime)", () => {
@@ -995,7 +995,6 @@ describe("anchored-opening handoff (non-Blink, diagnostic opt-in)", () => {
     const remainder = remainderAnimation();
     const animate = vi.fn().mockReturnValueOnce(scrub).mockReturnValueOnce(remainder);
     el.animate = animate as unknown as typeof el.animate;
-    const endRun = vi.spyOn(driverPolicy, "endRun");
     let completed = 0;
 
     registry.join("task-1", {
@@ -1042,10 +1041,8 @@ describe("anchored-opening handoff (non-Blink, diagnostic opt-in)", () => {
     expect(options.fill).toBe("both");
     expect(scrub.canceled).toBe(true);
     expect(el.style.animation).toBe("none"); // compiled stays suppressed for the whole flight
-    // The loop stops — the browser presents from here, so no frames, no
-    // stall evidence, and the policy run closes once.
+    // The loop stops — the browser presents from here, so no more frames.
     expect(pendingCount()).toBe(0);
-    expect(endRun).toHaveBeenCalledTimes(1);
     expect(completed).toBe(0);
 
     // With the compiled animation suppressed throughout, no animationend can
@@ -1053,7 +1050,6 @@ describe("anchored-opening handoff (non-Blink, diagnostic opt-in)", () => {
     // completes the flight here (and only once).
     remainder.onfinish?.();
     expect(completed).toBe(1);
-    expect(endRun).toHaveBeenCalledTimes(1);
     remainder.onfinish?.(); // idempotent: a stray second event changes nothing
     expect(completed).toBe(1);
   });

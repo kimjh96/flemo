@@ -167,9 +167,9 @@ const animateInline = (
   }
 
   // The settle rides the scrub clock only where the player itself is the
-  // driver of choice (Blink by default, and never on a demoted device): on
-  // engines whose compositor is healthy, the CSS transition below IS the
-  // right settle.
+  // driver of choice — i.e. not under a `css` force pin (the sole input to
+  // playerAllowed() since demotion was retired): on engines whose compositor
+  // is healthy, the CSS transition below IS the right settle.
   const scrubbed = driverPolicy.playerAllowed()
     ? settleScrubber.settle(
         el,

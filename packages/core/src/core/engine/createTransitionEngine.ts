@@ -1041,7 +1041,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // Join this screen's participants (scope, riding bars, decorator) to the
     // navigation's shared player. The player covers every motion — numeric
     // interpolation or a scrubbed Web Animation — so a null here means the
-    // player must not or cannot run (replay chain, demoted device, no WAAPI)
+    // player must not or cannot run (Blink, replay chain, css pin, no WAAPI)
     // and the compiled CSS path stays in charge.
     const joinPlayer = (
       variant: TransitionVariant,
@@ -1076,100 +1076,83 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (detectBlinkEngine() && TaskManger.pendingTaskIds.some((id) => id !== taskId)) {
         return null;
       }
-      // 2. HIGH-REFRESH Blink runs the COMPILED tier: at a ~120Hz cadence the
-      //    player's per-frame main-thread write must survive commit →
-      //    activation → draw inside an 8.3ms budget, and traced on a
-      //    ProMotion MacBook it measurably cannot — 36% of the flight's
-      //    frames presented PARTIAL (the vsync shipped without the player's
-      //    latest position; PipelineReporter: 81/224 vs 6/149 compiled, same
-      //    machine, same flight), an every-few-frames stale-then-double-step
-      //    the eye reads as trembling and rAF timing cannot see. The
-      //    compiled animation is compositor-driven and immune. Blink-only:
-      //    WebKit presents from the main thread, so its player writes ARE
-      //    the presentation.
-      //    DESKTOP Blink routes unconditionally, not by measured cadence: an
-      //    adaptive panel (ProMotion) idles at 60Hz, so the load-time probe
-      //    reads 16.7ms on the very machine that ramps to 120Hz the moment a
-      //    compositor animation runs — the interval gate flipped per-session
-      //    on the same hardware (measured: real Chrome, idle rAF 16.7ms
-      //    median on the 120Hz panel). Touch devices keep the
-      //    device-verified player; for them the learned interval, refreshed
-      //    by the engine's own probe (armed below), still routes genuine
-      //    high-refresh cadences.
-      //    (2026-08-14: the blanket "all touch Blink → compiled" of final91
-      //    regressed FAST Blink — a Pixel 9 and desktop Chrome, whose
-      //    player was clean, picked up the compiled path's landing snap and
-      //    intermittent stutter. Touch Blink is back to the device-verified
-      //    PLAYER by default; only HIGH-REFRESH panels (where the player's
-      //    per-frame write cannot survive an 8ms budget) or a device the
-      //    demotion has judged chronically slow (the Note 9) route compiled.
-      //    The demotion is faster now — one strike, see driverPolicy — so a
-      //    weak device flips after a single bad flight instead of two.)
+      // 2. BLINK RUNS THE COMPILED TIER. The evidence first, then the rule.
+      //    At a ~120Hz cadence the player's per-frame main-thread write must
+      //    survive commit -> activation -> draw inside an 8.3ms budget, and
+      //    traced on a ProMotion MacBook it measurably cannot: 36% of the
+      //    flight's frames presented PARTIAL (the vsync shipped without the
+      //    player's latest position; PipelineReporter 81/224 vs 6/149
+      //    compiled, same machine, same flight) — an every-few-frames
+      //    stale-then-double-step the eye reads as trembling and rAF timing
+      //    cannot see. The compiled animation is compositor-driven and
+      //    immune. Blink-only: WebKit presents from the main thread, so its
+      //    player writes ARE the presentation.
+      //
+      //    Measured cadence cannot be the gate. An adaptive panel idles at
+      //    60Hz, so a load-time probe reads 16.7ms on the very machine that
+      //    ramps to 120Hz the moment a compositor animation runs — the
+      //    interval gate flipped per-session on identical hardware (real
+      //    Chrome, idle rAF 16.7ms median on the 120Hz panel).
+      //
+      //    HISTORY, recorded so the ladder is not re-climbed. A blanket "all
+      //    touch Blink -> compiled" (2026-08-14) was reverted when fast
+      //    devices picked up a landing snap, leaving touch Blink on the
+      //    player with DEMOTION as its only escape. A steady-60 carve-out
+      //    (2026-08-17) then routed verified 60Hz HiDPI desktop sessions
+      //    BACK to the player for its device-pixel snap; the live-judged
+      //    ladder of 2026-08-18 settled it the other way, trying every
+      //    driver back-to-back on the target machine with its known poisons
+      //    individually fixed (rAF player: best texture, main-thread-coupled,
+      //    judged worst felt; per-frame !important snap mask: manufactured
+      //    its own staircase; pre-quantized step-end WAAPI ladder: worse
+      //    still, most plausibly demoted off the compositor). Compiled
+      //    carried the least felt stutter; its residual is the slow-band
+      //    fractional shimmer, a rendering-physics floor no per-frame writer
+      //    beat on this hardware. What survives of the carve-out is a
+      //    PROFILE, not a route: steadySixtyPlayerEligible() now only selects
+      //    desktop DEFAULTS (settle gate, image hold, warm-up cadence video).
+      //    Full ledger: docs/postmortems/2026-08-motion-jank.md.
+      //
+      //    THE RULE (2026-08-19): Blink, everywhere, one condition.
+      //
+      // Touch Blink
+      // used to default to the player and reach the compiled tier only by
+      // DEMOTION — two stalled flights, persisted per ORIGIN, and re-probed
+      // once per session. That made a weak phone's behavior depend on which
+      // origin it had visited before and on how recently the page reloaded:
+      // the first flight after every load ran the player even on a device
+      // whose ledger already said "css", which is precisely the intermittency
+      // a user reports as "가끔 유독 나쁘다".
+      //
+      // Unifying is the engine's own model, stated in driverPolicy's header:
+      // on Blink the compiled path composites healthily, so it is a REFUGE
+      // there (on non-Blink it is the freeze-and-jump tier and never can be).
+      // A refuge that a device only reaches after paying for two bad flights
+      // is a worse contract than simply routing there.
+      //
+      // What the player provided on touch Blink — a capped clock that absorbs
+      // a mid-flight commit storm — is covered from the other side: the
+      // render-settle gate holds the release until the entering mount storm
+      // quiesces, and it is default-on for touch Blink since PR #268.
+      //
+      // WebKit is deliberately NOT part of this. There the compiled tier
+      // swallows its opening and the player is device-verified three rounds
+      // over; see the touch-WebKit block below.
+      //
       // Bypassed by the "raf" force pin: a pinned session must player-drive
       // everything to be a useful instrument (the same contract as the
       // kind-scoped choice below), and it is the only route to the player's
-      // per-frame device-pixel snap on desktop (a HiDPI convergence-shimmer
-      // diagnostic). The pierce was briefly retired (PR #256) when a pinned
-      // desktop re-entry (push→pop→push) left the entering screen parked at
-      // its from-pose (translateX 100%) — a blank viewport. That blank was
-      // NOT a player defect: the flight drove perfectly and the COMPLETED
-      // cleanup then failed to strip a stale restored pose (see the pose-
-      // channel strip in the COMPLETED branch, where the full mechanism is
-      // documented). With the cleanup fixed and e2e-guarded, the pin pierces
-      // again. DEFAULT desktop routing is unchanged: compiled, always.
-      //    STEADY-60 CARVE-OUT (2026-08-17): "unconditionally" above is now
-      //    "until the in-flight cadence proves otherwise". The first flights
-      //    of a desktop session run compiled while the display-interval probe
-      //    measures the panel WITH a compositor animation live (the only
-      //    moment an adaptive panel shows its true rate); once two flights
-      //    verify a steady-60 cadence on a HiDPI display, the player takes
-      //    over — its per-frame device-pixel snap (always-snap on desktop
-      //    densities) closes the compiled tier's fractional-phase convergence
-      //    shimmer, the exact residual the device A/B pinned on 4K@60Hz 2x
-      //    panels (`?driver=raf&snap=always` cleared it). A single sub-12ms
-      //    in-flight median latches the session back to compiled permanently
-      //    (see steadySixtyCadence.ts): partial presents on a ramped panel
-      //    are invisible to rAF, so the latch — not the demotion machinery —
-      //    is the high-refresh protection.
-      //    DESKTOP decides by the steady-60 verdict ALONE — the learned rAF
-      //    interval is a TOUCH routing input (desktop never consulted it
-      //    before the carve-out, short-circuiting on maxTouchPoints first),
-      //    and exposing a verified desktop session to it made the route FLAP:
-      //    one catch-up burst in the player's own gap stream dipped the
-      //    learned median under the threshold and the next flight fell back
-      //    to the compiled tier (device-reported as intermittent "갈색"
-      //    flights mid-session). A real display change re-latches through
-      //    the verdict instead: the player feeds its own uniform cadence
-      //    into reportInFlightCadence, where the jam-noise guard separates a
-      //    genuine 120Hz stream from burst noise.
-      if (
-        detectBlinkEngine() &&
-        driverPolicy.pinnedDriver() !== "raf" &&
-        (typeof navigator !== "undefined" && navigator.maxTouchPoints === 0
-          ? // Desktop: COMPILED — the settled verdict of the 2026-08-18
-            // live-judged ladder. Every driver was tried on the target
-            // machine back-to-back with its known poisons individually
-            // fixed: the rAF player (best texture via true device-px snap,
-            // but main-thread-coupled — judged "버벅과 끊김 심하다"), the
-            // per-frame !important snap mask (manufactured its own
-            // staircase + stale-mask stalls), and the pre-quantized
-            // step-end WAAPI ladder (judged much worse — most plausibly
-            // demoted off the compositor). The compiled compositor
-            // animation carries the least felt stutter; its residual is the
-            // slow-band fractional shimmer, which is a rendering-physics
-            // floor no per-frame writer beat on this hardware. Diagnostic
-            // The diagnostic force pins remain as instruments. (An earlier
-            // draft of this note offered `flemo:quantized=on`; that flag was
-            // never implemented — the pre-quantized ladder was deleted, not
-            // retained behind a toggle.)
-            true
-          : learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS ||
-            !driverPolicy.playerAllowed() ||
-            // A confidently-weak legacy Android (no UA-CH) skips the player
-            // probe that janked its first push every session (see
-            // isLegacyAndroidBlink).
-            isLegacyAndroidBlink())
-      ) {
+      // per-frame device-pixel snap (a HiDPI convergence-shimmer diagnostic).
+      // The pierce was briefly retired (PR #256) when a pinned desktop
+      // re-entry left the entering screen parked at its from-pose — a blank
+      // viewport that turned out to be a COMPLETED-cleanup failure, not a
+      // player defect (see the pose-channel strip in the COMPLETED branch).
+      // With that fixed and e2e-guarded, the pin pierces again.
+      //
+      // The display-interval probe still arms here: its verdict no longer
+      // routes anything, but the desktop PROFILE defaults read it (settle
+      // gate, unpainted-only image hold, the warm-up's cadence video).
+      if (detectBlinkEngine() && driverPolicy.pinnedDriver() !== "raf") {
         armDisplayIntervalProbe();
         return null;
       }
@@ -1290,9 +1273,11 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         probeLowPowerCadence(); // keep the flag fresh per routed flight
         return null;
       }
-      // 4. A device whose main thread chronically starves the player even on
-      //    single navigations (measured by the player's own frame gaps)
-      //    earned a demotion; CSS drives everything there, as it always did.
+      // 4. A `css` force pin. This gate once also caught devices the
+      //    demotion machinery had judged chronically starved, but demotion is
+      //    off everywhere since the Blink unification (its only purpose was
+      //    moving a starving Blink device to the tier Blink now always uses),
+      //    so playerAllowed() is false for exactly one reason today.
       if (!driverPolicy.playerAllowed()) return null;
 
       const { scope, decorator, bars } = getElements();
@@ -1510,7 +1495,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         const detach = joinPlayer(variant, "passive");
         if (detach) return detach;
 
-        // Player declined (replay chain, demoted device, or a variant it can't
+        // Player declined (Blink, replay chain, css pin, or a variant it can't
         // interpolate): the compiled CSS drives this exit. Wire cancel-resume on
         // every participant so a WebKit-cancelled fade rejoins its timeline
         // instead of dying silently under the incoming top. Pure resume — the
@@ -1817,22 +1802,34 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       typeof navigator !== "undefined" &&
       navigator.maxTouchPoints > 0 &&
       governedCompiledActive();
-    // Touch-Blink whose player was DEMOTED (driverPolicy chronic-starvation
-    // strikes) runs the compiled tier too — and it needs the same governed
-    // head kit: local Chromium rig (20x CPU throttle, 2026-08-13) showed
-    // the player janking 23-73ms mid-flight while compiled flights rode
-    // the identical load at ≤21ms — but a demoted device's commits are
-    // slow, so a BARE compiled flight would age its clock past the whole
-    // opening (the Note 9 profile: 120-260ms mount tasks). Same physics,
-    // same medicine, different trigger.
-    // Only a DEMOTED touch-Blink device (the Note 9) takes the governed head
-    // kit — a fast touch-Blink (Pixel 9) stays on the clean player and is
-    // never governed, so it never picks up the compiled landing snap.
+    // The governed head kit for touch Blink: a slow device's commits age a
+    // BARE compiled flight's clock past the whole opening (the Note 9
+    // profile: 120-260ms mount tasks), so the flight gets a held head instead
+    // of swallowing the curve's start.
+    //
+    // A `!driverPolicy.playerAllowed()` term used to sit beside the legacy
+    // check, to catch a DEMOTED device. It was REMOVED with demotion (2026-08-19),
+    // and not merely because it was dead: with nothing left to demote it
+    // resolved to "a css force pin", and a css pin changes no routing on touch
+    // Blink (gate 2 already sends every Blink flight compiled). So the only
+    // thing it still did was hand a PINNED session the governed head kit that
+    // the same device does not get in production — a diagnostic pin that
+    // silently alters the motion it was meant to observe. The pin must
+    // reproduce production, so the term is gone.
+    //
+    // Known gap, deliberately not closed here: a modern-but-weak touch Blink
+    // (UA-CH present, so not legacy) used to earn this kit through demotion
+    // and now cannot. The render-settle gate covers the same mount weight
+    // from the other side, default-on for touch Blink since PR #268.
+    // Extending the kit to ALL touch Blink is the obvious next lever and must
+    // NOT be taken blind: the 2026-08-14 round reverted exactly that blanket
+    // treatment when fast devices picked up the compiled landing snap (see
+    // docs/postmortems/2026-08-motion-jank.md). It needs a device round.
     const routedBlinkGoverned =
       detectBlinkEngine() &&
       typeof navigator !== "undefined" &&
       navigator.maxTouchPoints > 0 &&
-      (!driverPolicy.playerAllowed() || isLegacyAndroidBlink());
+      isLegacyAndroidBlink();
     // Unified-WebKit experiment: all touch WebKit on the compiled tier takes
     // the governed head kit too, so its opening commit lands in a held head
     // instead of swallowing the curve's start.

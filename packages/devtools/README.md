@@ -106,7 +106,7 @@ top edge to resize; the height persists in `sessionStorage` under
 
 **It never repaints during a flight.** That is the design constraint, not a
 nicety: this project once spent weeks chasing stutter that turned out to be
-_DevTools being open_ (see `docs/postmortems/`), and a measurement surface
+_DevTools being open_, and a measurement surface
 that repaints mid-transition reproduces that artifact and then reports it as a
 finding. So the panel
 

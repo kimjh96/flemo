@@ -4,9 +4,12 @@ The React binding over `@flemo/core`. The split is strict: core owns everything
 imperative and reusable (task queue, stores, engine, compiled styles, gesture math);
 this package owns React wiring — rendering the declarative state (data-attributes,
 inline styles) core's engine reads, and calling core at the right lifecycle moments.
-Engine internals are documented in `docs/architecture/motion-engine.md` and
-`docs/architecture/driver-routing.md`; diagnostics in `docs/diagnostics.md`. Public
-surface = `src/index.ts` re-exports only.
+Engine internals live in the engine's own comments — `createTransitionEngine.ts`
+(`joinPlayer` for routing, `driveScreenLifecycle` for the flight) and
+`diagnosticFlags.ts` (the flag registry table, which `documentedDefaults.test.ts`
+holds to the shipped readers). A longer-form `docs/` set exists in the maintainer's
+checkout but is NOT tracked (see .gitignore) — never treat a `docs/...` path cited in
+a comment as available. Public surface = `src/index.ts` re-exports only.
 
 ## Router (`src/Router.tsx`)
 
@@ -65,8 +68,17 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
    state-only path.
 4. **Swipe wiring**: a stable `createSwipeController` (core) reads live render values
    through `swipeEnvRef` (latest-ref pattern); pointer handlers forward native events;
-   an active `touchmove` listener prevents scroll during grabs and on the 8px
-   edge-zone strips.
+   an active `touchmove` listener prevents native scroll only after the controller has
+   claimed a drag. Recognition waits for 8px of movement and requires a 3:1 primary-
+   axis lead, so vertical scroll jitter cannot become page-wide horizontal back; a
+   `pointercancel` always settles without navigation. PUSHING/REPLACING destinations
+   remain hit-testable so a touch begun during the flight can scroll after landing.
+   The outer capture handler stops `click` before it reaches the target, so both React
+   handlers and native listeners on descendants of the React root are suppressed
+   until the transition completes. Listeners registered above the root
+   (`document`/`window`) still observe it. Lower-level pointer/mouse events
+   intentionally remain observable so native scroll targeting survives. Consumers
+   should commit navigation from `click`, not `pointerdown`/`pointerup`.
 5. **Bar riding and identity**: `computeBarRiding` in RENDER sets
    `data-flemo-bar-riding` in the same commit as the bar's status attribute (the
    compiled sibling selector keys on both); swipe mirrors bars synchronously inside
@@ -82,9 +94,9 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
    "original" — the root cause of the desktop player blank (PR #259; the engine now
    strips the scope's pose channels at COMPLETED). If you add inline styles here,
    assume the engine may capture and restore them.
-7. **Chrome**: status/system bars, shared top/bottom bars, the decorator,
-   `data-swipe-at-edge-bar` strips, and the surface registry
-   (`registerScreenSurface`, computed-style opacity, re-measured per status flip).
+7. **Chrome**: status/system bars, shared top/bottom bars, the decorator, and the
+   surface registry (`registerScreenSurface`, computed-style opacity, re-measured per
+   status flip).
    Shared-bar spacing has a pre-paint ordering contract: the ref callback measures
    first and writes both the spacer and a measurement ref; the registration layout
    effect publishes identity + that height in one store notification; then

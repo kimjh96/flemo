@@ -209,13 +209,29 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
     expect(playerDrove()).toBe(false);
   });
 
-  it("touch Blink routing is untouched by the desktop verdict", () => {
+  it("touch Blink is compiled too — Blink is one rule now", () => {
     reportInFlightCadence(16.7);
     reportInFlightCadence(16.7);
     Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
     drive();
-    // Touch Blink already defaults to the player — the verdict must not
-    // interfere with that route either.
-    expect(playerDrove()).toBe(true);
+    // Touch Blink used to default to the player and reach the compiled tier
+    // only by demotion — two stalled flights, persisted per origin, re-probed
+    // every session. Blink now routes compiled everywhere, so a weak phone is
+    // deterministic from its first flight instead of depending on what its
+    // ledger happens to hold.
+    expect(playerDrove()).toBe(false);
+  });
+
+  it("the raf force pin still pierces on touch Blink", () => {
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
+    sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
+    try {
+      drive();
+      // The pin is the only route to the player on Blink now, and a pinned
+      // session must player-drive everything to be a useful instrument.
+      expect(playerDrove()).toBe(true);
+    } finally {
+      sessionStorage.removeItem("flemo:motion-driver-force");
+    }
   });
 });

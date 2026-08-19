@@ -5,8 +5,8 @@
 //
 // This project spent weeks chasing a stutter that was finally attributed to
 // DevTools being OPEN (inspector overhead + panel repaints) rather than to
-// anything in the library — see docs/postmortems/2026-08-motion-jank.md and
-// the "judge with DevTools closed" protocol. A measurement surface that
+// anything in the library — hence the "judge with DevTools closed" protocol
+// this package reports through `judgingProtocol`. A measurement surface that
 // repaints, reflows or animates during a transition reproduces that exact
 // artifact and then reports it as a finding. So:
 //
