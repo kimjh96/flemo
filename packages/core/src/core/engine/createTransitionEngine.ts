@@ -99,6 +99,8 @@ const startHoldDisarms = new WeakMap<HTMLElement, () => void>();
 // This screen's <Part> elements. The container (the scope's parent) hosts
 // bar-mounted parts too; parts owned by a NESTED screen inside the container
 // belong to that screen's own engine and are excluded.
+const ANIM_HOLD_ATTR = "data-flemo-anim-hold";
+
 const collectScreenParts = (scope: HTMLElement): HTMLElement[] => {
   const container = scope.parentElement ?? scope;
   return Array.from(container.querySelectorAll<HTMLElement>(`[${PART_NAME_ATTR}]`)).filter(
@@ -164,6 +166,54 @@ const collectFlightParts = (scope: HTMLElement, status: string): HTMLElement[] =
     const carrier = part.closest("[data-flemo-router]");
     if (!carrier) return true;
     return carrier.getAttribute("data-flemo-router") === flightId;
+  });
+};
+
+// Flight parts that no held element CONTAINS. The compiled hold rule pauses
+// `[data-flemo-anim-hold=…]` and its `[data-flemo-part-name]` DESCENDANTS, so
+// a Part inside a screen rides the screen's own hold and a Part inside a
+// shared bar rides the bar's — the React binding stamps the attribute on
+// both. A Part mounted OUTSIDE any screen has neither. <Part> supports that
+// position deliberately (its own header: "a persistent header next to a
+// <Slot>, a portal"), and the compiled part selector keys on name + status +
+// active with NO structural term, so such a part is driven by this flight's
+// keyframes while nothing pauses it: it animated straight through the hold
+// window with every screen parked, then led the flight by the whole hold —
+// the defect the decorator once had ("the dim faded in ahead of the held
+// screens", 2026-08-13).
+//
+// Scoped through collectFlightParts, i.e. by the EXPLICIT `data-flemo-router`
+// marker rather than DOM ancestry. That is not a preference: RouterIdContext
+// exists precisely because structure cannot draw this boundary (a root Router
+// renders no container, two Routers may share a parent), and each screen sits
+// in its own wrapper — so a container-scoped walk from the scope reaches only
+// this screen's own subtree, where every Part host is already held. It would
+// find nothing that needs holding.
+//
+// The ancestor test deliberately starts at the PARENT: a part this engine has
+// already stamped must still be found, so the release can re-derive the same
+// set instead of trusting a record the DOM may have changed under.
+const collectUnheldOuterParts = (scope: HTMLElement, status: string): HTMLElement[] =>
+  collectFlightParts(scope, status).filter(
+    (part) => part.parentElement?.closest(`[${ANIM_HOLD_ATTR}]`) == null
+  );
+
+// The release sweep is deliberately status-AGNOSTIC while the stamp above is
+// status-scoped. Stamping narrowly keeps the pause off parts this flight does
+// not drive (`animation-play-state` is per-ELEMENT: it would pause whatever
+// the consumer authored on that part too). Clearing broadly guarantees the
+// pause cannot outlive the flight if the part's own status attribute moved in
+// a different commit than this drive — a leak would freeze persistent chrome
+// indefinitely, so the two sides must not share a predicate.
+const collectStampedOuterParts = (scope: HTMLElement): HTMLElement[] => {
+  const flightId = scope.closest("[data-flemo-router]")?.getAttribute("data-flemo-router") ?? null;
+  return Array.from(
+    scope.ownerDocument.querySelectorAll<HTMLElement>(`[${PART_NAME_ATTR}][${ANIM_HOLD_ATTR}]`)
+  ).filter((part) => {
+    if (part.parentElement?.closest(`[${ANIM_HOLD_ATTR}]`) != null) return false;
+    if (flightId === null) return true;
+    const carrier = part.closest("[data-flemo-router]");
+    return !carrier || carrier.getAttribute("data-flemo-router") === flightId;
   });
 };
 
@@ -734,6 +784,30 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       input;
 
     const isTransitional = status === "PUSHING" || status === "POPPING" || status === "REPLACING";
+
+    // Mirror the flight's hold onto Parts that live OUTSIDE any screen, which
+    // the compiled hold rule's descendant selector cannot reach (see
+    // collectUnheldOuterParts). Owned by the ACTIVE side only: both screens of
+    // a flight render a hold, and two owners writing one persistent element
+    // means whichever releases first un-holds it for the other. This runs in
+    // the binding's layout effect, which re-runs on the hold flip, so the
+    // stamp and the screens' own attribute land in the same commit — the part
+    // must not lead or trail the flight by a frame either. Stamp and sweep use
+    // different predicates on purpose; see collectStampedOuterParts.
+    if (isActive) {
+      const { scope: holdScope } = getElements();
+      if (holdScope) {
+        if (isTransitional && !animHoldReleased) {
+          for (const part of collectUnheldOuterParts(holdScope, status)) {
+            part.setAttribute(ANIM_HOLD_ATTR, "true");
+          }
+        } else {
+          for (const part of collectStampedOuterParts(holdScope)) {
+            part.removeAttribute(ANIM_HOLD_ATTR);
+          }
+        }
+      }
+    }
 
     // EVERY flight participant — active or passive, before any early-return
     // fork below (the passive player join returns long before the active
