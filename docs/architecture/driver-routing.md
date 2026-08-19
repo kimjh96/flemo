@@ -1,8 +1,8 @@
 # Driver routing — the decision tree
 
 Verbatim-accurate from `createTransitionEngine.ts` (`joinPlayer`, `forceCompiledStatus`),
-`driverPolicy.ts`, `lowPowerCadence.ts`, and `motionDriverKind.ts` on main as of
-2026-08-17 (`46a2b00`, post-#259). `joinPlayer` returning **null** means the compiled CSS tier
+`driverPolicy.ts`, `lowPowerCadence.ts`, and `motionDriverKind.ts` as of 2026-08-19
+(post-#259, post-Blink-unification). `joinPlayer` returning **null** means the compiled CSS tier
 drives; a successful join means the rAF player (numeric or scrub-WAAPI) drives.
 Every participant of one navigation calls through the same gates with the same
 transition and status, so a navigation never splits across drivers.
@@ -98,10 +98,10 @@ governedCompiledActive() && status ∈ {REPLACING, POPPING, PUSHING}` → **comp
      concurrent flight; the block a chain guard would absorb is handled by the settle
      gate instead).
 
-6. **Demotion gate.** `!driverPolicy.playerAllowed()` → **compiled**. Covers non-Blink
-   engines with a `css` pin (demotion itself is Blink-only — `demotable` is
-   `detectBlinkEngine()` — because on main-thread-presenting engines "demoting" swaps
-   freeze-and-continue for freeze-and-jump).
+6. **Pin gate.** `!driverPolicy.playerAllowed()` → **compiled**. Since 2026-08-19 this
+   means one thing only: a `css` force pin. Demotion no longer contributes — `demotable`
+   is now `false` for every engine (see below), so nothing else can make
+   `playerAllowed()` false.
 7. **Kind gate.** Unless `pinnedDriver() === "raf"`, `classifyTransitionDriver()` is
    consulted: it returns an authored `driver: "native" | "player"` pin if present, else
    `"player"` on every engine (the measured fast-mover carve-out is retired;
@@ -114,31 +114,44 @@ governedCompiledActive() && status ∈ {REPLACING, POPPING, PUSHING}` → **comp
 
 ### Demotion strikes / probation / persistence (`driverPolicy.ts`)
 
+**Demotion is OFF everywhere as of 2026-08-19** — `createDriverPolicy` is constructed
+with `demotable: false`. It existed to move a starving Blink device onto the compiled
+tier, and Blink now starts there, so there is nothing left to demote: a Blink flight
+reaches the player only through a `raf` force pin, and a pin already overrides the
+ledger. `beginRun`/`reportGap` still collect a run's gaps (`stats()` and the
+diagnostics read them), but `endRun` returns before any strike can persist. Values
+already written to `localStorage["flemo:motion-driver"]` on users' devices are simply
+never read again; the key string stays frozen so an older build's value cannot be
+misread.
+
+The machinery below is retained, unreachable, for the record — and because a future
+engine that puts the player back in production would need exactly it:
+
 - A player run's gaps are judged at `endRun` against the run's final measured cadence
   (`max(30ms, 1.8 × frameInterval)`); ≥ 2 long gaps in one run = a _stalled_ run,
   ≥ `DEMOTION_STRIKES = 2` stalled runs = **demoted** (irreversible within the session)
   and persisted to `localStorage["flemo:motion-driver"] = "css"`.
-- A persisted demotion is **probation**, not a life sentence: each new session the
-  player gets one probe transition; clean → record cleared (`"raf"` written), stalled →
-  re-demoted from flight one. Non-demotable (non-Blink) policies ignore any persisted
-  record.
+- A persisted demotion was **probation**, not a life sentence: each new session the
+  player got one probe transition; clean → record cleared (`"raf"` written), stalled →
+  re-demoted from flight one.
 - The `flemo:motion-driver-force` pin (`"css@<epoch-ms>"` / `"raf@<epoch-ms>"`,
   sessionStorage, 24h TTL, unstamped/stale values removed on sight) bypasses
   measurement, strikes, and probation in `playerAllowed()`/`pinnedDriver()` — but NOT
-  gates 1–6 above except where noted.
+  gates 1–6 above except where noted. This is the live half: the pin is now the only
+  input to `playerAllowed()`.
 
 ### What each `flemo:*` override does to routing
 
-| Key                                                                     | Routing effect                                                                                                                                                                                                                                                                                                     |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `flemo:motion-driver-force=raf@<ts>`                                    | `playerAllowed()` true regardless of demotion; **pierces the whole Blink compiled gate (2)** — desktop, high-refresh, demoted, legacy — and bypasses the kind gate (7). Does NOT pierce the chain gate (1), the desktop-WebKit gate (3), or the touch-WebKit gates (4–5). Warned once per session, expires in 24h. |
-| `flemo:motion-driver-force=css@<ts>`                                    | `playerAllowed()` false → gate 6 routes everything compiled.                                                                                                                                                                                                                                                       |
-| `flemo:motion-driver` (localStorage)                                    | The learned demotion ledger — production state, never set by hand.                                                                                                                                                                                                                                                 |
-| `flemo:handoff=on`                                                      | Exempts POP/PUSH from gate 4 and enables the player's anchored-opening handoff (POP-scoped inside the player). On current main, gate 5 still routes touch WebKit compiled, so its practical reach is pinned/`raf` sessions and unit tests.                                                                         |
-| `flemo:settle-gate=on/off`                                              | Feeds gate 4's PUSH branch and the ScreenMotion release gate. Default = on for touch WebKit, touch Blink, and verified steady-60 desktop Blink; off elsewhere.                                                                                                                                                     |
-| `flemo:lpm=1/0`                                                         | Session-persisted LPM verdict seed (production state) — affects the cadence machinery, not routing, since the governed treatment no longer keys off it.                                                                                                                                                            |
-| `flemo:apply=scrub`                                                     | Not routing — forces the scrub-WAAPI application tier for every _player_ track.                                                                                                                                                                                                                                    |
-| `flemo:snap`, `flemo:snapband`, `flemo:handoffms`, `flemo:landing-snap` | Value-application / easing shape only, no tier change (see diagnostics.md).                                                                                                                                                                                                                                        |
+| Key                                                                     | Routing effect                                                                                                                                                                                                                                                                                 |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `flemo:motion-driver-force=raf@<ts>`                                    | `playerAllowed()` true; **pierces the whole Blink compiled gate (2)** — the only route to the player on Blink now — and bypasses the kind gate (7). Does NOT pierce the chain gate (1), the desktop-WebKit gate (3), or the touch-WebKit gates (4–5). Warned once per session, expires in 24h. |
+| `flemo:motion-driver-force=css@<ts>`                                    | `playerAllowed()` false → gate 6 routes everything compiled.                                                                                                                                                                                                                                   |
+| `flemo:motion-driver` (localStorage)                                    | The learned demotion ledger. **Inert since 2026-08-19** (demotion off): still written by older builds, never read.                                                                                                                                                                             |
+| `flemo:handoff=on`                                                      | Exempts POP/PUSH from gate 4 and enables the player's anchored-opening handoff (POP-scoped inside the player). On current main, gate 5 still routes touch WebKit compiled, so its practical reach is pinned/`raf` sessions and unit tests.                                                     |
+| `flemo:settle-gate=on/off`                                              | Feeds gate 4's PUSH branch and the ScreenMotion release gate. Default = on for touch WebKit, touch Blink, and verified steady-60 desktop Blink; off elsewhere.                                                                                                                                 |
+| `flemo:lpm=1/0`                                                         | Session-persisted LPM verdict seed (production state) — affects the cadence machinery, not routing, since the governed treatment no longer keys off it.                                                                                                                                        |
+| `flemo:apply=scrub`                                                     | Not routing — forces the scrub-WAAPI application tier for every _player_ track.                                                                                                                                                                                                                |
+| `flemo:snap`, `flemo:snapband`, `flemo:handoffms`, `flemo:landing-snap` | Value-application / easing shape only, no tier change (see diagnostics.md).                                                                                                                                                                                                                    |
 
 ## Decision tree
 
@@ -147,10 +160,8 @@ joinPlayer(variant, role):
   driverPolicy.pinnedDriver()            # surface pin warning, always
   ├─ no transition task id ──────────────────────────────► compiled
   ├─ [1] Blink && replay chain pending ──────────────────► compiled
-  ├─ [2] Blink && pin != raf && (desktop(maxTouchPoints==0)
-  │        || learnedInterval < 12ms
-  │        || !playerAllowed()
-  │        || legacyAndroidBlink) ───────────────────────► compiled  (+probe)
+  ├─ [2] Blink && pin != raf ────────────────────────────► compiled  (+probe)
+  │        desktop AND touch, no cadence/demotion/legacy terms (2026-08-19)
   │                                       (raf pin pierces this whole gate — PR #259)
   ├─ [3] WebKit && desktop Mac (no touch) ───────────────► compiled  (+birth anchor)
   ├─ [4] WebKit && touch && forceCompiledStatus(status) ─► compiled
