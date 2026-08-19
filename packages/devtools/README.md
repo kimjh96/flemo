@@ -13,6 +13,37 @@ leave a toggle set?").
 Zero dependencies. No imports from `@flemo/core` or `@flemo/react`; attaching
 the recorder never changes the motion it measures.
 
+## Production safety
+
+`@flemo/devtools` resolves to an inert entry when your bundler builds for
+production, so the ordinary import is the safe one:
+
+```ts
+import { attachFlightRecorder } from "@flemo/devtools";
+
+// Development: the real recorder. Production: a no-op that records nothing
+// and whose implementation never enters the bundle.
+const { detach } = attachFlightRecorder({ log: true });
+```
+
+This is done with the `development` / `production` export conditions rather
+than left to the caller, because the failure is silent: a normal import of a
+dev-time tool builds clean, warns about nothing, and ships to every visitor.
+It happened to this project — the recorder's strings were found in a
+production chunk of flemo.dev and had to be removed.
+
+Two things to know:
+
+- **Not every bundler sets those conditions.** Vite and Next do. If yours does
+  not, keep the module behind a dynamic import guarded by a build-time
+  constant (`process.env.NODE_ENV !== "production"`, Vite's
+  `import.meta.env.DEV`) so the branch — and the module behind it — is
+  eliminated.
+- **`@flemo/devtools/force` is the escape hatch.** It resolves to the real
+  tool whatever the build mode, for when you deliberately want the recorder in
+  a production build (a staging deploy, an e2e suite that must run against a
+  production build). Import it dynamically behind your own opt-in flag.
+
 ## Keeping it out of your production bundle
 
 Install it as a **devDependency** — and know that this alone is not enough.

@@ -34,7 +34,7 @@
   "homepage": "https://flemo.dev",
   "license": "MIT",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && DEVTOOLS_ENTRY=noop vite build",
     "watch": "vite build --watch",
     "dev": "vite build --watch",
     "lint": "eslint \"**/*.{js,mjs,ts,jsx,tsx,mts}\"",
@@ -58,5 +58,18 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./dist/index.mjs",
+      "production": "./dist/noop.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./force": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
   }
 }
