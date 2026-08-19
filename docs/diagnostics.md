@@ -34,8 +34,9 @@ in DevTools (`sessionStorage.setItem("flemo:apply", "scrub")`) and — for the c
 
 - `flemo:motion-driver` — player demotion ledger (`driverPolicy.ts`).
 - `flemo:lpm` — low-power cadence verdict seed (`lowPowerCadence.ts`).
-- `flemo:lat` — LPM release-latency seed (`lowPowerCadence.ts`). A stale small seed
-  once silently neutralized a pessimistic branch mid-campaign — see the pitfalls.
+- ~~`flemo:lat`~~ — RETIRED 2026-08-19. The LPM release-latency ledger fed a hold
+  nothing read; probe, ledger and key are gone. Clear it from any device that still
+  carries one; nothing reads it now.
 
 **Production default with override**
 
@@ -82,7 +83,8 @@ re-investigations:
   back" reports were the toggle itself (found by reading the badge in their screen
   recording).
 - A `flemo:lat` seed written by an older build silently defeated a newer build's
-  pessimistic branch.
+  pessimistic branch. (That key is retired, but the lesson generalizes to every
+  persisted ledger: `flemo:lpm`, `flemo:sixty`, `flemo:motion-driver`.)
 
 Rules: after ANY A/B round, explicitly clear the keys you set (or use a private
 window); when a user reports a regression, **check active overrides first** —
