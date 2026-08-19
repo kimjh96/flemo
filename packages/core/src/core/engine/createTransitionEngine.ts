@@ -38,7 +38,6 @@ import {
   governedCompiledActive,
   probeLowPowerCadence
 } from "@core/engine/lowPowerCadence";
-import { armLpmReleaseLatencyProbe } from "@core/engine/lpmReleaseLatencyProbe";
 
 import { classifyTransitionDriver } from "@core/engine/motionDriverKind";
 import {
@@ -1848,12 +1847,12 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // authored pose with the 2-frame hold — and it is the most
     // latency-sensitive gesture, so it keeps the smaller hold rather than
     // paying 66ms more of reaction time it measurably doesn't need.
-    // ENTRY holds (PUSHING/REPLACING) size themselves to this device's
-    // measured worst release starvation (see lpmReleaseLatencyProbe —
-    // observation-only, consumed strictly pre-birth) once the session has
-    // samples; the static six-frame guess only seeds the first flights.
-    // POPPING keeps the small hold: its release is measured clean and it
-    // is the most latency-sensitive gesture.
+    // ENTRY holds (PUSHING/REPLACING) use the static LPM_HEAD_MS table.
+    // An adaptive version sized from a measured release-latency ledger was
+    // built and retired unread (2026-08-19): the probe fed a ledger nothing
+    // consumed, so the "adaptive" hold was always the static guess. POPPING
+    // keeps the small hold — its release is measured clean and it is the
+    // most latency-sensitive gesture.
     // Deadline offsets ONLY: the visual hold lives in the gated flat-head
     // keyframes (compileTransitionStyles.LPM_HEAD_MS — same numbers). No
     // inline timing is written anywhere: static CSS cannot miss a
@@ -1909,14 +1908,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // (device-seen as the tab switch's old-screen flash and the push
     // stutter). The hold must be fully decided BEFORE the animation is
     // born; after birth, no timing write of any kind is safe.)
-    // Release-latency observation for the adaptive entry hold (see
-    // lpmReleaseLatencyProbe): read-only, armed on the PRE-release run so
-    // its observer catches the release microtask; feeds the ledger the
-    // NEXT flight's hold is sized from.
-    let detachLatencyProbe: (() => void) | null = null;
-    if (routedLpmSupervision) {
-      detachLatencyProbe = armLpmReleaseLatencyProbe(scope);
-    }
     let detachFirstFrameHold: (() => void) | null = null;
     if (playerCanDrive && nativeSurgeryAllowed) {
       detachFirstFrameHold = holdNativeClocksToFirstFrame(
@@ -2451,7 +2442,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       cancelLandingClear();
       detachFirstFrameHold?.();
       detachLpmBirthAnchor?.();
-      detachLatencyProbe?.();
       detachStallWatch?.();
       clearPerceptualCut();
       clearEarlyLanding();
