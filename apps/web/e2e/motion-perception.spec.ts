@@ -519,15 +519,21 @@ test.describe("motion perception", () => {
     expect(result.titleOpacities, "the part must recover with the drag").toBeGreaterThan(3);
   });
 
-  // The default driver is ENGINE-SCOPED. On Blink the compiled compositor
-  // path drives: it plays through main-thread blocks that collapse a player
-  // (measured under CPU throttle). On non-Blink engines the PLAYER drives:
-  // WebKit presents compiled CSS animations from the main thread, so a
-  // wall-clocked fade snaps across a mid-flight commit, while the player's
-  // re-anchoring resumes from the freeze and completes.
-  test("the playground drives the right tier for its engine (compiled on desktop Blink, player on touch)", async ({
-    page
-  }) => {
+  // The default driver is ENGINE-SCOPED, and on Blink it is the compiled
+  // compositor tier for EVERY input modality (2026-08-19): that path plays
+  // through main-thread blocks that collapse a player (measured under CPU
+  // throttle), so it is a refuge there. Touch Blink used to default to the
+  // player and reach the refuge only by DEMOTION — two stalled flights,
+  // persisted per origin, re-probed once per session — which made a weak
+  // phone's first flight after every load the bad one. This spec is the
+  // guardrail for that unification: it runs UNPINNED (unlike the player
+  // specs above, which pin) so it measures the shipped default, and it must
+  // read the same verdict on Desktop Chrome and on the Pixel 7 project.
+  //
+  // Non-Blink engines are a different contract and are not covered here (no
+  // WebKit project runs in CI); see the touch-WebKit blocks in
+  // createTransitionEngine's joinPlayer.
+  test("the playground drives the compiled tier on Blink, touch or not", async ({ page }) => {
     const { errors } = trackConsoleErrors(page);
     await openPlaygroundWithCupertino(page);
 
@@ -560,18 +566,14 @@ test.describe("motion perception", () => {
     const { transitional, compiled, suppressed, touch } = await sample;
 
     expect(transitional, "the transition must run").toBeGreaterThan(5);
-    if (touch) {
-      // Fast touch Blink (the Pixel 7 project) keeps the device-verified rAF
-      // player: it suppresses the compiled animation and writes the pose each
-      // frame.
-      expect(suppressed, "fast touch Blink drives the player").toBeGreaterThan(5);
-    } else {
-      // Desktop Blink (Chromium, no touch) routes to the compiled compositor
-      // tier UNCONDITIONALLY — an adaptive 120Hz panel idles at 60Hz so the
-      // load-time cadence probe can't be trusted. The CSS keyframes drive.
-      expect(compiled, "desktop Blink drives the compiled tier").toBeGreaterThan(5);
-      expect(suppressed, "desktop Blink does not run the player").toBe(0);
-    }
+    // The CSS keyframes drive: `animation-name` resolves to a compiled
+    // flemo-screen rule. The player, had it run, would suppress that rule
+    // through the inline `animation` channel and write the pose per frame —
+    // so an empty inline channel across the whole flight is what proves the
+    // player never took over. Both hold on either project; `touch` is
+    // reported only so a failure names the device that regressed.
+    expect(compiled, `Blink (touch=${touch}) drives the compiled tier`).toBeGreaterThan(5);
+    expect(suppressed, `Blink (touch=${touch}) does not run the player`).toBe(0);
     expect(errors).toEqual([]);
   });
 
