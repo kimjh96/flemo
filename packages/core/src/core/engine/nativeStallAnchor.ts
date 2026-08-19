@@ -5,9 +5,8 @@
 // few frames mid-flight, the timeline keeps advancing and the next presented
 // frame shows the curve several steps ahead — a fast slide visibly "launches"
 // (device-measured: a 26%-of-travel single-frame stride at 55ms into a push,
-// against a healthy 11-12% easing peak). The rAF player is immune because its
-// clock advances at most two frames per gap; this grafts the same semantics
-// onto the native driver. Every running flemo CSS animation is also a WAAPI
+// against a healthy 11-12% easing peak). The rAF player is immune because it
+// caps its own clock step; this grafts the same idea onto the native driver. Every running flemo CSS animation is also a WAAPI
 // Animation, so pushing `startTime` forward by a stall's excess rewinds
 // `currentTime` by exactly that much WITHOUT restarting the animation — the
 // motion resumes two frames past where it stalled and plays its authored
@@ -22,8 +21,21 @@
 // engines.
 
 // The most the wall clock may advance across one frame gap before the excess
-// is given back to the timeline — two nominal frames, matching the player's
-// clock-step cap so both drivers degrade identically under load.
+// is given back to the timeline.
+//
+// NOT the player's cap. The player allows ONE frame (transitionPlayer's
+// PASS_THROUGH_FRAMES path: `startTime += gap - frameIntervalMs`), and it was
+// narrowed from two to one on a device measurement — a 47ms GC-class blip
+// resumed with a double step, seen as a 17% jump at peak velocity. This
+// constant kept the older two-frame allowance and the comment kept claiming
+// parity, so the two drivers do NOT degrade identically: a native stall can
+// still resume with the double step the player was fixed to avoid.
+//
+// Left at two frames deliberately for now — narrowing it changes non-Blink
+// stall behavior at ~11 call sites and deserves the same kind of device round
+// the player's change got, not an edit made from reading the code. When that
+// round happens, derive this from the player's cap rather than restating it,
+// so the two cannot drift apart again.
 export const NATIVE_STALL_STEP_MS = 2 * (1000 / 60);
 
 const FLEMO_ANIMATION_PREFIX = "flemo-";
