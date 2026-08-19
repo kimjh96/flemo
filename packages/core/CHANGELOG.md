@@ -1,5 +1,69 @@
 # @flemo/core
 
+## 1.24.0
+
+### Minor Changes
+
+- [`30c2a54`](https://github.com/kimjh96/flemo/commit/30c2a5428e3561aa0d43295df852031c02975e39) Add optional shared top and bottom bar IDs so only semantically matching bars hand over in place. Reuse matching partner measurements and synchronously reserve newly measured bar heights before paint, while retaining the legacy position-only behavior when IDs are omitted.
+
+- [`707442e`](https://github.com/kimjh96/flemo/commit/707442e1ec67612f016aba93685750dc21a32541) Add an in-flight display-cadence probe that verifies steady-60Hz desktop sessions. The first flights of a session measure the panel while a compositor animation is live (the only moment an adaptive 120Hz panel shows its true rate); two verified ~60Hz flights mark the session steady-60, and a single high-refresh reading latches it off permanently. Desktop Blink routing itself stays on the compiled compositor tier (the settled verdict of on-device judging), and the verdict instead arms desktop-profile defaults: the render-settle gate, the unpainted-only image hold, and the compositor warm-up. The settle gate's give-up path now also rides two consecutive fast frames before releasing, so a pop's returning screen, whose unfreeze re-uses its DOM and never trips the mount-commit detector, has its style/layout block absorbed into the hold instead of stuttering the flight's opening. Behavior at 1x density, on high-refresh panels, and on touch devices is unchanged.
+
+- [`b495c99`](https://github.com/kimjh96/flemo/commit/b495c99651e2eb73f720d2f802525b538a782c95) Scope the image-decode offloader to legacy Android Blink instead of running it on every device. A touch Chromium that ships no UA-CH brands (device-confirmed Galaxy Note 9 Samsung Internet) is confidently pre-2021, GPU-starved hardware whose oversized-image decode stalls the transition opening on re-entry; the offloader now auto-engages there and downscales only its genuinely oversized `<img>` sources. Modern devices (which ship UA-CH brands) and iOS are excluded, so a flagship is never touched, and `flemo:imgoffload` still overrides both ways (`on` forces it anywhere, `off` opts a legacy device out). Exposes `isLegacyAndroidBlink` from `@flemo/core`.
+
+- [`945eaba`](https://github.com/kimjh96/flemo/commit/945eabace0200a7693271e9433e28da62f2e848a) Fix the pop-convergence round: post-landing layer demotions now wait out any
+  in-flight navigation (the intermittent mid-pop stall), the player's
+  perceptual cut lands its final pixel on the cut frame instead of the
+  COMPLETED flip, and a navigation force-concludes swipe settles on its
+  participants — a tap grazing the swipe-back edge no longer fights the pop it
+  triggered. Desktop WebKit and desktop Blink now ride the compositor-driven
+  compiled tier deterministically, with the landing governor expressed as an
+  easing reshape. The image decode offloader holds re-entry reveals to the
+  flight's rest, and the playground's baked gradient is scoped to Blink (the
+  swap itself was Safari's first-entry blink). On iOS, Low Power Mode is now
+  detected (a regular ~33ms rAF cluster, isolated from the player's learned
+  interval, persisted per session) and single slide navigations route to the
+  compositor-driven compiled tier with the birth anchor and stall watcher
+  armed — rAF is capped at ~30Hz under LPM while the compositor keeps the
+  panel rate, so transitions stay smooth instead of half-density.
+
+- [`707442e`](https://github.com/kimjh96/flemo/commit/707442e1ec67612f016aba93685750dc21a32541) Fix the live-judged desktop Chrome jank sources found in the 2026-08-18 campaign: hold the warm side's still-loading images too (a leaving list's lazy avatars were decoding onto the sliding layer, one skipped present per decode), make image holds single-owner (an overlapping hold captured another hold's display:none as the "original" and blanked already-loaded avatars), exempt held images' style channel from the arrival hold's in-place freeze (it was undoing the hold mid-flight and resurrecting the hide at rest), widen the GPU pipeline prewarm scene to the draw variants real screens use (image texture under a circular clip, gradient, CJK text, hairline border, shadow; cold-profile first flights carried 120-150ms of in-flight pipeline compiles), and keep a 2KB always-on 60fps video surface on steady-60 desktop sessions so the display pipeline holds a steady compositing cadence between and during flights. Desktop routing is settled on the compiled tier; the steady-60 verdict now gates desktop-profile defaults only.
+
+- [`b6c62f6`](https://github.com/kimjh96/flemo/commit/b6c62f67569a5cb5901e7de7ad9536eeefb0a3e9) Route Blink to the compiled tier everywhere. Desktop Blink already did; touch Blink defaulted to the rAF player and reached the compiled tier only by demotion — two stalled flights, persisted per origin, and re-probed once per session, so the first flight after every page load ran the player even on a device whose ledger already said "css". A weak phone's behavior therefore depended on which origin it had visited and how recently it reloaded. Blink is now one rule from the first flight, and demotion is off everywhere since its only purpose was reaching a tier Blink now always uses. WebKit is unchanged: there the compiled tier swallows its opening and the player stays device-verified. The `flemo:motion-driver-force=raf` pin still pierces.
+
+### Patch Changes
+
+- [`9b16d8f`](https://github.com/kimjh96/flemo/commit/9b16d8fcd5b267b0e8865001c8db505be56814cf) Fix the COMPLETED cleanup leaving a stale pose on the landed screen: when another inline lease survived the flip (the governed easing stamp), the entering screen could stay parked at its from-pose — on a raf-pinned desktop session this presented as a fully blank viewport after a push→pop→push re-entry. The landed scope's transform/opacity are now stripped explicitly at COMPLETED, and the raf force pin can pierce the desktop compiled gate again for diagnostics (default desktop routing is unchanged).
+
+- [`cec6ab6`](https://github.com/kimjh96/flemo/commit/cec6ab66d6334fe8203ea304fe496ff6849fa559) Remove dead diagnostic instrumentation (the write-only `window.__flemoRoute`/`__flemoOpenings`/`__flemoSeam`/`__flemoHandoffs`/`__flemoParked` globals and the unused `flemo:compiled` and `flemo:native` toggles) and consolidate the surviving `flemo:*` debug flags into one documented registry (`diagnosticFlags.ts`). No behavior change — every shipped default, storage key, and per-page-load caching contract is preserved, and `window.__flemoPlayerGaps` keeps working.
+
+- [`0473551`](https://github.com/kimjh96/flemo/commit/0473551b5911d203ae7984ba53623baa6268396b) Stop the `driver=raf` force-pin from routing desktop Blink onto the rAF player. The player has never driven a non-touch flight; device-reproduced, after a re-entry (push→pop→push) it leaves the entering screen pinned at its from-pose (`translateX(100%)`) — the birth/play never fires — so the screen sits entirely off-screen and the viewport goes blank. Desktop Blink stays on the compiled compositor tier, which completes cleanly.
+
+- [`de35c13`](https://github.com/kimjh96/flemo/commit/de35c13ae4639ef42627b213f74f6387d5ce3745) Add an opt-in image reveal hold (`flemo:imghold=on`) — the `<img>` analog of the response hold. During a flight, an entering screen's still-loading images are held invisible and revealed in one batch at rest, so an image that completes over the network mid-slide can't re-raster the sliding layer and starve the animation. Image decoding still proceeds during the hold, so the reveal is a cheap composite in the quiet window rather than a mid-flight raster. Off by default while it's verified on-device.
+
+- [`20744c0`](https://github.com/kimjh96/flemo/commit/20744c0f2ed1bcfd8d50a5c4b6c9fb52bc7d9226) Hold `<Part>` elements that live outside any screen for the flight's hold window. The compiled hold rule only pauses held elements and their descendants, so a Part in persistent chrome beside a `<Slot>` (or in a portal) kept animating while every screen was parked, then led the flight by the entire hold. The engine now stamps the hold on those parts directly, scoped by the owning Router and owned by the active side so two screens cannot fight over one persistent element.
+
+- [`88c5cff`](https://github.com/kimjh96/flemo/commit/88c5cff30f3edd580b4a52513e287aa1c082882f) Make the `driver=raf` force-pin actually drive the player on desktop Blink. The desktop/high-refresh gate (`maxTouchPoints === 0 || …`) fired before the pin was honored, so a pinned session silently stayed on the compiled tier there — leaving the player+per-frame-snap path (the only tier that can quantize a HiDPI transform to device pixels every frame and kill the sub-pixel convergence shimmer) unreachable on desktop even when explicitly pinned. The pin now bypasses this gate, same as it already bypasses the native-kind choice.
+
+- [`14923eb`](https://github.com/kimjh96/flemo/commit/14923eb8d7f6c9c3574d8c95db606ff190b2ca54) Raise the player's learned frame-interval floor from 240Hz to 600Hz so its cadence estimate can track the fastest panels now shipping (consumer esports monitors reach ~540-600Hz). The old floor clamped a genuine high-refresh desktop down to 240Hz, leaving the pacing heuristics (jitter thresholds, pixel-snap budgets) calibrated for a slower display than the panel really is. The estimate is a median, so widening the floor doesn't reopen the jitter-fakes-a-fast-panel hole the floor guards against.
+
+- [`de35c13`](https://github.com/kimjh96/flemo/commit/de35c13ae4639ef42627b213f74f6387d5ce3745) Fix rapid navigation swallowing the transition on the compiled tier, and steady Chrome's ProMotion frame pacing during compiled flights.
+
+  A stale resolver (a finished flight's animationend/cancel firing a frame into the next one) could resolve the CURRENT task instead of its own, flipping `data-flemo-status` to COMPLETED at the exact frame the new flight released its hold — un-matching the running `@keyframes` rule and cancelling the slide mid-opening, so a fast Next/Back burst committed the navigation but showed no motion. Each flight now resolves only its own captured task, so a late resolver can never cut a newer flight.
+
+  Separately, a compositor-driven flight left the main thread idle, and Chrome then paced its macOS ProMotion presentation unevenly (dropped/duplicated frames mid-slide, read as convergence trembling). A lightweight frame-pacing keepalive now holds a live frame source across compiled Blink flights so the panel stays at its full refresh rate.
+
+- [`b6c62f6`](https://github.com/kimjh96/flemo/commit/b6c62f67569a5cb5901e7de7ad9536eeefb0a3e9) Remove the stall-demotion machinery from the driver policy. It moved a chronically-starved Blink device onto the compiled tier, and Blink now starts there, so it had nothing left to decide: the per-run gap accounting, strike counting, the irreversible in-session demotion and the persisted `flemo:motion-driver` ledger with its probation probe are gone. The force pin is now the only input to driver selection. Player frame gaps are still reported to the registry's diagnostic hook.
+
+- [`2be1e05`](https://github.com/kimjh96/flemo/commit/2be1e05a6d18883830edeaffbe5db7d724ebb204) Retire the LPM release-latency ledger. The probe armed on every low-power-supervised flight and persisted a session-worst value to `flemo:lat`, but no production code ever read it — the birth hold is sized from a static table, so the "adaptive" hold was always the static guess. Removing it drops an observer per flight on the weakest devices in the matrix and one more persisted ledger that can go stale between builds.
+
+- [`6d6dae8`](https://github.com/kimjh96/flemo/commit/6d6dae8f98b159d3faa5b0b57a637288fffc6c53) Keep transition-adjacent scrolling responsive and reject cross-axis touch jitter before page-wide swipe-back can claim or cancel into an unintended pop.
+
+  During push and replace transitions, Flemo suppresses `click` activation for React handlers and native click listeners below the React root. Listeners above the root, plus lower-level pointer and mouse events, remain observable so the browser can preserve native scroll targeting across the transition.
+
+- [`6d3cc23`](https://github.com/kimjh96/flemo/commit/6d3cc238755a1a7d2d25edbf9113ea7c27fc571e) Default the render-settle entry gate ON for touch Blink. The pop-convergence round proved on a Note 9 that a heavy mount commit stalls even the compositor's initial layerization — gating the release past that task measurably helped — and widened the gate's arming to every engine on that evidence, but the flag that enables it stayed WebKit-only, so Android kept running ungated. The gate stays adaptive (no qualifying mount commit inside the first wait releases with no felt delay), and `flemo:settle-gate=off` still opts out.
+
+- [`bfd077a`](https://github.com/kimjh96/flemo/commit/bfd077a0b67181da88f73d46ccadcff73b7ff65d) Export `TaskManager` as the correctly-spelled alias of the historical `TaskManger` export (which remains for compatibility).
+
 ## 1.23.0
 
 ### Minor Changes
