@@ -49,7 +49,6 @@ ignore:
   - "packages/react/src/screen/ScreenMotion.tsx"
   - "packages/core/src/core/engine/transitionPlayer.ts"
   - "packages/core/src/core/engine/imageDecodeOffloader.ts"
-  - "packages/core/src/core/engine/lpmReleaseLatencyProbe.ts"
   - "packages/core/src/core/engine/lowPowerCadence.ts"
 
 comment:

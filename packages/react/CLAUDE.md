@@ -97,10 +97,15 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
 
 - `Screen.tsx` composes `ScreenFreeze` + `ScreenMotion` and computes freeze via core's
   `computeScreenFreeze(Mode)`. `ScreenFreeze` is React `<Activity>`: hidden mode keeps
-  DOM/scroll/state alive but unmounts effects — which is why a covered prev screen's
+  DOM/scroll/state alive but unmounts effects — which is why a DEEP covered screen's
   COMPLETED effect never runs (player tracks clean up in their detach instead) and why
   mount effects re-fire on every unfreeze (`eagerlyDecodeImages` uses exactly that).
-  `flemo:freeze=shallow` (URL-armable) keeps the direct prev screen live.
+  The DIRECT prev is different: its freeze is DEFERRED (`FREEZE_DEFER_MS` 600ms, on
+  the device A/B that measured ~0.2 dropped frames per flight over 117 flights), so it
+  stays live across the convergence, and on the steady-60 desktop profile
+  `ScreenFreeze` debounces the hide further (3s) so a quick detail-and-back never pays
+  the hide/unhide raster thrash. `flemo:freeze=shallow` (URL-armable) keeps the direct
+  prev screen live indefinitely.
 - Activity hiding disconnects `ScreenMotion` layout effects, so shared-bar cleanup
   unregisters the entry. State and measurement refs survive; the unfreeze registration
   republishes the complete ID + height before the observer reconnects. Do not move the
@@ -124,7 +129,7 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
 
 ## Rules of thumb
 
-- Path aliases: `@history`, `@navigate`, `@renderer`, `@screen`, `@transition`,
+- Path aliases: `@history`, `@navigate`, `@renderer`, `@screen`, `@stores`, `@transition`,
   `@utils`, `@Route`, `@Router`; import core as `@flemo/core` named imports only.
 - Anything the engine must see in the FIRST paint of a state change is computed in
   RENDER, never an effect (hold attrs, riding flags, freeze tracking refs).

@@ -144,75 +144,17 @@ export const resetLowPowerCadenceForTests = () => {
   active = false;
   probing = false;
   learnedFrameMs = null;
-  latencySamples.length = 0;
-  sessionWorstLatency = null;
 };
 
-// ---- Release-latency ledger (fed by lpmReleaseLatencyProbe) ----
-//
-// The rolling worst release→present starvation this device has actually
-// shown, for sizing the NEXT flight's birth hold. Observation-only input;
-// pre-birth consumption only — the one adaptive loop the falsification
-// series left standing.
-const LATENCY_SAMPLES_MAX = 8;
-const LATENCY_SAMPLE_CAP_MS = 600;
-const LATENCY_PERSIST_KEY = "flemo:lat";
-const latencySamples: number[] = [];
-
-// The ledger PERSISTS (2026-08-13 device round): the in-memory-only version
-// relearned from scratch on every reload, so real sessions spent their
-// first cold switches back inside the trouble window — the round's two
-// fully-clean tab fades were exactly the flights whose learned hold had
-// reached its target. Same pattern as the flemo:lpm flag: seed from the
-// last session, correct from live samples.
-// The session-worst NEVER decays (2026-08-13 second round: the rolling
-// max alone let eight warm switches evict a cold switch's 300ms lesson —
-// the next cold entry swallowed again, 274ms gap / Δopacity 0.82). Entry
-// paths that must NEVER swallow (REPLACING) read the worst; paths that
-// trade a rare tail for reaction time (PUSHING) read the rolling budget.
-let sessionWorstLatency: number | null = null;
-
-const persistLatency = () => {
-  try {
-    if (typeof sessionStorage !== "undefined" && sessionWorstLatency !== null) {
-      sessionStorage.setItem(LATENCY_PERSIST_KEY, String(Math.round(sessionWorstLatency)));
-    }
-  } catch {
-    // Storage unavailable: the session simply re-learns.
-  }
-};
-const seedLatency = () => {
-  try {
-    if (typeof sessionStorage === "undefined") return;
-    const raw = Number(sessionStorage.getItem(LATENCY_PERSIST_KEY));
-    if (Number.isFinite(raw) && raw > 0) {
-      const seeded = Math.min(raw, LATENCY_SAMPLE_CAP_MS);
-      latencySamples.push(seeded);
-      sessionWorstLatency = seeded;
-    }
-  } catch {
-    // ignore
-  }
-};
-seedLatency();
-
-export const reportLpmReleaseLatency = (ms: number): void => {
-  if (!Number.isFinite(ms) || ms <= 0) return;
-  const sample = Math.min(ms, LATENCY_SAMPLE_CAP_MS);
-  latencySamples.push(sample);
-  if (latencySamples.length > LATENCY_SAMPLES_MAX) latencySamples.shift();
-  sessionWorstLatency =
-    sessionWorstLatency === null ? sample : Math.max(sessionWorstLatency, sample);
-  persistLatency();
-};
-
-// Rolling budget (recent 8, max): adapts down when the device calms.
-export const lpmReleaseLatencyBudgetMs = (): number | null =>
-  latencySamples.length === 0 ? null : Math.max(...latencySamples);
-
-// Session worst (never decays, persisted): for entries that must never
-// open inside the trouble window.
-export const lpmWorstReleaseLatencyMs = (): number | null => sessionWorstLatency;
+// The release-latency ledger that used to live here (flemo:lat, fed by
+// lpmReleaseLatencyProbe) was RETIRED 2026-08-19: the probe ran on every
+// LPM-supervised flight and persisted a session-worst value that no
+// production code ever read — the birth hold is sized from the static
+// LPM_HEAD_MS table instead. It cost an observer per flight on the weakest
+// devices in the matrix, and a stale flemo:lat seed had already neutralized
+// a pessimistic branch mid-campaign once (docs/diagnostics.md pitfalls).
+// If an adaptive hold is attempted again, size it from a reader that exists
+// before landing the writer.
 
 export const probeLowPowerCadence = (attempt = 0): void => {
   if (probing || !eligible()) return;
