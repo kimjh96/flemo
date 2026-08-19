@@ -36,9 +36,12 @@ _transitions/` plus the `[n]` deep route. It imports `@flemo/react` via `workspa
 
 ## E2E (`e2e/`)
 
-- Playwright projects: `chromium` (Desktop Chrome), `mobile-chromium` (Pixel 7 —
-  where the player-tier specs run; the rAF player is production only on touch Blink),
-  and an opt-in `webkit` behind `FLEMO_WEBKIT`. CI runs
+- Playwright projects: `chromium` (Desktop Chrome) and `mobile-chromium` (Pixel 7 —
+  where the player-tier specs run against a PINNED player; Blink routes the compiled
+  tier everywhere, so the force pin is the player's only route there). There is NO
+  webkit project — `c5a2742` dropped it, so the `browserName === "webkit"` skips left
+  in the specs are dead guards and WebKit routing has no CI coverage at all (it is
+  device-judged). CI runs
   `--project=chromium --project=mobile-chromium` against a production build.
 - `helpers/flemo.ts` — `data-flemo-*` locators, `waitForNavIdle` (NEVER fixed waits:
   the player's capped clock legitimately stretches flights on a stalled runner; wait
@@ -48,7 +51,9 @@ _transitions/` plus the `[n]` deep route. It imports `@flemo/react` via `workspa
   re-entry blank regression guard from PR #259.
 - `perception/heavy-shell.mjs` — MANUAL motion-energy harness (Playwright video +
   ffmpeg); usage in its header. Not wired into CI.
-- More toggles and observation pitfalls: `docs/diagnostics.md`.
+- More toggles and observation pitfalls: the flag registry table at the top of
+  `packages/core/src/core/engine/diagnosticFlags.ts` (the untracked `docs/` set is
+  maintainer-local; see .gitignore).
 
 ## Running Playwright locally
 

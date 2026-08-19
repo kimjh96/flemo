@@ -28,6 +28,20 @@ node_modules
 .claude
 # Root CLAUDE.md stays a local, per-checkout file; package-level CLAUDE.md
 # files (packages/react, apps/web) are tracked documentation.
+
+# Agent-facing engine documentation (architecture notes, the diagnostics flag
+# reference, the device-campaign postmortems). Local per-checkout, same as the
+# root CLAUDE.md above: it churns on every motion round and the churn dominated
+# review. Source comments still cite these paths — they are the maintainer's
+# working notes, and the code comments they cite remain the primary source.
+#
+# ROOT-ANCHORED, and it must stay that way. An unanchored `docs/` matches a
+# directory of that name at ANY depth, which swallowed the docs SITE
+# (apps/web/app/[lang]/docs) — and because Tailwind's source scanner honors
+# .gitignore, its classes stopped being generated: the sidebar's `md:block`
+# vanished from the bundle and the aside stayed `display: none`, failing the
+# docs e2e specs with a build that compiled cleanly.
+/docs/
 /CLAUDE.md
 
 # OS

@@ -12,7 +12,7 @@ import {
   snapOverride,
   snapshotApplyOverride
 } from "@core/engine/diagnosticFlags";
-import driverPolicy, { detectBlinkEngine } from "@core/engine/driverPolicy";
+import { detectBlinkEngine } from "@core/engine/driverPolicy";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import {
   HIGH_REFRESH_MAX_INTERVAL_MS,
@@ -54,10 +54,11 @@ export { resetSessionOverrideCachesForTests } from "@core/engine/diagnosticFlags
 // with exact CSS semantics (no approximation, discrete pairs flip at 50%
 // exactly like the compiled path would), while the progression clock stays on
 // the main thread — the same immunity to compositor-clocked jank as the
-// numeric tier. The compiled CSS animation path remains only where the player
-// must not or cannot run: replay chains, policy-demoted devices, and
-// environments without WAAPI. The library decides per variant; consumers
-// never do.
+// numeric tier. The compiled CSS animation path drives wherever the player
+// must not or cannot run — which since 2026-08-19 is most production traffic:
+// all of Blink, replay chains, `css`-pinned sessions, most touch WebKit
+// statuses, and environments without WAAPI. The library decides per variant;
+// consumers never do.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TRANSFORM_ORDER = [
@@ -829,7 +830,6 @@ export const createTransitionPlayerRegistry = (
     // normal all-done exit, but also when every remaining track has been
     // handed off (no more frames → no more gap evidence) — the finish
     // events that complete those tracks must not close the run twice.
-    ended: boolean;
     startTime: number | null;
     lastTime: number | null;
     frameHandle: number | null;
@@ -887,7 +887,6 @@ export const createTransitionPlayerRegistry = (
           navComplete: null,
           navCompleted: false,
           started: false,
-          ended: false,
           startTime: null,
           lastTime: null,
           frameHandle: null
@@ -961,7 +960,6 @@ export const createTransitionPlayerRegistry = (
         if (input.onComplete) player.navComplete = input.onComplete;
         if (!player.started) {
           player.started = true;
-          driverPolicy.beginRun();
           scheduleFrame(taskId, player);
         }
       }
@@ -1051,12 +1049,6 @@ export const createTransitionPlayerRegistry = (
     });
   }
 
-  function endPolicyRun(player: Player) {
-    if (player.ended) return;
-    player.ended = true;
-    driverPolicy.endRun(player.frameIntervalMs);
-  }
-
   // Hand a track's remainder to a FRESH Web Animation: the authored curve's
   // remaining segment baked into plain-linear keyframes over the remaining
   // duration (see buildRemainderKeyframes for why keyframes and not a
@@ -1144,7 +1136,6 @@ export const createTransitionPlayerRegistry = (
           player.navCompleted = true;
           player.navComplete?.();
         }
-        endPolicyRun(player);
         players.delete(taskId);
       }
     };
@@ -1157,13 +1148,11 @@ export const createTransitionPlayerRegistry = (
 
     if (player.lastTime !== null) {
       const gap = time - player.lastTime;
-      // Report the RAW gap — the true time since our last frame — to the driver
-      // policy and the diagnostic hook BEFORE any re-anchor. The policy demotes
-      // a device off its OWN measured stalls (driverPolicy.ts); re-anchoring
-      // must never launder that evidence. Re-anchoring shifts startTime, never
-      // lastTime, so the reported gap is identical either way — reporting first
-      // makes that guarantee structural, not incidental.
-      driverPolicy.reportGap(gap);
+      // Report the RAW gap — the true time since our last frame — to the
+      // diagnostic hook BEFORE any re-anchor, so an observer sees the stall
+      // the player actually took. Re-anchoring shifts startTime, never
+      // lastTime, so the reported gap is identical either way; reporting
+      // first makes that structural rather than incidental.
       registry.onFrameGap?.(gap);
       if (gap >= MIN_FRAME_INTERVAL_MS && gap <= SLOW_CADENCE_MAX_MS) {
         player.recentGaps.push(gap);
@@ -1305,15 +1294,13 @@ export const createTransitionPlayerRegistry = (
         player.navCompleted = true;
         player.navComplete?.();
       }
-      endPolicyRun(player);
       players.delete(taskId);
       return;
     }
     if (!needsFrame) {
       // Every remaining track is handed off: the browser presents, finish
       // events complete. Stop the loop — from here a main-thread gap is not
-      // a presentation gap, so the run's stall evidence is complete too.
-      endPolicyRun(player);
+      // a presentation gap.
       return;
     }
     scheduleFrame(taskId, player);
