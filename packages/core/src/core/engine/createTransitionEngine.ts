@@ -99,6 +99,8 @@ const startHoldDisarms = new WeakMap<HTMLElement, () => void>();
 // This screen's <Part> elements. The container (the scope's parent) hosts
 // bar-mounted parts too; parts owned by a NESTED screen inside the container
 // belong to that screen's own engine and are excluded.
+const ANIM_HOLD_ATTR = "data-flemo-anim-hold";
+
 const collectScreenParts = (scope: HTMLElement): HTMLElement[] => {
   const container = scope.parentElement ?? scope;
   return Array.from(container.querySelectorAll<HTMLElement>(`[${PART_NAME_ATTR}]`)).filter(
@@ -111,6 +113,22 @@ const collectScreenParts = (scope: HTMLElement): HTMLElement[] => {
 
 // The subset currently mirroring this join's variant (parts self-carry their
 // screen's status/active, which the compiled part selectors match on).
+// Parts of this flight that no held element CONTAINS. The compiled hold rule
+// pauses `[data-flemo-anim-hold=…]` and its `[data-flemo-part-name]`
+// DESCENDANTS, so a Part inside a screen is covered by the screen's own hold —
+// but a Part mounted OUTSIDE any screen (persistent chrome beside a <Slot>, a
+// portal; collectScreenParts admits them on purpose) has no held ancestor and
+// so kept animating through the hold window while every screen was parked. It
+// then led the flight by the entire hold — the same defect the decorator once
+// had ("the dim faded in ahead of the held screens", 2026-08-13).
+// The ancestor test deliberately starts at the PARENT: a part this engine has
+// already stamped must still be found, so the release can re-derive the same
+// set instead of trusting a record the DOM may have changed under.
+const collectUnheldOuterParts = (scope: HTMLElement): HTMLElement[] =>
+  collectScreenParts(scope).filter(
+    (part) => part.parentElement?.closest(`[${ANIM_HOLD_ATTR}]`) == null
+  );
+
 const collectVariantParts = (scope: HTMLElement, variant: TransitionVariant): HTMLElement[] => {
   const [status, active] = variant.split("-");
   return collectScreenParts(scope).filter(
@@ -734,6 +752,25 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       input;
 
     const isTransitional = status === "PUSHING" || status === "POPPING" || status === "REPLACING";
+
+    // Mirror the flight's hold onto Parts that live OUTSIDE any screen, which
+    // the compiled hold rule's descendant selector cannot reach (see
+    // collectUnheldOuterParts). Owned by the ACTIVE side only: both screens of
+    // a flight render a hold, and two owners writing one persistent element
+    // means whichever releases first un-holds it for the other. This runs in
+    // the binding's layout effect, which re-runs on the hold flip, so the
+    // stamp and the screens' own attribute land in the same commit — the part
+    // must not lead or trail the flight by a frame either.
+    if (isActive) {
+      const { scope: holdScope } = getElements();
+      if (holdScope) {
+        const held = isTransitional && !animHoldReleased;
+        for (const part of collectUnheldOuterParts(holdScope)) {
+          if (held) part.setAttribute(ANIM_HOLD_ATTR, "true");
+          else part.removeAttribute(ANIM_HOLD_ATTR);
+        }
+      }
+    }
 
     // EVERY flight participant — active or passive, before any early-return
     // fork below (the passive player join returns long before the active

@@ -118,7 +118,14 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
   `ScreenContext` + `ParamsProvider` per entry.
 - `Part.tsx`: wraps an element in a named part-transition; self-carries its screen's
   status/active attributes (and the Router marker via ScreenContext/RouterIdContext)
-  so compiled selectors and the engine's variant queries scope correctly.
+  so compiled selectors and the engine's variant queries scope correctly. A Part may
+  live OUTSIDE any screen (persistent chrome beside a `<Slot>`, a portal). Those get
+  the flight's anim-hold stamped on them by the engine, because the compiled hold rule
+  only pauses `[data-flemo-anim-hold] [data-flemo-part-name]` DESCENDANTS — without
+  the stamp an outer Part animates through the hold and leads the flight by its whole
+  duration. The ACTIVE side owns the stamp: both screens of a flight carry a hold, and
+  two owners writing one persistent element means the first release un-holds it for
+  the other.
 - `ScreenDecorator.tsx`: the dim/decorator element (`decoratorMap` lookup), driven by
   the same holds/engine joins.
 - Hooks: `useNavigate`/`usePathname`/`useStep` (navigation), `useScreen` (identity/

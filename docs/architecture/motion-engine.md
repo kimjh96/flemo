@@ -81,6 +81,11 @@ Chronologically:
   carries `minNodes: 1` where the active side uses 30; REPLACING stays ungated. Note
   the gate only protects the START of a flight — a block landing mid-flight ages a
   wall-clocked compiled animation regardless.
+- **Outer `<Part>` holds**: the compiled hold rule pauses held elements and their
+  `[data-flemo-part-name]` descendants, which covers a Part inside a screen. A Part
+  mounted outside any screen is still a flight participant (`collectScreenParts`
+  admits it) but has no held ancestor, so the engine stamps the hold on it directly
+  for the hold window — active side only, one owner per flight.
 - **Atomic release flip**: on non-Blink, for authored `driver:"native"` pins and for the
   governed-compiled touch-WebKit tier, the release callback writes
   `data-flemo-anim-hold="false"` directly on the DOM inside the readiness rAF (rAF →
