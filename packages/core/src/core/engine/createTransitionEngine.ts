@@ -1733,25 +1733,29 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // profile: 120-260ms mount tasks), so the flight gets a held head instead
     // of swallowing the curve's start.
     //
-    // The `!playerAllowed()` term is now nearly dead. It was written for a
-    // DEMOTED device, and demotion is off since the Blink unification, so it
-    // fires only under a `css` force pin; `isLegacyAndroidBlink()` is what
-    // actually selects the Note 9 class today. That leaves an OPEN QUESTION
-    // this PR deliberately does not answer: a modern-but-weak touch Blink
-    // (UA-CH present, so not legacy) used to earn the kit through demotion
-    // and now cannot. What covers it instead is the render-settle gate,
-    // default-on for touch Blink since PR #268 — it moves the same mount
-    // weight out of the opening by a different mechanism. Extending the kit
-    // to ALL touch Blink is the obvious next lever and must NOT be taken
-    // blind: the 2026-08-14 round reverted exactly that blanket treatment
-    // when fast devices picked up the compiled landing snap (see
-    // docs/postmortems/2026-08-motion-jank.md). It needs a device round, not
-    // a guess.
+    // A `!driverPolicy.playerAllowed()` term used to sit beside the legacy
+    // check, to catch a DEMOTED device. It was REMOVED with demotion (2026-08-19),
+    // and not merely because it was dead: with nothing left to demote it
+    // resolved to "a css force pin", and a css pin changes no routing on touch
+    // Blink (gate 2 already sends every Blink flight compiled). So the only
+    // thing it still did was hand a PINNED session the governed head kit that
+    // the same device does not get in production — a diagnostic pin that
+    // silently alters the motion it was meant to observe. The pin must
+    // reproduce production, so the term is gone.
+    //
+    // Known gap, deliberately not closed here: a modern-but-weak touch Blink
+    // (UA-CH present, so not legacy) used to earn this kit through demotion
+    // and now cannot. The render-settle gate covers the same mount weight
+    // from the other side, default-on for touch Blink since PR #268.
+    // Extending the kit to ALL touch Blink is the obvious next lever and must
+    // NOT be taken blind: the 2026-08-14 round reverted exactly that blanket
+    // treatment when fast devices picked up the compiled landing snap (see
+    // docs/postmortems/2026-08-motion-jank.md). It needs a device round.
     const routedBlinkGoverned =
       detectBlinkEngine() &&
       typeof navigator !== "undefined" &&
       navigator.maxTouchPoints > 0 &&
-      (!driverPolicy.playerAllowed() || isLegacyAndroidBlink());
+      isLegacyAndroidBlink();
     // Unified-WebKit experiment: all touch WebKit on the compiled tier takes
     // the governed head kit too, so its opening commit lands in a held head
     // instead of swallowing the curve's start.
