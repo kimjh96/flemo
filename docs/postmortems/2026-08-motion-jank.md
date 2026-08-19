@@ -82,7 +82,11 @@ Other standalone real bugs found en route: cold-profile GPU pipeline compile sta
 (→ gpuPipelinePrewarm), COMPLETED-flip layer demotion repaint (→ layerSettleHold),
 the swipe-settle takeover race (edge-zone taps with 1-5px wobble registering as grabs;
 → 6px tap slop + `settleScrubber.takeover`), the stale-resolver double resolution
-(→ captured task ids), and the compositor wake-up loss (→ warm-up + interaction warm).
+(→ captured task ids), the page-wide swipe recognizer claiming Android vertical-fling
+jitter and committing a cancelled pointer (→ 8px intent slop + 3:1 axis lock + neutral
+cancel), transition-time `pointer-events: none` stranding a touch on the covered screen
+(→ hit-testable destination + click-only capture gate), and the compositor wake-up loss
+(→ warm-up + interaction warm).
 
 ## (c) DO-NOT-RETRY list
 
