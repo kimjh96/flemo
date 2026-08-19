@@ -82,10 +82,19 @@ Chronologically:
   the gate only protects the START of a flight — a block landing mid-flight ages a
   wall-clocked compiled animation regardless.
 - **Outer `<Part>` holds**: the compiled hold rule pauses held elements and their
-  `[data-flemo-part-name]` descendants, which covers a Part inside a screen. A Part
-  mounted outside any screen is still a flight participant (`collectScreenParts`
-  admits it) but has no held ancestor, so the engine stamps the hold on it directly
-  for the hold window — active side only, one owner per flight.
+  `[data-flemo-part-name]` descendants, which covers a Part inside a screen and a Part
+  inside a shared bar (the binding stamps the attribute on both). A Part mounted
+  outside any screen — the position `<Part>` supports on purpose (persistent chrome
+  beside a `<Slot>`, a portal) — has neither, while the compiled part selector still
+  drives it (name + status + active, no structural term). The engine stamps the hold on
+  it directly for the hold window: active side only, one owner per flight. Collection
+  goes through `collectFlightParts`, i.e. the `data-flemo-router` marker — DOM ancestry
+  cannot draw this boundary (each screen sits in its own wrapper, a root Router renders
+  no container, two Routers may share a parent), so a container-scoped walk reaches only
+  the screen's own subtree where everything is already held. Stamp is status-scoped
+  (never pause a part this flight does not drive — `animation-play-state` is
+  per-element and would catch consumer-authored animations too); the release sweep is
+  status-agnostic, so a pause can never outlive the flight on persistent chrome.
 - **Atomic release flip**: on non-Blink, for authored `driver:"native"` pins and for the
   governed-compiled touch-WebKit tier, the release callback writes
   `data-flemo-anim-hold="false"` directly on the DOM inside the readiness rAF (rAF →

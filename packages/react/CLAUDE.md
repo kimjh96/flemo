@@ -123,9 +123,13 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
   the flight's anim-hold stamped on them by the engine, because the compiled hold rule
   only pauses `[data-flemo-anim-hold] [data-flemo-part-name]` DESCENDANTS — without
   the stamp an outer Part animates through the hold and leads the flight by its whole
-  duration. The ACTIVE side owns the stamp: both screens of a flight carry a hold, and
-  two owners writing one persistent element means the first release un-holds it for
-  the other.
+  duration. A Part inside a screen or a shared bar needs no stamp: the binding puts the
+  attribute on both, so the descendant rule already covers them. The engine finds outer
+  Parts through the `data-flemo-router` marker, never by walking up from the scope —
+  each screen sits in its own wrapper, so such a walk sees only that screen's subtree
+  (where everything is already held) and would silently cover nothing. The ACTIVE side
+  owns the stamp: both screens of a flight carry a hold, and two owners writing one
+  persistent element means the first release un-holds it for the other.
 - `ScreenDecorator.tsx`: the dim/decorator element (`decoratorMap` lookup), driven by
   the same holds/engine joins.
 - Hooks: `useNavigate`/`usePathname`/`useStep` (navigation), `useScreen` (identity/
