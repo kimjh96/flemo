@@ -14,6 +14,11 @@ jobs:
   verify:
     name: Verify
     runs-on: ubuntu-latest
+    # Ceiling, not a target: this job lands in ~2 minutes. GitHub's default is
+    # SIX HOURS, which turns any hang into a required check that never reports
+    # — and with the ruleset's strict policy, one stuck job blocks every other
+    # PR's merge too.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -45,6 +50,9 @@ jobs:
   e2e:
     name: E2E
     runs-on: ubuntu-latest
+    # Same ceiling reasoning as Verify. This job lands in ~5 minutes; 25 leaves
+    # room for a slow runner without leaving a hang parked for hours.
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -68,18 +76,52 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
+      # INCIDENT (2026-08-19): both install steps below hang on the runner —
+      # observed four times in one day across PRs #274, #246 (twice) and #250,
+      # sitting 20-22 minutes with no output before someone cancelled the run.
+      # Both shell out to network work (the Playwright CDN download, and apt for
+      # the system libraries), so a stalled connection parks the step with no
+      # timeout of its own. Bounded per ATTEMPT and retried: a transient stall
+      # costs one attempt instead of the whole job, and a genuine outage fails
+      # the check in minutes so the queue keeps moving.
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @flemo/web exec playwright install --with-deps chromium
+        timeout-minutes: 12
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 5m pnpm --filter @flemo/web exec playwright install --with-deps chromium; then
+              exit 0
+            fi
+            echo "::warning::playwright install attempt $attempt stalled or failed; retrying"
+            sleep 15
+          done
+          echo "::error::playwright install failed after 3 attempts"
+          exit 1
 
       - name: Install Playwright system deps (cached browsers)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @flemo/web exec playwright install-deps chromium
+        timeout-minutes: 12
+        # Two attempts, not three: this one drives apt, and killing it mid-
+        # transaction can leave dpkg locked for whatever follows. One retry
+        # covers a stalled mirror; more just replays the lock.
+        run: |
+          for attempt in 1 2; do
+            if timeout 5m pnpm --filter @flemo/web exec playwright install-deps chromium; then
+              exit 0
+            fi
+            echo "::warning::playwright install-deps attempt $attempt stalled or failed; retrying"
+            sleep 15
+          done
+          echo "::error::playwright install-deps failed after 2 attempts"
+          exit 1
 
       - name: Build workspace deps for @flemo/web
         run: pnpm turbo run build --filter=@flemo/web
 
       - name: Playwright
+        # The suite runs in ~30s locally and ~2min on a CI runner; 15 bounds a
+        # wedged browser without touching a legitimately slow run.
+        timeout-minutes: 15
         # Both projects: the player-tier specs in motion-perception.spec.ts
         # skip on desktop chromium and only run under mobile-chromium (which
         # shares the same chromium binary).
