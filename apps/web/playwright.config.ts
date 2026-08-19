@@ -39,6 +39,10 @@ export default defineConfig({
   ],
   webServer: {
     command: `pnpm build && pnpm start -p ${PORT}`,
+    // The playground's recorder is dev-only in a normal build so it never
+    // reaches a visitor's bundle; the e2e build opts back in, because these
+    // specs must run against a production build (see apps/web/CLAUDE.md).
+    env: { NEXT_PUBLIC_FLEMO_DEVTOOLS: "1" },
     url: BASE_URL,
     reuseExistingServer: !isCI,
     timeout: 120_000,
