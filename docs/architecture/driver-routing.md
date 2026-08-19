@@ -57,7 +57,9 @@ transition and status, so a navigation never splits across drivers.
    - `status === "POPPING" && !readHandoffFlag()`, or
    - `status === "PUSHING" && readSettleGateFlag() && !readHandoffFlag()`
 
-   → **compiled**. `readSettleGateFlag()` defaults to `governedCompiledActive()`, which
+   → **compiled**. `readSettleGateFlag()` defaults on for touch WebKit
+   (`governedCompiledActive()`), touch Blink, and verified steady-60 desktop Blink —
+   the table in `diagnosticFlags.ts` is the tested source of truth. `governedCompiledActive()`, which
    is true for every touch-WebKit session (see gate 5) — so by default both POP and
    PUSH route compiled here. `flemo:handoff=on` exempts both statuses from _this_ gate
    (the player+handoff instrument), but note gate 5 below.
@@ -123,7 +125,7 @@ governedCompiledActive() && status ∈ {REPLACING, POPPING, PUSHING}` → **comp
 | `flemo:motion-driver-force=css@<ts>`                                    | `playerAllowed()` false → gate 6 routes everything compiled.                                                                                                                                                                                                                                                       |
 | `flemo:motion-driver` (localStorage)                                    | The learned demotion ledger — production state, never set by hand.                                                                                                                                                                                                                                                 |
 | `flemo:handoff=on`                                                      | Exempts POP/PUSH from gate 4 and enables the player's anchored-opening handoff (POP-scoped inside the player). On current main, gate 5 still routes touch WebKit compiled, so its practical reach is pinned/`raf` sessions and unit tests.                                                                         |
-| `flemo:settle-gate=on/off`                                              | Feeds gate 4's PUSH branch and the ScreenMotion release gate. Default = `governedCompiledActive()` (on for touch WebKit, off elsewhere).                                                                                                                                                                           |
+| `flemo:settle-gate=on/off`                                              | Feeds gate 4's PUSH branch and the ScreenMotion release gate. Default = on for touch WebKit, touch Blink, and verified steady-60 desktop Blink; off elsewhere.                                                                                                                                                     |
 | `flemo:lpm=1/0`                                                         | Session-persisted LPM verdict seed (production state) — affects the cadence machinery, not routing, since the governed treatment no longer keys off it.                                                                                                                                                            |
 | `flemo:apply=scrub`                                                     | Not routing — forces the scrub-WAAPI application tier for every _player_ track.                                                                                                                                                                                                                                    |
 | `flemo:snap`, `flemo:snapband`, `flemo:handoffms`, `flemo:landing-snap` | Value-application / easing shape only, no tier change (see diagnostics.md).                                                                                                                                                                                                                                        |
