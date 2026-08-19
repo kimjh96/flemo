@@ -34,8 +34,10 @@
 // There is deliberately NO automatic driver switching, and none mid-flight:
 // the two paths have different clocks, easing evaluation, and write paths, so
 // any handoff during motion risks a visible seam. The pin picks one driver
-// for the whole session; the demotion machinery still guards a force-pinned
-// player on a chronically-starved Blink device.
+// for the whole session, and since 2026-08-19 it is the ONLY thing that can:
+// demotion is off everywhere (see the createDriverPolicy call at the bottom),
+// so a force-pinned player now runs unguarded by design — an instrument must
+// keep measuring the tier it was pinned to, even on a starved device.
 
 export interface DriverPolicyStorage {
   read: () => string | null;

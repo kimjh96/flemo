@@ -967,7 +967,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // Join this screen's participants (scope, riding bars, decorator) to the
     // navigation's shared player. The player covers every motion — numeric
     // interpolation or a scrubbed Web Animation — so a null here means the
-    // player must not or cannot run (replay chain, demoted device, no WAAPI)
+    // player must not or cannot run (Blink, replay chain, css pin, no WAAPI)
     // and the compiled CSS path stays in charge.
     const joinPlayer = (
       variant: TransitionVariant,
@@ -1199,9 +1199,11 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         probeLowPowerCadence(); // keep the flag fresh per routed flight
         return null;
       }
-      // 4. A device whose main thread chronically starves the player even on
-      //    single navigations (measured by the player's own frame gaps)
-      //    earned a demotion; CSS drives everything there, as it always did.
+      // 4. A `css` force pin. This gate once also caught devices the
+      //    demotion machinery had judged chronically starved, but demotion is
+      //    off everywhere since the Blink unification (its only purpose was
+      //    moving a starving Blink device to the tier Blink now always uses),
+      //    so playerAllowed() is false for exactly one reason today.
       if (!driverPolicy.playerAllowed()) return null;
 
       const { scope, decorator, bars } = getElements();
@@ -1419,7 +1421,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         const detach = joinPlayer(variant, "passive");
         if (detach) return detach;
 
-        // Player declined (replay chain, demoted device, or a variant it can't
+        // Player declined (Blink, replay chain, css pin, or a variant it can't
         // interpolate): the compiled CSS drives this exit. Wire cancel-resume on
         // every participant so a WebKit-cancelled fade rejoins its timeline
         // instead of dying silently under the incoming top. Pure resume — the
@@ -1726,17 +1728,25 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       typeof navigator !== "undefined" &&
       navigator.maxTouchPoints > 0 &&
       governedCompiledActive();
-    // Touch-Blink whose player was DEMOTED (driverPolicy chronic-starvation
-    // strikes) runs the compiled tier too — and it needs the same governed
-    // head kit: local Chromium rig (20x CPU throttle, 2026-08-13) showed
-    // the player janking 23-73ms mid-flight while compiled flights rode
-    // the identical load at ≤21ms — but a demoted device's commits are
-    // slow, so a BARE compiled flight would age its clock past the whole
-    // opening (the Note 9 profile: 120-260ms mount tasks). Same physics,
-    // same medicine, different trigger.
-    // Only a DEMOTED touch-Blink device (the Note 9) takes the governed head
-    // kit — a fast touch-Blink (Pixel 9) stays on the clean player and is
-    // never governed, so it never picks up the compiled landing snap.
+    // The governed head kit for touch Blink: a slow device's commits age a
+    // BARE compiled flight's clock past the whole opening (the Note 9
+    // profile: 120-260ms mount tasks), so the flight gets a held head instead
+    // of swallowing the curve's start.
+    //
+    // The `!playerAllowed()` term is now nearly dead. It was written for a
+    // DEMOTED device, and demotion is off since the Blink unification, so it
+    // fires only under a `css` force pin; `isLegacyAndroidBlink()` is what
+    // actually selects the Note 9 class today. That leaves an OPEN QUESTION
+    // this PR deliberately does not answer: a modern-but-weak touch Blink
+    // (UA-CH present, so not legacy) used to earn the kit through demotion
+    // and now cannot. What covers it instead is the render-settle gate,
+    // default-on for touch Blink since PR #268 — it moves the same mount
+    // weight out of the opening by a different mechanism. Extending the kit
+    // to ALL touch Blink is the obvious next lever and must NOT be taken
+    // blind: the 2026-08-14 round reverted exactly that blanket treatment
+    // when fast devices picked up the compiled landing snap (see
+    // docs/postmortems/2026-08-motion-jank.md). It needs a device round, not
+    // a guess.
     const routedBlinkGoverned =
       detectBlinkEngine() &&
       typeof navigator !== "undefined" &&

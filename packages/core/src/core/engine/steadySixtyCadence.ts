@@ -1,7 +1,13 @@
 import { detectBlinkEngine } from "@core/engine/driverPolicy";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Genuine-steady-60Hz verdict for DESKTOP Blink routing.
+// Genuine-steady-60Hz verdict for the DESKTOP Blink profile.
+//
+// It no longer routes anything (Blink runs the compiled tier everywhere since
+// 2026-08-19); the verdict now selects desktop DEFAULTS only — see
+// steadySixtyPlayerEligible below. The reasoning that produced it is kept in
+// full because the measurement is what makes those defaults defensible, and
+// because it records why an idle cadence probe must never gate anything.
 //
 // Desktop Blink defaulted to the compiled tier UNCONDITIONALLY because an idle
 // cadence probe lies on exactly the machines the compiled tier must keep: an
@@ -36,9 +42,11 @@ import { detectBlinkEngine } from "@core/engine/driverPolicy";
 //   readings; a healthy 60Hz panel whose push medians ride a heavy mount
 //   commit still verifies off its clean flights.
 //
-// The first flight of a session therefore always runs compiled (probing), and
-// a machine's worst case is two compiled flights before the player takes
-// over — mirroring the demotion machinery's session-start probing cost.
+// The first flight of a session therefore always runs unverified, and a
+// machine's worst case is two flights before the profile latches. When this
+// verdict still routed, that meant two compiled flights before the player
+// took over; today it means two flights on the desktop DEFAULTS rather than
+// the profile's.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Below this in-flight median the display is presenting faster than the

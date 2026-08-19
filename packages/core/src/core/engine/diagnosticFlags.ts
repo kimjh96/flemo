@@ -98,10 +98,16 @@ const isTouchBlink = (): boolean => detectBlinkEngine() && (navigator.maxTouchPo
 
 // `flemo:settle-gate` — the render-settle entry gate. ON BY DEFAULT for touch
 // WebKit (governedCompiledActive — the governed-compiled tier ships with it),
-// for steady-60 desktop Blink sessions (the player rides the main thread
-// there, so the entering screen's mount commit would stall its opening — the
-// gate is the same protection the touch tiers ship with; it also targets the
-// measured ~50ms desktop mount hitch), AND for touch Blink.
+// for steady-60 desktop Blink sessions, AND for touch Blink.
+//
+// The steady-60 desktop term is a PROFILE, not a driver claim. It was written
+// when a verified steady-60 session routed to the player, whose main-thread
+// per-frame write the entering mount commit would stall; that routing is gone
+// (Blink runs compiled everywhere since 2026-08-19) but the default stays,
+// because the reason that survives is the tier-independent one: the measured
+// ~50ms desktop mount hitch ages a wall-clocked compiled animation just as it
+// starved the player. See steadySixtyPlayerEligible's own note — the name is
+// historical.
 //
 // Touch Blink was the gap: the pop-convergence round (de35c13) widened the
 // ARMING to "ALL engines" and wrote the reason into ScreenMotion — "it was

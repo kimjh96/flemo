@@ -170,7 +170,7 @@ joinPlayer(variant, role):
   ├─ [5] WebKit && touch && governedCompiledActive()     ─► compiled  (governed head,
   │        && status ∈ {PUSH,POP,REPLACE}                    data-flemo-lpm, atomic flip)
   │        governedCompiledActive() == true for ALL touch WebKit today
-  ├─ [6] !playerAllowed() (css pin / demoted) ───────────► compiled
+  ├─ [6] !playerAllowed() (css pin only — demotion off) ─► compiled
   ├─ [7] pin != raf && classify() == "native"
   │        (authored driver:"native" only) ──────────────► compiled  (+native surgery)
   └─ otherwise ──────────────────────────────────────────► rAF PLAYER

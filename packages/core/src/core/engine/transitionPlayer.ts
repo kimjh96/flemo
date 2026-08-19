@@ -54,10 +54,11 @@ export { resetSessionOverrideCachesForTests } from "@core/engine/diagnosticFlags
 // with exact CSS semantics (no approximation, discrete pairs flip at 50%
 // exactly like the compiled path would), while the progression clock stays on
 // the main thread — the same immunity to compositor-clocked jank as the
-// numeric tier. The compiled CSS animation path remains only where the player
-// must not or cannot run: replay chains, policy-demoted devices, and
-// environments without WAAPI. The library decides per variant; consumers
-// never do.
+// numeric tier. The compiled CSS animation path drives wherever the player
+// must not or cannot run — which since 2026-08-19 is most production traffic:
+// all of Blink, replay chains, `css`-pinned sessions, most touch WebKit
+// statuses, and environments without WAAPI. The library decides per variant;
+// consumers never do.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TRANSFORM_ORDER = [
