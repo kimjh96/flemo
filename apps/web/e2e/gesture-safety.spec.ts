@@ -107,6 +107,15 @@ test.describe("touch gesture safety", () => {
     // The destination enters from the right. Start as soon as a real strip of
     // it is visible; using the transformed box centre would still be outside
     // the viewport and would not target any element at all.
+    //
+    // The hold must be released FIRST. Touch Blink routes the compiled tier
+    // (2026-08-19), where the active entering screen spends the hold window
+    // PARKED at its destination beneath the previous screen (`park-under`,
+    // zIndex -1). Its rect already reads left: 0 there, so a position-only
+    // sampler resolves during the hold and picks a point that hit-tests to the
+    // COVERING screen — measured: 11 held frames at left 0, elementFromPoint
+    // outside the scroller for every one. Waiting for the release is what makes
+    // "mid-slide" mean mid-slide.
     const start = await incomingScope.evaluate(async (scope) => {
       const scrollElement = scope.querySelector<HTMLElement>('[data-testid="docs-scroll"]')!;
       return new Promise<{ x: number; y: number }>((resolve, reject) => {
@@ -114,6 +123,10 @@ test.describe("touch gesture safety", () => {
           const rect = scrollElement.getBoundingClientRect();
           if (scope.getAttribute("data-flemo-status") !== "PUSHING") {
             reject(new Error("destination landed before the touch could start"));
+            return;
+          }
+          if (scope.getAttribute("data-flemo-anim-hold") !== "false") {
+            requestAnimationFrame(sample);
             return;
           }
           if (rect.left < window.innerWidth - 32) {
