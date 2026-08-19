@@ -608,10 +608,6 @@ const compileVariantBlock = (
   // transition window (status flips back to IDLE/COMPLETED → rule stops
   // matching → containing block goes away, fixed bars re-anchor as before).
   //
-  // `pointer-events: none` skips hit-testing on the moving element. Saves a
-  // compositor hit-test pass per frame and also acts as a correctness gate.
-  // A tap during the transition won't enqueue a second navigation.
-  //
   // Scoped to PUSHING and REPLACING only. Pop's arrival screen is unhidden
   // by ScreenFreeze (never re-mounted), so there's no mount work to isolate,
   // and the e2e harness showed a small but consistent regression (~8ms)
@@ -619,7 +615,12 @@ const compileVariantBlock = (
   // block evaluation cost on a 2k-node tree with no upside to offset it.
   const status = variant.split("-")[0];
   const wantsContainment = status === "PUSHING" || status === "REPLACING";
-  const containmentDecl = wantsContainment ? `  contain: layout;\n  pointer-events: none;\n` : "";
+  // Keep the moving screen hit-testable. Pointer streams retain the element
+  // selected at touch start; `pointer-events: none` sent a transition-adjacent
+  // scroll to the covered screen and stranded it there until the user lifted.
+  // React still suppresses click activation during these statuses, while
+  // native scrolling can begin immediately on the destination.
+  const containmentDecl = wantsContainment ? `  contain: layout;\n` : "";
 
   const ruleBlock = `${selector} {\n  animation: ${animationProp};\n${delayDecl}${durationDecl}${willChangeDecl}${containmentDecl}}`;
 

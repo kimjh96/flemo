@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent
 } from "react";
 import { flushSync } from "react-dom";
@@ -351,6 +352,18 @@ function ScreenMotion({
     swipeController.pointerMove(event.nativeEvent);
   const handlePointerUp = (event: ReactPointerEvent) =>
     swipeController.pointerUp(event.nativeEvent);
+  const handlePointerCancel = (event: ReactPointerEvent) =>
+    swipeController.pointerCancel(event.nativeEvent);
+  const handleClickCapture = (event: ReactMouseEvent<HTMLDivElement>) => {
+    // PUSHING / REPLACING used to apply pointer-events:none to the entire
+    // moving screen. That blocked activation, but also permanently targeted a
+    // transition-adjacent scroll at the covered screen. Keep the destination
+    // hit-testable for native scrolling and preserve only the activation gate.
+    if (status === "PUSHING" || status === "REPLACING") {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
 
   // Warm the image-decode cache every time this screen becomes live. Activity
   // unmounts a frozen screen's effects and remounts them on unfreeze, so a
@@ -369,10 +382,6 @@ function ScreenMotion({
 
     const handleTouchMove = (event: TouchEvent) => {
       if (swipeController.shouldPreventTouch()) {
-        event.preventDefault();
-      }
-
-      if ((event.target as HTMLElement)?.dataset.swipeAtEdgeBar === "true") {
         event.preventDefault();
       }
     };
@@ -808,6 +817,7 @@ function ScreenMotion({
   return (
     <div
       ref={screenRef}
+      onClickCapture={handleClickCapture}
       style={{
         position: screenPosition,
         top: 0,
@@ -833,23 +843,12 @@ function ScreenMotion({
       }}
     >
       <div
-        data-swipe-at-edge-bar
-        style={{
-          position: screenPosition,
-          top: 0,
-          left: 0,
-          width: 8,
-          height: "100%",
-          zIndex: 1
-        }}
-      />
-      <div
         ref={scopeRef}
         {...props}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         data-flemo-screen
         data-flemo-router={routerId ?? undefined}
         data-flemo-transition={transitionName}
@@ -892,15 +891,28 @@ function ScreenMotion({
           // descendants, which is visually identity-preserving when the
           // screen box IS the viewport but would break consumer overlays in
           // a nested region.
-          // The COVERED direct-prev screen keeps the promotion too
+          // NOT IMPLEMENTED, kept as a lead: extending the promotion to the
+          // COVERED direct-prev screen. The measurement that motivated it
           // (2026-08-18, marker-synced glass): with the top screen fully
           // occluding it at rest, cc EVICTS its tiles under a long-lived
-          // session's GPU memory pressure — and the pop that re-reveals it
-          // then froze the whole output 216-316ms (13-19 frames, every pop,
-          // start of motion) waiting on its re-raster, while rAF ticked
-          // clean (activation-blocked, not main-thread-blocked). will-change
-          // marks the layer animation-bound so its backing store stays
-          // resident and raster-prioritized while covered.
+          // session's GPU memory pressure, and the pop that re-reveals it
+          // froze the whole output 216-316ms (13-19 frames, every pop, start
+          // of motion) waiting on its re-raster, while rAF ticked clean —
+          // activation-blocked, not main-thread-blocked, so no in-page
+          // instrument sees it (the recorder's stall detector cannot: a
+          // compiled animation's clock keeps advancing on the wall clock
+          // while the output is frozen).
+          //
+          // Deliberately not shipped. Nobody is reporting that freeze today,
+          // several treatments landed since the measurement (layerSettleHold,
+          // the cadence video, the deferred freeze) that may have absorbed
+          // it, and adding it behind a flag would be machinery with no
+          // consumer — the class of debt PR #272 deleted. If a desktop pop
+          // ever freezes at its opening again: add `|| zIndex === index - 1`
+          // to the rest term, DESKTOP PROFILE ONLY (a second resident
+          // full-screen backing store is the opposite of what a
+          // memory-pressured phone needs), and judge it by eye with DevTools
+          // closed or with a CDP presentation trace.
           // REST promotion, CORRECT PREDICATE this time (2026-08-18): the
           // earlier attempt keyed on `isActive`, which is false at rest, so
           // it never applied and its null A/B result was meaningless. The
@@ -1043,17 +1055,6 @@ function ScreenMotion({
         </div>
       )}
       {decorator && <ScreenDecorator ref={decoratorRef} data-flemo-anim-hold={holdAttr} />}
-      <div
-        data-swipe-at-edge-bar
-        style={{
-          position: screenPosition,
-          top: 0,
-          right: 0,
-          width: 8,
-          height: "100%",
-          zIndex: 1
-        }}
-      />
     </div>
   );
 }
