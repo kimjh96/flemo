@@ -46,21 +46,45 @@ const INERT_NOTE =
 
 const noop = () => {};
 
-// Deliberately NOT a plausible-looking report. A fabricated environment
-// fingerprint would be worse than no data — an agent reading a driver verdict
-// off an inert report would draw a conclusion from a value nobody measured.
-// Every evidence-bearing field is empty, the version says so, and the
-// anomalies list says so in words. The cast is the price of refusing to
-// invent the sections that carry measurements.
-const inertReport = (): FlemoReport =>
-  ({
-    generatedAt: new Date().toISOString(),
-    version: "inert",
-    flights: [],
-    anomalies: [INERT_NOTE],
-    blindSpots: [],
-    judgingProtocol: [INERT_NOTE]
-  }) as unknown as FlemoReport;
+// A COMPLETE FlemoReport, with no cast. An earlier version omitted the
+// `environment` / `overrides` / `driverPolicy` sections and forced the type,
+// on the reasoning that a fabricated fingerprint is worse than no data. That
+// reasoning was right about fabrication and wrong about the remedy: the types
+// resolve to index.d.ts under every condition, so `report().environment.engine`
+// compiled fine and threw only in production — the exact class of silent,
+// production-only failure this entry exists to remove.
+//
+// So the sections are present and every field says "nothing was measured" in
+// whatever way its type allows: `unknown` where the union offers it, `null`
+// where the field is nullable, zero/empty otherwise. Anything a reader might
+// still mistake for a measurement (a `0` touch-point count, a `false`
+// capability) is disambiguated by `version: "inert"` and by the anomalies
+// entry, which says so in words.
+const inertReport = (): FlemoReport => ({
+  generatedAt: new Date().toISOString(),
+  version: "inert",
+  environment: {
+    userAgent: "",
+    uaBrands: null,
+    engine: "unknown",
+    platform: "",
+    maxTouchPoints: 0,
+    devicePixelRatio: 0,
+    screen: { width: 0, height: 0 },
+    viewport: { width: 0, height: 0 },
+    visualViewportScale: null,
+    rafCadence: { medianGapMs: null, sampleCount: 0 },
+    reducedMotion: false,
+    emulationSuspected: false,
+    observation: { longTasks: false, elementAnimations: false, playerGapMirror: false }
+  },
+  overrides: { active: {}, warnings: [INERT_NOTE] },
+  driverPolicy: { demotion: null, forcePin: null },
+  flights: [],
+  anomalies: [INERT_NOTE],
+  blindSpots: [],
+  judgingProtocol: [INERT_NOTE]
+});
 
 export const attachFlightRecorder = (_options?: FlightRecorderOptions): FlightRecorderHandle => ({
   detach: noop,

@@ -28,6 +28,29 @@ describe("production entry", () => {
     expect(inert.REPORT_SCHEMA_VERSION).toBe(RECORDER_VERSION);
   });
 
+  it("returns a report that satisfies the public contract, field by field", () => {
+    // The gap that shipped: the inert report omitted whole sections behind an
+    // `as unknown as FlemoReport` cast. Types resolve to index.d.ts under
+    // every export condition, so `report().environment.engine` type-checked
+    // and threw only in a production build. Reaching THROUGH each section is
+    // what catches that; checking a couple of arrays does not.
+    const report = inert.attachFlightRecorder().report();
+
+    expect(report.environment.engine).toBe("unknown");
+    expect(report.environment.observation.longTasks).toBe(false);
+    expect(report.environment.rafCadence.medianGapMs).toBeNull();
+    expect(report.environment.screen.width).toBe(0);
+    expect(report.overrides.active).toEqual({});
+    expect(report.driverPolicy.forcePin).toBeNull();
+    expect(report.driverPolicy.demotion).toBeNull();
+
+    // Every key the real report carries must be present, so a section added
+    // to FlemoReport cannot be forgotten here without the compiler or this
+    // test noticing.
+    const realKeys = Object.keys(real.attachFlightRecorder().report()).sort();
+    expect(Object.keys(report).sort()).toEqual(realKeys);
+  });
+
   it("records nothing and says so, rather than fabricating a report", () => {
     const handle = inert.attachFlightRecorder({ log: true });
     const report = handle.report();
