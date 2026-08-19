@@ -19,18 +19,28 @@ transition and status, so a navigation never splits across drivers.
    glides. On non-Blink, chains ride the _player_ — the compiled clock there is stamped
    a whole pipeline before first glass and a chained flight born into a heavy commit is
    swallowed wholesale (device-video'd: chained pop as a one-frame swap).
-2. **Blink compiled gate.** On Blink, unless `pinnedDriver() === "raf"`, ANY of:
-   - `navigator.maxTouchPoints === 0` (**desktop Blink — unconditional**, not
-     cadence-measured: an adaptive ProMotion panel idles at 60Hz, so a load-time probe
-     lies per-session),
-   - `learnedFrameIntervalMs() < 12` (**high-refresh**: between 90Hz and 120Hz on one
-     side, 60Hz on the other; a 30Hz throttled cadence never qualifies),
-   - `!driverPolicy.playerAllowed()` (**demoted** by the strike machinery, or a `css`
-     pin),
-   - `isLegacyAndroidBlink()` (**legacy Android**, no UA-CH brands — confidently
-     pre-2021 hardware, skips the per-session player probe that janked its first push)
-
+2. **Blink compiled gate.** `detectBlinkEngine() && pinnedDriver() !== "raf"`
    → **compiled** (+ the display-interval re-probe is armed).
+
+   **Blink is one rule now (2026-08-19): the compiled tier, everywhere.** Desktop
+   settled there on the live-judged ladder; touch Blink used to default to the player
+   and reach the compiled tier only by DEMOTION (two stalled flights, persisted per
+   ORIGIN, re-probed once per session), which made a weak phone's behavior depend on
+   which origin it had visited and how recently the page reloaded — the first flight
+   after every load ran the player even when the ledger already said `css`. That is
+   the intermittency users report as "sometimes it is much worse".
+
+   The unification follows the engine's own model: on Blink the compiled path
+   composites healthily, so it is a REFUGE there (on non-Blink it is the
+   freeze-and-jump tier and never can be). A refuge reachable only after paying for
+   two bad flights is a worse contract than routing there. What the player provided on
+   touch Blink — a capped clock absorbing a mid-flight commit storm — is covered from
+   the other side by the render-settle gate, default-on for touch Blink since PR #268.
+
+   Consequences: `learnedFrameIntervalMs()`, `playerAllowed()` and
+   `isLegacyAndroidBlink()` no longer participate in Blink routing (the last is still
+   the image-decode offloader's auto-gate), and **demotion is off everywhere** — its
+   only purpose was moving a starving Blink device to a tier Blink now always uses.
 
    **The raf pin pierces this whole gate** (`driverPolicy.pinnedDriver() !== "raf" &&`
    prefixes the condition — as of PR #259, merged 2026-08-17): a pinned session must
@@ -160,13 +170,13 @@ joinPlayer(variant, role):
 
 ## Worked examples
 
-| Context                                                 | Route on current main                                                                                                                                                         | Extras riding along                                                                                                                                                 |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| iPhone Safari, normal                                   | Governed **compiled** for PUSH/POP/REPLACE (gates 4+5)                                                                                                                        | Settle gate on by default, `data-flemo-lpm` flat-head keyframes (180/100/80ms), atomic DOM release flip, NO wall-clock perceptual cut/early landing, no stall watch |
-| iPhone Safari, Low Power Mode                           | Same governed **compiled** path (routing identical; LPM detection persists `flemo:lpm` but no longer gates)                                                                   | rAF-capped ~30Hz observers; latency ledger (`flemo:lat`) sizes nothing visual — flat head is static                                                                 |
-| Pixel 9, Chrome (touch Blink, UA-CH brands)             | **Player** — unless the learned interval measures < 12ms (a 120Hz panel actively presenting), which flips it to high-refresh **compiled** with the governed landing easing    | Demotion strikes armed; chain gate applies (chains → compiled)                                                                                                      |
-| Galaxy Note 9, Samsung Internet (touch Blink, no UA-CH) | **Compiled from flight one** (`isLegacyAndroidBlink`)                                                                                                                         | Governed head kit (`routedBlinkGoverned` → `data-flemo-lpm` + LPM_HEAD_MS deadlines); image decode offloader auto-on                                                |
-| Desktop Chrome                                          | **Compiled**, unconditionally (gate 2)                                                                                                                                        | Governed landing easing, frame-pacing keepalive rAF (session-permanent once armed), display-interval probe                                                          |
-| Desktop Chrome + `flemo:motion-driver-force=raf@…`      | **Player** (pin pierces gate 2; PR #259). Pin warning printed once per session; re-entries land on-screen thanks to the COMPLETED pose strip, e2e-guarded on desktop chromium | Player snap instrumentation reachable on desktop again                                                                                                              |
-| Desktop Safari                                          | **Compiled** (gate 3)                                                                                                                                                         | One-shot birth-window start anchor at release                                                                                                                       |
-| jsdom / unit suites                                     | **Player** (empty platform skips gate 3; no touch, non-Blink)                                                                                                                 | This is why unit tests exercise the player by default                                                                                                               |
+| Context                                            | Route on current main                                                                                                                                                         | Extras riding along                                                                                                                                                 |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| iPhone Safari, normal                              | Governed **compiled** for PUSH/POP/REPLACE (gates 4+5)                                                                                                                        | Settle gate on by default, `data-flemo-lpm` flat-head keyframes (180/100/80ms), atomic DOM release flip, NO wall-clock perceptual cut/early landing, no stall watch |
+| iPhone Safari, Low Power Mode                      | Same governed **compiled** path (routing identical; LPM detection persists `flemo:lpm` but no longer gates)                                                                   | rAF-capped ~30Hz observers; latency ledger (`flemo:lat`) sizes nothing visual — flat head is static                                                                 |
+| Pixel 9, Chrome (touch Blink, UA-CH brands)        | **Compiled from flight one** — Blink is unconditional since 2026-08-19                                                                                                        | Settle gate default-on (PR #268); the raf pin is the only route to the player                                                                                       |
+| Galaxy Note 9, any Chromium browser (touch Blink)  | **Compiled from flight one** (was `isLegacyAndroidBlink`-only; now every Blink session)                                                                                       | Governed head kit (`routedBlinkGoverned` → `data-flemo-lpm` + LPM_HEAD_MS deadlines); image decode offloader auto-on                                                |
+| Desktop Chrome                                     | **Compiled**, unconditionally (gate 2)                                                                                                                                        | Governed landing easing, frame-pacing keepalive rAF (session-permanent once armed), display-interval probe                                                          |
+| Desktop Chrome + `flemo:motion-driver-force=raf@…` | **Player** (pin pierces gate 2; PR #259). Pin warning printed once per session; re-entries land on-screen thanks to the COMPLETED pose strip, e2e-guarded on desktop chromium | Player snap instrumentation reachable on desktop again                                                                                                              |
+| Desktop Safari                                     | **Compiled** (gate 3)                                                                                                                                                         | One-shot birth-window start anchor at release                                                                                                                       |
+| jsdom / unit suites                                | **Player** (empty platform skips gate 3; no touch, non-Blink)                                                                                                                 | This is why unit tests exercise the player by default                                                                                                               |

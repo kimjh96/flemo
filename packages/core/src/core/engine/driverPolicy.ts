@@ -287,11 +287,22 @@ export const createDriverPolicy = (
 // Engine-scoped default: the PLAYER everywhere (see the file header — it
 // was born on Blink, where compositor-driven animations miss presentation
 // deadlines on raster-heavy layers; the 2026-08 WebKit campaign then made
-// it the only reliable opening there too). What differs per engine is the
-// FALLBACK: on Blink the compiled path composites healthily, so a device
-// whose main thread chronically starves the player DEMOTES to it (the
-// probation cycle above); on non-Blink the compiled tier is the
-// freeze-and-jump tier — never a refuge — so demotion stays off.
-const driverPolicy = createDriverPolicy(defaultStorage(), true, detectBlinkEngine());
+// it the only reliable opening there too).
+//
+// DEMOTION IS OFF EVERYWHERE (2026-08-19). It existed for one engine: on
+// Blink the compiled path composites healthily, so a device whose main thread
+// chronically starved the player could fall back to it, while on non-Blink
+// the compiled tier is the freeze-and-jump tier and never a refuge. Blink now
+// routes compiled unconditionally (see joinPlayer), so the cycle has nothing
+// left to demote — a Blink flight never reaches the player unless a force pin
+// puts it there, and a pin already overrides the ledger.
+//
+// The accounting below is therefore inert: beginRun/reportGap still collect a
+// run's gaps (stats() reads them, and the diagnostics do), but endRun returns
+// before any strike can persist. The persisted `flemo:motion-driver` values
+// already on users' devices are simply never read again — the key string
+// stays frozen so an older build's value can never be misread as something
+// else.
+const driverPolicy = createDriverPolicy(defaultStorage(), true, false);
 
 export default driverPolicy;

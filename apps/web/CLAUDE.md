@@ -37,7 +37,8 @@ _transitions/` plus the `[n]` deep route. It imports `@flemo/react` via `workspa
 ## E2E (`e2e/`)
 
 - Playwright projects: `chromium` (Desktop Chrome), `mobile-chromium` (Pixel 7 —
-  where the player-tier specs run; the rAF player is production only on touch Blink),
+  where the player-tier specs run against a PINNED player — Blink routes the compiled
+  tier everywhere, so the force pin is the player's only route there),
   and an opt-in `webkit` behind `FLEMO_WEBKIT`. CI runs
   `--project=chromium --project=mobile-chromium` against a production build.
 - `helpers/flemo.ts` — `data-flemo-*` locators, `waitForNavIdle` (NEVER fixed waits:

@@ -1068,34 +1068,46 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       //    the verdict instead: the player feeds its own uniform cadence
       //    into reportInFlightCadence, where the jam-noise guard separates a
       //    genuine 120Hz stream from burst noise.
-      if (
-        detectBlinkEngine() &&
-        driverPolicy.pinnedDriver() !== "raf" &&
-        (typeof navigator !== "undefined" && navigator.maxTouchPoints === 0
-          ? // Desktop: COMPILED — the settled verdict of the 2026-08-18
-            // live-judged ladder. Every driver was tried on the target
-            // machine back-to-back with its known poisons individually
-            // fixed: the rAF player (best texture via true device-px snap,
-            // but main-thread-coupled — judged "버벅과 끊김 심하다"), the
-            // per-frame !important snap mask (manufactured its own
-            // staircase + stale-mask stalls), and the pre-quantized
-            // step-end WAAPI ladder (judged much worse — most plausibly
-            // demoted off the compositor). The compiled compositor
-            // animation carries the least felt stutter; its residual is the
-            // slow-band fractional shimmer, which is a rendering-physics
-            // floor no per-frame writer beat on this hardware. Diagnostic
-            // The diagnostic force pins remain as instruments. (An earlier
-            // draft of this note offered `flemo:quantized=on`; that flag was
-            // never implemented — the pre-quantized ladder was deleted, not
-            // retained behind a toggle.)
-            true
-          : learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS ||
-            !driverPolicy.playerAllowed() ||
-            // A confidently-weak legacy Android (no UA-CH) skips the player
-            // probe that janked its first push every session (see
-            // isLegacyAndroidBlink).
-            isLegacyAndroidBlink())
-      ) {
+      // BLINK RUNS THE COMPILED TIER, EVERYWHERE (2026-08-19).
+      //
+      // Desktop Blink settled there on the live-judged ladder; touch Blink
+      // used to default to the player and reach the compiled tier only by
+      // DEMOTION — two stalled flights, persisted per ORIGIN, and re-probed
+      // once per session. That made a weak phone's behavior depend on which
+      // origin it had visited before and on how recently the page reloaded:
+      // the first flight after every load ran the player even on a device
+      // whose ledger already said "css", which is precisely the intermittency
+      // a user reports as "가끔 유독 나쁘다".
+      //
+      // Unifying is the engine's own model, stated in driverPolicy's header:
+      // on Blink the compiled path composites healthily, so it is a REFUGE
+      // there (on non-Blink it is the freeze-and-jump tier and never can be).
+      // A refuge that a device only reaches after paying for two bad flights
+      // is a worse contract than simply routing there.
+      //
+      // What the player provided on touch Blink — a capped clock that absorbs
+      // a mid-flight commit storm — is covered from the other side: the
+      // render-settle gate holds the release until the entering mount storm
+      // quiesces, and it is default-on for touch Blink since PR #268.
+      //
+      // WebKit is deliberately NOT part of this. There the compiled tier
+      // swallows its opening and the player is device-verified three rounds
+      // over; see the touch-WebKit block below.
+      //
+      // Bypassed by the "raf" force pin: a pinned session must player-drive
+      // everything to be a useful instrument (the same contract as the
+      // kind-scoped choice below), and it is the only route to the player's
+      // per-frame device-pixel snap (a HiDPI convergence-shimmer diagnostic).
+      // The pierce was briefly retired (PR #256) when a pinned desktop
+      // re-entry left the entering screen parked at its from-pose — a blank
+      // viewport that turned out to be a COMPLETED-cleanup failure, not a
+      // player defect (see the pose-channel strip in the COMPLETED branch).
+      // With that fixed and e2e-guarded, the pin pierces again.
+      //
+      // The display-interval probe still arms here: its verdict no longer
+      // routes anything, but the desktop PROFILE defaults read it (settle
+      // gate, unpainted-only image hold, the warm-up's cadence video).
+      if (detectBlinkEngine() && driverPolicy.pinnedDriver() !== "raf") {
         armDisplayIntervalProbe();
         return null;
       }

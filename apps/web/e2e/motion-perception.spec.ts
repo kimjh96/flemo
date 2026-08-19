@@ -98,7 +98,7 @@ test.describe("motion perception", () => {
   }) => {
     test.skip(
       browserName === "webkit" || test.info().project.name === "chromium",
-      "the rAF player is production only on touch Blink; desktop and WebKit route the compiled tier"
+      "these specs pin the player; Blink routes compiled everywhere now, so the pin is its only route"
     );
     const { errors } = trackConsoleErrors(page);
     await openPlaygroundWithPinnedPlayer(page);
@@ -337,7 +337,7 @@ test.describe("motion perception", () => {
   }) => {
     test.skip(
       browserName === "webkit" || test.info().project.name === "chromium",
-      "the rAF player is production only on touch Blink; desktop and WebKit route the compiled tier"
+      "these specs pin the player; Blink routes compiled everywhere now, so the pin is its only route"
     );
     const { errors } = trackConsoleErrors(page);
     await page.addInitScript(() =>
@@ -392,7 +392,7 @@ test.describe("motion perception", () => {
   test("a <Part> rides the player clock with its screen", async ({ page, browserName }) => {
     test.skip(
       browserName === "webkit" || test.info().project.name === "chromium",
-      "the rAF player is production only on touch Blink; desktop and WebKit route the compiled tier"
+      "these specs pin the player; Blink routes compiled everywhere now, so the pin is its only route"
     );
     await openPlaygroundWithPinnedPlayer(page);
 
@@ -437,7 +437,7 @@ test.describe("motion perception", () => {
   }) => {
     test.skip(
       browserName === "webkit" || test.info().project.name === "chromium",
-      "the rAF player is production only on touch Blink; desktop and WebKit route the compiled tier"
+      "these specs pin the player; Blink routes compiled everywhere now, so the pin is its only route"
     );
     await openPlaygroundWithPinnedPlayer(page);
     await page.getByRole("button", { name: "Next" }).click();
@@ -651,7 +651,7 @@ test.describe("motion perception", () => {
   test("a back/forward storm never demotes the motion driver", async ({ page, browserName }) => {
     test.skip(
       browserName === "webkit" || test.info().project.name === "chromium",
-      "the rAF player is production only on touch Blink; desktop and WebKit route the compiled tier"
+      "these specs pin the player; Blink routes compiled everywhere now, so the pin is its only route"
     );
     await openPlaygroundWithPinnedPlayer(page);
 
