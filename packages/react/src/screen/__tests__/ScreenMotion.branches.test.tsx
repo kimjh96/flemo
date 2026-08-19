@@ -1,6 +1,6 @@
 import { createElement, type PropsWithChildren, type ReactNode } from "react";
 
-import { act, render, renderHook } from "@testing-library/react";
+import { act, fireEvent, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TransitionName } from "@flemo/core";
@@ -127,21 +127,25 @@ describe("ScreenMotion chrome rendering", () => {
     expect(scope.getAttribute("data-flemo-status")).toBe("COMPLETED");
   });
 
-  it("prevents touch scrolling that starts on a swipe edge bar", () => {
-    const { container } = render(
+  it("suppresses click activation during push while leaving the screen hit-testable", () => {
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: "push-1" });
+    const onClick = vi.fn();
+    const { getByRole, container } = render(
       <Screen>
-        <div>hello</div>
+        <button onClick={onClick}>Open</button>
       </Screen>,
-      { wrapper: buildHarness() }
+      { wrapper: buildHarness({ isRoot: false }) }
     );
 
-    const edge = container.querySelector<HTMLElement>("[data-swipe-at-edge-bar]")!;
     const scope = container.querySelector<HTMLElement>("[data-flemo-screen]")!;
-    scope.appendChild(edge); // ensure the listener's scope contains the target
-    const touchMove = new Event("touchmove", { bubbles: true, cancelable: true });
-    edge.dispatchEvent(touchMove);
+    const button = getByRole("button");
+    const onNativeClick = vi.fn();
+    button.addEventListener("click", onNativeClick);
+    expect(scope.style.pointerEvents).toBe("");
+    fireEvent.click(button);
 
-    expect(touchMove.defaultPrevented).toBe(true);
+    expect(onClick).not.toHaveBeenCalled();
+    expect(onNativeClick).not.toHaveBeenCalled();
   });
 });
 

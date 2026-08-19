@@ -800,11 +800,12 @@ describe("compileTransitionStyles: shared-bar ride-along selector", () => {
     expect(idleActive).not.toContain("data-flemo-bar");
   });
 
-  it("emits `contain: layout` and `pointer-events: none` on PUSHING / REPLACING rules (where new screens mount)", () => {
-    // The hints isolate the transitioning scope from heavy work happening
-    // inside the arriving screen during its initial mount commit. They're
-    // scoped to PUSHING and REPLACING, the verbs that actually trigger a
-    // mount. Pop is intentionally excluded (see below).
+  it("keeps PUSHING / REPLACING hit-testable while retaining layout containment", () => {
+    // Layout containment still isolates heavy mount work, but pointer events
+    // must reach the arriving screen. A touch that begins before the animation
+    // completes keeps its original target for the whole stream; making the
+    // arriving screen non-hit-testable strands the first attempted scroll on
+    // the covered screen until the user lifts and tries again.
     const cssCupertino = compileTransitionStyles([cupertino], []);
     const pushActive = findRule(
       cssCupertino,
@@ -812,7 +813,7 @@ describe("compileTransitionStyles: shared-bar ride-along selector", () => {
     );
     expect(pushActive).toBeDefined();
     expect(pushActive).toMatch(/contain:\s*layout;/);
-    expect(pushActive).toMatch(/pointer-events:\s*none;/);
+    expect(pushActive).not.toMatch(/pointer-events:\s*none;/);
 
     const replaceActive = findRule(
       cssCupertino,
@@ -820,14 +821,14 @@ describe("compileTransitionStyles: shared-bar ride-along selector", () => {
     );
     if (replaceActive) {
       expect(replaceActive).toMatch(/contain:\s*layout;/);
-      expect(replaceActive).toMatch(/pointer-events:\s*none;/);
+      expect(replaceActive).not.toMatch(/pointer-events:\s*none;/);
     }
 
-    // Bar sibling rides under the same block, so it inherits both.
+    // Bar siblings ride under the same block and stay hit-testable too.
     expect(pushActive).toContain("[data-flemo-bar]");
 
-    // Decorator rules get them too: the overlay needs to be non-clickable
-    // mid-transition and shouldn't propagate layout invalidation.
+    // The decorator keeps layout containment. ScreenDecorator already owns
+    // its non-interactive pointer policy inline.
     const cssOverlay = compileTransitionStyles([], [overlay]);
     const decoRule = findRule(
       cssOverlay,
@@ -835,7 +836,7 @@ describe("compileTransitionStyles: shared-bar ride-along selector", () => {
     );
     expect(decoRule).toBeDefined();
     expect(decoRule).toMatch(/contain:\s*layout;/);
-    expect(decoRule).toMatch(/pointer-events:\s*none;/);
+    expect(decoRule).not.toMatch(/pointer-events:\s*none;/);
   });
 
   it("does NOT emit `contain` or `pointer-events` on POPPING rules (no mount work to isolate; avoids containment-block cost on heavy exiting screens)", () => {

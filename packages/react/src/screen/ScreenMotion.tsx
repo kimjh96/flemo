@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent
 } from "react";
 import { flushSync } from "react-dom";
@@ -351,6 +352,18 @@ function ScreenMotion({
     swipeController.pointerMove(event.nativeEvent);
   const handlePointerUp = (event: ReactPointerEvent) =>
     swipeController.pointerUp(event.nativeEvent);
+  const handlePointerCancel = (event: ReactPointerEvent) =>
+    swipeController.pointerCancel(event.nativeEvent);
+  const handleClickCapture = (event: ReactMouseEvent<HTMLDivElement>) => {
+    // PUSHING / REPLACING used to apply pointer-events:none to the entire
+    // moving screen. That blocked activation, but also permanently targeted a
+    // transition-adjacent scroll at the covered screen. Keep the destination
+    // hit-testable for native scrolling and preserve only the activation gate.
+    if (status === "PUSHING" || status === "REPLACING") {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
 
   // Warm the image-decode cache every time this screen becomes live. Activity
   // unmounts a frozen screen's effects and remounts them on unfreeze, so a
@@ -369,10 +382,6 @@ function ScreenMotion({
 
     const handleTouchMove = (event: TouchEvent) => {
       if (swipeController.shouldPreventTouch()) {
-        event.preventDefault();
-      }
-
-      if ((event.target as HTMLElement)?.dataset.swipeAtEdgeBar === "true") {
         event.preventDefault();
       }
     };
@@ -808,6 +817,7 @@ function ScreenMotion({
   return (
     <div
       ref={screenRef}
+      onClickCapture={handleClickCapture}
       style={{
         position: screenPosition,
         top: 0,
@@ -833,23 +843,12 @@ function ScreenMotion({
       }}
     >
       <div
-        data-swipe-at-edge-bar
-        style={{
-          position: screenPosition,
-          top: 0,
-          left: 0,
-          width: 8,
-          height: "100%",
-          zIndex: 1
-        }}
-      />
-      <div
         ref={scopeRef}
         {...props}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         data-flemo-screen
         data-flemo-router={routerId ?? undefined}
         data-flemo-transition={transitionName}
@@ -1056,17 +1055,6 @@ function ScreenMotion({
         </div>
       )}
       {decorator && <ScreenDecorator ref={decoratorRef} data-flemo-anim-hold={holdAttr} />}
-      <div
-        data-swipe-at-edge-bar
-        style={{
-          position: screenPosition,
-          top: 0,
-          right: 0,
-          width: 8,
-          height: "100%",
-          zIndex: 1
-        }}
-      />
     </div>
   );
 }

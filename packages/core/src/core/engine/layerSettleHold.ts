@@ -44,10 +44,10 @@ export { resetResidentLayersForTesting } from "@core/engine/diagnosticFlags";
 // relayout of the scope subtree landing in that same commit. The hold pins
 // it inline alongside `will-change` and releases both together — the pinned
 // `will-change` keeps the element a containing block for the whole window
-// anyway, so extending the containment costs no additional semantics. The
-// rules' `pointer-events: none` is deliberately NOT pinned: it must lift the
-// instant the rule un-matches, or the landed screen would swallow taps for a
-// third of a second.
+// anyway, so extending the containment costs no additional semantics. Input
+// gating is deliberately outside this hold: the moving destination remains
+// hit-testable for native scrolling, while the React binding suppresses click
+// activation only during PUSHING / REPLACING.
 //
 // Trade-off, accepted knowingly: `will-change` keeps the element a
 // containing block for fixed/absolute descendants while it is stamped. The
