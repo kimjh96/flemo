@@ -4,9 +4,12 @@ The React binding over `@flemo/core`. The split is strict: core owns everything
 imperative and reusable (task queue, stores, engine, compiled styles, gesture math);
 this package owns React wiring — rendering the declarative state (data-attributes,
 inline styles) core's engine reads, and calling core at the right lifecycle moments.
-Engine internals are documented in `docs/architecture/motion-engine.md` and
-`docs/architecture/driver-routing.md`; diagnostics in `docs/diagnostics.md`. Public
-surface = `src/index.ts` re-exports only.
+Engine internals live in the engine's own comments — `createTransitionEngine.ts`
+(`joinPlayer` for routing, `driveScreenLifecycle` for the flight) and
+`diagnosticFlags.ts` (the flag registry table, which `documentedDefaults.test.ts`
+holds to the shipped readers). A longer-form `docs/` set exists in the maintainer's
+checkout but is NOT tracked (see .gitignore) — never treat a `docs/...` path cited in
+a comment as available. Public surface = `src/index.ts` re-exports only.
 
 ## Router (`src/Router.tsx`)
 

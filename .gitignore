@@ -28,6 +28,13 @@ node_modules
 .claude
 # Root CLAUDE.md stays a local, per-checkout file; package-level CLAUDE.md
 # files (packages/react, apps/web) are tracked documentation.
+
+# Agent-facing engine documentation (architecture notes, the diagnostics flag
+# reference, the device-campaign postmortems). Local per-checkout, same as the
+# root CLAUDE.md above: it churns on every motion round and the churn dominated
+# review. Source comments still cite these paths — they are the maintainer's
+# working notes, and the code comments they cite remain the primary source.
+docs/
 /CLAUDE.md
 
 # OS
