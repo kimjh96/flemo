@@ -13,6 +13,40 @@ leave a toggle set?").
 Zero dependencies. No imports from `@flemo/core` or `@flemo/react`; attaching
 the recorder never changes the motion it measures.
 
+## Keeping it out of your production bundle
+
+Install it as a **devDependency** — and know that this alone is not enough.
+`devDependencies` decides what gets INSTALLED (consumers of _your_ package do
+not receive it); it does not decide what gets BUNDLED. A plain top-level import
+of a package you call at runtime ships to every visitor regardless of which
+dependency field it sits in. We measured exactly that on the flemo docs site
+before fixing it.
+
+What actually removes it is a **dynamic import behind a build-time constant**,
+which bundlers replace before dead-code elimination:
+
+```ts
+// Vite
+if (import.meta.env.DEV) {
+  const { attachFlightRecorder } = await import("@flemo/devtools");
+  attachFlightRecorder({ log: true });
+}
+
+// Next.js / webpack
+if (process.env.NODE_ENV !== "production") {
+  const { attachFlightRecorder } = await import("@flemo/devtools");
+  attachFlightRecorder({ log: true });
+}
+```
+
+The package ships `"sideEffects": false` and has no import-time side effects,
+so nothing is pulled in by the import statement itself — but a binding you
+actually call cannot be shaken out. Verify with a production build: the string
+`present-pipeline pacing` (from the blind-spot list) must not appear in it.
+
+`apps/web/app/[lang]/playground/_hooks/useDevtoolsRecorder` in this repo is a
+working reference.
+
 ## Quickstart
 
 ```ts
