@@ -19,7 +19,7 @@
     "@flemo/devtools": "workspace:*",
     "@flemo/react": "workspace:*",
     "@flemo/react-layout": "workspace:*",
-    "motion": "^12.40.0",
+    "motion": "^12.43.0",
     "next": "^16.3.1",
     "next-themes": "^0.4.6",
     "react": "^19.2.8",
