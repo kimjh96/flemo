@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useInsertionEffect,
   useLayoutEffect,
   useState,
   type CSSProperties,
@@ -118,6 +119,29 @@ interface RouterProps {
 // useLayoutEffect warns when rendered on the server; the server never needs the
 // flip anyway (scopes start alive), so fall back to useEffect there.
 const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+// Publishes the Router's live configuration (its scope-chain node, its
+// transition default) — the state it keeps OUTSIDE React, where descendants
+// read it imperatively. Two constraints pin the timing, and only an insertion
+// effect satisfies both:
+//
+//  - Not in RENDER. A render can be thrown away (a transition suspends and the
+//    previously committed tree keeps running), and these targets outlive the
+//    render, so a render-phase write publishes props no visible screen has:
+//    renaming a Router inside a suspended transition made the STILL-DISPLAYED
+//    screen resolve `router: "app"` against the unseen new name and throw.
+//  - Before any LAYOUT EFFECT. React fires those bottom-up, so the Router's own
+//    runs AFTER every descendant's — a guard navigating from useLayoutEffect
+//    would read the previous commit's config for one commit. Insertion effects
+//    all fire during the mutation phase, ahead of the whole layout pass, so the
+//    parent's publication is already in place when a child's layout effect runs.
+//
+// (A descendant's own INSERTION effect is still ordered before this one, but
+// those exist for style injection, not navigation.) No dependency array: the
+// body is a handful of assignments, and skipping a commit is the failure mode
+// this exists to prevent. The server runs no effects at all; the initial values
+// come from the useState initializer / createRouterScope, so SSR is unaffected.
+const publishRouterConfig = typeof window === "undefined" ? useEffect : useInsertionEffect;
 
 const EMPTY_TRANSITIONS: Transition[] = [];
 const EMPTY_DECORATORS: Decorator[] = [];
@@ -278,14 +302,11 @@ function Router({
     })
   );
 
-  // Keep the seeded default in sync if the prop changes across renders. At
-  // COMMIT, for the same reason as the scope node below: a discarded render
-  // (a transition that suspended) must not leave a live store holding a
-  // default no visible screen ever committed to — a push from the
-  // still-displayed tree would then play a transition the user's props do not
-  // yet ask for. Nothing reads this before the commit either: its only readers
-  // are the controller's push/replace, which run from event handlers.
-  useIsomorphicLayoutEffect(() => {
+  // Keep the seeded default in sync if the prop changes across renders — see
+  // publishRouterConfig below for WHY it is an insertion effect. Its readers
+  // (the controller's push/replace) are event-time, but a descendant's layout
+  // effect can navigate too, so it rides the same publication point.
+  publishRouterConfig(() => {
     stores.transition.setState({ defaultTransitionName });
   });
 
@@ -299,17 +320,8 @@ function Router({
   // extra re-renders (route lists and names change without notifying anyone —
   // every consumer reads the node at navigation time, not at render time).
   //
-  // The refresh runs at COMMIT, never in render. A render can be discarded —
-  // React renders a transition, something inside it suspends, and the
-  // previously committed tree keeps running — and this object outlives the
-  // render that would have written to it, so a render-phase write publishes
-  // props that no visible screen has: renaming a Router inside a suspended
-  // transition made the STILL-DISPLAYED screen resolve `router: "app"` against
-  // the unseen new name and throw. Committing the write closes that window,
-  // and nothing needs these fields earlier: they are read at navigation time,
-  // from event handlers that run after commit (same as the transition default
-  // above). Anything else this Router publishes outside React state belongs in
-  // a commit-phase effect too.
+  // The refresh runs through publishRouterConfig (see its definition): never
+  // in render, and earlier in the commit than any layout effect.
   const parentScope = useContext(RouterScopeContext);
   const [scope] = useState<RouterScopeNode>(() => ({
     name,
@@ -319,7 +331,7 @@ function Router({
     parent: parentScope,
     depth
   }));
-  useIsomorphicLayoutEffect(() => {
+  publishRouterConfig(() => {
     scope.name = name;
     scope.stores = stores;
     scope.routePaths = routePaths;

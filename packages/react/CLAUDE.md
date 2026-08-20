@@ -34,9 +34,14 @@ a comment as available. Public surface = `src/index.ts` re-exports only.
   typo is a compile error (the `@ts-expect-error` block in
   `useNavigate.routerTarget.test.tsx` is the guard — tsc flags an unused directive if
   the narrowing ever regresses). The `name` PROP stays `string`, mirroring `<Route
-path>` vs `push()`. The node identity is created once and MUTATED in
-  render (like `stores.transition.setState`), so the extra provider costs zero
-  re-renders. Resolution is pure and synchronous, BEFORE any task is queued: the
+path>` vs `push()`. The node identity is created once and refreshed in place, so
+  the extra provider costs zero re-renders — but the refresh (and
+  `defaultTransitionName`, same hazard) goes through `publishRouterConfig`, an
+  INSERTION effect: never in render (a discarded/suspended render would publish
+  props no visible screen committed to) and ahead of the whole layout pass (layout
+  effects fire bottom-up, so a layout-effect-time redirect in a descendant would
+  otherwise read the previous commit's config). Both windows have regression tests.
+  Resolution is pure and synchronous, BEFORE any task is queued: the
   chosen scope's own stores/driver/markSelfInduced/life run the whole navigation, and
   a dev error lands on the caller's stack instead of an unhandled rejection. Route
   ownership (`ownsRoute`) is checked per navigation: explicit target → dev throw,

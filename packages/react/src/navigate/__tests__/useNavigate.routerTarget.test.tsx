@@ -1,4 +1,4 @@
-import { Suspense, startTransition, useState } from "react";
+import { Suspense, startTransition, useLayoutEffect, useState } from "react";
 
 import { act, cleanup, render } from "@testing-library/react";
 import { hydrateRoot } from "react-dom/client";
@@ -50,6 +50,7 @@ declare module "../../RouterTarget" {
     region: true;
     inner: true;
     sidebar: true;
+    "next-name": true;
   }
 }
 
@@ -547,5 +548,62 @@ describe("Router config: commit-phase publication", () => {
 
     const { histories, index } = chromeStores.history.getState();
     expect(histories[index]!.transitionName).toBe("cupertino");
+  });
+});
+
+describe("Router config: descendant layout effects", () => {
+  // React fires layout effects BOTTOM-UP, so a child's runs before the
+  // Router's own. Anything the Router publishes from a layout effect is
+  // therefore one commit stale for every descendant layout effect — a guard
+  // that redirects from useLayoutEffect would resolve `router` against the
+  // config of the previous commit. The publication has to land earlier in the
+  // commit than any layout effect.
+  it("lets a descendant layout effect see the config committed in the same commit", async () => {
+    cleanup();
+    window.history.replaceState(null, "", "/");
+
+    let thrown: unknown = null;
+    let arm: () => void = () => {};
+
+    function LayoutNavigator({ armed }: { armed: boolean }) {
+      const navigate = useNavigate();
+      useLayoutEffect(() => {
+        if (!armed) return;
+        try {
+          void navigate.push("/members/:id", { id: "1" }, { router: "next-name" });
+        } catch (error) {
+          thrown = error;
+        }
+      }, [armed, navigate]);
+      return null;
+    }
+
+    function Harness() {
+      const [name, setName] = useState("app");
+      const [armed, setArmed] = useState(false);
+      // One commit renames the Router AND arms the descendant's layout effect.
+      arm = () => {
+        setName("next-name");
+        setArmed(true);
+      };
+
+      return (
+        <Router name={name} initPath="/">
+          <LayoutNavigator armed={armed} />
+          <Slot>
+            <Route path="/" element={<div>home</div>} />
+            <Route path="/members/:id" element={<div>member</div>} />
+          </Slot>
+        </Router>
+      );
+    }
+
+    render(<Harness />);
+
+    await act(async () => {
+      arm();
+    });
+
+    expect(thrown).toBeNull();
   });
 });
