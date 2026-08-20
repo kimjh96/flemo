@@ -4,6 +4,7 @@ import { clearInlineAnimation, trackInlineWrite } from "@transition/animateInlin
 import {
   DESKTOP_HEAD_MS,
   LPM_HEAD_MS,
+  matchesFlightAnimationName,
   animationName,
   variantHasAnimation
 } from "@transition/compileTransitionStyles";
@@ -621,11 +622,11 @@ const wireCancelResume = (config: CancelResumeConfig) => {
 
   const onCancel = (event: AnimationEvent) => {
     if (midRestart) return;
-    // The LPM flat-head variant fires as `<name>-lpm` (see
-    // compileTransitionStyles) — same flight, same resolver.
+    // A head tier fires under a suffixed keyframe name (`<name>-lpm`,
+    // `<name>-deskhead`) — same flight, same resolver.
     if (
       event.target !== element ||
-      (event.animationName !== expectedName && event.animationName !== `${expectedName}-lpm`)
+      !matchesFlightAnimationName(event.animationName, expectedName)
     ) {
       return;
     }
@@ -2119,9 +2120,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     let disarmEarlyLanding = noop;
     const onEnd = (event: AnimationEvent) => {
       if (event.target !== scope) return;
-      if (event.animationName !== expectedName && event.animationName !== `${expectedName}-lpm`) {
-        return;
-      }
+      // Same-flight match across every head tier's suffixed keyframe name: a
+      // miss here does not just skip a resolve, it strands the flight until
+      // the restart watchdog replays it.
+      if (!matchesFlightAnimationName(event.animationName, expectedName)) return;
       scope.removeEventListener("animationend", onEnd);
       clearWatchdog();
       stopScopeRecovery();

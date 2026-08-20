@@ -410,6 +410,19 @@ export const animationName = (
   variant: TransitionVariant
 ) => `flemo-${scope}-${cssIdentifier(name)}-${variant}`;
 
+// A head tier plays the SAME flight under a copied keyframe set, so its
+// `animationend` / `animationcancel` events carry a suffixed name. Every
+// listener that matches a flight by name must accept all of them — a listener
+// that recognizes only the base name silently stops resolving the flight, and
+// the restart watchdog then replays the whole transition (glass-visible as a
+// second fade on REPLACE). Keep this list beside the suffixes the compiler
+// emits, and route every name comparison through the matcher.
+export const HEAD_ANIMATION_SUFFIXES = ["-lpm", "-deskhead"] as const;
+
+export const matchesFlightAnimationName = (eventName: string, expectedName: string): boolean =>
+  eventName === expectedName ||
+  HEAD_ANIMATION_SUFFIXES.some((suffix) => eventName === `${expectedName}${suffix}`);
+
 const compileVariantBlock = (
   scope: "screen" | "decorator" | "part",
   name: string,
