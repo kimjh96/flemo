@@ -23,11 +23,11 @@ import {
   enteringInitialStyle,
   governedCompiledActive,
   observeBarHeight,
+  readLayerPromotionFlag,
   readPrerasterFlag,
   readSettleGateFlag,
   resolveTransition,
   sharedBarsMatch,
-  steadySixtyPlayerEligible,
   type AnimHoldCoordinator
 } from "@flemo/core";
 
@@ -40,6 +40,8 @@ import { useScreenViewport } from "@screen/ScreenViewportContext";
 import useScreen from "@screen/useScreen";
 
 import useViewportScrollHeight from "@screen/useViewportScrollHeight";
+
+import useHydrationSafeFlag from "@utils/useHydrationSafeFlag";
 
 import useHistoryStore from "@stores/useHistoryStore";
 import useNavigateStore from "@stores/useNavigateStore";
@@ -606,6 +608,19 @@ function ScreenMotion({
           : "park-under"
         : "true";
 
+  // Whether this session promotes screen scopes at all (`flemo:preraster=on`,
+  // or the steady-60 desktop profile — see core's readLayerPromotionFlag). Read
+  // through the hydration-safe gate because the answer is browser-only state
+  // and the decision reaches the DOM as an INLINE style: evaluated directly, a
+  // server-rendered screen emits no `will-change` while the hydration render
+  // asks for one, and React reports a style mismatch on [data-flemo-screen].
+  // The gate renders `false` for the server and the hydration render only, then
+  // re-renders with the real value one commit later — at rest, where nothing is
+  // animating. A screen mounted for a push/replace/pop is not hydrating, so it
+  // still reads the live value in its FIRST render and keeps the promotion on
+  // the opening frames it exists for.
+  const layerPromotion = useHydrationSafeFlag(readLayerPromotionFlag);
+
   // Drive the navigation-task lifecycle through the framework-neutral engine.
   // It resolves the active screen's task on its animationend (or a microtask
   // for no-animation variants) and runs the COMPLETED cleanup on the scope,
@@ -923,8 +938,9 @@ function ScreenMotion({
           // frames (the biggest structural GPU cost a flight still carries).
           // Root routers only (`!contained`), same containing-block
           // reasoning as before.
-          ...((readPrerasterFlag() || steadySixtyPlayerEligible()) &&
-          (holdAttr !== "false" || (zIndex === index && !contained))
+          // `layerPromotion` is the session predicate (deferred past hydration —
+          // see its declaration); the term beside it is the per-screen one.
+          ...(layerPromotion && (holdAttr !== "false" || (zIndex === index && !contained))
             ? { willChange: "transform" }
             : {}),
           ...initialStyle,

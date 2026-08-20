@@ -4,6 +4,7 @@ import {
   readArrivalHoldFlag,
   readImageHoldFlag,
   readImageOffloadOverride,
+  readLayerPromotionFlag,
   readPrerasterFlag,
   readSettleGateFlag,
   resetSessionOverrideCachesForTests
@@ -123,6 +124,29 @@ describe("documented default: flemo:preraster", () => {
     expect(readPrerasterFlag()).toBe(false);
     sessionStorage.setItem("flemo:preraster", "on");
     expect(readPrerasterFlag()).toBe(true);
+  });
+});
+
+describe("documented default: the flemo:preraster layer-promotion half", () => {
+  // Table: the screen-scope promotion is armed by the flag on ANY device and is
+  // DEFAULT-ON for the steady-60 desktop profile. Every term is browser-only
+  // state, which is why the react binding may only apply it after hydration —
+  // the contract is asserted in react's ScreenMotion.hydration.test.tsx.
+  it("is off on a desktop Blink session with no verdict and no flag", () => {
+    setEnv({ blink: true, touch: false, dpr: 2 });
+    expect(readLayerPromotionFlag()).toBe(false);
+  });
+
+  it("is on for a verified steady-60 HiDPI desktop", () => {
+    setEnv({ blink: true, touch: false, dpr: 2 });
+    verifySteadySixty();
+    expect(readLayerPromotionFlag()).toBe(true);
+  });
+
+  it("is on wherever the flag is armed, whatever the device profile", () => {
+    setEnv({ blink: false, touch: true });
+    sessionStorage.setItem("flemo:preraster", "on");
+    expect(readLayerPromotionFlag()).toBe(true);
   });
 });
 
