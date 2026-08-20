@@ -34,6 +34,7 @@ import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 // | flemo:snapband            | session | number (device px)              | 4                          | opt-in diagnostic                | "hybrid" snap's jitter-band width                                      |
 // | flemo:layers              | session | "resident"                      | off                        | opt-in diagnostic                | resident screen layers at rest; armed by ?flemo-layers= (layerSettleHold.ts) |
 // | flemo:freeze              | session | "shallow"                       | off                        | opt-in diagnostic                | keep the direct prev screen live; armed by ?flemo-freeze= (computeScreenFreeze.ts) |
+// | flemo:deskflip            | session | "on"/"off"                      | desktop macOS WebKit       | production-default-with-override | atomic release flip on desktop Safari (react ScreenMotion's directFlip)  |
 // | flemo:preraster           | session | "on"                            | off (but the rest-promotion half is default-on for steady-60 desktop) | production-default-with-override | promote the entering content layer through the hold (readLayerPromotionFlag, applied by react ScreenMotion after hydration); also selects the park-over hold variant |
 // | flemo:imgoffload          | session | "on"/"off"                      | auto (legacy Android Blink)| production-default-with-override | image decode offloader override (react Router)                         |
 //
@@ -170,6 +171,36 @@ export const readHandoffFlag = (): boolean => readStorageValue("flemo:handoff") 
 // 2026-08-18 for live A/B isolation of the hold machinery itself as a felt-
 // jank suspect; default ON (armor engaged) everywhere.
 export const readArrivalHoldFlag = (): boolean => readStorageValue("flemo:arrivalhold") !== "off";
+
+// `flemo:deskflip` — the ATOMIC RELEASE FLIP on desktop macOS Safari (react
+// ScreenMotion's `directFlip`). The flip writes `data-flemo-anim-hold="false"`
+// straight onto the DOM inside the readiness rAF, so a compiled clock's start
+// and its first paint are simultaneous by construction; the state-only path
+// hands that write to a later React task, and anything slotting into that gap
+// is aging the clock before a single frame is presented.
+//
+// DEFAULT-ON for desktop macOS Safari (isDesktopMacWebKit), which routes
+// compiled (joinPlayer gate 3) and presents from the main thread — the exact
+// combination the flip was built for. It reaches production there through this
+// reader only: touch WebKit is armed by governedCompiledActive, and an authored
+// `driver: "native"` pin arms itself.
+//
+// Blink is NOT reachable from here. ScreenMotion ANDs `!detectBlinkEngine()`
+// over the whole predicate, because the flip's known failure mode is a
+// PLAYER-routed flight (the compiled animation starts in the release rAF and
+// the player then restarts the motion — the double-start that poisoned the
+// 2026-08-18 steady-60 desktop round). Desktop Safari cannot hit that: gate 3
+// pins it to the compiled tier for every flight.
+//
+// The key exists so the change is judgeable on glass in ONE session — `off`
+// restores the state-only release, `on` forces the flip on any non-Blink
+// session. Uncached, so a DevTools toggle takes effect on the next navigation.
+export const readDesktopReleaseFlipFlag = (): boolean => {
+  const value = readStorageValue("flemo:deskflip");
+  if (value === "on") return true;
+  if (value === "off") return false;
+  return isDesktopMacWebKit();
+};
 
 // `flemo:preraster=on` — promote the entering content layer from the hold
 // onward (react ScreenMotion). Retained as an opt-in probe; the swallow it

@@ -88,12 +88,17 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
    `AnimHoldCoordinator` (pop pair barrier; module WeakMap keyed by the navigate
    store) with `decodeWait` only for screens waking from a freeze, and the
    render-settle gate (`contentSettle`, `readSettleGateFlag()` — default on for touch
-   WebKit, all engines eligible; firstWait 120 / cap 700 / grace 60,
-   `renderSettleOnly`). **Atomic release flip**: for authored `driver:"native"` and
-   the governed-compiled touch-WebKit tier, the release callback writes
-   `data-flemo-anim-hold="false"` directly on scope/bars/decorator inside the
+   WebKit, touch Blink, desktop macOS Safari and the steady-60 desktop profile; all
+   engines eligible; firstWait 120 / cap 700 / grace 60,
+   `renderSettleOnly`). **Atomic release flip**: for authored `driver:"native"`, the
+   governed-compiled touch-WebKit tier, and desktop macOS Safari
+   (`readDesktopReleaseFlipFlag()` / `flemo:deskflip` — gate 3 pins it to the compiled
+   tier and WebKit presents that clock from the main thread), the release callback
+   writes `data-flemo-anim-hold="false"` directly on scope/bars/decorator inside the
    readiness rAF (and clears the park-under zIndex) — player-routed flights keep the
-   state-only path.
+   state-only path. The state commit is `flushSync`ed on EVERY path, so what the flip
+   buys is order inside that one task: the attribute lands ahead of React's render and
+   commit work instead of after it.
 4. **Swipe wiring**: a stable `createSwipeController` (core) reads live render values
    through `swipeEnvRef` (latest-ref pattern); pointer handlers forward native events;
    an active `touchmove` listener prevents native scroll only after the controller has
