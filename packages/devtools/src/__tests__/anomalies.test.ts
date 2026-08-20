@@ -39,6 +39,7 @@ const cleanFlight = (): FlightAnomalyInput => ({
     sampledFrames: 24,
     stalledFrames: 0,
     longestStallMs: 0,
+    tailFrames: 0,
     pausedAfterRelease: false,
     holdReassertedAtMs: null
   },
@@ -285,5 +286,23 @@ describe("deriveReportAnomalies", () => {
       ]
     });
     expect(anomalies.some((entry) => entry.includes("blank-viewport signature"))).toBe(true);
+  });
+});
+
+// The closing tail is not a stall. Counting the frames after the last animation
+// FINISHED made a ~50ms "motion stalled" fire on every healthy flight (measured
+// on plen 2026-08-20: 10 of 10, always exactly 3 frames) — a constant reading
+// that would mask the real stalls this rule exists to surface.
+describe("closing tail", () => {
+  it("is not reported as a stall", () => {
+    const flight = cleanFlight();
+    flight.motion = { ...flight.motion, stalledFrames: 0, longestStallMs: 0, tailFrames: 3 };
+    expect(deriveFlightAnomalies(flight).join(" ")).not.toContain("stalled");
+  });
+
+  it("still reports a stall that happened while an animation was running", () => {
+    const flight = cleanFlight();
+    flight.motion = { ...flight.motion, stalledFrames: 3, longestStallMs: 50, tailFrames: 0 };
+    expect(deriveFlightAnomalies(flight).join(" ")).toContain("stalled");
   });
 });

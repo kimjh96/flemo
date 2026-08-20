@@ -246,3 +246,4 @@ describe("attachFlightRecorder", () => {
     expect(report.flights[1].id).toBe("flight-3");
   });
 });
+

@@ -82,6 +82,7 @@ interface ActiveFlight {
   lastClock: Map<Element, number>;
   releasedFrames: number;
   stalledFrames: number;
+  tailFrames: number;
   stallRunMs: number;
   longestStallMs: number;
   pausedAfterRelease: boolean;
@@ -279,10 +280,15 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
   const sampleProgress = (flight: ActiveFlight, frameGapMs: number) => {
     flight.releasedFrames += 1;
     let advanced = false;
+    // A frame after the last animation has FINISHED is not a stall: the motion
+    // is over and the pose is meant to be still. Only the flight's own closing
+    // latency is left, which is a different measurement (see tailFrames).
+    let anyRunningClock = false;
     for (const element of flight.elements) {
       const clock = flight.clocks.get(element);
       if (clock) {
         if (clock.playState === "paused") flight.pausedAfterRelease = true;
+        if (clock.playState !== "finished") anyRunningClock = true;
         const time = typeof clock.currentTime === "number" ? clock.currentTime : null;
         if (time !== null) {
           const previous = flight.lastClock.get(element);
@@ -299,6 +305,11 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
     // Nothing to compare against on the first released frame.
     if (flight.releasedFrames < STALL_MIN_FRAMES) return;
     if (advanced) {
+      flight.stallRunMs = 0;
+      return;
+    }
+    if (!anyRunningClock && flight.clocks.size > 0) {
+      flight.tailFrames += 1;
       flight.stallRunMs = 0;
       return;
     }
@@ -444,6 +455,7 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       clocks: new Map(),
       lastClock: new Map(),
       releasedFrames: 0,
+      tailFrames: 0,
       stalledFrames: 0,
       stallRunMs: 0,
       longestStallMs: 0,
@@ -567,7 +579,8 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
         stalledFrames: flight.stalledFrames,
         longestStallMs: round1(flight.longestStallMs),
         pausedAfterRelease: flight.pausedAfterRelease,
-        holdReassertedAtMs: flight.holdReassertedAtMs
+        holdReassertedAtMs: flight.holdReassertedAtMs,
+        tailFrames: flight.tailFrames
       },
       images: imageActivity(flight),
       ...(playerGaps ? { playerGaps } : {}),
@@ -784,7 +797,8 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
         stalledFrames: flight.stalledFrames,
         longestStallMs: round1(flight.longestStallMs),
         pausedAfterRelease: flight.pausedAfterRelease,
-        holdReassertedAtMs: flight.holdReassertedAtMs
+        holdReassertedAtMs: flight.holdReassertedAtMs,
+        tailFrames: flight.tailFrames
       },
       images: imageActivity(flight),
       longTasks: [],
