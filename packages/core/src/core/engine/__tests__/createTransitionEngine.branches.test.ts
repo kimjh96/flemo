@@ -792,44 +792,63 @@ describe("createTransitionEngine branches", () => {
     // the restart watchdog replays the whole transition — glass-visible on
     // desktop Safari as a second fade after a tab REPLACE (2026-08-20).
     const TaskManger = (await import("@core/TaskManger")).default;
+    const resolved = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
 
-    for (const suffix of ["", "-lpm", "-deskhead"]) {
-      const { scope } = elements();
-      const d = { ...deps(), getTransitionTaskId: vi.fn(() => `task-head${suffix}`) };
-      const engine = createTransitionEngine(d);
-      const resolved = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
+    // Resolution runs through the choreography deferral, so it lands a few
+    // turns later. Poll instead of sleeping a guessed span: a fixed wait is
+    // what made this flaky under a loaded coverage run, and the late resolve
+    // then landed inside the NEXT test's spy.
+    const waitForResolve = async () => {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if (resolved.mock.calls.length > 0) return true;
+        await new Promise((settle) => setTimeout(settle, 10));
+      }
+      return false;
+    };
 
-      transitionMap.set(
-        "branches-head" as never,
-        createTransition({
-          name: "branches-head" as never,
-          initial: { x: "100%", clipPath: "inset(0 0 0 100%)" },
-          idle: { value: { x: 0 }, options: { duration: 0 } },
-          enter: { value: { x: 0, clipPath: "inset(0)" }, options: { duration: 0.3 } },
-          enterBack: { value: { x: "100%" }, options: { duration: 0.3 } },
-          exit: { value: { x: "-30%" }, options: { duration: 0.3 } },
-          exitBack: { value: { x: 0 }, options: { duration: 0.3 } }
-        })
-      );
+    try {
+      for (const suffix of ["", "-lpm", "-deskhead"]) {
+        resolved.mockClear();
+        const { scope } = elements();
+        const d = { ...deps(), getTransitionTaskId: vi.fn(() => `task-head${suffix}`) };
+        const engine = createTransitionEngine(d);
 
-      const cleanup = engine.driveScreenLifecycle({
-        getElements: () => ({ scope, decorator: null, bars: [] }),
-        transitionName: "branches-head" as never,
-        prevTransitionName: "branches-head" as never,
-        status: "PUSHING",
-        isActive: true,
-        animHoldReleased: true
-      });
+        transitionMap.set(
+          "branches-head" as never,
+          createTransition({
+            name: "branches-head" as never,
+            initial: { x: "100%", clipPath: "inset(0 0 0 100%)" },
+            idle: { value: { x: 0 }, options: { duration: 0 } },
+            enter: { value: { x: 0, clipPath: "inset(0)" }, options: { duration: 0.3 } },
+            enterBack: { value: { x: "100%" }, options: { duration: 0.3 } },
+            exit: { value: { x: "-30%" }, options: { duration: 0.3 } },
+            exitBack: { value: { x: 0 }, options: { duration: 0.3 } }
+          })
+        );
 
-      scope.dispatchEvent(
-        animationEndEvent(`${animationName("screen", "branches-head", "PUSHING-true")}${suffix}`)
-      );
-      await new Promise((settle) => setTimeout(settle, 80));
+        const cleanup = engine.driveScreenLifecycle({
+          getElements: () => ({ scope, decorator: null, bars: [] }),
+          transitionName: "branches-head" as never,
+          prevTransitionName: "branches-head" as never,
+          status: "PUSHING",
+          isActive: true,
+          animHoldReleased: true
+        });
 
-      expect(resolved, `suffix "${suffix}" must resolve the flight`).toHaveBeenCalled();
+        scope.dispatchEvent(
+          animationEndEvent(`${animationName("screen", "branches-head", "PUSHING-true")}${suffix}`)
+        );
+
+        expect(await waitForResolve(), `suffix "${suffix}" must resolve the flight`).toBe(true);
+        cleanup();
+        scope.remove();
+        transitionMap.delete("branches-head" as never);
+      }
+    } finally {
+      // Drain anything the engine still has in flight BEFORE handing the spy
+      // back, so a straggler cannot be attributed to another test.
+      await new Promise((settle) => setTimeout(settle, 50));
       resolved.mockRestore();
-      cleanup();
-      transitionMap.delete("branches-head" as never);
     }
   });
 });
