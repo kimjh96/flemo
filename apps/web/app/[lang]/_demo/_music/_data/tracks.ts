@@ -1,5 +1,5 @@
 // Demo content for the music mini-app, a fresh lightweight second demo (not the
-// old playground). Track and artist names are proper nouns, the same in both
+// music demo). Track and artist names are proper nouns, the same in both
 // locales; only the small chrome labels are localized. Hues are decorative demo
 // artwork, not shiflo tokens.
 export interface Track {

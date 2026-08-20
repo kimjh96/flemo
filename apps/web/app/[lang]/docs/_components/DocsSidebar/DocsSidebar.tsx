@@ -1,5 +1,3 @@
-"use client";
-
 import DocsNav from "../DocsNav";
 
 // The persistent docs sidebar (desktop). It lives OUTSIDE the content <Slot>, so
@@ -7,7 +5,7 @@ import DocsNav from "../DocsNav";
 // same nav opens as a sheet from the page (see DocsNavSheet).
 function DocsSidebar() {
   return (
-    <aside className="hidden w-64 shrink-0 overflow-y-auto px-3 py-12 md:block lg:py-16">
+    <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-[var(--color-border-light)] px-4 pt-24 pb-12 md:block">
       <DocsNav />
     </aside>
   );

@@ -1,4 +1,4 @@
-// Shared tuning for the full-page "shove" slides: the playground's vertical
+// Shared tuning for full-page slides: the vertical
 // shove (pageShove) and the docs' horizontal shove (docsEnter). One curve and
 // one pair of durations so the two read as the same motion on different axes.
 //

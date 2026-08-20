@@ -8,11 +8,8 @@ import createLocaleHistoryDriver from "@/lib/localeHistoryDriver";
 import SiteHeader from "@/app/[lang]/_components/SiteHeader";
 import HomeScreen from "@/app/[lang]/_screens/HomeScreen";
 import DocsScreen from "@/app/[lang]/docs/_screens/DocsScreen";
-import PlaygroundScreen from "@/app/[lang]/playground/_screens/PlaygroundScreen";
 import ShowcaseScreen from "@/app/[lang]/showcase/_screens/ShowcaseScreen";
 import docsEnter from "@/app/[lang]/_transitions/docsEnter";
-import pageShoveBackward from "@/app/[lang]/_transitions/pageShoveBackward";
-import pageShoveForward from "@/app/[lang]/_transitions/pageShoveForward";
 import sharedAxisBackward from "@/app/[lang]/_transitions/sharedAxisBackward";
 import sharedAxisForward from "@/app/[lang]/_transitions/sharedAxisForward";
 
@@ -43,13 +40,7 @@ function ShellRouter({ initPath }: ShellRouterProps) {
       initPath={initPath}
       createDriver={(key) => createLocaleHistoryDriver(key, getLocale)}
       defaultTransitionName="shared-axis-forward"
-      transitions={[
-        sharedAxisForward,
-        sharedAxisBackward,
-        pageShoveForward,
-        pageShoveBackward,
-        docsEnter
-      ]}
+      transitions={[sharedAxisForward, sharedAxisBackward, docsEnter]}
     >
       {/* The header overlays the content (absolute, z-40), so screens scroll
           UNDER its frosted glass, real glassmorphism, no seam. */}
@@ -58,7 +49,6 @@ function ShellRouter({ initPath }: ShellRouterProps) {
         <Slot className="h-full w-full">
           <Route path="/" element={<HomeScreen />} />
           <Route path="/showcase" element={<ShowcaseScreen />} />
-          <Route path={["/playground", "/playground/:n"]} element={<PlaygroundScreen />} />
           <Route path={["/docs", "/docs/:slug"]} element={<DocsScreen />} />
         </Slot>
       </div>
