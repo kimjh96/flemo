@@ -169,6 +169,29 @@ export const isLegacyAndroidBlink = (): boolean => {
   return /Android/i.test(ua) && !/Firefox|FxiOS/i.test(ua) && (navigator.maxTouchPoints ?? 0) > 0;
 };
 
+// DESKTOP macOS WebKit — the Safari session that routes to the COMPILED tier
+// (joinPlayer's gate 3: macOS Safari caps rAF at 60Hz, so the player can only
+// ever paint half a ProMotion panel's frames there). Touch WebKit is excluded
+// deliberately: real iPhones/iPads — including iPads that spoof a Mac platform,
+// which report maxTouchPoints > 0 — keep the device-verified player. jsdom
+// reports an empty platform and so is never desktop-Mac WebKit, which keeps the
+// unit suites on the player tier.
+//
+// The predicate lives here, beside the other engine probes, because two callers
+// must agree on it exactly: the routing gate that sends this session to the
+// compiled tier, and the render-settle gate default that makes that tier safe
+// (see readSettleGateFlag). They drifted apart once already — routing landed
+// desktop Safari on a wall-clocked animation while the gate that protects it
+// stayed touch-only.
+export const isDesktopMacWebKit = (): boolean => {
+  if (typeof navigator === "undefined") return false;
+  return (
+    !detectBlinkEngine() &&
+    (navigator.maxTouchPoints ?? 0) === 0 &&
+    /Mac/.test(navigator.platform ?? "")
+  );
+};
+
 export const createDriverPolicy = (playerByDefault: boolean = false): DriverPolicy => ({
   playerAllowed: () => {
     const forced = readForcedDriver();

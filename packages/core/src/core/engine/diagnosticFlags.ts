@@ -1,4 +1,4 @@
-import { detectBlinkEngine } from "@core/engine/driverPolicy";
+import { detectBlinkEngine, isDesktopMacWebKit } from "@core/engine/driverPolicy";
 import { governedCompiledActive } from "@core/engine/lowPowerCadence";
 import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 
@@ -26,7 +26,7 @@ import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 // | flemo:landing-snap        | session | "on"                            | off                        | opt-in diagnostic                | Blink landing pixel-snap easing A/B (landingPixelSnap.ts)              |
 // | flemo:imghold             | session | "on"/"off"                      | unpainted-only on steady-60 desktop, else off | production-default-with-override | flight-scoped <img> reveal hold (imageRevealHold.ts)   |
 // | flemo:arrivalhold         | session | "off"                           | on                         | production-default-with-override | arrival hold (freeze-and-replay of in-flight arrivals) — arrivalHold.ts |
-// | flemo:settle-gate         | session | "on"/"off"                      | touch WebKit + touch Blink + steady-60 desktop | production-default-with-override | render-settle entry gate (engine routing + react ScreenMotion) |
+// | flemo:settle-gate         | session | "on"/"off"                      | touch WebKit + touch Blink + desktop macOS WebKit + steady-60 desktop | production-default-with-override | render-settle entry gate (engine routing + react ScreenMotion) |
 // | flemo:handoff             | session | "on"                            | off                        | opt-in diagnostic                | anchored-opening handoff, POP-scoped (transitionPlayer.ts)             |
 // | flemo:handoffms           | session | number ms                       | 100 (six 60Hz frames)      | opt-in diagnostic                | moves the handoff point per session                                    |
 // | flemo:apply               | session | "scrub"                         | off                        | opt-in diagnostic                | force the scrub-WAAPI value-application tier for every track           |
@@ -98,7 +98,8 @@ const isTouchBlink = (): boolean => detectBlinkEngine() && (navigator.maxTouchPo
 
 // `flemo:settle-gate` — the render-settle entry gate. ON BY DEFAULT for touch
 // WebKit (governedCompiledActive — the governed-compiled tier ships with it),
-// for steady-60 desktop Blink sessions, AND for touch Blink.
+// for steady-60 desktop Blink sessions, for touch Blink, AND for desktop macOS
+// Safari.
 //
 // The steady-60 desktop term is a PROFILE, not a driver claim. It was written
 // when a verified steady-60 session routed to the player, whose main-thread
@@ -118,6 +119,24 @@ const isTouchBlink = (): boolean => detectBlinkEngine() && (navigator.maxTouchPo
 // every Android session kept running ungated while the code documented the
 // opposite. Re-confirmed on the same device class 2026-08-19.
 //
+// DESKTOP macOS Safari (isDesktopMacWebKit) was the same gap one platform
+// over, and the LAST session routed to a wall-clocked animation with nothing
+// holding it. joinPlayer's gate 3 sends it to the compiled tier on purpose
+// (macOS Safari caps rAF at 60Hz, so the player can only paint half a
+// ProMotion panel's frames) — but WebKit presents those compiled animations
+// from the MAIN THREAD (see driverPolicy's header), so a heavy entering mount
+// eats the opening exactly as it does on a phone. Frame-level measurement of
+// the docs site's own Home -> Showcase push (2026-08-20, production build,
+// WebKit): the entering screen's mount blocked the main thread for 103-135ms
+// while the animation's clock ran, so the FIRST presented frame already stood
+// at 48-77% progress; the release commit then re-anchored the animation and it
+// replayed from zero — a jump followed by a rewind, both visible. The same
+// flight on Chromium was clean (max frame gap 17.6ms, monotonic 16 -> 300ms),
+// which is why it read as Safari-only. With the gate armed the block is
+// unchanged but the flight departs after it and plays 16 -> 300ms monotonic.
+// Touch WebKit is already covered above by governedCompiledActive; this term
+// is only the non-touch Mac session.
+//
 // The gate is adaptive, which is why this is safe to widen: with no
 // qualifying mount commit inside firstWaitMs it releases with no felt delay,
 // so a fast phone pays nothing for carrying it. "off" opts out, "on" forces
@@ -130,7 +149,12 @@ export const readSettleGateFlag = (): boolean => {
       typeof sessionStorage !== "undefined" ? sessionStorage.getItem("flemo:settle-gate") : null;
     if (value === "on") return true;
     if (value === "off") return false;
-    return governedCompiledActive() || steadySixtyPlayerEligible() || isTouchBlink();
+    return (
+      governedCompiledActive() ||
+      steadySixtyPlayerEligible() ||
+      isTouchBlink() ||
+      isDesktopMacWebKit()
+    );
   } catch {
     return false;
   }

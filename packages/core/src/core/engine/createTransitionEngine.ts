@@ -21,7 +21,11 @@ import {
   readLandingSnapFlag,
   readSettleGateFlag
 } from "@core/engine/diagnosticFlags";
-import driverPolicy, { detectBlinkEngine, isLegacyAndroidBlink } from "@core/engine/driverPolicy";
+import driverPolicy, {
+  detectBlinkEngine,
+  isDesktopMacWebKit,
+  isLegacyAndroidBlink
+} from "@core/engine/driverPolicy";
 import { noticeDeviceEmulationOnce } from "@core/engine/emulationNotice";
 import { beginFlightWindow } from "@core/engine/flightWindow";
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
@@ -259,7 +263,9 @@ const statusChoreographySpanMs = (
 // clock past the governed head; with the gate that weight is behind us, so the
 // fixed head covers a PUSH the same way it covers a POP. Read here so the
 // engine only routes a PUSH to compiled when the gate is actually smoothing it.
-// The render-settle gate is ON BY DEFAULT for touch WebKit (governedCompiledActive):
+// The render-settle gate is ON BY DEFAULT for touch WebKit (governedCompiledActive)
+// and for desktop macOS Safari (isDesktopMacWebKit — routed compiled by gate 3
+// below, and just as main-thread-clocked):
 // the governed-compiled opening only presents cleanly when the release waits for
 // the entering mount's render to quiesce, so it ships with the tier. An explicit
 // `flemo:settle-gate=off` opts out; `=on` is redundant now but still honored
@@ -1167,12 +1173,13 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       //    keep the device-verified player for CHAINED flights; jsdom
       //    reports an empty platform and stays on the player for the unit
       //    suites.
-      if (
-        !detectBlinkEngine() &&
-        typeof navigator !== "undefined" &&
-        navigator.maxTouchPoints === 0 &&
-        /Mac/.test(navigator.platform ?? "")
-      ) {
+      //
+      //    The predicate is shared with readSettleGateFlag's default
+      //    (isDesktopMacWebKit): this route hands the session a wall-clocked
+      //    animation presented from the main thread, and the settle gate is
+      //    what keeps a heavy entering mount from eating its opening. The two
+      //    must never disagree about which sessions land here.
+      if (isDesktopMacWebKit()) {
         return null;
       }
       // Touch-WebKit compiled routing: route the compiled compositor tier —
