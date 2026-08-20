@@ -355,6 +355,64 @@ export const softenFrontLoadedEasing = (easingCss: string, durationS: number): s
   return `cubic-bezier(${soft.join(", ")})`;
 };
 
+// Transform components have a known identity, so a key present on one side and
+// absent on the other still interpolates. Anything else (opacity, colors,
+// filters) does not: the resting value is the consumer's, not ours to guess.
+const TRANSFORM_IDENTITY: Record<string, number> = {
+  x: 0,
+  y: 0,
+  z: 0,
+  rotate: 0,
+  rotateX: 0,
+  rotateY: 0,
+  rotateZ: 0,
+  scale: 1,
+  scaleX: 1,
+  scaleY: 1
+};
+
+const NUMERIC_VALUE = /^(-?\d*\.?\d+)([a-z%]*)$/;
+
+const parseScalar = (raw: unknown): { n: number; unit: string } | null => {
+  if (typeof raw === "number") return Number.isFinite(raw) ? { n: raw, unit: "" } : null;
+  if (typeof raw !== "string") return null;
+  const match = raw.trim().match(NUMERIC_VALUE);
+  if (!match) return null;
+  const n = Number(match[1]);
+  return Number.isFinite(n) ? { n, unit: match[2] ?? "" } : null;
+};
+
+// The pose the authored curve holds at `progress`, as a raw target the existing
+// decl compiler can format. Null whenever any channel cannot be interpolated
+// exactly — the trimmed rule is then simply not emitted and the flight keeps
+// its untrimmed opening.
+export const interpolateTargetAtProgress = (
+  fromTarget: TransitionVariantValue["value"] | InitialTarget,
+  toTarget: TransitionVariantValue["value"] | InitialTarget,
+  progress: number
+): Record<string, string | number> | null => {
+  if (!isPlainObject(fromTarget) || !isPlainObject(toTarget)) return null;
+  const keys = new Set([...Object.keys(fromTarget), ...Object.keys(toTarget)]);
+  if (keys.size === 0) return null;
+  const out: Record<string, string | number> = {};
+  for (const key of keys) {
+    const identity = TRANSFORM_IDENTITY[key];
+    const rawFrom = key in fromTarget ? fromTarget[key] : identity;
+    const rawTo = key in toTarget ? toTarget[key] : identity;
+    if (rawFrom === undefined || rawTo === undefined) return null;
+    const from = parseScalar(rawFrom);
+    const to = parseScalar(rawTo);
+    if (!from || !to) return null;
+    // A zero carries no unit of its own, so it adopts the other side's.
+    const unit = from.n === 0 ? to.unit : from.unit;
+    if (from.n !== 0 && to.n !== 0 && from.unit !== to.unit) return null;
+    const value = from.n + (to.n - from.n) * progress;
+    const rounded = Math.round(value * 1000) / 1000;
+    out[key] = unit === "" ? rounded : `${rounded}${unit}`;
+  }
+  return out;
+};
+
 const restAttrSelector = (transitionName: string, variant: TransitionVariant): string => {
   const [status, active] = variant.split("-");
   return (
@@ -417,7 +475,7 @@ export const animationName = (
 // the restart watchdog then replays the whole transition (glass-visible as a
 // second fade on REPLACE). Keep this list beside the suffixes the compiler
 // emits, and route every name comparison through the matcher.
-export const HEAD_ANIMATION_SUFFIXES = ["-lpm", "-deskhead"] as const;
+export const HEAD_ANIMATION_SUFFIXES = ["-lpm", "-deskhead", "-lpmcreep"] as const;
 
 export const matchesFlightAnimationName = (eventName: string, expectedName: string): boolean =>
   eventName === expectedName ||
@@ -614,25 +672,111 @@ const compileVariantBlock = (
       .split(",\n")
       .map((one) => `:root[${attribute}] ${one}`)
       .join(",\n");
+    // The single-head A/B (`flemo:lpmhead=single`, engine-raised
+    // `data-flemo-lpm-single`): drop the delay shift so the LPM tier pays its
+    // head ONCE, like the desktop tier. Emitted as an override rather than a
+    // second head so the shipped timing stays byte-identical until the
+    // attribute is present — a device round decides whether the doubling is
+    // load-bearing, and only then does a default move. Two attribute selectors
+    // on :root outrank the one above, so the override wins without !important.
+    const singleHeadOverride =
+      shiftDelay && delay !== delay + headS
+        ? `\n${selector
+            .split(",\n")
+            .map((one) => `:root[${attribute}][data-flemo-lpm-single] ${one}`)
+            .join(",\n")} {\n  animation-delay: ${delay.toFixed(3)}s;\n}`
+        : "";
     return (
       `\n@keyframes ${kf} {\n  0%, ${headPct}% {\n${declsToBlock(fromDecls).replace(/^/gm, "  ")}\n  }\n  100% {\n${declsToBlock(toDecls).replace(/^/gm, "  ")}\n  }\n}\n` +
-      `${gatedSelector} {\n  animation-name: ${kf};\n  animation-duration: ${total.toFixed(3)}s;\n  animation-delay: ${(shiftDelay ? delay + headS : delay).toFixed(3)}s;\n}`
+      `${gatedSelector} {\n  animation-name: ${kf};\n  animation-duration: ${total.toFixed(3)}s;\n  animation-delay: ${(shiftDelay ? delay + headS : delay).toFixed(3)}s;\n}` +
+      singleHeadOverride
     );
   };
   // Parts keep their own keyframes but ride the same head via a gated
   // LITERAL delay so the choreography's relative timing to the screens is
   // preserved under LPM.
-  const partDelayBlock = (attribute: string, headS: number): string => {
+  const partDelayBlock = (attribute: string, headS: number, singleHead = false): string => {
     if (scope !== "part") return "";
     if (headS <= 0 || duration <= 0) return "";
+    const gate = (extra = "") =>
+      selector
+        .split(",\n")
+        .map((one) => `:root[${attribute}]${extra} ${one}`)
+        .join(",\n");
+    // Under the single-head A/B the screens start a head earlier, so the parts
+    // must too — a part left on the doubled delay would lag its screen by the
+    // head and the choreography would come apart, which is not what the A/B is
+    // asking about.
+    const override = singleHead
+      ? `\n${gate("[data-flemo-lpm-single]")} {\n  animation-delay: ${delay.toFixed(3)}s;\n}`
+      : "";
+    return `\n${gate()} {\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}${override}`;
+  };
+  // CREEP 헤드 (`flemo:creep=on`, `:root[data-flemo-lpm][data-flemo-creep]`).
+  //
+  // 기기 실측(iPhone, 2026-08-20): 드랍 한 장이 헤드 길이를 그대로 따라다닌다
+  // (헤드 100ms → 해제 후 6번째 프레임, 200ms → 12번째). 시각이 아니라 "flat
+  // head가 끝나고 자세가 처음 움직이는 경계"에 붙어 있다는 뜻이고, WebKit이 그
+  // 경계에서 레이어를 커밋하는 것으로 보인다. 헤드를 늘리거나 줄이면 드랍도
+  // 같이 옮겨갈 뿐이다(줄이면 오프닝까지 먹힌다).
+  //
+  // 그래서 경계를 없앤다: 헤드의 끝 키프레임을 시작과 "같은 자세"가 아니라
+  // translateZ 미세값이 더해진 자세로 둔다. z 이동은 perspective가 없으면
+  // 화면상 아무 차이가 없으므로 자세가 미리 걸쳐 보이는 일이 없고(토 다듬기에서
+  // 겪은 peek 문제), 값 자체는 매 프레임 변하므로 컴포지터가 헤드 시작부터
+  // 애니메이션을 물고 있게 된다.
+  // STRETCH 헤드 (`flemo:head=stretch`, `:root[data-flemo-lpm][data-flemo-stretch]`).
+  //
+  // 헤드의 목적은 "릴리스에서 첫 유리까지의 지연 동안 먹히는 프레임을 없애는 것"
+  // 이고, 지금 형태는 그 시간을 통째로 정지로 채운다. 기기 실측(iPhone,
+  // 2026-08-20, 표시 위치 기준): 헤드 동안 0.0~0.1px, 그다음 한 프레임에 24.5px —
+  // 정지에서 최고속에 가까운 속도로의 불연속 발진이고, 남아 있던 "드르륵"의 정체가
+  // 드랍이 아니라 이것으로 보인다(모션 구간 자체는 24→26→27→32→36→41로 매끄럽다).
+  //
+  // 그래서 헤드 시간을 곡선에 흡수시킨다: 같은 키프레임·같은 저작 곡선을 head 만큼
+  // 더 긴 시간에 재생한다. 착지 시각은 지금과 동일하고, 정지 구간이 사라지며,
+  // 먹히던 초반 프레임은 저작 곡선 자신의 toe(서브픽셀)라 손실이 없다 — 헤드가
+  // 지키려던 것을 그대로 지킨다. 키프레임 이름이 BASE 그대로라 비행 종료 판정도
+  // 건드리지 않는다.
+  const stretchHeadBlock = (() => {
+    if (scope === "part") return "";
+    const headS = headForVariant(variant);
+    if (headS <= 0 || duration <= 0) return "";
+    if (fromDecls.length === 0 && toDecls.length === 0) return "";
     const gatedSelector = selector
       .split(",\n")
-      .map((one) => `:root[${attribute}] ${one}`)
+      .map((one) => `:root[data-flemo-lpm][data-flemo-stretch] ${one}`)
       .join(",\n");
-    return `\n${gatedSelector} {\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`;
-  };
+    return `\n${gatedSelector} {\n  animation-name: ${keyframe};\n  animation-duration: ${(duration + headS).toFixed(3)}s;\n  animation-delay: ${delay.toFixed(3)}s;\n}`;
+  })();
+  const creepHeadBlock = (() => {
+    if (scope === "part") return "";
+    const headS = headForVariant(variant);
+    if (headS <= 0 || duration <= 0) return "";
+    if (fromDecls.length === 0 && toDecls.length === 0) return "";
+    // 헤드 끝 자세: 저작 곡선을 목적지 반대쪽으로 아주 조금(0.4%) 되짚은 지점.
+    // 실제로 애니메이션되는 채널이 매 프레임 변하므로 컴포지터가 헤드 내내
+    // 그 애니메이션을 물고 있게 된다. translateZ 미세값(v1)은 값은 변해도 이동
+    // 성분이 그대로여서 자극이 약했다(기기 실측: 경계 드랍이 다시 올라옴).
+    // 방향이 목적지의 "반대"라 화면이 미리 걸쳐 보일 수 없다 — 이미 화면 밖인
+    // 쪽으로 더 나가고, 짧은 이동에서는 서브픽셀이다.
+    const crept = interpolateTargetAtProgress(fromValue, toVariant.value, -0.004);
+    const creepDecls: CssDecl[] = crept ? targetToDecls(crept) : [];
+    if (creepDecls.length === 0) return "";
+    const total = duration + headS;
+    const headPct = ((headS / total) * 100).toFixed(3);
+    const kf = `${keyframe}-lpmcreep`;
+    const gatedSelector = selector
+      .split(",\n")
+      .map((one) => `:root[data-flemo-lpm][data-flemo-creep] ${one}`)
+      .join(",\n");
+    return (
+      `\n@keyframes ${kf} {\n  0% {\n${declsToBlock(fromDecls).replace(/^/gm, "  ")}\n  }\n  ${headPct}% {\n${declsToBlock(creepDecls).replace(/^/gm, "  ")}\n  }\n  100% {\n${declsToBlock(toDecls).replace(/^/gm, "  ")}\n  }\n}\n` +
+      `${gatedSelector} {\n  animation-name: ${kf};\n  animation-duration: ${total.toFixed(3)}s;\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`
+    );
+  })();
   const lpmHeadBlock = headBlock("data-flemo-lpm", "lpm", headForVariant(variant), true);
-  const lpmPartDelayBlock = partDelayBlock("data-flemo-lpm", headForVariant(variant));
+  const lpmPartDelayBlock = partDelayBlock("data-flemo-lpm", headForVariant(variant), true);
   const deskHeadBlock = headBlock(
     "data-flemo-desk-head",
     "deskhead",
@@ -745,7 +889,7 @@ const compileVariantBlock = (
         )}\n  opacity: 0.02;\n}`
       : "";
 
-  return `${keyframeBlock}\n${ruleBlock}${softenedBlock}${lpmHeadBlock}${lpmPartDelayBlock}${deskHeadBlock}${deskPartDelayBlock}${parkBlock}${parkUnderBlock}${parkOverBlock}`;
+  return `${keyframeBlock}\n${ruleBlock}${softenedBlock}${lpmHeadBlock}${lpmPartDelayBlock}${creepHeadBlock}${stretchHeadBlock}${deskHeadBlock}${deskPartDelayBlock}${parkBlock}${parkUnderBlock}${parkOverBlock}`;
 };
 
 // Whether a variant's `from` target leaves the screen invisible on its first

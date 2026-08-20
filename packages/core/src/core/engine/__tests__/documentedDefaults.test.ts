@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   readArrivalHoldFlag,
+  readCreepHeadFlag,
+  readDeferReleaseCommitFlag,
   readDesktopHeadFlag,
   readDesktopReleaseFlipFlag,
   readImageHoldFlag,
@@ -173,6 +175,40 @@ describe("documented default: flemo:deskhead", () => {
     setEnv({ blink: false, touch: false, mac: true });
     sessionStorage.setItem("flemo:deskhead", "off");
     expect(readDesktopHeadFlag()).toBe(false);
+  });
+});
+
+describe("documented defaults: the touch-WebKit opening set", () => {
+  // One device round (a real iPhone, 2026-08-20/21) moved these three from
+  // opt-in probes to defaults, each with its own measured effect: the release
+  // reconcile leaving the release frame (drops right after the release 61% →
+  // 32% of pushes), the creep head (drops at the head boundary 78% → 33%), and
+  // resident layers (the landing tremor did not recur once armed). They are
+  // scoped to the tier they were measured on and every one keeps an opt-out.
+  it("are ON for touch WebKit", () => {
+    setEnv({ blink: false, touch: true });
+    expect(readCreepHeadFlag()).toBe(true);
+    expect(readDeferReleaseCommitFlag()).toBe(true);
+    expect(readLayerPromotionFlag()).toBe(true);
+  });
+
+  it("are OFF for Blink and for desktop WebKit", () => {
+    // Blink composites the flight, so a main-thread commit never eats a
+    // present there; the head these are shaped around is a touch-WebKit tier.
+    setEnv({ blink: true, touch: true });
+    expect(readCreepHeadFlag()).toBe(false);
+    expect(readDeferReleaseCommitFlag()).toBe(false);
+    setEnv({ blink: false, touch: false, mac: true });
+    expect(readCreepHeadFlag()).toBe(false);
+    expect(readDeferReleaseCommitFlag()).toBe(false);
+  });
+
+  it("each keep an explicit opt-out", () => {
+    setEnv({ blink: false, touch: true });
+    sessionStorage.setItem("flemo:creep", "off");
+    sessionStorage.setItem("flemo:relcommit", "sync");
+    expect(readCreepHeadFlag()).toBe(false);
+    expect(readDeferReleaseCommitFlag()).toBe(false);
   });
 });
 

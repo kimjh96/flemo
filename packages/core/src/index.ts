@@ -145,6 +145,7 @@ export { lowPowerCadenceActive, governedCompiledActive } from "@core/engine/lowP
 // SSR contract), and the image-offloader override.
 export {
   readSettleGateFlag,
+  readDeferReleaseCommitFlag,
   readDesktopReleaseFlipFlag,
   readPrerasterFlag,
   readLayerPromotionFlag,
