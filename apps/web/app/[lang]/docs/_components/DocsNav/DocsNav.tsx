@@ -40,10 +40,10 @@ function DocsNav({ onNavigate }: DocsNavProps) {
   };
 
   return (
-    <nav className="flex flex-col gap-7">
+    <nav className="flex flex-col gap-8">
       {sections.map((section) => (
-        <div key={section.title} className="flex flex-col gap-0.5">
-          <p className="px-3 pb-1.5 text-[11px] font-bold tracking-[0.12em] text-[var(--color-text-disabled)] uppercase">
+        <div key={section.title} className="flex flex-col gap-1">
+          <p className="px-3 pb-1 text-[10px] font-bold tracking-[0.12em] text-[var(--color-text-disabled)] uppercase">
             {section.title}
           </p>
           {section.pages.map((page) => {
@@ -54,10 +54,10 @@ function DocsNav({ onNavigate }: DocsNavProps) {
                 type="button"
                 onClick={() => handleSelect(page.slug)}
                 aria-current={active ? "page" : undefined}
-                className={`cursor-pointer rounded-xl px-3 py-2 text-left text-[14px] font-medium transition-colors ${
+                className={`relative cursor-pointer rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold transition-all ${
                   active
-                    ? "bg-[var(--color-primary)]/12 text-[var(--color-primary)]"
-                    : "text-[var(--color-text-secondary)] hover:bg-white/5 hover:text-[var(--color-text-primary)]"
+                    ? "bg-[var(--color-primary)]/10 pl-5 text-[var(--color-primary)] before:absolute before:top-1/2 before:left-2.5 before:size-1 before:-translate-y-1/2 before:rounded-full before:bg-[var(--color-primary)]"
+                    : "text-[var(--color-text-secondary)] hover:translate-x-0.5 hover:bg-[var(--color-layer)] hover:text-[var(--color-text-primary)]"
                 }`}
               >
                 {page.title}

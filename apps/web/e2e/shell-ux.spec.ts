@@ -10,9 +10,6 @@ test.describe("shell ux", () => {
 
     await page.goto("/docs/router");
     await expect(navButton(page, "Docs")).toHaveAttribute("aria-current", "page");
-
-    await page.goto("/playground/3");
-    await expect(navButton(page, "Playground")).toHaveAttribute("aria-current", "page");
   });
 
   // The toggle keeps the language in localStorage, so a refresh stays in it even

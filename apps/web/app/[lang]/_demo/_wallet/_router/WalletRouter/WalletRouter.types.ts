@@ -1,5 +1,5 @@
 // Routes for the wallet demo. All namespaced under /wallet so they never
-// collide with the playground or shell entries in the shared global
+// collide with the shell entries in the shared global
 // `RegisterRoute`. This Router is nested, so the paths are local-only (in-memory
 // history) and never reach the browser URL.
 declare module "@flemo/react" {

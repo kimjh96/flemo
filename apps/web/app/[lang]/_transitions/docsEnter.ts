@@ -5,7 +5,7 @@ import { createTransition } from "@flemo/react";
 import { SLIDE_DURATION, SLIDE_DURATION_BACK, SLIDE_EASE } from "./slide.constants";
 
 // Docs enters with a full-width horizontal shove (the horizontal mirror of the
-// playground's page-shove): the docs page slides all the way in from the right
+// The docs page slides all the way in from the right
 // while the marketing surface is pushed all the way out to the left, the two
 // moving together so one page visibly shoves the other off-screen, not a cover.
 const docsEnter = createTransition({

@@ -22,8 +22,6 @@ function HomeScreen() {
   // Navigate through flemo (a client transition within the shell), not next/link
   // — a Next navigation would fight the shell Router's history driver.
   const handleOpenDocs = () => navigate.push("/docs", {}, { transitionName: "docs-enter" });
-  const handleOpenPlayground = () =>
-    navigate.push("/playground", {}, { transitionName: "page-shove-forward" });
 
   return (
     <Screen hideStatusBar hideSystemNavigationBar backgroundColor="var(--color-bg)">
@@ -47,13 +45,6 @@ function HomeScreen() {
                   className="inline-flex h-14 cursor-pointer items-center rounded-full bg-[var(--color-primary)] px-7 text-[15px] font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
                 >
                   {dict.home.ctaPrimary}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleOpenPlayground}
-                  className="inline-flex h-14 cursor-pointer items-center rounded-full border border-[var(--color-border-dark)] px-7 text-[15px] font-semibold text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-layer)]"
-                >
-                  {dict.home.ctaSecondary}
                 </button>
               </div>
             </div>

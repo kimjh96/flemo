@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { siteHeader, trackConsoleErrors } from "./helpers/flemo";
 
 // Each promoted shell route renders its first paint with no JS console errors.
-const ROUTES = ["/", "/showcase", "/playground", "/docs"];
+const ROUTES = ["/", "/showcase", "/docs"];
 
 test.describe("smoke", () => {
   for (const route of ROUTES) {
