@@ -278,8 +278,16 @@ function Router({
     })
   );
 
-  // Keep the seeded default in sync if the prop changes across renders.
-  stores.transition.setState({ defaultTransitionName });
+  // Keep the seeded default in sync if the prop changes across renders. At
+  // COMMIT, for the same reason as the scope node below: a discarded render
+  // (a transition that suspended) must not leave a live store holding a
+  // default no visible screen ever committed to — a push from the
+  // still-displayed tree would then play a transition the user's props do not
+  // yet ask for. Nothing reads this before the commit either: its only readers
+  // are the controller's push/replace, which run from event handlers.
+  useIsomorphicLayoutEffect(() => {
+    stores.transition.setState({ defaultTransitionName });
+  });
 
   // This Router's node in the scope CHAIN — the structure `useNavigate` walks
   // to resolve `router: "parent" | "root" | "<name>" | "nearest-owner"`.
@@ -298,8 +306,10 @@ function Router({
   // props that no visible screen has: renaming a Router inside a suspended
   // transition made the STILL-DISPLAYED screen resolve `router: "app"` against
   // the unseen new name and throw. Committing the write closes that window,
-  // and nothing needs these fields earlier — unlike `defaultTransitionName`
-  // above, which screens read during the very render that sets it.
+  // and nothing needs these fields earlier: they are read at navigation time,
+  // from event handlers that run after commit (same as the transition default
+  // above). Anything else this Router publishes outside React state belongs in
+  // a commit-phase effect too.
   const parentScope = useContext(RouterScopeContext);
   const [scope] = useState<RouterScopeNode>(() => ({
     name,

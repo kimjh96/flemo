@@ -483,3 +483,69 @@ describe("Router scope chain: concurrent rendering", () => {
     expect(() => chromeNav.push("/members/:id", { id: "1" }, { router: "app" })).not.toThrow();
   });
 });
+
+describe("Router config: commit-phase publication", () => {
+  // Same hazard as the scope node, on the Router's OTHER piece of live config:
+  // `defaultTransitionName` is pushed into the transition store, and that store
+  // is read by push/replace (event time). A discarded render must not be able
+  // to hand a still-displayed screen a transition it never committed to.
+  it("keeps the committed default transition while a transition suspends", async () => {
+    cleanup();
+    window.history.replaceState(null, "", "/");
+
+    const forever = new Promise<void>(() => {});
+    let switchDefault: () => void = () => {};
+    let chromeNav: Navigate = null as never;
+    let chromeStores: FlemoStores = null as never;
+
+    function Chrome() {
+      chromeNav = useNavigate();
+      chromeStores = useStores();
+      return null;
+    }
+
+    function MaybeSuspend({ suspend }: { suspend: boolean }) {
+      if (suspend) throw forever;
+      return <div>home</div>;
+    }
+
+    function Harness() {
+      const [transitionName, setTransitionName] = useState<"cupertino" | "material">("cupertino");
+      const [suspend, setSuspend] = useState(false);
+      switchDefault = () =>
+        startTransition(() => {
+          setTransitionName("material");
+          setSuspend(true);
+        });
+
+      return (
+        <Router defaultTransitionName={transitionName} initPath="/">
+          <Chrome />
+          <Slot>
+            <Route
+              path="/"
+              element={
+                <Suspense fallback={<div>loading</div>}>
+                  <MaybeSuspend suspend={suspend} />
+                </Suspense>
+              }
+            />
+            <Route path="/members/:id" element={<div>member</div>} />
+          </Slot>
+        </Router>
+      );
+    }
+
+    render(<Harness />);
+
+    await act(async () => {
+      switchDefault();
+    });
+
+    // The screen the user is looking at still belongs to the cupertino render.
+    await run(() => chromeNav.push("/members/:id", { id: "1" }));
+
+    const { histories, index } = chromeStores.history.getState();
+    expect(histories[index]!.transitionName).toBe("cupertino");
+  });
+});
