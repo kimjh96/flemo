@@ -1,5 +1,16 @@
 # @flemo/core
 
+## 1.25.1
+
+### Patch Changes
+
+- [`445e116`](https://github.com/kimjh96/flemo/commit/445e1163cf3b53d31b3b3cd0e19856bcd237aa9e) Arm the render-settle gate by default on desktop macOS Safari. That session runs
+  the compiled tier, which WebKit presents from the main thread, so a heavy entering
+  screen's mount used to age the animation's clock while nothing was on glass — the
+  transition appeared to start already two-thirds finished and then replay from the
+  top. The gate now holds the release until the mount settles, so the opening plays
+  in full.
+
 ## 1.25.0
 
 ### Minor Changes
