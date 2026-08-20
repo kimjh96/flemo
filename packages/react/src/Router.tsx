@@ -39,13 +39,18 @@ import ScreenViewportContext from "@screen/ScreenViewportContext";
 
 import useTransitionStyles from "@transition/styles";
 
+import { devWarn } from "@utils/devDiagnostics";
+
 import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 
 import RouterDepthContext from "./RouterDepthContext";
 import RouterIdContext from "./RouterIdContext";
+import RouterScopeContext, { type RouterScopeNode } from "./RouterScopeContext";
+import { findDuplicateNamedAncestor } from "./RouterTarget";
 import Slot from "./Slot";
 
 import type { RouteProps } from "@Route";
+import type { Path } from "path-to-regexp";
 
 // Find a <Slot> in the layout tree and return its <Route> children — the route
 // declarations to seed and match against. The Slot may sit anywhere in the
@@ -72,6 +77,21 @@ function findSlotRoutes(node: ReactNode): ReactElement<RouteProps>[] | null {
 }
 
 interface RouterProps {
+  // A stable identity for cross-Router navigation: `useNavigate({ router:
+  // "app" })` / `push(path, params, { router: "app" })` run against the
+  // <Router name="app"> that encloses the call. Purely a lookup key — it is
+  // NOT the internal `routerKey` that namespaces `history.state` (that one is
+  // derived, see below), so renaming a Router never orphans its frames.
+  // Consumer-provided, therefore stable across SSR and hydration by
+  // construction. Names must be unique within one chain of nested Routers;
+  // a duplicate is reported in development.
+  name?: string;
+  // Upgrade the "this Router does not declare that route" development WARNING
+  // to a thrown error for navigations that leave the target implicit. Explicit
+  // `router:` targets always throw in development — this opt-in extends the
+  // same strictness to plain `push`/`replace` calls, which stay warn-only by
+  // default so existing apps keep their behavior.
+  strictRoutes?: boolean;
   initPath?: string;
   defaultTransitionName?: TransitionName;
   transitions?: Transition[];
@@ -115,6 +135,8 @@ const INTERACTION_WARM_TAIL_MS = 3000;
 
 function Router({
   children,
+  name,
+  strictRoutes = false,
   initPath = "/",
   defaultTransitionName = "cupertino",
   transitions = EMPTY_TRANSITIONS,
@@ -186,6 +208,18 @@ function Router({
   const slotRoutes = findSlotRoutes(children);
   const hasSlot = slotRoutes !== null;
 
+  // The route patterns this Router declares. Read in RENDER (not just in the
+  // store initializer, as before) because the scope node publishes them for
+  // cross-Router target resolution: "does the Router you named actually own
+  // this path?". Non-<Route> children are skipped — without a <Slot> they are
+  // indistinguishable from routes, and a pathless child would otherwise reach
+  // path-to-regexp as `undefined`.
+  const routeChildren =
+    slotRoutes ?? (Children.toArray(children).filter(isValidElement) as ReactElement<RouteProps>[]);
+  const routePaths: Path[] = routeChildren.flatMap((child) =>
+    child.props?.path ? ([child.props.path].flat() as Path[]) : []
+  );
+
   // A <RouterScopeProvider> above the Router hosts the bundle so siblings outside the Router (an
   // inspector/devtools panel) can read it. Adopt it when present; otherwise own the bundle here.
   // Ignored when nested: a nested Router always owns its own (local) bundle.
@@ -224,10 +258,8 @@ function Router({
   // the seed is the store's *initial* state, zustand hands it to React as the
   // SSR snapshot); this binding only resolves the route declarations from its
   // JSX children.
-  const [stores] = useState<FlemoStores>(() => {
-    const routeChildren = slotRoutes ?? (Children.toArray(children) as ReactElement<RouteProps>[]);
-    const routePaths = routeChildren.map((child) => child.props.path).flat();
-    return createRouterScope({
+  const [stores] = useState<FlemoStores>(() =>
+    createRouterScope({
       routePaths,
       pathname,
       search,
@@ -243,11 +275,49 @@ function Router({
       // entries survive in the browser — traversing back into them must resume
       // the same stack (animated pops), not reseed a blank one (silent adopts).
       persistKey: isNested && !useMemory && !isHosted ? routerKey : undefined
-    });
-  });
+    })
+  );
 
   // Keep the seeded default in sync if the prop changes across renders.
   stores.transition.setState({ defaultTransitionName });
+
+  // This Router's node in the scope CHAIN — the structure `useNavigate` walks
+  // to resolve `router: "parent" | "root" | "<name>" | "nearest-owner"`.
+  // StoreContext only ever exposes the nearest bundle, so without the chain a
+  // nested Router's screens have no way to reach the Router above them.
+  //
+  // The node is created once and MUTATED in place afterwards: its identity is
+  // the context value, and a stable one means adding this provider costs the
+  // tree exactly zero extra re-renders (route lists and names change without
+  // notifying anyone — every consumer reads the node at navigation time, not
+  // at render time). The same reason `stores.transition.setState` above runs
+  // in render: this is Router-owned state, not React state.
+  const parentScope = useContext(RouterScopeContext);
+  const [scope] = useState<RouterScopeNode>(() => ({
+    name,
+    stores,
+    routePaths,
+    strictRoutes,
+    parent: parentScope,
+    depth
+  }));
+  scope.name = name;
+  scope.stores = stores;
+  scope.routePaths = routePaths;
+  scope.strictRoutes = strictRoutes;
+  scope.parent = parentScope;
+
+  // Two Routers sharing a name in ONE chain make `router: "<name>"` ambiguous
+  // (resolution silently takes the nearer one). Report it once per mount, in
+  // an effect so it never fires during a discarded render.
+  useEffect(() => {
+    const duplicate = findDuplicateNamedAncestor(scope);
+    if (!duplicate) return;
+    devWarn(
+      `duplicate <Router name="${scope.name}">: an enclosing <Router> already uses that name, ` +
+        "so `router` targets resolve to the nearer one. Give each nested Router a unique name."
+    );
+  }, [scope, name]);
 
   // Router liveness for queued navigation tasks: a push/pop task can sit in
   // the shared queue behind an in-flight transition and run after this Router
@@ -390,16 +460,18 @@ function Router({
   const content = (
     <RouterIdContext.Provider value={exposedRouterId}>
       <RouterDepthContext.Provider value={depth + 1}>
-        <StoreContext.Provider value={stores}>
-          {!useMemory && <HistoryListener />}
-          {isNested ? (
-            <ScreenViewportContext.Provider value={CONTAINED_VIEWPORT}>
-              {stack}
-            </ScreenViewportContext.Provider>
-          ) : (
-            stack
-          )}
-        </StoreContext.Provider>
+        <RouterScopeContext.Provider value={scope}>
+          <StoreContext.Provider value={stores}>
+            {!useMemory && <HistoryListener />}
+            {isNested ? (
+              <ScreenViewportContext.Provider value={CONTAINED_VIEWPORT}>
+                {stack}
+              </ScreenViewportContext.Provider>
+            ) : (
+              stack
+            )}
+          </StoreContext.Provider>
+        </RouterScopeContext.Provider>
       </RouterDepthContext.Provider>
     </RouterIdContext.Provider>
   );

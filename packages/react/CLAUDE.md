@@ -25,6 +25,19 @@ a comment as available. Public surface = `src/index.ts` re-exports only.
   Back into its zone resumes the same stack. `seedRouterEntry` stamps the mount entry;
   `HistoryListener` is the thin popstate→navigation bridge (logic in core's
   `ensureScopeHistorySync`).
+- **Scope chain** (`RouterScopeContext` + `RouterTarget.ts`): every Router publishes a
+  `RouterScopeNode` (`name`, `stores`, `routePaths`, `strictRoutes`, `parent`) so
+  `useNavigate` can target a Router OTHER than the nearest — `router: "current" |
+"parent" | "root" | "nearest-owner" | "<name>"`, or `{ name }` / `{ scope }` when a
+  name collides with a keyword. The node identity is created once and MUTATED in
+  render (like `stores.transition.setState`), so the extra provider costs zero
+  re-renders. Resolution is pure and synchronous, BEFORE any task is queued: the
+  chosen scope's own stores/driver/markSelfInduced/life run the whole navigation, and
+  a dev error lands on the caller's stack instead of an unhandled rejection. Route
+  ownership (`ownsRoute`) is checked per navigation: explicit target → dev throw,
+  implicit target → dev warn (legacy behavior preserved) unless `strictRoutes`.
+  Diagnostics go through `@utils/devDiagnostics`, gated on `process.env.NODE_ENV`
+  which vite.config.mts deliberately does NOT fold at library-build time.
 - **Hydration**: `data-flemo-router` (the flight-boundary marker the engine scopes
   `<Part>` collection by) is `useId`-based but withheld until after hydration —
   useId encodes position from the hydration root, so mismatched server/client roots
