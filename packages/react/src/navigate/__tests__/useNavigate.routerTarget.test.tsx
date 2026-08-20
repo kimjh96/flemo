@@ -1,3 +1,5 @@
+import { Suspense, startTransition, useState } from "react";
+
 import { act, cleanup, render } from "@testing-library/react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
@@ -412,5 +414,72 @@ describe("Router scope chain: SSR", () => {
 
     expect(spy).not.toHaveBeenCalled();
     document.body.removeChild(container);
+  });
+});
+
+describe("Router scope chain: concurrent rendering", () => {
+  // A render can be THROWN AWAY: React renders a transition, something in it
+  // suspends, and the previously committed UI keeps running. Anything the
+  // discarded render wrote into an object that outlives it is now visible to a
+  // tree that never committed those props.
+  //
+  // The scope node is exactly such an object (the Router owns it for its whole
+  // lifetime), so its fields must reflect COMMITTED props only. Otherwise the
+  // still-displayed screen resolves `router: "app"` against a name that only
+  // exists in a render nobody can see.
+  it("keeps the still-displayed tree on the committed name while a transition suspends", async () => {
+    cleanup();
+    window.history.replaceState(null, "", "/");
+
+    const forever = new Promise<void>(() => {});
+    let renameToNext: () => void = () => {};
+    let chromeNav: Navigate = null as never;
+
+    function Chrome() {
+      chromeNav = useNavigate();
+      return null;
+    }
+
+    function MaybeSuspend({ suspend }: { suspend: boolean }) {
+      if (suspend) throw forever;
+      return <div>home</div>;
+    }
+
+    function Harness() {
+      const [name, setName] = useState("app");
+      const [suspend, setSuspend] = useState(false);
+      renameToNext = () =>
+        startTransition(() => {
+          setName("next-name");
+          setSuspend(true);
+        });
+
+      return (
+        <Router name={name} initPath="/">
+          <Chrome />
+          <Slot>
+            <Route
+              path="/"
+              element={
+                <Suspense fallback={<div>loading</div>}>
+                  <MaybeSuspend suspend={suspend} />
+                </Suspense>
+              }
+            />
+            <Route path="/members/:id" element={<div>member</div>} />
+          </Slot>
+        </Router>
+      );
+    }
+
+    render(<Harness />);
+
+    // Rename inside a transition, with the new tree suspending: React keeps
+    // showing the committed one, so "app" is still the live Router's name.
+    await act(async () => {
+      renameToNext();
+    });
+
+    expect(() => chromeNav.push("/members/:id", { id: "1" }, { router: "app" })).not.toThrow();
   });
 });

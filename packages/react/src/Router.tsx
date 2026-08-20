@@ -286,12 +286,20 @@ function Router({
   // StoreContext only ever exposes the nearest bundle, so without the chain a
   // nested Router's screens have no way to reach the Router above them.
   //
-  // The node is created once and MUTATED in place afterwards: its identity is
-  // the context value, and a stable one means adding this provider costs the
-  // tree exactly zero extra re-renders (route lists and names change without
-  // notifying anyone — every consumer reads the node at navigation time, not
-  // at render time). The same reason `stores.transition.setState` above runs
-  // in render: this is Router-owned state, not React state.
+  // The node is created once and refreshed in place, so its identity is stable
+  // for the Router's lifetime: adding this provider costs the tree exactly zero
+  // extra re-renders (route lists and names change without notifying anyone —
+  // every consumer reads the node at navigation time, not at render time).
+  //
+  // The refresh runs at COMMIT, never in render. A render can be discarded —
+  // React renders a transition, something inside it suspends, and the
+  // previously committed tree keeps running — and this object outlives the
+  // render that would have written to it, so a render-phase write publishes
+  // props that no visible screen has: renaming a Router inside a suspended
+  // transition made the STILL-DISPLAYED screen resolve `router: "app"` against
+  // the unseen new name and throw. Committing the write closes that window,
+  // and nothing needs these fields earlier — unlike `defaultTransitionName`
+  // above, which screens read during the very render that sets it.
   const parentScope = useContext(RouterScopeContext);
   const [scope] = useState<RouterScopeNode>(() => ({
     name,
@@ -301,11 +309,13 @@ function Router({
     parent: parentScope,
     depth
   }));
-  scope.name = name;
-  scope.stores = stores;
-  scope.routePaths = routePaths;
-  scope.strictRoutes = strictRoutes;
-  scope.parent = parentScope;
+  useIsomorphicLayoutEffect(() => {
+    scope.name = name;
+    scope.stores = stores;
+    scope.routePaths = routePaths;
+    scope.strictRoutes = strictRoutes;
+    scope.parent = parentScope;
+  });
 
   // Two Routers sharing a name in ONE chain make `router: "<name>"` ambiguous
   // (resolution silently takes the nearer one). Report it once per mount, in
