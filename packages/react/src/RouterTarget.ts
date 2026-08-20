@@ -22,10 +22,16 @@ export interface RegisterRouter {}
 //   nearest-owner the first Router, current → ancestors, that declares the path
 export type RouterScopeKeyword = "current" | "parent" | "root" | "nearest-owner";
 
-// A registered name, staying open to unregistered strings so `name` works
-// without the augmentation (the `string & {}` half keeps the literal
-// suggestions from being widened away).
-export type RouterName = keyof RegisterRouter | (string & {});
+// A Router name in TARGET position. Before any augmentation it stays an open
+// string (`string & {}` rather than `string`, so the keyword literals keep
+// their autocomplete) — `name` has to work without a registry. Once names ARE
+// registered, the registry becomes the closed set: a target that names no
+// registered Router is a compile error instead of a runtime one.
+//
+// Same asymmetry as routes: `<Route path>` is unconstrained because it IS the
+// declaration, while `push()` is checked against `RegisterRoute` because it
+// REFERENCES one. So `<Router name>` stays `string`; only targets are checked.
+export type RouterName = keyof RegisterRouter extends never ? string & {} : keyof RegisterRouter;
 
 // Where a navigation runs. A bare string is read as a KEYWORD first and as a
 // Router name second, so `{ name: "parent" }` / `{ scope: "parent" }` are the

@@ -202,6 +202,10 @@ const EN: DocSection[] = [
             code: 'declare module "@flemo/react" {\n  interface RegisterRouter {\n    app: true;\n    region: true;\n  }\n}'
           },
           {
+            type: "p",
+            text: "Registering is optional, and it decides how `router` type-checks. With an empty `RegisterRouter` any string is accepted, so `name` works without a registry. Once you register names, a `router` target naming no registered Router is a compile error rather than a development-time one. The `name` prop itself stays a plain string, the same way `Route`'s `path` is not constrained by `RegisterRoute`: a declaration has nothing to check against, a reference does."
+          },
+          {
             type: "note",
             text: "`name` is only a navigation identifier. It is not the key flemo namespaces `history.state` under, so renaming a Router never orphans its history frames."
           },
@@ -1049,6 +1053,10 @@ const KO: DocSection[] = [
             type: "code",
             lang: "ts",
             code: 'declare module "@flemo/react" {\n  interface RegisterRouter {\n    app: true;\n    region: true;\n  }\n}'
+          },
+          {
+            type: "p",
+            text: "등록은 선택이고, `router`가 타입 검사되는 방식을 결정해요. `RegisterRouter`가 비어 있으면 아무 문자열이나 받아서 등록 없이도 `name`을 쓸 수 있어요. 이름을 등록하고 나면, 등록되지 않은 Router를 가리키는 `router`는 개발 환경 에러가 아니라 컴파일 에러가 돼요. `name` prop 자체는 그냥 문자열로 남아요. `Route`의 `path`가 `RegisterRoute`의 제약을 받지 않는 것과 같아요. 선언에는 대조할 대상이 없고, 참조에는 있으니까요."
           },
           {
             type: "note",

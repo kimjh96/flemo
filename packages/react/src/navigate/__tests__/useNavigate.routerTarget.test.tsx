@@ -38,6 +38,19 @@ declare module "@Route" {
   }
 }
 
+// Registering the names closes the target type: from here on a `router` that
+// names no registered Router is a COMPILE error (see the typing block at the
+// bottom). "sidebar" is registered but deliberately never rendered in this
+// tree, so it stays available as the "valid name, not in this chain" case.
+declare module "../../RouterTarget" {
+  interface RegisterRouter {
+    app: true;
+    region: true;
+    inner: true;
+    sidebar: true;
+  }
+}
+
 // Every navigation parks a manual-gated task that ScreenMotion resolves from
 // `animationend` at runtime. jsdom has no animation, so sweep the gate.
 const startManualGateSweeper = () => {
@@ -347,6 +360,38 @@ describe("Router name diagnostics", () => {
     );
 
     expect(spy).toHaveBeenCalledWith(expect.stringContaining('duplicate <Router name="app">'));
+  });
+});
+
+describe("useNavigate: target typing", () => {
+  // A TYPE-level contract, enforced by `tsc --noEmit` over this file rather
+  // than at runtime: `@ts-expect-error` fails the typecheck if the line it
+  // marks ever stops erroring. The body is declared and never called.
+  it("closes the target type once Router names are registered", () => {
+    const typeOnly = () => {
+      const navigate = captured.regionNav;
+
+      // Keywords and registered names.
+      navigate.push("/region/people", undefined, { router: "current" });
+      navigate.push("/members/:id", { id: "1" }, { router: "parent" });
+      navigate.push("/members/:id", { id: "1" }, { router: "root" });
+      navigate.push("/members/:id", { id: "1" }, { router: "nearest-owner" });
+      navigate.push("/members/:id", { id: "1" }, { router: "app" });
+      navigate.push("/members/:id", { id: "1" }, { router: { name: "app" } });
+      navigate.push("/members/:id", { id: "1" }, { router: { scope: "parent" } });
+      navigate.pop({ router: "app" });
+
+      // @ts-expect-error "nope" names no registered Router
+      navigate.push("/members/:id", { id: "1" }, { router: "nope" });
+      // @ts-expect-error same, through the object form
+      navigate.push("/members/:id", { id: "1" }, { router: { name: "nope" } });
+      // @ts-expect-error "grandparent" is not a scope keyword
+      navigate.push("/members/:id", { id: "1" }, { router: { scope: "grandparent" } });
+      // @ts-expect-error the hook-level default is checked the same way
+      useNavigate({ router: "nope" });
+    };
+
+    expect(typeof typeOnly).toBe("function");
   });
 });
 

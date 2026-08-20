@@ -29,7 +29,12 @@ a comment as available. Public surface = `src/index.ts` re-exports only.
   `RouterScopeNode` (`name`, `stores`, `routePaths`, `strictRoutes`, `parent`) so
   `useNavigate` can target a Router OTHER than the nearest — `router: "current" |
 "parent" | "root" | "nearest-owner" | "<name>"`, or `{ name }` / `{ scope }` when a
-  name collides with a keyword. The node identity is created once and MUTATED in
+  name collides with a keyword. Names go through a `RegisterRouter` augmentation:
+  empty registry → any string (open), non-empty → `keyof RegisterRouter` only, so a
+  typo is a compile error (the `@ts-expect-error` block in
+  `useNavigate.routerTarget.test.tsx` is the guard — tsc flags an unused directive if
+  the narrowing ever regresses). The `name` PROP stays `string`, mirroring `<Route
+path>` vs `push()`. The node identity is created once and MUTATED in
   render (like `stores.transition.setState`), so the extra provider costs zero
   re-renders. Resolution is pure and synchronous, BEFORE any task is queued: the
   chosen scope's own stores/driver/markSelfInduced/life run the whole navigation, and

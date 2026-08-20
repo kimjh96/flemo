@@ -10,6 +10,19 @@ import resolveRouterTarget, {
 
 import type { RouterScopeNode } from "../RouterScopeContext";
 
+// The names this file uses in TARGET position. Registering them is what makes
+// them valid targets (augmentations merge across files, so each test file
+// declares the names it needs). `parent` is registered on purpose: it is the
+// Router-named-after-a-keyword case the object forms exist to disambiguate.
+declare module "../RouterTarget" {
+  interface RegisterRouter {
+    app: true;
+    region: true;
+    sidebar: true;
+    parent: true;
+  }
+}
+
 // The pure half of cross-Router navigation: given a scope chain (what each
 // <Router> publishes) and a target, which Router runs the navigation. No React,
 // no DOM — the binding only feeds it the chain it already built.
