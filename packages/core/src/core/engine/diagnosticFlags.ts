@@ -35,6 +35,7 @@ import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 // | flemo:layers              | session | "resident"                      | off                        | opt-in diagnostic                | resident screen layers at rest; armed by ?flemo-layers= (layerSettleHold.ts) |
 // | flemo:freeze              | session | "shallow"                       | off                        | opt-in diagnostic                | keep the direct prev screen live; armed by ?flemo-freeze= (computeScreenFreeze.ts) |
 // | flemo:deskflip            | session | "on"/"off"                      | desktop macOS WebKit       | production-default-with-override | atomic release flip on desktop Safari (react ScreenMotion's directFlip)  |
+// | flemo:deskhead            | session | "on"/"off"                      | desktop macOS WebKit       | production-default-with-override | desktop flat-head keyframes (`data-flemo-desk-head`, DESKTOP_HEAD_MS); arming it retires the desktop birth anchor |
 // | flemo:preraster           | session | "on"                            | off (but the rest-promotion half is default-on for steady-60 desktop) | production-default-with-override | promote the entering content layer through the hold (readLayerPromotionFlag, applied by react ScreenMotion after hydration); also selects the park-over hold variant |
 // | flemo:imgoffload          | session | "on"/"off"                      | auto (legacy Android Blink)| production-default-with-override | image decode offloader override (react Router)                         |
 //
@@ -197,6 +198,38 @@ export const readArrivalHoldFlag = (): boolean => readStorageValue("flemo:arriva
 // session. Uncached, so a DevTools toggle takes effect on the next navigation.
 export const readDesktopReleaseFlipFlag = (): boolean => {
   const value = readStorageValue("flemo:deskflip");
+  if (value === "on") return true;
+  if (value === "off") return false;
+  return isDesktopMacWebKit();
+};
+
+// `flemo:deskhead` — the flat-head keyframes on desktop macOS Safari, the
+// desktop sibling of the LPM head (`:root[data-flemo-desk-head]`, compiled by
+// compileTransitionStyles with DESKTOP_HEAD_MS). A compiled clock is born at the
+// release update's style resolution but its first frame reaches the glass only
+// after that update's paint, the compositor commit and the UI process's
+// activation; the head holds the authored from-pose across that latency so the
+// curve PLAYS from 0 instead of being entered partway — the "starts at 60" jump
+// on a phone, the "whoosh" on a Mac.
+//
+// DEFAULT-ON for desktop macOS Safari (isDesktopMacWebKit), which is the only
+// desktop session on that clock. Touch WebKit has its own head (data-flemo-lpm)
+// with its own lengths and is unaffected by this key.
+//
+// STYLE ONLY, and that is the point: the head is baked into gate-scoped literal
+// keyframes, never a WAAPI write on a running animation. The 2026-08
+// falsification series implicated every clock surgery on WebKit's accelerated
+// path, which is also why arming this head RETIRES the desktop birth anchor for
+// the same flight (see createTransitionEngine) — two corrections of one clock
+// fight each other.
+//
+// `off` restores the anchor-only behavior for an A/B. Only on/off is runtime-
+// togglable: the head lengths are literal in the compiled sheet (var()/calc()
+// timing lost WebKit's accelerated playback, device-bisected 2026-08-13), so
+// re-sizing them means editing DESKTOP_HEAD_MS and the compiler's table
+// together.
+export const readDesktopHeadFlag = (): boolean => {
+  const value = readStorageValue("flemo:deskhead");
   if (value === "on") return true;
   if (value === "off") return false;
   return isDesktopMacWebKit();

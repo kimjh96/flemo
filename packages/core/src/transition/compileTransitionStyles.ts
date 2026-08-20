@@ -550,36 +550,83 @@ const compileVariantBlock = (
         : v.startsWith("POPPING")
           ? 0.08
           : 0;
-  const lpmHeadBlock = (() => {
+  // DESKTOP macOS Safari runs the same compiled clock (joinPlayer gate 3) and
+  // presents it from the main thread, so it needs the same active-from-birth
+  // head — sized to ITS pipeline, not to a governor-throttled phone's. The LPM
+  // numbers above cover 2-4 frames of a ~30Hz capped pipeline; a 60Hz desktop
+  // frame is half as long, and the release update is lighter there (the settle
+  // gate keeps it light and the atomic flip takes React's render and commit out
+  // of the clock's way), so the cover is 2 frames for an entry and 1 for a pop —
+  // the same shape of estimate, re-derived rather than inherited. These are a
+  // FIRST estimate against the post-flip baseline; dial them here, on glass.
+  // Two heads, two gates: a session is either touch (LPM) or desktop Mac, never
+  // both, and one shared attribute could not carry two head lengths — the timing
+  // must stay LITERAL (var()/calc() timing lost WebKit's accelerated playback,
+  // device-bisected 2026-08-13).
+  const desktopHeadForVariant = (v: string): number =>
+    v.startsWith("REPLACING")
+      ? 0.033
+      : v.startsWith("PUSHING")
+        ? 0.033
+        : v.startsWith("POPPING")
+          ? 0.017
+          : 0;
+  // One emitter, two gates. The head is a flat lead-in baked into a copy of the
+  // keyframes (`0%, head%` holds the from-pose), with the rule's duration
+  // extended to match — the form that is active from birth, so WebKit's
+  // accelerated commit happens during the invisible head instead of at the
+  // animation's first visible frame.
+  //
+  // `shiftDelay` is the LPM tier's extra: it ALSO pushes animation-delay out by
+  // the head, so an LPM flight sits still for two heads, not one. That is the
+  // shipped, device-dialed behavior on touch (the numbers were walked down
+  // against the felt result, so the doubling is baked into the value that was
+  // chosen) and it is not this change's business to re-dial. The DESKTOP head is
+  // derived from a measured latency instead, so it must cover that latency once:
+  // a second head there is pure added lateness, which is the very complaint the
+  // head exists to answer.
+  const headBlock = (
+    attribute: string,
+    suffix: string,
+    headS: number,
+    shiftDelay: boolean
+  ): string => {
     if (scope === "part") return "";
-    const headS = headForVariant(variant);
     if (headS <= 0 || duration <= 0) return "";
     if (fromDecls.length === 0 && toDecls.length === 0) return "";
     const total = duration + headS;
     const headPct = ((headS / total) * 100).toFixed(3);
-    const kf = `${keyframe}-lpm`;
+    const kf = `${keyframe}-${suffix}`;
     const gatedSelector = selector
       .split(",\n")
-      .map((one) => `:root[data-flemo-lpm] ${one}`)
+      .map((one) => `:root[${attribute}] ${one}`)
       .join(",\n");
     return (
       `\n@keyframes ${kf} {\n  0%, ${headPct}% {\n${declsToBlock(fromDecls).replace(/^/gm, "  ")}\n  }\n  100% {\n${declsToBlock(toDecls).replace(/^/gm, "  ")}\n  }\n}\n` +
-      `${gatedSelector} {\n  animation-name: ${kf};\n  animation-duration: ${total.toFixed(3)}s;\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`
+      `${gatedSelector} {\n  animation-name: ${kf};\n  animation-duration: ${total.toFixed(3)}s;\n  animation-delay: ${(shiftDelay ? delay + headS : delay).toFixed(3)}s;\n}`
     );
-  })();
+  };
   // Parts keep their own keyframes but ride the same head via a gated
   // LITERAL delay so the choreography's relative timing to the screens is
   // preserved under LPM.
-  const lpmPartDelayBlock = (() => {
+  const partDelayBlock = (attribute: string, headS: number): string => {
     if (scope !== "part") return "";
-    const headS = headForVariant(variant);
     if (headS <= 0 || duration <= 0) return "";
     const gatedSelector = selector
       .split(",\n")
-      .map((one) => `:root[data-flemo-lpm] ${one}`)
+      .map((one) => `:root[${attribute}] ${one}`)
       .join(",\n");
     return `\n${gatedSelector} {\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`;
-  })();
+  };
+  const lpmHeadBlock = headBlock("data-flemo-lpm", "lpm", headForVariant(variant), true);
+  const lpmPartDelayBlock = partDelayBlock("data-flemo-lpm", headForVariant(variant));
+  const deskHeadBlock = headBlock(
+    "data-flemo-desk-head",
+    "deskhead",
+    desktopHeadForVariant(variant),
+    false
+  );
+  const deskPartDelayBlock = partDelayBlock("data-flemo-desk-head", desktopHeadForVariant(variant));
 
   // `will-change` is scoped to the variant-active rule (PUSHING/POPPING/...)
   // and lists exactly the properties this variant writes, whatever the
@@ -685,7 +732,7 @@ const compileVariantBlock = (
         )}\n  opacity: 0.02;\n}`
       : "";
 
-  return `${keyframeBlock}\n${ruleBlock}${softenedBlock}${lpmHeadBlock}${lpmPartDelayBlock}${parkBlock}${parkUnderBlock}${parkOverBlock}`;
+  return `${keyframeBlock}\n${ruleBlock}${softenedBlock}${lpmHeadBlock}${lpmPartDelayBlock}${deskHeadBlock}${deskPartDelayBlock}${parkBlock}${parkUnderBlock}${parkOverBlock}`;
 };
 
 // Whether a variant's `from` target leaves the screen invisible on its first
@@ -853,6 +900,16 @@ export const variantHasAnimation = (
   const toDecls = targetToDecls(variantValue.value);
 
   return fromDecls.length > 0 || toDecls.length > 0;
+};
+
+// Engine-shared head lengths (ms) for the DESKTOP flat-head keyframes above —
+// the desktop macOS Safari tier's own cover, derived from a 60Hz pipeline (two
+// frames for an entry, one for a pop) rather than inherited from the LPM table.
+// Same contract: the engine's wall-clock deadlines must ride the head.
+export const DESKTOP_HEAD_MS: Record<string, number> = {
+  REPLACING: 33,
+  PUSHING: 33,
+  POPPING: 17
 };
 
 // Engine-shared head lengths (ms) for the LPM flat-head keyframes above:

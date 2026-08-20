@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   readArrivalHoldFlag,
+  readDesktopHeadFlag,
   readDesktopReleaseFlipFlag,
   readImageHoldFlag,
   readImageOffloadOverride,
@@ -148,6 +149,30 @@ describe("documented default: flemo:deskflip", () => {
     setEnv({ blink: false, touch: false, mac: true });
     sessionStorage.setItem("flemo:deskflip", "off");
     expect(readDesktopReleaseFlipFlag()).toBe(false);
+  });
+});
+
+describe("documented default: flemo:deskhead", () => {
+  // Table: "desktop macOS WebKit". Touch WebKit has its own head under a
+  // different attribute with different lengths, so this key must not reach it.
+  it("is ON for desktop macOS WebKit (Safari)", () => {
+    setEnv({ blink: false, touch: false, mac: true });
+    expect(readDesktopHeadFlag()).toBe(true);
+  });
+
+  it("is OFF for touch WebKit, desktop Blink, and a non-Mac desktop", () => {
+    setEnv({ blink: false, touch: true, mac: true });
+    expect(readDesktopHeadFlag()).toBe(false);
+    setEnv({ blink: true, touch: false, mac: true, dpr: 2 });
+    expect(readDesktopHeadFlag()).toBe(false);
+    setEnv({ blink: false, touch: false });
+    expect(readDesktopHeadFlag()).toBe(false);
+  });
+
+  it("honors an explicit off — the A/B against the birth anchor", () => {
+    setEnv({ blink: false, touch: false, mac: true });
+    sessionStorage.setItem("flemo:deskhead", "off");
+    expect(readDesktopHeadFlag()).toBe(false);
   });
 });
 
