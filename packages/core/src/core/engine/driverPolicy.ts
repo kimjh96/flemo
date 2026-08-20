@@ -185,11 +185,11 @@ export const isLegacyAndroidBlink = (): boolean => {
 // stayed touch-only.
 export const isDesktopMacWebKit = (): boolean => {
   if (typeof navigator === "undefined") return false;
-  return (
-    !detectBlinkEngine() &&
-    (navigator.maxTouchPoints ?? 0) === 0 &&
-    /Mac/.test(navigator.platform ?? "")
-  );
+  // `maxTouchPoints === 0` without a nullish fallback, exactly as the routing
+  // gate read it: an environment that reports NO touch count is not a verified
+  // non-touch Mac, so it must fall through to the player rather than be
+  // defaulted onto the compiled tier.
+  return !detectBlinkEngine() && navigator.maxTouchPoints === 0 && /Mac/.test(navigator.platform);
 };
 
 export const createDriverPolicy = (playerByDefault: boolean = false): DriverPolicy => ({

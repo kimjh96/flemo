@@ -238,4 +238,25 @@ describe("isDesktopMacWebKit", () => {
       restore();
     }
   });
+
+  it("is false where the environment reports no touch count at all", () => {
+    // Not a verified non-touch Mac: fall through to the player rather than
+    // default an unknown environment onto the compiled tier.
+    stub({ platform: "MacIntel" });
+    Object.defineProperty(navigator, "maxTouchPoints", { value: undefined, configurable: true });
+    try {
+      expect(isDesktopMacWebKit()).toBe(false);
+    } finally {
+      restore();
+    }
+  });
+
+  it("is false without a navigator (SSR)", () => {
+    vi.stubGlobal("navigator", undefined);
+    try {
+      expect(isDesktopMacWebKit()).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
