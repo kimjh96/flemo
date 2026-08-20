@@ -21,6 +21,7 @@ import {
   readArrivalHoldFlag,
   readDesktopHeadFlag,
   readImageHoldFlag,
+  readLpmSingleHeadFlag,
   readLandingSnapFlag,
   readSettleGateFlag
 } from "@core/engine/diagnosticFlags";
@@ -1990,8 +1991,14 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       const root = scope.ownerDocument.documentElement;
       if (routedGovernedHead) {
         root.setAttribute("data-flemo-lpm", "true");
+        // `flemo:lpmhead=single` — pay the head once for this flight (the
+        // compiled override drops the delay shift). Opt-in A/B; absent the key
+        // the sheet's shipped timing applies untouched.
+        if (readLpmSingleHeadFlag()) root.setAttribute("data-flemo-lpm-single", "true");
+        else root.removeAttribute("data-flemo-lpm-single");
       } else {
         root.removeAttribute("data-flemo-lpm");
+        root.removeAttribute("data-flemo-lpm-single");
       }
       // The desktop gate is the same mechanism one attribute over: a session is
       // either touch (LPM) or desktop Mac, never both, and the two heads carry

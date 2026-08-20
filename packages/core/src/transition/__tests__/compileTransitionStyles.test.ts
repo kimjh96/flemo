@@ -151,6 +151,26 @@ describe("compileTransitionStyles", () => {
     expect(css).toContain("animation-delay: 0.100s");
   });
 
+  it("emits the single-head override for the touch tier only, without touching the shipped rule", () => {
+    const css = compileTransitionStyles([cupertino], []);
+
+    // The shipped LPM rule is untouched: keyframe head PLUS a delay shift, so a
+    // touch flight sits still for two heads (frame-sampled: 200ms on a push).
+    expect(css).toContain("animation-delay: 0.100s");
+    // The A/B override drops the shift under a second attribute, so it only
+    // applies when the engine raises `data-flemo-lpm-single` — and it outranks
+    // the rule above by carrying one more attribute selector on :root.
+    const override = css
+      .split("\n\n")
+      .flatMap((block) => block.split("\n"))
+      .filter((line) => line.includes("data-flemo-lpm-single"));
+    expect(override.length).toBeGreaterThan(0);
+    for (const line of override)
+      expect(line).toContain(":root[data-flemo-lpm][data-flemo-lpm-single]");
+    // The desktop head pays its head once already, so it needs no override.
+    expect(css).not.toContain(":root[data-flemo-desk-head][data-flemo-lpm-single]");
+  });
+
   it("rides parts on the desktop head with a gated literal delay", () => {
     const css = compileTransitionStyles(
       [],

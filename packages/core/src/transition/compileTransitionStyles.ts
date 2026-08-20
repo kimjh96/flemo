@@ -614,25 +614,48 @@ const compileVariantBlock = (
       .split(",\n")
       .map((one) => `:root[${attribute}] ${one}`)
       .join(",\n");
+    // The single-head A/B (`flemo:lpmhead=single`, engine-raised
+    // `data-flemo-lpm-single`): drop the delay shift so the LPM tier pays its
+    // head ONCE, like the desktop tier. Emitted as an override rather than a
+    // second head so the shipped timing stays byte-identical until the
+    // attribute is present — a device round decides whether the doubling is
+    // load-bearing, and only then does a default move. Two attribute selectors
+    // on :root outrank the one above, so the override wins without !important.
+    const singleHeadOverride =
+      shiftDelay && delay !== delay + headS
+        ? `\n${selector
+            .split(",\n")
+            .map((one) => `:root[${attribute}][data-flemo-lpm-single] ${one}`)
+            .join(",\n")} {\n  animation-delay: ${delay.toFixed(3)}s;\n}`
+        : "";
     return (
       `\n@keyframes ${kf} {\n  0%, ${headPct}% {\n${declsToBlock(fromDecls).replace(/^/gm, "  ")}\n  }\n  100% {\n${declsToBlock(toDecls).replace(/^/gm, "  ")}\n  }\n}\n` +
-      `${gatedSelector} {\n  animation-name: ${kf};\n  animation-duration: ${total.toFixed(3)}s;\n  animation-delay: ${(shiftDelay ? delay + headS : delay).toFixed(3)}s;\n}`
+      `${gatedSelector} {\n  animation-name: ${kf};\n  animation-duration: ${total.toFixed(3)}s;\n  animation-delay: ${(shiftDelay ? delay + headS : delay).toFixed(3)}s;\n}` +
+      singleHeadOverride
     );
   };
   // Parts keep their own keyframes but ride the same head via a gated
   // LITERAL delay so the choreography's relative timing to the screens is
   // preserved under LPM.
-  const partDelayBlock = (attribute: string, headS: number): string => {
+  const partDelayBlock = (attribute: string, headS: number, singleHead = false): string => {
     if (scope !== "part") return "";
     if (headS <= 0 || duration <= 0) return "";
-    const gatedSelector = selector
-      .split(",\n")
-      .map((one) => `:root[${attribute}] ${one}`)
-      .join(",\n");
-    return `\n${gatedSelector} {\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`;
+    const gate = (extra = "") =>
+      selector
+        .split(",\n")
+        .map((one) => `:root[${attribute}]${extra} ${one}`)
+        .join(",\n");
+    // Under the single-head A/B the screens start a head earlier, so the parts
+    // must too — a part left on the doubled delay would lag its screen by the
+    // head and the choreography would come apart, which is not what the A/B is
+    // asking about.
+    const override = singleHead
+      ? `\n${gate("[data-flemo-lpm-single]")} {\n  animation-delay: ${delay.toFixed(3)}s;\n}`
+      : "";
+    return `\n${gate()} {\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}${override}`;
   };
   const lpmHeadBlock = headBlock("data-flemo-lpm", "lpm", headForVariant(variant), true);
-  const lpmPartDelayBlock = partDelayBlock("data-flemo-lpm", headForVariant(variant));
+  const lpmPartDelayBlock = partDelayBlock("data-flemo-lpm", headForVariant(variant), true);
   const deskHeadBlock = headBlock(
     "data-flemo-desk-head",
     "deskhead",

@@ -92,6 +92,7 @@ describe("desktop flat head", () => {
     delete (navigator as unknown as Record<string, unknown>).platform;
     document.documentElement.removeAttribute(DESK_ATTR);
     document.documentElement.removeAttribute(LPM_ATTR);
+    document.documentElement.removeAttribute("data-flemo-lpm-single");
     sessionStorage.clear();
   });
 
@@ -131,6 +132,21 @@ describe("desktop flat head", () => {
     drive();
     expect(headed()).toBe(false);
     expect(anchorCalls.atRelease).toBeGreaterThan(0);
+  });
+
+  it("raises the single-head A/B attribute only for a touch flight that asked for it", () => {
+    // Touch WebKit (the LPM tier) with the key set: both attributes.
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
+    sessionStorage.setItem("flemo:lpmhead", "single");
+    drive();
+    expect(document.documentElement.hasAttribute(LPM_ATTR)).toBe(true);
+    expect(document.documentElement.hasAttribute("data-flemo-lpm-single")).toBe(true);
+
+    // Desktop Safari never carries it: its head is already paid once.
+    sessionStorage.removeItem("flemo:lpmhead");
+    asDesktopSafari();
+    drive();
+    expect(document.documentElement.hasAttribute("data-flemo-lpm-single")).toBe(false);
   });
 
   it("stays off for touch WebKit and for a non-Mac desktop", () => {
