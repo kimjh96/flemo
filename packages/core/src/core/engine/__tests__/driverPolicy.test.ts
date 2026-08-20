@@ -1,6 +1,11 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { createDriverPolicy, detectBlinkEngine, FORCE_PIN_TTL_MS } from "@core/engine/driverPolicy";
+import {
+  createDriverPolicy,
+  detectBlinkEngine,
+  FORCE_PIN_TTL_MS,
+  isDesktopMacWebKit
+} from "@core/engine/driverPolicy";
 
 // The policy is pin-only since 2026-08-19: the stall-demotion machinery
 // (per-run gap accounting, strikes, the persisted `flemo:motion-driver`
@@ -165,6 +170,93 @@ describe("engine-scoped default instance", () => {
     } finally {
       if (original) Object.defineProperty(navigator, "userAgentData", original);
       else delete (navigator as { userAgentData?: unknown }).userAgentData;
+    }
+  });
+});
+
+// The predicate two callers must agree on: joinPlayer's gate 3 (which routes
+// this session to the wall-clocked compiled tier) and readSettleGateFlag's
+// default (which keeps a heavy entering mount from eating that tier's opening).
+describe("isDesktopMacWebKit", () => {
+  const stub = (over: { platform?: string; touch?: number; blink?: boolean }) => {
+    Object.defineProperty(navigator, "platform", {
+      value: over.platform ?? "",
+      configurable: true
+    });
+    Object.defineProperty(navigator, "maxTouchPoints", {
+      value: over.touch ?? 0,
+      configurable: true
+    });
+    if (over.blink) {
+      Object.defineProperty(navigator, "userAgentData", {
+        value: { brands: [{ brand: "Chromium", version: "120" }] },
+        configurable: true
+      });
+    } else {
+      delete (navigator as { userAgentData?: unknown }).userAgentData;
+    }
+  };
+
+  const restore = () => {
+    Reflect.deleteProperty(navigator, "platform");
+    Reflect.deleteProperty(navigator, "maxTouchPoints");
+    delete (navigator as { userAgentData?: unknown }).userAgentData;
+  };
+
+  it("is true for a non-touch Mac WebKit session (desktop Safari)", () => {
+    stub({ platform: "MacIntel" });
+    try {
+      expect(isDesktopMacWebKit()).toBe(true);
+    } finally {
+      restore();
+    }
+  });
+
+  it("is false for an iPad spoofing a Mac platform (touch keeps the player)", () => {
+    stub({ platform: "MacIntel", touch: 5 });
+    try {
+      expect(isDesktopMacWebKit()).toBe(false);
+    } finally {
+      restore();
+    }
+  });
+
+  it("is false for desktop Blink on a Mac", () => {
+    stub({ platform: "MacIntel", blink: true });
+    try {
+      expect(isDesktopMacWebKit()).toBe(false);
+    } finally {
+      restore();
+    }
+  });
+
+  it("is false where the platform is empty (jsdom, and any non-Mac desktop)", () => {
+    stub({ platform: "" });
+    try {
+      expect(isDesktopMacWebKit()).toBe(false);
+    } finally {
+      restore();
+    }
+  });
+
+  it("is false where the environment reports no touch count at all", () => {
+    // Not a verified non-touch Mac: fall through to the player rather than
+    // default an unknown environment onto the compiled tier.
+    stub({ platform: "MacIntel" });
+    Object.defineProperty(navigator, "maxTouchPoints", { value: undefined, configurable: true });
+    try {
+      expect(isDesktopMacWebKit()).toBe(false);
+    } finally {
+      restore();
+    }
+  });
+
+  it("is false without a navigator (SSR)", () => {
+    vi.stubGlobal("navigator", undefined);
+    try {
+      expect(isDesktopMacWebKit()).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
     }
   });
 });

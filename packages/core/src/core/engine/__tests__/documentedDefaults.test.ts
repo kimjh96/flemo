@@ -29,11 +29,18 @@ const setEnv = (over: {
   dpr?: number;
   android?: boolean;
   uaCh?: boolean;
+  mac?: boolean;
 }) => {
-  const { blink = false, touch = false, dpr = 1, android = false, uaCh = true } = over;
+  const { blink = false, touch = false, dpr = 1, android = false, uaCh = true, mac = false } = over;
   if (blink && uaCh) NAV.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
   else delete NAV.userAgentData;
   Object.defineProperty(navigator, "maxTouchPoints", { value: touch ? 5 : 0, configurable: true });
+  // jsdom reports an empty platform, which is what keeps a default suite off
+  // the desktop-Safari terms; the Mac platform is opt-in per environment.
+  Object.defineProperty(navigator, "platform", {
+    value: mac ? "MacIntel" : "",
+    configurable: true
+  });
   Object.defineProperty(navigator, "userAgent", {
     value: android ? "Mozilla/5.0 (Linux; Android 10; SM-N960N) AppleWebKit/537.36 Chrome/120" : "",
     configurable: true
@@ -58,6 +65,7 @@ afterEach(() => {
   delete NAV.userAgentData;
   delete (navigator as unknown as Record<string, unknown>).maxTouchPoints;
   delete (navigator as unknown as Record<string, unknown>).userAgent;
+  delete (navigator as unknown as Record<string, unknown>).platform;
   Object.defineProperty(window, "devicePixelRatio", { value: originalDpr, configurable: true });
   sessionStorage.clear();
   resetSteadySixtyForTests();
@@ -65,7 +73,7 @@ afterEach(() => {
 });
 
 describe("documented default: flemo:settle-gate", () => {
-  // Table: "touch WebKit + touch Blink + steady-60 desktop".
+  // Table: "touch WebKit + touch Blink + desktop macOS WebKit + steady-60 desktop".
   it("is ON for touch WebKit", () => {
     setEnv({ blink: false, touch: true });
     expect(readSettleGateFlag()).toBe(true);
@@ -82,8 +90,34 @@ describe("documented default: flemo:settle-gate", () => {
     expect(readSettleGateFlag()).toBe(true);
   });
 
+  it("is ON for desktop macOS WebKit (Safari)", () => {
+    // Gate 3 routes this session to the wall-clocked compiled tier, which
+    // WebKit presents from the main thread — so a heavy entering mount eats
+    // the opening unless the release waits it out.
+    setEnv({ blink: false, touch: false, mac: true });
+    expect(readSettleGateFlag()).toBe(true);
+  });
+
   it("is OFF for desktop Blink with no verdict", () => {
     setEnv({ blink: true, touch: false, dpr: 2 });
+    expect(readSettleGateFlag()).toBe(false);
+  });
+
+  it("is OFF for desktop Blink on a Mac with no verdict", () => {
+    // The Mac platform alone must not arm it: on Blink the compiled animation
+    // is compositor-driven and rides main-thread stalls.
+    setEnv({ blink: true, touch: false, dpr: 2, mac: true });
+    expect(readSettleGateFlag()).toBe(false);
+  });
+
+  it("is OFF for a non-Mac desktop non-Blink session", () => {
+    setEnv({ blink: false, touch: false });
+    expect(readSettleGateFlag()).toBe(false);
+  });
+
+  it("still honors an explicit off on desktop macOS WebKit", () => {
+    setEnv({ blink: false, touch: false, mac: true });
+    sessionStorage.setItem("flemo:settle-gate", "off");
     expect(readSettleGateFlag()).toBe(false);
   });
 });
