@@ -34,7 +34,7 @@ import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 // | flemo:snapband            | session | number (device px)              | 4                          | opt-in diagnostic                | "hybrid" snap's jitter-band width                                      |
 // | flemo:layers              | session | "resident"                      | off                        | opt-in diagnostic                | resident screen layers at rest; armed by ?flemo-layers= (layerSettleHold.ts) |
 // | flemo:freeze              | session | "shallow"                       | off                        | opt-in diagnostic                | keep the direct prev screen live; armed by ?flemo-freeze= (computeScreenFreeze.ts) |
-// | flemo:preraster           | session | "on"                            | off (but the rest-promotion half is default-on for steady-60 desktop) | production-default-with-override | promote the entering content layer through the hold; also selects the park-over hold variant (react ScreenMotion) |
+// | flemo:preraster           | session | "on"                            | off (but the rest-promotion half is default-on for steady-60 desktop) | production-default-with-override | promote the entering content layer through the hold (readLayerPromotionFlag, applied by react ScreenMotion after hydration); also selects the park-over hold variant |
 // | flemo:imgoffload          | session | "on"/"off"                      | auto (legacy Android Blink)| production-default-with-override | image decode offloader override (react Router)                         |
 //
 // THIS TABLE IS TESTED. `__tests__/documentedDefaults.test.ts` asserts every
@@ -151,6 +151,24 @@ export const readArrivalHoldFlag = (): boolean => readStorageValue("flemo:arriva
 // onward (react ScreenMotion). Retained as an opt-in probe; the swallow it
 // probed is solved by the scrub tier's freeze-on-block opening.
 export const readPrerasterFlag = (): boolean => readStorageValue("flemo:preraster") === "on";
+
+// The screen scope's compositor-layer promotion — the `will-change: transform`
+// the react binding puts on `[data-flemo-screen]` for the anim-hold window and
+// (steady-60 desktop) at rest on the top screen. It is the pre-raster flag's
+// OTHER half: armed explicitly by `flemo:preraster=on` on any device, and
+// DEFAULT-ON for the steady-60 desktop profile, where Blink culls the raster of
+// the occluded park-under layer and the push's tiles would otherwise rasterize
+// mid-slide. The predicate lived inline in ScreenMotion; it lives here so the
+// documented default is asserted next to the row that documents it.
+//
+// SSR CONTRACT: every term is browser-only state (sessionStorage, navigator,
+// devicePixelRatio, the session's learned cadence verdict), so this can never be
+// evaluated during a SERVER render or during the client's HYDRATION render — the
+// two would disagree and React would report a style mismatch on the one flemo
+// element that carries an inline style. A binding must defer it past hydration
+// (react: `useHydrationSafeFlag`, whose SSR snapshot is a constant `false`).
+export const readLayerPromotionFlag = (): boolean =>
+  readPrerasterFlag() || steadySixtyPlayerEligible();
 
 // `flemo:imgoffload` — image decode offloader override for the react Router:
 // "on" forces it on any engine, "off" opts a legacy device back out, anything

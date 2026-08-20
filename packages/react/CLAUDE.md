@@ -104,6 +104,17 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
    current. A matching partner's registered height seeds the destination spacer in
    render, before its own bar measures. Same-ID re-registration preserves the cached
    height; changing ID discards it.
+8. **Scope layer promotion + the SSR contract**: the scope's `will-change: transform`
+   (hold window, and at rest on the top screen of a root Router) is gated on core's
+   `readLayerPromotionFlag` — `flemo:preraster=on` OR the steady-60 desktop profile.
+   Every term is browser-only state and the decision reaches the DOM as an INLINE
+   STYLE, so it is read through `useHydrationSafeFlag` (`useSyncExternalStore` with a
+   constant `false` server snapshot). Server render and the HYDRATION render therefore
+   agree by construction, and the promotion lands one commit later; a screen mounted
+   for a push/pop/replace is not hydrating, so it still reads the live value in its
+   first render. Anything else browser-derived that reaches the DOM must go through
+   the same gate — inline styles and attributes are hydration-compared, and
+   `suppressHydrationWarning` is not an option here.
 
 ## Screen / freeze
 
