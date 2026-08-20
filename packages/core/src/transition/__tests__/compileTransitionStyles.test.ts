@@ -37,6 +37,10 @@ declare module "@transition/decorator/typing" {
   }
 }
 
+// Every rule body gated on the desktop head's attribute, selector included.
+const deskHeadRules = (css: string): string[] =>
+  css.match(/:root\[data-flemo-desk-head\][^{]*\{[^}]*\}/g) ?? [];
+
 describe("compileTransitionStyles", () => {
   it("emits a keyframe + rule for the active push entrance", () => {
     const css = compileTransitionStyles([cupertino], []);
@@ -117,6 +121,60 @@ describe("compileTransitionStyles", () => {
     const mid = softenFrontLoadedEasing("cubic-bezier(0.32, 0.72, 0, 1)", 1.8);
     expect(mid).not.toBeNull();
     expect(mid).not.toBe("cubic-bezier(0.4, 0.3, 0.1, 1)");
+  });
+
+  it("emits the desktop flat head behind its own gate, sized for a 60Hz pipeline", () => {
+    const css = compileTransitionStyles([cupertino], []);
+    const kf = `${animationName("screen", "cupertino", "PUSHING-true")}-deskhead`;
+
+    // A 33ms head over cupertino's authored 0.7s push: the rule carries the
+    // extended duration and the delay, and the keyframes hold the from-pose
+    // across the head — the active-from-birth form, so WebKit's accelerated
+    // commit lands inside the invisible head instead of at the first visible
+    // frame.
+    expect(css).toContain(`@keyframes ${kf} {\n  0%, 4.502% {`);
+    const rule = deskHeadRules(css).find((one) => one.includes(kf));
+    expect(rule).toBeDefined();
+    expect(rule).toContain("animation-duration: 0.733s");
+    // The head lives INSIDE the keyframes, so the delay stays authored: a
+    // delay of its own would hold the screen for two heads, and this cover is
+    // sized to be paid once.
+    expect(rule).toContain("animation-delay: 0.000s");
+    // Literal timing only — var()/calc() timing lost WebKit's accelerated
+    // playback (device-bisected 2026-08-13), which is why there are two heads
+    // under two gates instead of one parameterized rule.
+    expect(rule).not.toContain("var(");
+    // The touch head keeps its own, longer cover under its own attribute.
+    expect(css).toContain(
+      `animation-name: ${animationName("screen", "cupertino", "PUSHING-true")}-lpm`
+    );
+    expect(css).toContain("animation-delay: 0.100s");
+  });
+
+  it("rides parts on the desktop head with a gated literal delay", () => {
+    const css = compileTransitionStyles(
+      [],
+      [],
+      [
+        createPartTransition({
+          name: "test-title-fade",
+          initial: { opacity: 0 },
+          idle: { value: { opacity: 1 }, options: { duration: 0.4 } },
+          enter: { value: { opacity: 0 }, options: { duration: 0.3 } },
+          exit: { value: { opacity: 1 }, options: { duration: 0.3 } }
+        })
+      ]
+    );
+
+    const rules = deskHeadRules(css);
+    expect(rules.length).toBeGreaterThan(0);
+    for (const rule of rules) {
+      // Parts never get a head of their own — they ride the screen's by delay,
+      // so the choreography's relative timing to the screens survives.
+      expect(rule).toContain("animation-delay:");
+      expect(rule).not.toContain("animation-name:");
+      expect(rule).not.toContain("animation-timing-function");
+    }
   });
 
   it("keeps part easing authored — no LPM ease var outside the screen scope", () => {

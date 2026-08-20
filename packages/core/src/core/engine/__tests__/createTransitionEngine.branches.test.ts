@@ -784,6 +784,54 @@ describe("createTransitionEngine branches", () => {
     expect(d.getTransitionTaskId).toHaveBeenCalledTimes(baseline);
     cleanup();
   });
+
+  it("resolves on a head tier's suffixed animation name", async () => {
+    // A head tier (LPM, desktop) plays the SAME flight under a copied keyframe
+    // set, so its end event carries `<name>-lpm` / `<name>-deskhead`. A
+    // listener that only knows the base name never resolves the flight, and
+    // the restart watchdog replays the whole transition — glass-visible on
+    // desktop Safari as a second fade after a tab REPLACE (2026-08-20).
+    const TaskManger = (await import("@core/TaskManger")).default;
+
+    for (const suffix of ["", "-lpm", "-deskhead"]) {
+      const { scope } = elements();
+      const d = { ...deps(), getTransitionTaskId: vi.fn(() => `task-head${suffix}`) };
+      const engine = createTransitionEngine(d);
+      const resolved = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
+
+      transitionMap.set(
+        "branches-head" as never,
+        createTransition({
+          name: "branches-head" as never,
+          initial: { x: "100%", clipPath: "inset(0 0 0 100%)" },
+          idle: { value: { x: 0 }, options: { duration: 0 } },
+          enter: { value: { x: 0, clipPath: "inset(0)" }, options: { duration: 0.3 } },
+          enterBack: { value: { x: "100%" }, options: { duration: 0.3 } },
+          exit: { value: { x: "-30%" }, options: { duration: 0.3 } },
+          exitBack: { value: { x: 0 }, options: { duration: 0.3 } }
+        })
+      );
+
+      const cleanup = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "branches-head" as never,
+        prevTransitionName: "branches-head" as never,
+        status: "PUSHING",
+        isActive: true,
+        animHoldReleased: true
+      });
+
+      scope.dispatchEvent(
+        animationEndEvent(`${animationName("screen", "branches-head", "PUSHING-true")}${suffix}`)
+      );
+      await new Promise((settle) => setTimeout(settle, 80));
+
+      expect(resolved, `suffix "${suffix}" must resolve the flight`).toHaveBeenCalled();
+      resolved.mockRestore();
+      cleanup();
+      transitionMap.delete("branches-head" as never);
+    }
+  });
 });
 
 describe("createTransitionEngine gate-phase reporting", () => {

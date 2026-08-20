@@ -2,7 +2,9 @@ import TaskManger from "@core/TaskManger";
 
 import { clearInlineAnimation, trackInlineWrite } from "@transition/animateInline";
 import {
+  DESKTOP_HEAD_MS,
   LPM_HEAD_MS,
+  matchesFlightAnimationName,
   animationName,
   variantHasAnimation
 } from "@transition/compileTransitionStyles";
@@ -17,6 +19,7 @@ import holdCompositorWarm from "@core/engine/compositorWarmUp";
 import {
   readHandoffFlag,
   readArrivalHoldFlag,
+  readDesktopHeadFlag,
   readImageHoldFlag,
   readLandingSnapFlag,
   readSettleGateFlag
@@ -619,11 +622,11 @@ const wireCancelResume = (config: CancelResumeConfig) => {
 
   const onCancel = (event: AnimationEvent) => {
     if (midRestart) return;
-    // The LPM flat-head variant fires as `<name>-lpm` (see
-    // compileTransitionStyles) — same flight, same resolver.
+    // A head tier fires under a suffixed keyframe name (`<name>-lpm`,
+    // `<name>-deskhead`) — same flight, same resolver.
     if (
       event.target !== element ||
-      (event.animationName !== expectedName && event.animationName !== `${expectedName}-lpm`)
+      !matchesFlightAnimationName(event.animationName, expectedName)
     ) {
       return;
     }
@@ -1846,6 +1849,12 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       navigator.maxTouchPoints > 0 &&
       forceCompiledStatus(status);
     const routedGovernedHead = routedLpmSupervision || routedBlinkGoverned || routedForceCompiled;
+    // The DESKTOP head (`flemo:deskhead`): desktop macOS Safari runs the same
+    // compiled clock as the touch tier and presents it from the main thread, so
+    // it gets the same active-from-birth cover — its own lengths (see
+    // DESKTOP_HEAD_MS), its own gate attribute, and, like the touch tier, NO
+    // clock surgery beside it: arming this retires the birth anchor below.
+    const routedDesktopHead = isDesktopMacWebKit() && readDesktopHeadFlag();
     // First-frame clock hold (see nativeStallAnchor): armed from the
     // engine's own observer, whatever the hold state at effect time — React
     // effect scheduling races both the release commit and its render pass,
@@ -1879,7 +1888,12 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       !detectBlinkEngine() &&
       !nativeSurgeryAllowed &&
       !routedLpmSupervision &&
-      !routedForceCompiled
+      !routedForceCompiled &&
+      // The desktop head covers this flight by STYLE. Rewinding the clock
+      // underneath it would correct a latency the head has already covered —
+      // two interventions on one clock, which is the pairing the touch tier
+      // was built to avoid.
+      !routedDesktopHead
     ) {
       detachLpmBirthAnchor = armFlightStartAnchorAtRelease(
         scope,
@@ -1937,7 +1951,11 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // late-mounting participant the way the inline stamping missed the
     // decorator (device 2026-08-13: the dim faded in ahead of the held
     // screens).
-    const lpmBirthHoldMs = routedGovernedHead ? (LPM_HEAD_MS[status] ?? 0) : 0;
+    const lpmBirthHoldMs = routedGovernedHead
+      ? (LPM_HEAD_MS[status] ?? 0)
+      : routedDesktopHead
+        ? (DESKTOP_HEAD_MS[status] ?? 0)
+        : 0;
     // The LPM duration stretch (see compileTransitionStyles). Device-tuned
     // 2026-08-12: the cadence-ratio stretch (~2.2x) played the whole 0-100
     // and proved the pipeline, but was judged too slow — the standing
@@ -1974,6 +1992,14 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         root.setAttribute("data-flemo-lpm", "true");
       } else {
         root.removeAttribute("data-flemo-lpm");
+      }
+      // The desktop gate is the same mechanism one attribute over: a session is
+      // either touch (LPM) or desktop Mac, never both, and the two heads carry
+      // different literal lengths.
+      if (routedDesktopHead) {
+        root.setAttribute("data-flemo-desk-head", "true");
+      } else {
+        root.removeAttribute("data-flemo-desk-head");
       }
     }
     // (RETIRED 2026-08-12, same day: the ADAPTIVE birth-hold guard —
@@ -2094,9 +2120,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     let disarmEarlyLanding = noop;
     const onEnd = (event: AnimationEvent) => {
       if (event.target !== scope) return;
-      if (event.animationName !== expectedName && event.animationName !== `${expectedName}-lpm`) {
-        return;
-      }
+      // Same-flight match across every head tier's suffixed keyframe name: a
+      // miss here does not just skip a resolve, it strands the flight until
+      // the restart watchdog replays it.
+      if (!matchesFlightAnimationName(event.animationName, expectedName)) return;
       scope.removeEventListener("animationend", onEnd);
       clearWatchdog();
       stopScopeRecovery();
