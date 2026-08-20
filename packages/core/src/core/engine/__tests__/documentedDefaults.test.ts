@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   readArrivalHoldFlag,
+  readDesktopReleaseFlipFlag,
   readImageHoldFlag,
   readImageOffloadOverride,
   readLayerPromotionFlag,
@@ -119,6 +120,34 @@ describe("documented default: flemo:settle-gate", () => {
     setEnv({ blink: false, touch: false, mac: true });
     sessionStorage.setItem("flemo:settle-gate", "off");
     expect(readSettleGateFlag()).toBe(false);
+  });
+});
+
+describe("documented default: flemo:deskflip", () => {
+  // Table: "desktop macOS WebKit". The flip reaches production through this
+  // reader only — touch WebKit is armed by governedCompiledActive, and an
+  // authored `driver: "native"` pin arms itself.
+  it("is ON for desktop macOS WebKit (Safari)", () => {
+    setEnv({ blink: false, touch: false, mac: true });
+    expect(readDesktopReleaseFlipFlag()).toBe(true);
+  });
+
+  it("is OFF for touch WebKit, desktop Blink, and a non-Mac desktop", () => {
+    setEnv({ blink: false, touch: true, mac: true });
+    expect(readDesktopReleaseFlipFlag()).toBe(false);
+    setEnv({ blink: true, touch: false, mac: true, dpr: 2 });
+    expect(readDesktopReleaseFlipFlag()).toBe(false);
+    setEnv({ blink: false, touch: false });
+    expect(readDesktopReleaseFlipFlag()).toBe(false);
+  });
+
+  it("honors an explicit on/off in both directions", () => {
+    setEnv({ blink: false, touch: false });
+    sessionStorage.setItem("flemo:deskflip", "on");
+    expect(readDesktopReleaseFlipFlag()).toBe(true);
+    setEnv({ blink: false, touch: false, mac: true });
+    sessionStorage.setItem("flemo:deskflip", "off");
+    expect(readDesktopReleaseFlipFlag()).toBe(false);
   });
 });
 

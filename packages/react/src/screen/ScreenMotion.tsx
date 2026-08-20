@@ -23,6 +23,7 @@ import {
   enteringInitialStyle,
   governedCompiledActive,
   observeBarHeight,
+  readDesktopReleaseFlipFlag,
   readLayerPromotionFlag,
   readPrerasterFlag,
   readSettleGateFlag,
@@ -707,7 +708,16 @@ function ScreenMotion({
         // the release rAF and the player then restarts the motion, the
         // double-start that poisoned the earlier player verdict. The flip
         // stays for the paths whose COMPILED clock needs it.
-        const directFlip = (authoredNative || governedCompiledActive()) && !detectBlinkEngine();
+        // Desktop macOS Safari (2026-08-20, `flemo:deskflip`) is one of those
+        // paths and had been missing from the list: joinPlayer's gate 3 pins it
+        // to the compiled tier for EVERY flight, and WebKit presents that clock
+        // from the main thread, so its state-routed release carries the same
+        // clock-aging gap the flip closes everywhere else — with none of the
+        // steady-60 double-start risk, which needed a player join this session
+        // cannot have.
+        const directFlip =
+          (authoredNative || governedCompiledActive() || readDesktopReleaseFlipFlag()) &&
+          !detectBlinkEngine();
         if (directFlip) {
           for (const el of [
             scopeRef.current,

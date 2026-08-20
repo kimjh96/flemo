@@ -140,10 +140,12 @@ export { lowPowerCadenceActive, governedCompiledActive } from "@core/engine/lowP
 // The `flemo:*` diagnostic-flag registry (see the module's header table).
 // Only the readers a binding consumes are public: the render-settle gate
 // (shared with the engine's routing so both sides always agree), the
-// pre-raster probe, its layer-promotion half (hydration-deferred by the
-// binding — see the reader's SSR contract), and the image-offloader override.
+// desktop-Safari atomic release flip, the pre-raster probe, its
+// layer-promotion half (hydration-deferred by the binding — see the reader's
+// SSR contract), and the image-offloader override.
 export {
   readSettleGateFlag,
+  readDesktopReleaseFlipFlag,
   readPrerasterFlag,
   readLayerPromotionFlag,
   readImageOffloadOverride
