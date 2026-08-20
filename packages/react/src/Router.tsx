@@ -120,10 +120,9 @@ interface RouterProps {
 // flip anyway (scopes start alive), so fall back to useEffect there.
 const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
-// Publishes the Router's live configuration (its scope-chain node, its
-// transition default) — the state it keeps OUTSIDE React, where descendants
-// read it imperatively. Two constraints pin the timing, and only an insertion
-// effect satisfies both:
+// Publishes the Router's live configuration — the state it keeps OUTSIDE React
+// (its scope-chain node), where descendants read it imperatively. Two
+// constraints pin the timing, and only an insertion effect satisfies both:
 //
 //  - Not in RENDER. A render can be thrown away (a transition suspends and the
 //    previously committed tree keeps running), and these targets outlive the
@@ -141,6 +140,10 @@ const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : us
 // body is a handful of assignments, and skipping a commit is the failure mode
 // this exists to prevent. The server runs no effects at all; the initial values
 // come from the useState initializer / createRouterScope, so SSR is unaffected.
+//
+// Only for targets with NO subscribers: React forbids scheduling updates from
+// an insertion effect, so anything that notifies (a store write) publishes in
+// the layout phase instead — see the transition default in the body.
 const publishRouterConfig = typeof window === "undefined" ? useEffect : useInsertionEffect;
 
 const EMPTY_TRANSITIONS: Transition[] = [];
@@ -302,11 +305,24 @@ function Router({
     })
   );
 
-  // Keep the seeded default in sync if the prop changes across renders — see
-  // publishRouterConfig below for WHY it is an insertion effect. Its readers
-  // (the controller's push/replace) are event-time, but a descendant's layout
-  // effect can navigate too, so it rides the same publication point.
-  publishRouterConfig(() => {
+  // Keep the seeded default in sync if the prop changes across renders. Unlike
+  // the scope node below, this one canNOT ride publishRouterConfig: `stores` is
+  // public, so a consumer or a devtools panel may subscribe to the transition
+  // store through React, and a store write notifies subscribers SYNCHRONOUSLY —
+  // scheduling a re-render from inside an insertion effect is a path React
+  // forbids outright ("useInsertionEffect must not schedule updates"). It
+  // publishes in the layout phase instead, where scheduling is legal.
+  //
+  // Guarded on an actual change: zustand compares the partial by identity, so a
+  // fresh object notifies every subscriber on EVERY commit even when the value
+  // is identical.
+  //
+  // The residual is one commit of staleness for a descendant that navigates
+  // from its own layout effect in the very commit the default changed — that
+  // push plays the previous default. Cosmetic and self-healing, where the same
+  // lag on the scope node threw.
+  useIsomorphicLayoutEffect(() => {
+    if (stores.transition.getState().defaultTransitionName === defaultTransitionName) return;
     stores.transition.setState({ defaultTransitionName });
   });
 

@@ -1,4 +1,4 @@
-import { Suspense, startTransition, useLayoutEffect, useState } from "react";
+import { Suspense, startTransition, useLayoutEffect, useState, useSyncExternalStore } from "react";
 
 import { act, cleanup, render } from "@testing-library/react";
 import { hydrateRoot } from "react-dom/client";
@@ -605,5 +605,53 @@ describe("Router config: descendant layout effects", () => {
     });
 
     expect(thrown).toBeNull();
+  });
+});
+
+describe("Router config: store notifications", () => {
+  // `stores` is public, so a consumer (or a devtools panel) may subscribe to
+  // the transition store through React. A store write notifies subscribers
+  // synchronously, and a subscriber scheduling a re-render from inside an
+  // INSERTION effect is a path React forbids outright.
+  it("changes the transition default without scheduling from an insertion effect", async () => {
+    cleanup();
+    window.history.replaceState(null, "", "/");
+
+    let switchDefault: () => void = () => {};
+
+    function DefaultWatcher() {
+      const stores = useStores();
+      const read = () => stores.transition.getState().defaultTransitionName;
+      const value = useSyncExternalStore(stores.transition.subscribe, read, read);
+      return <span data-testid="default">{value}</span>;
+    }
+
+    function Harness() {
+      const [transitionName, setTransitionName] = useState<"cupertino" | "material">("cupertino");
+      switchDefault = () => setTransitionName("material");
+
+      return (
+        <Router defaultTransitionName={transitionName} initPath="/">
+          <DefaultWatcher />
+          <Slot>
+            <Route path="/" element={<div>home</div>} />
+          </Slot>
+        </Router>
+      );
+    }
+
+    const view = render(<Harness />);
+    const errors: string[] = [];
+    vi.spyOn(console, "error").mockImplementation((...args) => {
+      errors.push(String(args[0]));
+    });
+
+    await act(async () => {
+      switchDefault();
+    });
+
+    expect(errors.filter((message) => message.includes("useInsertionEffect"))).toEqual([]);
+    // The subscriber still observes the new default.
+    expect(view.getByTestId("default").textContent).toBe("material");
   });
 });
