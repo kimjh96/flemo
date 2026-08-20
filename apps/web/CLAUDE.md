@@ -9,30 +9,14 @@ library's living test fixture — the whole site is itself a flemo app.
 - `app/[lang]/` — locale-prefixed routes (ko/en; `lib/i18n.ts`, `lib/cookie.ts`).
   The marketing surface is ONE root flemo `<Router>` (`_router/ShellRouter`) with a
   `<Slot>`: `SiteHeader` is persistent chrome outside the Slot; Home / Docs /
-  Playground / Showcase are peer screens with shared-axis slide transitions, over a
-  locale-aware history driver (`lib/localeHistoryDriver.ts` — the Router stays in
-  unprefixed path space).
+  Showcase are peer screens with shared-axis slide transitions, over a locale-aware
+  history driver (`lib/localeHistoryDriver.ts` — the Router stays in unprefixed path
+  space).
 - **Docs are NOT Fumadocs/MDX anymore** (despite older notes): content lives as typed
   data in `app/[lang]/docs/_data/docPages.ts` (shared slugs, localized copy — Korean
   in 해요체, no em-dashes) rendered by `docs/[slug]/page.tsx`.
 - `app/[lang]/_demo/` — the wallet/music in-screen demos; `components/atoms|molecules`
   — site-wide UI, every component a folder with an `index.ts` barrel.
-
-## Playground (`app/[lang]/playground/`)
-
-Organized into `_components/ _data/ _hooks/ _providers/ _router/ _screens/
-_transitions/` plus the `[n]` deep route. It imports `@flemo/react` via `workspace:*`
-— never mock it (workspace rule). It doubles as the **perception fixture**:
-
-- `_screens/StressLabScreen` + `HeavyScreen` — the always-visible stress lab
-  (`/playground/stress` via the nested `LabRouter`/`LabPanelsRouter`): transition /
-  content-shape / render-cost controls and a "Run transition" action that enters the
-  heavy fixture.
-- `_components/LabTapMarker` — flashes in the same tick as the tap, so wall-clock
-  frame analysis can anchor on input time.
-- `_transitions/` — a zoo of custom transitions (cupertino defaults plus blur,
-  cardStack, dive, ripple, spring, stressEntry, tabForward, wipe…) exercising every
-  compiler/driver path.
 
 ## E2E (`e2e/`)
 
@@ -46,11 +30,6 @@ _transitions/` plus the `[n]` deep route. It imports `@flemo/react` via `workspa
 - `helpers/flemo.ts` — `data-flemo-*` locators, `waitForNavIdle` (NEVER fixed waits:
   the player's capped clock legitimately stretches flights on a stalled runner; wait
   on engine state), console-error tracking.
-- `motion-perception.spec.ts` — driver-tier guardrails; pins the player with
-  `flemo:motion-driver-force = raf@<now>` in an init script; includes the desktop
-  re-entry blank regression guard from PR #259.
-- `perception/heavy-shell.mjs` — MANUAL motion-energy harness (Playwright video +
-  ffmpeg); usage in its header. Not wired into CI.
 - More toggles and observation pitfalls: the flag registry table at the top of
   `packages/core/src/core/engine/diagnosticFlags.ts` (the untracked `docs/` set is
   maintainer-local; see .gitignore).
@@ -70,3 +49,13 @@ cd apps/web && PORT=3100 bunx playwright test --project=chromium
 server on that port is reused, skipping the pnpm command entirely. Always test against
 the production build — dev/fast-refresh adds main-thread work that flakes the
 timing-sensitive specs.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

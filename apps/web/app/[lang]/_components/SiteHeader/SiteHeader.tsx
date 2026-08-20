@@ -34,7 +34,7 @@ function SiteHeader() {
   const mobileOpen = Boolean(step?.menu);
 
   // Prefix match so a composed sub-page (deep link / refresh) keeps its menu
-  // active: /docs/router -> Docs, /playground/3 -> Playground. Home stays exact.
+  // active: /docs/router -> Docs. Home stays exact.
   const isActivePath = (path: ShellPath) =>
     path === "/" ? activePath === "/" : activePath === path || activePath.startsWith(`${path}/`);
 
@@ -54,10 +54,8 @@ function SiteHeader() {
     if (mobileOpen) popStep();
   };
   // Home and Showcase are ordered peers, so they share one directional handler
-  // (a shared-axis that slides left or right by nav order). Playground and Docs
-  // each own a fixed entry transition, so the move never depends on where you
-  // came from, no overlap. Every handler is idempotent: clicking the page
-  // you're already on does nothing.
+  // (a shared-axis that slides left or right by nav order). Docs owns a fixed
+  // entry transition. Every handler is idempotent.
   const goPeer = (target: ShellPath) => {
     if (activePath === target) return;
     const forward = SHELL_ORDER.indexOf(target) > SHELL_ORDER.indexOf(activePath as ShellPath);
@@ -71,11 +69,6 @@ function SiteHeader() {
   const goHome = () => goPeer("/");
   const goShowcase = () => goPeer("/showcase");
 
-  const goPlayground = () => {
-    if (activePath === "/playground") return;
-    navigate.push("/playground", {}, { transitionName: "page-shove-forward" });
-  };
-
   const goDocs = () => {
     if (activePath === "/docs") return;
     navigate.push("/docs", {}, { transitionName: "docs-enter" });
@@ -84,7 +77,6 @@ function SiteHeader() {
   const shellLinks: { label: string; path: ShellPath; onClick: () => void }[] = [
     { label: dict.nav.home, path: "/", onClick: goHome },
     { label: dict.nav.showcase, path: "/showcase", onClick: goShowcase },
-    { label: dict.nav.playground, path: "/playground", onClick: goPlayground },
     { label: dict.nav.docs, path: "/docs", onClick: goDocs }
   ];
 

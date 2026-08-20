@@ -122,9 +122,7 @@ jobs:
         # The suite runs in ~30s locally and ~2min on a CI runner; 15 bounds a
         # wedged browser without touching a legitimately slow run.
         timeout-minutes: 15
-        # Both projects: the player-tier specs in motion-perception.spec.ts
-        # skip on desktop chromium and only run under mobile-chromium (which
-        # shares the same chromium binary).
+        # Run the public site suite in both desktop and mobile Chromium.
         run: pnpm --filter @flemo/web exec playwright test --project=chromium --project=mobile-chromium
 
       - name: Upload Playwright report

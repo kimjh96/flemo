@@ -29,14 +29,39 @@ const EN: DocSection[] = [
         slug: "introduction",
         title: "Introduction",
         blocks: [
-          { type: "p", text: "flemo is a router for screen transitions." },
           {
             type: "p",
-            text: "Native apps move by pushing a screen on, popping it off, and swiping back to leave. flemo lets you build that same flow on the web."
+            text: "flemo gives web apps a native-style screen stack: push a screen, pop it, or drag from the edge to go back. Routing and motion are designed as one system."
+          },
+          { type: "h", text: "The mental model" },
+          {
+            type: "list",
+            items: [
+              "`Router` owns the screen history and transition catalog",
+              "`Route` maps a path to one screen",
+              "`Screen` supplies the visual surface, safe areas, and shared bars",
+              "`useNavigate` pushes, replaces, or pops the stack",
+              "`Slot` keeps app chrome still while only its screen region moves"
+            ]
           },
           {
             type: "p",
-            text: "The transitions between screens can use the built-in presets, or ones you define yourself."
+            text: "A push creates a real history entry and animates the new Screen over the current one. A pop reveals the screen below it. With the cupertino preset, that same pop is interactive when the user drags from the left edge."
+          },
+          {
+            type: "note",
+            text: "flemo is intentionally a screen router, not a replacement for every server-routing feature. It works best in SPAs, hybrid WebViews, and self-contained app regions where Flemo can own client-side history."
+          },
+          { type: "h", text: "What you get out of the box" },
+          {
+            type: "list",
+            items: [
+              "Native-like `cupertino`, `material`, `layout`, and instant `none` transitions",
+              "Swipe-back and drag-to-dismiss gestures tied to real history",
+              "Shared top and bottom bars that stay visually continuous between screens",
+              "Type-safe paths, route params, transition names, and nested Router targets",
+              "Custom screen, part, decorator, and shared-element motion"
+            ]
           },
           { type: "h", text: "Where to go next" },
           {
@@ -57,45 +82,49 @@ const EN: DocSection[] = [
         slug: "getting-started",
         title: "Getting started",
         blocks: [
+          {
+            type: "p",
+            text: "Build the smallest complete Flemo app: two screens, one typed route parameter, and a push that can be popped with the browser Back button or a swipe."
+          },
           { type: "h", text: "Install" },
           { type: "code", lang: "bash", code: "pnpm add @flemo/react" },
           {
             type: "note",
             text: "Svelte and SolidJS support is planned."
           },
-          { type: "h", text: "1. Register your routes" },
+          { type: "h", text: "1. Mount the Router" },
           {
             type: "p",
-            text: "flemo uses TypeScript module augmentation to make paths and params type-safe. The simplest setup declares every route at the bottom of the file where `Router` is mounted. TypeScript merges declarations across files, so you can also colocate each route with the page that owns it."
-          },
-          {
-            type: "code",
-            lang: "ts",
-            code: 'declare module "@flemo/react" {\n  interface RegisterRoute {\n    "/": undefined;\n    "/posts/:slug": { slug: string };\n  }\n}'
-          },
-          { type: "h", text: "2. Mount the Router" },
-          {
-            type: "p",
-            text: "Render `Router` with a list of `Route`s. Whatever matches the URL becomes the active screen."
+            text: "`Router` owns the stack. Each `Route` says which component should become a screen when its path is active."
           },
           {
             type: "code",
             lang: "tsx",
             code: 'import { Route, Router } from "@flemo/react";\n\nimport Home from "./Home";\nimport Post from "./Post";\n\nexport default function App() {\n  return (\n    <Router>\n      <Route path="/" element={<Home />} />\n      <Route path="/posts/:slug" element={<Post />} />\n    </Router>\n  );\n}'
           },
-          { type: "h", text: "3. Build screens and navigate" },
+          { type: "h", text: "2. Build a Screen and push" },
           {
             type: "p",
-            text: "Wrap each route's element in `Screen`. Use `useNavigate()` to move between them."
+            text: "Every route component renders a `Screen`. Call `navigate.push` with the route pattern and its params. Flemo builds the URL, adds a history entry, and plays the default cupertino transition."
           },
           {
             type: "code",
             lang: "tsx",
-            code: 'import { Screen, useNavigate } from "@flemo/react";\n\nexport default function Home() {\n  const navigate = useNavigate();\n  const handleOpen = () => navigate.push("/posts/:slug", { slug: "hello" });\n\n  return (\n    <Screen>\n      <h1>Home</h1>\n      <button onClick={handleOpen}>Open hello</button>\n    </Screen>\n  );\n}'
+            code: 'import { Screen, useNavigate } from "@flemo/react";\n\nexport default function Home() {\n  const navigate = useNavigate();\n\n  return (\n    <Screen>\n      <h1>Home</h1>\n      <button\n        onClick={() =>\n          navigate.push("/posts/:slug", { slug: "hello" })\n        }\n      >\n        Open hello\n      </button>\n    </Screen>\n  );\n}'
+          },
+          { type: "h", text: "3. Add route types" },
+          {
+            type: "p",
+            text: "Augment `RegisterRoute` once and TypeScript will check every path and params object. A route without params maps to `undefined`; a dynamic route maps to its param shape."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'declare module "@flemo/react" {\n  interface RegisterRoute {\n    "/": undefined;\n    "/posts/:slug": { slug: string };\n  }\n}'
           },
           {
             type: "p",
-            text: "That is the whole loop. Tap Open hello and the post screen slides in (cupertino is the default). Drag from the left edge, or tap Back, and it slides out."
+            text: "That is the complete loop. Tap Open hello to push the post screen. Use browser Back, call `navigate.pop()`, or drag from the left edge to reveal Home again."
           }
         ]
       }
@@ -515,7 +544,7 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "The playground's `wipe` transition puts this to work. It is a custom transition you author yourself, not a preset. The entering screen is revealed by a `clip-path` that opens left to right, while the screen underneath recedes with a little scale and opacity."
+            text: "The following `wipe` transition puts this to work. It is a custom transition you author yourself, not a preset. The entering screen is revealed by a `clip-path` that opens left to right, while the screen underneath recedes with a little scale and opacity."
           },
           {
             type: "code",
@@ -524,7 +553,7 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "The two `clip-path` endpoints deliberately use different templates, the four-value `inset(0 0 0 100%)` against the `inset(0)` shorthand, and it still tweens smoothly. This exact transition is live in the playground."
+            text: "The two `clip-path` endpoints deliberately use different templates, the four-value `inset(0 0 0 100%)` against the `inset(0)` shorthand, and they still tween smoothly."
           },
           { type: "h", text: "Raw transitions" },
           {
@@ -693,7 +722,7 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "The `if (active) return;` at the top of each hook is the key move. During a swipe-back the top screen is leaving and the previous screen is coming back, so only the previous screen's part needs to recover with the drag. The active side just rides its own screen untouched, so its hooks bail out early. `onSwipe` maps the drag `progress` onto the title's opacity and offset every frame, and `onSwipeEnd` settles the rest based on whether the swipe committed. This exact motion is live in the playground."
+            text: "The `if (active) return;` at the top of each hook is the key move. During a swipe-back the top screen is leaving and the previous screen is coming back, so only the previous screen's part needs to recover with the drag. The active side just rides its own screen untouched, so its hooks bail out early. `onSwipe` maps the drag `progress` onto the title's opacity and offset every frame, and `onSwipeEnd` settles the rest based on whether the swipe committed."
           },
           {
             type: "note",
@@ -882,14 +911,39 @@ const KO: DocSection[] = [
         slug: "introduction",
         title: "소개",
         blocks: [
-          { type: "p", text: "flemo는 화면 전환을 위한 라우터예요." },
           {
             type: "p",
-            text: "네이티브 앱은 화면을 쌓고(push) 걷어내고(pop), 스와이프로 뒤로 가며 움직여요. flemo는 그 움직임을 웹에서 그대로 만들 수 있게 도와줘요."
+            text: "flemo는 웹 앱에 네이티브 방식의 화면 스택을 만들어요. 화면을 push하고 pop하거나, 화면 가장자리를 끌어 뒤로 갈 수 있어요. 라우팅과 움직임을 하나의 시스템으로 다뤄요."
+          },
+          { type: "h", text: "먼저 이해할 구조" },
+          {
+            type: "list",
+            items: [
+              "`Router`가 화면 히스토리와 트랜지션 목록을 관리해요",
+              "`Route`가 경로 하나와 화면 하나를 연결해요",
+              "`Screen`이 화면 표면, 세이프 에어리어, 공유 바를 만들어요",
+              "`useNavigate`로 스택을 push, replace, pop해요",
+              "`Slot`은 앱 바 같은 크롬을 고정하고 화면 영역만 움직여요"
+            ]
           },
           {
             type: "p",
-            text: "화면 사이의 전환은 기본으로 제공되는 트랜지션을 바로 사용하거나, 직접 정의해서 사용할 수 있어요."
+            text: "push하면 실제 히스토리 항목이 생기고 새 Screen이 현재 화면 위로 들어와요. pop하면 아래 화면이 다시 드러나요. cupertino 프리셋에서는 왼쪽 가장자리를 끄는 동작이 그대로 인터랙티브 pop이 돼요."
+          },
+          {
+            type: "note",
+            text: "flemo는 모든 서버 라우팅 기능을 대신하는 도구가 아니라 화면 라우터예요. SPA, 하이브리드 WebView, 또는 Flemo가 클라이언트 히스토리를 맡을 수 있는 독립 앱 영역에 가장 잘 맞아요."
+          },
+          { type: "h", text: "기본으로 얻는 것" },
+          {
+            type: "list",
+            items: [
+              "네이티브 같은 `cupertino`, `material`, `layout`, 즉시 전환 `none`",
+              "실제 히스토리와 연결된 스와이프 뒤로 가기와 드래그 닫기",
+              "화면 사이에서 자연스럽게 이어지는 공유 상단·하단 바",
+              "경로, 파라미터, 트랜지션 이름, 중첩 Router 대상의 타입 안전성",
+              "화면, Part, decorator, 공유 요소를 위한 커스텀 모션"
+            ]
           },
           { type: "h", text: "다음으로" },
           {
@@ -910,45 +964,49 @@ const KO: DocSection[] = [
         slug: "getting-started",
         title: "빠르게 시작하기",
         blocks: [
+          {
+            type: "p",
+            text: "화면 두 개와 타입이 있는 경로 파라미터 하나로 가장 작은 Flemo 앱을 만들어요. push한 화면은 브라우저 뒤로 가기나 스와이프로 다시 pop할 수 있어요."
+          },
           { type: "h", text: "설치" },
           { type: "code", lang: "bash", code: "pnpm add @flemo/react" },
           {
             type: "note",
             text: "Svelte, SolidJS 지원도 준비 중이에요."
           },
-          { type: "h", text: "1. 라우트 등록" },
+          { type: "h", text: "1. Router 마운트" },
           {
             type: "p",
-            text: "flemo는 TypeScript 모듈 확장으로 경로와 파라미터를 타입 안전하게 만들어요. 가장 간단한 방법은 `Router`를 마운트하는 파일 맨 아래에 모든 라우트를 선언하는 거예요. TypeScript가 파일 간 선언을 병합하니, 각 라우트를 해당 페이지 파일에 같이 둬도 돼요."
-          },
-          {
-            type: "code",
-            lang: "ts",
-            code: 'declare module "@flemo/react" {\n  interface RegisterRoute {\n    "/": undefined;\n    "/posts/:slug": { slug: string };\n  }\n}'
-          },
-          { type: "h", text: "2. Router 마운트" },
-          {
-            type: "p",
-            text: "`Router`에 `Route` 목록을 그려요. URL에 매칭되는 것이 활성 화면이 돼요."
+            text: "`Router`가 화면 스택을 관리해요. 각 `Route`는 경로가 활성화됐을 때 어떤 컴포넌트를 화면으로 보여줄지 정해요."
           },
           {
             type: "code",
             lang: "tsx",
             code: 'import { Route, Router } from "@flemo/react";\n\nimport Home from "./Home";\nimport Post from "./Post";\n\nexport default function App() {\n  return (\n    <Router>\n      <Route path="/" element={<Home />} />\n      <Route path="/posts/:slug" element={<Post />} />\n    </Router>\n  );\n}'
           },
-          { type: "h", text: "3. 화면 만들고 이동하기" },
+          { type: "h", text: "2. Screen을 만들고 push" },
           {
             type: "p",
-            text: "각 라우트의 엘리먼트를 `Screen`으로 감싸요. `useNavigate()`로 화면 사이를 이동해요."
+            text: "각 라우트 컴포넌트는 `Screen`을 그려요. `navigate.push`에 경로 패턴과 파라미터를 넘기면 Flemo가 URL과 히스토리 항목을 만들고 기본 cupertino 전환을 재생해요."
           },
           {
             type: "code",
             lang: "tsx",
-            code: 'import { Screen, useNavigate } from "@flemo/react";\n\nexport default function Home() {\n  const navigate = useNavigate();\n  const handleOpen = () => navigate.push("/posts/:slug", { slug: "hello" });\n\n  return (\n    <Screen>\n      <h1>Home</h1>\n      <button onClick={handleOpen}>Open hello</button>\n    </Screen>\n  );\n}'
+            code: 'import { Screen, useNavigate } from "@flemo/react";\n\nexport default function Home() {\n  const navigate = useNavigate();\n\n  return (\n    <Screen>\n      <h1>Home</h1>\n      <button\n        onClick={() =>\n          navigate.push("/posts/:slug", { slug: "hello" })\n        }\n      >\n        Open hello\n      </button>\n    </Screen>\n  );\n}'
+          },
+          { type: "h", text: "3. 경로 타입 추가" },
+          {
+            type: "p",
+            text: "`RegisterRoute`를 한 번 확장하면 TypeScript가 모든 경로와 파라미터 객체를 검사해요. 파라미터 없는 경로는 `undefined`, 동적 경로는 파라미터 형태를 적어요."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'declare module "@flemo/react" {\n  interface RegisterRoute {\n    "/": undefined;\n    "/posts/:slug": { slug: string };\n  }\n}'
           },
           {
             type: "p",
-            text: "이게 전부예요. Open hello를 누르면 post 화면이 밀려 들어와요(기본은 cupertino). 왼쪽 끝에서 드래그하거나 Back을 누르면 밀려 나가요."
+            text: "이제 전체 흐름이 완성됐어요. Open hello를 누르면 post 화면이 push돼요. 브라우저 뒤로 가기, `navigate.pop()`, 왼쪽 가장자리 드래그 중 하나로 Home을 다시 드러낼 수 있어요."
           }
         ]
       }
@@ -1362,7 +1420,7 @@ const KO: DocSection[] = [
           },
           {
             type: "p",
-            text: "플레이그라운드의 `wipe` 트랜지션이 이걸 실제로 보여줘요. 프리셋이 아니라 직접 만드는 커스텀 트랜지션이에요. 들어오는 화면이 왼쪽에서 오른쪽으로 열리는 `clip-path`로 드러나고, 그 아래 화면은 살짝 축소되고 흐려지며 물러나요."
+            text: "다음 `wipe` 트랜지션이 이걸 실제로 보여줘요. 프리셋이 아니라 직접 만드는 커스텀 트랜지션이에요. 들어오는 화면이 왼쪽에서 오른쪽으로 열리는 `clip-path`로 드러나고, 그 아래 화면은 살짝 축소되고 흐려지며 물러나요."
           },
           {
             type: "code",
@@ -1371,7 +1429,7 @@ const KO: DocSection[] = [
           },
           {
             type: "p",
-            text: "두 `clip-path` 끝점은 일부러 다른 템플릿을 써요. 네 값짜리 `inset(0 0 0 100%)`과 `inset(0)` 단축형인데도 매끄럽게 트위닝돼요. 이 트랜지션 그대로가 플레이그라운드에 살아 있어요."
+            text: "두 `clip-path` 끝점은 일부러 다른 템플릿을 써요. 네 값짜리 `inset(0 0 0 100%)`과 `inset(0)` 단축형인데도 매끄럽게 트위닝돼요."
           },
           { type: "h", text: "Raw 트랜지션" },
           {
@@ -1537,7 +1595,7 @@ const KO: DocSection[] = [
           },
           {
             type: "p",
-            text: "각 훅 맨 위의 `if (active) return;`이 핵심이에요. 스와이프 뒤로 중에는 맨 위 화면이 나가고 이전 화면이 돌아오므로, 드래그에 맞춰 회복해야 하는 건 이전 화면의 파트뿐이에요. 활성 쪽은 자기 화면을 따라 움직이면 그만이라 훅에서 일찍 빠져나와요. `onSwipe`는 드래그 `progress`를 타이틀의 opacity와 위치에 매 프레임 매핑하고, `onSwipeEnd`는 스와이프가 커밋됐는지에 따라 나머지를 안착시켜요. 이 움직임 그대로가 플레이그라운드에 살아 있어요."
+            text: "각 훅 맨 위의 `if (active) return;`이 핵심이에요. 스와이프 뒤로 중에는 맨 위 화면이 나가고 이전 화면이 돌아오므로, 드래그에 맞춰 회복해야 하는 건 이전 화면의 파트뿐이에요. 활성 쪽은 자기 화면을 따라 움직이면 그만이라 훅에서 일찍 빠져나와요. `onSwipe`는 드래그 `progress`를 타이틀의 opacity와 위치에 매 프레임 매핑하고, `onSwipeEnd`는 스와이프가 커밋됐는지에 따라 나머지를 안착시켜요."
           },
           {
             type: "note",
@@ -1711,6 +1769,10 @@ export function getDocPages(lang: string): DocPage[] {
 
 export function getDocPage(lang: string, slug: string): DocPage | undefined {
   return getDocPages(lang).find((page) => page.slug === slug);
+}
+
+export function getDocSection(lang: string, slug: string): DocSection | undefined {
+  return getDocSections(lang).find((section) => section.pages.some((page) => page.slug === slug));
 }
 
 // The first paragraph, trimmed to a meta-description length. Powers per-page SEO
