@@ -168,6 +168,12 @@ const EN: DocSection[] = [
                 "`history`",
                 "`browser`",
                 "`browser` (URL + back/forward) or `memory` (isolated, no URL)"
+              ],
+              ["`name`", "none", "Identity for cross-Router navigation, see below"],
+              [
+                "`strictRoutes`",
+                "`false`",
+                "Turn the missing-route development warning into an error"
               ]
             ]
           },
@@ -175,6 +181,33 @@ const EN: DocSection[] = [
           {
             type: "p",
             text: 'A `Router` inside another is its own region with its own stack. By default it also uses browser history, so the URL updates and browser back/forward work inside it. Pass `history="memory"` for an isolated stack (an embedded demo, a wizard, a carousel) that never touches the URL or the browser\'s back/forward.'
+          },
+          { type: "h", text: "Naming a Router" },
+          {
+            type: "p",
+            text: "Give a `Router` a `name` when something inside a nested Router needs to move a different one, like a card in a tab region opening a full-screen detail. The name is what `useNavigate` looks up, and it is stable across SSR and hydration because you wrote it yourself."
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: '<Router name="app">\n  <Route path="/members/:id" element={<Member />} />\n  <Route path={["/region", "/region/people"]} element={<RegionActivity />} />\n</Router>;\n\nfunction RegionActivity() {\n  return (\n    <Router name="region">\n      <RegionHeader />\n      <Slot>\n        <Route path="/region" element={<RegionFeed />} />\n        <Route path="/region/people" element={<RegionPeople />} />\n      </Slot>\n    </Router>\n  );\n}'
+          },
+          {
+            type: "p",
+            text: "Names must be unique among the Routers that enclose one another. A duplicate inside one chain is reported in development, because it makes the lookup ambiguous. Two Routers in different branches may share a name: a lookup only ever walks the Routers that actually enclose the call."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'declare module "@flemo/react" {\n  interface RegisterRouter {\n    app: true;\n    region: true;\n  }\n}'
+          },
+          {
+            type: "p",
+            text: "Registering is optional, and it decides how `router` type-checks. With an empty `RegisterRouter` any string is accepted, so `name` works without a registry. Once you register names, a `router` target naming no registered Router is a compile error rather than a development-time one. The `name` prop itself stays a plain string, the same way `Route`'s `path` is not constrained by `RegisterRoute`: a declaration has nothing to check against, a reference does."
+          },
+          {
+            type: "note",
+            text: "`name` is only a navigation identifier. It is not the key flemo namespaces `history.state` under, so renaming a Router never orphans its history frames."
           },
           { type: "h", text: "Server-side rendering" },
           {
@@ -316,8 +349,61 @@ const EN: DocSection[] = [
                 "Override the transition for this navigation (on `pop`, the back animation)"
               ],
               ["`layoutId`", 'Pair with `transitionName: "layout"` for shared-element morphs'],
-              ["`skip` / `until`", "Reach past the top in one transition"]
+              ["`skip` / `until`", "Reach past the top in one transition"],
+              ["`router`", "Run this navigation on a different Router, see below"]
             ]
+          },
+          { type: "h", text: "Choosing which Router moves" },
+          {
+            type: "p",
+            text: "With nested Routers, `useNavigate` drives the nearest one. That is what you want for a move inside a `Slot`, and wrong for a move that should take over the whole screen: the outer layout stays put and only the contained region transitions. Name the target Router and the navigation runs there from the start, on that Router's own history, transition and gestures."
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: '// Inside the nested "region" Router.\nconst navigate = useNavigate();\n\n// Stays in the region Slot.\nnavigate.push("/region/people");\n\n// Takes over the whole screen, on the app Router.\nnavigate.push("/members/:id", { id }, { router: "app" });'
+          },
+          {
+            type: "p",
+            text: "A target can also be set once, for every call the hook returns. A per-call `router` overrides the hook default, and both are always resolved from where the hook was called."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'const regionNavigate = useNavigate();\nconst appNavigate = useNavigate({ router: "app" });\nconst parentNavigate = useNavigate({ router: "parent" });\n\nappNavigate.push("/members/:id", { id });\nregionNavigate.replace("/region/people", undefined, { transitionName: "tabForward" });\nparentNavigate.pop({ transitionName: "cupertino" });'
+          },
+          {
+            type: "table",
+            headers: ["Target", "Which Router it picks"],
+            rows: [
+              ["omitted / `current`", "The nearest enclosing Router (the default)"],
+              ["`parent`", "The Router one level out"],
+              ["`root`", "The outermost Router of the current chain"],
+              ['`"app"` (a name)', 'The enclosing Router declared with `name="app"`'],
+              ["`nearest-owner`", "The first Router, going outwards, that declares the path"]
+            ]
+          },
+          {
+            type: "p",
+            text: 'A bare string is read as a keyword first and as a Router name second. If a Router is named after a keyword, the object forms are unambiguous: `{ router: { name: "parent" } }` picks the Router named `parent`, `{ router: { scope: "parent" } }` picks the enclosing one.'
+          },
+          { type: "h", text: "When the route is not there" },
+          {
+            type: "p",
+            text: "`RegisterRoute` is one global registry, so a path can type-check while the Router you are navigating is not the one that declares it. The entry then has no `Route` to mount and the region transitions to nothing, which is the broken half-transition you see when a nested Router is asked to open a full-screen route."
+          },
+          {
+            type: "list",
+            items: [
+              "You named a Router that does not declare the path: development error",
+              "You named a Router that is not in scope, or `parent` at the outermost Router: development error",
+              "You left the target implicit and the nearest Router does not declare the path: development warning, behavior unchanged",
+              'Pass `strictRoutes` to the `Router` to make that last case an error too, or use `router: "nearest-owner"` to let flemo pick the Router that owns the path'
+            ]
+          },
+          {
+            type: "note",
+            text: "All of these are development-only. Production never throws over a navigation, so a mistake that slipped through behaves exactly as it did before."
           },
           { type: "h", text: "useParams" },
           {
@@ -658,7 +744,7 @@ const EN: DocSection[] = [
             type: "table",
             headers: ["Export", "Returns"],
             rows: [
-              ["`useNavigate()`", "`{ push, replace, pop }`"],
+              ["`useNavigate(options?)`", "`{ push, replace, pop }`, optionally bound to a Router"],
               ["`useParams<T>()`", "The current route's params (path + query merged)"],
               ["`useStep<T>()`", "`{ pushStep, replaceStep, popStep }`"],
               ["`useScreen()`", "Current screen meta (`isActive`, `zIndex`, `params`, ...)"]
@@ -695,6 +781,7 @@ const EN: DocSection[] = [
             headers: ["Interface", "Purpose"],
             rows: [
               ["`RegisterRoute`", "Register routes for type-safe `push` and `useParams`"],
+              ["`RegisterRouter`", "Register Router names for type-safe `router` targets"],
               ["`RegisterTransition`", "Register custom transition names"],
               ["`RegisterDecorator`", "Register custom decorator names"],
               ["`RegisterPartTransition`", "Register custom part transition names"]
@@ -938,13 +1025,42 @@ const KO: DocSection[] = [
                 "`history`",
                 "`browser`",
                 "`browser`(URL + 뒤로/앞으로) 또는 `memory`(격리, URL 없음)"
-              ]
+              ],
+              ["`name`", "없음", "다른 Router로 이동할 때 쓰는 식별자, 아래 참고"],
+              ["`strictRoutes`", "`false`", "라우트 누락 개발 경고를 에러로 올려요"]
             ]
           },
           { type: "h", text: "중첩 Router와 history 모드" },
           {
             type: "p",
             text: '`Router` 안의 `Router`는 자기 스택을 가진 독립 영역이에요. 기본적으로 그 안에서도 브라우저 히스토리를 사용해서 URL이 바뀌고 브라우저 뒤로/앞으로가 동작해요. 임베드된 데모, 위저드, 캐러셀처럼 URL이나 브라우저 뒤로가기를 건드리면 안 되는 격리 스택이 필요하면 `history="memory"`를 주세요.'
+          },
+          { type: "h", text: "Router에 이름 주기" },
+          {
+            type: "p",
+            text: "중첩 Router 안에서 다른 Router를 움직여야 할 때, 예를 들어 탭 영역 안의 카드가 전체 화면 상세를 열어야 할 때 `name`을 주세요. `useNavigate`가 이 이름으로 대상 Router를 찾고, 직접 적어 준 값이라 SSR과 hydration에서도 그대로예요."
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: '<Router name="app">\n  <Route path="/members/:id" element={<Member />} />\n  <Route path={["/region", "/region/people"]} element={<RegionActivity />} />\n</Router>;\n\nfunction RegionActivity() {\n  return (\n    <Router name="region">\n      <RegionHeader />\n      <Slot>\n        <Route path="/region" element={<RegionFeed />} />\n        <Route path="/region/people" element={<RegionPeople />} />\n      </Slot>\n    </Router>\n  );\n}'
+          },
+          {
+            type: "p",
+            text: "이름은 서로 감싸고 있는 Router들 사이에서 유일해야 해요. 같은 계층에 이름이 겹치면 어느 쪽인지 알 수 없으니 개발 환경에서 알려줘요. 서로 다른 가지에 있는 Router끼리는 이름이 같아도 괜찮아요. 이름 탐색은 호출 지점을 실제로 감싸고 있는 Router만 따라가거든요."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'declare module "@flemo/react" {\n  interface RegisterRouter {\n    app: true;\n    region: true;\n  }\n}'
+          },
+          {
+            type: "p",
+            text: "등록은 선택이고, `router`가 타입 검사되는 방식을 결정해요. `RegisterRouter`가 비어 있으면 아무 문자열이나 받아서 등록 없이도 `name`을 쓸 수 있어요. 이름을 등록하고 나면, 등록되지 않은 Router를 가리키는 `router`는 개발 환경 에러가 아니라 컴파일 에러가 돼요. `name` prop 자체는 그냥 문자열로 남아요. `Route`의 `path`가 `RegisterRoute`의 제약을 받지 않는 것과 같아요. 선언에는 대조할 대상이 없고, 참조에는 있으니까요."
+          },
+          {
+            type: "note",
+            text: "`name`은 내비게이션 식별자일 뿐이에요. flemo가 `history.state`를 담아 두는 키와는 별개라서, 이름을 바꿔도 히스토리 프레임이 끊기지 않아요."
           },
           { type: "h", text: "서버 사이드 렌더링" },
           {
@@ -1080,8 +1196,61 @@ const KO: DocSection[] = [
             rows: [
               ["`transitionName`", "이 이동의 트랜지션을 재정의해요(`pop`에선 뒤로 애니메이션)"],
               ["`layoutId`", '`transitionName: "layout"`과 짝지어 공유 요소 모핑'],
-              ["`skip` / `until`", "한 번의 전환으로 여러 화면 건너뛰기"]
+              ["`skip` / `until`", "한 번의 전환으로 여러 화면 건너뛰기"],
+              ["`router`", "이 내비게이션을 실행할 Router 지정, 아래 참고"]
             ]
+          },
+          { type: "h", text: "어느 Router가 움직일지 정하기" },
+          {
+            type: "p",
+            text: "Router가 중첩돼 있으면 `useNavigate`는 가장 가까운 Router를 움직여요. `Slot` 안에서 화면을 바꿀 땐 그게 맞지만, 전체 화면으로 덮어야 하는 이동에선 바깥 레이아웃이 그대로 남고 안쪽 영역만 전환되는 어색한 결과가 나와요. 대상 Router를 지정하면 처음부터 그 Router의 히스토리, 트랜지션, 제스처로 이동해요."
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: '// 중첩된 "region" Router 안에서.\nconst navigate = useNavigate();\n\n// region Slot 안에서만 전환돼요.\nnavigate.push("/region/people");\n\n// app Router에서 전체 화면으로 전환돼요.\nnavigate.push("/members/:id", { id }, { router: "app" });'
+          },
+          {
+            type: "p",
+            text: "훅 단위로 대상을 한 번만 정해 둘 수도 있어요. 호출 단위 `router`가 훅 기본값보다 우선하고, 둘 다 훅을 호출한 위치를 기준으로 해석돼요."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'const regionNavigate = useNavigate();\nconst appNavigate = useNavigate({ router: "app" });\nconst parentNavigate = useNavigate({ router: "parent" });\n\nappNavigate.push("/members/:id", { id });\nregionNavigate.replace("/region/people", undefined, { transitionName: "tabForward" });\nparentNavigate.pop({ transitionName: "cupertino" });'
+          },
+          {
+            type: "table",
+            headers: ["대상", "선택되는 Router"],
+            rows: [
+              ["생략 / `current`", "가장 가까운 Router(기본값)"],
+              ["`parent`", "한 단계 바깥 Router"],
+              ["`root`", "현재 계층의 최상위 Router"],
+              ['`"app"`(이름)', '`name="app"`으로 선언한, 감싸고 있는 Router'],
+              ["`nearest-owner`", "바깥으로 올라가며 그 경로를 선언한 첫 Router"]
+            ]
+          },
+          {
+            type: "p",
+            text: '문자열은 예약어로 먼저 읽고, 예약어가 아니면 Router 이름으로 읽어요. Router 이름이 예약어와 겹친다면 객체 형태로 분명히 할 수 있어요. `{ router: { name: "parent" } }`는 `parent`라는 이름의 Router를, `{ router: { scope: "parent" } }`는 한 단계 바깥 Router를 가리켜요.'
+          },
+          { type: "h", text: "그 Router에 라우트가 없을 때" },
+          {
+            type: "p",
+            text: "`RegisterRoute`는 전역 레지스트리 하나예요. 그래서 타입은 통과하지만 정작 이동하려는 Router에는 그 라우트가 없을 수 있어요. 그러면 그 히스토리 엔트리에 마운트할 `Route`가 없어서 영역이 빈 화면으로 전환돼요. 중첩 Router에게 전체 화면 경로를 시켰을 때 보이던 깨진 전환이 바로 이거예요."
+          },
+          {
+            type: "list",
+            items: [
+              "지정한 Router가 그 경로를 선언하지 않음: 개발 환경 에러",
+              "지정한 Router가 계층에 없거나, 최상위에서 `parent`를 요청: 개발 환경 에러",
+              "대상을 생략했는데 가장 가까운 Router가 그 경로를 선언하지 않음: 개발 환경 경고, 동작은 그대로",
+              '마지막 경우도 에러로 올리려면 `Router`에 `strictRoutes`를 주거나, `router: "nearest-owner"`로 경로를 가진 Router를 flemo가 고르게 하세요'
+            ]
+          },
+          {
+            type: "note",
+            text: "모두 개발 환경에서만 동작해요. 프로덕션에서는 내비게이션 때문에 예외를 던지지 않으니, 놓친 실수가 있어도 이전과 똑같이 동작해요."
           },
           { type: "h", text: "useParams" },
           {
@@ -1403,7 +1572,7 @@ const KO: DocSection[] = [
             type: "table",
             headers: ["Export", "반환"],
             rows: [
-              ["`useNavigate()`", "`{ push, replace, pop }`"],
+              ["`useNavigate(options?)`", "`{ push, replace, pop }`, 대상 Router 지정 가능"],
               ["`useParams<T>()`", "현재 라우트의 파라미터(경로 + 쿼리 병합)"],
               ["`useStep<T>()`", "`{ pushStep, replaceStep, popStep }`"],
               ["`useScreen()`", "현재 화면 메타(`isActive`, `zIndex`, `params`, ...)"]
@@ -1440,6 +1609,7 @@ const KO: DocSection[] = [
             headers: ["인터페이스", "용도"],
             rows: [
               ["`RegisterRoute`", "타입 안전한 `push`·`useParams`를 위한 라우트 등록"],
+              ["`RegisterRouter`", "타입 안전한 `router` 대상 지정을 위한 Router 이름 등록"],
               ["`RegisterTransition`", "커스텀 트랜지션 이름 등록"],
               ["`RegisterDecorator`", "커스텀 데코레이터 이름 등록"],
               ["`RegisterPartTransition`", "커스텀 파트 트랜지션 이름 등록"]

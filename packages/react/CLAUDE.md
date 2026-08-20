@@ -25,6 +25,34 @@ a comment as available. Public surface = `src/index.ts` re-exports only.
   Back into its zone resumes the same stack. `seedRouterEntry` stamps the mount entry;
   `HistoryListener` is the thin popstate→navigation bridge (logic in core's
   `ensureScopeHistorySync`).
+- **Scope chain** (`RouterScopeContext` + `RouterTarget.ts`): every Router publishes a
+  `RouterScopeNode` (`name`, `stores`, `routePaths`, `strictRoutes`, `parent`) so
+  `useNavigate` can target a Router OTHER than the nearest — `router: "current" |
+"parent" | "root" | "nearest-owner" | "<name>"`, or `{ name }` / `{ scope }` when a
+  name collides with a keyword. Names go through a `RegisterRouter` augmentation:
+  empty registry → any string (open), non-empty → `keyof RegisterRouter` only, so a
+  typo is a compile error (the `@ts-expect-error` block in
+  `useNavigate.routerTarget.test.tsx` is the guard — tsc flags an unused directive if
+  the narrowing ever regresses). The `name` PROP stays `string`, mirroring `<Route
+path>` vs `push()`. The node identity is created once and refreshed in place, so
+  the extra provider costs zero re-renders — but the refresh goes through
+  `publishRouterConfig`, an INSERTION effect: never in render (a
+  discarded/suspended render would publish props no visible screen committed to)
+  and ahead of the whole layout pass (layout effects fire bottom-up, so a
+  layout-effect-time redirect in a descendant would otherwise read the previous
+  commit's config). `defaultTransitionName` has the same discarded-render hazard
+  but NOT the same publication point: a store write notifies subscribers and React
+  forbids scheduling updates from an insertion effect, so it publishes in the
+  layout phase, guarded on an actual change (zustand compares the partial by
+  identity, so an unguarded write wakes every subscriber every commit). All three
+  windows have regression tests.
+  Resolution is pure and synchronous, BEFORE any task is queued: the
+  chosen scope's own stores/driver/markSelfInduced/life run the whole navigation, and
+  a dev error lands on the caller's stack instead of an unhandled rejection. Route
+  ownership (`ownsRoute`) is checked per navigation: explicit target → dev throw,
+  implicit target → dev warn (legacy behavior preserved) unless `strictRoutes`.
+  Diagnostics go through `@utils/devDiagnostics`, gated on `process.env.NODE_ENV`
+  which vite.config.mts deliberately does NOT fold at library-build time.
 - **Hydration**: `data-flemo-router` (the flight-boundary marker the engine scopes
   `<Part>` collection by) is `useId`-based but withheld until after hydration —
   useId encodes position from the hydration root, so mismatched server/client roots

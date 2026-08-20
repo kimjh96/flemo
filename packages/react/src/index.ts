@@ -2,7 +2,14 @@
 export { default as Router } from "@Router";
 export { default as Route, type RegisterRoute } from "@Route";
 export { default as Slot, type SlotProps } from "./Slot";
-export { default as useNavigate } from "@navigate/useNavigate";
+export { default as useNavigate, type UseNavigateOptions } from "@navigate/useNavigate";
+export {
+  type RegisterRouter,
+  type RouterName,
+  type RouterScopeKeyword,
+  type RouterTarget
+} from "./RouterTarget";
+export { type RouterScopeNode } from "./RouterScopeContext";
 export { default as usePathname } from "@navigate/usePathname";
 export { default as useStep } from "@navigate/useStep";
 export { default as useScreen } from "@screen/useScreen";
