@@ -148,7 +148,7 @@ export {
   readDeferReleaseCommitFlag,
   readDesktopReleaseFlipFlag,
   readPrerasterFlag,
-  readLayerPromotionFlag,
+  readRestLayerPromotionFlag,
   readImageOffloadOverride
 } from "@core/engine/diagnosticFlags";
 export {

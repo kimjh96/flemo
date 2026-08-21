@@ -14,27 +14,14 @@ import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 
 // SSR hydration contract for the screen scope's layer promotion.
 //
-// The scope's `will-change: transform` is the only flemo decision that is BOTH
-// browser-derived (sessionStorage `flemo:preraster`, the steady-60 desktop
-// verdict) and rendered as an INLINE STYLE — so evaluating it in the hydration
-// render made the server HTML ("no will-change") disagree with the client VDOM
-// ("willChange: transform") and React reported a style mismatch on
-// [data-flemo-screen]. The fix defers the read past hydration
-// (useHydrationSafeFlag): server and first client render are identical by
-// construction, and the promotion lands one commit later.
-//
-// The device half of the predicate is forced through a seam here — the real
-// steady-60 environment gates are driven for real in core's
-// documentedDefaults.test.ts. The sessionStorage half runs unmocked.
-let forcedPromotion = false;
-vi.mock("@flemo/core", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@flemo/core")>();
-  return {
-    ...actual,
-    readLayerPromotionFlag: () => forcedPromotion || actual.readLayerPromotionFlag()
-  };
-});
-
+// The scope's REST `will-change: transform` is the only flemo decision that is
+// BOTH browser-derived (the `flemo:preraster` session key) and rendered as an
+// INLINE STYLE — so evaluating it in the hydration render made the server HTML
+// ("no will-change") disagree with the client VDOM ("willChange: transform")
+// and React reported a style mismatch on [data-flemo-screen]. The fix defers
+// the read past hydration (useHydrationSafeFlag): server and first client
+// render are identical by construction, and the promotion lands one commit
+// later.
 let stores: FlemoStores;
 
 const ENTRY: History = {
@@ -81,7 +68,6 @@ describe("ScreenMotion SSR hydration", () => {
 
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    forcedPromotion = false;
     sessionStorage.clear();
     // SEEDED at creation, the way <Router> seeds its scope from initPath —
     // zustand hands React `getInitialState()` as the SSR snapshot AND as the
@@ -143,16 +129,6 @@ describe("ScreenMotion SSR hydration", () => {
     const scope = hydrate(html);
     expectSilentHydration();
     // …and the optimization still arrives, one commit past hydration.
-    expect(scope.style.willChange).toBe("transform");
-  });
-
-  it("hydrates without a mismatch on a steady-60 eligible device", () => {
-    const html = renderServerHtml();
-
-    forcedPromotion = true;
-
-    const scope = hydrate(html);
-    expectSilentHydration();
     expect(scope.style.willChange).toBe("transform");
   });
 

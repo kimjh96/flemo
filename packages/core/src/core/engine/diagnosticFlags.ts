@@ -1,4 +1,4 @@
-import { detectBlinkEngine, isDesktopBlink, isDesktopMacWebKit } from "@core/engine/driverPolicy";
+import { detectBlinkEngine, isDesktopMacWebKit } from "@core/engine/driverPolicy";
 import { governedCompiledActive } from "@core/engine/lowPowerCadence";
 import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 
@@ -32,13 +32,13 @@ import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 // | flemo:apply               | session | "scrub"                         | off                        | opt-in diagnostic                | force the scrub-WAAPI value-application tier for every track           |
 // | flemo:snap                | session | "always"/"off"/"gate"/"hybrid"  | platform policy            | production-default-with-override | player device-pixel snap policy (composeTransform)                     |
 // | flemo:snapband            | session | number (device px)              | 4                          | opt-in diagnostic                | "hybrid" snap's jitter-band width                                      |
-// | flemo:layers              | session | "resident"/"off"                | touch WebKit               | production-default-with-override | resident screen layers at rest (layerSettleHold.ts)                     |
+// | flemo:layers              | session | "resident"/"off"                | off                        | opt-in diagnostic                | resident screen layers at rest (layerSettleHold.ts) — a resident layer is a permanent stacking context over the consumer screen |
 // | flemo:freeze              | session | "shallow"                       | off                        | opt-in diagnostic                | keep the direct prev screen live (computeScreenFreeze.ts)               |
 // | flemo:deskflip            | session | "on"/"off"                      | desktop macOS WebKit       | production-default-with-override | atomic release flip on desktop Safari (react ScreenMotion's directFlip)  |
 // | flemo:deskhead            | session | "on"/"off"                      | desktop macOS WebKit       | production-default-with-override | desktop flat-head keyframes (`data-flemo-desk-head`, DESKTOP_HEAD_MS); arming it retires the desktop birth anchor |
 // | flemo:creep               | session | "on"/"off"                      | touch WebKit               | production-default-with-override | creep head: the head's end keyframe carries a hair of motion so the compositor is already carrying the animation at the boundary |
 // | flemo:relcommit           | session | "defer"/"sync"                  | touch WebKit               | production-default-with-override | release's React reconcile lands next frame instead of flushSync (react ScreenMotion) |
-// | flemo:preraster           | session | "on"                            | off (but the rest-promotion half is default-on for desktop Blink) | production-default-with-override | promote the entering content layer through the hold (readLayerPromotionFlag, applied by react ScreenMotion after hydration); also selects the park-over hold variant |
+// | flemo:preraster           | session | "on"                            | off                        | opt-in diagnostic                | REST-time scope promotion (readRestLayerPromotionFlag, react ScreenMotion, after hydration); also selects the park-over hold variant. Flight-time promotion is the engine's stamp and needs no flag |
 // | flemo:imgoffload          | session | "on"/"off"                      | auto (legacy Android Blink)| production-default-with-override | image decode offloader override (react Router)                         |
 //
 // THIS TABLE IS TESTED. `__tests__/documentedDefaults.test.ts` asserts every
@@ -280,39 +280,59 @@ export const readDesktopHeadFlag = (): boolean => {
 // probed is solved by the scrub tier's freeze-on-block opening.
 export const readPrerasterFlag = (): boolean => readStorageValue("flemo:preraster") === "on";
 
-// The screen scope's compositor-layer promotion — the `will-change: transform`
-// the react binding puts on `[data-flemo-screen]` for the anim-hold window and
-// at rest on the top screen. It is the pre-raster flag's OTHER half: armed
-// explicitly by `flemo:preraster=on` on any device, and DEFAULT-ON for DESKTOP
-// BLINK, where Blink culls the raster of the occluded park-under layer and the
-// push's tiles would otherwise rasterize mid-slide.
+// The screen scope's compositor-layer promotion at REST — the `will-change:
+// transform` the react binding puts on `[data-flemo-screen]` when it is the
+// top screen of a root Router and nothing is animating. OPT-IN, armed by
+// `flemo:preraster=on`.
 //
-// The desktop term was the steady-60 verdict until 2026-08-21. Its own stated
-// reason is what Blink does with an occluded layer and what a desktop can spend
-// on GPU memory — neither is a property of the display's refresh rate, and the
-// verdict is a refresh-rate measurement. It was attached there because that
-// verdict once routed the driver and every desktop default hung off it. Now a
-// 120Hz or 1x desktop Chrome gets the promotion too, and no session waits two
-// flights to earn it.
+// The FLIGHT-time promotion is not here and never needed a tier predicate: the
+// engine stamps every participant inline for the length of the flight
+// (holdParticipantLayers → layerSettleHold), on every tier, from the first
+// transitional effect — the same commit that renders the hold. The binding
+// used to promote the scope on top of that, gated on a tier list, and that
+// second promotion was worse than redundant: the engine's stamp captures the
+// element's inline `will-change` as the value to RESTORE when it demotes, so
+// the binding's own promotion was recorded as if it were the consumer's and
+// written back permanently at every landing. The scope then stayed a stacking
+// context for the rest of its life (bars at `z-index: 1` above any consumer
+// overlay inside the screen — the tab-bar-over-bottom-sheet report), while
+// bars and decorator, which the binding never styles, demoted cleanly. Same
+// capture trap as the entering-pose lease in PR #259, one property over.
 //
-// DESKTOP macOS SAFARI joins them. It was the one tier left out, and nothing
-// justified the gap: it takes the settle gate through isDesktopMacWebKit for
-// the same class of reason, touch WebKit already promotes through
-// governedCompiledActive, and a promotion keeps the first frames of a flight
-// off the raster path on any engine. The Blink-culling sentence above explains
-// why Blink NEEDS it, not why WebKit must be denied it.
+// Why the REST half is opt-in: at rest there is no flight to price the
+// confinement into, and the screen can sit there for minutes.
 //
-// The predicate lived inline in ScreenMotion; it lives here so the documented
-// default is asserted next to the row that documents it.
+// SSR CONTRACT: the terms are browser-only state (sessionStorage), so this can
+// never be evaluated during a SERVER render or during the client's HYDRATION
+// render — the two would disagree and React would report a style mismatch on
+// the one flemo element that carries an inline style. A binding must defer it
+// past hydration (react: `useHydrationSafeFlag`, whose SSR snapshot is a
+// constant `false`).
+// The REST half of that promotion — the top screen keeping its layer while
+// NOTHING is animating — is a separate decision, and it is OPT-IN.
 //
-// SSR CONTRACT: every term is browser-only state (sessionStorage, navigator,
-// devicePixelRatio, the session's learned cadence verdict), so this can never be
-// evaluated during a SERVER render or during the client's HYDRATION render — the
-// two would disagree and React would report a style mismatch on the one flemo
-// element that carries an inline style. A binding must defer it past hydration
-// (react: `useHydrationSafeFlag`, whose SSR snapshot is a constant `false`).
-export const readLayerPromotionFlag = (): boolean =>
-  readPrerasterFlag() || isDesktopBlink() || isDesktopMacWebKit() || governedCompiledActive();
+// Every way to promote a layer (`will-change: transform`, a transform, an
+// opacity below 1) also makes the element a STACKING CONTEXT and a containing
+// block for fixed descendants. During a flight that is priced in: the scope is
+// already transformed, so consumer content inside it is already confined, and
+// the window closes when the flight lands. AT REST it is not: the scope carries
+// the whole consumer screen, and a permanent stacking context on it means no
+// consumer overlay rendered inside a screen can ever paint above the shared
+// bars — the binding renders those as siblings at `z-index: 1`, so a consumer's
+// `position: fixed; z-index: 50` bottom sheet lands UNDER the tab bar no matter
+// what z-index it picks. Device-reported (plen, iOS Safari) and reproduced:
+// with the rest promotion on, a hit test at the tab bar's centre over an open
+// sheet returns the bar; with it off, the sheet.
+//
+// That is a silent change to what a consumer's own CSS means, which no z-index
+// on their side can answer, so it cannot be the default. The measurement motive
+// (the next push's leaving side starting with a live backing store instead of
+// paying promotion + full-layer raster on its opening frames) is real and the
+// lever stays: `flemo:preraster=on` arms it. The bounded version of the same
+// idea is still default-on and unaffected — layerSettleHold keeps every
+// flight's layers alive for LAYER_SETTLE_MS past the landing, which already
+// covers a quick browse rhythm.
+export const readRestLayerPromotionFlag = (): boolean => readPrerasterFlag();
 
 // `flemo:imgoffload` — image decode offloader override for the react Router:
 // "on" forces it on any engine, "off" opts a legacy device back out, anything
@@ -407,16 +427,26 @@ let residentLayersCache: boolean | undefined;
 export const residentScreenLayers = (): boolean => {
   if (residentLayersCache !== undefined) return residentLayersCache;
   const value = readStorageValue("flemo:layers");
-  // DEFAULT-ON for touch WebKit (2026-08-20/21 device round on a real iPhone):
-  // the compiled variant rule's `will-change` unmatches at the COMPLETED flip,
-  // and that demotion repaints the whole element into its parent on the exact
-  // frames the eye is watching settle — this file's own layerSettleHold notes
-  // call it the dominant main-thread item of the convergence tremor. Keeping
-  // the layer resident removes the repaint outright; the reported tremor did
-  // not recur once it was armed. `off` opts a session back out (the cost is a
-  // resident backing store per screen).
-  residentLayersCache =
-    value === "resident" ? true : value === "off" ? false : governedCompiledActive();
+  // OPT-IN. It was DEFAULT-ON for touch WebKit for one day (2026-08-20/21
+  // device round on a real iPhone): the compiled variant rule's `will-change`
+  // unmatches at the COMPLETED flip, and that demotion repaints the whole
+  // element into its parent on the exact frames the eye is watching settle —
+  // layerSettleHold's own notes call it the dominant main-thread item of the
+  // convergence tremor. Keeping the layer resident removes the repaint
+  // outright, and the reported tremor did not recur once it was armed.
+  //
+  // Reverted 2026-08-21, on the user's call, because of what a RESIDENT layer
+  // costs the consumer. `will-change: transform` makes the screen scope a
+  // STACKING CONTEXT, and keeping it forever means no overlay a consumer
+  // renders inside a screen can ever paint above the shared bars (siblings at
+  // `z-index: 1`): device-reported on plen, where an open bottom sheet
+  // (`position: fixed; z-index: 50`) came up UNDER the tab bar after any
+  // navigation, with no z-index on their side able to answer it. A motion
+  // refinement may not silently redefine what consumer CSS means, so the
+  // repaint goes back to being deferred (layerSettleHold's LAYER_SETTLE_MS)
+  // rather than skipped. `flemo:layers=resident` re-arms the experiment for a
+  // session; `off` is still honored so an armed session can be cut short.
+  residentLayersCache = value === "resident" ? true : false;
   return residentLayersCache;
 };
 
