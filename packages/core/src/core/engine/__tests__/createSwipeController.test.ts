@@ -37,7 +37,13 @@ function buildDom() {
 const event = (over: Partial<PointerEvent> & { target?: EventTarget }) =>
   ({ clientX: 0, clientY: 0, timeStamp: 0, pointerId: 1, ...over }) as unknown as PointerEvent;
 
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+// The drag's follow write lands on an ANIMATION FRAME — one write per frame,
+// not one per pointermove (see createSwipeController's queueFollow) — so a
+// flush has to let a frame run before the assertions read the DOM.
+const flush = () =>
+  new Promise((resolve) => {
+    requestAnimationFrame(() => setTimeout(resolve, 0));
+  });
 
 describe("createSwipeController", () => {
   let dom: ReturnType<typeof buildDom>;
@@ -327,6 +333,7 @@ describe("createSwipeController", () => {
     // The swipe began at the threshold-crossing move (clientX 40), so offset is
     // measured from there: 140 - 40 = 100.
     c.pointerMove(event({ clientX: 140, clientY: 0, timeStamp: 16 }));
+    await flush();
     expect(onSwipe).toHaveBeenCalledTimes(1);
     const info = onSwipe.mock.calls[0][1];
     expect(info.offset.x).toBe(100);
@@ -424,6 +431,7 @@ describe("createSwipeController", () => {
       );
 
       c.pointerMove(event({ clientX: 140, clientY: 0, timeStamp: 16 }));
+      await flush();
       expect(btSwipe).toHaveBeenCalledWith(
         true,
         42,
@@ -536,6 +544,7 @@ describe("createSwipeController", () => {
       c.pointerMove(event({ clientX: 40 }));
       await flush();
       c.pointerMove(event({ clientX: 60, timeStamp: 32 }));
+      await flush();
     };
 
     it("mirrors screen writes onto both sides' riding bars in the same tick", async () => {
@@ -733,6 +742,7 @@ describe("createSwipeController", () => {
       c.pointerMove(event({ clientX: 40 }));
       await flush();
       c.pointerMove(event({ clientX: 60, timeStamp: 32 }));
+      await flush();
 
       expect(part.style.opacity).toBe("0.5");
 
