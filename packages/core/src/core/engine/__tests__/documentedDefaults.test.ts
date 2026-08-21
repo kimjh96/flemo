@@ -309,6 +309,14 @@ describe("documented default: the flemo:preraster layer-promotion half", () => {
     expect(readLayerPromotionFlag()).toBe(true);
   });
 
+  it("is on for desktop macOS Safari too", () => {
+    // The one tier the promotion left out, with nothing justifying the gap: it
+    // takes the settle gate through the same predicate, and touch WebKit
+    // already promotes through governedCompiledActive.
+    setEnv({ blink: false, touch: false, mac: true });
+    expect(readLayerPromotionFlag()).toBe(true);
+  });
+
   it("stays off for touch Blink, which the reason does not cover", () => {
     // A phone pays the same GPU memory with far less of it, and the tiles the
     // desktop term protects are not what stalls there.

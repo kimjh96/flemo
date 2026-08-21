@@ -295,6 +295,13 @@ export const readPrerasterFlag = (): boolean => readStorageValue("flemo:preraste
 // 120Hz or 1x desktop Chrome gets the promotion too, and no session waits two
 // flights to earn it.
 //
+// DESKTOP macOS SAFARI joins them. It was the one tier left out, and nothing
+// justified the gap: it takes the settle gate through isDesktopMacWebKit for
+// the same class of reason, touch WebKit already promotes through
+// governedCompiledActive, and a promotion keeps the first frames of a flight
+// off the raster path on any engine. The Blink-culling sentence above explains
+// why Blink NEEDS it, not why WebKit must be denied it.
+//
 // The predicate lived inline in ScreenMotion; it lives here so the documented
 // default is asserted next to the row that documents it.
 //
@@ -305,7 +312,7 @@ export const readPrerasterFlag = (): boolean => readStorageValue("flemo:preraste
 // element that carries an inline style. A binding must defer it past hydration
 // (react: `useHydrationSafeFlag`, whose SSR snapshot is a constant `false`).
 export const readLayerPromotionFlag = (): boolean =>
-  readPrerasterFlag() || isDesktopBlink() || governedCompiledActive();
+  readPrerasterFlag() || isDesktopBlink() || isDesktopMacWebKit() || governedCompiledActive();
 
 // `flemo:imgoffload` — image decode offloader override for the react Router:
 // "on" forces it on any engine, "off" opts a legacy device back out, anything
