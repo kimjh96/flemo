@@ -36,6 +36,7 @@ declare module "@transition/decorator/typing" {
   interface RegisterDecorator {
     "rich-deco": "rich-deco";
     "held-deco": "held-deco";
+    "authored-deco": "authored-deco";
   }
 }
 
@@ -1291,6 +1292,74 @@ describe("easingToCss", () => {
       expect(keyframe).toContain("opacity: 1");
       expect(keyframe).not.toContain("background-color");
       expect(css).toContain("background-color: rgba(0, 0, 0, 0.1)");
+    });
+
+    // The guarantee an AUTHOR needs, pinned across the whole surface rather
+    // than on one variant: whatever a new decorator carries as a constant, no
+    // keyframe of it — base, LPM head, creep head, desktop head, any status —
+    // may name that channel, and every one of its rules must still apply it.
+    // A decorator gets no preset treatment: `overlay` reaches this emitter
+    // through the same path a `createDecorator` call does.
+    it("holds for EVERY variant and head copy of an authored decorator", () => {
+      const authored = createDecorator({
+        name: "authored-deco",
+        initial: {
+          opacity: 0,
+          backdropFilter: "saturate(1.2)",
+          boxShadow: "0 0 24px rgba(0,0,0,0.3)",
+          backgroundColor: "rgba(10, 10, 10, 0.2)"
+        },
+        idle: {
+          value: {
+            opacity: 0,
+            backdropFilter: "saturate(1.2)",
+            boxShadow: "0 0 24px rgba(0,0,0,0.3)",
+            backgroundColor: "rgba(10, 10, 10, 0.2)"
+          },
+          options: { duration: 0 }
+        },
+        enter: {
+          value: {
+            opacity: 1,
+            backdropFilter: "saturate(1.2)",
+            boxShadow: "0 0 24px rgba(0,0,0,0.3)",
+            backgroundColor: "rgba(10, 10, 10, 0.2)"
+          },
+          options: { duration: 0.5 }
+        },
+        exit: {
+          value: {
+            opacity: 0,
+            backdropFilter: "saturate(1.2)",
+            boxShadow: "0 0 24px rgba(0,0,0,0.3)",
+            backgroundColor: "rgba(10, 10, 10, 0.2)"
+          },
+          options: { duration: 0.5 }
+        }
+      });
+
+      const css = compileTransitionStyles([], [authored]);
+      const blocks =
+        css.match(/@keyframes flemo-decorator-authored-deco[^{]*\{[\s\S]*?\n\}/g) ?? [];
+      // base + lpm + lpmcreep + deskhead, for each animating status.
+      expect(blocks.length).toBeGreaterThanOrEqual(4);
+      for (const block of blocks) {
+        expect(block).toContain("opacity");
+        expect(block).not.toContain("backdrop-filter");
+        expect(block).not.toContain("box-shadow");
+        expect(block).not.toContain("background-color");
+      }
+      // Every rule that runs one of those keyframes still applies the
+      // constants, so the rendered result is unchanged.
+      const ruleBlocks =
+        css.match(/[^}\n][^}]*\[data-flemo-decorator-name="authored-deco"\][^{]*\{[^}]*\}/g) ?? [];
+      const animating = ruleBlocks.filter((rule) => rule.includes("animation: flemo-decorator"));
+      expect(animating.length).toBeGreaterThan(0);
+      for (const rule of animating) {
+        expect(rule).toContain("backdrop-filter: saturate(1.2)");
+        expect(rule).toContain("box-shadow: 0 0 24px rgba(0,0,0,0.3)");
+        expect(rule).toContain("background-color: rgba(10, 10, 10, 0.2)");
+      }
     });
 
     it("still emits the animation when EVERY channel is constant", () => {
