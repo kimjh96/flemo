@@ -5,16 +5,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ScreenFreeze from "../ScreenFreeze";
 
-// The freeze debounce (see ScreenFreeze): on steady-60 desktops the hide of a
+// The freeze debounce (see ScreenFreeze): on DESKTOP BLINK the hide of a
 // covered screen waits FREEZE_REST_DEBOUNCE_MS so a quick detail-and-back
 // round trip never pays Activity's hide/unhide raster thrash; everywhere else
 // the freeze applies immediately (the shipped behavior). Unfreeze is always
 // same-commit.
+//
+// The gate was the steady-60 verdict until 2026-08-21: the debounce trades
+// memory for raster, which is an argument about the machine, not about its
+// refresh rate.
 
-let sixtyEligible = false;
+let desktopBlink = false;
 vi.mock("@flemo/core", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@flemo/core")>()),
-  steadySixtyPlayerEligible: () => sixtyEligible
+  isDesktopBlink: () => desktopBlink
 }));
 
 const probe = () => document.querySelector("[data-probe]") as HTMLElement | null;
@@ -29,7 +33,7 @@ describe("ScreenFreeze debounce", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    sixtyEligible = false;
+    desktopBlink = false;
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);
@@ -50,15 +54,15 @@ describe("ScreenFreeze debounce", () => {
       );
     });
 
-  it("freezes immediately when the session is not steady-60", () => {
+  it("freezes immediately off desktop Blink", () => {
     render(false);
     render(true);
     act(() => vi.advanceTimersByTime(0));
     expect(isHidden()).toBe(true);
   });
 
-  it("debounces the hide on steady-60 desktops and cancels on a quick return", () => {
-    sixtyEligible = true;
+  it("debounces the hide on desktop Blink and cancels on a quick return", () => {
+    desktopBlink = true;
     render(false);
     render(true);
     // Inside the browse-rhythm window: still live.
@@ -70,8 +74,8 @@ describe("ScreenFreeze debounce", () => {
     expect(isHidden()).toBe(false);
   });
 
-  it("still freezes after a genuine stay on steady-60 desktops", () => {
-    sixtyEligible = true;
+  it("still freezes after a genuine stay on desktop Blink", () => {
+    desktopBlink = true;
     render(false);
     render(true);
     act(() => vi.advanceTimersByTime(4000));

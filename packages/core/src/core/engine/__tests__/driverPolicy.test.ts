@@ -4,6 +4,7 @@ import {
   createDriverPolicy,
   detectBlinkEngine,
   FORCE_PIN_TTL_MS,
+  isDesktopBlink,
   isDesktopMacWebKit
 } from "@core/engine/driverPolicy";
 
@@ -255,6 +256,79 @@ describe("isDesktopMacWebKit", () => {
     vi.stubGlobal("navigator", undefined);
     try {
       expect(isDesktopMacWebKit()).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+// The DESKTOP-BLINK profile: what Blink does with an occluded layer, and what a
+// desktop can spend on memory. Neither reads the display, which is why these
+// defaults no longer hang off the steady-60 refresh-rate verdict.
+describe("isDesktopBlink", () => {
+  const stub = (over: { blink?: boolean; touch?: number }) => {
+    Object.defineProperty(navigator, "maxTouchPoints", {
+      value: over.touch ?? 0,
+      configurable: true
+    });
+    if (over.blink) {
+      Object.defineProperty(navigator, "userAgentData", {
+        value: { brands: [{ brand: "Chromium", version: "120" }] },
+        configurable: true
+      });
+    } else {
+      delete (navigator as { userAgentData?: unknown }).userAgentData;
+    }
+  };
+  const restore = () => {
+    Reflect.deleteProperty(navigator, "maxTouchPoints");
+    delete (navigator as { userAgentData?: unknown }).userAgentData;
+  };
+
+  it("is true for desktop Chromium", () => {
+    stub({ blink: true });
+    try {
+      expect(isDesktopBlink()).toBe(true);
+    } finally {
+      restore();
+    }
+  });
+
+  it("is false for touch Chromium", () => {
+    stub({ blink: true, touch: 5 });
+    try {
+      expect(isDesktopBlink()).toBe(false);
+    } finally {
+      restore();
+    }
+  });
+
+  it("is false for WebKit, touch or not", () => {
+    stub({ blink: false });
+    try {
+      expect(isDesktopBlink()).toBe(false);
+      stub({ blink: false, touch: 5 });
+      expect(isDesktopBlink()).toBe(false);
+    } finally {
+      restore();
+    }
+  });
+
+  it("is false where the environment reports no touch count at all", () => {
+    // Same reading isDesktopMacWebKit uses: unknown is not a verified desktop.
+    stub({ blink: true });
+    Object.defineProperty(navigator, "maxTouchPoints", { value: undefined, configurable: true });
+    try {
+      expect(isDesktopBlink()).toBe(false);
+    } finally {
+      restore();
+    }
+  });
+
+  it("is false without a navigator (SSR)", () => {
+    vi.stubGlobal("navigator", undefined);
+    try {
+      expect(isDesktopBlink()).toBe(false);
     } finally {
       vi.unstubAllGlobals();
     }

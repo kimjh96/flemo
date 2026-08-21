@@ -1,4 +1,4 @@
-import { detectBlinkEngine, isDesktopMacWebKit } from "@core/engine/driverPolicy";
+import { detectBlinkEngine, isDesktopBlink, isDesktopMacWebKit } from "@core/engine/driverPolicy";
 import { governedCompiledActive } from "@core/engine/lowPowerCadence";
 import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 
@@ -38,7 +38,7 @@ import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 // | flemo:deskhead            | session | "on"/"off"                      | desktop macOS WebKit       | production-default-with-override | desktop flat-head keyframes (`data-flemo-desk-head`, DESKTOP_HEAD_MS); arming it retires the desktop birth anchor |
 // | flemo:creep               | session | "on"/"off"                      | touch WebKit               | production-default-with-override | creep head: the head's end keyframe carries a hair of motion so the compositor is already carrying the animation at the boundary |
 // | flemo:relcommit           | session | "defer"/"sync"                  | touch WebKit               | production-default-with-override | release's React reconcile lands next frame instead of flushSync (react ScreenMotion) |
-// | flemo:preraster           | session | "on"                            | off (but the rest-promotion half is default-on for steady-60 desktop) | production-default-with-override | promote the entering content layer through the hold (readLayerPromotionFlag, applied by react ScreenMotion after hydration); also selects the park-over hold variant |
+// | flemo:preraster           | session | "on"                            | off (but the rest-promotion half is default-on for desktop Blink) | production-default-with-override | promote the entering content layer through the hold (readLayerPromotionFlag, applied by react ScreenMotion after hydration); also selects the park-over hold variant |
 // | flemo:imgoffload          | session | "on"/"off"                      | auto (legacy Android Blink)| production-default-with-override | image decode offloader override (react Router)                         |
 //
 // THIS TABLE IS TESTED. `__tests__/documentedDefaults.test.ts` asserts every
@@ -282,12 +282,21 @@ export const readPrerasterFlag = (): boolean => readStorageValue("flemo:preraste
 
 // The screen scope's compositor-layer promotion — the `will-change: transform`
 // the react binding puts on `[data-flemo-screen]` for the anim-hold window and
-// (steady-60 desktop) at rest on the top screen. It is the pre-raster flag's
-// OTHER half: armed explicitly by `flemo:preraster=on` on any device, and
-// DEFAULT-ON for the steady-60 desktop profile, where Blink culls the raster of
-// the occluded park-under layer and the push's tiles would otherwise rasterize
-// mid-slide. The predicate lived inline in ScreenMotion; it lives here so the
-// documented default is asserted next to the row that documents it.
+// at rest on the top screen. It is the pre-raster flag's OTHER half: armed
+// explicitly by `flemo:preraster=on` on any device, and DEFAULT-ON for DESKTOP
+// BLINK, where Blink culls the raster of the occluded park-under layer and the
+// push's tiles would otherwise rasterize mid-slide.
+//
+// The desktop term was the steady-60 verdict until 2026-08-21. Its own stated
+// reason is what Blink does with an occluded layer and what a desktop can spend
+// on GPU memory — neither is a property of the display's refresh rate, and the
+// verdict is a refresh-rate measurement. It was attached there because that
+// verdict once routed the driver and every desktop default hung off it. Now a
+// 120Hz or 1x desktop Chrome gets the promotion too, and no session waits two
+// flights to earn it.
+//
+// The predicate lived inline in ScreenMotion; it lives here so the documented
+// default is asserted next to the row that documents it.
 //
 // SSR CONTRACT: every term is browser-only state (sessionStorage, navigator,
 // devicePixelRatio, the session's learned cadence verdict), so this can never be
@@ -296,7 +305,7 @@ export const readPrerasterFlag = (): boolean => readStorageValue("flemo:preraste
 // element that carries an inline style. A binding must defer it past hydration
 // (react: `useHydrationSafeFlag`, whose SSR snapshot is a constant `false`).
 export const readLayerPromotionFlag = (): boolean =>
-  readPrerasterFlag() || steadySixtyPlayerEligible() || governedCompiledActive();
+  readPrerasterFlag() || isDesktopBlink() || governedCompiledActive();
 
 // `flemo:imgoffload` — image decode offloader override for the react Router:
 // "on" forces it on any engine, "off" opts a legacy device back out, anything

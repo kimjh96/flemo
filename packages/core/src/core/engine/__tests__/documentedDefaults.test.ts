@@ -292,18 +292,28 @@ describe("documented default: flemo:preraster", () => {
 
 describe("documented default: the flemo:preraster layer-promotion half", () => {
   // Table: the screen-scope promotion is armed by the flag on ANY device and is
-  // DEFAULT-ON for the steady-60 desktop profile. Every term is browser-only
-  // state, which is why the react binding may only apply it after hydration —
-  // the contract is asserted in react's ScreenMotion.hydration.test.tsx.
-  it("is off on a desktop Blink session with no verdict and no flag", () => {
+  // DEFAULT-ON for desktop Blink. Every term is browser-only state, which is
+  // why the react binding may only apply it after hydration — the contract is
+  // asserted in react's ScreenMotion.hydration.test.tsx.
+  it("is on for a desktop Blink session with no verdict and no flag", () => {
+    // The reason on the reader is what BLINK does with an occluded layer and
+    // what a DESKTOP can spend on GPU memory. Neither reads the panel, so a
+    // session no longer waits two flights for a refresh-rate verdict to earn
+    // a default that was never about refresh rate.
     setEnv({ blink: true, touch: false, dpr: 2 });
-    expect(readLayerPromotionFlag()).toBe(false);
+    expect(readLayerPromotionFlag()).toBe(true);
   });
 
-  it("is on for a verified steady-60 HiDPI desktop", () => {
-    setEnv({ blink: true, touch: false, dpr: 2 });
-    verifySteadySixty();
+  it("is on for a desktop Blink session at 1x too", () => {
+    setEnv({ blink: true, touch: false, dpr: 1 });
     expect(readLayerPromotionFlag()).toBe(true);
+  });
+
+  it("stays off for touch Blink, which the reason does not cover", () => {
+    // A phone pays the same GPU memory with far less of it, and the tiles the
+    // desktop term protects are not what stalls there.
+    setEnv({ blink: true, touch: true });
+    expect(readLayerPromotionFlag()).toBe(false);
   });
 
   it("is on wherever the flag is armed, whatever the device profile", () => {
