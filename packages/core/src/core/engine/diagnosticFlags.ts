@@ -36,10 +36,8 @@ import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 // | flemo:freeze              | session | "shallow"                       | off                        | opt-in diagnostic                | keep the direct prev screen live; armed by ?flemo-freeze= (computeScreenFreeze.ts) |
 // | flemo:deskflip            | session | "on"/"off"                      | desktop macOS WebKit       | production-default-with-override | atomic release flip on desktop Safari (react ScreenMotion's directFlip)  |
 // | flemo:deskhead            | session | "on"/"off"                      | desktop macOS WebKit       | production-default-with-override | desktop flat-head keyframes (`data-flemo-desk-head`, DESKTOP_HEAD_MS); arming it retires the desktop birth anchor |
-// | flemo:head                | session | "stretch"                       | off                        | opt-in diagnostic                | absorb the touch head into the curve (no dead hold, same landing time) |
 // | flemo:creep               | session | "on"/"off"                      | touch WebKit               | production-default-with-override | creep head: the head's end keyframe carries a hair of motion so the compositor is already carrying the animation at the boundary |
 // | flemo:relcommit           | session | "defer"/"sync"                  | touch WebKit               | production-default-with-override | release's React reconcile lands next frame instead of flushSync (react ScreenMotion) |
-// | flemo:lpmhead             | session | "single"                        | doubled (shipped)          | opt-in diagnostic                | pay the LPM/touch head ONCE instead of twice (`data-flemo-lpm-single`) — device A/B |
 // | flemo:preraster           | session | "on"                            | off (but the rest-promotion half is default-on for steady-60 desktop) | production-default-with-override | promote the entering content layer through the hold (readLayerPromotionFlag, applied by react ScreenMotion after hydration); also selects the park-over hold variant |
 // | flemo:imgoffload          | session | "on"/"off"                      | auto (legacy Android Blink)| production-default-with-override | image decode offloader override (react Router)                         |
 //
@@ -207,26 +205,6 @@ export const readDesktopReleaseFlipFlag = (): boolean => {
   return isDesktopMacWebKit();
 };
 
-// `flemo:lpmhead=single` — the touch tier's head, paid ONCE.
-//
-// The LPM rule holds the from-pose inside its keyframes AND pushes
-// animation-delay out by the same head, so a touch-WebKit flight sits still for
-// TWO heads: 200ms on a push, 160ms on a pop (frame-sampled 2026-08-20 — the
-// clock runs from the release while the pixels do not move until 2x head).
-//
-// That doubling is not a bug on its own: the head lengths were walked down
-// against the felt result WITH it in place (180/100/80 is a floor — one notch
-// lower and whole flights vanished into a governor starvation window). So the
-// default stays exactly as shipped and this key exists to ASK the device
-// whether the second head is load-bearing, after a report of a brief roughness
-// at the very start of a push on mobile Safari. If a device round says single
-// is better, the delay shift comes out and these numbers get re-dialed against
-// the new baseline — not before.
-//
-// Opt-in only, and touch-only in effect: the engine raises
-// `data-flemo-lpm-single` beside `data-flemo-lpm`, which no other tier carries.
-export const readLpmSingleHeadFlag = (): boolean => readStorageValue("flemo:lpmhead") === "single";
-
 // `flemo:creep=on` — the CREEP head (compileTransitionStyles). The head's end
 // keyframe carries a translateZ hair instead of repeating the start pose, so
 // the value changes across the head and the compositor is already carrying the
@@ -239,13 +217,6 @@ export const readCreepHeadFlag = (): boolean => {
   if (value === "off") return false;
   return governedCompiledActive();
 };
-
-// `flemo:head=stretch` — absorb the head into the curve instead of holding
-// still through it (same keyframes, same authored easing, played over
-// duration + head). Device-measured motive: the head's frames present at
-// 0.0-0.1px and the next frame jumps to 24.5px, a launch discontinuity that
-// reads as a knock at the start even though the motion after it is smooth.
-export const readStretchHeadFlag = (): boolean => readStorageValue("flemo:head") === "stretch";
 
 // `flemo:relcommit=defer` — hand the release's React reconcile to the NEXT
 // frame instead of `flushSync`ing it into the release frame.
