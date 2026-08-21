@@ -824,12 +824,27 @@ describe("createTransitionEngine branches", () => {
       scope.dispatchEvent(
         animationEndEvent(`${animationName("screen", "branches-head", "PUSHING-true")}${suffix}`)
       );
-      await new Promise((settle) => setTimeout(settle, 80));
+      // A clean end resolves behind the landing-clear rAF chain, so WAIT FOR
+      // THE CALL rather than sleeping a span that looks long enough: a loaded
+      // CI runner outran a fixed 80ms sleep, which failed here AND leaked the
+      // late resolve into a later test's spy (a spy this one had already
+      // restored). Polling ends the wait the moment the flight resolves, and
+      // the teardown below runs whether or not it did.
+      const resolvedWithin = await (async () => {
+        for (let attempt = 0; attempt < 100; attempt++) {
+          if (resolved.mock.calls.length > 0) return true;
+          await new Promise((tick) => setTimeout(tick, 20));
+        }
+        return false;
+      })();
 
-      expect(resolved, `suffix "${suffix}" must resolve the flight`).toHaveBeenCalled();
-      resolved.mockRestore();
-      cleanup();
-      transitionMap.delete("branches-head" as never);
+      try {
+        expect(resolvedWithin, `suffix "${suffix}" must resolve the flight`).toBe(true);
+      } finally {
+        cleanup();
+        resolved.mockRestore();
+        transitionMap.delete("branches-head" as never);
+      }
     }
   });
 });
