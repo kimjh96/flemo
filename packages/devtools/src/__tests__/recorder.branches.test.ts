@@ -433,3 +433,47 @@ describe("attachFlightRecorder branches", () => {
     expect(() => recorder.detach()).not.toThrow();
   });
 });
+
+// The closing tail: after the last animation reports "finished" the pose is
+// meant to stand still, so those frames are counted separately instead of as a
+// stall. Folding them in made a ~50ms "motion stalled" fire on every healthy
+// flight (measured on a real app, 10 of 10 flights, always exactly 3 frames).
+describe("closing tail frames", () => {
+  it("counts frames after the animations finish as tail, not as a stall", async () => {
+    const screen = mountScreen();
+    let playState = "running";
+    let currentTime = 0;
+    (screen as unknown as { getAnimations: () => unknown[] }).getAnimations = () => [
+      {
+        animationName: "flemo-screen-cupertino-enter",
+        get playState() {
+          return playState;
+        },
+        get currentTime() {
+          return currentTime;
+        }
+      }
+    ];
+    attach();
+    await settle();
+
+    screen.setAttribute("data-flemo-status", "PUSHING");
+    screen.setAttribute("data-flemo-active", "true");
+    await settle();
+    // Two frames of real motion, so the recorder has something to compare.
+    for (const time of [16, 32]) {
+      currentTime = time;
+      await frames(1);
+    }
+    // The animation finishes; the pose stops moving because the motion is over.
+    playState = "finished";
+    await frames(4);
+    screen.setAttribute("data-flemo-status", "COMPLETED");
+    await settle();
+
+    const flight = handle!.report().flights[0];
+    expect(flight.motion.tailFrames).toBeGreaterThan(0);
+    expect(flight.motion.stalledFrames).toBe(0);
+    expect(flight.anomalies.join(" ")).not.toContain("stalled");
+  });
+});
