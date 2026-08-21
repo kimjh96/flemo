@@ -192,6 +192,22 @@ export const isDesktopMacWebKit = (): boolean => {
   return !detectBlinkEngine() && navigator.maxTouchPoints === 0 && /Mac/.test(navigator.platform);
 };
 
+// DESKTOP Blink — a Chromium session with no touch surface. The defaults that
+// key on this are about what BLINK does (it culls the raster of an occluded
+// layer) and what a DESKTOP can afford (GPU memory for a resident layer, one
+// screen kept alive across a quick out-and-back), neither of which is a
+// property of the display's refresh rate. They used to hang off the steady-60
+// verdict because that verdict once ROUTED the driver and everything desktop
+// was attached to it; the routing is gone (Blink runs compiled everywhere) and
+// the verdict's own note says it now selects defaults only. A session that
+// reloads no longer waits two flights to earn these.
+//
+// `maxTouchPoints === 0` without a nullish fallback, the same reading
+// isDesktopMacWebKit uses: an environment that reports no touch count is not a
+// verified desktop, so it keeps the mobile-safe default.
+export const isDesktopBlink = (): boolean =>
+  detectBlinkEngine() && typeof navigator !== "undefined" && navigator.maxTouchPoints === 0;
+
 export const createDriverPolicy = (playerByDefault: boolean = false): DriverPolicy => ({
   playerAllowed: () => {
     const forced = readForcedDriver();

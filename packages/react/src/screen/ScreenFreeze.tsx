@@ -1,6 +1,6 @@
 import { Activity, useEffect, useRef, useState, type ReactNode } from "react";
 
-import { steadySixtyPlayerEligible } from "@flemo/core";
+import { isDesktopBlink } from "@flemo/core";
 
 interface ScreenFreezeProps {
   freeze: boolean;
@@ -35,9 +35,17 @@ function ScreenFreeze({ freeze, children }: ScreenFreezeProps) {
   if (!freeze && applied) setApplied(false);
   useEffect(() => {
     if (!freeze || applied) return undefined;
-    // Freeze: immediate everywhere except steady-60 desktops, where the hide
+    // Freeze: immediate everywhere except DESKTOP BLINK, where the hide
     // debounces past the browse-rhythm window (see FREEZE_REST_DEBOUNCE_MS).
-    if (!steadySixtyPlayerEligible()) {
+    //
+    // The debounce trades MEMORY (one screen kept alive a few seconds longer)
+    // for the hide/unhide raster thrash a quick detail-and-back otherwise pays
+    // — an argument about what the machine can spare, not about its refresh
+    // rate. It keyed on the steady-60 verdict until 2026-08-21 only because
+    // that verdict once routed the driver and every desktop default hung off
+    // it; a desktop pays the same raster either way, and no longer waits two
+    // flights to stop paying it.
+    if (!isDesktopBlink()) {
       setApplied(true);
       return undefined;
     }

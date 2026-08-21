@@ -55,7 +55,11 @@ import {
 } from "@core/engine/nativeStallAnchor";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import { beginResponseHold } from "@core/engine/responseHold";
-import { reportInFlightCadence, steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
+// The engine no longer consults the steady-60 verdict at all: the landing
+// placement is uniform and the image hold is opt-in. It still FEEDS it — the
+// display probe below reports the in-flight cadence the desktop cadence lock
+// and the settle-gate default read.
+import { reportInFlightCadence } from "@core/engine/steadySixtyCadence";
 import transitionPlayers, {
   learnedFrameIntervalMs,
   reportDisplayIntervalMs
@@ -998,25 +1002,21 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // decode offloader instead (isLegacyAndroidBlink). The fetch-level
         // responseHold above ships on by default for every engine; this is
         // its <img> analog, retained as a measurement instrument.
-        // DEFAULT-ON for steady-60 desktops (2026-08-18, staircase-controlled
-        // on the live app): an image that finishes loading MID-FLIGHT decodes
-        // and first-rasters on the sliding layer — the user-verified F
-        // condition ("이미지 로딩 중 전환만 버벅; 캐시된 이미지는 무결").
-        // Parking still-loading paints to rest is scheduling-only (the same
-        // contract as responseHold). The WebKit worse-with-hold verdict keeps
-        // it off elsewhere; flemo:imghold on/off still overrides both ways.
-        // Steady-60 desktops hold STRICTLY-UNPAINTED images by default (the
-        // user-verified F condition: only 이미지-로딩-중 전환 janks; cached
-        // images are innocent and must never blink out). The full hold
-        // (oversized-cached re-park included) stays behind flemo:imghold=on;
-        // "off" disables both.
-        const imageHoldOverride = readImageHoldFlag();
+        // OPT-IN ONLY (`flemo:imghold=on`). It shipped default-on for the
+        // steady-60 desktop profile from 2026-08-18 — the live-app staircase
+        // that isolated the F condition ("이미지 로딩 중 전환만 버벅; 캐시된
+        // 이미지는 무결") — and the default is retired 2026-08-21 after a
+        // desktop A/B rotating the hold per push/pop pair, on a session with
+        // images genuinely completing mid-flight, was judged INDISTINGUISHABLE.
+        // The touch round the same week measured it as a net loss: it moved
+        // ~1.4 in-flight hitches into ~3.6 at the landing, because parking the
+        // paint parks the decode with it and the decode still has to happen.
+        // The instrument stays for a consumer whose own measurement asks for
+        // it; nothing selects it automatically any more.
         const releaseImages =
-          imageHoldOverride === "on"
+          readImageHoldFlag() === "on"
             ? beginImageRevealHold(scope, holdSpanMs + GATE_MOTION_MARGIN_MS)
-            : imageHoldOverride === null && steadySixtyPlayerEligible()
-              ? beginImageRevealHold(scope, holdSpanMs + GATE_MOTION_MARGIN_MS, true)
-              : noop;
+            : noop;
         // The global flight-window latch (see flightWindow.ts): insertion-time
         // machinery outside this drive (the image decode offloader) defers
         // opaque-original reveals to the same rest this release lands.
@@ -1037,8 +1037,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // can never punch into the new flight.
       landNow();
       const { scope } = getElements();
-      const flagValue = readImageHoldFlag();
-      if (scope && (flagValue === "on" || (flagValue === null && steadySixtyPlayerEligible()))) {
+      // Warm side, same retirement as the arrival arm above: opt-in only.
+      if (scope && readImageHoldFlag() === "on") {
         releaseFlightImageHold = beginImageRevealHold(
           scope,
           statusChoreographySpanMs(scope, resolveTransition(transitionName), status) +
@@ -2118,10 +2118,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // shifts real presentation later than the wall clock, so the cut must
     // yield to animationend.
     let disarmPerceptualCut = noop;
-    // Disarms the arrival hold's early landing (wired below) on the same
-    // events, for the same reason: a shifted presentation means the wall-clock
-    // rest point may still be visibly mid-motion.
-    let disarmEarlyLanding = noop;
     const onEnd = (event: AnimationEvent) => {
       if (event.target !== scope) return;
       // Same-flight match across every head tier's suffixed keyframe name: a
@@ -2241,7 +2237,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       budgetUsed: () => activeResumeCounts.get(flooredTaskId!) ?? 0,
       spendBudget: () => {
         disarmPerceptualCut();
-        disarmEarlyLanding();
         activeResumeCounts.set(flooredTaskId!, (activeResumeCounts.get(flooredTaskId!) ?? 0) + 1);
       },
       onTerminal: resolve
@@ -2260,7 +2255,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // resume's original-clock tracking is reset by fullRestart) and re-arm.
         watchdogRestarted = true;
         disarmPerceptualCut();
-        disarmEarlyLanding();
         scopeResume.fullRestart();
         armWatchdog();
         return;
@@ -2294,7 +2288,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     if (recovering && (nativeSurgeryAllowed || routedLpmSupervision)) {
       startHoldDisarms.set(scope, () => {
         disarmPerceptualCut();
-        disarmEarlyLanding();
         if (flooredTaskId && watchdog !== undefined) armWatchdog();
       });
     }
@@ -2352,7 +2345,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
             () => [scope.ownerDocument.documentElement],
             () => {
               disarmPerceptualCut();
-              disarmEarlyLanding();
               if (flooredTaskId && watchdog !== undefined) armWatchdog();
             }
           )
@@ -2481,69 +2473,27 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // stacking onto the convergence. The perceptual cut's device-pixel band
     // is always at least as tight, so this fires at or before the cut; an
     // unanalyzable participant keeps the deferred post-COMPLETED landing.
-    let earlyLanding: ReturnType<typeof setTimeout> | undefined;
-    const clearEarlyLanding = () => {
-      if (earlyLanding === undefined) return;
-      clearTimeout(earlyLanding);
-      earlyLanding = undefined;
-    };
-    disarmEarlyLanding = clearEarlyLanding;
-    // Steady-60 desktops release AT REST, never at the perceptual cut: the
-    // cut lands the reveal commit + raster in the decel tail, and the live
-    // stream showed exactly one skipped-frame-class gap (max 21-29ms) on
-    // essentially EVERY push — the reported compiled-tier "버벅임" — while
-    // pops (tiny reveals) stayed at 17-20ms. Post-flip landing costs the
-    // content ~150ms of visibility, invisible next to a mid-motion hitch.
-    if (
-      recovering &&
-      releaseArrivalHold &&
-      !lpmSoftenActive &&
-      !routedForceCompiled &&
-      !steadySixtyPlayerEligible()
-    ) {
-      const activeRest = perceptualCutMs(activeMotion!, scope, 1);
-      const passiveRest = passiveMotion ? perceptualCutMs(passiveMotion, scope, 1) : 0;
-      let partsRest: number | null = 0;
-      for (const { element: part, motion: partMotion } of statusPartMotions) {
-        const partRest = perceptualCutMs(partMotion, part, 1);
-        if (partRest === null) {
-          partsRest = null;
-          break;
-        }
-        partsRest = Math.max(partsRest, partRest);
-      }
-      let decoratorRest: number | null = 0;
-      if (statusDecoratorMotions.length > 0) {
-        const decoratorElement = getElements().decorator;
-        if (decoratorElement) {
-          for (const decoratorMotion of statusDecoratorMotions) {
-            const oneRest = perceptualCutMs(decoratorMotion, decoratorElement, 1);
-            if (oneRest === null) {
-              decoratorRest = null;
-              break;
-            }
-            decoratorRest = Math.max(decoratorRest, oneRest);
-          }
-        }
-      }
-      const restMs =
-        activeRest !== null && passiveRest !== null && partsRest !== null && decoratorRest !== null
-          ? Math.max(activeRest, passiveRest, partsRest, decoratorRest)
-          : null;
-      if (restMs !== null) {
-        earlyLanding = setTimeout(
-          () => {
-            earlyLanding = undefined;
-            const release = releaseArrivalHold;
-            if (!release) return;
-            releaseArrivalHold = null;
-            release();
-          },
-          restMs * lpmStretch + lpmBirthHoldMs
-        );
-      }
-    }
-
+    // The arrival hold lands AT REST — after the COMPLETED flip — on every
+    // tier. It used to land EARLY on most of them: at the choreography's
+    // visual rest point (every participant within one CSS pixel of its
+    // destination), so the release commit's layout and paint would hide under
+    // the compositor-owned sub-pixel tail instead of stacking onto the
+    // convergence (#228, measured on the consumer app: ~10ms of layout plus a
+    // ~56-region paint storm).
+    //
+    // The tail turned out to be exactly where that commit shows. On the
+    // steady-60 desktop profile the live stream caught one skipped-frame-class
+    // gap (max 21-29ms) on essentially EVERY push — the reported compiled-tier
+    // "버벅임" — while pops, whose reveals are tiny, stayed at 17-20ms; LPM
+    // softening and the force-compiled touch tier had already been excluded for
+    // the same reason. That left desktop Blink and desktop Safari as the only
+    // tiers still landing early, and nothing in the evidence made them
+    // different: a shorter frame budget (120Hz) makes the same burst MORE
+    // likely to show, not less.
+    //
+    // So the placement is uniform now, and the trade is stated once: the
+    // content becomes visible ~150ms later, which is invisible next to a hitch
+    // on the frames the eye watches settle.
     return () => {
       stopKeepalive();
       if (floor !== undefined) clearTimeout(floor);
@@ -2553,7 +2503,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       detachLpmBirthAnchor?.();
       detachStallWatch?.();
       clearPerceptualCut();
-      clearEarlyLanding();
       scope.removeEventListener("animationend", onEnd);
       if (recovering) {
         scopeResume.detach();

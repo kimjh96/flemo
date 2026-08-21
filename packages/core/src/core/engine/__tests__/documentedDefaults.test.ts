@@ -252,10 +252,10 @@ describe("the touch-WebKit opening set: explicit values", () => {
 });
 
 describe("documented default: flemo:imghold", () => {
-  // Table: "unpainted-only on steady-60 desktop, else off". The reader returns
-  // null for "no override" — the engine turns that into the unpainted-only hold
-  // when the profile qualifies, so the tri-state IS the documented default.
-  it("reads as no-override until a value is set", () => {
+  // Table: "off", opt-in. The steady-60 desktop default was retired 2026-08-21
+  // (a desktop A/B judged it indistinguishable; a touch round measured a net
+  // loss), so nothing turns the reader's null into a hold any more.
+  it("reads as no-override until a value is set, profile or not", () => {
     setEnv({ blink: true, touch: false, dpr: 2 });
     verifySteadySixty();
     expect(readImageHoldFlag()).toBeNull();
@@ -292,18 +292,36 @@ describe("documented default: flemo:preraster", () => {
 
 describe("documented default: the flemo:preraster layer-promotion half", () => {
   // Table: the screen-scope promotion is armed by the flag on ANY device and is
-  // DEFAULT-ON for the steady-60 desktop profile. Every term is browser-only
-  // state, which is why the react binding may only apply it after hydration —
-  // the contract is asserted in react's ScreenMotion.hydration.test.tsx.
-  it("is off on a desktop Blink session with no verdict and no flag", () => {
+  // DEFAULT-ON for desktop Blink. Every term is browser-only state, which is
+  // why the react binding may only apply it after hydration — the contract is
+  // asserted in react's ScreenMotion.hydration.test.tsx.
+  it("is on for a desktop Blink session with no verdict and no flag", () => {
+    // The reason on the reader is what BLINK does with an occluded layer and
+    // what a DESKTOP can spend on GPU memory. Neither reads the panel, so a
+    // session no longer waits two flights for a refresh-rate verdict to earn
+    // a default that was never about refresh rate.
     setEnv({ blink: true, touch: false, dpr: 2 });
-    expect(readLayerPromotionFlag()).toBe(false);
+    expect(readLayerPromotionFlag()).toBe(true);
   });
 
-  it("is on for a verified steady-60 HiDPI desktop", () => {
-    setEnv({ blink: true, touch: false, dpr: 2 });
-    verifySteadySixty();
+  it("is on for a desktop Blink session at 1x too", () => {
+    setEnv({ blink: true, touch: false, dpr: 1 });
     expect(readLayerPromotionFlag()).toBe(true);
+  });
+
+  it("is on for desktop macOS Safari too", () => {
+    // The one tier the promotion left out, with nothing justifying the gap: it
+    // takes the settle gate through the same predicate, and touch WebKit
+    // already promotes through governedCompiledActive.
+    setEnv({ blink: false, touch: false, mac: true });
+    expect(readLayerPromotionFlag()).toBe(true);
+  });
+
+  it("stays off for touch Blink, which the reason does not cover", () => {
+    // A phone pays the same GPU memory with far less of it, and the tiles the
+    // desktop term protects are not what stalls there.
+    setEnv({ blink: true, touch: true });
+    expect(readLayerPromotionFlag()).toBe(false);
   });
 
   it("is on wherever the flag is armed, whatever the device profile", () => {

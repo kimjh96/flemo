@@ -139,7 +139,8 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
    height; changing ID discards it.
 8. **Scope layer promotion + the SSR contract**: the scope's `will-change: transform`
    (hold window, and at rest on the top screen of a root Router) is gated on core's
-   `readLayerPromotionFlag` — `flemo:preraster=on` OR the steady-60 desktop profile.
+   `readLayerPromotionFlag` — `flemo:preraster=on`, desktop Blink, or the
+   governed-compiled touch tier.
    Every term is browser-only state and the decision reaches the DOM as an INLINE
    STYLE, so it is read through `useHydrationSafeFlag` (`useSyncExternalStore` with a
    constant `false` server snapshot). Server render and the HYDRATION render therefore
@@ -158,7 +159,7 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
   mount effects re-fire on every unfreeze (`eagerlyDecodeImages` uses exactly that).
   The DIRECT prev is different: its freeze is DEFERRED (`FREEZE_DEFER_MS` 600ms, on
   the device A/B that measured ~0.2 dropped frames per flight over 117 flights), so it
-  stays live across the convergence, and on the steady-60 desktop profile
+  stays live across the convergence, and on desktop Blink
   `ScreenFreeze` debounces the hide further (3s) so a quick detail-and-back never pays
   the hide/unhide raster thrash. `flemo:freeze=shallow` (URL-armable) keeps the direct
   prev screen live indefinitely.
