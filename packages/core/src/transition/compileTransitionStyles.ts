@@ -13,6 +13,8 @@ import type { PartTransition } from "@transition/partTransition/typing";
 
 const DECORATOR_VARIANTS = TRANSITION_VARIANTS;
 
+const CREEP_NUDGE = "translateZ(0.02px)";
+
 const cssIdentifier = (raw: string) => raw.replace(/[^a-zA-Z0-9_-]/g, "_");
 
 const isPlainObject = (input: unknown): input is Record<string, unknown> =>
@@ -417,7 +419,7 @@ export const animationName = (
 // the restart watchdog then replays the whole transition (glass-visible as a
 // second fade on REPLACE). Keep this list beside the suffixes the compiler
 // emits, and route every name comparison through the matcher.
-export const HEAD_ANIMATION_SUFFIXES = ["-lpm", "-deskhead"] as const;
+export const HEAD_ANIMATION_SUFFIXES = ["-lpm", "-deskhead", "-lpmcreep"] as const;
 
 export const matchesFlightAnimationName = (eventName: string, expectedName: string): boolean =>
   eventName === expectedName ||
@@ -625,12 +627,63 @@ const compileVariantBlock = (
   const partDelayBlock = (attribute: string, headS: number): string => {
     if (scope !== "part") return "";
     if (headS <= 0 || duration <= 0) return "";
+    const gate = (extra = "") =>
+      selector
+        .split(",\n")
+        .map((one) => `:root[${attribute}]${extra} ${one}`)
+        .join(",\n");
+    return `\n${gate()} {\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`;
+  };
+  // The CREEP head (`flemo:creep`, `:root[data-flemo-lpm][data-flemo-creep]`).
+  //
+  // Device timelines (iPhone, 2026-08-20) put one dropped frame at the head's
+  // LENGTH, not at any clock time: a 100ms head dropped the 6th frame after the
+  // release, a 200ms head the 12th. That is the boundary where the flat head
+  // stops repeating one pose and the value first moves — where WebKit appears
+  // to commit the accelerated animation. Lengthening or shortening the head
+  // only moves the drop with it (and shortening swallows the opening outright),
+  // so the boundary itself has to go.
+  //
+  // The head's end keyframe therefore carries a translateZ hair instead of
+  // repeating the start pose. A z translation with no perspective is visually
+  // nothing — the screen can never peek out early — while the animated value
+  // changes on every frame of the head, so the compositor is already carrying
+  // this animation when the real motion begins. Measured: drops at the boundary
+  // fell from 78% of pushes to 33%.
+  const creepHeadBlock = (() => {
+    // A part variant returns before this block, and every head-carrying variant
+    // has a duration — the guards mirror headBlock's so a future caller cannot
+    // walk into a malformed keyframe.
+    /* v8 ignore next */
+    if (scope === "part") return "";
+    const headS = headForVariant(variant);
+    /* v8 ignore next */
+    if (headS <= 0 || duration <= 0) return "";
+    /* v8 ignore next -- same guard as headBlock's: a variant with nothing to
+       animate never reaches a head. */
+    if (fromDecls.length === 0 && toDecls.length === 0) return "";
+    const creepDecls: CssDecl[] = (() => {
+      const transform = fromDecls.find((decl) => decl.property === "transform");
+      if (!transform) return [...fromDecls, { property: "transform", value: CREEP_NUDGE }];
+      const base = transform.value === "none" ? "" : `${transform.value} `;
+      return fromDecls.map((decl) =>
+        decl.property === "transform"
+          ? { property: "transform", value: `${base}${CREEP_NUDGE}` }
+          : decl
+      );
+    })();
+    const total = duration + headS;
+    const headPct = ((headS / total) * 100).toFixed(3);
+    const kf = `${keyframe}-lpmcreep`;
     const gatedSelector = selector
       .split(",\n")
-      .map((one) => `:root[${attribute}] ${one}`)
+      .map((one) => `:root[data-flemo-lpm][data-flemo-creep] ${one}`)
       .join(",\n");
-    return `\n${gatedSelector} {\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`;
-  };
+    return (
+      `\n@keyframes ${kf} {\n  0% {\n${declsToBlock(fromDecls).replace(/^/gm, "  ")}\n  }\n  ${headPct}% {\n${declsToBlock(creepDecls).replace(/^/gm, "  ")}\n  }\n  100% {\n${declsToBlock(toDecls).replace(/^/gm, "  ")}\n  }\n}\n` +
+      `${gatedSelector} {\n  animation-name: ${kf};\n  animation-duration: ${total.toFixed(3)}s;\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`
+    );
+  })();
   const lpmHeadBlock = headBlock("data-flemo-lpm", "lpm", headForVariant(variant), true);
   const lpmPartDelayBlock = partDelayBlock("data-flemo-lpm", headForVariant(variant));
   const deskHeadBlock = headBlock(
@@ -745,7 +798,7 @@ const compileVariantBlock = (
         )}\n  opacity: 0.02;\n}`
       : "";
 
-  return `${keyframeBlock}\n${ruleBlock}${softenedBlock}${lpmHeadBlock}${lpmPartDelayBlock}${deskHeadBlock}${deskPartDelayBlock}${parkBlock}${parkUnderBlock}${parkOverBlock}`;
+  return `${keyframeBlock}\n${ruleBlock}${softenedBlock}${lpmHeadBlock}${lpmPartDelayBlock}${creepHeadBlock}${deskHeadBlock}${deskPartDelayBlock}${parkBlock}${parkUnderBlock}${parkOverBlock}`;
 };
 
 // Whether a variant's `from` target leaves the screen invisible on its first

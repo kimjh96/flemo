@@ -107,13 +107,13 @@ export const FLAG_REGISTRY: readonly FlagDescriptor[] = [
     key: "flemo:layers",
     storage: "session",
     kind: "opt-in-diagnostic",
-    description: "resident screen layers at rest (armed by ?flemo-layers=)"
+    description: "resident screen layers at rest"
   },
   {
     key: "flemo:freeze",
     storage: "session",
     kind: "opt-in-diagnostic",
-    description: "keep the direct prev screen live (armed by ?flemo-freeze=)"
+    description: "keep the direct prev screen live"
   },
   {
     key: "flemo:preraster",

@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   readArrivalHoldFlag,
+  readCreepHeadFlag,
+  readDeferReleaseCommitFlag,
   readDesktopHeadFlag,
   readDesktopReleaseFlipFlag,
   readImageHoldFlag,
@@ -9,6 +11,8 @@ import {
   readLayerPromotionFlag,
   readPrerasterFlag,
   readSettleGateFlag,
+  residentScreenLayers,
+  resetResidentLayersForTesting,
   resetSessionOverrideCachesForTests
 } from "@core/engine/diagnosticFlags";
 import { reportInFlightCadence, resetSteadySixtyForTests } from "@core/engine/steadySixtyCadence";
@@ -173,6 +177,77 @@ describe("documented default: flemo:deskhead", () => {
     setEnv({ blink: false, touch: false, mac: true });
     sessionStorage.setItem("flemo:deskhead", "off");
     expect(readDesktopHeadFlag()).toBe(false);
+  });
+});
+
+describe("documented defaults: the touch-WebKit opening set", () => {
+  // One device round (a real iPhone, 2026-08-20/21) moved these three from
+  // opt-in probes to defaults, each with its own measured effect: the release
+  // reconcile leaving the release frame (drops right after the release 61% →
+  // 32% of pushes), the creep head (drops at the head boundary 78% → 33%), and
+  // resident layers (the landing tremor did not recur once armed). They are
+  // scoped to the tier they were measured on and every one keeps an opt-out.
+  it("are ON for touch WebKit", () => {
+    setEnv({ blink: false, touch: true });
+    expect(readCreepHeadFlag()).toBe(true);
+    expect(readDeferReleaseCommitFlag()).toBe(true);
+    expect(readLayerPromotionFlag()).toBe(true);
+  });
+
+  it("are OFF for Blink and for desktop WebKit", () => {
+    // Blink composites the flight, so a main-thread commit never eats a
+    // present there; the head these are shaped around is a touch-WebKit tier.
+    setEnv({ blink: true, touch: true });
+    expect(readCreepHeadFlag()).toBe(false);
+    expect(readDeferReleaseCommitFlag()).toBe(false);
+    setEnv({ blink: false, touch: false, mac: true });
+    expect(readCreepHeadFlag()).toBe(false);
+    expect(readDeferReleaseCommitFlag()).toBe(false);
+  });
+
+  it("each keep an explicit opt-out", () => {
+    setEnv({ blink: false, touch: true });
+    sessionStorage.setItem("flemo:creep", "off");
+    sessionStorage.setItem("flemo:relcommit", "sync");
+    expect(readCreepHeadFlag()).toBe(false);
+    expect(readDeferReleaseCommitFlag()).toBe(false);
+  });
+});
+
+describe("the touch-WebKit opening set: explicit values", () => {
+  // Every default in the set is a production-default-with-override, so both
+  // directions of the override are part of the contract, not decoration.
+  it("honors an explicit value on each key", () => {
+    setEnv({ blink: true, touch: true });
+    sessionStorage.setItem("flemo:creep", "on");
+    sessionStorage.setItem("flemo:relcommit", "defer");
+    sessionStorage.setItem("flemo:deskhead", "on");
+    expect(readCreepHeadFlag()).toBe(true);
+    expect(readDeferReleaseCommitFlag()).toBe(true);
+    expect(readDesktopHeadFlag()).toBe(true);
+    sessionStorage.setItem("flemo:deskhead", "off");
+    expect(readDesktopHeadFlag()).toBe(false);
+  });
+
+  it("keeps screen layers resident on touch WebKit, and honors both explicit values", () => {
+    setEnv({ blink: false, touch: true });
+    resetResidentLayersForTesting();
+    expect(residentScreenLayers()).toBe(true);
+
+    resetResidentLayersForTesting();
+    sessionStorage.setItem("flemo:layers", "off");
+    expect(residentScreenLayers()).toBe(false);
+
+    resetResidentLayersForTesting();
+    sessionStorage.setItem("flemo:layers", "resident");
+    setEnv({ blink: true, touch: true });
+    expect(residentScreenLayers()).toBe(true);
+
+    // Blink is not in the default: it defers the demotion already, and a
+    // desktop A/B measured no difference with the layers resident.
+    resetResidentLayersForTesting();
+    sessionStorage.removeItem("flemo:layers");
+    expect(residentScreenLayers()).toBe(false);
   });
 });
 

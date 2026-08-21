@@ -21,6 +21,7 @@ import {
   readArrivalHoldFlag,
   readDesktopHeadFlag,
   readImageHoldFlag,
+  readCreepHeadFlag,
   readLandingSnapFlag,
   readSettleGateFlag
 } from "@core/engine/diagnosticFlags";
@@ -1988,6 +1989,9 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const lpmSoftenActive = routedLpmSupervision && (status === "PUSHING" || status === "POPPING");
     {
       const root = scope.ownerDocument.documentElement;
+      const creepHeadProbe = routedGovernedHead && readCreepHeadFlag();
+      if (creepHeadProbe) root.setAttribute("data-flemo-creep", "true");
+      else root.removeAttribute("data-flemo-creep");
       if (routedGovernedHead) {
         root.setAttribute("data-flemo-lpm", "true");
       } else {

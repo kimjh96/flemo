@@ -23,6 +23,7 @@ import {
   enteringInitialStyle,
   governedCompiledActive,
   observeBarHeight,
+  readDeferReleaseCommitFlag,
   readDesktopReleaseFlipFlag,
   readLayerPromotionFlag,
   readPrerasterFlag,
@@ -560,6 +561,15 @@ function ScreenMotion({
   // there is no prior commit to compare against.
   const decodeWaitRef = useRef(holdKey !== null && isFrozen);
 
+  // The imperative release, remembered for RENDER. The DOM flip below writes
+  // `data-flemo-anim-hold="false"` inside the readiness rAF; from that moment
+  // this screen IS released, whatever React state still says. Reading it here
+  // means an interleaved commit renders the released value instead of writing
+  // the paused hold attribute back over a running animation — the defect
+  // `flushSync` was closing by timing, closed by construction instead, which is
+  // what lets the reconcile leave the release frame (see readDeferReleaseCommitFlag).
+  const releasedKeyRef = useRef<string | null>(null);
+
   const [animRelease, setAnimRelease] = useState<{ key: string | null; released: boolean }>({
     key: holdKey,
     released: holdKey === null
@@ -569,12 +579,19 @@ function ScreenMotion({
     // before committing, so the hold and status attributes always land in the
     // same paint.
     setAnimRelease({ key: holdKey, released: holdKey === null });
+    // A new hold starts held: the previous flight's imperative release must not
+    // leak into it.
+    releasedKeyRef.current = null;
     // Capture the wake-from-freeze signal for this hold BEFORE the tracker
     // below advances to the current commit's freeze value.
     decodeWaitRef.current = holdKey !== null && wasFrozenRef.current;
   }
   wasFrozenRef.current = isFrozen;
-  const animHold = holdKey !== null && animRelease.key === holdKey && !animRelease.released;
+  const animHold =
+    holdKey !== null &&
+    animRelease.key === holdKey &&
+    !animRelease.released &&
+    releasedKeyRef.current !== holdKey;
 
   // NOTE (shell-first, removed): a release-gated children mount (screen shell in
   // the first commit, consumer `children` one commit after the hold release) was
@@ -604,8 +621,14 @@ function ScreenMotion({
       : isActive &&
           (status === "PUSHING" || status === "REPLACING") &&
           partnerSurface?.opaqueBackground
-        ? readPrerasterFlag()
-          ? "park-over"
+        ? readPrerasterFlag() || governedCompiledActive()
+          ? // Touch WebKit parks the entering screen ON TOP at 0.02 opacity by
+            // default (2026-08-20/21 device round): park-under leaves the layer
+            // occluded, and the tiles the slide is about to reveal are then
+            // first rastered at the release — the ~100ms the head exists to
+            // cover. Painting them during the hold measurably steadied the
+            // motion (drops in the moving phase 2/19 → 1/19 on a real iPhone).
+            "park-over"
           : "park-under"
         : "true";
 
@@ -733,6 +756,8 @@ function ScreenMotion({
           // the released flight must surface in the same frame its clock
           // starts, not a React commit later.
           if (screenRef.current) screenRef.current.style.zIndex = "";
+          // From here on this screen renders as released, whoever renders it.
+          releasedKeyRef.current = key;
         }
         {
           // The state must reconcile IN THIS TASK, not "one commit later":
@@ -747,11 +772,25 @@ function ScreenMotion({
           // window by construction — DOM flip and state commit in one task.
           // Universal now (not just the flip paths): the stale-held-state
           // window is a defect for every driver.
-          flushSync(() =>
+          const reconcile = () =>
             setAnimRelease((current) =>
               current.key === key && !current.released ? { key, released: true } : current
-            )
-          );
+            );
+          // `flemo:relcommit=defer`, and only where the DOM flip already
+          // released the hold: hand the reconcile to the NEXT frame so it stops
+          // competing with the flight's first present (device-measured: the
+          // release-frame drop is PUSH-only, 11/18 vs 0/17 on POP). Without the
+          // flip there is nothing else releasing the attribute, so the state
+          // commit IS the release and must stay in this task.
+          if (
+            directFlip &&
+            readDeferReleaseCommitFlag() &&
+            typeof requestAnimationFrame === "function"
+          ) {
+            requestAnimationFrame(() => reconcile());
+          } else {
+            flushSync(reconcile);
+          }
         }
       },
       {

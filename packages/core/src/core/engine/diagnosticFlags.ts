@@ -32,10 +32,12 @@ import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 // | flemo:apply               | session | "scrub"                         | off                        | opt-in diagnostic                | force the scrub-WAAPI value-application tier for every track           |
 // | flemo:snap                | session | "always"/"off"/"gate"/"hybrid"  | platform policy            | production-default-with-override | player device-pixel snap policy (composeTransform)                     |
 // | flemo:snapband            | session | number (device px)              | 4                          | opt-in diagnostic                | "hybrid" snap's jitter-band width                                      |
-// | flemo:layers              | session | "resident"                      | off                        | opt-in diagnostic                | resident screen layers at rest; armed by ?flemo-layers= (layerSettleHold.ts) |
-// | flemo:freeze              | session | "shallow"                       | off                        | opt-in diagnostic                | keep the direct prev screen live; armed by ?flemo-freeze= (computeScreenFreeze.ts) |
+// | flemo:layers              | session | "resident"/"off"                | touch WebKit               | production-default-with-override | resident screen layers at rest (layerSettleHold.ts)                     |
+// | flemo:freeze              | session | "shallow"                       | off                        | opt-in diagnostic                | keep the direct prev screen live (computeScreenFreeze.ts)               |
 // | flemo:deskflip            | session | "on"/"off"                      | desktop macOS WebKit       | production-default-with-override | atomic release flip on desktop Safari (react ScreenMotion's directFlip)  |
 // | flemo:deskhead            | session | "on"/"off"                      | desktop macOS WebKit       | production-default-with-override | desktop flat-head keyframes (`data-flemo-desk-head`, DESKTOP_HEAD_MS); arming it retires the desktop birth anchor |
+// | flemo:creep               | session | "on"/"off"                      | touch WebKit               | production-default-with-override | creep head: the head's end keyframe carries a hair of motion so the compositor is already carrying the animation at the boundary |
+// | flemo:relcommit           | session | "defer"/"sync"                  | touch WebKit               | production-default-with-override | release's React reconcile lands next frame instead of flushSync (react ScreenMotion) |
 // | flemo:preraster           | session | "on"                            | off (but the rest-promotion half is default-on for steady-60 desktop) | production-default-with-override | promote the entering content layer through the hold (readLayerPromotionFlag, applied by react ScreenMotion after hydration); also selects the park-over hold variant |
 // | flemo:imgoffload          | session | "on"/"off"                      | auto (legacy Android Blink)| production-default-with-override | image decode offloader override (react Router)                         |
 //
@@ -203,6 +205,44 @@ export const readDesktopReleaseFlipFlag = (): boolean => {
   return isDesktopMacWebKit();
 };
 
+// `flemo:creep=on` — the CREEP head (compileTransitionStyles). The head's end
+// keyframe carries a translateZ hair instead of repeating the start pose, so
+// the value changes across the head and the compositor is already carrying the
+// animation when the real motion begins. Aimed at the one dropped frame that
+// device timelines pinned to the head BOUNDARY (it followed the head length:
+// 100ms head → 6th frame after release, 200ms → 12th).
+export const readCreepHeadFlag = (): boolean => {
+  const value = readStorageValue("flemo:creep");
+  if (value === "on") return true;
+  if (value === "off") return false;
+  return governedCompiledActive();
+};
+
+// `flemo:relcommit=defer` — hand the release's React reconcile to the NEXT
+// frame instead of `flushSync`ing it into the release frame.
+//
+// Device timelines (iPhone, 2026-08-20) show TWO dropped frames on a PUSH: one
+// at the head boundary (the creep head addresses that) and one AT THE RELEASE
+// itself — 11 of 18 stock PUSH flights, and 0 of 17 POPs, which is exactly the
+// asymmetry a mount-heavy entering commit predicts. The compiled clock starts
+// on the release frame's style change and WebKit presents it from the main
+// thread, so React's reconcile of that same update competes with the flight's
+// first present.
+//
+// The `flushSync` this defers exists for a real defect: an unrelated commit
+// landing in the flip→reconcile window renders the STALE held state and writes
+// the paused hold attribute back over a RUNNING animation. Deferring alone
+// would reopen it, so the binding pairs this with a render-phase read of the
+// imperative release (see ScreenMotion's releasedKeyRef): once the DOM flip has
+// happened, every render — interleaved or not — already renders the released
+// state, so the window is closed by construction rather than by timing.
+export const readDeferReleaseCommitFlag = (): boolean => {
+  const value = readStorageValue("flemo:relcommit");
+  if (value === "defer") return true;
+  if (value === "sync") return false;
+  return governedCompiledActive();
+};
+
 // `flemo:deskhead` — the flat-head keyframes on desktop macOS Safari, the
 // desktop sibling of the LPM head (`:root[data-flemo-desk-head]`, compiled by
 // compileTransitionStyles with DESKTOP_HEAD_MS). A compiled clock is born at the
@@ -256,7 +296,7 @@ export const readPrerasterFlag = (): boolean => readStorageValue("flemo:preraste
 // element that carries an inline style. A binding must defer it past hydration
 // (react: `useHydrationSafeFlag`, whose SSR snapshot is a constant `false`).
 export const readLayerPromotionFlag = (): boolean =>
-  readPrerasterFlag() || steadySixtyPlayerEligible();
+  readPrerasterFlag() || steadySixtyPlayerEligible() || governedCompiledActive();
 
 // `flemo:imgoffload` — image decode offloader override for the react Router:
 // "on" forces it on any engine, "off" opts a legacy device back out, anything
@@ -341,7 +381,7 @@ export const resetSessionOverrideCachesForTests = () => {
 };
 
 // ── Cached URL-armed toggles (layers / freeze) ──────────────────────────────
-// The `?flemo-layers=` / `?flemo-freeze=` URL arming stays in the owning
+// The `flemo:layers` / `flemo:freeze` keys are set directly; their readers stay in the owning
 // modules (they just write these storage keys at module load, before the
 // first read caches).
 
@@ -350,7 +390,17 @@ export const resetSessionOverrideCachesForTests = () => {
 let residentLayersCache: boolean | undefined;
 export const residentScreenLayers = (): boolean => {
   if (residentLayersCache !== undefined) return residentLayersCache;
-  residentLayersCache = readStorageValue("flemo:layers") === "resident";
+  const value = readStorageValue("flemo:layers");
+  // DEFAULT-ON for touch WebKit (2026-08-20/21 device round on a real iPhone):
+  // the compiled variant rule's `will-change` unmatches at the COMPLETED flip,
+  // and that demotion repaints the whole element into its parent on the exact
+  // frames the eye is watching settle — this file's own layerSettleHold notes
+  // call it the dominant main-thread item of the convergence tremor. Keeping
+  // the layer resident removes the repaint outright; the reported tremor did
+  // not recur once it was armed. `off` opts a session back out (the cost is a
+  // resident backing store per screen).
+  residentLayersCache =
+    value === "resident" ? true : value === "off" ? false : governedCompiledActive();
   return residentLayersCache;
 };
 
