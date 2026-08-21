@@ -13,6 +13,8 @@ import type { PartTransition } from "@transition/partTransition/typing";
 
 const DECORATOR_VARIANTS = TRANSITION_VARIANTS;
 
+const CREEP_NUDGE = "translateZ(0.02px)";
+
 const cssIdentifier = (raw: string) => raw.replace(/[^a-zA-Z0-9_-]/g, "_");
 
 const isPlainObject = (input: unknown): input is Record<string, unknown> =>
@@ -355,64 +357,6 @@ export const softenFrontLoadedEasing = (easingCss: string, durationS: number): s
   return `cubic-bezier(${soft.join(", ")})`;
 };
 
-// Transform components have a known identity, so a key present on one side and
-// absent on the other still interpolates. Anything else (opacity, colors,
-// filters) does not: the resting value is the consumer's, not ours to guess.
-const TRANSFORM_IDENTITY: Record<string, number> = {
-  x: 0,
-  y: 0,
-  z: 0,
-  rotate: 0,
-  rotateX: 0,
-  rotateY: 0,
-  rotateZ: 0,
-  scale: 1,
-  scaleX: 1,
-  scaleY: 1
-};
-
-const NUMERIC_VALUE = /^(-?\d*\.?\d+)([a-z%]*)$/;
-
-const parseScalar = (raw: unknown): { n: number; unit: string } | null => {
-  if (typeof raw === "number") return Number.isFinite(raw) ? { n: raw, unit: "" } : null;
-  if (typeof raw !== "string") return null;
-  const match = raw.trim().match(NUMERIC_VALUE);
-  if (!match) return null;
-  const n = Number(match[1]);
-  return Number.isFinite(n) ? { n, unit: match[2] ?? "" } : null;
-};
-
-// The pose the authored curve holds at `progress`, as a raw target the existing
-// decl compiler can format. Null whenever any channel cannot be interpolated
-// exactly — the trimmed rule is then simply not emitted and the flight keeps
-// its untrimmed opening.
-export const interpolateTargetAtProgress = (
-  fromTarget: TransitionVariantValue["value"] | InitialTarget,
-  toTarget: TransitionVariantValue["value"] | InitialTarget,
-  progress: number
-): Record<string, string | number> | null => {
-  if (!isPlainObject(fromTarget) || !isPlainObject(toTarget)) return null;
-  const keys = new Set([...Object.keys(fromTarget), ...Object.keys(toTarget)]);
-  if (keys.size === 0) return null;
-  const out: Record<string, string | number> = {};
-  for (const key of keys) {
-    const identity = TRANSFORM_IDENTITY[key];
-    const rawFrom = key in fromTarget ? fromTarget[key] : identity;
-    const rawTo = key in toTarget ? toTarget[key] : identity;
-    if (rawFrom === undefined || rawTo === undefined) return null;
-    const from = parseScalar(rawFrom);
-    const to = parseScalar(rawTo);
-    if (!from || !to) return null;
-    // A zero carries no unit of its own, so it adopts the other side's.
-    const unit = from.n === 0 ? to.unit : from.unit;
-    if (from.n !== 0 && to.n !== 0 && from.unit !== to.unit) return null;
-    const value = from.n + (to.n - from.n) * progress;
-    const rounded = Math.round(value * 1000) / 1000;
-    out[key] = unit === "" ? rounded : `${rounded}${unit}`;
-  }
-  return out;
-};
-
 const restAttrSelector = (transitionName: string, variant: TransitionVariant): string => {
   const [status, active] = variant.split("-");
   return (
@@ -690,46 +634,44 @@ const compileVariantBlock = (
         .join(",\n");
     return `\n${gate()} {\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`;
   };
-  // CREEP 헤드 (`flemo:creep=on`, `:root[data-flemo-lpm][data-flemo-creep]`).
+  // The CREEP head (`flemo:creep`, `:root[data-flemo-lpm][data-flemo-creep]`).
   //
-  // 기기 실측(iPhone, 2026-08-20): 드랍 한 장이 헤드 길이를 그대로 따라다닌다
-  // (헤드 100ms → 해제 후 6번째 프레임, 200ms → 12번째). 시각이 아니라 "flat
-  // head가 끝나고 자세가 처음 움직이는 경계"에 붙어 있다는 뜻이고, WebKit이 그
-  // 경계에서 레이어를 커밋하는 것으로 보인다. 헤드를 늘리거나 줄이면 드랍도
-  // 같이 옮겨갈 뿐이다(줄이면 오프닝까지 먹힌다).
+  // Device timelines (iPhone, 2026-08-20) put one dropped frame at the head's
+  // LENGTH, not at any clock time: a 100ms head dropped the 6th frame after the
+  // release, a 200ms head the 12th. That is the boundary where the flat head
+  // stops repeating one pose and the value first moves — where WebKit appears
+  // to commit the accelerated animation. Lengthening or shortening the head
+  // only moves the drop with it (and shortening swallows the opening outright),
+  // so the boundary itself has to go.
   //
-  // 그래서 경계를 없앤다: 헤드의 끝 키프레임을 시작과 "같은 자세"가 아니라
-  // translateZ 미세값이 더해진 자세로 둔다. z 이동은 perspective가 없으면
-  // 화면상 아무 차이가 없으므로 자세가 미리 걸쳐 보이는 일이 없고(토 다듬기에서
-  // 겪은 peek 문제), 값 자체는 매 프레임 변하므로 컴포지터가 헤드 시작부터
-  // 애니메이션을 물고 있게 된다.
-  // CREEP 헤드 (`flemo:creep=on`, `:root[data-flemo-lpm][data-flemo-creep]`).
-  //
-  // 기기 실측(iPhone, 2026-08-20): 드랍 한 장이 헤드 길이를 그대로 따라다닌다
-  // (헤드 100ms → 해제 후 6번째 프레임, 200ms → 12번째). 시각이 아니라 "flat
-  // head가 끝나고 자세가 처음 움직이는 경계"에 붙어 있다는 뜻이고, WebKit이 그
-  // 경계에서 레이어를 커밋하는 것으로 보인다. 헤드를 늘리거나 줄이면 드랍도
-  // 같이 옮겨갈 뿐이다(줄이면 오프닝까지 먹힌다).
-  //
-  // 그래서 경계를 없앤다: 헤드의 끝 키프레임을 시작과 "같은 자세"가 아니라
-  // translateZ 미세값이 더해진 자세로 둔다. z 이동은 perspective가 없으면
-  // 화면상 아무 차이가 없으므로 자세가 미리 걸쳐 보이는 일이 없고(토 다듬기에서
-  // 겪은 peek 문제), 값 자체는 매 프레임 변하므로 컴포지터가 헤드 시작부터
-  // 애니메이션을 물고 있게 된다.
+  // The head's end keyframe therefore carries a translateZ hair instead of
+  // repeating the start pose. A z translation with no perspective is visually
+  // nothing — the screen can never peek out early — while the animated value
+  // changes on every frame of the head, so the compositor is already carrying
+  // this animation when the real motion begins. Measured: drops at the boundary
+  // fell from 78% of pushes to 33%.
   const creepHeadBlock = (() => {
+    // A part variant returns before this block, and every head-carrying variant
+    // has a duration — the guards mirror headBlock's so a future caller cannot
+    // walk into a malformed keyframe.
+    /* v8 ignore next */
     if (scope === "part") return "";
     const headS = headForVariant(variant);
+    /* v8 ignore next */
     if (headS <= 0 || duration <= 0) return "";
+    /* v8 ignore next -- same guard as headBlock's: a variant with nothing to
+       animate never reaches a head. */
     if (fromDecls.length === 0 && toDecls.length === 0) return "";
-    // 헤드 끝 자세: 저작 곡선을 목적지 반대쪽으로 아주 조금(0.4%) 되짚은 지점.
-    // 실제로 애니메이션되는 채널이 매 프레임 변하므로 컴포지터가 헤드 내내
-    // 그 애니메이션을 물고 있게 된다. translateZ 미세값(v1)은 값은 변해도 이동
-    // 성분이 그대로여서 자극이 약했다(기기 실측: 경계 드랍이 다시 올라옴).
-    // 방향이 목적지의 "반대"라 화면이 미리 걸쳐 보일 수 없다 — 이미 화면 밖인
-    // 쪽으로 더 나가고, 짧은 이동에서는 서브픽셀이다.
-    const crept = interpolateTargetAtProgress(fromValue, toVariant.value, -0.004);
-    const creepDecls: CssDecl[] = crept ? targetToDecls(crept) : [];
-    if (creepDecls.length === 0) return "";
+    const creepDecls: CssDecl[] = (() => {
+      const transform = fromDecls.find((decl) => decl.property === "transform");
+      if (!transform) return [...fromDecls, { property: "transform", value: CREEP_NUDGE }];
+      const base = transform.value === "none" ? "" : `${transform.value} `;
+      return fromDecls.map((decl) =>
+        decl.property === "transform"
+          ? { property: "transform", value: `${base}${CREEP_NUDGE}` }
+          : decl
+      );
+    })();
     const total = duration + headS;
     const headPct = ((headS / total) * 100).toFixed(3);
     const kf = `${keyframe}-lpmcreep`;

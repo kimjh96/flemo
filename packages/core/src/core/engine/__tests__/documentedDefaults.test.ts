@@ -11,6 +11,8 @@ import {
   readLayerPromotionFlag,
   readPrerasterFlag,
   readSettleGateFlag,
+  residentScreenLayers,
+  resetResidentLayersForTesting,
   resetSessionOverrideCachesForTests
 } from "@core/engine/diagnosticFlags";
 import { reportInFlightCadence, resetSteadySixtyForTests } from "@core/engine/steadySixtyCadence";
@@ -209,6 +211,43 @@ describe("documented defaults: the touch-WebKit opening set", () => {
     sessionStorage.setItem("flemo:relcommit", "sync");
     expect(readCreepHeadFlag()).toBe(false);
     expect(readDeferReleaseCommitFlag()).toBe(false);
+  });
+});
+
+describe("the touch-WebKit opening set: explicit values", () => {
+  // Every default in the set is a production-default-with-override, so both
+  // directions of the override are part of the contract, not decoration.
+  it("honors an explicit value on each key", () => {
+    setEnv({ blink: true, touch: true });
+    sessionStorage.setItem("flemo:creep", "on");
+    sessionStorage.setItem("flemo:relcommit", "defer");
+    sessionStorage.setItem("flemo:deskhead", "on");
+    expect(readCreepHeadFlag()).toBe(true);
+    expect(readDeferReleaseCommitFlag()).toBe(true);
+    expect(readDesktopHeadFlag()).toBe(true);
+    sessionStorage.setItem("flemo:deskhead", "off");
+    expect(readDesktopHeadFlag()).toBe(false);
+  });
+
+  it("keeps screen layers resident on touch WebKit, and honors both explicit values", () => {
+    setEnv({ blink: false, touch: true });
+    resetResidentLayersForTesting();
+    expect(residentScreenLayers()).toBe(true);
+
+    resetResidentLayersForTesting();
+    sessionStorage.setItem("flemo:layers", "off");
+    expect(residentScreenLayers()).toBe(false);
+
+    resetResidentLayersForTesting();
+    sessionStorage.setItem("flemo:layers", "resident");
+    setEnv({ blink: true, touch: true });
+    expect(residentScreenLayers()).toBe(true);
+
+    // Blink is not in the default: it defers the demotion already, and a
+    // desktop A/B measured no difference with the layers resident.
+    resetResidentLayersForTesting();
+    sessionStorage.removeItem("flemo:layers");
+    expect(residentScreenLayers()).toBe(false);
   });
 });
 

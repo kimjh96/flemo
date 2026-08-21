@@ -151,6 +151,62 @@ describe("compileTransitionStyles", () => {
     expect(css).toContain("animation-delay: 0.100s");
   });
 
+  it("gives the creep head a translateZ hair, whatever the from-pose carries", () => {
+    // A transform-carrying variant appends to it; a variant with no transform
+    // of its own gets one, because the hair IS the mechanism — the value has to
+    // move across the head for the compositor to be carrying the animation when
+    // the real motion starts.
+    const withTransform = compileTransitionStyles([cupertino], []);
+    expect(withTransform).toContain("transform: translate3d(100%, 0, 0) translateZ(0.02px)");
+
+    const opacityOnly = compileTransitionStyles(
+      [
+        createTransition({
+          name: "custom-fade-blur",
+          initial: { opacity: 0 },
+          idle: { value: { opacity: 1 }, options: { duration: 0 } },
+          enter: { value: { opacity: 1 }, options: { duration: 0.3 } },
+          enterBack: { value: { opacity: 0 }, options: { duration: 0.3 } },
+          exit: { value: { opacity: 0 }, options: { duration: 0.3 } },
+          exitBack: { value: { opacity: 1 }, options: { duration: 0.3 } }
+        })
+      ],
+      []
+    );
+    const creepFrames = opacityOnly
+      .split("@keyframes ")
+      .find((block) =>
+        block.startsWith(`${animationName("screen", "custom-fade-blur", "PUSHING-true")}-lpmcreep`)
+      );
+    expect(creepFrames).toContain("transform: translateZ(0.02px)");
+
+    // A variant whose from-pose collapses to `transform: none` gets the hair
+    // alone rather than "none translateZ(...)", which would not parse.
+    expect(withTransform).not.toContain("transform: none translateZ");
+  });
+
+  it("skips the creep head where there is no head to sit in front of", () => {
+    // `none` animates nothing, so no variant carries a head — and a part rides
+    // the screen's head by delay instead of owning keyframes.
+    const nothing = compileTransitionStyles([none], []);
+    expect(nothing).not.toContain("-lpmcreep");
+
+    const partOnly = compileTransitionStyles(
+      [],
+      [],
+      [
+        createPartTransition({
+          name: "test-title-fade",
+          initial: { opacity: 0 },
+          idle: { value: { opacity: 1 }, options: { duration: 0.4 } },
+          enter: { value: { opacity: 0 }, options: { duration: 0.3 } },
+          exit: { value: { opacity: 1 }, options: { duration: 0.3 } }
+        })
+      ]
+    );
+    expect(partOnly).not.toContain("-lpmcreep");
+  });
+
   it("rides parts on the desktop head with a gated literal delay", () => {
     const css = compileTransitionStyles(
       [],
