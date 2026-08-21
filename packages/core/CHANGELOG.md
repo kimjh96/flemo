@@ -1,5 +1,38 @@
 # @flemo/core
 
+## 1.26.0
+
+### Minor Changes
+
+- [`6b1bb93`](https://github.com/kimjh96/flemo/commit/6b1bb93383221c29ba0d630123ca60a7b8f16d30) Hold the first frames of a transition on desktop macOS Safari until the browser
+  can actually present them. A compiled clock there starts at the release update's
+  style resolution but reaches the glass a pipeline later, so the curve used to be
+  entered partway and the motion read as too fast. The screen now waits out that
+  latency at its authored start pose, the way touch WebKit already does.
+  `flemo:deskhead=off` restores the previous behavior.
+
+- [`d6dab7f`](https://github.com/kimjh96/flemo/commit/d6dab7f398024dd3f9cae885aba9dfa73b48dda6) Release the anim-hold straight onto the DOM on desktop macOS Safari, the way
+  touch WebKit already does. That session runs a compiled animation whose clock
+  WebKit presents from the main thread, so letting React's render and commit work
+  sit between the clock's start and the released attribute cost it the front of
+  every transition. `flemo:deskflip=off` restores the previous path.
+
+- [`9685d02`](https://github.com/kimjh96/flemo/commit/9685d020fea2e6f87ee7893a6b3d616cd8cc26bd) Steady the opening and the landing of a transition on iOS Safari. Three changes
+  ship on by default there, each measured on a device: the hold's release no
+  longer shares its frame with React's reconcile, the held head carries a hair of
+  motion so the compositor is already driving the animation when the real motion
+  starts, and the entering screen's layer is painted during the hold and kept
+  resident at rest instead of being torn down as the flight lands. Sessions can
+  opt any of them out with `flemo:relcommit=sync`, `flemo:creep=off` and
+  `flemo:layers=off`.
+
+### Patch Changes
+
+- [`9d706dc`](https://github.com/kimjh96/flemo/commit/9d706dcda42aacc4d15262dd76fbe7821a52d541) Stop reading diagnostic toggles from the URL. `?flemo-layers=` and
+  `?flemo-freeze=` wrote a session key on any visit, so a link was enough to
+  change how the library behaved for the rest of that tab. Both toggles keep
+  working through their `flemo:layers` / `flemo:freeze` session keys.
+
 ## 1.25.1
 
 ### Patch Changes
