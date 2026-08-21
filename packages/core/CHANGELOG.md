@@ -1,5 +1,11 @@
 # @flemo/core
 
+## 1.27.1
+
+### Patch Changes
+
+- [`034a295`](https://github.com/kimjh96/flemo/commit/034a295aae17d2cb2a872b07666d6d570cec6753) Keep a screen's shared bottom bar when it comes back. A screen covered while a software keyboard was open lost its viewport subscription to the freeze and never saw the keyboard close, so on the way back its shared bottom bar and system navigation bar stayed hidden and swipe-back stayed refused. The viewport observer now measures once for the whole app and hands the current measurement to any screen that (re)subscribes.
+
 ## 1.27.0
 
 ### Minor Changes
