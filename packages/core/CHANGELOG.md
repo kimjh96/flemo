@@ -1,5 +1,51 @@
 # @flemo/core
 
+## 1.27.0
+
+### Minor Changes
+
+- [`fb4bb71`](https://github.com/kimjh96/flemo/commit/fb4bb71074f697435acfe8609b4073e2e2c4adc0) Key the two desktop defaults that are not about refresh rate on the desktop
+  itself. The screen-scope layer promotion and `ScreenFreeze`'s hide debounce now
+  read a new `isDesktopBlink` predicate instead of the learned steady-60 verdict:
+  one is about how Blink treats an occluded layer, the other trades memory for
+  raster, and neither reads the display. Desktop Chrome sessions get both from
+  their first flight instead of after a two-flight cadence measurement, and a
+  120Hz or 1x desktop is no longer excluded from defaults that never depended on
+  its panel.
+
+- [`e89b3e7`](https://github.com/kimjh96/flemo/commit/e89b3e776722ea972250c5fe4af91083ba33a643) Land the arrival hold at rest on every tier, and promote the screen layer on
+  desktop Safari too. The hold's release commit no longer lands in the motion's
+  sub-pixel tail — the placement that measured as a skipped-frame-class gap on
+  essentially every push — so content becomes visible just after the transition
+  instead of just before it ends. The layer promotion, meanwhile, was reaching
+  touch WebKit and desktop Chrome but not desktop Safari, with nothing in its
+  reasoning to justify the gap.
+
+### Patch Changes
+
+- [`cbb258d`](https://github.com/kimjh96/flemo/commit/cbb258da2b94456d3c7d31db6ab1bbada0ceb764) Keep channels that never interpolate out of the compiled keyframes. A property
+  authored with the same value on both ends of a variant — the overlay
+  decorator's dim colour, a transition's constant edge shadow — is now applied by
+  the variant's own rule instead, so the keyframes name only what actually
+  animates. Engines drop a whole animation to the main thread when a keyframe
+  mentions a property they cannot composite, which showed up on Android as a dim
+  that lagged and stuttered while the screens slid smoothly.
+
+- [`c0232a9`](https://github.com/kimjh96/flemo/commit/c0232a940c614b6442b63b8abf61ba8d86a94adf) Retire the image reveal hold's automatic default. It shipped on for the
+  steady-60 desktop profile; a desktop A/B rotating it per push/pop pair — on a
+  session with images genuinely completing mid-flight — was judged
+  indistinguishable, and a touch round the same week measured it as a net loss
+  (fewer hitches in the flight, more at the landing, because parking the paint
+  parks the decode with it). `flemo:imghold=on` still arms it for a consumer whose
+  own measurement asks for it.
+
+- [`b786a0b`](https://github.com/kimjh96/flemo/commit/b786a0b9a5fa81b19ab38b6f77e0d7149eca5d81) Stop building the steady-60 desktop verdict on touch devices. The verdict is a
+  desktop profile — a touch session can never read it — but every Blink flight
+  was still feeding it, which cost a synchronous `sessionStorage` write per
+  flight on exactly the phones that can least afford one. The display probe that
+  feeds it still runs there: its other output (the learned frame interval) does
+  reach touch Blink.
+
 ## 1.26.0
 
 ### Minor Changes
