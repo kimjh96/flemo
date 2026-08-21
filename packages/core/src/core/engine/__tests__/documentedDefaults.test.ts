@@ -8,7 +8,7 @@ import {
   readDesktopReleaseFlipFlag,
   readImageHoldFlag,
   readImageOffloadOverride,
-  readLayerPromotionFlag,
+  readRestLayerPromotionFlag,
   readPrerasterFlag,
   readSettleGateFlag,
   residentScreenLayers,
@@ -181,17 +181,21 @@ describe("documented default: flemo:deskhead", () => {
 });
 
 describe("documented defaults: the touch-WebKit opening set", () => {
-  // One device round (a real iPhone, 2026-08-20/21) moved these three from
-  // opt-in probes to defaults, each with its own measured effect: the release
+  // One device round (a real iPhone, 2026-08-20/21) moved these from opt-in
+  // probes to defaults, each with its own measured effect: the release
   // reconcile leaving the release frame (drops right after the release 61% →
-  // 32% of pushes), the creep head (drops at the head boundary 78% → 33%), and
-  // resident layers (the landing tremor did not recur once armed). They are
-  // scoped to the tier they were measured on and every one keeps an opt-out.
+  // 32% of pushes) and the creep head (drops at the head boundary 78% → 33%).
+  // They are scoped to the tier they were measured on and every one keeps an
+  // opt-out.
+  //
+  // The same round armed RESIDENT LAYERS and the scope's rest promotion; both
+  // were reverted to opt-in on 2026-08-21 — a promotion that outlives the
+  // flight is a permanent stacking context on the consumer's screen (see the
+  // flemo:layers and REST-half cases below).
   it("are ON for touch WebKit", () => {
     setEnv({ blink: false, touch: true });
     expect(readCreepHeadFlag()).toBe(true);
     expect(readDeferReleaseCommitFlag()).toBe(true);
-    expect(readLayerPromotionFlag()).toBe(true);
   });
 
   it("are OFF for Blink and for desktop WebKit", () => {
@@ -229,24 +233,31 @@ describe("the touch-WebKit opening set: explicit values", () => {
     expect(readDesktopHeadFlag()).toBe(false);
   });
 
-  it("keeps screen layers resident on touch WebKit, and honors both explicit values", () => {
+  it("keeps no screen layer resident by default, on any tier", () => {
+    // Table: "off". A resident layer is a PERMANENT stacking context on the
+    // screen scope, which silently outranks any consumer overlay inside it —
+    // the tab-bar-over-bottom-sheet report. The tremor it removed is deferred
+    // again (LAYER_SETTLE_MS) rather than skipped.
+    for (const env of [
+      { blink: false, touch: true }, // touch WebKit — the one-day default
+      { blink: true, touch: true },
+      { blink: true, touch: false, dpr: 2 },
+      { blink: false, touch: false, mac: true }
+    ]) {
+      setEnv(env);
+      resetResidentLayersForTesting();
+      expect(residentScreenLayers()).toBe(false);
+    }
+  });
+
+  it("still arms and disarms explicitly, so the experiment stays runnable", () => {
     setEnv({ blink: false, touch: true });
     resetResidentLayersForTesting();
+    sessionStorage.setItem("flemo:layers", "resident");
     expect(residentScreenLayers()).toBe(true);
 
     resetResidentLayersForTesting();
     sessionStorage.setItem("flemo:layers", "off");
-    expect(residentScreenLayers()).toBe(false);
-
-    resetResidentLayersForTesting();
-    sessionStorage.setItem("flemo:layers", "resident");
-    setEnv({ blink: true, touch: true });
-    expect(residentScreenLayers()).toBe(true);
-
-    // Blink is not in the default: it defers the demotion already, and a
-    // desktop A/B measured no difference with the layers resident.
-    resetResidentLayersForTesting();
-    sessionStorage.removeItem("flemo:layers");
     expect(residentScreenLayers()).toBe(false);
   });
 });
@@ -290,44 +301,26 @@ describe("documented default: flemo:preraster", () => {
   });
 });
 
-describe("documented default: the flemo:preraster layer-promotion half", () => {
-  // Table: the screen-scope promotion is armed by the flag on ANY device and is
-  // DEFAULT-ON for desktop Blink. Every term is browser-only state, which is
-  // why the react binding may only apply it after hydration — the contract is
-  // asserted in react's ScreenMotion.hydration.test.tsx.
-  it("is on for a desktop Blink session with no verdict and no flag", () => {
-    // The reason on the reader is what BLINK does with an occluded layer and
-    // what a DESKTOP can spend on GPU memory. Neither reads the panel, so a
-    // session no longer waits two flights for a refresh-rate verdict to earn
-    // a default that was never about refresh rate.
-    setEnv({ blink: true, touch: false, dpr: 2 });
-    expect(readLayerPromotionFlag()).toBe(true);
+describe("documented default: the REST half of flemo:preraster", () => {
+  // Table: "REST half: off". A promotion is also a stacking context, and at
+  // rest it sits under the whole consumer screen for as long as the screen is
+  // on top — a consumer overlay inside it can then never paint above the
+  // shared bars. So no device profile earns this one; only the flag does.
+  it("stays off for every tier the hold-window half is on for", () => {
+    for (const env of [
+      { blink: true, touch: false, dpr: 2 },
+      { blink: false, touch: false, mac: true },
+      { blink: false, touch: true }
+    ]) {
+      setEnv(env);
+      expect(readRestLayerPromotionFlag()).toBe(false);
+    }
   });
 
-  it("is on for a desktop Blink session at 1x too", () => {
-    setEnv({ blink: true, touch: false, dpr: 1 });
-    expect(readLayerPromotionFlag()).toBe(true);
-  });
-
-  it("is on for desktop macOS Safari too", () => {
-    // The one tier the promotion left out, with nothing justifying the gap: it
-    // takes the settle gate through the same predicate, and touch WebKit
-    // already promotes through governedCompiledActive.
-    setEnv({ blink: false, touch: false, mac: true });
-    expect(readLayerPromotionFlag()).toBe(true);
-  });
-
-  it("stays off for touch Blink, which the reason does not cover", () => {
-    // A phone pays the same GPU memory with far less of it, and the tiles the
-    // desktop term protects are not what stalls there.
-    setEnv({ blink: true, touch: true });
-    expect(readLayerPromotionFlag()).toBe(false);
-  });
-
-  it("is on wherever the flag is armed, whatever the device profile", () => {
+  it("is on only where the flag is armed", () => {
     setEnv({ blink: false, touch: true });
     sessionStorage.setItem("flemo:preraster", "on");
-    expect(readLayerPromotionFlag()).toBe(true);
+    expect(readRestLayerPromotionFlag()).toBe(true);
   });
 });
 
