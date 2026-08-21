@@ -236,4 +236,39 @@ describe("steadySixtyCadence reload seeding", () => {
       delete NAV.userAgentData;
     }
   });
+  // A phone can never read this verdict (the profile is non-touch by
+  // definition), so it must not pay to build one — the per-flight
+  // sessionStorage write is the cost that matters on exactly those devices.
+  // Observed in the field: a Galaxy Note 9 session carrying `flemo:sixty: "2"`
+  // that nothing would ever consult.
+  describe("touch sessions", () => {
+    const withTouch = (points: number, run: () => void) => {
+      Object.defineProperty(navigator, "maxTouchPoints", { value: points, configurable: true });
+      try {
+        run();
+      } finally {
+        Reflect.deleteProperty(navigator, "maxTouchPoints");
+      }
+    };
+
+    it("neither accumulates nor persists the verdict", () => {
+      sessionStorage.removeItem("flemo:sixty");
+      withTouch(5, () => {
+        reportInFlightCadence(16.7);
+        reportInFlightCadence(16.7);
+        expect(steadySixtyVerified()).toBe(false);
+      });
+      expect(sessionStorage.getItem("flemo:sixty")).toBe(null);
+    });
+
+    it("still accumulates for a non-touch session", () => {
+      sessionStorage.removeItem("flemo:sixty");
+      withTouch(0, () => {
+        reportInFlightCadence(16.7);
+        reportInFlightCadence(16.7);
+        expect(steadySixtyVerified()).toBe(true);
+      });
+      expect(sessionStorage.getItem("flemo:sixty")).toBe("2");
+    });
+  });
 });
