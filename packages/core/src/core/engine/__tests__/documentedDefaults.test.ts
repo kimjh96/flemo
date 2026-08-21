@@ -252,10 +252,10 @@ describe("the touch-WebKit opening set: explicit values", () => {
 });
 
 describe("documented default: flemo:imghold", () => {
-  // Table: "unpainted-only on steady-60 desktop, else off". The reader returns
-  // null for "no override" — the engine turns that into the unpainted-only hold
-  // when the profile qualifies, so the tri-state IS the documented default.
-  it("reads as no-override until a value is set", () => {
+  // Table: "off", opt-in. The steady-60 desktop default was retired 2026-08-21
+  // (a desktop A/B judged it indistinguishable; a touch round measured a net
+  // loss), so nothing turns the reader's null into a hold any more.
+  it("reads as no-override until a value is set, profile or not", () => {
     setEnv({ blink: true, touch: false, dpr: 2 });
     verifySteadySixty();
     expect(readImageHoldFlag()).toBeNull();

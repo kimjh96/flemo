@@ -87,10 +87,11 @@ describe("createTransitionEngine warm-side flight image hold", () => {
     Object.defineProperty(window, "devicePixelRatio", { value: originalDpr, configurable: true });
   });
 
-  const verifySixty = () => {
-    reportInFlightCadence(16.7);
-    reportInFlightCadence(16.7);
-  };
+  // The hold is OPT-IN since 2026-08-21 (the steady-60 desktop default was
+  // retired after a desktop A/B judged it indistinguishable and a touch round
+  // measured it as a net loss). The warm side is unpainted-only whatever the
+  // flag says, so arming with `on` still exercises exactly this behavior.
+  const armHold = () => window.sessionStorage.setItem("flemo:imghold", "on");
 
   const drive = (
     engine: TransitionEngine,
@@ -109,7 +110,7 @@ describe("createTransitionEngine warm-side flight image hold", () => {
   };
 
   it("parks the leaving push screen's unpainted images, never the painted ones", () => {
-    verifySixty();
+    armHold();
     const engine = createTransitionEngine(deps);
     drive(engine, "PUSHING", false);
     expect(loadingImg.style.display).toBe("none");
@@ -118,14 +119,14 @@ describe("createTransitionEngine warm-side flight image hold", () => {
   });
 
   it("parks the leaving top's unpainted images on pop", () => {
-    verifySixty();
+    armHold();
     const engine = createTransitionEngine(deps);
     drive(engine, "POPPING", true);
     expect(loadingImg.style.display).toBe("none");
   });
 
   it("reveals at rest through the landing scheduler", async () => {
-    verifySixty();
+    armHold();
     const engine = createTransitionEngine(deps);
     drive(engine, "PUSHING", false);
     expect(loadingImg.style.display).toBe("none");
@@ -136,7 +137,7 @@ describe("createTransitionEngine warm-side flight image hold", () => {
   });
 
   it("hands a warm→cold interrupt over without stranding the image", async () => {
-    verifySixty();
+    armHold();
     const engine = createTransitionEngine(deps);
     drive(engine, "PUSHING", false);
     expect(loadingImg.style.display).toBe("none");
@@ -154,7 +155,7 @@ describe("createTransitionEngine warm-side flight image hold", () => {
     expect(loadingImg.hasAttribute("data-flemo-img-hold")).toBe(false);
   });
 
-  it("flemo:imghold=on holds the ARRIVING screen's images off the steady-60 profile", () => {
+  it("flemo:imghold=on holds the ARRIVING screen's images too", () => {
     // No steady-60 verdict here: the explicit override is the whole point —
     // it is the measurement instrument the default profile grew out of.
     window.sessionStorage.setItem("flemo:imghold", "on");
@@ -165,14 +166,17 @@ describe("createTransitionEngine warm-side flight image hold", () => {
     expect(loadingImg.hasAttribute("data-flemo-img-hold")).toBe(true);
   });
 
-  it("stays unarmed while the session is not steady-60 verified", () => {
+  it("stays unarmed without the flag, whatever the display profile", () => {
+    // The retired default: a verified steady-60 HiDPI desktop used to arm this
+    // automatically. Nothing selects the hold any more.
+    reportInFlightCadence(16.7);
+    reportInFlightCadence(16.7);
     const engine = createTransitionEngine(deps);
     drive(engine, "PUSHING", false);
     expect(loadingImg.style.display).not.toBe("none");
   });
 
   it("flemo:imghold=off disables the warm-side hold too", () => {
-    verifySixty();
     window.sessionStorage.setItem("flemo:imghold", "off");
     const engine = createTransitionEngine(deps);
     drive(engine, "PUSHING", false);
