@@ -14,23 +14,10 @@ export { resetShallowFreezeForTesting } from "@core/engine/diagnosticFlags";
 // it at flight start. Keeping only the direct prev live pre-serves its
 // rasterized layer for the instant a pop needs it; DEEP screens keep
 // freezing (the O(depth) storm protection stays intact). Cost: one extra
-// live full-screen subtree at rest. Armed per session by a URL visit
-// (?flemo-freeze=shallow / ?flemo-freeze=off), synced to the `flemo:freeze`
-// storage key eagerly at module load; the (cached) read itself lives in
-// diagnosticFlags.ts.
-const syncShallowToggle = () => {
-  try {
-    if (typeof location === "undefined" || typeof sessionStorage === "undefined") return;
-    if (/[?&]flemo-freeze=shallow\b/.test(location.search)) {
-      sessionStorage.setItem("flemo:freeze", "shallow");
-    } else if (/[?&]flemo-freeze=off\b/.test(location.search)) {
-      sessionStorage.removeItem("flemo:freeze");
-    }
-  } catch {
-    // Storage unavailable: the instrument simply stays off.
-  }
-};
-syncShallowToggle();
+// live full-screen subtree at rest. Set through the `flemo:freeze` session
+// key; the (cached) read lives in diagnosticFlags.ts. URL arming was removed
+// 2026-08-21 — a query parameter wrote a session key on any visit, which made
+// a link enough to change how the library behaves for the rest of that tab.
 
 export interface ScreenFreezeInput {
   isActive: boolean;

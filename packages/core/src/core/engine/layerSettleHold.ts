@@ -76,23 +76,10 @@ export const LAYER_SETTLE_MS = 300;
 // raster into each fresh backing store. Demoting at rest means every next
 // flight pays that creation raster again; keeping the screen layers
 // resident should delete the onset skip, at the cost of resident backing
-// stores. A URL visit arms it for the session (?flemo-layers=resident /
-// ?flemo-layers=off), synced to the `flemo:layers` storage key eagerly at
-// module load — the first drive runs after a navigation has already dropped
-// the query; the (cached) read itself lives in diagnosticFlags.ts.
-const syncResidentToggle = () => {
-  try {
-    if (typeof location === "undefined" || typeof sessionStorage === "undefined") return;
-    if (/[?&]flemo-layers=resident\b/.test(location.search)) {
-      sessionStorage.setItem("flemo:layers", "resident");
-    } else if (/[?&]flemo-layers=off\b/.test(location.search)) {
-      sessionStorage.removeItem("flemo:layers");
-    }
-  } catch {
-    // Storage unavailable: the instrument simply stays off.
-  }
-};
-syncResidentToggle();
+// stores. Set through the `flemo:layers` session key; the (cached) read lives
+// in diagnosticFlags.ts. URL arming was removed 2026-08-21 — a query parameter
+// wrote a session key on any visit, which made a link enough to change how the
+// library behaves for the rest of that tab.
 
 // Per-element stamp record. `owners` maps each independent holder (an engine
 // transition, a swipe gesture — both promote riding bars, and their holds can
