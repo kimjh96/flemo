@@ -1,5 +1,26 @@
 # @flemo/react
 
+## 1.12.2
+
+### Patch Changes
+
+- [`d6dab7f`](https://github.com/kimjh96/flemo/commit/d6dab7f398024dd3f9cae885aba9dfa73b48dda6) Release the anim-hold straight onto the DOM on desktop macOS Safari, the way
+  touch WebKit already does. That session runs a compiled animation whose clock
+  WebKit presents from the main thread, so letting React's render and commit work
+  sit between the clock's start and the released attribute cost it the front of
+  every transition. `flemo:deskflip=off` restores the previous path.
+
+- [`9685d02`](https://github.com/kimjh96/flemo/commit/9685d020fea2e6f87ee7893a6b3d616cd8cc26bd) Steady the opening and the landing of a transition on iOS Safari. Three changes
+  ship on by default there, each measured on a device: the hold's release no
+  longer shares its frame with React's reconcile, the held head carries a hair of
+  motion so the compositor is already driving the animation when the real motion
+  starts, and the entering screen's layer is painted during the hold and kept
+  resident at rest instead of being torn down as the flight lands. Sessions can
+  opt any of them out with `flemo:relcommit=sync`, `flemo:creep=off` and
+  `flemo:layers=off`.
+- Updated dependencies ([`6b1bb93`](https://github.com/kimjh96/flemo/commit/6b1bb93383221c29ba0d630123ca60a7b8f16d30), [`d6dab7f`](https://github.com/kimjh96/flemo/commit/d6dab7f398024dd3f9cae885aba9dfa73b48dda6), [`9d706dc`](https://github.com/kimjh96/flemo/commit/9d706dcda42aacc4d15262dd76fbe7821a52d541), [`9685d02`](https://github.com/kimjh96/flemo/commit/9685d020fea2e6f87ee7893a6b3d616cd8cc26bd)):
+  - @flemo/core@1.26.0
+
 ## 1.12.1
 
 ### Patch Changes
