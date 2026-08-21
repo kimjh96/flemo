@@ -4,7 +4,7 @@ import settleScrubber from "@transition/settleScrub";
 
 import type { SwipeAnimate } from "@transition/typing";
 
-import driverPolicy from "@core/engine/driverPolicy";
+import driverPolicy, { detectBlinkEngine } from "@core/engine/driverPolicy";
 
 const isHTMLElement = (target: unknown): target is HTMLElement =>
   typeof HTMLElement !== "undefined" && target instanceof HTMLElement;
@@ -168,20 +168,35 @@ const animateInline = (
 
   // The settle rides the scrub clock only where the player itself is the
   // driver of choice — i.e. not under a `css` force pin (the sole input to
-  // playerAllowed() since demotion was retired): on engines whose compositor
-  // is healthy, the CSS transition below IS the right settle.
-  const scrubbed = driverPolicy.playerAllowed()
-    ? settleScrubber.settle(
-        el,
-        decls,
-        { durationMs: duration * 1000, delayMs: delay * 1000, easing },
-        (decl) => {
-          trackInlineWrite(el, decl.property, writer);
-          el.style.setProperty(decl.property, decl.value);
-        },
-        writer
-      )
-    : null;
+  // playerAllowed() since demotion was retired) — and only on BLINK.
+  //
+  // The scrubber steps every settle's currentTime from a main-thread rAF
+  // clock, for "the same compositor-jank immunity as the transition player".
+  // That player is retired, and on WebKit the trade runs the wrong way: the
+  // scarce resource there is the MAIN THREAD, not the compositor, so a settle
+  // that needs a main-thread tick per frame is exactly what a starved one
+  // drops. Device-reported on iOS in Low Power Mode — the release, not just
+  // the drag, stutters — and judged on glass against this same motion driven
+  // as an ordinary compositor animation: the compositor one is smooth.
+  //
+  // The CSS transition below carries the SAME authored duration and easing and
+  // starts from the element's current computed value, which is the one thing a
+  // release must do (a finger can let go anywhere). Blink keeps the scrubber:
+  // nothing there was reported, and its compositor is the resource the
+  // scrubber was protecting against.
+  const scrubbed =
+    detectBlinkEngine() && driverPolicy.playerAllowed()
+      ? settleScrubber.settle(
+          el,
+          decls,
+          { durationMs: duration * 1000, delayMs: delay * 1000, easing },
+          (decl) => {
+            trackInlineWrite(el, decl.property, writer);
+            el.style.setProperty(decl.property, decl.value);
+          },
+          writer
+        )
+      : null;
   if (scrubbed) return scrubbed;
 
   // No WAAPI: the CSS transition path, exactly as before.

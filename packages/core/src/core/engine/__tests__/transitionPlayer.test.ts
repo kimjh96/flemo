@@ -150,6 +150,11 @@ describe("isPlayerDrivable", () => {
 
 describe("transitionPlayer", () => {
   it("join force-concludes a running settle on its element (navigation authority)", async () => {
+    // The scrubbed settle is the BLINK tier since 2026-08-22; WebKit's CSS
+    // transition settle is covered by the case below.
+    (navigator as { userAgentData?: unknown }).userAgentData = {
+      brands: [{ brand: "Chromium", version: "120" }]
+    };
     // A tap grazing the swipe edge starts a cancel settle in the same
     // gesture that starts the navigation — the join must end that settle or
     // its WAAPI outranks the player's writes for its whole span
@@ -169,6 +174,27 @@ describe("transitionPlayer", () => {
     // The settle's animation was concluded at join (pinned + cancelled).
     expect(settleAnim.canceled).toBe(true);
     await settle; // and its promise resolves rather than hanging
+  });
+
+  it("join also pins off a CSS-transition settle (the WebKit tier)", () => {
+    // Off Blink the settle is an inline transition. Left running, it would
+    // interpolate toward each value the player writes — the same backward
+    // glide the scrubbed settle caused, in a different mechanism.
+    delete (navigator as { userAgentData?: unknown }).userAgentData;
+    const { scheduler } = createFakeScheduler();
+    const registry = createTransitionPlayerRegistry(scheduler);
+    const el = element();
+
+    void animateInline(el, { x: 0 }, { duration: 0.3, ease: "linear" });
+    expect(el.style.transition).toContain("0.3s");
+
+    registry.join("task-css-settle", {
+      element: el,
+      motion: linearMotion({ x: "100%" }, { x: 0 }),
+      role: "active"
+    });
+
+    expect(el.style.transition).toBe("none");
   });
 
   it("pins the from frame synchronously on join and suppresses the CSS animation", () => {

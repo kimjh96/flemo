@@ -5,8 +5,22 @@ import animateInline, { clearInlineAnimation, trackInlineWrite } from "@transiti
 // jsdom reads as non-Blink (no navigator.userAgentData), where the player
 // defaults OFF; these suites exercise the player paths, so pin it on via
 // the diagnostic force key.
+//
+// The SCRUBBED settle is Blink-only since 2026-08-22 (WebKit takes the
+// compositor path — see animateInline), so a suite that means to exercise the
+// scrubber must also present itself as Blink.
+const NAV = navigator as { userAgentData?: unknown };
+const asBlink = () => {
+  NAV.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
+};
+const asWebKit = () => {
+  delete NAV.userAgentData;
+};
 beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`));
-afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
+afterAll(() => {
+  sessionStorage.removeItem("flemo:motion-driver-force");
+  asWebKit();
+});
 
 const newDiv = () => {
   const el = document.createElement("div");
@@ -22,6 +36,23 @@ describe("animateInline", () => {
   afterEach(() => {
     el.remove();
     vi.useRealTimers();
+  });
+
+  it("settles on the compositor (not the scrub clock) off Blink", async () => {
+    // WebKit's scarce resource is the main thread, so a settle that needs a
+    // main-thread tick per frame is what a starved one drops. Same authored
+    // duration and easing, carried by an ordinary CSS transition instead.
+    asWebKit();
+    const animate = vi.fn();
+    (el as unknown as { animate: unknown }).animate = animate;
+
+    const settled = animateInline(el, { x: 200 }, { duration: 0.3, ease: "easeOut" });
+
+    expect(animate).not.toHaveBeenCalled();
+    expect(el.style.transition).toContain("0.3s");
+    expect(el.style.transform).toContain("translate3d(200px, 0, 0)");
+    el.dispatchEvent(new Event("transitionend"));
+    await settled;
   });
 
   it("resolves immediately when there is nothing to animate", async () => {
@@ -96,6 +127,7 @@ describe("animateInline", () => {
   });
 
   it("a timed write settles through the scrubbed Web Animation when WAAPI exists", async () => {
+    asBlink();
     const animation = {
       currentTime: null as number | null,
       paused: false,
@@ -125,6 +157,7 @@ describe("animateInline", () => {
   });
 
   it("clearInlineAnimation drops an in-flight settle without late writes", async () => {
+    asBlink();
     const animation = {
       currentTime: null as number | null,
       paused: false,
@@ -163,6 +196,7 @@ describe("animateInline", () => {
   });
 
   it("an instant write takes over a live settle (re-grab semantics)", () => {
+    asBlink();
     const animation = {
       currentTime: null as number | null,
       paused: false,
