@@ -28,12 +28,14 @@ declare module "@transition/typing" {
     "custom-unitless": "custom-unitless";
     "custom-lengths": "custom-lengths";
     "custom-css-vars": "custom-css-vars";
+    "custom-constant-shadow": "custom-constant-shadow";
   }
 }
 
 declare module "@transition/decorator/typing" {
   interface RegisterDecorator {
     "rich-deco": "rich-deco";
+    "held-deco": "held-deco";
   }
 }
 
@@ -1181,5 +1183,147 @@ describe("easingToCss", () => {
     expect(easingToCss("easeInOut")).toBe("ease-in-out");
     expect(easingToCss([0.1, 0.2, 0.3] as never)).toBe("linear");
     expect(easingToCss([0.1, 0.2, 0.3, 0.4])).toBe("cubic-bezier(0.1, 0.2, 0.3, 0.4)");
+  });
+  // A property with the SAME value on both endpoints of a variant never
+  // interpolates — and a keyframe that merely NAMES a property the engine
+  // cannot composite is enough to drop the whole animation to the main
+  // thread. Engines disagree about that list (Blink only learned to composite
+  // background-color in 111), so the compiler keeps constants OUT of the
+  // keyframes and applies them from the variant's own rule instead, where the
+  // rendered result is identical. This is not an overlay special case: it must
+  // hold for every decorator, transition and part an author writes.
+  describe("constant properties stay out of the keyframes", () => {
+    // A keyframe block ONLY — the emitted sheet puts the element rule right
+    // after it in the same paragraph, and that rule is exactly where the
+    // constants now live, so a paragraph-level match would prove nothing.
+    const keyframeBlockOf = (css: string, name: string) =>
+      css.match(new RegExp(`@keyframes ${name} \\{[\\s\\S]*?\\n\\}`))?.[0];
+    const ruleBlockOf = (css: string, selectorPart: string) =>
+      css
+        .split("\n")
+        .join("\n")
+        .match(
+          new RegExp(`[^}]*${selectorPart.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^{]*\\{[^}]*\\}`)
+        )?.[0];
+
+    it("keeps an AUTHORED decorator's constant channel out of its keyframes", () => {
+      const held = createDecorator({
+        name: "held-deco",
+        initial: { opacity: 0, backdropFilter: "saturate(1.4)" },
+        idle: { value: { opacity: 0, backdropFilter: "saturate(1.4)" }, options: { duration: 0 } },
+        enter: {
+          value: { opacity: 1, backdropFilter: "saturate(1.4)" },
+          options: { duration: 0.4 }
+        },
+        exit: { value: { opacity: 0, backdropFilter: "saturate(1.4)" }, options: { duration: 0.4 } }
+      });
+      const css = compileTransitionStyles([], [held]);
+      const keyframe = keyframeBlockOf(
+        css,
+        animationName("decorator", "held-deco", "PUSHING-false")
+      );
+
+      expect(keyframe).toBeDefined();
+      expect(keyframe).toContain("opacity: 1");
+      expect(keyframe).not.toContain("backdrop-filter");
+      // Still applied — by the rule that runs the animation.
+      expect(
+        ruleBlockOf(css, '[data-flemo-decorator-name="held-deco"][data-flemo-status="PUSHING"]')
+      ).toContain("backdrop-filter: saturate(1.4)");
+    });
+
+    it("does the same for a screen transition and its parts", () => {
+      const shadowed = createTransition({
+        name: "custom-constant-shadow",
+        initial: { x: "100%", boxShadow: "-2px 0 8px rgba(0,0,0,0.2)" },
+        idle: {
+          value: { x: 0, boxShadow: "-2px 0 8px rgba(0,0,0,0.2)" },
+          options: { duration: 0 }
+        },
+        enter: {
+          value: { x: 0, boxShadow: "-2px 0 8px rgba(0,0,0,0.2)" },
+          options: { duration: 0.3 }
+        },
+        enterBack: {
+          value: { x: "100%", boxShadow: "-2px 0 8px rgba(0,0,0,0.2)" },
+          options: { duration: 0.3 }
+        },
+        exit: {
+          value: { x: "-30%", boxShadow: "-2px 0 8px rgba(0,0,0,0.2)" },
+          options: { duration: 0.3 }
+        },
+        exitBack: {
+          value: { x: 0, boxShadow: "-2px 0 8px rgba(0,0,0,0.2)" },
+          options: { duration: 0.3 }
+        }
+      });
+      const part = createPartTransition({
+        name: "constant-part",
+        initial: { opacity: 0, filter: "blur(2px)" },
+        idle: { value: { opacity: 1, filter: "blur(2px)" }, options: { duration: 0 } },
+        enter: { value: { opacity: 1, filter: "blur(2px)" }, options: { duration: 0.3 } },
+        exit: { value: { opacity: 0, filter: "blur(2px)" }, options: { duration: 0.3 } }
+      });
+      const css = compileTransitionStyles([shadowed], [], [part]);
+
+      const screenKeyframe = keyframeBlockOf(
+        css,
+        animationName("screen", "custom-constant-shadow", "PUSHING-true")
+      );
+      expect(screenKeyframe).toContain("transform: translate3d(100%, 0, 0)");
+      expect(screenKeyframe).not.toContain("box-shadow");
+
+      const partKeyframe = keyframeBlockOf(
+        css,
+        animationName("part", "constant-part", "PUSHING-false")
+      );
+      expect(partKeyframe).toBeDefined();
+      expect(partKeyframe).not.toContain("filter");
+      expect(css).toContain("filter: blur(2px)");
+    });
+
+    it("leaves a channel that actually changes in the keyframes", () => {
+      const css = compileTransitionStyles([], [overlay]);
+      const keyframe = keyframeBlockOf(css, animationName("decorator", "overlay", "PUSHING-false"));
+
+      // opacity interpolates: it stays. background-color is held: it does not.
+      expect(keyframe).toContain("opacity: 0");
+      expect(keyframe).toContain("opacity: 1");
+      expect(keyframe).not.toContain("background-color");
+      expect(css).toContain("background-color: rgba(0, 0, 0, 0.1)");
+    });
+
+    it("still emits the animation when EVERY channel is constant", () => {
+      // Nothing interpolates here, but the flight resolves on `animationend`:
+      // dropping the animation with the constants would strand every such
+      // variant until the recovery watchdog replayed it.
+      const stillDeco = createDecorator({
+        name: "held-deco",
+        initial: { opacity: 0.5, backdropFilter: "saturate(1.4)" },
+        idle: {
+          value: { opacity: 0.5, backdropFilter: "saturate(1.4)" },
+          options: { duration: 0 }
+        },
+        enter: {
+          value: { opacity: 0.5, backdropFilter: "saturate(1.4)" },
+          options: { duration: 0.4 }
+        },
+        exit: {
+          value: { opacity: 0.5, backdropFilter: "saturate(1.4)" },
+          options: { duration: 0.4 }
+        }
+      });
+      const css = compileTransitionStyles([], [stillDeco]);
+      const rule = ruleBlockOf(
+        css,
+        '[data-flemo-decorator-name="held-deco"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
+      );
+
+      expect(rule).toContain(
+        `animation: ${animationName("decorator", "held-deco", "PUSHING-false")} 0.4s`
+      );
+      expect(rule).toContain("backdrop-filter: saturate(1.4)");
+      expect(rule).toContain("opacity: 0.5");
+    });
   });
 });

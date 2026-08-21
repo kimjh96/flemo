@@ -433,8 +433,33 @@ const compileVariantBlock = (
   toVariant: TransitionVariantValue,
   selectorBuilder: (n: string, v: TransitionVariant) => string
 ): string => {
-  const fromDecls = targetToDecls(fromValue);
-  const toDecls = targetToDecls(toVariant.value);
+  const authoredFromDecls = targetToDecls(fromValue);
+  const authoredToDecls = targetToDecls(toVariant.value);
+
+  // A property with the SAME value on both endpoints never interpolates, so it
+  // belongs on the element's rule, not in the keyframes. The overlay decorator
+  // is the case in the box: it holds `background-color` at the target dim and
+  // animates only `opacity` — its own note says "the keyframe stays
+  // single-property" — but the compiler was emitting the constant colour into
+  // both keyframe steps anyway. A keyframe listing a property an engine cannot
+  // composite is enough to drop the WHOLE animation to the main thread, and
+  // engines disagree about which properties those are (Blink only learned to
+  // composite background-color in 111 — later than the phones this library is
+  // measured on). The rendered result is identical either way: the value is
+  // applied by the rule for exactly the window the variant selector matches.
+  // `will-change` below already filtered constants out for the same reason.
+  const constantProperties = new Set(
+    authoredFromDecls
+      .filter((decl) =>
+        authoredToDecls.some(
+          (other) => other.property === decl.property && other.value === decl.value
+        )
+      )
+      .map((decl) => decl.property)
+  );
+  const constantDecls = authoredFromDecls.filter((decl) => constantProperties.has(decl.property));
+  const fromDecls = authoredFromDecls.filter((decl) => !constantProperties.has(decl.property));
+  const toDecls = authoredToDecls.filter((decl) => !constantProperties.has(decl.property));
   const duration = variantDuration(toVariant.options);
   const delay = variantDelay(toVariant.options);
   const easing = easingToCss(toVariant.options?.ease);
@@ -448,14 +473,14 @@ const compileVariantBlock = (
 
   // Variants with no animatable target: emit a rest rule so the element
   // simply holds the target value with no animation.
-  if (toDecls.length === 0 && fromDecls.length === 0) {
+  if (authoredToDecls.length === 0 && authoredFromDecls.length === 0) {
     return "";
   }
 
   // No duration: snap directly to the target (no keyframe, no animationend).
   if (duration <= 0 && delay <= 0) {
-    if (toDecls.length === 0) return "";
-    return `${selector} {\n${declsToBlock(toDecls)}\n  animation: none;\n}`;
+    if (authoredToDecls.length === 0) return "";
+    return `${selector} {\n${declsToBlock(authoredToDecls)}\n  animation: none;\n}`;
   }
 
   const keyframe = animationName(scope, name, variant);
@@ -608,7 +633,7 @@ const compileVariantBlock = (
   ): string => {
     if (scope === "part") return "";
     if (headS <= 0 || duration <= 0) return "";
-    if (fromDecls.length === 0 && toDecls.length === 0) return "";
+    if (authoredFromDecls.length === 0 && authoredToDecls.length === 0) return "";
     const total = duration + headS;
     const headPct = ((headS / total) * 100).toFixed(3);
     const kf = `${keyframe}-${suffix}`;
@@ -661,7 +686,7 @@ const compileVariantBlock = (
     if (headS <= 0 || duration <= 0) return "";
     /* v8 ignore next -- same guard as headBlock's: a variant with nothing to
        animate never reaches a head. */
-    if (fromDecls.length === 0 && toDecls.length === 0) return "";
+    if (authoredFromDecls.length === 0 && authoredToDecls.length === 0) return "";
     const creepDecls: CssDecl[] = (() => {
       const transform = fromDecls.find((decl) => decl.property === "transform");
       if (!transform) return [...fromDecls, { property: "transform", value: CREEP_NUDGE }];
@@ -735,7 +760,12 @@ const compileVariantBlock = (
   // native scrolling can begin immediately on the destination.
   const containmentDecl = wantsContainment ? `  contain: layout;\n` : "";
 
-  const ruleBlock = `${selector} {\n  animation: ${animationProp};\n${delayDecl}${durationDecl}${willChangeDecl}${containmentDecl}}`;
+  // The constants the keyframes no longer carry (see constantProperties): the
+  // variant rule matches for exactly the window the animation runs, so the
+  // element holds them throughout, and the keyframes stay composable.
+  const constantDecl = constantDecls.length > 0 ? `${declsToBlock(constantDecls)}\n` : "";
+
+  const ruleBlock = `${selector} {\n  animation: ${animationProp};\n${delayDecl}${durationDecl}${constantDecl}${willChangeDecl}${containmentDecl}}`;
 
   // Destination pre-raster park. While a freshly started transition is held
   // (see the hold rule appended to the sheet), a COVERED screen whose `from`
@@ -754,9 +784,9 @@ const compileVariantBlock = (
     scope === "screen" &&
     variant.endsWith("-false") &&
     targetHidesScreen(fromValue) &&
-    toDecls.length > 0
+    authoredToDecls.length > 0
       ? `\n${screenSelector}[data-flemo-anim-hold="park"] {\n  animation: none;\n${declsToBlock(
-          toDecls
+          authoredToDecls
         )}\n}`
       : "";
 
@@ -777,9 +807,9 @@ const compileVariantBlock = (
     variant.endsWith("-true") &&
     (variant.startsWith("PUSHING") || variant.startsWith("REPLACING")) &&
     targetHidesScreen(fromValue) &&
-    toDecls.length > 0
+    authoredToDecls.length > 0
       ? `\n${screenSelector}[data-flemo-anim-hold="park-under"] {\n  animation: none;\n${declsToBlock(
-          toDecls
+          authoredToDecls
         )}\n}`
       : "";
 
@@ -792,9 +822,9 @@ const compileVariantBlock = (
     variant.endsWith("-true") &&
     (variant.startsWith("PUSHING") || variant.startsWith("REPLACING")) &&
     targetHidesScreen(fromValue) &&
-    toDecls.length > 0
+    authoredToDecls.length > 0
       ? `\n${screenSelector}[data-flemo-anim-hold="park-over"] {\n  animation: none;\n${declsToBlock(
-          toDecls
+          authoredToDecls
         )}\n  opacity: 0.02;\n}`
       : "";
 
