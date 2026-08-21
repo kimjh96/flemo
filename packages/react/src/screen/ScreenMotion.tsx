@@ -25,7 +25,7 @@ import {
   observeBarHeight,
   readDeferReleaseCommitFlag,
   readDesktopReleaseFlipFlag,
-  readLayerPromotionFlag,
+  readRestLayerPromotionFlag,
   readPrerasterFlag,
   readSettleGateFlag,
   resolveTransition,
@@ -632,18 +632,20 @@ function ScreenMotion({
           : "park-under"
         : "true";
 
-  // Whether this session promotes screen scopes at all (`flemo:preraster=on`,
-  // or the steady-60 desktop profile — see core's readLayerPromotionFlag). Read
-  // through the hydration-safe gate because the answer is browser-only state
-  // and the decision reaches the DOM as an INLINE style: evaluated directly, a
-  // server-rendered screen emits no `will-change` while the hydration render
-  // asks for one, and React reports a style mismatch on [data-flemo-screen].
-  // The gate renders `false` for the server and the hydration render only, then
-  // re-renders with the real value one commit later — at rest, where nothing is
-  // animating. A screen mounted for a push/replace/pop is not hydrating, so it
-  // still reads the live value in its FIRST render and keeps the promotion on
-  // the opening frames it exists for.
-  const layerPromotion = useHydrationSafeFlag(readLayerPromotionFlag);
+  // The scope's REST promotion (`flemo:preraster=on`). Browser-only state that
+  // reaches the DOM as an INLINE STYLE, so it is read through the hydration
+  // gate: evaluated directly, a server-rendered screen emits no `will-change`
+  // while the hydration render asks for one, and React reports a style mismatch
+  // on [data-flemo-screen]. The gate renders `false` for the server and the
+  // hydration render only, then re-renders with the real value one commit
+  // later — at rest, where nothing is animating.
+  //
+  // The FLIGHT-time promotion is not here: the engine stamps every participant
+  // for the length of the flight (layerSettleHold), on every tier. The binding
+  // used to promote the scope through the hold as well, and that duplicate is
+  // what made the stamp restore a promotion forever — see
+  // readRestLayerPromotionFlag's note in core.
+  const restLayerPromotion = useHydrationSafeFlag(readRestLayerPromotionFlag);
 
   // Drive the navigation-task lifecycle through the framework-neutral engine.
   // It resolves the active screen's task on its animationend (or a microtask
@@ -987,9 +989,20 @@ function ScreenMotion({
           // frames (the biggest structural GPU cost a flight still carries).
           // Root routers only (`!contained`), same containing-block
           // reasoning as before.
-          // `layerPromotion` is the session predicate (deferred past hydration —
-          // see its declaration); the term beside it is the per-screen one.
-          ...(layerPromotion && (holdAttr !== "false" || (zIndex === index && !contained))
+          //
+          // OPT-IN since 2026-08-21 (`restLayerPromotion`, armed by
+          // `flemo:preraster=on`): a promotion is also a STACKING CONTEXT, and
+          // at rest the scope holds the entire consumer screen. Left on, a
+          // consumer's own `position: fixed; z-index: 50` overlay could never
+          // paint above the shared bars below (siblings at `z-index: 1`) — a
+          // bottom sheet came up UNDER the tab bar on iOS Safari, with no
+          // z-index on their side able to answer it. The hold-window half
+          // stays default-on by tier: there the scope is transformed anyway,
+          // so the confinement is already priced in and ends with the flight.
+          // `layerPromotion` / `restLayerPromotion` are the session predicates
+          // (deferred past hydration — see their declarations); the terms
+          // beside them are the per-screen ones.
+          ...(restLayerPromotion && zIndex === index && !contained
             ? { willChange: "transform" }
             : {}),
           ...initialStyle,
