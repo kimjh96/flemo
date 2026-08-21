@@ -1,5 +1,15 @@
 # @flemo/core
 
+## 1.28.0
+
+### Minor Changes
+
+- [`db0985b`](https://github.com/kimjh96/flemo/commit/db0985b6d5e81bf5a2cd0e24bba97b0176cd2844) Stop a screen scope from staying a compositor layer at rest. A promotion is also a stacking context, so a scope that kept one outlived its flight and silently outranked anything a consumer rendered inside the screen — an open bottom sheet came up under the shared tab bar and no z-index could answer it. Flight-time promotion is unchanged; it belongs to the engine, which demotes it a settle past the landing. `flemo:preraster=on` re-arms the rest promotion and `flemo:layers=resident` the resident layers, both now opt-in.
+
+### Patch Changes
+
+- [`d30a03f`](https://github.com/kimjh96/flemo/commit/d30a03fb860a3850c2925c9f67dad5615a7d50ac) Swipe back on a screen that hosts a nested `<Router>` and the screen's own dim now moves with the drag. The gesture resolved the previous screen's decorator, shared bars and parts with a descendant query, which finds the INNER router's elements first — so the inner dim faded while the screen's own stayed fully dark for the whole drag.
+
 ## 1.27.1
 
 ### Patch Changes
