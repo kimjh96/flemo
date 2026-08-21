@@ -1,10 +1,6 @@
 import { easingToCss, targetToDecls } from "@transition/compileTransitionStyles";
 
-import settleScrubber from "@transition/settleScrub";
-
 import type { SwipeAnimate } from "@transition/typing";
-
-import driverPolicy, { detectBlinkEngine } from "@core/engine/driverPolicy";
 
 const isHTMLElement = (target: unknown): target is HTMLElement =>
   typeof HTMLElement !== "undefined" && target instanceof HTMLElement;
@@ -67,6 +63,17 @@ export const trackInlineWrite = (
   entry.owners.add(owner);
 };
 
+// Conclude a running settle without writing values: a NAVIGATION owns its
+// participants, and a settle still interpolating would pull toward its own
+// target while the flight (or the player) writes the real pose. Exported for
+// those two call sites; the instant-write path above concludes its own.
+export const concludeInlineSettle = (el: HTMLElement, owner?: symbol) => {
+  if (!isHTMLElement(el)) return;
+  trackInlineWrite(el, "transition", owner);
+  el.style.transition = "none";
+  transitionWriters.set(el, owner);
+};
+
 // Drop any inline styles animateInline wrote (transform / opacity / filter /
 // backgroundColor / ...) so the underlying CSS rules can take over (e.g.,
 // after a swipe is cancelled, the CSS rest rule resumes). Pass an explicit
@@ -74,16 +81,10 @@ export const trackInlineWrite = (
 // stake — the property is restored only when no other writer still holds it;
 // omit `owner` for the force form (the flight-over final authority).
 export const clearInlineAnimation = (el: HTMLElement, properties?: string[], owner?: symbol) => {
-  // An in-flight settle would out-rank the rest rules this handoff enables
-  // (animations override inline and cascade styles) AND write its final
-  // values back after the strip — drop it first, writing nothing. The drop
-  // is owner-scoped like the leases: writer A's cleanup must not cancel a
-  // settle writer B is still running on the same element — only the force
-  // form (flight over) drops any settle. The CSS `transition` reset follows
-  // the same rule via the owner's stakes (the property itself carries no
-  // writer tag, so a staked owner's reset can still clip another writer's
-  // fallback transition — a far narrower residue than the unscoped reset).
-  settleScrubber.cancel(el, owner);
+  // A settle IS the inline `transition` reset below: dropping it concludes
+  // the motion without writing anything, which is what a handoff to the rest
+  // rules needs. The reset is owner-scoped — writer A's cleanup must not clip
+  // a transition writer B is still running on the same element.
   const lease = inlineLeases.get(el);
   // Reset `transition` only under the force form or when THIS owner was its
   // last writer — the property itself is single-valued, so ownership of the
@@ -153,10 +154,10 @@ const animateInline = (
   const easing = easingToCss(options.ease);
 
   if (duration <= 0 && delay <= 0) {
-    // A re-grab writes through here every pointermove: a lingering settle
-    // animation would override the inline values, so it hands over first
-    // (pinning its current position — the finger takes it from there).
-    settleScrubber.takeover(el, writer);
+    // A re-grab writes through here every pointermove: `transition: none` in
+    // the same commit concludes any settle still running and takes the value
+    // the finger asks for, so the motion departs from the finger, never from
+    // a stale target.
     el.style.transition = "none";
     transitionWriters.set(el, writer);
     for (const d of decls) {
@@ -166,40 +167,20 @@ const animateInline = (
     return Promise.resolve();
   }
 
-  // The settle rides the scrub clock only where the player itself is the
-  // driver of choice — i.e. not under a `css` force pin (the sole input to
-  // playerAllowed() since demotion was retired) — and only on BLINK.
+  // THE settle: an inline CSS transition, on every engine. It carries the
+  // authored duration and easing and starts from the element's current
+  // computed value, which is the one thing a release must do — a finger can
+  // let go anywhere.
   //
-  // The scrubber steps every settle's currentTime from a main-thread rAF
-  // clock, for "the same compositor-jank immunity as the transition player".
-  // That player is retired, and on WebKit the trade runs the wrong way: the
-  // scarce resource there is the MAIN THREAD, not the compositor, so a settle
-  // that needs a main-thread tick per frame is exactly what a starved one
-  // drops. Device-reported on iOS in Low Power Mode — the release, not just
-  // the drag, stutters — and judged on glass against this same motion driven
-  // as an ordinary compositor animation: the compositor one is smooth.
-  //
-  // The CSS transition below carries the SAME authored duration and easing and
-  // starts from the element's current computed value, which is the one thing a
-  // release must do (a finger can let go anywhere). Blink keeps the scrubber:
-  // nothing there was reported, and its compositor is the resource the
-  // scrubber was protecting against.
-  const scrubbed =
-    detectBlinkEngine() && driverPolicy.playerAllowed()
-      ? settleScrubber.settle(
-          el,
-          decls,
-          { durationMs: duration * 1000, delayMs: delay * 1000, easing },
-          (decl) => {
-            trackInlineWrite(el, decl.property, writer);
-            el.style.setProperty(decl.property, decl.value);
-          },
-          writer
-        )
-      : null;
-  if (scrubbed) return scrubbed;
-
-  // No WAAPI: the CSS transition path, exactly as before.
+  // It used to be a paused Web Animation whose currentTime was stepped from a
+  // main-thread rAF clock (settleScrub, deleted with this change), for "the
+  // same compositor-jank immunity as the transition player". That player is
+  // retired, and the trade runs backwards where the main thread is the scarce
+  // resource: device-reported on iOS in Low Power Mode, the release stuttered
+  // along with the drag. Judged on glass against this same motion driven both
+  // ways: on WebKit the compositor one is smooth and the scrubbed one is not,
+  // and on Blink the two are indistinguishable — so there is no tier left to
+  // keep, and no second mechanism to carry.
   const transitionList = decls
     .map((d) => `${d.property} ${duration}s ${easing} ${delay}s`)
     .join(", ");

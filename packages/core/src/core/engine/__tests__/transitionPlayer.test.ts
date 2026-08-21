@@ -149,38 +149,11 @@ describe("isPlayerDrivable", () => {
 });
 
 describe("transitionPlayer", () => {
-  it("join force-concludes a running settle on its element (navigation authority)", async () => {
-    // The scrubbed settle is the BLINK tier since 2026-08-22; WebKit's CSS
-    // transition settle is covered by the case below.
-    (navigator as { userAgentData?: unknown }).userAgentData = {
-      brands: [{ brand: "Chromium", version: "120" }]
-    };
-    // A tap grazing the swipe edge starts a cancel settle in the same
-    // gesture that starts the navigation — the join must end that settle or
-    // its WAAPI outranks the player's writes for its whole span
-    // (device-captured: backward glide then teleport).
-    const { scheduler } = createFakeScheduler();
-    const registry = createTransitionPlayerRegistry(scheduler);
-    const el = element();
-    const settleAnim = fakeAnimation();
-    withAnimate(el, settleAnim);
-    const settle = animateInline(el, { x: 0 }, { duration: 0.3, ease: "linear" });
-    expect(settleAnim.canceled).toBe(false);
-    registry.join("task-settle-war", {
-      element: el,
-      motion: linearMotion({ x: "100%" }, { x: 0 }),
-      role: "active"
-    });
-    // The settle's animation was concluded at join (pinned + cancelled).
-    expect(settleAnim.canceled).toBe(true);
-    await settle; // and its promise resolves rather than hanging
-  });
-
-  it("join also pins off a CSS-transition settle (the WebKit tier)", () => {
-    // Off Blink the settle is an inline transition. Left running, it would
-    // interpolate toward each value the player writes — the same backward
-    // glide the scrubbed settle caused, in a different mechanism.
-    delete (navigator as { userAgentData?: unknown }).userAgentData;
+  it("join concludes a running settle on its element (navigation authority)", () => {
+    // A tap grazing the swipe edge starts a cancel settle in the same gesture
+    // that starts the navigation. Left running, its transition would
+    // interpolate toward its own target under every value the player writes —
+    // device-captured once as a backward glide, then a teleport.
     const { scheduler } = createFakeScheduler();
     const registry = createTransitionPlayerRegistry(scheduler);
     const el = element();

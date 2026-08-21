@@ -1,8 +1,11 @@
-import { clearInlineAnimation, trackInlineWrite } from "@transition/animateInline";
+import {
+  clearInlineAnimation,
+  concludeInlineSettle,
+  trackInlineWrite
+} from "@transition/animateInline";
 
 import { easingToCss, targetToDecls } from "@transition/compileTransitionStyles";
 import { resolveEasing, type EasingFunction } from "@transition/cubicBezier";
-import settleScrubber from "@transition/settleScrub";
 import type { MotionTarget, VariantMotion } from "@transition/variantMotion";
 
 import {
@@ -943,14 +946,7 @@ export const createTransitionPlayerRegistry = (
       // flight, and the settle's WAAPI outranks the player's inline writes
       // for its whole span — device-captured as the pop gliding backward
       // then teleporting to the player's true position.
-      settleScrubber.takeover(track.element);
-      // Same hazard, other mechanism: off Blink a settle is an inline CSS
-      // TRANSITION (see animateInline), which would interpolate toward every
-      // value the player writes instead of taking it. Pin it off exactly as
-      // the compiled animation is pinned off, through the same writer so the
-      // teardown restores whatever the element had.
-      trackInlineWrite(track.element, "transition", trackWriter);
-      track.element.style.transition = "none";
+      concludeInlineSettle(track.element, trackWriter);
       trackInlineWrite(track.element, "animation", trackWriter);
       track.element.style.animation = "none";
       if (parsed) {
