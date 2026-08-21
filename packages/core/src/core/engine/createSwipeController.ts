@@ -175,14 +175,32 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     return result;
   };
 
+  // A screen container's OWN chrome, by direct child only. The binding renders
+  // the scope, the shared bars and the decorator as direct children of the
+  // container, so this is exactly that screen's set — while a descendant query
+  // is not: a screen hosting a NESTED <Router> has that router's screens INSIDE
+  // its scope, and their decorator and bars are deeper but EARLIER in document
+  // order, so `querySelector` returns the NESTED screen's element. Device-
+  // reported on plen's 내 지역 tab (the one page with a nested Router): a
+  // swipe-back faded the inner router's dim while the screen's own dim stayed
+  // at full opacity for the whole drag.
+  const ownChild = (container: HTMLElement | null, selector: string): HTMLElement | null => {
+    if (!container) return null;
+    for (const child of Array.from(container.children)) {
+      const element = child as HTMLElement;
+      if (typeof element.matches === "function" && element.matches(selector)) return element;
+    }
+    return null;
+  };
+
   const captureRidingBars = (prevScreenContainer: HTMLElement | null) => {
     const partnerBars = config.getPartnerBars();
     const partnerMetadata = config.getPartnerBarMetadata?.();
     // A previous screen can have committed its DOM before its Activity-
     // reconnected layout effects republish the registry. Use that DOM as the
     // synchronous fallback so the first swipe tick keeps legacy behavior.
-    const prevTopBar = prevScreenContainer?.querySelector<HTMLElement>('[data-flemo-bar="app"]');
-    const prevNavBar = prevScreenContainer?.querySelector<HTMLElement>('[data-flemo-bar="nav"]');
+    const prevTopBar = ownChild(prevScreenContainer, '[data-flemo-bar="app"]');
+    const prevNavBar = ownChild(prevScreenContainer, '[data-flemo-bar="nav"]');
     const domMetadata = (bar: HTMLElement | null | undefined) => {
       if (!bar) return undefined;
       const value = bar.getAttribute("data-flemo-bar-id");
@@ -251,8 +269,20 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const { screenContainer } = config.getElements();
     // Reached only after beginSwipe's guards resolve the scope + prev screen, so
     // both containers are present.
-    const select = (root: HTMLElement | null) =>
-      Array.from(root!.querySelectorAll<HTMLElement>("[data-flemo-part-name]"));
+    // Parts legitimately sit anywhere inside the screen — in its content, or
+    // in a shared bar beside the scope — so this stays a descendant query. What
+    // it must not collect is a NESTED Router's parts: those belong to a screen
+    // this swipe is not moving. A part's owning screen is its closest scope
+    // (null for a bar-mounted one, which this screen still owns).
+    const select = (root: HTMLElement | null) => {
+      const ownScope = ownChild(root, "[data-flemo-screen]");
+      return Array.from(root!.querySelectorAll<HTMLElement>("[data-flemo-part-name]")).filter(
+        (part) => {
+          const owner = part.closest("[data-flemo-screen]");
+          return owner === null || owner === ownScope;
+        }
+      );
+    };
     partEls = { current: select(screenContainer), prev: select(prevScreenContainer) };
   };
 
@@ -308,9 +338,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // wrapper div that no longer exists.)
     const prevScreenContainer =
       (screenContainer?.previousElementSibling as HTMLElement | null) ?? null;
-    prevScreen = prevScreenContainer?.querySelector<HTMLElement>("[data-flemo-screen]") ?? null;
-    prevDecorator =
-      prevScreenContainer?.querySelector<HTMLElement>("[data-flemo-decorator]") ?? null;
+    prevScreen = ownChild(prevScreenContainer, "[data-flemo-screen]");
+    prevDecorator = ownChild(prevScreenContainer, "[data-flemo-decorator]");
 
     if (!prevScreen) {
       isTouchPrevented = false;
