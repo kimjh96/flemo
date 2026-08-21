@@ -114,6 +114,15 @@ export interface MotionProgress {
   pausedAfterRelease: boolean;
   /** Offset from t0 at which a hold was re-asserted AFTER the release. */
   holdReassertedAtMs: number | null;
+  /**
+   * Released frames sampled AFTER every tracked animation reported "finished".
+   * The motion is over there and the pose is legitimately still; the flight is
+   * simply not closed yet. Counted separately because folding them into
+   * `stalledFrames` made a ~50ms "stall" fire on EVERY healthy flight — a
+   * constant that masks the real ones (measured on plen, 2026-08-20: 10 of 10
+   * flights, always exactly 3 frames).
+   */
+  tailFrames: number;
 }
 
 /**
