@@ -121,7 +121,7 @@ export default function holdCompositorWarm(): () => void {
   // a running screen capture does to WindowServer's composition pacing; it was
   // falsified on device (it never replicated the capture effect and added
   // layer churn per interaction) and only the resident 8px tick survived.
-  // See docs/postmortems/2026-08-motion-jank.md — do not re-add the resize.
+  // DO NOT re-add the resize: it was measured to cost more than it bought.
   if (!element) {
     element = document.createElement("div");
     element.setAttribute(WARM_ATTR, "");

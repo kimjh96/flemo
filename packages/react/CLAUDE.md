@@ -23,9 +23,10 @@ holds them honest.
 Engine internals live in the engine's own comments — `createTransitionEngine.ts`
 (`driveScreenLifecycle` for the flight) and
 `diagnosticFlags.ts` (the flag registry table, which `documentedDefaults.test.ts`
-holds to the shipped readers). A longer-form `docs/` set exists in the maintainer's
-checkout but is NOT tracked (see .gitignore) — never treat a `docs/...` path cited in
-a comment as available. Public surface = `src/index.ts` re-exports only.
+holds to the shipped readers). The engine's architecture map is
+`packages/core/docs/motion-engine.md`, tracked and held to the code by a test. The
+maintainer also keeps an untracked `docs/` set of campaign notes (see .gitignore);
+nothing in shipped source cites it. Public surface = `src/index.ts` re-exports only.
 
 ## Router (`src/Router.tsx`)
 

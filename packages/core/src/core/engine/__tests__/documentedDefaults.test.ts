@@ -16,7 +16,7 @@ import {
 } from "@core/engine/diagnosticFlags";
 import { reportInFlightCadence, resetSteadySixtyForTests } from "@platform/steadySixtyCadence";
 
-// The registry table at the top of diagnosticFlags.ts is what docs/diagnostics.md
+// The registry table at the top of diagnosticFlags.ts is what every other reference
 // delegates truth to, and it drifted from the code four keys at a time between
 // 2026-08-17 and 08-19 — each time because a change updated the reader and one
 // of the several prose copies of its default, but not the table. Every default
