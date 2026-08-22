@@ -250,6 +250,33 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     for (const bar of prev) holdScopeLayer(bar, config.getTransition(), false, layerOwner);
   };
 
+  // The screens and the dim the drag itself moves. A FLIGHT promotes every
+  // participant for its whole span (holdParticipantLayers → layerSettleHold),
+  // which is why a transition stays smooth on a weak GPU; the gesture promoted
+  // its riding BARS only, so the two full-screen scopes and the dim were
+  // repainted from scratch on every frame the finger moved. Same helper, same
+  // owner, same deferred demotion — a re-grab inside the previous settle window
+  // cancels that pending demotion instead of stripping `will-change` mid-drag.
+  const holdDragLayers = () => {
+    const { scope, decorator } = config.getElements();
+    const transition = config.getTransition();
+    if (scope) holdScopeLayer(scope, transition, false, layerOwner);
+    if (prevScreen) holdScopeLayer(prevScreen, transition, false, layerOwner);
+    const decoratorDef = config.getDecorator();
+    if (decoratorDef) {
+      if (decorator) holdScopeLayer(decorator, decoratorDef, false, layerOwner);
+      if (prevDecorator) holdScopeLayer(prevDecorator, decoratorDef, false, layerOwner);
+    }
+  };
+
+  const releaseDragLayers = () => {
+    const { scope, decorator } = config.getElements();
+    if (scope) releaseScopeLayerAfterSettle(scope, layerOwner);
+    if (prevScreen) releaseScopeLayerAfterSettle(prevScreen, layerOwner);
+    if (decorator) releaseScopeLayerAfterSettle(decorator, layerOwner);
+    if (prevDecorator) releaseScopeLayerAfterSettle(prevDecorator, layerOwner);
+  };
+
   const releaseRidingBars = () => {
     // A cancelled swipe has just animated back to rest — dropping the bars'
     // promotion in this commit would repaint them on the exact settle frames
@@ -355,6 +382,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     scope.setPointerCapture(event.pointerId);
     captureRidingBars(prevScreenContainer);
     capturePartTransitions(prevScreenContainer);
+    holdDragLayers();
 
     const decoratorDef = config.getDecorator();
     const isTriggered = await transition.onSwipeStart(event, buildSwipeInfo(event), {
@@ -379,6 +407,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       isTouchPrevented = false;
       releasePointerCapture(event);
       releaseRidingBars();
+      releaseDragLayers();
       releasePartTransitions();
     }
   };
@@ -391,6 +420,49 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     });
   };
 
+  // ONE follow write per animation frame. Pointer moves arrive faster than
+  // frames — a finger delivers several per frame, and more still on a device
+  // whose frames are long — and every one of them used to run the whole
+  // follow: both screens, the riding bars, the dim and every <Part>, each
+  // write invalidating style again. Measured on a 10x-throttled mobile
+  // Chromium, one drag: 61 moves → 172 style recalculations. The samples in
+  // between never reach the glass; only the last one before the frame does.
+  // Velocity still samples EVERY move (see pointerMove) — it is arithmetic on
+  // the event, and the release threshold reads it.
+  let pendingMove: PointerEvent | null = null;
+  let followFrame = 0;
+
+  // The release must settle from where the finger actually left the screen,
+  // not from the last sample that happened to win a frame — so the trailing
+  // move is written out synchronously before the settle is authored.
+  const flushPendingFollow = () => {
+    if (followFrame && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(followFrame);
+    }
+    followFrame = 0;
+    const trailing = pendingMove;
+    pendingMove = null;
+    if (trailing) continueSwipe(trailing);
+  };
+
+  const flushFollow = () => {
+    followFrame = 0;
+    const event = pendingMove;
+    pendingMove = null;
+    if (event) continueSwipe(event);
+  };
+
+  const queueFollow = (event: PointerEvent) => {
+    pendingMove = event;
+    if (followFrame) return;
+    // No rAF (exotic embedder, jsdom): follow synchronously, as before.
+    if (typeof requestAnimationFrame !== "function") {
+      flushFollow();
+      return;
+    }
+    followFrame = requestAnimationFrame(flushFollow);
+  };
+
   const continueSwipe = (event: PointerEvent) => {
     const transition = config.getTransition();
     if (
@@ -400,8 +472,6 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       config.getViewportScrollHeight() > 10
     )
       return;
-
-    updateSwipeVelocity(event);
 
     const { scope, decorator } = config.getElements();
     const decoratorDef = config.getDecorator();
@@ -425,6 +495,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const transition = config.getTransition();
     if (!transition.swipeDirection || !swipeActive) return;
 
+    flushPendingFollow();
     swipeActive = false;
     const { scope, decorator } = config.getElements();
     releasePointerCapture(event);
@@ -497,6 +568,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       if (decorator) clearInlineAnimation(decorator);
       if (prevDecorator) clearInlineAnimation(prevDecorator);
       releaseRidingBars();
+      releaseDragLayers();
       releasePartTransitions();
       config.setDragStatus("IDLE");
     }
@@ -532,7 +604,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     if (config.getViewportScrollHeight() > 10) return;
 
     if (swipeActive) {
-      continueSwipe(event);
+      updateSwipeVelocity(event);
+      queueFollow(event);
       return;
     }
 

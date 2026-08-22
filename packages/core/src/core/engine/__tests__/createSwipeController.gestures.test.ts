@@ -59,7 +59,13 @@ function horizontalScrollableChild(scope: HTMLElement, marked = false) {
 const event = (over: Partial<PointerEvent> & { target?: EventTarget }) =>
   ({ clientX: 0, clientY: 0, timeStamp: 0, pointerId: 1, ...over }) as unknown as PointerEvent;
 
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+// The drag's follow write lands on an ANIMATION FRAME — one write per frame,
+// not one per pointermove (see createSwipeController's queueFollow) — so a
+// flush has to let a frame run before the assertions read the DOM.
+const flush = () =>
+  new Promise((resolve) => {
+    requestAnimationFrame(() => setTimeout(resolve, 0));
+  });
 
 describe("createSwipeController gesture paths", () => {
   let dom: ReturnType<typeof buildDom>;
