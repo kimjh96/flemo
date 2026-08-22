@@ -16,6 +16,8 @@
       "@platform/*": ["./src/platform/*"],
       "@navigate": ["./src/navigate"],
       "@navigate/*": ["./src/navigate/*"],
+      "@runtime": ["./src/runtime"],
+      "@runtime/*": ["./src/runtime/*"],
       "@screen": ["./src/screen"],
       "@screen/*": ["./src/screen/*"],
       "@transition": ["./src/transition"],

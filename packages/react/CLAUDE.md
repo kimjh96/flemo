@@ -4,6 +4,12 @@ The React binding over `@flemo/core`. The split is strict: core owns everything
 imperative and reusable (task queue, stores, engine, compiled styles, gesture math);
 this package owns React wiring — rendering the declarative state (data-attributes,
 inline styles) core's engine reads, and calling core at the right lifecycle moments.
+flemo's AMBIENT machinery is NOT this package's to run. `startFlemoRuntime()`
+(@flemo/core) owns the GPU prewarm, the image-decode offload and the interaction
+compositor warm-up — none of which is React, and all of which a second binding would
+otherwise reimplement. A Router starts it on mount and releases on unmount; that
+lifetime decision is the binding's whole share of it.
+
 Per-browser decisions are NOT this package's to make. `resolvePlatformProfile()`
 (@flemo/core) returns every one of them as a named field; this package asks and
 renders. It calls no engine probe and reads no `flemo:*` flag directly — a lint-clean

@@ -143,6 +143,13 @@ export { governedCompiledActive } from "@platform/governedCompiled";
 // desktop-Safari atomic release flip, the pre-raster probe, its
 // layer-promotion half (hydration-deferred by the binding — see the reader's
 // SSR contract), and the image-offloader override.
+// THE AMBIENT RUNTIME: the machinery an app sits in so the FIRST navigation is
+// not the one that pays for it — GPU pipelines compiled, oversized decodes off
+// the main thread, the compositor awake while the user is about to move. A
+// binding starts it per Router mount and releases on unmount; repeat calls
+// share one runtime. See @runtime/flemoRuntime.
+export { startFlemoRuntime } from "@runtime/flemoRuntime";
+
 // THE PLATFORM PROFILE: every per-browser decision, resolved in one place.
 // A binding asks for the profile and renders the answer; it never re-derives
 // policy from the probes and flag readers itself (see @platform/profile).
