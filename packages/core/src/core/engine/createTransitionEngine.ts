@@ -1,13 +1,7 @@
 import TaskManger from "@core/TaskManger";
 
+import { clearInlineAnimation, concludeInlineSettle } from "@transition/animateInline";
 import {
-  clearInlineAnimation,
-  concludeInlineSettle,
-  trackInlineWrite
-} from "@transition/animateInline";
-import {
-  DESKTOP_HEAD_MS,
-  GOVERNED_HEAD_MS,
   matchesFlightAnimationName,
   animationName,
   variantHasAnimation
@@ -18,27 +12,30 @@ import type { TransitionVariant } from "@transition/typing";
 import { resolveVariantMotion, type VariantMotion } from "@transition/variantMotion";
 
 import createArrivalHold from "@core/engine/arrivalHold";
+import { wireCancelResume } from "@core/engine/cancelResume";
 import holdCompositorWarm from "@core/engine/compositorWarmUp";
-import {
-  readArrivalHoldFlag,
-  readDesktopHeadFlag,
-  readImageHoldFlag,
-  readCreepHeadFlag,
-  readSettleGateFlag
-} from "@core/engine/diagnosticFlags";
+import { readArrivalHoldFlag, readImageHoldFlag } from "@core/engine/diagnosticFlags";
 import { noticeDeviceEmulationOnce } from "@core/engine/emulationNotice";
+import {
+  collectFlightParts,
+  collectScreenParts,
+  collectStampedOuterParts,
+  collectUnheldOuterParts,
+  collectVariantParts,
+  statusChoreographySpanMs
+} from "@core/engine/flightParticipants";
+import { resolveFlightRouting } from "@core/engine/flightRouting";
 import { beginFlightWindow } from "@core/engine/flightWindow";
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
 import { beginImageRevealHold } from "@core/engine/imageRevealHold";
 import createInvisibleAnimationHold from "@core/engine/invisibleAnimationHold";
-import { governedEasingForMotion } from "@core/engine/landingGovernor";
-import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
 
 import {
   armFlightStartAnchorAtRelease,
   holdNativeClocksToFirstFrame,
   watchNativeStalls
 } from "@core/engine/nativeStallAnchor";
+import { holdParticipantLayers, releaseParticipantLayers } from "@core/engine/participantLayers";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 import { beginResponseHold } from "@core/engine/responseHold";
 // The engine no longer consults the steady-60 verdict at all: the landing
@@ -54,25 +51,19 @@ import {
 import {
   ACTIVE_ATTR,
   ANIM_HOLD_ATTR,
-  attrSelector,
-  attrValueSelector,
   BAR_RIDING_ATTR,
   CREEP_ATTR,
   DESK_HEAD_ATTR,
   GOVERNED_ATTR,
-  PART_NAME_ATTR,
-  ROUTER_ATTR,
-  SCREEN_ATTR,
-  STATUS_ATTR
+  PART_NAME_ATTR
 } from "@dom/attributes";
-import { learnedFrameIntervalMs, reportDisplayIntervalMs } from "@platform/displayCadence";
 import {
-  detectBlinkEngine,
-  isDesktopMacWebKit,
-  isLegacyAndroidBlink
-} from "@platform/engineProbes";
-import { governedCompiledActive } from "@platform/governedCompiled";
-import { reportInFlightCadence } from "@platform/steadySixtyCadence";
+  armDisplayIntervalProbe,
+  armFramePacingKeepalive,
+  cancelDisplayIntervalProbe,
+  resetDisplayProbeForTests
+} from "@platform/displayProbe";
+import { detectBlinkEngine } from "@platform/engineProbes";
 import { decoratorMap } from "@transition/decorator/decorator";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
@@ -109,537 +100,7 @@ const GATE_MOTION_MARGIN_MS = 1500;
 // are per-effect-run, the hold is per-flight).
 const startHoldDisarms = new WeakMap<HTMLElement, () => void>();
 
-// This screen's <Part> elements. The container (the scope's parent) hosts
-// bar-mounted parts too; parts owned by a NESTED screen inside the container
-// belong to that screen's own engine and are excluded.
-
-const collectScreenParts = (scope: HTMLElement): HTMLElement[] => {
-  const container = scope.parentElement ?? scope;
-  return Array.from(container.querySelectorAll<HTMLElement>(`[${PART_NAME_ATTR}]`)).filter(
-    (part) => {
-      const owner = part.closest(attrSelector(SCREEN_ATTR));
-      return !owner || owner === scope || !container.contains(owner);
-    }
-  );
-};
-
-// The subset currently mirroring this join's variant (parts self-carry their
-// screen's status/active, which the compiled part selectors match on).
-const collectVariantParts = (scope: HTMLElement, variant: TransitionVariant): HTMLElement[] => {
-  const [status, active] = variant.split("-");
-  return collectScreenParts(scope).filter(
-    (part) => part.getAttribute(STATUS_ATTR) === status && part.getAttribute(ACTIVE_ATTR) === active
-  );
-};
-
-// Pin the compiled promotions inline for one side of the flight (see
-// layerSettleHold.ts): the screen scope, its riding shared bars (they run
-// the screen's own rule, so they share its property list and containment),
-// the decorator, and this side's <Part> elements — every element whose
-// variant rule un-matching at the COMPLETED flip would demote-and-repaint a
-// compositor layer on the convergence frames. Each participant is gated on
-// its OWN definition's animation (a motionless screen can still carry an
-// animating decorator or part — REVEAL-shaped transitions). Containment
-// mirrors the rules' `contain: layout` scoping (PUSHING/REPLACING only).
-// The WHOLE choreography's span for one status: the longest of the screen
-// transition's BOTH variants (active and passive — either side may be the
-// long-authored one) and every <Part> participating in this status. Any
-// deadline meant to outlast "the flight" must derive from this, not from one
-// screen's variant — the response hold's backstop learned that the hard way
-// (a 700ms screen with a 3s Part flushed parked responses mid-Part).
-// Parts participating in THIS Router's flight, by the EXPLICIT boundary
-// marker: the React binding stamps every screen and shared bar with its
-// owning Router's identity (`data-flemo-router`, see RouterIdContext). A
-// document-global status query let an unrelated Router's 3s part inflate
-// this navigation's gate, floor, and response backstop — and DOM-structure
-// inference cannot draw the line: each screen sits in its own wrapper (so
-// the two screens of ONE flight share no parent), a root Router renders no
-// container at all, and two independent Routers may share a DOM parent.
-// Marker semantics: a part qualifies when its nearest marked carrier
-// (screen or bar) carries the SAME Router id as the scope's. Either side
-// missing a marker (a binding predating the stamp, detached test fixtures)
-// keeps the old inclusive behavior — over-waiting is a delay, cross-cutting
-// is a truncation.
-const collectFlightParts = (scope: HTMLElement, status: string): HTMLElement[] => {
-  const ownCarrier = scope.closest(attrSelector(ROUTER_ATTR));
-  const flightId = ownCarrier?.getAttribute(ROUTER_ATTR) ?? null;
-  return Array.from(
-    scope.ownerDocument.querySelectorAll<HTMLElement>(
-      `${attrSelector(PART_NAME_ATTR)}${attrValueSelector(STATUS_ATTR, status)}`
-    )
-  ).filter((part) => {
-    if (flightId === null) return true;
-    const carrier = part.closest(attrSelector(ROUTER_ATTR));
-    if (!carrier) return true;
-    return carrier.getAttribute(ROUTER_ATTR) === flightId;
-  });
-};
-
-// Flight parts that no held element CONTAINS. The compiled hold rule pauses
-// `[data-flemo-anim-hold=…]` and its `[data-flemo-part-name]` DESCENDANTS, so
-// a Part inside a screen rides the screen's own hold and a Part inside a
-// shared bar rides the bar's — the React binding stamps the attribute on
-// both. A Part mounted OUTSIDE any screen has neither. <Part> supports that
-// position deliberately (its own header: "a persistent header next to a
-// <Slot>, a portal"), and the compiled part selector keys on name + status +
-// active with NO structural term, so such a part is driven by this flight's
-// keyframes while nothing pauses it: it animated straight through the hold
-// window with every screen parked, then led the flight by the whole hold —
-// the defect the decorator once had ("the dim faded in ahead of the held
-// screens", 2026-08-13).
-//
-// Scoped through collectFlightParts, i.e. by the EXPLICIT `data-flemo-router`
-// marker rather than DOM ancestry. That is not a preference: RouterIdContext
-// exists precisely because structure cannot draw this boundary (a root Router
-// renders no container, two Routers may share a parent), and each screen sits
-// in its own wrapper — so a container-scoped walk from the scope reaches only
-// this screen's own subtree, where every Part host is already held. It would
-// find nothing that needs holding.
-//
-// The ancestor test deliberately starts at the PARENT: a part this engine has
-// already stamped must still be found, so the release can re-derive the same
-// set instead of trusting a record the DOM may have changed under.
-const collectUnheldOuterParts = (scope: HTMLElement, status: string): HTMLElement[] =>
-  collectFlightParts(scope, status).filter(
-    (part) => part.parentElement?.closest(`[${ANIM_HOLD_ATTR}]`) == null
-  );
-
-// The release sweep is deliberately status-AGNOSTIC while the stamp above is
-// status-scoped. Stamping narrowly keeps the pause off parts this flight does
-// not drive (`animation-play-state` is per-ELEMENT: it would pause whatever
-// the consumer authored on that part too). Clearing broadly guarantees the
-// pause cannot outlive the flight if the part's own status attribute moved in
-// a different commit than this drive — a leak would freeze persistent chrome
-// indefinitely, so the two sides must not share a predicate.
-const collectStampedOuterParts = (scope: HTMLElement): HTMLElement[] => {
-  const flightId = scope.closest(attrSelector(ROUTER_ATTR))?.getAttribute(ROUTER_ATTR) ?? null;
-  return Array.from(
-    scope.ownerDocument.querySelectorAll<HTMLElement>(`[${PART_NAME_ATTR}][${ANIM_HOLD_ATTR}]`)
-  ).filter((part) => {
-    if (part.parentElement?.closest(`[${ANIM_HOLD_ATTR}]`) != null) return false;
-    if (flightId === null) return true;
-    const carrier = part.closest(attrSelector(ROUTER_ATTR));
-    return !carrier || carrier.getAttribute(ROUTER_ATTR) === flightId;
-  });
-};
-
-const statusChoreographySpanMs = (
-  scope: HTMLElement,
-  transition: ReturnType<typeof resolveTransition>,
-  status: string
-): number => {
-  let spanMs = 0;
-  for (const variant of [`${status}-true`, `${status}-false`] as TransitionVariant[]) {
-    if (!variantHasAnimation(transition, variant)) continue;
-    const motion = resolveVariantMotion(transition, variant);
-    if (motion) spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
-  }
-  for (const part of collectFlightParts(scope, status)) {
-    const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
-    const partVariant = `${status}-${part.getAttribute(ACTIVE_ATTR)}` as TransitionVariant;
-    if (!definition || !variantHasAnimation(definition, partVariant)) continue;
-    const motion = resolveVariantMotion(definition, partVariant);
-    if (motion) spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
-  }
-  // The decorator is a full participant too (it joins the shared player): a
-  // 3s custom dim over a 700ms screen must extend every flight deadline,
-  // exactly like a long-authored Part.
-  const decoratorDefinition = transition.decoratorName
-    ? decoratorMap.get(transition.decoratorName)
-    : undefined;
-  if (decoratorDefinition) {
-    for (const variant of [`${status}-true`, `${status}-false`] as TransitionVariant[]) {
-      if (!variantHasAnimation(decoratorDefinition, variant)) continue;
-      const motion = resolveVariantMotion(decoratorDefinition, variant);
-      if (motion) spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
-    }
-  }
-  return spanMs;
-};
-
-// The render-settle gate (react ScreenMotion, `flemo:settle-gate`) holds the
-// anim-hold release until the entering screen's MOUNT render storm quiesces —
-// so by release the heavy commit is already painted and the release update is
-// LIGHT. That is exactly what lifts the POP-only limit on compiled routing: a
-// PUSH's swallowed opening came from its heavy mount commit aging the CSS
-// clock past the governed head; with the gate that weight is behind us, so the
-// fixed head covers a PUSH the same way it covers a POP. Read here so the
-// engine only routes a PUSH to compiled when the gate is actually smoothing it.
-// The render-settle gate is ON BY DEFAULT for touch WebKit (governedCompiledActive)
-// and for desktop macOS Safari (isDesktopMacWebKit — just as main-thread-clocked):
-// the governed-compiled opening only presents cleanly when the release waits for
-// the entering mount's render to quiesce, so it ships with the tier. An explicit
-// `flemo:settle-gate=off` opts out; `=on` is redundant now but still honored
-// (see readSettleGateFlag in diagnosticFlags.ts — shared with react's
-// ScreenMotion so both sides always agree).
-
-// Which touch-WebKit statuses take the GOVERNED HEAD KIT — the flat head that
-// covers a compiled flight's opening while the entering mount's commit ages the
-// wall clock.
-// POP always: device-measured, a heavy returning screen's re-commit swallows
-// POP's opening exactly like PUSH's.
-// PUSH: only when the settle gate is on, which moves that mount weight into the
-// hold so the release is light enough for the fixed head to cover the opening —
-// the same way it already covers POP.
-const forceCompiledStatus = (status: string): boolean =>
-  status === "POPPING" || (status === "PUSHING" && readSettleGateFlag());
-
 // High-refresh threshold for the compiled tier's landing governor (see
-// landingGovernor.ts): 12ms sits between 120Hz (8.3) and 90Hz (11.1) on one
-// side and 60Hz (16.7) on the other — and a power-throttled presentation (30Hz
-// measured on battery) never qualifies.
-const COMPILED_TIER_MAX_INTERVAL_MS = 12;
-
-// Frame-pacing keepalive for Blink's COMPILED tier. A compositor-driven flight
-// leaves the main thread idle, and Chrome then paces its macOS ProMotion
-// presentation UNEVENLY — video-measured at 120fps, a full-screen slide
-// drops/duplicates frames mid-flight (a near-zero inter-frame delta followed
-// by a double-step) and the eye reads it as trembling, which rAF timing on the
-// main thread cannot see because the animation's value function is smooth.
-// Device-confirmed: an empty `requestAnimationFrame` loop running for the
-// flight visibly steadies the cadence (the compositor keeps presenting on every
-// vsync while a frame source is live). The callback does nothing — its mere
-// existence is the fix. Ref-counted so overlapping flights share one loop, and
-// armed only for compiled Blink flights (WebKit and the rAF player already keep
-// a frame source alive).
-// CONTINUOUS once started — never stopped for the rest of the page session.
-// A per-flight loop lets Chrome re-ramp its macOS ProMotion panel from idle
-// 60Hz on every deliberate navigation (a cold opening), which is why an
-// on/off loop barely helped while the device A/B — a NEVER-stopping rAF — did.
-// The callback does nothing; a live frame source is the whole point, and it
-// costs a single empty rAF. Armed lazily on the first compiled Blink flight
-// (so it never runs before the app navigates) and then kept warm forever.
-let keepaliveHandle: number | null = null;
-const keepaliveTick = () => {
-  keepaliveHandle =
-    typeof requestAnimationFrame === "function" ? requestAnimationFrame(keepaliveTick) : null;
-};
-const armFramePacingKeepalive = (): (() => void) => {
-  if (keepaliveHandle === null && typeof requestAnimationFrame === "function") {
-    keepaliveHandle = requestAnimationFrame(keepaliveTick);
-  }
-  // No release: the frame source stays warm for the session so the NEXT
-  // deliberate navigation opens on an already-120Hz panel.
-  return noop;
-};
-
-// Re-sample the display cadence while flights run WITHOUT a player (the
-// routed-compiled state has no player to learn from): six rAF gaps, median
-// reported back to the player module. One probe at a time.
-// (2026-08-12 note: a retrying, slow-vouching variant of this probe powered
-// an iOS Low Power Mode routing experiment — LPM caps rAF at ~30Hz while
-// the compositor presents at panel rate, so slides were routed compiled
-// there. Device-revoked same day: real pushes exposed the compiled tier's
-// unfixable release-commit clock aging as a WORSE whoosh than the player's
-// 30fps even-stepping, and the slow-vouched learned interval destabilized
-// Blink's governed-easing parameters mid-session. The 30fps even-stepped
-// player IS the correct response to an OS power policy.)
-let displayProbeActive = false;
-// Bumped on every arm AND every cancel; a tick whose generation is stale
-// stops scheduling and reports nothing. Cancellation matters on adaptive
-// panels: a probe outliving its compiled flight measures the IDLE clock,
-// which reads ~60Hz there — exactly the value that must never feed the
-// steady-60 verdict (in-flight is the only honest window, see
-// steadySixtyCadence.ts).
-let displayProbeGeneration = 0;
-const cancelDisplayIntervalProbe = () => {
-  if (!displayProbeActive) return;
-  displayProbeGeneration += 1;
-  displayProbeActive = false;
-};
-// Module state outlives a test file's cases (a probe armed by one test would
-// block every later arm); same pattern as diagnosticFlags' reset exports.
-export const resetDisplayProbeForTests = () => {
-  displayProbeGeneration += 1;
-  displayProbeActive = false;
-};
-// Two skipped warm-up gaps + an 8-gap median: the probe arms in the same
-// commit that releases the flight, so its FIRST gaps ride the entering
-// screen's mount-commit stall — measured on the playground push, the raw
-// 6-gap median read 30ms+ on a healthy 60Hz panel and poisoned every
-// cadence consumer. The warm-up lets the commit clear while the compositor
-// animation (the panel-rate anchor this probe exists to observe) keeps
-// running; the wider window makes the median robust to one or two stragglers.
-const DISPLAY_PROBE_WARMUP_TICKS = 2;
-const DISPLAY_PROBE_GAPS = 8;
-const armDisplayIntervalProbe = () => {
-  if (displayProbeActive || typeof requestAnimationFrame !== "function") return;
-  displayProbeActive = true;
-  const generation = ++displayProbeGeneration;
-  const gaps: number[] = [];
-  let warmup = DISPLAY_PROBE_WARMUP_TICKS;
-  let lastTick: number | null = null;
-  const tick = (time: number) => {
-    if (generation !== displayProbeGeneration) return;
-    if (lastTick !== null) {
-      if (warmup > 0) warmup -= 1;
-      else gaps.push(time - lastTick);
-    }
-    lastTick = time;
-    if (gaps.length < DISPLAY_PROBE_GAPS) {
-      requestAnimationFrame(tick);
-      return;
-    }
-    displayProbeActive = false;
-    const sorted = [...gaps].sort((a, b) => a - b);
-    const median = sorted[Math.floor(sorted.length / 2)]!;
-    reportDisplayIntervalMs(median);
-    // The RAW median additionally feeds the steady-60 verdict (the learned
-    // interval above is clamped to the 60Hz nominal, which would erase the
-    // 60-vs-unmeasured distinction the verdict needs). This probe only runs
-    // during compiled flights — a compositor animation is live, so an
-    // adaptive panel is at its true rate (see steadySixtyCadence.ts). The
-    // window's max gap rides along so the verdict can reject jam-noise
-    // windows (rAF catch-up bursts fake a fast median).
-    reportInFlightCadence(median, sorted[sorted.length - 1]!);
-  };
-  requestAnimationFrame(tick);
-};
-
-const holdParticipantLayers = (
-  elements: {
-    scope: HTMLElement;
-    decorator?: HTMLElement | null;
-    bars?: (HTMLElement | null | undefined)[];
-  },
-  transition: ReturnType<typeof resolveTransition>,
-  variant: TransitionVariant,
-  owner: symbol
-) => {
-  const { scope, decorator, bars } = elements;
-  const status = variant.split("-")[0];
-  const containment = status === "PUSHING" || status === "REPLACING";
-  // The landing governor for the COMPILED tier (see landingGovernor.ts): on
-  // touch Blink at a genuine high-refresh cadence, the authored curve's
-  // sub-pixel tail parks the sheet short of its landing and the COMPLETED flip
-  // closes the gap late — the reshaped easing sprints the tail at one device
-  // pixel per frame instead. Stamped as an INLINE longhand (clearInlineAnimation
-  // strips it at COMPLETED with animation-delay); a riding bar shares the
-  // screen's string so the pair stays in lockstep.
-  //
-  // Desktop removed (2026-08-18): the governor's 1-device-px tail sprint IS the
-  // reported pop "드르륵" on 60Hz HiDPI desktops — the compiled tier runs the
-  // AUTHORED easing untouched there, exactly like any well-made compositor
-  // animation. Touch high-refresh keeps it (device-verified).
-  const governEasing =
-    detectBlinkEngine() &&
-    typeof navigator !== "undefined" &&
-    navigator.maxTouchPoints > 0 &&
-    learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS;
-  const dpr = governEasing && typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-  const easingFor = (motionSource: VariantMotion | null, box: HTMLElement): string | null => {
-    if (!motionSource || !governEasing) return null;
-    return governedEasingForMotion(motionSource, box, dpr, learnedFrameIntervalMs());
-  };
-  if (variantHasAnimation(transition, variant)) {
-    holdScopeLayer(scope, transition, containment, owner);
-    const scopeMotion = resolveVariantMotion(transition, variant) ?? null;
-    const easing = easingFor(scopeMotion, scope);
-    if (easing) {
-      trackInlineWrite(scope, "animation-timing-function", owner);
-      scope.style.animationTimingFunction = easing;
-    }
-    for (const bar of bars ?? []) {
-      if (bar?.getAttribute(BAR_RIDING_ATTR) === "true") {
-        holdScopeLayer(bar, transition, containment, owner);
-        if (easing) {
-          trackInlineWrite(bar, "animation-timing-function", owner);
-          bar.style.animationTimingFunction = easing;
-        }
-      }
-    }
-  }
-  if (decorator && transition.decoratorName) {
-    const definition = decoratorMap.get(transition.decoratorName);
-    if (definition && variantHasAnimation(definition, variant)) {
-      holdScopeLayer(decorator, definition, containment, owner);
-    }
-  }
-  for (const part of collectVariantParts(scope, variant)) {
-    const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
-    if (definition && variantHasAnimation(definition, variant)) {
-      holdScopeLayer(part, definition, containment, owner);
-      const partMotion = resolveVariantMotion(definition, variant) ?? null;
-      const partEasing = easingFor(partMotion, part);
-      if (partEasing) {
-        trackInlineWrite(part, "animation-timing-function", owner);
-        part.style.animationTimingFunction = partEasing;
-      }
-    }
-  }
-};
-
-// The COMPLETED counterpart: queue every participant's demotion off-cadence,
-// LAYER_SETTLE_MS past the flip. Unstamped elements no-op, so this is safe
-// to call unconditionally — including for swipe-promoted bars, whose inline
-// `will-change` (createSwipeController's pre-promotion) previously dropped
-// IN the flip commit and now rides the same deferred clock.
-const releaseParticipantLayers = (
-  elements: {
-    scope?: HTMLElement | null;
-    decorator?: HTMLElement | null;
-    bars?: (HTMLElement | null | undefined)[];
-  },
-  owner: symbol
-) => {
-  const { scope, decorator, bars } = elements;
-  if (scope) {
-    releaseScopeLayerAfterSettle(scope, owner);
-    for (const part of collectScreenParts(scope)) releaseScopeLayerAfterSettle(part, owner);
-  }
-  if (decorator) releaseScopeLayerAfterSettle(decorator, owner);
-  for (const bar of bars ?? []) {
-    if (bar) releaseScopeLayerAfterSettle(bar, owner);
-  }
-};
-
-// Cancel-resume budget: how many browser-cancels of one element's compiled
-// animation the engine will resume before conceding (the active scope then
-// resolves its task; a pure-resume participant simply stops). Bounds the churn
-// of a suspended-mount commit re-invalidating the layer repeatedly.
-const RESUME_BUDGET = 4;
-
-// Whole-millisecond CSS time string. Guards against float noise in the inline
-// `animation-delay` (e.g. -0.075 instead of -0.07500000000000001).
-const cssSeconds = (seconds: number) => `${Math.round(seconds * 1000) / 1000}s`;
-
-interface CancelResumeConfig {
-  element: HTMLElement;
-  // The compiled animation name this element runs; cancels of any other name
-  // (a decorator's, a foreign transition's) are ignored.
-  expectedName: string;
-  // The variant's timing, for the resume clamp and the rejoin delay.
-  motion: VariantMotion;
-  // Whether recovery may still act: the transition is current, the element is
-  // live, and no swipe committed it out. A dead participant terminates.
-  isLive: () => boolean;
-  budgetUsed: () => number;
-  spendBudget: () => void;
-  // Budget spent, clock past the end, or not live. The active scope resolves
-  // its task; a pure-resume participant does nothing.
-  onTerminal: () => void;
-  // The lease writer for the rejoin delay (the engine instance's token), so
-  // ownership holds end-to-end instead of falling back to the global stake.
-  writer?: symbol;
-}
-
-// Wire cancel-resume liveness on ONE compiled-CSS participant. WebKit silently
-// cancels a running compositor animation when a sibling commit churns the
-// layer (a Suspense fallback mounting mid-transition); the animation fires
-// `animationcancel` and NEVER `animationend`. Rather than replay from the
-// start (a visible jump) or resolve early (a single-frame cut), this
-// re-establishes the compiled animation rejoined to its ORIGINAL timeline: the
-// standard drop-reflow-restore trick plus an inline `animation-delay` that
-// rewinds the clock to where the cancel landed (negative past the delay phase,
-// so the resume picks up mid-flight and ends on the original schedule).
-const wireCancelResume = (config: CancelResumeConfig) => {
-  const { element, expectedName, motion } = config;
-  // True only during our own drop-reflow-restore mutation, so a synchronous
-  // cancel/start the real compositor emits from it is ignored (jsdom fires
-  // neither, but the guard keeps the browser path re-entrancy-safe).
-  let midRestart = false;
-  // Whether this recovery has written an inline rejoin delay that outlives it
-  // if not cleaned: an interrupt (a NEW transition superseding this one on the
-  // same element) tears the controller down before COMPLETED runs its own
-  // clearInlineAnimation, so detach must restore the delay itself — otherwise
-  // the next transition inherits the stale negative delay and starts mid-way.
-  let wroteRejoinDelay = false;
-
-  // Standard restart trick (drop → reflow → restore the compiled rule), with
-  // one of three treatments for the inline rejoin delay:
-  //   "keep"  — leave it untouched (a plain restart of an animation that never
-  //             entered its active phase, so there's no rejoin delay to manage);
-  //   "set"   — write the negative rejoin delay that resumes mid-flight;
-  //   "clear" — strip any rejoin delay (a watchdog full-restart from `from`).
-  const restart = (delay: { mode: "keep" | "clear" } | { mode: "set"; seconds: number }) => {
-    midRestart = true;
-    element.style.animation = "none";
-    void element.offsetWidth;
-    element.style.removeProperty("animation");
-    if (delay.mode === "clear") {
-      element.style.removeProperty("animation-delay");
-      wroteRejoinDelay = false;
-    } else if (delay.mode === "set") {
-      trackInlineWrite(element, "animation-delay", config.writer);
-      element.style.animationDelay = cssSeconds(delay.seconds);
-      wroteRejoinDelay = true;
-    }
-    midRestart = false;
-  };
-
-  const onCancel = (event: AnimationEvent) => {
-    if (midRestart) return;
-    // A head tier fires under a suffixed keyframe name (`<name>-gov`,
-    // `<name>-deskhead`) — same flight, same resolver.
-    if (
-      event.target !== element ||
-      !matchesFlightAnimationName(event.animationName, expectedName)
-    ) {
-      return;
-    }
-    if (!config.isLive() || config.budgetUsed() >= RESUME_BUDGET) {
-      config.onTerminal();
-      return;
-    }
-    // The ACTIVE-phase time elapsed at cancel, straight from the event (CSS
-    // Animations spec: animationcancel.elapsedTime is the active duration
-    // elapsed, EXCLUDING delay — 0 if cancelled while still delaying, and
-    // it already accounts for a negative rejoin delay on a re-cancel). This
-    // is the authoritative resume point: the old performance.now()-since-
-    // animationstart bookkeeping re-added `motion.delay` and, for a POSITIVE
-    // delay, made a mid-active cancel wait the delay out all over again.
-    const activeElapsedMs = Math.max(0, event.elapsedTime * 1000);
-    const durationMs = motion.duration * 1000;
-    // durationMs > 0 guard: a duration-0 variant (delay-only authoring) would
-    // otherwise read `0 >= 0` as finished and skip its remaining delay — it
-    // must take the replay path below instead.
-    if (durationMs > 0 && activeElapsedMs >= durationMs) {
-      // Past the active end — the compiled rest rule owns the pose.
-      config.onTerminal();
-      return;
-    }
-    config.spendBudget();
-    if (activeElapsedMs <= 0) {
-      // Cancelled during the delay (or exactly at active start): nothing of
-      // the active phase was presented, so replay delay + motion from the
-      // top. ACCEPTED trade-off: the event carries no delay-phase position
-      // (elapsedTime is active-only, 0 while delaying), so the authored delay
-      // replays in full rather than resuming its remainder — visually
-      // seamless (the from-pose showed throughout the delay and keeps
-      // showing), merely late for pathologically long authored delays.
-      // Preserving the exact position would need the wall-clock bookkeeping
-      // whose delay-double-count bug this event-based model replaced.
-      restart({ mode: "keep" });
-      return;
-    }
-    // Resume INTO the active phase: a negative delay of the elapsed active
-    // time, and NO re-delay (the browser already consumed the authored delay).
-    restart({ mode: "set", seconds: -activeElapsedMs / 1000 });
-  };
-
-  return {
-    // Attach is explicit so the active scope can construct the controller (the
-    // watchdog needs its fullRestart) without wiring the listener on the
-    // player-driven path, where it'd catch the join's own `animation: none`.
-    attach: () => {
-      element.addEventListener("animationcancel", onCancel);
-    },
-    detach: () => {
-      element.removeEventListener("animationcancel", onCancel);
-      // Restore the rejoin delay to the consumer's original (via the lease) so
-      // an interrupt never bleeds this transition's clock offset into the next.
-      if (wroteRejoinDelay) {
-        clearInlineAnimation(element, ["animation-delay"], config.writer);
-        wroteRejoinDelay = false;
-      }
-    },
-    // Watchdog full-restart: replay from the compiled `from` on a fresh clock,
-    // dropping any rejoin delay.
-    fullRestart: () => {
-      restart({ mode: "clear" });
-    }
-  };
-};
 
 // Framework-neutral transition engine. Created once per router scope with a
 // minimal set of injected store callbacks; the binding (React, etc.) feeds it
@@ -648,13 +109,14 @@ const wireCancelResume = (config: CancelResumeConfig) => {
 // resolves and what gets cleaned up. Declarative output (data-attributes,
 // initial/content styles) stays in the binding's render.
 //
-// Motion driving is two-path, decided per variant by the library:
-// - Player-drivable variants (transform/opacity/template-string motion — all
-//   presets) run on the rAF transition player: every participant of the
-//   navigation steps off one clock, immune to the compositor-animation
-//   judder Chromium exhibits on raster-heavy layers.
-// - Anything the player can't provably interpolate keeps the compiled CSS
-//   animation exactly as before.
+// Motion is driven by the COMPILED animation, everywhere — the rAF player that
+// once shared this job was retired in 2026-08. What varies per flight is how
+// its OPENING is protected (see flightRouting.ts) and how its participants are
+// found, held and released (flightParticipants.ts, participantLayers.ts,
+// cancelResume.ts). This file is what is left once those are named: the
+// navigation-task lifecycle, the holds, and the resolution.
+export { resetDisplayProbeForTests };
+
 export default function createTransitionEngine(deps: TransitionEngineDeps): TransitionEngine {
   // This engine instance's layer-hold owner token, distinct per instance so
   // two nested Routers promoting the SAME shared bar refcount independently —
@@ -1292,17 +754,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       );
     }
 
-    // Steady Chrome's ProMotion frame pacing for the compositor-driven flight
-    // (see armFramePacingKeepalive) — compiled Blink only, where the idle main
-    // thread otherwise lets the presentation drop/duplicate frames. Released in
-    // resolve() and the teardown below.
-    const compiledBlinkFlight =
-      hasAnimation &&
-      detectBlinkEngine() &&
-      ((typeof navigator !== "undefined" && navigator.maxTouchPoints === 0) ||
-        learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS);
-    if (compiledBlinkFlight) stopKeepalive = armFramePacingKeepalive();
-
     // Every participant of this STATUS with a registered motion — the passive
     // screen variant plus both screens' parts (parts self-carry their variant
     // attributes). Computed up front because EVERY deadline must derive from
@@ -1420,64 +871,30 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         TaskManger.markGateHeld(flooredTaskId);
       }
     }
-    const hasDrivableMotion = !skipAnimation && !!activeMotion;
-
-    // Native-clock SURGERY opt-in (first-frame hold, flight-start anchor,
-    // stall re-anchoring): authored `driver: "native"` pins only. Every one
-    // of these mutates a running animation's timing (WAAPI pause/play,
-    // startTime shifts), and the 2026-08 iPhone falsification series
-    // established that on WebKit any such touch costs the accelerated
-    // (out-of-process) path or desyncs its re-sync — the routed non-Blink
-    // default therefore runs the compiled animation UNTOUCHED and protects
-    // the opening by release scheduling (paint-anchored anim-hold + the
-    // entry content-settle gate) instead. An author who pins "native" takes
-    // the main-thread-presentation trade knowingly, and for them the anchors
-    // remain the right medicine.
-    const nativeSurgeryAllowed =
-      (currentTransition as { driver?: string }).driver === "native" && !detectBlinkEngine();
-    // Governed-tier flights supervise with plain startTime rewinds only (the
-    // R30-verified birth anchor + the stall watcher). The pause/play
-    // first-frame hold stays authored-native-only (falsified: it costs
-    // WebKit's accelerated representation), and the two-phase hold with
-    // pending-clock pins is on the do-not-reattempt list.
-    const routedTouchGoverned =
-      !detectBlinkEngine() &&
-      typeof navigator !== "undefined" &&
-      navigator.maxTouchPoints > 0 &&
-      governedCompiledActive();
-    // The governed head kit for touch Blink: a slow device's commits age a
-    // BARE compiled flight's clock past the whole opening (the Note 9
-    // profile: 120-260ms mount tasks), so the flight gets a held head instead
-    // of swallowing the curve's start.
-    //
-    // Known gap, deliberately not closed here: a modern-but-weak touch Blink
-    // (UA-CH present, so not legacy) used to earn this kit through the driver
-    // demotion machinery, which is gone. The render-settle gate covers the same
-    // mount weight from the other side, default-on for touch Blink since #268.
-    // Extending the kit to ALL touch Blink is the obvious next lever and must
-    // NOT be taken blind: the 2026-08-14 round reverted exactly that blanket
-    // treatment when fast devices picked up the compiled landing snap (see
-    // docs/postmortems/2026-08-motion-jank.md). It needs a device round.
-    const routedBlinkGoverned =
-      detectBlinkEngine() &&
-      typeof navigator !== "undefined" &&
-      navigator.maxTouchPoints > 0 &&
-      isLegacyAndroidBlink();
-    // Unified-WebKit experiment: all touch WebKit on the compiled tier takes
-    // the governed head kit too, so its opening commit lands in a held head
-    // instead of swallowing the curve's start.
-    const routedForceCompiled =
-      !detectBlinkEngine() &&
-      typeof navigator !== "undefined" &&
-      navigator.maxTouchPoints > 0 &&
-      forceCompiledStatus(status);
-    const routedGovernedHead = routedTouchGoverned || routedBlinkGoverned || routedForceCompiled;
-    // The DESKTOP head (`flemo:deskhead`): desktop macOS Safari runs the same
-    // compiled clock as the touch tier and presents it from the main thread, so
-    // it gets the same active-from-birth cover — its own lengths (see
-    // DESKTOP_HEAD_MS), its own gate attribute, and, like the touch tier, NO
-    // clock surgery beside it: arming this retires the birth anchor below.
-    const routedDesktopHead = isDesktopMacWebKit() && readDesktopHeadFlag();
+    // HOW THIS FLIGHT IS FLOWN — one decision, resolved once (see
+    // flightRouting.ts, where the evidence for each field lives).
+    const routing = resolveFlightRouting({
+      status,
+      transition: currentTransition,
+      skipAnimation,
+      hasActiveMotion: !!activeMotion,
+      hasAnimation
+    });
+    const {
+      hasDrivableMotion,
+      nativeSurgeryAllowed,
+      touchGoverned: routedTouchGoverned,
+      forceCompiled: routedForceCompiled,
+      governedHead: routedGovernedHead,
+      desktopHead: routedDesktopHead,
+      governedSlide,
+      birthHoldMs: governedBirthHoldMs
+    } = routing;
+    // Steady Chrome's ProMotion frame pacing for a compositor-driven flight
+    // (see armFramePacingKeepalive): the idle main thread otherwise lets the
+    // presentation drop and duplicate frames. Released in resolve() and in the
+    // teardown below.
+    if (routing.framePacingKeepalive) stopKeepalive = armFramePacingKeepalive();
     // First-frame clock hold (see nativeStallAnchor): armed from the
     // engine's own observer, whatever the hold state at effect time — React
     // effect scheduling races both the release commit and its render pass,
@@ -1574,46 +991,9 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // late-mounting participant the way the inline stamping missed the
     // decorator (device 2026-08-13: the dim faded in ahead of the held
     // screens).
-    const governedBirthHoldMs = routedGovernedHead
-      ? (GOVERNED_HEAD_MS[status] ?? 0)
-      : routedDesktopHead
-        ? (DESKTOP_HEAD_MS[status] ?? 0)
-        : 0;
-    // The LPM duration stretch (see compileTransitionStyles). Device-tuned
-    // 2026-08-12: the cadence-ratio stretch (~2.2x) played the whole 0-100
-    // and proved the pipeline, but was judged too slow — the standing
-    // directive is PLAYER-IDENTICAL duration, so the factor rests at 1
-    // (vars unset, compiled rules fall back to authored timing). The
-    // machinery stays: one constant re-arms it if the trade is ever
-    // re-judged.
-    // Slides stay player-identical (the 2.2x whole-flight stretch was
-    // device-rejected as too slow); REPLACING alone stretches 1.5x under
-    // LPM (user-selected configuration C, 2026-08-13): a tab fade is so
-    // short that governor-throttle aging past the hold consumed half of
-    // it — at 1.5x the same residual dilutes below perceptibility while
-    // the fade stays a fade.
-    // ABSOLUTE slack, not a fixed multiplier (the multiplier was tuned to
-    // plen's 200ms fade and would double a user-authored 1s REPLACING for
-    // no reason): the aging residual being diluted is an absolute quantity,
-    // so the stretch adds ~one entry-hold's worth of span to the authored
-    // duration whatever that duration is, clamped so a tiny authored fade
-    // can never balloon.
-    // REPLACING stretch retired with the delay-hold: the flat-head
-    // keyframes carry their own literal total duration.
-    const governedStretch = 1;
-    // A SLIDE on the governed touch tier. It stands the wall-clock
-    // accelerators down for the same reason routedForceCompiled does — see
-    // the cut block below — and it covers one case that predicate does not:
-    // a touch-WebKit PUSH in a session that has turned the settle gate off.
-    //
-    // Its name used to be `governedSoftenActive`, from the front-softening
-    // treatment it was introduced alongside. That treatment was retired in
-    // 2026-08-13 and deleted with the rAF player; this gate outlived it
-    // because what it actually guards is the clock, not the curve.
-    const governedSlide = routedTouchGoverned && (status === "PUSHING" || status === "POPPING");
     {
       const root = scope.ownerDocument.documentElement;
-      const creepHeadProbe = routedGovernedHead && readCreepHeadFlag();
+      const creepHeadProbe = routing.creepHead;
       if (creepHeadProbe) root.setAttribute(CREEP_ATTR, "true");
       else root.removeAttribute(CREEP_ATTR);
       if (routedGovernedHead) {
@@ -1822,9 +1202,9 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     //      `animationend` clears it.
     // The liveness floor above and the 1.2s task gate remain untouched last
     // resorts.
-    // The LPM stretch multiplies the real animation span, so every deadline
-    // derived from authored time rides with it (birth hold included).
-    const restartWatchdogMs = motionSpanMs * governedStretch + governedBirthHoldMs + 250;
+    // The head delays the real motion, so every deadline derived from authored
+    // time rides with it.
+    const restartWatchdogMs = motionSpanMs + governedBirthHoldMs + 250;
 
     // Whether this scope's recovery may still act. Requires a live task id (no
     // task → nothing to gate or resolve), THIS transition still current, the
@@ -2063,7 +1443,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
             // The LPM stretch dilates the playing curve and the birth hold
             // shifts it — the wall-clock cut rides with both.
           },
-          cutMs * governedStretch + 17 + governedBirthHoldMs
+          cutMs + 17 + governedBirthHoldMs
         );
       }
     }
