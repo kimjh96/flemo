@@ -342,3 +342,36 @@ describe("re-aiming respects whatever curve the transition authored", () => {
     expect(reaimReleaseEase(EASE_OUT, aim(EASE_OUT, 1200).slope)).toEqual(EASE_OUT);
   });
 });
+
+// A curve is CSS. A single NaN in it does not degrade the motion — the browser
+// drops the whole `transition` declaration and the screen teleports.
+describe("a broken measurement never becomes a broken curve", () => {
+  it("declines to re-aim on a non-finite velocity", () => {
+    expect(
+      releaseLaunchSlope({ remainingPx: 200, velocityPxPerSecond: Number.NaN, seconds: 0.3 })
+    ).toBeNull();
+    expect(
+      releaseLaunchSlope({
+        remainingPx: 200,
+        velocityPxPerSecond: Number.POSITIVE_INFINITY,
+        seconds: 0.3
+      })
+    ).toBeNull();
+  });
+
+  it("declines on a non-finite distance or length", () => {
+    expect(
+      releaseLaunchSlope({ remainingPx: Number.NaN, velocityPxPerSecond: 900, seconds: 0.3 })
+    ).toBeNull();
+    expect(
+      releaseLaunchSlope({ remainingPx: 200, velocityPxPerSecond: 900, seconds: Number.NaN })
+    ).toBeNull();
+  });
+
+  it("hands back the authored curve rather than an unparseable one", () => {
+    const CUPERTINO: [number, number, number, number] = [0.32, 0.72, 0, 1];
+    expect(reaimReleaseEase(CUPERTINO, Number.NaN)).toEqual(CUPERTINO);
+    expect(reaimReleaseEase(CUPERTINO, Number.POSITIVE_INFINITY)).toEqual(CUPERTINO);
+    for (const value of reaimReleaseEase(CUPERTINO, 1.2)) expect(Number.isFinite(value)).toBe(true);
+  });
+});

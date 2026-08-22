@@ -184,7 +184,13 @@ export const releaseLaunchSlope = ({
   reversing?: boolean;
 }): number | null => {
   const remaining = Math.abs(remainingPx);
-  if (remaining <= 0.5 || seconds <= 0) return null;
+  if (!Number.isFinite(remaining) || remaining <= 0.5) return null;
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  // A non-finite velocity would propagate into the curve and produce
+  // `cubic-bezier(NaN, …)` — invalid CSS, which the browser drops WHOLE, taking
+  // the transition with it and teleporting the screen. Fall back to no
+  // re-aiming rather than to a broken declaration.
+  if (!reversing && !Number.isFinite(velocityPxPerSecond)) return null;
   const fingerSlope = reversing ? 0 : (Math.abs(velocityPxPerSecond) * seconds) / remaining;
   // `>= 0`, not `> 0`: an authored ease-IN opens at exactly zero — material's
   // committing swipe is cubic-bezier(0.4, 0, 1, 1) — and that is a drawn
@@ -215,8 +221,10 @@ export const reaimReleaseEase = (
   slope: number
 ): [number, number, number, number] => {
   const [x1, y1, x2, y2] = authored;
-  // A curve with no horizontal room at the start has no slope to re-aim.
-  if (x1 <= 0 || slope <= 0) return [x1, y1, x2, y2];
+  // A curve with no horizontal room at the start has no slope to re-aim — and a
+  // non-finite one would spell an invalid `cubic-bezier`, which is worse than
+  // any curve at all.
+  if (!Number.isFinite(slope) || x1 <= 0 || slope <= 0) return [x1, y1, x2, y2];
   const MAX_Y1 = 0.95;
   const aimedX1 = Math.min(x1, MAX_Y1 / slope);
   return [aimedX1, Math.min(MAX_Y1, slope * aimedX1), x2, y2];
