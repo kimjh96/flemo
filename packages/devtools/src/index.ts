@@ -27,7 +27,8 @@ export {
 export {
   deriveOverrideWarnings,
   FLAG_REGISTRY,
-  LEGACY_LOCAL_PIN_KEY,
+  RETIRED_FLAGS,
+  RETIRED_MARKER,
   snapshotOverrides
 } from "./overrides";
 export type { FlagClass, FlagDescriptor } from "./overrides";
@@ -43,7 +44,6 @@ export {
 export type { DriverEvidence } from "./sampling";
 
 export type {
-  DriverPolicySection,
   EnvironmentFingerprint,
   FlemoReport,
   FlightDriver,

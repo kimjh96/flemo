@@ -40,7 +40,7 @@ import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 //   2. the ENTERING (active) screen RESUMES a rapid second cancel (the
 //      suspended-mount churn) rather than resolving early into a COMPLETED cut.
 //
-// A crossfade whose enter AND exit are both non-player-drivable (mismatched
+// A crossfade whose enter AND exit are both unanalyzable (mismatched
 // clipPath templates) so both sides take the compiled-CSS recovery path — the
 // path the affected device uses.
 // ─────────────────────────────────────────────────────────────────────────────

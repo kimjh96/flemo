@@ -271,91 +271,21 @@ export const easingToCss = (ease: AnimationOptions["ease"] | undefined): string 
   return "ease";
 };
 
-// ---- Governed-tier front-softening: compile-time, per authored curve ----
+// RETIRED (2026-08-13, A/B on device): governed-tier FRONT-SOFTENING.
 //
-// Under iOS Low Power Mode the main pipeline runs ~30Hz, so a curve that
-// packs half its travel into the first ~20% of its duration crosses the
-// opening in 5-6 presented frames — faster than the eye locks on (the
-// device-judged "60-100 jump"). For every SCREEN-scope rule the compiler
-// pre-computes a softened variant of ITS OWN authored curve and emits it
-// behind a `:root[data-flemo-governed]` gate the engine toggles: no runtime
-// math, no one-size-fits-all override, and a curve that is not
-// front-loaded (ease-in, linear, gentle ease-out…) is left exactly as
-// authored. Softening blends the control points toward a device-judged
-// reference in proportion to how front-loaded the curve actually is —
-// cupertino (half travel at x≈0.17) maps to the full reference, milder
-// curves move proportionally less.
-const KEYWORD_BEZIERS: Record<string, [number, number, number, number]> = {
-  ease: [0.25, 0.1, 0.25, 1],
-  "ease-in": [0.42, 0, 1, 1],
-  "ease-out": [0, 0, 0.58, 1],
-  "ease-in-out": [0.42, 0, 0.58, 1]
-};
-
-const parseBezierCss = (css: string): [number, number, number, number] | null => {
-  const keyword = KEYWORD_BEZIERS[css];
-  if (keyword) return keyword;
-  const match = css.match(/^cubic-bezier\(([^)]+)\)$/);
-  if (!match) return null; // linear, steps(), springs: never softened
-  const parts = match[1]!.split(",").map((part) => Number(part.trim()));
-  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return null;
-  return parts as unknown as [number, number, number, number];
-};
-
-// The x (time fraction) at which the curve reaches half its travel, from
-// the parametric form — sampled once at compile time.
-const halfTravelX = ([x1, y1, x2, y2]: [number, number, number, number]): number => {
-  let prevX = 0;
-  let prevY = 0;
-  for (let i = 1; i <= 100; i += 1) {
-    const t = i / 100;
-    const mt = 1 - t;
-    const x = 3 * mt * mt * t * x1 + 3 * mt * t * t * x2 + t * t * t;
-    const y = 3 * mt * mt * t * y1 + 3 * mt * t * t * y2 + t * t * t;
-    if (y >= 0.5) {
-      const f = (0.5 - prevY) / (y - prevY || 1);
-      return prevX + (x - prevX) * f;
-    }
-    prevX = x;
-    prevY = y;
-  }
-  return 1;
-};
-
-// Device-judged reference (iPhone LPM, 2026-08-12): the softened cupertino.
-const SOFT_REFERENCE: [number, number, number, number] = [0.4, 0.3, 0.1, 1];
-// Half travel later than this: the curve is not front-loaded — untouched.
-const FRONT_LOAD_ONSET_X = 0.3;
-// Cupertino-grade front-loading maps to the full reference blend.
-const FULL_SOFTEN_X = 0.19;
-
-// Whoosh is an ABSOLUTE-time phenomenon (the eye needs ~350ms to lock on
-// moving content), so the gate reads the front segment's absolute span,
-// not its fraction: a 10s authored curve that reaches half travel in 1.7s
-// is perfectly trackable however front-loaded its SHAPE is, and must stay
-// exactly as authored.
-const HALF_TRAVEL_TRACKABLE_MS = 350;
-const HALF_TRAVEL_FULL_SOFTEN_MS = 120;
-
-export const softenFrontLoadedEasing = (easingCss: string, durationS: number): string | null => {
-  const bezier = parseBezierCss(easingCss);
-  if (!bezier || durationS <= 0) return null;
-  const halfX = halfTravelX(bezier);
-  if (halfX >= FRONT_LOAD_ONSET_X) return null;
-  const halfTimeMs = halfX * durationS * 1000;
-  if (halfTimeMs >= HALF_TRAVEL_TRACKABLE_MS) return null;
-  const shapeW = Math.min((FRONT_LOAD_ONSET_X - halfX) / (FRONT_LOAD_ONSET_X - FULL_SOFTEN_X), 1);
-  const timeW = Math.min(
-    (HALF_TRAVEL_TRACKABLE_MS - halfTimeMs) /
-      (HALF_TRAVEL_TRACKABLE_MS - HALF_TRAVEL_FULL_SOFTEN_MS),
-    1
-  );
-  const w = shapeW * timeW;
-  const soft = bezier.map(
-    (value, i) => Math.round((value + (SOFT_REFERENCE[i]! - value) * w) * 1000) / 1000
-  );
-  return `cubic-bezier(${soft.join(", ")})`;
-};
+// The compiler used to pre-compute a gentler variant of every front-loaded
+// SCREEN curve and emit it behind a `:root[data-flemo-governed]` gate, to
+// answer the "60-100 jump" — under iOS Low Power Mode the main pipeline runs
+// ~30Hz, so a curve packing half its travel into the first ~20% crosses the
+// opening in 5-6 presented frames, faster than the eye locks on.
+//
+// It was prescribed against a BROKEN pipeline (var-timing demotion plus the
+// opening skips). With those cured, the softened curve became the "different
+// transition" the user could feel against the authored iOS curve, so the flag
+// went off — and then sat off, emitting nothing, for the rest of its life.
+// Deleted with the rAF player; the opening is protected by the flat head and
+// the settle gate instead. Do not re-derive it without re-checking that the
+// pipeline underneath is healthy first — that was the whole lesson.
 
 const restAttrSelector = (transitionName: string, variant: TransitionVariant): string => {
   const [status, active] = variant.split("-");
@@ -540,29 +470,6 @@ const compileVariantBlock = (
   // literal longhands on the participants instead (pre-birth, style-only).
   const delayDecl = "";
   const durationDecl = "";
-  // Front-softening (see softenFrontLoadedEasing): SCREEN scope (and
-  // its riding bar) only — parts keep their authored per-element easing so
-  // choreography internals never re-time. Emitted as a separate rule behind
-  // the engine-toggled `:root[data-flemo-governed]` gate; nothing changes for
-  // any other session.
-  // A/B 2026-08-13: softening RETIRED (flag off) — it was prescribed
-  // against the broken pipeline (var-timing demotion + opening skips), and
-  // with those cured the softened curve is itself the "different
-  // transition" the user senses vs the player's authored iOS curve. Flip
-  // the flag to re-arm if the whoosh returns.
-  const GOVERNED_SOFTEN_ENABLED = false;
-  const softened =
-    GOVERNED_SOFTEN_ENABLED && scope === "screen"
-      ? softenFrontLoadedEasing(easing, duration)
-      : null;
-  const softenedBlock =
-    softened !== null
-      ? `\n${selector
-          .split(",\n")
-          .map((one) => `:root[data-flemo-governed] ${one}`)
-          .join(",\n")} {\n  animation-timing-function: ${softened};\n}`
-      : "";
-
   // Governed REPLACING: the hold lives INSIDE the keyframes as a flat head,
   // not in animation-delay. Device-chased to the end (2026-08-13): with a
   // delay-based hold the fade-start starvation rode the delay expiry at
@@ -592,7 +499,7 @@ const compileVariantBlock = (
         : v.startsWith("POPPING")
           ? 0.08
           : 0;
-  // DESKTOP macOS Safari runs the same compiled clock (joinPlayer gate 3) and
+  // DESKTOP macOS Safari runs the same compiled clock (isDesktopMacWebKit) and
   // presents it from the main thread, so it needs the same active-from-birth
   // head — sized to ITS pipeline, not to a governor-throttled phone's. The LPM
   // numbers above cover 2-4 frames of a ~30Hz capped pipeline; a 60Hz desktop
@@ -830,7 +737,7 @@ const compileVariantBlock = (
         )}\n  opacity: 0.02;\n}`
       : "";
 
-  return `${keyframeBlock}\n${ruleBlock}${softenedBlock}${governedHeadBlock}${governedPartDelayBlock}${creepHeadBlock}${deskHeadBlock}${deskPartDelayBlock}${parkBlock}${parkUnderBlock}${parkOverBlock}`;
+  return `${keyframeBlock}\n${ruleBlock}${governedHeadBlock}${governedPartDelayBlock}${creepHeadBlock}${deskHeadBlock}${deskPartDelayBlock}${parkBlock}${parkUnderBlock}${parkOverBlock}`;
 };
 
 // Whether a variant's `from` target leaves the screen invisible on its first

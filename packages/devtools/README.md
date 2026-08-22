@@ -184,15 +184,13 @@ Do not turn it into a live-updating dashboard.
   "overrides": {
     // Every flemo:* storage key currently set (both storages), including
     // unknown keys and keys present at attach but cleared since (marked).
-    "active": { "flemo:apply": "scrub" },
+    // Retired keys still persisted on the device are listed too, marked
+    // "(retired — the library no longer reads this)", so residue is ruled out
+    // rather than chased.
+    "active": { "flemo:layers": "resident" },
     // Read these FIRST. A non-empty warnings list means the session does not
-    // run stock behavior — especially the driver force pin, which pins EVERY
-    // transition and once burned a multi-day investigation as residue.
-    "warnings": ["flemo:apply=scrub — opt-in diagnostic active (…)"]
-  },
-  "driverPolicy": {
-    "demotion": null, // localStorage flemo:motion-driver ("css" = player demoted)
-    "forcePin": null // sessionStorage flemo:motion-driver-force — non-null = PIN ACTIVE
+    // run stock behavior.
+    "warnings": ["flemo:layers=resident — opt-in diagnostic active (…)"]
   },
   "flights": [
     {
@@ -202,7 +200,7 @@ Do not turn it into a live-updating dashboard.
       "t0": { "ms": 1234.5, "iso": "…" }, // performance.now + wall clock
       "t1": { "ms": 1834.5, "iso": "…" },
       "durationMs": 600,
-      // player | compiled | mixed | unknown — detected per flight from the
+      // compiled | player | mixed | unknown — detected per flight from the
       // DOM signature (inline animation suppression + advancing inline pose
       // = player; a running flemo-* CSSAnimation = compiled). Never assume a
       // platform always routes one tier; routing policies evolve.

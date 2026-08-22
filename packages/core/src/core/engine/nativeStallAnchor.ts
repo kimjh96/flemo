@@ -23,13 +23,13 @@
 // The most the wall clock may advance across one frame gap before the excess
 // is given back to the timeline.
 //
-// NOT the player's cap. The player allows ONE frame (transitionPlayer's
-// PASS_THROUGH_FRAMES path: `startTime += gap - frameIntervalMs`), and it was
-// narrowed from two to one on a device measurement — a 47ms GC-class blip
-// resumed with a double step, seen as a 17% jump at peak velocity. This
-// constant kept the older two-frame allowance and the comment kept claiming
-// parity, so the two drivers do NOT degrade identically: a native stall can
-// still resume with the double step the player was fixed to avoid.
+// TWO frames. The retired rAF player used a ONE-frame allowance, narrowed
+// from two on a device measurement: a 47ms GC-class blip resumed with a double
+// step, seen as a 17% jump at peak velocity. This constant kept the older
+// two-frame allowance, so a native stall can still resume with that double
+// step. Left as measured rather than aligned blind — this path is reached only
+// by an authored `driver: "native"` pin, and narrowing it deserves its own
+// device round.
 //
 // Left at two frames deliberately for now — narrowing it changes non-Blink
 // stall behavior at ~11 call sites and deserves the same kind of device round

@@ -47,7 +47,7 @@ const INERT_NOTE =
 const noop = () => {};
 
 // A COMPLETE FlemoReport, with no cast. An earlier version omitted the
-// `environment` / `overrides` / `driverPolicy` sections and forced the type,
+// `environment` / `overrides` sections and forced the type,
 // on the reasoning that a fabricated fingerprint is worse than no data. That
 // reasoning was right about fabrication and wrong about the remedy: the types
 // resolve to index.d.ts under every condition, so `report().environment.engine`
@@ -79,7 +79,6 @@ const inertReport = (): FlemoReport => ({
     observation: { longTasks: false, elementAnimations: false, playerGapMirror: false }
   },
   overrides: { active: {}, warnings: [INERT_NOTE] },
-  driverPolicy: { demotion: null, forcePin: null },
   flights: [],
   anomalies: [INERT_NOTE],
   blindSpots: [],
@@ -98,7 +97,6 @@ export const attachDevtoolsPanel = (_options?: DevtoolsPanelOptions): DevtoolsPa
 export type { FlemoGlobal } from "./recorder";
 export type { DevtoolsPanelHandle, DevtoolsPanelOptions } from "./panel";
 export type {
-  DriverPolicySection,
   EnvironmentFingerprint,
   FlemoReport,
   FlightDriver,

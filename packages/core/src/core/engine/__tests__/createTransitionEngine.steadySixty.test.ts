@@ -16,12 +16,18 @@ import {
 
 import type { TransitionEngineDeps } from "@core/engine/types";
 
-// Desktop Blink routing with the steady-60 verdict (see steadySixtyCadence):
-// an UNVERIFIED desktop session keeps the compiled tier (the shipped default
-// since the beginning), a session whose in-flight cadence verified steady-60
-// on a HiDPI display routes the player, and a high-refresh latch pins the
-// session back to compiled forever. No diagnostic force pin in this file —
-// the DEFAULT routing is the subject.
+// The engine's in-flight DISPLAY-INTERVAL PROBE and what it feeds.
+//
+// The probe is the only source of a cadence reading taken while a compositor
+// animation is running, and two live consumers depend on it: the steady-60
+// desktop verdict (steadySixtyCadence -> the settle-gate default and the
+// warm-up's cadence lock) and the compiled tier's landing governor
+// (displayCadence.learnedFrameIntervalMs). It used to be armed from inside the
+// driver-routing gate; the driver is gone and the arming had to survive it, so
+// these suites pin that it still runs on exactly a Blink flight.
+//
+// The tier itself is no longer a variable: Blink runs the compiled animation
+// in every cadence state, verified or not.
 
 const animated = createTransition({
   name: "sixty-test" as never,
@@ -87,21 +93,20 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
     disposers.push(dispose);
   };
 
-  // The player's join suppresses the compiled animation inline; the compiled
-  // tier leaves the inline `animation` untouched. That signature is how the
-  // e2e suite tells the tiers apart too.
-  const playerDrove = () => scope.style.animation === "none";
+  // The compiled tier leaves the inline `animation` untouched — nothing in the
+  // engine suppresses a screen's compiled animation any more.
+  const compiledAnimationSuppressed = () => scope.style.animation === "none";
 
-  it("keeps the compiled tier while the cadence is unverified", () => {
+  it("leaves the compiled animation in charge while the cadence is unverified", () => {
     drive();
-    expect(playerDrove()).toBe(false);
+    expect(compiledAnimationSuppressed()).toBe(false);
   });
 
-  it("stays COMPILED even after two in-flight medians verify steady-60 (the settled 2026-08-18 verdict: on the target hardware every per-frame writer — rAF player, snap masks, pre-quantized WAAPI — was live-judged worse than the compiled compositor; the verdict now gates desktop-profile DEFAULTS, not the driver)", () => {
+  it("stays compiled after two in-flight medians verify steady-60 (the settled 2026-08-18 verdict: on the target hardware every per-frame writer — rAF player, snap masks, pre-quantized WAAPI — was live-judged worse than the compiled compositor; the verdict gates desktop-profile DEFAULTS, never the driver)", () => {
     reportInFlightCadence(16.7);
     reportInFlightCadence(16.7);
     drive();
-    expect(playerDrove()).toBe(false);
+    expect(compiledAnimationSuppressed()).toBe(false);
   });
 
   it("stays compiled on a verified-60 display at 1x density", () => {
@@ -109,15 +114,15 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
     reportInFlightCadence(16.7);
     Object.defineProperty(window, "devicePixelRatio", { value: 1, configurable: true });
     drive();
-    expect(playerDrove()).toBe(false);
+    expect(compiledAnimationSuppressed()).toBe(false);
   });
 
-  it("a single high-refresh median latches the session compiled", () => {
+  it("a single high-refresh median latches the session's verdict", () => {
     reportInFlightCadence(8.3);
     reportInFlightCadence(16.7);
     reportInFlightCadence(16.7);
     drive();
-    expect(playerDrove()).toBe(false);
+    expect(compiledAnimationSuppressed()).toBe(false);
   });
 
   // End-to-end through the REAL display-interval probe: each declined desktop
@@ -155,13 +160,9 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
     const median = [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)]!;
     if (median >= 14 && median <= 22) {
       expect(steadySixtyVerified()).toBe(true);
-      // Verification feeds the desktop-profile defaults; the DRIVER stays
-      // compiled (see the settled-verdict test above).
-      expect(playerDrove()).toBe(false);
-    } else {
-      // Off-window cadence must stay compiled — the same property, inverted.
-      expect(playerDrove()).toBe(false);
     }
+    // Whatever the cadence, the compiled animation is what plays.
+    expect(compiledAnimationSuppressed()).toBe(false);
   });
 
   it("a flight that completes mid-probe discards the window — idle gaps must not verify", () => {
@@ -206,10 +207,10 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
     for (let i = 0; i < 12; i++) tickAll(16.7);
     expect(steadySixtyVerified()).toBe(false);
     drive();
-    expect(playerDrove()).toBe(false);
+    expect(compiledAnimationSuppressed()).toBe(false);
   });
 
-  it("touch Blink is compiled too — Blink is one rule now", () => {
+  it("touch Blink is compiled too — Blink is one rule", () => {
     reportInFlightCadence(16.7);
     reportInFlightCadence(16.7);
     Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
@@ -219,19 +220,54 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
     // every session. Blink now routes compiled everywhere, so a weak phone is
     // deterministic from its first flight instead of depending on what its
     // ledger happens to hold.
-    expect(playerDrove()).toBe(false);
+    expect(compiledAnimationSuppressed()).toBe(false);
   });
 
-  it("the raf force pin still pierces on touch Blink", () => {
-    Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
-    sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
-    try {
-      drive();
-      // The pin is the only route to the player on Blink now, and a pinned
-      // session must player-drive everything to be a useful instrument.
-      expect(playerDrove()).toBe(true);
-    } finally {
-      sessionStorage.removeItem("flemo:motion-driver-force");
-    }
+  // The arming condition, pinned. It used to be a side effect of the driver
+  // gate ("Blink, and not chained behind another pending navigation"); the gate
+  // is gone and the condition is now written out, so it needs its own guard —
+  // silently losing it would strand the landing governor on its 60Hz seed and
+  // the steady-60 verdict on nothing at all, with no failing test anywhere.
+  it("arms only for a Blink flight, and not for one chained behind another task", () => {
+    const queue: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      queue.push(frameCallback);
+      return queue.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    let now = 0;
+    const runWindow = () => {
+      for (let i = 0; i < 12; i++) {
+        const callbacks = queue.splice(0, queue.length);
+        now += 16.7;
+        callbacks.forEach((frameCallback) => frameCallback(now));
+      }
+    };
+
+    // Non-Blink: no probe, so no verdict however many frames pass.
+    delete NAV.userAgentData;
+    drive();
+    runWindow();
+    runWindow();
+    expect(steadySixtyVerified()).toBe(false);
+
+    // Blink, but CHAINED — another navigation is still pending behind this
+    // one, which is the case the arming deliberately skips.
+    NAV.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
+    const pending = vi
+      .spyOn(TaskManger, "pendingTaskIds", "get")
+      .mockReturnValue(["task-sixty", "task-other"]);
+    drive();
+    runWindow();
+    runWindow();
+    expect(steadySixtyVerified()).toBe(false);
+    pending.mockRestore();
+
+    // Blink, unchained: the probe runs and the verdict lands.
+    drive();
+    runWindow();
+    drive();
+    runWindow();
+    expect(steadySixtyVerified()).toBe(true);
   });
 });

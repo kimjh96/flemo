@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   deriveOverrideWarnings,
   FLAG_REGISTRY,
-  LEGACY_LOCAL_PIN_KEY,
+  RETIRED_FLAGS,
+  RETIRED_MARKER,
   snapshotOverrides
 } from "../overrides";
 
@@ -18,17 +19,14 @@ describe("FLAG_REGISTRY", () => {
   it("documents every key from the core diagnostic-flag table", () => {
     const keys = FLAG_REGISTRY.map((flag) => flag.key);
     for (const expected of [
-      "flemo:motion-driver",
-      "flemo:motion-driver-force",
-      "flemo:lat",
-      "flemo:landing-snap",
+      "flemo:sixty",
       "flemo:imghold",
+      "flemo:arrivalhold",
       "flemo:settle-gate",
-      "flemo:handoff",
-      "flemo:handoffms",
-      "flemo:apply",
-      "flemo:snap",
-      "flemo:snapband",
+      "flemo:deskflip",
+      "flemo:deskhead",
+      "flemo:creep",
+      "flemo:relcommit",
       "flemo:layers",
       "flemo:freeze",
       "flemo:preraster",
@@ -36,6 +34,11 @@ describe("FLAG_REGISTRY", () => {
     ]) {
       expect(keys).toContain(expected);
     }
+  });
+
+  it("never lists a retired key as live", () => {
+    const live = new Set(FLAG_REGISTRY.map((flag) => flag.key));
+    for (const retired of RETIRED_FLAGS) expect(live.has(retired.key)).toBe(false);
   });
 });
 
@@ -45,17 +48,20 @@ describe("snapshotOverrides", () => {
   });
 
   it("reads registry keys from their native storage", () => {
-    sessionStorage.setItem("flemo:apply", "scrub");
-    localStorage.setItem("flemo:motion-driver", "css");
+    sessionStorage.setItem("flemo:settle-gate", "off");
     const active = snapshotOverrides();
-    expect(active["flemo:apply"]).toBe("scrub");
-    expect(active["flemo:motion-driver"]).toBe("css");
+    expect(active["flemo:settle-gate"]).toBe("off");
   });
 
-  it("captures the legacy localStorage force pin under a marked key", () => {
+  it("captures a retired key from either storage, marked as retired", () => {
     localStorage.setItem("flemo:motion-driver-force", "raf");
+    sessionStorage.setItem("flemo:apply", "scrub");
     const active = snapshotOverrides();
-    expect(active[LEGACY_LOCAL_PIN_KEY]).toBe("raf");
+    expect(active[`flemo:motion-driver-force (localStorage) ${RETIRED_MARKER}`]).toBe("raf");
+    expect(active[`flemo:apply (sessionStorage) ${RETIRED_MARKER}`]).toBe("scrub");
+    // …and never as a live key or an unknown one.
+    expect(active["flemo:apply"]).toBeUndefined();
+    expect(Object.keys(active).some((key) => key.includes("unknown key"))).toBe(false);
   });
 
   it("captures unknown flemo:* keys from either storage", () => {
@@ -83,7 +89,7 @@ describe("snapshotOverrides", () => {
     expect(active["flemo:ghost (sessionStorage, unknown key)"]).toBe("");
   });
 
-  it("lists the force pin from its registry entry, never as an unknown key", () => {
+  it("lists a retired key from its retirement entry, never as an unknown key", () => {
     const pinned = {
       get length() {
         return 1;
@@ -95,9 +101,24 @@ describe("snapshotOverrides", () => {
 
     const active = snapshotOverrides();
 
-    // The registry index covers the pin, so enumeration must not re-list it.
+    // The retirement index covers the pin, so enumeration must not re-list it.
     expect(Object.keys(active).some((key) => key.includes("unknown key"))).toBe(false);
-    expect(active["flemo:motion-driver-force"]).toBe("raf@1700000000000");
+    expect(active[`flemo:motion-driver-force (sessionStorage) ${RETIRED_MARKER}`]).toBe(
+      "raf@1700000000000"
+    );
+  });
+
+  it("skips an index whose key read comes back empty", () => {
+    // Storage.key(i) can return null while another tab mutates the store; an
+    // empty key is not a flag and must not be reported as an unknown one.
+    vi.stubGlobal("sessionStorage", {
+      get length() {
+        return 2;
+      },
+      key: (index: number) => (index === 0 ? null : ""),
+      getItem: () => null
+    });
+    expect(snapshotOverrides()).toEqual({});
   });
 
   it("returns an empty record when storage access throws entirely", () => {
@@ -116,7 +137,7 @@ describe("snapshotOverrides", () => {
   });
 
   it("tolerates a storage whose getItem throws after a healthy probe", () => {
-    sessionStorage.setItem("flemo:apply", "scrub");
+    sessionStorage.setItem("flemo:settle-gate", "off");
     const flaky = {
       get length() {
         return 1;
@@ -140,32 +161,34 @@ describe("deriveOverrideWarnings", () => {
     expect(deriveOverrideWarnings({})).toEqual([]);
   });
 
-  it("warns LOUDLY about an active force pin", () => {
-    const warnings = deriveOverrideWarnings({ "flemo:motion-driver-force": "raf@1700000000000" });
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("flemo:motion-driver-force=raf@1700000000000");
-    expect(warnings[0]).toContain("A DRIVER PIN IS ACTIVE");
-  });
-
-  it("warns about a since-cleared force pin (the marked-key variant)", () => {
+  it("names a retired key as inert, so it is ruled OUT rather than chased", () => {
     const warnings = deriveOverrideWarnings({
-      "flemo:motion-driver-force (at attach, since cleared)": "raf"
+      [`flemo:motion-driver-force (sessionStorage) ${RETIRED_MARKER}`]: "raf@1700000000000"
     });
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("flemo:motion-driver-force");
-    expect(warnings[0]).toContain("since-cleared");
+    expect(warnings[0]).toContain("RETIRED residue");
+    expect(warnings[0]).toContain("cannot explain anything");
+    // The retirement note travels with the warning, so the reader learns what
+    // the key used to do without leaving the report.
+    expect(warnings[0]).toContain("the hard driver pin");
   });
 
-  it("warns about the legacy localStorage pin location", () => {
-    const warnings = deriveOverrideWarnings({ [LEGACY_LOCAL_PIN_KEY]: "raf" });
+  it("still names an unrecognised retired key as inert, without a retirement note", () => {
+    // A marked key whose base name is not in the table (an older devtools build
+    // reading a newer report, a hand-edited snapshot) must still be ruled out
+    // rather than fall through as an active diagnostic.
+    const warnings = deriveOverrideWarnings({
+      [`flemo:from-the-future (sessionStorage) ${RETIRED_MARKER}`]: "1"
+    });
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("legacy localStorage");
+    expect(warnings[0]).toContain("RETIRED residue");
+    expect(warnings[0]).toContain("a removed feature");
   });
 
   it("warns about opt-in diagnostics as possible A/B residue", () => {
-    const warnings = deriveOverrideWarnings({ "flemo:apply": "scrub" });
+    const warnings = deriveOverrideWarnings({ "flemo:layers": "resident" });
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("flemo:apply=scrub");
+    expect(warnings[0]).toContain("flemo:layers=resident");
     expect(warnings[0]).toContain("left-over A/B toggle");
   });
 

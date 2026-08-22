@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import TaskManger from "@core/TaskManger";
 
@@ -13,16 +13,12 @@ import createTransitionEngine from "@core/engine/createTransitionEngine";
 import { resetFlightWindowForTests } from "@core/engine/flightWindow";
 import { LAYER_SETTLE_MS } from "@core/engine/layerSettleHold";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
-import transitionPlayers from "@core/engine/transitionPlayer";
 import { SKIP_ANIMATION_ATTR } from "@core/engine/types";
 import createPartTransition from "@transition/partTransition/createPartTransition";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
-// jsdom reads as non-Blink (no navigator.userAgentData), where the player
-// defaults OFF; these suites exercise the player paths, so pin it on via
-// the diagnostic force key.
-beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`));
-afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
+// jsdom reads as non-Blink with no touch points, so these suites exercise the
+// COMPILED path — the only motion driver the engine has.
 
 const deps = () => ({
   getTransitionTaskId: vi.fn(() => null),
@@ -43,76 +39,6 @@ const elements = () => {
   return { scope, decorator, bar };
 };
 
-describe("kind-scoped driver routing", () => {
-  const drive = (scope: HTMLElement, transitionName: string) => {
-    const d = deps();
-    d.getTransitionTaskId.mockReturnValue("route-task" as never);
-    const engine = createTransitionEngine(d);
-    return engine.driveScreenLifecycle({
-      getElements: () => ({ scope, decorator: null, bars: [] }),
-      transitionName: transitionName as never,
-      prevTransitionName: transitionName as never,
-      status: "PUSHING",
-      isActive: true,
-      animHoldReleased: true
-    });
-  };
-
-  it("an authored driver:'native' pin refuses the player (measured carve-out retired)", () => {
-    // The measured fast-mover routing is retired — cupertino rides the
-    // player like everything else — but an author who has glass-verified a
-    // motion the other way can still pin the native clock per transition.
-    const pinned = createTransition({
-      name: "branches-native-pin" as never,
-      initial: { x: "100%" },
-      idle: { value: { x: 0 }, options: { duration: 0 } },
-      enter: { value: { x: 0 }, options: { duration: 0.3 } },
-      enterBack: { value: { x: "100%" }, options: { duration: 0.3 } },
-      exit: { value: { x: "-30%" }, options: { duration: 0.3 } },
-      exitBack: { value: { x: 0 }, options: { duration: 0.3 } },
-      options: { driver: "native" }
-    });
-    transitionMap.set("branches-native-pin" as never, pinned);
-    const force = sessionStorage.getItem("flemo:motion-driver-force");
-    sessionStorage.removeItem("flemo:motion-driver-force");
-    const { scope } = elements();
-    Object.defineProperty(scope, "clientWidth", { value: 400, configurable: true });
-    Object.defineProperty(scope, "clientHeight", { value: 800, configurable: true });
-    document.body.appendChild(scope);
-    const join = vi.spyOn(transitionPlayers, "join");
-    const cleanup = drive(scope, "branches-native-pin");
-    expect(join).not.toHaveBeenCalled();
-    cleanup();
-    join.mockRestore();
-    scope.remove();
-    transitionMap.delete("branches-native-pin" as never);
-    if (force !== null) sessionStorage.setItem("flemo:motion-driver-force", force);
-  });
-
-  it("a 'raf' force pin bypasses the classification (diagnostic sessions player-drive everything)", () => {
-    // Preserve the suite-wide beforeAll pin: removing the key outright here
-    // would silently unpin every LATER test in this file (the routed default
-    // is native on non-Blink jsdom, so those tests need the pin).
-    const force = sessionStorage.getItem("flemo:motion-driver-force");
-    sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
-    try {
-      const { scope } = elements();
-      Object.defineProperty(scope, "clientWidth", { value: 400, configurable: true });
-      Object.defineProperty(scope, "clientHeight", { value: 800, configurable: true });
-      document.body.appendChild(scope);
-      const join = vi.spyOn(transitionPlayers, "join");
-      const cleanup = drive(scope, "cupertino");
-      expect(join).toHaveBeenCalled();
-      cleanup();
-      join.mockRestore();
-      scope.remove();
-    } finally {
-      if (force !== null) sessionStorage.setItem("flemo:motion-driver-force", force);
-      else sessionStorage.removeItem("flemo:motion-driver-force");
-    }
-  });
-});
-
 describe("native-clock stall watch wiring", () => {
   it("a stall during a native-driven flight re-anchors the scope's animations and re-arms the deadlines", () => {
     // Controllable rAF clock so the stall watcher sees an explicit gap.
@@ -130,13 +56,10 @@ describe("native-clock stall watch wiring", () => {
       frames.clear();
       callbacks.forEach((cb) => cb(time));
     };
-    const force = sessionStorage.getItem("flemo:motion-driver-force");
-    sessionStorage.removeItem("flemo:motion-driver-force");
     try {
       const { scope } = elements();
-      // An authored driver:'native' pin puts the flight on the native clock
-      // (the measured carve-out is retired) → joinPlayer refuses → recovering
-      // wiring (jsdom reads as non-Blink) arms the stall watch.
+      // An authored driver:'native' pin opts this flight into clock surgery,
+      // so the recovery wiring (jsdom reads as non-Blink) arms the stall watch.
       transitionMap.set(
         "branches-stall-pin" as never,
         createTransition({
@@ -207,7 +130,6 @@ describe("native-clock stall watch wiring", () => {
       delete (document.documentElement as unknown as { getAnimations?: unknown }).getAnimations;
       vi.unstubAllGlobals();
       transitionMap.delete("branches-stall-pin" as never);
-      if (force !== null) sessionStorage.setItem("flemo:motion-driver-force", force);
     }
   });
 });
@@ -420,7 +342,7 @@ describe("createTransitionEngine branches", () => {
     const engine = createTransitionEngine(d);
 
     // exit (PUSHING-false) has zero duration: resolveVariantMotion yields
-    // null, so joinPlayer must decline instead of joining an empty track.
+    // null, so the flight carries no screen motion of its own.
     transitionMap.set(
       "branches-still-exit" as never,
       createTransition({
@@ -449,7 +371,7 @@ describe("createTransitionEngine branches", () => {
     transitionMap.delete("branches-still-exit" as never);
   });
 
-  it("an active screen with a motionless decorator variant joins only its scope", () => {
+  it("an active screen with a motionless decorator variant promotes only its scope", () => {
     const { scope, decorator } = elements();
     document.body.append(scope, decorator);
     const d = {
@@ -484,15 +406,18 @@ describe("createTransitionEngine branches", () => {
       animHoldReleased: true
     });
 
-    expect(scope.style.animation).toBe("none");
-    expect(decorator.style.animation).toBe("");
+    // Each participant is gated on its OWN definition's animation: the screen
+    // animates and takes the inline layer pin; the idle decorator variant does
+    // not, so nothing is written to it.
+    expect(scope.style.willChange).not.toBe("");
+    expect(decorator.style.willChange).toBe("");
     cleanup();
     scope.remove();
     decorator.remove();
     transitionMap.delete("branches-active-deco" as never);
   });
 
-  it("this screen's <Part> elements join the player; nested screens' parts do not", () => {
+  it("this screen's <Part> elements are promoted; nested screens' parts are not", () => {
     const container = document.createElement("div");
     const scope = document.createElement("div");
     scope.setAttribute("data-flemo-screen", "true");
@@ -553,21 +478,19 @@ describe("createTransitionEngine branches", () => {
       animHoldReleased: true
     });
 
-    // The part joined (compiled animation suppressed, from-frame pinned);
-    // the nested screen's part did not.
-    expect(part.style.animation).toBe("none");
-    expect(part.style.opacity).toBe("1");
-    expect(nestedPart.style.animation).toBe("");
+    // This screen's part took the inline layer pin; the nested screen's part
+    // belongs to its own engine and must be untouched.
+    expect(part.style.willChange).not.toBe("");
+    expect(nestedPart.style.willChange).toBe("");
 
     cleanup();
-    expect(part.style.animation).toBe("");
 
     container.remove();
     partTransitionMap.delete("title-fade" as never);
     transitionMap.delete("branches-parts" as never);
   });
 
-  it("parts with no registered definition, a motionless variant, or a declined join stay on CSS", () => {
+  it("parts with no registered definition or a motionless variant are not promoted", () => {
     const container = document.createElement("div");
     const scope = document.createElement("div");
     scope.setAttribute("data-flemo-screen", "true");
@@ -580,8 +503,8 @@ describe("createTransitionEngine branches", () => {
     };
     const ghost = partOf("ghost"); // never registered
     const still = partOf("still-part"); // registered, but this variant is motionless
-    const scrubless = partOf("scrubless-part"); // motion the player can't take in jsdom (no WAAPI)
-    container.append(scope, ghost, still, scrubless);
+    const clipped = partOf("clipped-part"); // animates a non-translation channel
+    container.append(scope, ghost, still, clipped);
     document.body.appendChild(container);
 
     partTransitionMap.set(
@@ -595,9 +518,9 @@ describe("createTransitionEngine branches", () => {
       })
     );
     partTransitionMap.set(
-      "scrubless-part" as never,
+      "clipped-part" as never,
       createPartTransition({
-        name: "scrubless-part" as never,
+        name: "clipped-part" as never,
         initial: { clipPath: "inset(0 0 0 100%)" },
         idle: { value: { clipPath: "inset(0)" }, options: { duration: 0 } },
         enter: { value: { clipPath: "inset(0 0 0 100%)" }, options: { duration: 0.3 } },
@@ -632,17 +555,18 @@ describe("createTransitionEngine branches", () => {
       animHoldReleased: true
     });
 
-    // The screen joined; none of the three parts did (their compiled CSS
-    // animations stay in charge), and none of them crashed the join.
-    expect(scope.style.animation).toBe("none");
-    expect(ghost.style.animation).toBe("");
-    expect(still.style.animation).toBe("");
-    expect(scrubless.style.animation).toBe("");
+    // The screen is promoted. An unregistered part and a motionless variant
+    // are skipped; a part that DOES animate (any channel) is promoted like any
+    // other participant.
+    expect(scope.style.willChange).not.toBe("");
+    expect(ghost.style.willChange).toBe("");
+    expect(still.style.willChange).toBe("");
+    expect(clipped.style.willChange).not.toBe("");
 
     cleanup();
     container.remove();
     partTransitionMap.delete("still-part" as never);
-    partTransitionMap.delete("scrubless-part" as never);
+    partTransitionMap.delete("clipped-part" as never);
     transitionMap.delete("branches-part-edges" as never);
   });
 
@@ -680,11 +604,10 @@ describe("createTransitionEngine branches", () => {
     container.remove();
   });
 
-  it("a passive transitional screen joins its riding bars and decorator to the player", () => {
+  it("a passive transitional screen promotes its riding bars and decorator", () => {
     const { scope, decorator, bar } = elements();
     const ridingBar = document.createElement("div");
     ridingBar.setAttribute("data-flemo-bar-riding", "true");
-    // The player only writes frames to CONNECTED elements.
     document.body.append(scope, decorator, bar, ridingBar);
     const d = {
       getTransitionTaskId: vi.fn(() => "player-task"),
@@ -693,12 +616,12 @@ describe("createTransitionEngine branches", () => {
     };
     const engine = createTransitionEngine(d);
 
-    // Interpolable motion (x only) + the overlay decorator: the passive side
-    // of a push joins the shared player with every participant.
+    // A translating screen + the overlay decorator: the passive side of a push
+    // pins the layer of every participant that actually animates.
     transitionMap.set(
-      "branches-player" as never,
+      "branches-participants" as never,
       createTransition({
-        name: "branches-player" as never,
+        name: "branches-participants" as never,
         initial: { x: "100%" },
         idle: { value: { x: 0 }, options: { duration: 0 } },
         enter: { value: { x: 0 }, options: { duration: 0.3 } },
@@ -711,32 +634,27 @@ describe("createTransitionEngine branches", () => {
 
     const cleanup = engine.driveScreenLifecycle({
       getElements: () => ({ scope, decorator, bars: [ridingBar, bar, null] }),
-      transitionName: "branches-player" as never,
-      prevTransitionName: "branches-player" as never,
+      transitionName: "branches-participants" as never,
+      prevTransitionName: "branches-participants" as never,
       status: "PUSHING",
       isActive: false,
       animHoldReleased: true
     });
 
-    // The scope, the RIDING bar, and the decorator each pinned their from
-    // frame and suppressed the compiled animation; the non-riding bar did not.
-    expect(scope.style.animation).toBe("none");
-    expect(ridingBar.style.animation).toBe("none");
-    expect(bar.style.animation).toBe("");
-    expect(decorator.style.animation).toBe("none");
-    expect(decorator.style.opacity).toBe("0");
+    // The scope, the RIDING bar and the decorator each took the inline layer
+    // pin; the non-riding bar did not (it does not run the screen's rule).
+    expect(scope.style.willChange).not.toBe("");
+    expect(ridingBar.style.willChange).not.toBe("");
+    expect(bar.style.willChange).toBe("");
+    expect(decorator.style.willChange).not.toBe("");
 
-    // Detaching strips every participant's inline pin.
     cleanup();
-    expect(scope.style.animation).toBe("");
-    expect(ridingBar.style.animation).toBe("");
-    expect(decorator.style.animation).toBe("");
 
     scope.remove();
     decorator.remove();
     bar.remove();
     ridingBar.remove();
-    transitionMap.delete("branches-player" as never);
+    transitionMap.delete("branches-participants" as never);
   });
 
   it("ignores animationend events from other elements or other animations", () => {
@@ -890,7 +808,7 @@ describe("createTransitionEngine gate-phase reporting", () => {
     anchored.mockRestore();
   });
 
-  it("releases a superseded landing-snap easing when the next variant cannot snap", async () => {
+  it("releases a superseded governed easing when the next variant cannot be governed", async () => {
     // Diagnostic snap ON (Blink + session flag): a snappable slide stamps a
     // reshaped linear() timing-function. If it is interrupted and the SAME
     // scope enters an opacity-only transition (unsnappable), the stale
@@ -899,11 +817,12 @@ describe("createTransitionEngine gate-phase reporting", () => {
       value: { brands: [{ brand: "Chromium", version: "120" }] },
       configurable: true
     });
-    sessionStorage.setItem("flemo:landing-snap", "on");
-    // Compiled path: the snap easing is compiled-path machinery — a player
-    // join suppresses the compiled animation via the `animation` shorthand,
-    // which resets the timing-function longhand with it.
-    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
+    // The landing governor stamps an inline easing on touch Blink at a
+    // high-refresh cadence (see landingGovernor.ts) — that stamp is the
+    // superseded stake this test is about.
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
+    const { reportDisplayIntervalMs } = await import("@core/engine/displayCadence");
+    reportDisplayIntervalMs(1000 / 120);
     const { transitionMap } = await import("@transition/transition");
     const createTransition = (await import("@transition/createTransition")).default;
     transitionMap.set(
@@ -919,7 +838,9 @@ describe("createTransitionEngine gate-phase reporting", () => {
       }) as never
     );
     const { scope } = elements();
-    Object.defineProperty(scope, "clientWidth", { value: 400, configurable: true });
+    // Wide enough that the governor's sprint fits inside the authored span (a
+    // narrow box lands so late that the reshape bails).
+    Object.defineProperty(scope, "clientWidth", { value: 1400, configurable: true });
     Object.defineProperty(scope, "clientHeight", { value: 800, configurable: true });
     // The consumer's own inline value — the lease's restore target.
     scope.style.animationTimingFunction = "ease-in";
@@ -934,8 +855,8 @@ describe("createTransitionEngine gate-phase reporting", () => {
         isActive: true,
         animHoldReleased: true
       });
-      // The snap stamped a reshaped linear() under the engine's lease. jsdom
-      // REJECTS the linear() value itself (a real browser holds it), so
+      // The governor stamped a reshaped linear() under the engine's lease.
+      // jsdom REJECTS the linear() value itself (a real browser holds it), so
       // model the stuck stamp with a valid stand-in on the SAME lease.
       scope.style.animationTimingFunction = "steps(4)";
       first(); // interrupt
@@ -948,16 +869,60 @@ describe("createTransitionEngine gate-phase reporting", () => {
         isActive: true,
         animHoldReleased: true
       });
-      // Unsnappable variant: the superseded stake is released AT DRIVE ENTRY
+      // Ungovernable variant (opacity only): the superseded stake is released AT DRIVE ENTRY
       // and the lease restores the consumer's own easing — the stale stamp
       // must not bend this variant's curve.
       expect(scope.style.animationTimingFunction).toBe("ease-in");
       second();
     } finally {
-      sessionStorage.removeItem("flemo:landing-snap");
-      sessionStorage.removeItem("flemo:motion-driver-force");
+      reportDisplayIntervalMs(1000 / 60); // restore the 60Hz-nominal seed
+      delete (navigator as unknown as Record<string, unknown>).maxTouchPoints;
       delete (navigator as { userAgentData?: unknown }).userAgentData;
       transitionMap.delete("fade-only" as never);
+    }
+  });
+
+  it("falls back to a device-pixel ratio of 1 when the environment reports none", async () => {
+    // The governed easing is expressed in DEVICE pixels, so it needs a ratio.
+    // An embedder that reports 0 (or nothing) must not make the reshape
+    // divide by a falsy density — it takes 1 and stays correct.
+    Object.defineProperty(navigator, "userAgentData", {
+      value: { brands: [{ brand: "Chromium", version: "120" }] },
+      configurable: true
+    });
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
+    const originalDpr = window.devicePixelRatio;
+    Object.defineProperty(window, "devicePixelRatio", { value: 0, configurable: true });
+    const { reportDisplayIntervalMs } = await import("@core/engine/displayCadence");
+    reportDisplayIntervalMs(1000 / 120);
+    const { scope } = elements();
+    Object.defineProperty(scope, "clientWidth", { value: 1400, configurable: true });
+    Object.defineProperty(scope, "clientHeight", { value: 800, configurable: true });
+    scope.style.animationTimingFunction = "ease-in";
+    document.body.appendChild(scope);
+    const engine = createTransitionEngine(deps());
+    try {
+      const cleanup = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: "PUSHING",
+        isActive: true,
+        animHoldReleased: true
+      });
+      // The reshape landed: a falsy ratio did not abort it, and the curve is
+      // the one a ratio of 1 produces.
+      expect(scope.style.animationTimingFunction).toMatch(/^linear\(/);
+      cleanup();
+    } finally {
+      reportDisplayIntervalMs(1000 / 60);
+      Object.defineProperty(window, "devicePixelRatio", {
+        value: originalDpr,
+        configurable: true
+      });
+      delete (navigator as unknown as Record<string, unknown>).maxTouchPoints;
+      delete (navigator as { userAgentData?: unknown }).userAgentData;
+      scope.remove();
     }
   });
 
@@ -1161,9 +1126,6 @@ describe("reveal-shaped transitions (active no-op, passive animated)", () => {
 describe("perceptual completion cut", () => {
   it("resolves the task once remaining motion is sub-pixel, before animationend", async () => {
     vi.useFakeTimers();
-    // The cut is compiled-CSS-path only; this file pins the raf player in
-    // beforeAll, so pin css for this test.
-    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     try {
       const { scope } = elements();
       // jsdom boxes measure 0: give the scope a real width so percentage
@@ -1200,7 +1162,6 @@ describe("perceptual completion cut", () => {
       resolveSpy.mockRestore();
       scope.remove();
     } finally {
-      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.useRealTimers();
     }
   });
@@ -1308,7 +1269,6 @@ describe("native stall re-anchor coverage", () => {
       frames.clear();
       callbacks.forEach((frameCallback) => frameCallback(time));
     };
-    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     // Native-clock surgery (the stall watcher included) arms only for an
     // authored `driver: "native"` pin — the routed non-Blink default runs
     // the compiled animation untouched (see nativeSurgeryAllowed).
@@ -1360,34 +1320,28 @@ describe("native stall re-anchor coverage", () => {
     } finally {
       transitionMap.delete("stall-surgery-pin" as never);
       delete (document.documentElement as unknown as { getAnimations?: unknown }).getAnimations;
-      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.unstubAllGlobals();
     }
   });
 });
 
-describe("driver join without a task", () => {
-  it("falls back to the compiled path when no navigation task exists", () => {
-    sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
-    try {
-      const { scope } = elements();
-      document.body.appendChild(scope);
-      const engine = createTransitionEngine(deps()); // getTransitionTaskId -> null
-      const cleanup = engine.driveScreenLifecycle({
-        getElements: () => ({ scope, decorator: null, bars: [] }),
-        transitionName: "cupertino" as never,
-        prevTransitionName: "cupertino" as never,
-        status: "PUSHING",
-        isActive: true,
-        animHoldReleased: true
-      });
-      // No player joined (no task): the compiled animation stays untouched.
-      expect(scope.style.animation).toBe("");
-      cleanup();
-      scope.remove();
-    } finally {
-      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
-    }
+describe("a flight with no navigation task", () => {
+  it("drives the compiled path and writes nothing inline", () => {
+    const { scope } = elements();
+    document.body.appendChild(scope);
+    const engine = createTransitionEngine(deps()); // getTransitionTaskId -> null
+    const cleanup = engine.driveScreenLifecycle({
+      getElements: () => ({ scope, decorator: null, bars: [] }),
+      transitionName: "cupertino" as never,
+      prevTransitionName: "cupertino" as never,
+      status: "PUSHING",
+      isActive: true,
+      animHoldReleased: true
+    });
+    // The compiled animation stays untouched.
+    expect(scope.style.animation).toBe("");
+    cleanup();
+    scope.remove();
   });
 });
 
@@ -1423,7 +1377,6 @@ describe("perceptual cut with participating parts", () => {
 
   it("raises the cut ceiling to a longer analyzable part motion", () => {
     vi.useFakeTimers();
-    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     partTransitionMap.set(
       "slow-fade" as never,
       createPartTransition({
@@ -1463,14 +1416,12 @@ describe("perceptual cut with participating parts", () => {
       scope.remove();
     } finally {
       partTransitionMap.delete("slow-fade" as never);
-      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.useRealTimers();
     }
   });
 
   it("vetoes the cut on an unanalyzable part motion", () => {
     vi.useFakeTimers();
-    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     partTransitionMap.set(
       "scaling-part" as never,
       createPartTransition({
@@ -1502,7 +1453,6 @@ describe("perceptual cut with participating parts", () => {
       scope.remove();
     } finally {
       partTransitionMap.delete("scaling-part" as never);
-      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.useRealTimers();
     }
   });
@@ -1511,7 +1461,6 @@ describe("perceptual cut with participating parts", () => {
 describe("choreography-span deferral", () => {
   it("a part authored far longer than its screen is never cut by a fixed cap", () => {
     vi.useFakeTimers();
-    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     // 0.35s screen with a 3s part: extra = 2650ms — beyond the old 1000ms cap.
     transitionMap.set(
       "short-screen-long-part" as never,
@@ -1582,14 +1531,12 @@ describe("choreography-span deferral", () => {
     } finally {
       transitionMap.delete("short-screen-long-part" as never);
       partTransitionMap.delete("marathon-part" as never);
-      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.useRealTimers();
     }
   });
 
   it("defers the clean-end resolve until the longest part finishes", () => {
     vi.useFakeTimers();
-    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     // A material-shaped screen (0.35s) with a 0.6s part: the part outlives
     // the screen by 250ms, and the COMPLETED flip must wait for it.
     transitionMap.set(
@@ -1658,7 +1605,6 @@ describe("choreography-span deferral", () => {
     } finally {
       transitionMap.delete("short-screen" as never);
       partTransitionMap.delete("long-part" as never);
-      sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
       vi.useRealTimers();
     }
   });

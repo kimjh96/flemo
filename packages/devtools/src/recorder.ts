@@ -2,7 +2,7 @@ import { deriveFlightAnomalies, deriveReportAnomalies, STUCK_STATUS_MS } from ".
 import { BLIND_SPOTS } from "./blindSpots";
 import { captureEnvironment, sampleRafCadence } from "./environment";
 import { JUDGING_PROTOCOL } from "./judging";
-import { deriveOverrideWarnings, LEGACY_LOCAL_PIN_KEY, snapshotOverrides } from "./overrides";
+import { deriveOverrideWarnings, snapshotOverrides } from "./overrides";
 import {
   classifyDriver,
   computeFrameStats,
@@ -125,7 +125,6 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
         version: REPORT_SCHEMA_VERSION,
         environment: captureEnvironment({ medianGapMs: null, sampleCount: 0 }),
         overrides: { active: {}, warnings: ["no DOM available — recorder ran inert"] },
-        driverPolicy: { demotion: null, forcePin: null },
         flights: [],
         anomalies: [],
         blindSpots: [...BLIND_SPOTS],
@@ -830,15 +829,6 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
     return [...closed, provisional];
   };
 
-  const readStorageDirect = (which: "session" | "local", key: string): string | null => {
-    try {
-      const storage = which === "session" ? sessionStorage : localStorage;
-      return storage.getItem(key);
-    } catch {
-      return null;
-    }
-  };
-
   const report = (): FlemoReport => {
     const nowOverrides = snapshotOverrides();
     const merged: Record<string, string> = { ...nowOverrides };
@@ -847,9 +837,6 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
     }
     const warnings = deriveOverrideWarnings(merged);
     const environment = captureEnvironment(cadence);
-    const forcePin = readStorageDirect("session", "flemo:motion-driver-force");
-    const clearedForcePin =
-      forcePin === null ? (attachOverrides["flemo:motion-driver-force"] ?? null) : null;
     const flightRecords = materializeFlights();
     const openFlight = current;
     return {
@@ -857,15 +844,8 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
       version: REPORT_SCHEMA_VERSION,
       environment,
       overrides: { active: merged, warnings },
-      driverPolicy: {
-        demotion: readStorageDirect("local", "flemo:motion-driver"),
-        forcePin
-      },
       flights: flightRecords,
       anomalies: deriveReportAnomalies({
-        forcePin,
-        legacyLocalForcePin: merged[LEGACY_LOCAL_PIN_KEY] ?? null,
-        clearedForcePin,
         emulationSuspected: environment.emulationSuspected,
         platform: environment.platform,
         stuckFlightOpen:

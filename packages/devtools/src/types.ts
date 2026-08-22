@@ -9,8 +9,11 @@
 
 /** How a flight's motion was driven, judged from DOM signatures alone. */
 export type FlightDriver =
-  // The rAF transition player: inline `animation` suppression on the screen
-  // scope plus per-frame advancing inline transform/opacity.
+  // Per-frame inline writing: `animation` suppressed on the screen scope plus
+  // an advancing inline transform/opacity. flemo retired its rAF player in
+  // 2026-08, so this signature no longer comes from the library — seeing it
+  // means SOMETHING ELSE is writing frames onto a screen (a consumer
+  // animation, another motion runtime), which is worth knowing.
   | "player"
   // The compiled-CSS tier: a running CSSAnimation whose name starts with
   // "flemo-" (compositor- or main-thread-presented, engine-dependent).
@@ -266,27 +269,12 @@ export interface OverridesSection {
   warnings: string[];
 }
 
-export interface DriverPolicySection {
-  /**
-   * localStorage `flemo:motion-driver` — the learned ledger. "css" means the
-   * device earned a persisted player demotion; "raf" means a clean probe.
-   */
-  demotion: string | null;
-  /**
-   * sessionStorage `flemo:motion-driver-force` raw value. NON-NULL MEANS A
-   * PIN IS ACTIVE: every transition is forced onto one driver. Almost always
-   * A/B residue when found unexpectedly.
-   */
-  forcePin: string | null;
-}
-
 export interface FlemoReport {
   generatedAt: string;
   /** Report schema version (not the package version). */
   version: string;
   environment: EnvironmentFingerprint;
   overrides: OverridesSection;
-  driverPolicy: DriverPolicySection;
   flights: FlightRecord[];
   /** Session-level findings (observation traps, active pins, stuck flights). */
   anomalies: string[];

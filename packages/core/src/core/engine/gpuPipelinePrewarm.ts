@@ -27,7 +27,7 @@
 // draws over warm pipelines end to end (verified by trace: the injected
 // prewarm removed every in-flight compile burst on a cold profile).
 
-import { detectBlinkEngine } from "@core/engine/driverPolicy";
+import { detectBlinkEngine } from "@core/engine/engineProbes";
 
 const noop = () => {};
 

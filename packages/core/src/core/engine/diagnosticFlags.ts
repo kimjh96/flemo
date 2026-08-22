@@ -1,6 +1,6 @@
-import { detectBlinkEngine, isDesktopMacWebKit } from "@core/engine/driverPolicy";
+import { detectBlinkEngine, isDesktopMacWebKit } from "@core/engine/engineProbes";
 import { governedCompiledActive } from "@core/engine/governedCompiled";
-import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
+import { steadySixtyDesktopProfile } from "@core/engine/steadySixtyCadence";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The `flemo:*` diagnostic-flag registry.
@@ -19,18 +19,10 @@ import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 //
 // | key                       | storage | values                          | default                    | class                            | effect                                                                 |
 // |---------------------------|---------|---------------------------------|----------------------------|----------------------------------|------------------------------------------------------------------------|
-// | flemo:motion-driver       | local   | learned ledger                  | (learned)                  | production-state                 | player demotion ledger — owned by driverPolicy.ts, not read here       |
-// | flemo:motion-driver-force | session | "css@<epoch-ms>"/"raf@<epoch-ms>" | unset                    | opt-in diagnostic                | hard driver pin (24h TTL) — owned by driverPolicy.ts, not read here    |
 // | flemo:sixty               | session | "high" / streak count           | (learned)                  | production-state                 | steady-60 desktop verdict seed — owned by steadySixtyCadence.ts        |
-// | flemo:landing-snap        | session | "on"                            | off                        | opt-in diagnostic                | Blink landing pixel-snap easing A/B (landingPixelSnap.ts)              |
 // | flemo:imghold             | session | "on"                            | off                        | opt-in diagnostic                | flight-scoped <img> reveal hold (imageRevealHold.ts)                   |
 // | flemo:arrivalhold         | session | "off"                           | on                         | production-default-with-override | arrival hold (freeze-and-replay of in-flight arrivals) — arrivalHold.ts |
 // | flemo:settle-gate         | session | "on"/"off"                      | touch WebKit + touch Blink + desktop macOS WebKit + steady-60 desktop | production-default-with-override | render-settle entry gate (engine routing + react ScreenMotion) |
-// | flemo:handoff             | session | "on"                            | off                        | opt-in diagnostic                | anchored-opening handoff, POP-scoped (transitionPlayer.ts)             |
-// | flemo:handoffms           | session | number ms                       | 100 (six 60Hz frames)      | opt-in diagnostic                | moves the handoff point per session                                    |
-// | flemo:apply               | session | "scrub"                         | off                        | opt-in diagnostic                | force the scrub-WAAPI value-application tier for every track           |
-// | flemo:snap                | session | "always"/"off"/"gate"/"hybrid"  | platform policy            | production-default-with-override | player device-pixel snap policy (composeTransform)                     |
-// | flemo:snapband            | session | number (device px)              | 4                          | opt-in diagnostic                | "hybrid" snap's jitter-band width                                      |
 // | flemo:layers              | session | "resident"/"off"                | off                        | opt-in diagnostic                | resident screen layers at rest (layerSettleHold.ts) — a resident layer is a permanent stacking context over the consumer screen |
 // | flemo:freeze              | session | "shallow"                       | off                        | opt-in diagnostic                | keep the direct prev screen live (computeScreenFreeze.ts)               |
 // | flemo:deskflip            | session | "on"/"off"                      | desktop macOS WebKit       | production-default-with-override | atomic release flip on desktop Safari (react ScreenMotion's directFlip)  |
@@ -46,19 +38,19 @@ import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 // `docs/diagnostics.md` was pointing readers here as the source of truth. If
 // you change a default, the test fails until the row matches.
 //
-// (The one surviving `window.__flemo*` global is `__flemoPlayerGaps` — the
-// player's frame-gap mirror in transitionPlayer.ts, read by the e2e suite.)
+// RETIRED with the rAF player (2026-08-22), and NOT to be reintroduced without
+// a driver to serve: `flemo:motion-driver` (the per-origin demotion ledger),
+// `flemo:motion-driver-force` (the hard driver pin), `flemo:landing-snap`
+// (integer-device-pixel tail A/B — falsified on device, see
+// landingGovernor.ts), `flemo:handoff` / `flemo:handoffms` (the player's
+// anchored-opening handoff), `flemo:apply` (scrub-WAAPI application tier),
+// `flemo:snap` / `flemo:snapband` (the player's device-pixel snap policy).
+// Values persisted on users' devices are never read again.
 //
-// Caching contract: the transitionPlayer overrides (`flemo:apply`,
-// `flemo:snap`, `flemo:handoff` [player side], `flemo:snapband`,
-// `flemo:handoffms`) and the URL-armed toggles (`flemo:layers`,
-// `flemo:freeze`) are read ONCE per page load and cached — the flags select a
-// code path for a whole session, and a hot-path storage read per frame would
-// be its own jank source. The engine-routing reads (`flemo:landing-snap`,
-// `flemo:imghold`, `flemo:settle-gate`, `flemo:handoff` [engine side],
-// `flemo:preraster`, `flemo:imgoffload`) are uncached — read per decision, so
-// a DevTools toggle takes effect on the next navigation without a reload.
-// Both behaviors are the pre-consolidation semantics, preserved exactly.
+// Caching contract: the URL-armed toggles (`flemo:layers`, `flemo:freeze`) are
+// read ONCE per page load and cached — they select a code path for a whole
+// session. Every other reader here is uncached — read per decision, so a
+// DevTools toggle takes effect on the next navigation without a reload.
 //
 // Every reader degrades to its default on storage failure: a partitioned or
 // sandboxed document throws on sessionStorage ACCESS, and a diagnostic toggle
@@ -76,11 +68,6 @@ const readStorageValue = (key: string): string | null => {
 };
 
 // ── Uncached engine-routing flags (read per decision) ───────────────────────
-
-// `flemo:landing-snap=on` — Blink-only landing pixel-snap easing A/B. A live
-// device A/B judged texel-rigid stepping WORSE than the authored fractional
-// glide, so this is measurement-only; see landingPixelSnap.ts.
-export const readLandingSnapFlag = (): boolean => readStorageValue("flemo:landing-snap") === "on";
 
 // `flemo:imghold=on` — the <img> analog of responseHold: park an entering
 // screen's still-loading image paints to rest (imageRevealHold.ts). OPT-IN on
@@ -110,7 +97,7 @@ const isTouchBlink = (): boolean => detectBlinkEngine() && (navigator.maxTouchPo
 // (Blink runs compiled everywhere since 2026-08-19) but the default stays,
 // because the reason that survives is the tier-independent one: the measured
 // ~50ms desktop mount hitch ages a wall-clocked compiled animation just as it
-// starved the player. See steadySixtyPlayerEligible's own note — the name is
+// starved the player. See steadySixtyDesktopProfile's own note — the name is
 // historical.
 //
 // Touch Blink was the gap: the pop-convergence round (de35c13) widened the
@@ -124,10 +111,10 @@ const isTouchBlink = (): boolean => detectBlinkEngine() && (navigator.maxTouchPo
 //
 // DESKTOP macOS Safari (isDesktopMacWebKit) was the same gap one platform
 // over, and the LAST session routed to a wall-clocked animation with nothing
-// holding it. joinPlayer's gate 3 sends it to the compiled tier on purpose
+// holding it. It runs the compiled tier on purpose
 // (macOS Safari caps rAF at 60Hz, so the player can only paint half a
 // ProMotion panel's frames) — but WebKit presents those compiled animations
-// from the MAIN THREAD (see driverPolicy's header), so a heavy entering mount
+// from the MAIN THREAD, so a heavy entering mount
 // eats the opening exactly as it does on a phone. Frame-level measurement of
 // the docs site's own Home -> Showcase push (2026-08-20, production build,
 // WebKit): the entering screen's mount blocked the main thread for 103-135ms
@@ -154,7 +141,7 @@ export const readSettleGateFlag = (): boolean => {
     if (value === "off") return false;
     return (
       governedCompiledActive() ||
-      steadySixtyPlayerEligible() ||
+      steadySixtyDesktopProfile() ||
       isTouchBlink() ||
       isDesktopMacWebKit()
     );
@@ -162,11 +149,6 @@ export const readSettleGateFlag = (): boolean => {
     return false;
   }
 };
-
-// `flemo:handoff=on`, ENGINE side — uncached, so the routing exemption in
-// forceCompiledStatus reacts to a DevTools toggle immediately. The player's
-// own cached view of the same key is `handoffOverride` below.
-export const readHandoffFlag = (): boolean => readStorageValue("flemo:handoff") === "on";
 
 // `flemo:arrivalhold=off` — diagnostic kill-switch for the whole in-flight
 // arrival armor (response/arrival/invisible-animation/image holds). Added
@@ -182,7 +164,7 @@ export const readArrivalHoldFlag = (): boolean => readStorageValue("flemo:arriva
 // is aging the clock before a single frame is presented.
 //
 // DEFAULT-ON for desktop macOS Safari (isDesktopMacWebKit), which routes
-// compiled (joinPlayer gate 3) and presents from the main thread — the exact
+// compiled (isDesktopMacWebKit) and presents from the main thread — the exact
 // combination the flip was built for. It reaches production there through this
 // reader only: touch WebKit is armed by governedCompiledActive, and an authored
 // `driver: "native"` pin arms itself.
@@ -339,80 +321,6 @@ export const readRestLayerPromotionFlag = (): boolean => readPrerasterFlag();
 export const readImageOffloadOverride = (): "on" | "off" | null => {
   const value = readStorageValue("flemo:imgoffload");
   return value === "on" || value === "off" ? value : null;
-};
-
-// ── Cached per-page-load overrides (the transitionPlayer set) ───────────────
-
-// Defaults for the numeric overrides. HANDOFF: six nominal 60Hz frames —
-// enough for the entry storm to land and the capped clock to absorb it, early
-// enough that the browser owns the long middle and the whole convergence.
-// JITTER BAND: below this step size (device px per actual frame) integer
-// snapping modulates presented velocity by up to ±0.5px/frame.
-export const HANDOFF_MS_DEFAULT = 6 * (1000 / 60);
-export const JITTER_BAND_MAX_DEVICE_PX = 4;
-
-// `flemo:apply=scrub` — route EVERY track through the scrub-WAAPI
-// value-application path so the per-frame style-write path can be A/B'd
-// against it on-device.
-let applyOverrideCache: "scrub" | null | undefined;
-export const snapshotApplyOverride = (): "scrub" | null => {
-  if (applyOverrideCache !== undefined) return applyOverrideCache;
-  const value = readStorageValue("flemo:apply");
-  applyOverrideCache = value === "scrub" ? value : null;
-  return applyOverrideCache;
-};
-
-// `flemo:handoff=on`, PLAYER side — cached: the join path runs per track and
-// the flag selects a driver for the whole session.
-let handoffOverrideCache: "on" | null | undefined;
-export const handoffOverride = (): "on" | null => {
-  if (handoffOverrideCache !== undefined) return handoffOverrideCache;
-  const value = readStorageValue("flemo:handoff");
-  handoffOverrideCache = value === "on" ? value : null;
-  return handoffOverrideCache;
-};
-
-// `flemo:snap` — replaces the platform-default snap policy (see
-// composeTransform / defaultAlwaysSnap in transitionPlayer.ts).
-let snapOverrideCache: "always" | "off" | "gate" | "hybrid" | null | undefined;
-export const snapOverride = (): "always" | "off" | "gate" | "hybrid" | null => {
-  if (snapOverrideCache !== undefined) return snapOverrideCache;
-  const value = readStorageValue("flemo:snap");
-  snapOverrideCache =
-    value === "always" || value === "off" || value === "gate" || value === "hybrid" ? value : null;
-  return snapOverrideCache;
-};
-
-// `flemo:snapband=<n>` — narrows the "hybrid" snap's fractional band so only
-// the slowest tail (sub-n device px/frame) goes sub-pixel.
-let jitterBandCache: number | undefined;
-export const jitterBandMaxDevicePx = (): number => {
-  if (jitterBandCache !== undefined) return jitterBandCache;
-  const raw = readStorageValue("flemo:snapband");
-  const n = raw === null ? NaN : Number(raw);
-  jitterBandCache = Number.isFinite(n) && n > 0 ? n : JITTER_BAND_MAX_DEVICE_PX;
-  return jitterBandCache;
-};
-
-// `flemo:handoffms=<n>` — moves the handoff point per session so an on-device
-// round can tell whether a perceived jump tracks the handoff.
-let handoffMsCache: number | undefined;
-export const handoffMs = (): number => {
-  if (handoffMsCache !== undefined) return handoffMsCache;
-  const raw = readStorageValue("flemo:handoffms");
-  const n = raw === null ? NaN : Number(raw);
-  handoffMsCache = Number.isFinite(n) && n >= 0 ? n : HANDOFF_MS_DEFAULT;
-  return handoffMsCache;
-};
-
-// Test-only: the session override caches are read once per page load; tests
-// reset them to exercise each override path in one module instance.
-export const resetSessionOverrideCachesForTests = () => {
-  applyOverrideCache = undefined;
-  snapOverrideCache = undefined;
-  handoffOverrideCache = undefined;
-  jitterBandCache = undefined;
-  handoffMsCache = undefined;
 };
 
 // ── Cached URL-armed toggles (layers / freeze) ──────────────────────────────

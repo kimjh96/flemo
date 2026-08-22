@@ -20,33 +20,27 @@ import { resolveVariantMotion, type VariantMotion } from "@transition/variantMot
 import createArrivalHold from "@core/engine/arrivalHold";
 import holdCompositorWarm from "@core/engine/compositorWarmUp";
 import {
-  readHandoffFlag,
   readArrivalHoldFlag,
   readDesktopHeadFlag,
   readImageHoldFlag,
   readCreepHeadFlag,
-  readLandingSnapFlag,
   readSettleGateFlag
 } from "@core/engine/diagnosticFlags";
-import driverPolicy, {
+import { learnedFrameIntervalMs, reportDisplayIntervalMs } from "@core/engine/displayCadence";
+import { noticeDeviceEmulationOnce } from "@core/engine/emulationNotice";
+import {
   detectBlinkEngine,
   isDesktopMacWebKit,
   isLegacyAndroidBlink
-} from "@core/engine/driverPolicy";
-import { noticeDeviceEmulationOnce } from "@core/engine/emulationNotice";
+} from "@core/engine/engineProbes";
 import { beginFlightWindow } from "@core/engine/flightWindow";
 import { governedCompiledActive } from "@core/engine/governedCompiled";
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
 import { beginImageRevealHold } from "@core/engine/imageRevealHold";
 import createInvisibleAnimationHold from "@core/engine/invisibleAnimationHold";
-import {
-  governedBezierForMotion,
-  governedEasingForMotion,
-  snappedEasingForMotion
-} from "@core/engine/landingPixelSnap";
+import { governedEasingForMotion } from "@core/engine/landingGovernor";
 import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
 
-import { classifyTransitionDriver } from "@core/engine/motionDriverKind";
 import {
   armFlightStartAnchorAtRelease,
   holdNativeClocksToFirstFrame,
@@ -59,10 +53,6 @@ import { beginResponseHold } from "@core/engine/responseHold";
 // display probe below reports the in-flight cadence the desktop cadence lock
 // and the settle-gate default read.
 import { reportInFlightCadence } from "@core/engine/steadySixtyCadence";
-import transitionPlayers, {
-  learnedFrameIntervalMs,
-  reportDisplayIntervalMs
-} from "@core/engine/transitionPlayer";
 import {
   SKIP_ANIMATION_ATTR,
   type ScreenLifecycleInput,
@@ -142,10 +132,6 @@ const collectVariantParts = (scope: HTMLElement, variant: TransitionVariant): HT
 // its OWN definition's animation (a motionless screen can still carry an
 // animating decorator or part — REVEAL-shaped transitions). Containment
 // mirrors the rules' `contain: layout` scoping (PUSHING/REPLACING only).
-// This module's layer-hold owner token. A swipe gesture (createSwipeController)
-// OPT-IN landing-snap diagnostic flag, read defensively: a partitioned or
-// sandboxed document throws on sessionStorage access, and a measurement
-// toggle must never propagate that into driveScreenLifecycle.
 // The WHOLE choreography's span for one status: the longest of the screen
 // transition's BOTH variants (active and passive — either side may be the
 // long-authored one) and every <Part> participating in this status. Any
@@ -271,43 +257,28 @@ const statusChoreographySpanMs = (
 // fixed head covers a PUSH the same way it covers a POP. Read here so the
 // engine only routes a PUSH to compiled when the gate is actually smoothing it.
 // The render-settle gate is ON BY DEFAULT for touch WebKit (governedCompiledActive)
-// and for desktop macOS Safari (isDesktopMacWebKit — routed compiled by gate 3
-// below, and just as main-thread-clocked):
+// and for desktop macOS Safari (isDesktopMacWebKit — just as main-thread-clocked):
 // the governed-compiled opening only presents cleanly when the release waits for
 // the entering mount's render to quiesce, so it ships with the tier. An explicit
 // `flemo:settle-gate=off` opts out; `=on` is redundant now but still honored
 // (see readSettleGateFlag in diagnosticFlags.ts — shared with react's
 // ScreenMotion so both sides always agree).
 
-// The anchored-opening handoff (see transitionPlayer): when on, PUSH stays on
-// the PLAYER — its clock anchors the opening (caps the entry-commit monster
-// frame so the slide never jumps) and hands the tail to an accelerated
-// animation. The player's own historical weakness — main-thread frame gaps
-// during the entry storm — is what the settle gate removes by holding the
-// release until that storm has quiesced, so the two combine: quiet opening,
-// anchored (no jump), smooth accelerated tail. Without this exemption the
-// settle gate below silently routes PUSH to the compiled tier, which can't
-// anchor and jumps on the raster stall — masking the player+handoff path.
-// (`flemo:handoff=on`, read uncached via readHandoffFlag so a DevTools toggle
-// takes effect on the next navigation.)
-
-// Which touch-WebKit statuses route to the compiled tier (the fall-through
-// branch in joinPlayer below):
-// POP defaults to compiled (its return-to-mounted commit was ASSUMED light) —
-// but device-measured, a heavy returning screen's re-commit swallows POP's
-// opening exactly like PUSH's, so the handoff exemption now covers POP too:
-// with the player handoff on, POP stays on the player for the same anchored,
-// freeze-on-stall opening (no wall-clock advance across the return commit).
-// PUSH: compiled only when the settle gate is on AND handoff is off.
+// Which touch-WebKit statuses take the GOVERNED HEAD KIT — the flat head that
+// covers a compiled flight's opening while the entering mount's commit ages the
+// wall clock.
+// POP always: device-measured, a heavy returning screen's re-commit swallows
+// POP's opening exactly like PUSH's.
+// PUSH: only when the settle gate is on, which moves that mount weight into the
+// hold so the release is light enough for the fixed head to cover the opening —
+// the same way it already covers POP.
 const forceCompiledStatus = (status: string): boolean =>
-  (status === "POPPING" && !readHandoffFlag()) ||
-  (status === "PUSHING" && readSettleGateFlag() && !readHandoffFlag());
+  status === "POPPING" || (status === "PUSHING" && readSettleGateFlag());
 
-// High-refresh routing (see joinPlayer): below this display interval the
-// compiled tier drives on Blink. 12ms sits between 120Hz (8.3) and 90Hz
-// (11.1) on one side and 60Hz (16.7) on the other — and a power-throttled
-// presentation (30Hz measured on battery) never qualifies, so the player's
-// even-cadence handling keeps owning those states.
+// High-refresh threshold for the compiled tier's landing governor (see
+// landingGovernor.ts): 12ms sits between 120Hz (8.3) and 90Hz (11.1) on one
+// side and 60Hz (16.7) on the other — and a power-throttled presentation (30Hz
+// measured on battery) never qualifies.
 const COMPILED_TIER_MAX_INTERVAL_MS = 12;
 
 // Frame-pacing keepalive for Blink's COMPILED tier. A compositor-driven flight
@@ -429,59 +400,27 @@ const holdParticipantLayers = (
   const { scope, decorator, bars } = elements;
   const status = variant.split("-")[0];
   const containment = status === "PUSHING" || status === "REPLACING";
-  // Landing pixel snap (see landingPixelSnap.ts): reshape each translating
-  // participant's compiled easing so the flight presents integer device
-  // pixels — stamped as an INLINE longhand (clearInlineAnimation strips it
-  // at COMPLETED with animation-delay); a riding bar shares the screen's
-  // string so the pair stays in lockstep. OPT-IN diagnostics only
-  // (`sessionStorage.setItem("flemo:landing-snap", "on")` + reload): a live
-  // A/B on real content judged texel-rigid stepping WORSE than the authored
-  // fractional glide — the same verdict as the transformPart 2D-vs-3D
-  // experiment (translate3d chosen precisely for filtered sub-pixel
-  // compositing). The machinery stays for measurement work.
-  // The storage read is wrapped like every other diagnostic toggle (see
-  // transitionPlayer's overrides): a sandboxed/partitioned context can throw
-  // SecurityError on sessionStorage access, and an OPT-IN measurement flag
-  // must never take the whole transition down with it.
-  const snapEasing = detectBlinkEngine() && readLandingSnapFlag();
-  // The landing governor for the COMPILED tier (see governedEasingForMotion):
-  // when Blink routes to the compiled path (desktop always, touch devices at
-  // a genuine high-refresh cadence — the same predicate as joinPlayer's
-  // decline rule), the authored curve's sub-pixel tail parks the sheet short
-  // of its landing and the COMPLETED flip closes the gap late — the reshaped
-  // easing sprints the tail at one device pixel per frame instead. Inert
-  // under the player (it suppresses the compiled animation).
+  // The landing governor for the COMPILED tier (see landingGovernor.ts): on
+  // touch Blink at a genuine high-refresh cadence, the authored curve's
+  // sub-pixel tail parks the sheet short of its landing and the COMPLETED flip
+  // closes the gap late — the reshaped easing sprints the tail at one device
+  // pixel per frame instead. Stamped as an INLINE longhand (clearInlineAnimation
+  // strips it at COMPLETED with animation-delay); a riding bar shares the
+  // screen's string so the pair stays in lockstep.
+  //
+  // Desktop removed (2026-08-18): the governor's 1-device-px tail sprint IS the
+  // reported pop "드르륵" on 60Hz HiDPI desktops — the compiled tier runs the
+  // AUTHORED easing untouched there, exactly like any well-made compositor
+  // animation. Touch high-refresh keeps it (device-verified).
   const governEasing =
-    !snapEasing &&
     detectBlinkEngine() &&
-    // Desktop removed (2026-08-18): the governor's 1-device-px tail sprint IS
-    // the reported pop "드르륵" on 60Hz HiDPI desktops — the compiled tier
-    // runs the AUTHORED easing untouched there, exactly like any well-made
-    // compositor animation. Touch high-refresh keeps it (device-verified).
     typeof navigator !== "undefined" &&
     navigator.maxTouchPoints > 0 &&
     learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS;
-  const governBezier = false;
-  const dpr =
-    (snapEasing || governEasing || governBezier) && typeof window !== "undefined"
-      ? window.devicePixelRatio || 1
-      : 1;
+  const dpr = governEasing && typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
   const easingFor = (motionSource: VariantMotion | null, box: HTMLElement): string | null => {
-    if (!motionSource) return null;
-    if (snapEasing) return snappedEasingForMotion(motionSource, box, dpr);
-    if (governEasing) {
-      return governedEasingForMotion(motionSource, box, dpr, learnedFrameIntervalMs());
-    }
-    return null;
-  };
-  const applyGovernedBezier = (motionSource: VariantMotion | null, box: HTMLElement) => {
-    if (!governBezier) return;
-    const fit = governedBezierForMotion(motionSource, box, dpr, learnedFrameIntervalMs());
-    if (!fit) return;
-    trackInlineWrite(box, "animation-timing-function", owner);
-    box.style.animationTimingFunction = fit.easing;
-    trackInlineWrite(box, "animation-duration", owner);
-    box.style.animationDuration = `${fit.durationMs}ms`;
+    if (!motionSource || !governEasing) return null;
+    return governedEasingForMotion(motionSource, box, dpr, learnedFrameIntervalMs());
   };
   if (variantHasAnimation(transition, variant)) {
     holdScopeLayer(scope, transition, containment, owner);
@@ -490,8 +429,6 @@ const holdParticipantLayers = (
     if (easing) {
       trackInlineWrite(scope, "animation-timing-function", owner);
       scope.style.animationTimingFunction = easing;
-    } else {
-      applyGovernedBezier(scopeMotion, scope);
     }
     for (const bar of bars ?? []) {
       if (bar?.getAttribute("data-flemo-bar-riding") === "true") {
@@ -499,8 +436,6 @@ const holdParticipantLayers = (
         if (easing) {
           trackInlineWrite(bar, "animation-timing-function", owner);
           bar.style.animationTimingFunction = easing;
-        } else {
-          applyGovernedBezier(scopeMotion, bar);
         }
       }
     }
@@ -517,7 +452,6 @@ const holdParticipantLayers = (
       holdScopeLayer(part, definition, containment, owner);
       const partMotion = resolveVariantMotion(definition, variant) ?? null;
       const partEasing = easingFor(partMotion, part);
-      if (!partEasing) applyGovernedBezier(partMotion, part);
       if (partEasing) {
         trackInlineWrite(part, "animation-timing-function", owner);
         part.style.animationTimingFunction = partEasing;
@@ -1049,324 +983,24 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // interpolation or a scrubbed Web Animation — so a null here means the
     // player must not or cannot run (Blink, replay chain, css pin, no WAAPI)
     // and the compiled CSS path stays in charge.
-    const joinPlayer = (
-      variant: TransitionVariant,
-      role: "active" | "passive",
-      onComplete?: () => void
-    ): (() => void) | null => {
+    // The display-interval probe. Its samples feed two live consumers — the
+    // compiled tier's landing governor (learnedFrameIntervalMs, see
+    // landingGovernor.ts) and the steady-60 desktop profile
+    // (reportInFlightCadence -> the settle-gate default and the warm-up's
+    // cadence lock) — and both need a reading taken IN FLIGHT, while the
+    // compositor animation is running: an adaptive panel idles at 60Hz and only
+    // shows its true rate once something is animating.
+    //
+    // The arming used to sit inside the driver-routing gate that sent Blink to
+    // the compiled tier. The player is gone and so is that gate, so the arming
+    // is kept here on EXACTLY the condition it used to run under: a Blink
+    // flight that is not chained behind another pending navigation.
+    const armDisplayProbeForFlight = () => {
+      if (!detectBlinkEngine()) return;
       const taskId = deps.getTransitionTaskId();
-      if (!taskId) return null;
-
-      // Surface an active diagnostic force pin exactly once. Routing below may
-      // short-circuit (desktop Blink returns the compiled tier before ever
-      // reading the pin), so read it here unconditionally: a forgotten pin must
-      // never run silently, whichever tier the context resolves to.
-      driverPolicy.pinnedDriver();
-
-      // Per-context driver selection, both decided by the library:
-      // 1. A REPLAY CHAIN (more navigations queued behind this one — a rapid
-      //    back/forward storm) runs on the compiled CSS path on BLINK ONLY:
-      //    there the queued screens' mount commits land mid-flight, which
-      //    stalls a main-thread player while the compositor glides. On
-      //    non-Blink the compiled tier is the WRONG refuge — its clock is
-      //    stamped a whole pipeline (style/layer work + CA commit + UI-
-      //    process activation) before first glass, so a chained flight born
-      //    into a heavy commit is swallowed wholesale. Device-video'd
-      //    (iPhone, 2026-08): a chained POP (returning screen's unfreeze =
-      //    the monster commit) presented as a ONE-FRAME swap, the user
-      //    naturally re-tapped into the still-pending queue, and every
-      //    alternate push then chained onto CSS and jumped — while the
-      //    unchained flights around them played the player perfectly. The
-      //    player's capped clock is precisely the driver that survives
-      //    mid-flight commits there: chains ride it too.
-      if (detectBlinkEngine() && TaskManger.pendingTaskIds.some((id) => id !== taskId)) {
-        return null;
-      }
-      // 2. BLINK RUNS THE COMPILED TIER. The evidence first, then the rule.
-      //    At a ~120Hz cadence the player's per-frame main-thread write must
-      //    survive commit -> activation -> draw inside an 8.3ms budget, and
-      //    traced on a ProMotion MacBook it measurably cannot: 36% of the
-      //    flight's frames presented PARTIAL (the vsync shipped without the
-      //    player's latest position; PipelineReporter 81/224 vs 6/149
-      //    compiled, same machine, same flight) — an every-few-frames
-      //    stale-then-double-step the eye reads as trembling and rAF timing
-      //    cannot see. The compiled animation is compositor-driven and
-      //    immune. Blink-only: WebKit presents from the main thread, so its
-      //    player writes ARE the presentation.
-      //
-      //    Measured cadence cannot be the gate. An adaptive panel idles at
-      //    60Hz, so a load-time probe reads 16.7ms on the very machine that
-      //    ramps to 120Hz the moment a compositor animation runs — the
-      //    interval gate flipped per-session on identical hardware (real
-      //    Chrome, idle rAF 16.7ms median on the 120Hz panel).
-      //
-      //    HISTORY, recorded so the ladder is not re-climbed. A blanket "all
-      //    touch Blink -> compiled" (2026-08-14) was reverted when fast
-      //    devices picked up a landing snap, leaving touch Blink on the
-      //    player with DEMOTION as its only escape. A steady-60 carve-out
-      //    (2026-08-17) then routed verified 60Hz HiDPI desktop sessions
-      //    BACK to the player for its device-pixel snap; the live-judged
-      //    ladder of 2026-08-18 settled it the other way, trying every
-      //    driver back-to-back on the target machine with its known poisons
-      //    individually fixed (rAF player: best texture, main-thread-coupled,
-      //    judged worst felt; per-frame !important snap mask: manufactured
-      //    its own staircase; pre-quantized step-end WAAPI ladder: worse
-      //    still, most plausibly demoted off the compositor). Compiled
-      //    carried the least felt stutter; its residual is the slow-band
-      //    fractional shimmer, a rendering-physics floor no per-frame writer
-      //    beat on this hardware. What survives of the carve-out is a
-      //    PROFILE, not a route: steadySixtyPlayerEligible() now only selects
-      //    desktop DEFAULTS (settle gate, image hold, warm-up cadence video).
-      //    Full ledger: docs/postmortems/2026-08-motion-jank.md.
-      //
-      //    THE RULE (2026-08-19): Blink, everywhere, one condition.
-      //
-      // Touch Blink
-      // used to default to the player and reach the compiled tier only by
-      // DEMOTION — two stalled flights, persisted per ORIGIN, and re-probed
-      // once per session. That made a weak phone's behavior depend on which
-      // origin it had visited before and on how recently the page reloaded:
-      // the first flight after every load ran the player even on a device
-      // whose ledger already said "css", which is precisely the intermittency
-      // a user reports as "가끔 유독 나쁘다".
-      //
-      // Unifying is the engine's own model, stated in driverPolicy's header:
-      // on Blink the compiled path composites healthily, so it is a REFUGE
-      // there (on non-Blink it is the freeze-and-jump tier and never can be).
-      // A refuge that a device only reaches after paying for two bad flights
-      // is a worse contract than simply routing there.
-      //
-      // What the player provided on touch Blink — a capped clock that absorbs
-      // a mid-flight commit storm — is covered from the other side: the
-      // render-settle gate holds the release until the entering mount storm
-      // quiesces, and it is default-on for touch Blink since PR #268.
-      //
-      // WebKit is deliberately NOT part of this. There the compiled tier
-      // swallows its opening and the player is device-verified three rounds
-      // over; see the touch-WebKit block below.
-      //
-      // Bypassed by the "raf" force pin: a pinned session must player-drive
-      // everything to be a useful instrument (the same contract as the
-      // kind-scoped choice below), and it is the only route to the player's
-      // per-frame device-pixel snap (a HiDPI convergence-shimmer diagnostic).
-      // The pierce was briefly retired (PR #256) when a pinned desktop
-      // re-entry left the entering screen parked at its from-pose — a blank
-      // viewport that turned out to be a COMPLETED-cleanup failure, not a
-      // player defect (see the pose-channel strip in the COMPLETED branch).
-      // With that fixed and e2e-guarded, the pin pierces again.
-      //
-      // The display-interval probe still arms here: its verdict no longer
-      // routes anything, but the desktop PROFILE defaults read it (settle
-      // gate, unpainted-only image hold, the warm-up's cadence video).
-      if (detectBlinkEngine() && driverPolicy.pinnedDriver() !== "raf") {
-        armDisplayIntervalProbe();
-        return null;
-      }
-      // 3. DESKTOP WebKit runs the COMPILED tier: macOS Safari caps rAF at
-      //    60Hz (measured 17ms median on a 120Hz ProMotion panel), so the
-      //    player can only ever paint half the display's frames there —
-      //    eye-verified as a trembling tracked glyph, a coarse late landing,
-      //    and pop judder, all of which the css-pinned session cleared at
-      //    once. CSS/WAAPI animations are compositor-driven and run at the
-      //    panel's full rate. Touch devices (real iPhones/iPads — including
-      //    iPads spoofing a Mac platform, which report maxTouchPoints > 0)
-      //    keep the device-verified player for CHAINED flights; jsdom
-      //    reports an empty platform and stays on the player for the unit
-      //    suites.
-      //
-      //    The predicate is shared with readSettleGateFlag's default
-      //    (isDesktopMacWebKit): this route hands the session a wall-clocked
-      //    animation presented from the main thread, and the settle gate is
-      //    what keeps a heavy entering mount from eating its opening. The two
-      //    must never disagree about which sessions land here.
-      if (isDesktopMacWebKit()) {
-        return null;
-      }
-      // Touch-WebKit compiled routing: route the compiled compositor tier —
-      // no per-frame device-px snap (no convergence drr), no seam, and no
-      // per-frame main-thread transform write to compete with the entering
-      // screen's content paint (the residual iPhone opening hitch the player
-      // couldn't shed). POP always; PUSH only with the settle gate on
-      // (forceCompiledStatus): a PUSH's swallowed opening came from its heavy
-      // mount commit aging the CSS clock past the governed head, and the gate
-      // moves that weight into the hold so the release is light enough for the
-      // fixed head to cover the opening — the same way it already covers POP.
-      // REPLACE keeps the player (tab-fade concerns are separate).
-      if (
-        !detectBlinkEngine() &&
-        typeof navigator !== "undefined" &&
-        navigator.maxTouchPoints > 0 &&
-        forceCompiledStatus(variant.split("-")[0])
-      ) {
-        return null;
-      }
-      // TOUCH WebKit keeps the device-verified player, wholesale — the
-      //    FINAL verdict, now three times over. The 2026-08 campaign's
-      //    complete ledger: the player costs presentation quantization on
-      //    slow tracked motion plus commit misses under bursts; the routed
-      //    compiled tier is smooth but swallows its opening whenever the
-      //    entry commit ages the wall clock (probe: 133-282dpx first steps,
-      //    3 flights in 4), and EVERY form of clock surgery that would fix
-      //    it — one-shot rewind (loses the race), effect-armed two-phase
-      //    hold (same race), release-microtask arming with pending-clock
-      //    startTime pins (WebKit cut whole flights to their end ~100ms in,
-      //    trajectory-measured) — lands in the falsified class the
-      //    nativeSurgeryAllowed comment already recorded: on WebKit, timing
-      //    surgery on a running/pending animation is not reliable. The one
-      //    flight whose anchor won its race matched the player exactly, so
-      //    the OPENING, not texture, is the compiled tier's real blocker —
-      //    and the only unfalsified route to it is making the release
-      //    commit itself cheap (release scheduling), a design campaign of
-      //    its own. Until then: player.
-      // 4. TOUCH WEBKIT runs single SLIDES on the COMPILED tier (see
-      //    governedCompiled.ts). The 60fps screen-recording round
-      //    (2026-08-12) proved the compiled flight presents at panel rate
-      //    while the rAF player is capped to ~30Hz in Low Power Mode — the
-      //    routed tier is structurally the smooth one, and it held on a
-      //    60Hz iPhone with LPM off too, which is why the routing asks only
-      //    "is this touch WebKit" and no longer measures a cadence. What the routing alone
-      //    could not fix is the FELT "60-100 jump": at wall-clock playback
-      //    the authored curve's front-loaded 0-60% crosses faster than the
-      //    eye locks on, so routed flights pair the birth-hold delay (the
-      //    opening plays from pose 0) with the front-softened easing
-      //    (--flemo-gov-ease — user-selected over the duration stretch:
-      //    total time stays player-identical, the 0-60% just gets a
-      //    trackable share of it). REPLACING routes too — the 2026-08-13
-      //    instrumented round (first-ever REPLACING capture: opacity
-      //    trajectories + longtask + 60fps recording) closed the mystery:
-      //    the fade always presents smoothly at 60fps, but the OS
-      //    governor schedules rendering updates 100-340ms apart at a cold
-      //    tab mount WITH ZERO long tasks — pure OS throttling — so the
-      //    clock aged past the old 66ms hold and a 200ms fade opened
-      //    30-50% in (the "씹힘"). User-selected configuration C: a 150ms
-      //    REPLACING birth hold plus a 1.5x fade stretch on this tier (see
-      //    governedStretch) — the residual worst-case aging dilutes into a
-      //    300ms fade instead of consuming half a 200ms one. Chains keep
-      //    the one-frame-swap protection.
-      if (
-        !detectBlinkEngine() &&
-        typeof navigator !== "undefined" &&
-        navigator.maxTouchPoints > 0 &&
-        governedCompiledActive() &&
-        // CHAINED pushes ride the PLAYER, not the compiled tier — restored
-        // after a probe-driver-detection error briefly removed this guard. A
-        // rapid tab→detail (or a push storm) leaves the previous navigation's
-        // heavy mount COMMIT landing mid-flight; on the compiled tier that
-        // main-thread block freezes WebKit's out-of-process presentation while
-        // the wall clock runs, and the slide jumps to its caught-up position
-        // (device: rapid-sequence pushes strode 245-618 device px on the block
-        // frame, single un-chained pushes on the identical route held ~0). The
-        // rAF player's clock advances at most two frames per gap, so it alone
-        // survives a mid-flight commit storm — the same reason non-Blink
-        // chains ride it at the top of joinPlayer. A single (un-chained) push
-        // keeps the panel-rate compiled tier. REPLACING and POPPING skip the
-        // guard: replaces are controller-hard-guarded and pop chains serialize
-        // on the task queue, so their one-frame-swap protection only demoted
-        // clean sequential flights to the 30Hz player.
-        // ALL slides route to the compiled tier here — REPLACING,
-        // POPPING, PUSHING. The pending-chain guard PUSHING once kept was
-        // over-firing on the everyday tab→detail sequence: navigations are
-        // already serialized (createNavigationController drops any input that
-        // lands mid-flight), so a rapid tab tap's REPLACING task merely
-        // LINGERS in the pending set when the detail PUSH routes — not a real
-        // concurrent flight — and the guard read that as a chain and demoted
-        // the push to the 30Hz player (device: "30Hz가 보인다"). The block a
-        // chain guard exists to survive (the previous transition's teardown /
-        // the entering screen's cold raster) is instead absorbed by the
-        // raster-settle gate (animStartAnchor): it holds the release until the
-        // pixels go quiet, so the compiled slide never starts into a block —
-        // 60Hz, no jump, no 30Hz demotion.
-        (status === "REPLACING" || status === "POPPING" || status === "PUSHING")
-      ) {
-        return null;
-      }
-      // 4. A `css` force pin. This gate once also caught devices the
-      //    demotion machinery had judged chronically starved, but demotion is
-      //    off everywhere since the Blink unification (its only purpose was
-      //    moving a starving Blink device to the tier Blink now always uses),
-      //    so playerAllowed() is false for exactly one reason today.
-      if (!driverPolicy.playerAllowed()) return null;
-
-      const { scope, decorator, bars } = getElements();
-      if (!scope) return null;
-
-      const transition = resolveTransition(transitionName);
-      // 3. KIND-scoped choice (see motionDriverKind): a transition whose
-      //    authored screens demonstrably MOVE fast renders cleanest on the
-      //    native clock — measured on WebKit, the player's rAF jitter reads
-      //    as a fine tremor on fast movers while fades need the player's
-      //    re-anchoring through heavy ungated mounts. Every participant of a
-      //    navigation calls through here with the same transition and status,
-      //    so the whole navigation lands on ONE driver. A "raf" force pin
-      //    bypasses this — a pinned session must player-drive everything to
-      //    be a useful instrument.
-      if (driverPolicy.pinnedDriver() !== "raf") {
-        const status = variant.split("-")[0]!;
-        if (classifyTransitionDriver(transition, status, scope) === "native") return null;
-      }
-      const motion = resolveVariantMotion(transition, variant);
-      if (!motion) return null;
-
-      const detachers: (() => void)[] = [];
-      const scopeDetach = transitionPlayers.join(taskId, {
-        element: scope,
-        motion,
-        role,
-        onComplete,
-        status: variant.split("-")[0]
-      });
-      if (!scopeDetach) return null;
-      detachers.push(scopeDetach);
-
-      // A riding shared bar mirrors the screen's own motion (the compiled CSS
-      // did the same by pairing the bar selector with the screen keyframes).
-      for (const bar of bars ?? []) {
-        if (!bar || bar.getAttribute("data-flemo-bar-riding") !== "true") continue;
-        const barDetach = transitionPlayers.join(taskId, {
-          element: bar,
-          motion,
-          role: "passive",
-          status: variant.split("-")[0]
-        });
-        if (barDetach) detachers.push(barDetach);
-      }
-
-      if (decorator && transition.decoratorName) {
-        const decoratorDefinition = decoratorMap.get(transition.decoratorName);
-        const decoratorMotion = decoratorDefinition
-          ? resolveVariantMotion(decoratorDefinition, variant)
-          : null;
-        if (decoratorMotion) {
-          const decoratorDetach = transitionPlayers.join(taskId, {
-            element: decorator,
-            motion: decoratorMotion,
-            role: "passive",
-            status: variant.split("-")[0]
-          });
-          if (decoratorDetach) detachers.push(decoratorDetach);
-        }
-      }
-
-      // <Part> elements join too, each with its OWN registered motion, so the
-      // whole navigation — screen, dim, bars, and every part — steps off one
-      // clock. Parts mirror their screen's status/active onto themselves, so
-      // selecting by this join's variant scopes the query to THIS screen's
-      // parts (a nested screen's parts carry a different status). Parts that
-      // mount mid-transition miss the join and keep their compiled CSS
-      // animation — correct motion, just not clock-unified.
-      for (const part of collectVariantParts(scope, variant)) {
-        const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
-        const partMotion = definition ? resolveVariantMotion(definition, variant) : null;
-        if (!partMotion) continue;
-        const partDetach = transitionPlayers.join(taskId, {
-          element: part,
-          motion: partMotion,
-          role: "passive"
-        });
-        if (partDetach) detachers.push(partDetach);
-      }
-
-      return () => detachers.forEach((detach) => detach());
+      if (!taskId) return;
+      if (TaskManger.pendingTaskIds.some((id) => id !== taskId)) return;
+      armDisplayIntervalProbe();
     };
 
     // Pure-resume wiring for a screen's NON-scope compiled-CSS participants:
@@ -1493,21 +1127,15 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         }
       }
       // The passive side of the transition (exiting screen on push, returning
-      // screen on pop) joins the shared player at hold release so both layers
-      // step off the same clock. Before release — and for variants the player
-      // can't drive — the compiled CSS (hold/park rules included) stays in
-      // charge, exactly as before.
+      // screen on pop). The compiled CSS drives this exit; wire cancel-resume on
+      // every participant so a WebKit-cancelled fade rejoins its timeline
+      // instead of dying silently under the incoming top. Pure resume — the
+      // passive side has no task to resolve; when a budget or the element's
+      // life is exhausted it just stops.
       if (isTransitional && animHoldReleased) {
         const variant = `${status}-false` as TransitionVariant;
-        const detach = joinPlayer(variant, "passive");
-        if (detach) return detach;
+        armDisplayProbeForFlight();
 
-        // Player declined (Blink, replay chain, css pin, or a variant it can't
-        // interpolate): the compiled CSS drives this exit. Wire cancel-resume on
-        // every participant so a WebKit-cancelled fade rejoins its timeline
-        // instead of dying silently under the incoming top. Pure resume — the
-        // passive side has no task to resolve; when a budget or the element's
-        // life is exhausted it just stops.
         const { scope } = getElements();
         if (scope) {
           const transition = resolveTransition(transitionName);
@@ -1784,7 +1412,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         TaskManger.markGateHeld(flooredTaskId);
       }
     }
-    const playerCanDrive = !skipAnimation && !!activeMotion;
+    const hasDrivableMotion = !skipAnimation && !!activeMotion;
 
     // Native-clock SURGERY opt-in (first-frame hold, flight-start anchor,
     // stall re-anchoring): authored `driver: "native"` pins only. Every one
@@ -1814,20 +1442,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // profile: 120-260ms mount tasks), so the flight gets a held head instead
     // of swallowing the curve's start.
     //
-    // A `!driverPolicy.playerAllowed()` term used to sit beside the legacy
-    // check, to catch a DEMOTED device. It was REMOVED with demotion (2026-08-19),
-    // and not merely because it was dead: with nothing left to demote it
-    // resolved to "a css force pin", and a css pin changes no routing on touch
-    // Blink (gate 2 already sends every Blink flight compiled). So the only
-    // thing it still did was hand a PINNED session the governed head kit that
-    // the same device does not get in production — a diagnostic pin that
-    // silently alters the motion it was meant to observe. The pin must
-    // reproduce production, so the term is gone.
-    //
     // Known gap, deliberately not closed here: a modern-but-weak touch Blink
-    // (UA-CH present, so not legacy) used to earn this kit through demotion
-    // and now cannot. The render-settle gate covers the same mount weight
-    // from the other side, default-on for touch Blink since PR #268.
+    // (UA-CH present, so not legacy) used to earn this kit through the driver
+    // demotion machinery, which is gone. The render-settle gate covers the same
+    // mount weight from the other side, default-on for touch Blink since #268.
     // Extending the kit to ALL touch Blink is the obvious next lever and must
     // NOT be taken blind: the 2026-08-14 round reverted exactly that blanket
     // treatment when fast devices picked up the compiled landing snap (see
@@ -1881,7 +1499,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // smooth animation backwards.
     let detachGovernedBirthAnchor: (() => void) | null = null;
     if (
-      playerCanDrive &&
+      hasDrivableMotion &&
       !detectBlinkEngine() &&
       !nativeSurgeryAllowed &&
       !routedTouchGoverned &&
@@ -1975,15 +1593,16 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // REPLACING stretch retired with the delay-hold: the flat-head
     // keyframes carry their own literal total duration.
     const governedStretch = 1;
-    // The LPM front-softening gate (see softenFrontLoadedEasing in
-    // compileTransitionStyles): the compiler pre-computes a softened
-    // variant of every front-loaded SCREEN curve behind
-    // `:root[data-flemo-governed]`; the engine only toggles the attribute.
-    // User-selected over the stretch: total time stays player-identical
-    // while the front of the curve gets a trackable share of it. SLIDES
-    // only — a REPLACING cross-fade has no front-loaded travel to soften.
-    const governedSoftenActive =
-      routedTouchGoverned && (status === "PUSHING" || status === "POPPING");
+    // A SLIDE on the governed touch tier. It stands the wall-clock
+    // accelerators down for the same reason routedForceCompiled does — see
+    // the cut block below — and it covers one case that predicate does not:
+    // a touch-WebKit PUSH in a session that has turned the settle gate off.
+    //
+    // Its name used to be `governedSoftenActive`, from the front-softening
+    // treatment it was introduced alongside. That treatment was retired in
+    // 2026-08-13 and deleted with the rAF player; this gate outlived it
+    // because what it actually guards is the clock, not the curve.
+    const governedSlide = routedTouchGoverned && (status === "PUSHING" || status === "POPPING");
     {
       const root = scope.ownerDocument.documentElement;
       const creepHeadProbe = routedGovernedHead && readCreepHeadFlag();
@@ -2014,7 +1633,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // stutter). The hold must be fully decided BEFORE the animation is
     // born; after birth, no timing write of any kind is safe.)
     let detachFirstFrameHold: (() => void) | null = null;
-    if (playerCanDrive && nativeSurgeryAllowed) {
+    if (hasDrivableMotion && nativeSurgeryAllowed) {
       detachFirstFrameHold = holdNativeClocksToFirstFrame(
         scope,
         () => [scope.ownerDocument.documentElement],
@@ -2128,22 +1747,9 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     };
     scope.addEventListener("animationend", onEnd);
 
-    // Additive rAF driving: only once the hold has released (the compiled
-    // hold/park rules own the pre-release frames). A chain-gated or
-    // non-joinable variant simply keeps the compiled animation + `onEnd`.
-    const detachPlayer =
-      playerCanDrive && animHoldReleased
-        ? // The player's onComplete is a clean end too: its final frame was
-          // just written, so the flip commit waits for it to present exactly
-          // like the compiled path (WebKit presents these frames from the main
-          // thread, where the flip commit competes hardest).
-          // The player fires this when EVERY track (screens, bars, dim,
-          // parts) finishes on ITS OWN capped clock — a stall re-anchors all
-          // of them together, so no wall-clock extra can cut a longer
-          // participant early. The choreography deferral below remains for
-          // the COMPILED path only.
-          joinPlayer(variantKey, "active", resolvePresented)
-        : null;
+    // Sample the display cadence, once the hold has released and the compiled
+    // animation is actually running (see armDisplayProbeForFlight).
+    if (hasDrivableMotion && animHoldReleased) armDisplayProbeForFlight();
 
     // Liveness FLOOR — the guarantee that the manual task ALWAYS resolves. A
     // rapid back/forward storm can orphan or freeze the element this transition
@@ -2261,7 +1867,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       resolve();
     };
 
-    const recovering = !detachPlayer && animHoldReleased;
+    const recovering = animHoldReleased;
     // The active screen's non-scope participants (riding bars, decorator,
     // parts) recover too, each on its OWN name/clock — pure resume, no task.
     const participantDetachers = recovering ? wireParticipantRecovery(scope, variantKey) : [];
@@ -2388,7 +1994,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // to COMPLETED read WORSE (the end hitch interrupts the settle), and
     // the pre-release placement was the settle-gate deadlock era. The
     // early-landing placement stays — least-bad of three.)
-    if (recovering && flooredTaskId && !governedSoftenActive && !routedForceCompiled) {
+    if (recovering && flooredTaskId && !governedSlide && !routedForceCompiled) {
       const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
       const activeCut = perceptualCutMs(activeMotion!, scope, dpr);
       // Both sides must be inside their bands before the COMPLETED flip cuts
@@ -2506,7 +2112,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         for (const detach of participantDetachers) detach();
       }
       clearWatchdog();
-      detachPlayer?.();
       // Prune a stale budget entry: if this transition is no longer current the
       // task is done, so its entry is dead. A re-run while the task is STILL
       // current keeps it, so the per-task budget survives effect re-runs.

@@ -5,7 +5,7 @@ imperative and reusable (task queue, stores, engine, compiled styles, gesture ma
 this package owns React wiring — rendering the declarative state (data-attributes,
 inline styles) core's engine reads, and calling core at the right lifecycle moments.
 Engine internals live in the engine's own comments — `createTransitionEngine.ts`
-(`joinPlayer` for routing, `driveScreenLifecycle` for the flight) and
+(`driveScreenLifecycle` for the flight) and
 `diagnosticFlags.ts` (the flag registry table, which `documentedDefaults.test.ts`
 holds to the shipped readers). A longer-form `docs/` set exists in the maintainer's
 checkout but is NOT tracked (see .gitignore) — never treat a `docs/...` path cited in

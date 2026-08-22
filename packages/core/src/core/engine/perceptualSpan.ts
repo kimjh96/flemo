@@ -38,7 +38,7 @@ export interface PerceptualBox {
   clientHeight: number;
 }
 
-// Exported for the kind-scoped driver classifier (motionDriverKind), which
+// Exported for the landing governor (landingGovernor.ts), which
 // resolves authored x/y endpoints against the same box semantics.
 export const channelValue = (
   target: MotionTarget,

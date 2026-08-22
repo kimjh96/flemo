@@ -664,9 +664,9 @@ function ScreenMotion({
         prevTransitionName,
         status,
         isActive,
-        // The rAF player starts exactly at hold release; the compiled
+        // The flight's motion starts exactly at hold release; the compiled
         // hold/park rules own every frame before it. Included in the deps so
-        // the release re-runs this effect and hands the motion to the player.
+        // the release re-runs this effect.
         animHoldReleased: !animHold
       }),
     [engine, status, isActive, prevTransitionName, transitionName, animHold]
@@ -708,38 +708,23 @@ function ScreenMotion({
         // after-the-fact correction. The setState below reconciles React
         // to the same value one commit later; the pair coordinator fires
         // both screens' callbacks in one tick, so the pair still departs
-        // on one clock. Player-routed flights (the default on every engine)
-        // keep the state-only path: the player takes over at the effect
-        // that follows the state commit, and an early compiled start would
-        // play a few frames the player then restarts — so the direct flip
-        // is for authored `driver: "native"` pins only.
+        // on one clock.
+        //
+        // WHO GETS IT. The flip is the cure for a clock that is stamped on the
+        // main thread and presented from it, so it is scoped to non-Blink —
+        // Blink's compiled animation is compositor-driven and rides a
+        // main-thread gap without aging. Within non-Blink, three device-verified
+        // populations: an authored `driver: "native"` pin, touch WebKit
+        // (governedCompiledActive), and desktop macOS Safari (`flemo:deskflip`,
+        // default-on there). Desktop macOS Safari was missing from the list
+        // until 2026-08-20 and showed the same swallow the other two do: the
+        // push opening frozen ~100-400ms, then a leap to mid-curve.
+        //
         // Read via the latest-ref (not the render closure) so no stale value
         // and no extra effect dependency: currentTransition is a fresh object
         // each render, which as a dep would re-run this effect every render.
         const authoredNative =
           (swipeEnvRef.current.transition as { driver?: string }).driver === "native";
-        // LPM-routed flights run the compiled clock too — they need the
-        // same atomic flip (a state-routed release reopens the
-        // task-injection gap the flip closes).
-        // Steady-60 desktop Blink (2026-08-18): the current desktop round
-        // routes the COMPILED tier there, and its state-routed release
-        // reproduced this exact swallow on glass — the push opening frozen
-        // ~100-400ms, then a leap to mid-curve (the clock aged before first
-        // present). Same cure, same reasoning. REVISIT if desktop routing
-        // hands back to the player: an early compiled start under a player
-        // join would play frames the player then restarts.
-        // Steady-60 desktop routes the PLAYER again (2026-08-18): the direct
-        // DOM flip must NOT fire there — it starts the compiled animation in
-        // the release rAF and the player then restarts the motion, the
-        // double-start that poisoned the earlier player verdict. The flip
-        // stays for the paths whose COMPILED clock needs it.
-        // Desktop macOS Safari (2026-08-20, `flemo:deskflip`) is one of those
-        // paths and had been missing from the list: joinPlayer's gate 3 pins it
-        // to the compiled tier for EVERY flight, and WebKit presents that clock
-        // from the main thread, so its state-routed release carries the same
-        // clock-aging gap the flip closes everywhere else — with none of the
-        // steady-60 double-start risk, which needed a player join this session
-        // cannot have.
         const directFlip =
           (authoredNative || governedCompiledActive() || readDesktopReleaseFlipFlag()) &&
           !detectBlinkEngine();

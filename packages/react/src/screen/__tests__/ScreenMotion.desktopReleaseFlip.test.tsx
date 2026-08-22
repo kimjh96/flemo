@@ -11,7 +11,7 @@ import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 
 // The atomic release flip on DESKTOP macOS SAFARI (`flemo:deskflip`).
 //
-// That session is pinned to the compiled tier by joinPlayer's gate 3, and WebKit
+// That session runs the compiled tier (isDesktopMacWebKit), and WebKit
 // presents the compiled clock from the main thread — so the release writes
 // `data-flemo-anim-hold="false"` straight onto the DOM inside the readiness rAF
 // instead of leaving it to React. The state commit is `flushSync`ed either way,

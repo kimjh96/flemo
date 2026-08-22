@@ -12,8 +12,7 @@ import {
   readPrerasterFlag,
   readSettleGateFlag,
   residentScreenLayers,
-  resetResidentLayersForTesting,
-  resetSessionOverrideCachesForTests
+  resetResidentLayersForTesting
 } from "@core/engine/diagnosticFlags";
 import { reportInFlightCadence, resetSteadySixtyForTests } from "@core/engine/steadySixtyCadence";
 
@@ -63,7 +62,6 @@ const verifySteadySixty = () => {
 beforeEach(() => {
   originalDpr = window.devicePixelRatio;
   resetSteadySixtyForTests();
-  resetSessionOverrideCachesForTests();
 });
 
 afterEach(() => {
@@ -75,7 +73,6 @@ afterEach(() => {
   Object.defineProperty(window, "devicePixelRatio", { value: originalDpr, configurable: true });
   sessionStorage.clear();
   resetSteadySixtyForTests();
-  resetSessionOverrideCachesForTests();
 });
 
 describe("documented default: flemo:settle-gate", () => {
@@ -97,9 +94,9 @@ describe("documented default: flemo:settle-gate", () => {
   });
 
   it("is ON for desktop macOS WebKit (Safari)", () => {
-    // Gate 3 routes this session to the wall-clocked compiled tier, which
-    // WebKit presents from the main thread — so a heavy entering mount eats
-    // the opening unless the release waits it out.
+    // This session runs the wall-clocked compiled animation, which WebKit
+    // presents from the main thread — so a heavy entering mount eats the
+    // opening unless the release waits it out.
     setEnv({ blink: false, touch: false, mac: true });
     expect(readSettleGateFlag()).toBe(true);
   });

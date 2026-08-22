@@ -221,9 +221,6 @@ describe("deriveFlightAnomalies", () => {
 
 describe("deriveReportAnomalies", () => {
   const base = {
-    forcePin: null,
-    legacyLocalForcePin: null,
-    clearedForcePin: null,
     emulationSuspected: false,
     platform: "MacIntel",
     stuckFlightOpen: false,
@@ -232,36 +229,6 @@ describe("deriveReportAnomalies", () => {
 
   it("is empty for a clean session", () => {
     expect(deriveReportAnomalies(base)).toEqual([]);
-  });
-
-  it("flags an active force pin", () => {
-    const anomalies = deriveReportAnomalies({ ...base, forcePin: "raf@1700000000000" });
-    expect(
-      anomalies.some((entry) =>
-        entry.includes("active force pin flemo:motion-driver-force=raf@1700000000000")
-      )
-    ).toBe(true);
-  });
-
-  it("flags a pin that was cleared between attach and report", () => {
-    const anomalies = deriveReportAnomalies({ ...base, clearedForcePin: "raf" });
-    expect(anomalies.some((entry) => entry.includes("was present at attach"))).toBe(true);
-  });
-
-  it("does not double-report a cleared pin while an active pin exists", () => {
-    const anomalies = deriveReportAnomalies({
-      ...base,
-      forcePin: "css@1700000000000",
-      clearedForcePin: "raf"
-    });
-    expect(anomalies.filter((entry) => entry.includes("flemo:motion-driver-force"))).toHaveLength(
-      1
-    );
-  });
-
-  it("flags the legacy localStorage pin at report level", () => {
-    const anomalies = deriveReportAnomalies({ ...base, legacyLocalForcePin: "raf" });
-    expect(anomalies.some((entry) => entry.includes("legacy localStorage driver pin"))).toBe(true);
   });
 
   it("flags DevTools device emulation, with the Windows caveat only on Windows", () => {

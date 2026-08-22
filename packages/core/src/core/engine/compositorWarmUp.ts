@@ -18,7 +18,7 @@
 // emitting keyframes into the sheet would break the contract that a `none`
 // transition emits no rules.
 
-import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
+import { steadySixtyDesktopProfile } from "@core/engine/steadySixtyCadence";
 
 export const WARM_ATTR = "data-flemo-warm";
 
@@ -143,7 +143,7 @@ export default function holdCompositorWarm(): () => void {
     // reach the compositor — an opening the per-flight lifecycle left
     // uncovered. It pauses while the document is hidden. Failures are
     // silent: an engine without webm/autoplay keeps the element-only warm-up.
-    if (!video && steadySixtyPlayerEligible()) {
+    if (!video && steadySixtyDesktopProfile()) {
       try {
         video = document.createElement("video");
         video.muted = true;

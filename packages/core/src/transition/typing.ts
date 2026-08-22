@@ -36,10 +36,14 @@ export type SwipeAnimate = (
 export type TransitionOptions =
   | {
       decoratorName?: DecoratorName;
-      // Motion-driver override for this transition: "native" pins the
-      // compiled-CSS clock, "player" pins the rAF player, replacing the
-      // measured kind classification (see core/engine/motionDriverKind).
-      driver?: "native" | "player";
+      // Opt into CLOCK SURGERY for this transition: "native" lets the engine
+      // hold and re-anchor the compiled animation's own clock (first-frame
+      // hold, flight-start anchor, stall re-anchoring). The default protects a
+      // flight's opening by release SCHEDULING instead and never touches a
+      // running animation — on WebKit any such touch costs the accelerated
+      // out-of-process path. An author who has glass-verified the trade can
+      // take it per transition.
+      driver?: "native";
       swipeDirection: "x" | "y";
       onSwipeStart: (
         event: PointerEvent,
@@ -75,7 +79,7 @@ export type TransitionOptions =
   | {
       decoratorName?: DecoratorName;
       // See the swipe branch above.
-      driver?: "native" | "player";
+      driver?: "native";
       swipeDirection?: never;
     };
 

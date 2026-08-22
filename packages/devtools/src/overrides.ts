@@ -1,16 +1,20 @@
 // Enumeration of the `flemo:*` diagnostic/override storage keys.
 //
 // The registry mirrors the flag table documented in
-// packages/core/src/core/engine/diagnosticFlags.ts (plus the two driver keys
-// owned by driverPolicy.ts). Duplicated here ON PURPOSE: this package is a
-// pure consumer with zero dependencies, and the keys are frozen strings —
-// users' devices carry persisted values, so they cannot drift.
+// packages/core/src/core/engine/diagnosticFlags.ts. Duplicated here ON
+// PURPOSE: this package is a pure consumer with zero dependencies, and the
+// keys are frozen strings — users' devices carry persisted values, so they
+// cannot drift.
 //
 // Why this module exists at all: residual override keys are invisible in a
 // user's report ("it janks on my phone") and once burned a multi-day
 // investigation — a stale `flemo:motion-driver-force` pin resurrected by
 // mobile tab restoration reproduced a whole delay profile that no code path
 // explained. Every report therefore leads with what is set.
+//
+// RETIRED keys get the same treatment for the opposite reason: the library no
+// longer reads them, so finding one on a device must RULE IT OUT as a cause
+// rather than leave an investigator chasing it.
 
 export type FlagClass =
   "production-state" | "production-default-with-override" | "opt-in-diagnostic";
@@ -24,36 +28,10 @@ export interface FlagDescriptor {
 
 export const FLAG_REGISTRY: readonly FlagDescriptor[] = [
   {
-    key: "flemo:motion-driver",
-    storage: "local",
-    kind: "production-state",
-    description:
-      "learned driver ledger ('css' = player demoted on this device, 'raf' = clean probe)"
-  },
-  {
-    key: "flemo:motion-driver-force",
-    storage: "session",
-    kind: "opt-in-diagnostic",
-    description:
-      "hard driver pin ('css@<epoch-ms>' / 'raf@<epoch-ms>', 24h TTL) — pins EVERY transition"
-  },
-  {
     key: "flemo:sixty",
     storage: "session",
     kind: "production-state",
     description: "steady-60 display verdict seed ('high' latches, a count seeds the streak)"
-  },
-  {
-    key: "flemo:lat",
-    storage: "session",
-    kind: "production-state",
-    description: "LPM release-latency seed (learned)"
-  },
-  {
-    key: "flemo:landing-snap",
-    storage: "session",
-    kind: "opt-in-diagnostic",
-    description: "Blink landing pixel-snap easing A/B"
   },
   {
     key: "flemo:imghold",
@@ -62,40 +40,40 @@ export const FLAG_REGISTRY: readonly FlagDescriptor[] = [
     description: "flight-scoped <img> reveal hold"
   },
   {
+    key: "flemo:arrivalhold",
+    storage: "session",
+    kind: "production-default-with-override",
+    description: "in-flight arrival hold (default on; 'off' disarms the whole hold set)"
+  },
+  {
     key: "flemo:settle-gate",
     storage: "session",
     kind: "production-default-with-override",
     description: "render-settle entry gate override"
   },
   {
-    key: "flemo:handoff",
-    storage: "session",
-    kind: "opt-in-diagnostic",
-    description: "anchored-opening handoff (POP-scoped)"
-  },
-  {
-    key: "flemo:handoffms",
-    storage: "session",
-    kind: "opt-in-diagnostic",
-    description: "handoff point override (ms)"
-  },
-  {
-    key: "flemo:apply",
-    storage: "session",
-    kind: "opt-in-diagnostic",
-    description: "force the scrub-WAAPI value-application tier"
-  },
-  {
-    key: "flemo:snap",
+    key: "flemo:deskflip",
     storage: "session",
     kind: "production-default-with-override",
-    description: "player device-pixel snap policy override"
+    description: "atomic release flip on desktop Safari (default on there)"
   },
   {
-    key: "flemo:snapband",
+    key: "flemo:deskhead",
     storage: "session",
-    kind: "opt-in-diagnostic",
-    description: "'hybrid' snap jitter-band width (device px)"
+    kind: "production-default-with-override",
+    description: "desktop flat-head keyframes (default on for desktop Safari)"
+  },
+  {
+    key: "flemo:creep",
+    storage: "session",
+    kind: "production-default-with-override",
+    description: "creep head on touch WebKit (default on there)"
+  },
+  {
+    key: "flemo:relcommit",
+    storage: "session",
+    kind: "production-default-with-override",
+    description: "release reconcile deferred to the next frame (default on touch WebKit)"
   },
   {
     key: "flemo:layers",
@@ -129,9 +107,68 @@ export const FLAG_REGISTRY: readonly FlagDescriptor[] = [
   }
 ];
 
-const FORCE_PIN_KEY = "flemo:motion-driver-force";
-/** Marker suffix for the legacy-location residue of the force pin. */
-export const LEGACY_LOCAL_PIN_KEY = `${FORCE_PIN_KEY} (localStorage — legacy location)`;
+/**
+ * Keys the library once read and no longer does. They are still ENUMERATED so
+ * a report can say "this is set, and it does nothing" — residue that is merely
+ * unknown reads as a lead worth chasing.
+ */
+export interface RetiredFlag {
+  key: string;
+  storage: "session" | "local";
+  /** What it used to do, and when it stopped doing it. */
+  retiredWith: string;
+}
+
+export const RETIRED_FLAGS: readonly RetiredFlag[] = [
+  {
+    key: "flemo:motion-driver",
+    storage: "local",
+    retiredWith: "the per-origin driver demotion ledger (removed 2026-08-19)"
+  },
+  {
+    key: "flemo:motion-driver-force",
+    storage: "session",
+    retiredWith: "the hard driver pin (removed with the rAF player, 2026-08-22)"
+  },
+  {
+    key: "flemo:landing-snap",
+    storage: "session",
+    retiredWith: "the integer-device-pixel landing snap A/B (falsified on device, 2026-08-22)"
+  },
+  {
+    key: "flemo:handoff",
+    storage: "session",
+    retiredWith: "the player's anchored-opening handoff (2026-08-22)"
+  },
+  {
+    key: "flemo:handoffms",
+    storage: "session",
+    retiredWith: "the player's anchored-opening handoff (2026-08-22)"
+  },
+  {
+    key: "flemo:apply",
+    storage: "session",
+    retiredWith: "the scrub-WAAPI value-application tier (2026-08-22)"
+  },
+  {
+    key: "flemo:snap",
+    storage: "session",
+    retiredWith: "the player's device-pixel snap policy (2026-08-22)"
+  },
+  {
+    key: "flemo:snapband",
+    storage: "session",
+    retiredWith: "the player's device-pixel snap policy (2026-08-22)"
+  },
+  {
+    key: "flemo:lat",
+    storage: "session",
+    retiredWith: "the Low Power Mode release-latency probe (2026-08-22)"
+  }
+];
+
+/** Marker suffix appended to a retired key so a report reads as a verdict. */
+export const RETIRED_MARKER = "(retired — the library no longer reads this)";
 
 type StorageLike = Pick<Storage, "getItem" | "key" | "length">;
 
@@ -155,12 +192,13 @@ const readKey = (storage: StorageLike | null, key: string): string | null => {
 };
 
 const registryKeys = new Set(FLAG_REGISTRY.map((flag) => flag.key));
+const retiredKeys = new Set(RETIRED_FLAGS.map((flag) => flag.key));
 
 /**
- * Snapshot every `flemo:*` key currently set, from both storages: the
- * registry keys from their native storage, the legacy localStorage location
- * of the force pin, and any UNKNOWN `flemo:`-prefixed key either storage
- * holds (a future flag, or hand-set residue).
+ * Snapshot every `flemo:*` key currently set, from both storages: the live
+ * registry keys from their native storage, any RETIRED key still persisted
+ * (marked as such), and any UNKNOWN `flemo:`-prefixed key either storage holds
+ * (a future flag, or hand-set residue).
  */
 export const snapshotOverrides = (): Record<string, string> => {
   const active: Record<string, string> = {};
@@ -172,8 +210,17 @@ export const snapshotOverrides = (): Record<string, string> => {
     if (value !== null) active[flag.key] = value;
   }
 
-  const legacyPin = readKey(local, FORCE_PIN_KEY);
-  if (legacyPin !== null) active[LEGACY_LOCAL_PIN_KEY] = legacyPin;
+  // A retired key is read from BOTH storages: several of them moved location
+  // over their lifetime, and residue outlives the move.
+  for (const flag of RETIRED_FLAGS) {
+    for (const [storage, label] of [
+      [session, "sessionStorage"],
+      [local, "localStorage"]
+    ] as const) {
+      const value = readKey(storage, flag.key);
+      if (value !== null) active[`${flag.key} (${label}) ${RETIRED_MARKER}`] = value;
+    }
+  }
 
   for (const [storage, label] of [
     [session, "sessionStorage"],
@@ -183,7 +230,8 @@ export const snapshotOverrides = (): Record<string, string> => {
     try {
       for (let index = 0; index < storage.length; index += 1) {
         const key = storage.key(index);
-        if (!key || !key.startsWith("flemo:") || registryKeys.has(key)) continue;
+        if (!key || !key.startsWith("flemo:")) continue;
+        if (registryKeys.has(key) || retiredKeys.has(key)) continue;
         active[`${key} (${label}, unknown key)`] = storage.getItem(key) ?? "";
       }
     } catch {
@@ -202,28 +250,16 @@ export const deriveOverrideWarnings = (active: Record<string, string>): string[]
   const warnings: string[] = [];
 
   for (const [key, value] of Object.entries(active)) {
-    if (key === FORCE_PIN_KEY) {
+    if (key.includes(RETIRED_MARKER)) {
+      // Match the EXACT base key, never a prefix: `flemo:motion-driver` is a
+      // prefix of `flemo:motion-driver-force`, so a startsWith lookup silently
+      // attributes the pin's residue to the demotion ledger's retirement note.
+      const baseKey = key.slice(0, key.indexOf(" ("));
+      const retired = RETIRED_FLAGS.find((entry) => entry.key === baseKey);
       warnings.push(
-        `${key}=${value} — A DRIVER PIN IS ACTIVE: every transition this session is forced onto one driver, ` +
-          "bypassing measurement and demotion. If you did not set it deliberately just now, it is A/B residue " +
-          "(mobile tab restoration resurrects sessionStorage across days; pins expire after 24h). This exact " +
-          "residue once burned a multi-day investigation — clear the key before judging any behavior."
-      );
-      continue;
-    }
-    if (key === LEGACY_LOCAL_PIN_KEY) {
-      warnings.push(
-        `${key}=${value} — legacy localStorage driver pin present. The library removes it on sight and never ` +
-          "honors it, but its existence means an old A/B session left residue on this profile."
-      );
-      continue;
-    }
-    if (key.startsWith(`${FORCE_PIN_KEY} `)) {
-      // A marked variant (e.g. "(at attach, since cleared)") added by the
-      // recorder's snapshot merge — still worth the loud pin warning.
-      warnings.push(
-        `${key}=${value} — a driver force pin was observed this session (see marker in the key). Even a ` +
-          "since-cleared pin may have shaped early driver decisions; treat this session's routing as suspect."
+        `${key}=${value} — RETIRED residue: this key went with ${retired?.retiredWith ?? "a removed feature"}. ` +
+          "The library never reads it, so it cannot explain anything you are seeing. Safe to delete; it is " +
+          "listed only so it does not read as an unexplained lead."
       );
       continue;
     }
@@ -241,8 +277,7 @@ export const deriveOverrideWarnings = (active: Record<string, string>): string[]
         `${key}=${value} — production default overridden for this session (${flag.description}).`
       );
     }
-    // production-state keys (learned ledgers) are normal — no warning; the
-    // driver ledger surfaces separately under report.driverPolicy.
+    // production-state keys (learned ledgers) are normal — no warning.
   }
 
   return warnings;

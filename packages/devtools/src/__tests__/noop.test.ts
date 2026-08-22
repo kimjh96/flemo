@@ -41,8 +41,6 @@ describe("production entry", () => {
     expect(report.environment.rafCadence.medianGapMs).toBeNull();
     expect(report.environment.screen.width).toBe(0);
     expect(report.overrides.active).toEqual({});
-    expect(report.driverPolicy.forcePin).toBeNull();
-    expect(report.driverPolicy.demotion).toBeNull();
 
     // Every key the real report carries must be present, so a section added
     // to FlemoReport cannot be forgotten here without the compiler or this
