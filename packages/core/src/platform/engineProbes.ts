@@ -57,8 +57,17 @@ export const detectBlinkEngine = (): boolean => {
 };
 
 // LEGACY ANDROID Blink (Samsung Internet / old WebView on Android-10-era
-// hardware): a touch Chromium that ships NO UA-CH brands list. No UA-CH is a
-// strong proxy for pre-2021 Chromium, and these devices are confidently slow —
+// hardware): a touch Chromium that ships NO UA-CH brands list.
+//
+// READ THE PREDICATE FOR WHAT IT IS: the brands list ships in Chromium 89
+// (2021), so this selects an old BROWSER, not slow hardware. The same Galaxy
+// Note 9 matches on Samsung Internet and is EXCLUDED on a current Chrome. That
+// makes it a fair proxy for a device that has stopped getting browser updates,
+// and a poor one for "this phone is weak" — anything gated on it is measured
+// against one population and shipped to another unless that is kept in mind.
+//
+// No UA-CH is a strong proxy for pre-2021 Chromium, and these devices are
+// confidently slow —
 // they take the governed head kit (a compiled flight's opening held in a flat
 // head) from flight ONE rather than swallowing the curve's start on a
 // 120-260ms mount commit. A modern device (UA-CH brands present) is excluded.
