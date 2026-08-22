@@ -12,6 +12,8 @@ import { flushSync } from "react-dom";
 
 import {
   animHoldKey,
+  ANIM_HOLD,
+  ANIM_HOLD_ATTR,
   computeBarRiding,
   computeScreenFreeze,
   detectBlinkEngine,
@@ -615,9 +617,9 @@ function ScreenMotion({
   // rule fall back to paused under either park value, so this can never
   // flash.
   const holdAttr = !animHold
-    ? "false"
+    ? ANIM_HOLD.RELEASED
     : !isActive && partnerSurface?.opaqueBackground
-      ? "park"
+      ? ANIM_HOLD.PARK
       : isActive &&
           (status === "PUSHING" || status === "REPLACING") &&
           partnerSurface?.opaqueBackground
@@ -628,9 +630,9 @@ function ScreenMotion({
             // first rastered at the release — the ~100ms the head exists to
             // cover. Painting them during the hold measurably steadied the
             // motion (drops in the moving phase 2/19 → 1/19 on a real iPhone).
-            "park-over"
-          : "park-under"
-        : "true";
+            ANIM_HOLD.PARK_OVER
+          : ANIM_HOLD.PARK_UNDER
+        : ANIM_HOLD.HELD;
 
   // The scope's REST promotion (`flemo:preraster=on`). Browser-only state that
   // reaches the DOM as an INLINE STYLE, so it is read through the hydration
@@ -735,8 +737,8 @@ function ScreenMotion({
             sharedBottomBarRef.current,
             decoratorRef.current
           ]) {
-            if (el?.isConnected && el.getAttribute("data-flemo-anim-hold") !== null) {
-              el.setAttribute("data-flemo-anim-hold", "false");
+            if (el?.isConnected && el.getAttribute(ANIM_HOLD_ATTR) !== null) {
+              el.setAttribute(ANIM_HOLD_ATTR, ANIM_HOLD.RELEASED);
             }
           }
           // park-under sank the whole screen container beneath its cover;
@@ -855,7 +857,7 @@ function ScreenMotion({
   }, [animHold, holdKey, holdAttr, isActive, status, stores.navigate]);
 
   const initialStyle =
-    holdAttr === "park-under" || holdAttr === "park-over"
+    holdAttr === ANIM_HOLD.PARK_UNDER || holdAttr === ANIM_HOLD.PARK_OVER
       ? // The compiled park rule holds this screen at its DESTINATION beneath
         // the previous screen; the inline entering style (the hidden `from`)
         // would override that stylesheet rule and defeat the park. On release
@@ -882,7 +884,7 @@ function ScreenMotion({
         // pre-rasterize, and that stacking decision lives HERE on the outer
         // container: a z-index on the inner scope only reorders within this
         // box and leaks the park (a full-screen flash of the next screen).
-        zIndex: holdAttr === "park-under" ? -1 : undefined,
+        zIndex: holdAttr === ANIM_HOLD.PARK_UNDER ? -1 : undefined,
         // `contain: layout style` keeps layout/style scoped without `paint`,
         // which would make this element the containing block for `position:
         // fixed` descendants and trap consumer overlays (e.g. bottom sheets)

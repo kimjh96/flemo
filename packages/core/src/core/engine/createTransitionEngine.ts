@@ -59,6 +59,20 @@ import {
   type TransitionEngine,
   type TransitionEngineDeps
 } from "@core/engine/types";
+import {
+  ACTIVE_ATTR,
+  ANIM_HOLD_ATTR,
+  attrSelector,
+  attrValueSelector,
+  BAR_RIDING_ATTR,
+  CREEP_ATTR,
+  DESK_HEAD_ATTR,
+  GOVERNED_ATTR,
+  PART_NAME_ATTR,
+  ROUTER_ATTR,
+  SCREEN_ATTR,
+  STATUS_ATTR
+} from "@dom/attributes";
 import { decoratorMap } from "@transition/decorator/decorator";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
@@ -89,8 +103,6 @@ const LANDING_CLEAR_FALLBACK_MS = 100;
 // fires on a genuinely stranded task, never on a long authored duration.
 const GATE_MOTION_MARGIN_MS = 1500;
 
-const PART_NAME_ATTR = "data-flemo-part-name";
-
 // The first-frame clock hold resolves on its own rAF, potentially after the
 // release run has armed its wall-clock deadlines — this slot lets the hold
 // push THAT run's deadlines the same way a stall shift would (the closures
@@ -100,13 +112,12 @@ const startHoldDisarms = new WeakMap<HTMLElement, () => void>();
 // This screen's <Part> elements. The container (the scope's parent) hosts
 // bar-mounted parts too; parts owned by a NESTED screen inside the container
 // belong to that screen's own engine and are excluded.
-const ANIM_HOLD_ATTR = "data-flemo-anim-hold";
 
 const collectScreenParts = (scope: HTMLElement): HTMLElement[] => {
   const container = scope.parentElement ?? scope;
   return Array.from(container.querySelectorAll<HTMLElement>(`[${PART_NAME_ATTR}]`)).filter(
     (part) => {
-      const owner = part.closest("[data-flemo-screen]");
+      const owner = part.closest(attrSelector(SCREEN_ATTR));
       return !owner || owner === scope || !container.contains(owner);
     }
   );
@@ -117,9 +128,7 @@ const collectScreenParts = (scope: HTMLElement): HTMLElement[] => {
 const collectVariantParts = (scope: HTMLElement, variant: TransitionVariant): HTMLElement[] => {
   const [status, active] = variant.split("-");
   return collectScreenParts(scope).filter(
-    (part) =>
-      part.getAttribute("data-flemo-status") === status &&
-      part.getAttribute("data-flemo-active") === active
+    (part) => part.getAttribute(STATUS_ATTR) === status && part.getAttribute(ACTIVE_ATTR) === active
   );
 };
 
@@ -152,17 +161,17 @@ const collectVariantParts = (scope: HTMLElement, variant: TransitionVariant): HT
 // keeps the old inclusive behavior — over-waiting is a delay, cross-cutting
 // is a truncation.
 const collectFlightParts = (scope: HTMLElement, status: string): HTMLElement[] => {
-  const ownCarrier = scope.closest("[data-flemo-router]");
-  const flightId = ownCarrier?.getAttribute("data-flemo-router") ?? null;
+  const ownCarrier = scope.closest(attrSelector(ROUTER_ATTR));
+  const flightId = ownCarrier?.getAttribute(ROUTER_ATTR) ?? null;
   return Array.from(
     scope.ownerDocument.querySelectorAll<HTMLElement>(
-      `[${PART_NAME_ATTR}][data-flemo-status="${status}"]`
+      `${attrSelector(PART_NAME_ATTR)}${attrValueSelector(STATUS_ATTR, status)}`
     )
   ).filter((part) => {
     if (flightId === null) return true;
-    const carrier = part.closest("[data-flemo-router]");
+    const carrier = part.closest(attrSelector(ROUTER_ATTR));
     if (!carrier) return true;
-    return carrier.getAttribute("data-flemo-router") === flightId;
+    return carrier.getAttribute(ROUTER_ATTR) === flightId;
   });
 };
 
@@ -203,14 +212,14 @@ const collectUnheldOuterParts = (scope: HTMLElement, status: string): HTMLElemen
 // a different commit than this drive — a leak would freeze persistent chrome
 // indefinitely, so the two sides must not share a predicate.
 const collectStampedOuterParts = (scope: HTMLElement): HTMLElement[] => {
-  const flightId = scope.closest("[data-flemo-router]")?.getAttribute("data-flemo-router") ?? null;
+  const flightId = scope.closest(attrSelector(ROUTER_ATTR))?.getAttribute(ROUTER_ATTR) ?? null;
   return Array.from(
     scope.ownerDocument.querySelectorAll<HTMLElement>(`[${PART_NAME_ATTR}][${ANIM_HOLD_ATTR}]`)
   ).filter((part) => {
     if (part.parentElement?.closest(`[${ANIM_HOLD_ATTR}]`) != null) return false;
     if (flightId === null) return true;
-    const carrier = part.closest("[data-flemo-router]");
-    return !carrier || carrier.getAttribute("data-flemo-router") === flightId;
+    const carrier = part.closest(attrSelector(ROUTER_ATTR));
+    return !carrier || carrier.getAttribute(ROUTER_ATTR) === flightId;
   });
 };
 
@@ -227,7 +236,7 @@ const statusChoreographySpanMs = (
   }
   for (const part of collectFlightParts(scope, status)) {
     const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
-    const partVariant = `${status}-${part.getAttribute("data-flemo-active")}` as TransitionVariant;
+    const partVariant = `${status}-${part.getAttribute(ACTIVE_ATTR)}` as TransitionVariant;
     if (!definition || !variantHasAnimation(definition, partVariant)) continue;
     const motion = resolveVariantMotion(definition, partVariant);
     if (motion) spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
@@ -431,7 +440,7 @@ const holdParticipantLayers = (
       scope.style.animationTimingFunction = easing;
     }
     for (const bar of bars ?? []) {
-      if (bar?.getAttribute("data-flemo-bar-riding") === "true") {
+      if (bar?.getAttribute(BAR_RIDING_ATTR) === "true") {
         holdScopeLayer(bar, transition, containment, owner);
         if (easing) {
           trackInlineWrite(bar, "animation-timing-function", owner);
@@ -1043,7 +1052,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       const screenMotion = resolveVariantMotion(transition, variant);
       if (screenMotion) {
         for (const bar of bars ?? []) {
-          if (!bar || bar.getAttribute("data-flemo-bar-riding") !== "true") continue;
+          if (!bar || bar.getAttribute(BAR_RIDING_ATTR) !== "true") continue;
           wirePure(bar, screenName, screenMotion);
         }
       }
@@ -1307,8 +1316,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const statusPartMotions: { element: HTMLElement; motion: VariantMotion }[] = [];
     for (const part of collectFlightParts(scope, status)) {
       const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
-      const partVariant =
-        `${status}-${part.getAttribute("data-flemo-active")}` as TransitionVariant;
+      const partVariant = `${status}-${part.getAttribute(ACTIVE_ATTR)}` as TransitionVariant;
       const partMotion =
         definition && variantHasAnimation(definition, partVariant)
           ? resolveVariantMotion(definition, partVariant)
@@ -1606,20 +1614,20 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     {
       const root = scope.ownerDocument.documentElement;
       const creepHeadProbe = routedGovernedHead && readCreepHeadFlag();
-      if (creepHeadProbe) root.setAttribute("data-flemo-creep", "true");
-      else root.removeAttribute("data-flemo-creep");
+      if (creepHeadProbe) root.setAttribute(CREEP_ATTR, "true");
+      else root.removeAttribute(CREEP_ATTR);
       if (routedGovernedHead) {
-        root.setAttribute("data-flemo-governed", "true");
+        root.setAttribute(GOVERNED_ATTR, "true");
       } else {
-        root.removeAttribute("data-flemo-governed");
+        root.removeAttribute(GOVERNED_ATTR);
       }
       // The desktop gate is the same mechanism one attribute over: a session is
       // either touch (LPM) or desktop Mac, never both, and the two heads carry
       // different literal lengths.
       if (routedDesktopHead) {
-        root.setAttribute("data-flemo-desk-head", "true");
+        root.setAttribute(DESK_HEAD_ATTR, "true");
       } else {
-        root.removeAttribute("data-flemo-desk-head");
+        root.removeAttribute(DESK_HEAD_ATTR);
       }
     }
     // (RETIRED 2026-08-12, same day: the ADAPTIVE birth-hold guard —

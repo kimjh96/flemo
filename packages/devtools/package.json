@@ -45,6 +45,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "devDependencies": {
+    "@flemo/core": "workspace:*",
     "@flemo/eslint-config": "workspace:*",
     "@flemo/tsconfig": "workspace:*",
     "@types/node": "^24.13.1",

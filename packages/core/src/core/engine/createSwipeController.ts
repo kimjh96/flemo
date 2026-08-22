@@ -7,6 +7,17 @@ import type { Transition } from "@transition/typing";
 import findScrollable from "@utils/findScrollable";
 
 import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
+import {
+  attrSelector,
+  attrValueSelector,
+  BAR_ATTR,
+  BAR_ID_ATTR,
+  BAR_ID_TYPE_ATTR,
+  DECORATOR_ATTR,
+  PART_NAME_ATTR,
+  SCREEN_ATTR,
+  SKIP_ANIMATION_ATTR
+} from "@dom/attributes";
 
 import { sharedBarsMatch, type SharedBarPresenceLike } from "@screen/computeBarRiding";
 
@@ -62,8 +73,6 @@ export interface SwipeController {
   // Whether an in-progress drag wants touchmove default suppressed.
   shouldPreventTouch: () => boolean;
 }
-
-const SKIP_ANIMATION_ATTR = "data-flemo-skip-animation";
 
 // Framework-neutral swipe-back gesture controller. Holds the gesture state that
 // used to live as refs in ScreenMotion; the binding forwards native pointer
@@ -201,14 +210,14 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // A previous screen can have committed its DOM before its Activity-
     // reconnected layout effects republish the registry. Use that DOM as the
     // synchronous fallback so the first swipe tick keeps legacy behavior.
-    const prevTopBar = ownChild(prevScreenContainer, '[data-flemo-bar="app"]');
-    const prevNavBar = ownChild(prevScreenContainer, '[data-flemo-bar="nav"]');
+    const prevTopBar = ownChild(prevScreenContainer, attrValueSelector(BAR_ATTR, "app"));
+    const prevNavBar = ownChild(prevScreenContainer, attrValueSelector(BAR_ATTR, "nav"));
     const domMetadata = (bar: HTMLElement | null | undefined) => {
       if (!bar) return undefined;
-      const value = bar.getAttribute("data-flemo-bar-id");
+      const value = bar.getAttribute(BAR_ID_ATTR);
       if (value === null) return {};
       return {
-        id: bar.getAttribute("data-flemo-bar-id-type") === "number" ? Number(value) : value
+        id: bar.getAttribute(BAR_ID_TYPE_ATTR) === "number" ? Number(value) : value
       };
     };
     const currentTop = config.hasSharedTopBar() ? { id: config.getSharedTopBarId?.() } : undefined;
@@ -304,10 +313,10 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // this swipe is not moving. A part's owning screen is its closest scope
     // (null for a bar-mounted one, which this screen still owns).
     const select = (root: HTMLElement | null) => {
-      const ownScope = ownChild(root, "[data-flemo-screen]");
-      return Array.from(root!.querySelectorAll<HTMLElement>("[data-flemo-part-name]")).filter(
+      const ownScope = ownChild(root, attrSelector(SCREEN_ATTR));
+      return Array.from(root!.querySelectorAll<HTMLElement>(attrSelector(PART_NAME_ATTR))).filter(
         (part) => {
-          const owner = part.closest("[data-flemo-screen]");
+          const owner = part.closest(attrSelector(SCREEN_ATTR));
           return owner === null || owner === ownScope;
         }
       );
@@ -327,8 +336,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     animateOverride?: typeof animateInline
   ) => {
     const run = (element: HTMLElement, active: boolean) => {
-      // Selected by [data-flemo-part-name], so the attribute is present.
-      const def = partTransitionMap.get(element.getAttribute("data-flemo-part-name")!);
+      // Selected by PART_NAME_ATTR, so the attribute is present.
+      const def = partTransitionMap.get(element.getAttribute(PART_NAME_ATTR)!);
       if (!def) return;
       // The part hook's writes must carry THIS controller's writer token —
       // releasePartTransitions clears under it, and an unstaked write would
@@ -371,8 +380,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // wrapper div that no longer exists.)
     const prevScreenContainer =
       (screenContainer?.previousElementSibling as HTMLElement | null) ?? null;
-    prevScreen = ownChild(prevScreenContainer, "[data-flemo-screen]");
-    prevDecorator = ownChild(prevScreenContainer, "[data-flemo-decorator]");
+    prevScreen = ownChild(prevScreenContainer, attrSelector(SCREEN_ATTR));
+    prevDecorator = ownChild(prevScreenContainer, attrSelector(DECORATOR_ATTR));
 
     if (!prevScreen) {
       isTouchPrevented = false;

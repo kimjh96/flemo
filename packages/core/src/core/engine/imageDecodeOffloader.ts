@@ -1,3 +1,4 @@
+import { TRANSITIONAL_STATUS_VALUES } from "@navigate/store";
 // Off-main decode-to-scale for oversized images — Blink's image pipeline,
 // reproduced at the page level for engines that don't have one.
 //
@@ -54,6 +55,7 @@ import {
   onFlightWindowIdle,
   onFlightWindowStart
 } from "@core/engine/flightWindow";
+import { attrSelector, OFFLOADED_SRC_ATTR, SCREEN_ATTR, STATUS_ATTR } from "@dom/attributes";
 
 // An image is "oversized" when it carries more than this many times the
 // pixels its layout box (at device resolution) can show. 8× area is far
@@ -83,7 +85,7 @@ const PARKED_PIXEL =
 
 // The authored source is preserved here for the whole time this module owns
 // the element's src, so nothing authored is ever lost.
-export const OFFLOADED_SRC_ATTR = "data-flemo-image-src";
+export { OFFLOADED_SRC_ATTR } from "@dom/attributes";
 
 // Scaled results persist in the Cache API so a reloaded session also swaps
 // at insertion instead of re-paying the original once per load.
@@ -100,10 +102,10 @@ export interface OversizeInput {
 // A screen mid-transition carries a transitional status from its very first
 // render — readable at insertion time, BEFORE the engine's drive effect has
 // opened the flight window.
-const TRANSITIONAL_STATUSES = new Set(["PUSHING", "POPPING", "REPLACING"]);
+const TRANSITIONAL_STATUSES = new Set<string>(TRANSITIONAL_STATUS_VALUES);
 const insideTransitionalScreen = (image: HTMLImageElement): boolean => {
-  const screen = image.closest("[data-flemo-screen]");
-  return !!screen && TRANSITIONAL_STATUSES.has(screen.getAttribute("data-flemo-status") ?? "");
+  const screen = image.closest(attrSelector(SCREEN_ATTR));
+  return !!screen && TRANSITIONAL_STATUSES.has(screen.getAttribute(STATUS_ATTR) ?? "");
 };
 
 export const shouldOffloadImage = (input: OversizeInput): boolean => {

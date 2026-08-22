@@ -17,7 +17,7 @@
     },
     "apps/web": {
       "name": "@flemo/web",
-      "version": "0.10.13",
+      "version": "0.10.19",
       "dependencies": {
         "@flemo/core": "workspace:*",
         "@flemo/react": "workspace:*",
@@ -46,7 +46,7 @@
     },
     "packages/core": {
       "name": "@flemo/core",
-      "version": "1.25.1",
+      "version": "1.29.0",
       "dependencies": {
         "path-to-regexp": "^8.4.2",
         "zustand": "^5.0.14",
@@ -67,8 +67,9 @@
     },
     "packages/devtools": {
       "name": "@flemo/devtools",
-      "version": "0.2.0",
+      "version": "0.2.2",
       "devDependencies": {
+        "@flemo/core": "workspace:*",
         "@flemo/eslint-config": "workspace:*",
         "@flemo/tsconfig": "workspace:*",
         "@types/node": "^24.13.1",
@@ -101,7 +102,7 @@
     },
     "packages/react": {
       "name": "@flemo/react",
-      "version": "1.12.1",
+      "version": "1.12.7",
       "dependencies": {
         "@flemo/core": "workspace:*",
         "path-to-regexp": "^8.4.2",
@@ -133,7 +134,7 @@
     },
     "packages/react-layout": {
       "name": "@flemo/react-layout",
-      "version": "0.1.45",
+      "version": "0.1.51",
       "dependencies": {
         "@flemo/core": "workspace:*",
         "@flemo/react": "workspace:*",

@@ -1,3 +1,4 @@
+import { IMAGE_HOLD_ATTR } from "@dom/attributes";
 // Flight-scoped image reveal hold — the image analog of responseHold.
 //
 // responseHold parks a mid-flight FETCH resolution and delivers it at rest, so
@@ -24,7 +25,7 @@
 // exactly. Bounded by the flight span the caller passes, so nothing is held
 // past one flight.
 
-const HOLD_ATTR = "data-flemo-img-hold";
+const HOLD_ATTR = IMAGE_HOLD_ATTR;
 
 // A painted image (decoded, laid out) is part of the texture the slide carries;
 // only an image still loading would paint — and re-raster — mid-flight.

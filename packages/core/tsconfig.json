@@ -8,6 +8,8 @@
     "paths": {
       "@core": ["./src/core"],
       "@core/*": ["./src/core/*"],
+      "@dom": ["./src/dom"],
+      "@dom/*": ["./src/dom/*"],
       "@history": ["./src/history"],
       "@history/*": ["./src/history/*"],
       "@navigate": ["./src/navigate"],

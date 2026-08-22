@@ -4,7 +4,9 @@ import type { TransitionName } from "@transition/typing";
 
 // Attribute that suppresses the next compiled keyframe for an element whose
 // swipe already animated it all the way out (set by the swipe-commit path).
-export const SKIP_ANIMATION_ATTR = "data-flemo-skip-animation";
+// Re-exported from the DOM protocol so the name has ONE definition; the
+// engine's public types keep exporting it from here.
+export { SKIP_ANIMATION_ATTR } from "@dom/attributes";
 
 // The engine depends on a MINIMAL injected interface rather than a concrete
 // store, so it stays framework-neutral: any binding (React, Vue, Solid, ...)

@@ -37,8 +37,9 @@
 
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
 import { OFFLOADED_SRC_ATTR } from "@core/engine/imageDecodeOffloader";
+import { attrSelector, HELD_ARRIVAL_ATTR, IMAGE_HOLD_ATTR, PART_NAME_ATTR } from "@dom/attributes";
 
-export const HELD_ARRIVAL_ATTR = "data-flemo-held-arrival";
+export { HELD_ARRIVAL_ATTR } from "@dom/attributes";
 
 interface TargetBatch {
   // Departure candidates in removal order (Element or Text).
@@ -82,8 +83,11 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
     if (!element) return true;
     if (element === scope) return true;
     return (
-      element.closest(`[data-flemo-part-name], [${HELD_ARRIVAL_ATTR}], [${OFFLOADED_SRC_ATTR}]`) !==
-      null
+      element.closest(
+        `${attrSelector(PART_NAME_ATTR)}, ${attrSelector(HELD_ARRIVAL_ATTR)}, ${attrSelector(
+          OFFLOADED_SRC_ATTR
+        )}`
+      ) !== null
     );
   };
 
@@ -150,7 +154,7 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
         // owner — live-reproduced as ~100 orphaned blank avatars per
         // pop-with-arrival-hold. A held image's style channel belongs to the
         // image hold; leave it out of the freeze entirely.
-        if (name === "style" && element.hasAttribute("data-flemo-img-hold")) continue;
+        if (name === "style" && element.hasAttribute(IMAGE_HOLD_ATTR)) continue;
         if (!element.isConnected || exemptFromFreeze(element)) continue;
         let firsts = attrFirst.get(element);
         if (!firsts) attrFirst.set(element, (firsts = new Map()));

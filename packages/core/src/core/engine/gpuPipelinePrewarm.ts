@@ -1,3 +1,4 @@
+import { TRANSITIONAL_STATUS_VALUES } from "@navigate/store";
 // One-shot GPU pipeline prewarm at boot.
 //
 // Chrome's Graphite rasterizer (Dawn → Metal/Vulkan) compiles its GPU
@@ -28,10 +29,11 @@
 // prewarm removed every in-flight compile burst on a cold profile).
 
 import { detectBlinkEngine } from "@core/engine/engineProbes";
+import { attrValueSelector, GPU_PREWARM_ATTR, STATUS_ATTR } from "@dom/attributes";
 
 const noop = () => {};
 
-export const GPU_PREWARM_ATTR = "data-flemo-gpu-prewarm";
+export { GPU_PREWARM_ATTR } from "@dom/attributes";
 
 // How long the probes animate before teardown: enough presented frames for
 // every draw to actually reach the GPU (the compile happens on first DRAW,
@@ -119,7 +121,7 @@ export default function ensureGpuPipelinePrewarm(): () => void {
     // a decision has any effect, so a started probe simply completes.
     const isNavigationActive = () =>
       document.querySelector(
-        '[data-flemo-status="PUSHING"],[data-flemo-status="POPPING"],[data-flemo-status="REPLACING"]'
+        TRANSITIONAL_STATUS_VALUES.map((status) => attrValueSelector(STATUS_ATTR, status)).join(",")
       ) !== null;
 
     const schedule = () => {

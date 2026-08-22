@@ -8,6 +8,30 @@ import {
   variantDuration
 } from "@transition/variantMotion";
 
+import {
+  ACTIVE_ATTR,
+  ANIM_HOLD,
+  ANIM_HOLD_ATTR,
+  ANIM_HOLD_PAUSED_VALUES,
+  attrSelector,
+  attrValueSelector,
+  BAR_ACTIVE_ATTR,
+  BAR_ATTR,
+  BAR_RIDING_ATTR,
+  BAR_STATUS_ATTR,
+  BAR_TRANSITION_ATTR,
+  CREEP_ATTR,
+  DECORATOR_ATTR,
+  DECORATOR_NAME_ATTR,
+  DESK_HEAD_ATTR,
+  GOVERNED_ATTR,
+  HELD_ARRIVAL_ATTR,
+  PART_NAME_ATTR,
+  SCREEN_ATTR,
+  STATUS_ATTR,
+  TRANSITION_ATTR
+} from "@dom/attributes";
+
 import type { Decorator } from "@transition/decorator/typing";
 import type { PartTransition } from "@transition/partTransition/typing";
 
@@ -290,20 +314,20 @@ export const easingToCss = (ease: AnimationOptions["ease"] | undefined): string 
 const restAttrSelector = (transitionName: string, variant: TransitionVariant): string => {
   const [status, active] = variant.split("-");
   return (
-    `[data-flemo-screen]` +
-    `[data-flemo-transition="${transitionName}"]` +
-    `[data-flemo-status="${status}"]` +
-    `[data-flemo-active="${active}"]`
+    attrSelector(SCREEN_ATTR) +
+    attrValueSelector(TRANSITION_ATTR, transitionName) +
+    attrValueSelector(STATUS_ATTR, status!) +
+    attrValueSelector(ACTIVE_ATTR, active!)
   );
 };
 
 const restDecoratorSelector = (decoratorName: string, variant: TransitionVariant): string => {
   const [status, active] = variant.split("-");
   return (
-    `[data-flemo-decorator]` +
-    `[data-flemo-decorator-name="${decoratorName}"]` +
-    `[data-flemo-status="${status}"]` +
-    `[data-flemo-active="${active}"]`
+    attrSelector(DECORATOR_ATTR) +
+    attrValueSelector(DECORATOR_NAME_ATTR, decoratorName) +
+    attrValueSelector(STATUS_ATTR, status!) +
+    attrValueSelector(ACTIVE_ATTR, active!)
   );
 };
 
@@ -315,11 +339,11 @@ const restDecoratorSelector = (decoratorName: string, variant: TransitionVariant
 const barAttrSelector = (transitionName: string, variant: TransitionVariant): string => {
   const [status, active] = variant.split("-");
   return (
-    `[data-flemo-bar]` +
-    `[data-flemo-bar-transition="${transitionName}"]` +
-    `[data-flemo-bar-status="${status}"]` +
-    `[data-flemo-bar-active="${active}"]` +
-    `[data-flemo-bar-riding="true"]`
+    attrSelector(BAR_ATTR) +
+    attrValueSelector(BAR_TRANSITION_ATTR, transitionName) +
+    attrValueSelector(BAR_STATUS_ATTR, status!) +
+    attrValueSelector(BAR_ACTIVE_ATTR, active!) +
+    attrValueSelector(BAR_RIDING_ATTR, "true")
   );
 };
 
@@ -330,9 +354,9 @@ const barAttrSelector = (transitionName: string, variant: TransitionVariant): st
 const partSelector = (name: string, variant: TransitionVariant): string => {
   const [status, active] = variant.split("-");
   return (
-    `[data-flemo-part-name="${name}"]` +
-    `[data-flemo-status="${status}"]` +
-    `[data-flemo-active="${active}"]`
+    attrValueSelector(PART_NAME_ATTR, name) +
+    attrValueSelector(STATUS_ATTR, status!) +
+    attrValueSelector(ACTIVE_ATTR, active!)
   );
 };
 
@@ -611,22 +635,22 @@ const compileVariantBlock = (
     const kf = `${keyframe}-govcreep`;
     const gatedSelector = selector
       .split(",\n")
-      .map((one) => `:root[data-flemo-governed][data-flemo-creep] ${one}`)
+      .map((one) => `:root${attrSelector(GOVERNED_ATTR)}${attrSelector(CREEP_ATTR)} ${one}`)
       .join(",\n");
     return (
       `\n@keyframes ${kf} {\n  0% {\n${declsToBlock(fromDecls).replace(/^/gm, "  ")}\n  }\n  ${headPct}% {\n${declsToBlock(creepDecls).replace(/^/gm, "  ")}\n  }\n  100% {\n${declsToBlock(toDecls).replace(/^/gm, "  ")}\n  }\n}\n` +
       `${gatedSelector} {\n  animation-name: ${kf};\n  animation-duration: ${total.toFixed(3)}s;\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`
     );
   })();
-  const governedHeadBlock = headBlock("data-flemo-governed", "gov", headForVariant(variant), true);
-  const governedPartDelayBlock = partDelayBlock("data-flemo-governed", headForVariant(variant));
+  const governedHeadBlock = headBlock(GOVERNED_ATTR, "gov", headForVariant(variant), true);
+  const governedPartDelayBlock = partDelayBlock(GOVERNED_ATTR, headForVariant(variant));
   const deskHeadBlock = headBlock(
-    "data-flemo-desk-head",
+    DESK_HEAD_ATTR,
     "deskhead",
     desktopHeadForVariant(variant),
     false
   );
-  const deskPartDelayBlock = partDelayBlock("data-flemo-desk-head", desktopHeadForVariant(variant));
+  const deskPartDelayBlock = partDelayBlock(DESK_HEAD_ATTR, desktopHeadForVariant(variant));
 
   // `will-change` is scoped to the variant-active rule (PUSHING/POPPING/...)
   // and lists exactly the properties this variant writes, whatever the
@@ -694,7 +718,7 @@ const compileVariantBlock = (
     variant.endsWith("-false") &&
     targetHidesScreen(fromValue) &&
     authoredToDecls.length > 0
-      ? `\n${screenSelector}[data-flemo-anim-hold="park"] {\n  animation: none;\n${declsToBlock(
+      ? `\n${screenSelector}${attrValueSelector(ANIM_HOLD_ATTR, ANIM_HOLD.PARK)} {\n  animation: none;\n${declsToBlock(
           authoredToDecls
         )}\n}`
       : "";
@@ -717,7 +741,7 @@ const compileVariantBlock = (
     (variant.startsWith("PUSHING") || variant.startsWith("REPLACING")) &&
     targetHidesScreen(fromValue) &&
     authoredToDecls.length > 0
-      ? `\n${screenSelector}[data-flemo-anim-hold="park-under"] {\n  animation: none;\n${declsToBlock(
+      ? `\n${screenSelector}${attrValueSelector(ANIM_HOLD_ATTR, ANIM_HOLD.PARK_UNDER)} {\n  animation: none;\n${declsToBlock(
           authoredToDecls
         )}\n}`
       : "";
@@ -732,7 +756,7 @@ const compileVariantBlock = (
     (variant.startsWith("PUSHING") || variant.startsWith("REPLACING")) &&
     targetHidesScreen(fromValue) &&
     authoredToDecls.length > 0
-      ? `\n${screenSelector}[data-flemo-anim-hold="park-over"] {\n  animation: none;\n${declsToBlock(
+      ? `\n${screenSelector}${attrValueSelector(ANIM_HOLD_ATTR, ANIM_HOLD.PARK_OVER)} {\n  animation: none;\n${declsToBlock(
           authoredToDecls
         )}\n  opacity: 0.02;\n}`
       : "";
@@ -857,14 +881,14 @@ export const compileTransitionStyles = (
 // higher-specificity `animation` shorthand (which resets play-state to
 // running). The nested selector covers `<Part>` elements inside held bars.
 const ANIM_HOLD_RULE = [
-  `[data-flemo-anim-hold="true"],`,
-  `[data-flemo-anim-hold="park"],`,
-  `[data-flemo-anim-hold="park-under"],`,
-  `[data-flemo-anim-hold="park-over"],`,
-  `[data-flemo-anim-hold="true"] [data-flemo-part-name],`,
-  `[data-flemo-anim-hold="park"] [data-flemo-part-name],`,
-  `[data-flemo-anim-hold="park-under"] [data-flemo-part-name],`,
-  `[data-flemo-anim-hold="park-over"] [data-flemo-part-name] {`,
+  // One selector per paused form, then the same set again scoped to the
+  // <Part> elements inside a held carrier.
+  [
+    ...ANIM_HOLD_PAUSED_VALUES.map((value) => attrValueSelector(ANIM_HOLD_ATTR, value)),
+    ...ANIM_HOLD_PAUSED_VALUES.map(
+      (value) => `${attrValueSelector(ANIM_HOLD_ATTR, value)} ${attrSelector(PART_NAME_ATTR)}`
+    )
+  ].join(",\n") + " {",
   `  animation-play-state: paused !important;`,
   `}`
 ].join("\n");
@@ -882,9 +906,11 @@ const ANIM_HOLD_RULE = [
 // reflected in one commit at rest, so a mid-flight Suspense swap can never
 // punch through a decelerating motion. The engine stamps the attribute; this
 // rule is the entire visual mechanism.
-const ARRIVAL_HOLD_RULE = [`[data-flemo-held-arrival] {`, `  display: none !important;`, `}`].join(
-  "\n"
-);
+const ARRIVAL_HOLD_RULE = [
+  `${attrSelector(HELD_ARRIVAL_ATTR)} {`,
+  `  display: none !important;`,
+  `}`
+].join("\n");
 
 export const variantHasAnimation = (
   transitionLike: Pick<Transition, "initial" | "variants">,
