@@ -61,4 +61,50 @@ describe("swipeSettleSeconds", () => {
       })
     ).toBeCloseTo(0.7, 5);
   });
+
+  // A cancel walks BACK the way the finger came, and only ever from below the
+  // transition's commit threshold — so both terms collapse and the settle used
+  // to land on the 0.12s floor every time, snapping an authored curve whose
+  // front is loaded (device-reported on Safari after a small drag).
+  it("gives a reversal a floor long enough to read as motion", () => {
+    const cancelling = {
+      remainingPx: 40, // a small drag, which is the only kind that cancels
+      spanPx: 390,
+      velocityPxPerSecond: 900, // still pushing AWAY from rest
+      authoredSeconds: 0.7
+    };
+
+    expect(swipeSettleSeconds({ ...cancelling, reversing: true })).toBeCloseTo(0.28, 3);
+    // ... and the momentum it cannot borrow is ignored: the same release with
+    // a slower finger lands identically.
+    expect(
+      swipeSettleSeconds({ ...cancelling, velocityPxPerSecond: 60, reversing: true })
+    ).toBeCloseTo(0.28, 3);
+  });
+
+  it("still honours the authored span as the reversal's ceiling", () => {
+    expect(
+      swipeSettleSeconds({
+        remainingPx: 40,
+        spanPx: 390,
+        velocityPxPerSecond: 0,
+        authoredSeconds: 0.2, // a preset that wants a brisk return
+        reversing: true
+      })
+    ).toBeCloseTo(0.2, 3);
+  });
+
+  it("does not lengthen a settle the finger is already carrying home", () => {
+    // The finger turned around and is flicking back to rest: that momentum is
+    // real, so the release keeps riding it.
+    expect(
+      swipeSettleSeconds({
+        remainingPx: 40,
+        spanPx: 390,
+        velocityPxPerSecond: 900,
+        authoredSeconds: 0.7,
+        reversing: false
+      })
+    ).toBeCloseTo(MIN_SETTLE_SECONDS, 3);
+  });
 });

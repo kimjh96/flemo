@@ -676,8 +676,16 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const span =
       (axis === "y" ? box?.height : box?.width) ||
       (typeof window === "undefined" ? 0 : axis === "y" ? window.innerHeight : window.innerWidth);
-    const travelled = Math.abs(axis === "y" ? swipeInfo.offset.y : swipeInfo.offset.x);
-    const speed = Math.abs(axis === "y" ? swipeInfo.velocity.y : swipeInfo.velocity.x);
+    const offsetOnAxis = axis === "y" ? swipeInfo.offset.y : swipeInfo.offset.x;
+    const velocityOnAxis = axis === "y" ? swipeInfo.velocity.y : swipeInfo.velocity.x;
+    const travelled = Math.abs(offsetOnAxis);
+    const speed = Math.abs(velocityOnAxis);
+    // Does the finger still HELP? A completion always travels the way the
+    // finger went, so it never reverses. A cancel walks back — a reversal
+    // unless the finger had already turned around and is carrying it home.
+    const travelSign = Math.sign(offsetOnAxis);
+    const fingerHeadingBack =
+      travelSign !== 0 && Math.sign(velocityOnAxis) === -travelSign && speed > 0;
     // Read at WRITE time, not now: a handler reports its verdict through
     // `onStart` before it animates (every preset does), and until it does the
     // conservative reading is the cancel — the distance back to rest.
@@ -692,7 +700,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
             remainingPx: releaseTriggered ? span - travelled : travelled,
             spanPx: span,
             velocityPxPerSecond: speed,
-            authoredSeconds: authored
+            authoredSeconds: authored,
+            reversing: !releaseTriggered && !fingerHeadingBack
           })
         });
       }) as T;
