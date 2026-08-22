@@ -1046,6 +1046,101 @@ describe("createTransitionEngine gate-phase reporting", () => {
   });
 });
 
+describe("the perceptual cut and a PRESENT decorator", () => {
+  // The decorator is a full participant, so it gets a full participant's vote:
+  // a motion the band math cannot reason about VETOES the early cut, exactly
+  // like an unanalyzable part. Cutting a flight while a dim is still visibly
+  // moving is the failure this prevents.
+  const withDecorator = async (
+    decoratorValue: Record<string, string | number>,
+    run: (scope: HTMLElement, decorator: HTMLElement, taskId: string) => void
+  ) => {
+    const { transitionMap } = await import("@transition/transition");
+    const { decoratorMap } = await import("@transition/decorator/decorator");
+    const createDecorator = (await import("@transition/decorator/createDecorator")).default;
+    decoratorMap.set(
+      "cut-dim" as never,
+      createDecorator({
+        name: "cut-dim" as never,
+        initial: { opacity: 0 },
+        idle: { value: { opacity: 0 }, options: { duration: 0 } },
+        enter: { value: decoratorValue, options: { duration: 0.7 } },
+        exit: { value: { opacity: 0 }, options: { duration: 0.7 } }
+      })
+    );
+    const base = transitionMap.get("cupertino")!;
+    transitionMap.set("cut-deco" as never, { ...base, decoratorName: "cut-dim" } as never);
+    const { scope, decorator } = elements();
+    Object.defineProperty(scope, "clientWidth", { value: 390, configurable: true });
+    Object.defineProperty(scope, "clientHeight", { value: 720, configurable: true });
+    document.body.append(scope, decorator);
+    try {
+      run(scope, decorator, "cut-deco-task");
+    } finally {
+      transitionMap.delete("cut-deco" as never);
+      decoratorMap.delete("cut-dim" as never);
+      scope.remove();
+      decorator.remove();
+    }
+  };
+
+  it("cuts when the decorator's own motion is inside its band", async () => {
+    vi.useFakeTimers();
+    try {
+      await withDecorator({ opacity: 0.5 }, (scope, decorator, taskId) => {
+        const resolveSpy = vi
+          .spyOn(TaskManger, "resolveTask")
+          .mockImplementation(() => Promise.resolve(true));
+        const d = { ...deps(), getTransitionTaskId: vi.fn(() => taskId as never) };
+        const cleanup = createTransitionEngine(d).driveScreenLifecycle({
+          getElements: () => ({ scope, decorator, bars: [] }),
+          transitionName: "cut-deco" as never,
+          prevTransitionName: "cut-deco" as never,
+          status: "PUSHING",
+          isActive: true,
+          animHoldReleased: true
+        });
+        // Past the sub-pixel point but before the 700ms animationend, which
+        // jsdom never fires.
+        vi.advanceTimersByTime(720);
+        expect(resolveSpy).toHaveBeenCalledWith(taskId);
+        cleanup();
+        resolveSpy.mockRestore();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does NOT cut when the decorator's motion is unanalyzable", async () => {
+    vi.useFakeTimers();
+    try {
+      // A filter is outside the band math entirely: one veto is enough.
+      await withDecorator({ filter: "blur(4px)" }, (scope, decorator, taskId) => {
+        const resolveSpy = vi
+          .spyOn(TaskManger, "resolveTask")
+          .mockImplementation(() => Promise.resolve(true));
+        const d = { ...deps(), getTransitionTaskId: vi.fn(() => taskId as never) };
+        const cleanup = createTransitionEngine(d).driveScreenLifecycle({
+          getElements: () => ({ scope, decorator, bars: [] }),
+          transitionName: "cut-deco" as never,
+          prevTransitionName: "cut-deco" as never,
+          status: "PUSHING",
+          isActive: true,
+          animHoldReleased: true
+        });
+        vi.advanceTimersByTime(720);
+        // The clean end owns this flight now — no early resolution happened.
+        expect(resolveSpy).not.toHaveBeenCalledWith(taskId);
+        cleanup();
+        resolveSpy.mockRestore();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("reveal-shaped transitions (active no-op, passive animated)", () => {
   // The transition's whole visible motion lives on the EXIT side (the old
   // screen animates out above the standing new one). A microtask resolve
