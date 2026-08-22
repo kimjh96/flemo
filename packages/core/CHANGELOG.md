@@ -1,5 +1,15 @@
 # @flemo/core
 
+## 1.29.0
+
+### Minor Changes
+
+- [`47332c9`](https://github.com/kimjh96/flemo/commit/47332c92c2b530e4b1fc2426b62dcfb5490b5f69) Retire the iOS Low Power Mode cadence detection. Its treatment — the compiled tier with the governed head — became the default for every touch-WebKit flight, which left the detection gating nothing: a rAF loop running from module load to the end of the session, six more frames per routed flight and a `sessionStorage` seed, all feeding a flag no code read. `lowPowerCadenceActive` is gone from the public surface; `governedCompiledActive` (the predicate the routing actually asks for) stays. The head gate and its keyframes are renamed to say what they mean — `data-flemo-lpm` is now `data-flemo-governed`, and the `-lpm` animation suffix is `-gov`.
+
+### Patch Changes
+
+- [`b89635e`](https://github.com/kimjh96/flemo/commit/b89635eb83ca3b685b61c0c03fdd85294e82f684) Fix a cancelled swipe snapping back. The release clock sized every settle from the finger's momentum and the distance left, but a cancel travels _against_ the finger and only ever from below the transition's commit threshold — so both terms collapsed and every cancel ran the 0.12s floor, snapping an authored curve. A settle that reverses the gesture now ignores momentum it cannot borrow and lands no faster than 0.28s, still capped by the transition's own duration.
+
 ## 1.28.1
 
 ### Patch Changes
