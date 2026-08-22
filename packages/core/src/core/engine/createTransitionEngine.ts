@@ -1,6 +1,10 @@
 import TaskManger from "@core/TaskManger";
 
-import { clearInlineAnimation, trackInlineWrite } from "@transition/animateInline";
+import {
+  clearInlineAnimation,
+  concludeInlineSettle,
+  trackInlineWrite
+} from "@transition/animateInline";
 import {
   DESKTOP_HEAD_MS,
   LPM_HEAD_MS,
@@ -9,7 +13,6 @@ import {
   variantHasAnimation
 } from "@transition/compileTransitionStyles";
 import resolveTransition from "@transition/resolveTransition";
-import settleScrubber from "@transition/settleScrub";
 
 import type { TransitionVariant } from "@transition/typing";
 import { resolveVariantMotion, type VariantMotion } from "@transition/variantMotion";
@@ -980,8 +983,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // commit at rest.
         // A NAVIGATION owns its participants (same rule as the player join):
         // conclude any running swipe settle before the compiled flight
-        // drives, or its WAAPI outranks the compiled animation for its span.
-        settleScrubber.takeover(scope);
+        // drives, or it keeps interpolating toward its own target underneath.
+        concludeInlineSettle(scope);
         const releaseHold = createArrivalHold(scope);
         const releaseAnimations = createInvisibleAnimationHold(scope);
         const holdSpanMs = statusChoreographySpanMs(
