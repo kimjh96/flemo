@@ -1,5 +1,45 @@
 # @flemo/react
 
+## 1.12.8
+
+### Patch Changes
+
+- [`5b83d3b`](https://github.com/kimjh96/flemo/commit/5b83d3b46ed268ee07e834e7d7819a4e577a1111) Declare the `data-flemo-*` DOM contract in one place. `@flemo/core` now exports the
+  whole protocol — every attribute name, the animation hold's values, and selector
+  helpers — instead of spreading ~27 string literals across four packages where a
+  rename broke the others silently. Consumers styling or querying flemo's attributes
+  can import the names rather than hard-code them.
+
+  The contract is now enforced from both ends: core fails its own suite on any raw
+  `data-flemo-*` literal, the React binding fails if it renders an attribute core does
+  not declare, and the devtools recorder's deliberately-separate copy is pinned against
+  core's table.
+
+- [`d250cc5`](https://github.com/kimjh96/flemo/commit/d250cc5bf3dbc9b8699f6387c219311bd23dca28) Resolve every per-browser decision in one place. `@flemo/core` now exports
+  `resolvePlatformProfile()`, which returns the atomic release flip, the render-settle
+  gate, the deferred release commit, the park-over hold, the rest promotion and the
+  image-decode offload as named fields. `@flemo/react` asks for the profile and renders
+  the answer instead of combining engine probes and diagnostic flags itself, so a
+  binding for another framework has no policy to re-implement.
+
+  Platform detection modules (`engineProbes`, `governedCompiled`, `steadySixtyCadence`,
+  `displayCadence`) moved out of the engine directory to sit beside the profile. The
+  raw flag readers are no longer part of core's public surface — ask the profile.
+
+- [`f32c2cc`](https://github.com/kimjh96/flemo/commit/f32c2cc7022dd8d32382420c3a26054546cfaf48) Retire the rAF motion player. Every browser flemo supports already ran the compiled
+  compositor tier — Blink, desktop Safari and touch WebKit were each routed there
+  unconditionally — so the second driver, its landing pixel-snap, its kind classifier, the
+  driver policy and eight diagnostic flags (`flemo:motion-driver`, `-force`,
+  `landing-snap`, `handoff`, `handoffms`, `apply`, `snap`, `snapband`) are gone. Authored
+  `driver: "player"` pins are no longer accepted; `driver: "native"` keeps its meaning
+  (opt into clock surgery for that transition). `@flemo/core` drops 2.8 KB gzipped.
+
+  Devtools reports lose the `driverPolicy` section and instead list retired `flemo:*` keys
+  still persisted on a device, marked as inert, so residue is ruled out rather than chased.
+
+- Updated dependencies ([`5b83d3b`](https://github.com/kimjh96/flemo/commit/5b83d3b46ed268ee07e834e7d7819a4e577a1111), [`d250cc5`](https://github.com/kimjh96/flemo/commit/d250cc5bf3dbc9b8699f6387c219311bd23dca28), [`f32c2cc`](https://github.com/kimjh96/flemo/commit/f32c2cc7022dd8d32382420c3a26054546cfaf48)):
+  - @flemo/core@1.30.0
+
 ## 1.12.7
 
 ### Patch Changes
