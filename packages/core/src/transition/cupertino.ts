@@ -1,5 +1,7 @@
 import createTransition from "@transition/createTransition";
 
+import { swipeSettleSeconds } from "@transition/swipeSettle";
+
 const linear = (value: number, from: [number, number], to: [number, number]) => {
   const [fromMin, fromMax] = from;
   const [toMin, toMax] = to;
@@ -112,8 +114,25 @@ const cupertino = createTransition({
       const { offset, velocity } = info;
       const dragX = offset.x;
       const isTriggered = dragX > 50 || velocity.x > 20;
+      // The release finishes what the finger started: its length comes from
+      // what is LEFT and how fast the finger was going, capped by this
+      // transition's own span. A fixed 0.3s ran the same clock whether 6px or
+      // 300px remained, so a swipe-completed pop landed in a different time
+      // from the identical pop driven by a button (0.7s) — the mismatch this
+      // derivation removes. The curve is unchanged: EASE, as authored.
+      const span = typeof window === "undefined" ? 0 : window.innerWidth;
+      const traveled = Math.max(0, dragX);
+      const duration = swipeSettleSeconds({
+        remainingPx: isTriggered ? span - traveled : traveled,
+        spanPx: span,
+        velocityPxPerSecond: velocity.x,
+        authoredSeconds: DURATION
+      });
 
-      onStart?.(isTriggered);
+      // One clock for every participant, the dim included — it is handed the
+      // same seconds rather than keeping a fixed one of its own, or it would
+      // finish under a screen still moving.
+      onStart?.(isTriggered, duration);
 
       await Promise.all([
         animate(
@@ -122,7 +141,7 @@ const cupertino = createTransition({
             x: isTriggered ? "100%" : 0
           },
           {
-            duration: 0.3,
+            duration,
             ease: EASE
           }
         ),
@@ -132,7 +151,7 @@ const cupertino = createTransition({
             x: isTriggered ? 0 : `-${PARALLAX}%`
           },
           {
-            duration: 0.3,
+            duration,
             ease: EASE
           }
         )

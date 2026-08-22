@@ -125,7 +125,7 @@ describe("cupertino swipe", () => {
     );
 
     expect(triggered).toBe(true);
-    expect(onStart).toHaveBeenCalledWith(true);
+    expect(onStart).toHaveBeenCalledWith(true, expect.any(Number));
     expect(ctx.calls).toHaveBeenCalledWith(
       ctx.currentScreen,
       expect.objectContaining({ x: "100%" }),
@@ -138,6 +138,45 @@ describe("cupertino swipe", () => {
     );
   });
 
+  it("lengthens the release with what is left, and hands the dim the same clock", async () => {
+    // Half the width travelled, finger stopped: half of cupertino's authored
+    // 0.7s — the same speed the button-driven pop lands at, where a fixed 0.3s
+    // used to finish first and read as a different motion.
+    const ctx = context();
+    const onStart = vi.fn();
+    await cupertino.onSwipeEnd!(
+      pointerEvent,
+      swipeInfo({ offset: { x: window.innerWidth / 2, y: 0 }, velocity: { x: 0, y: 0 } }),
+      { ...ctx, onStart }
+    );
+
+    const seconds = onStart.mock.calls[0][1] as number;
+    expect(seconds).toBeCloseTo(0.35, 2);
+    // every participant on that one clock
+    expect(ctx.calls).toHaveBeenCalledWith(
+      ctx.currentScreen,
+      expect.anything(),
+      expect.objectContaining({ duration: seconds })
+    );
+    expect(ctx.calls).toHaveBeenCalledWith(
+      ctx.prevScreen,
+      expect.anything(),
+      expect.objectContaining({ duration: seconds })
+    );
+  });
+
+  it("keeps a flick short instead of stretching it to the authored span", async () => {
+    const ctx = context();
+    const onStart = vi.fn();
+    await cupertino.onSwipeEnd!(
+      pointerEvent,
+      swipeInfo({ offset: { x: 80, y: 0 }, velocity: { x: 3000, y: 0 } }),
+      { ...ctx, onStart }
+    );
+
+    expect(onStart.mock.calls[0][1] as number).toBeLessThan(0.35);
+  });
+
   it("cancels back to rest under the threshold", async () => {
     const ctx = context();
     const onStart = vi.fn();
@@ -148,7 +187,7 @@ describe("cupertino swipe", () => {
     );
 
     expect(triggered).toBe(false);
-    expect(onStart).toHaveBeenCalledWith(false);
+    expect(onStart).toHaveBeenCalledWith(false, expect.any(Number));
     expect(ctx.calls).toHaveBeenCalledWith(
       ctx.currentScreen,
       expect.objectContaining({ x: 0 }),

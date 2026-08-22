@@ -48,7 +48,10 @@ export type TransitionOptions =
           animate: SwipeAnimate;
           currentScreen: HTMLDivElement;
           prevScreen: HTMLDivElement;
-          onStart?: (triggered: boolean) => void;
+          // `settleSeconds` is the length the transition chose for its
+          // release (see swipeSettle). The binding forwards it to the
+          // decorator and part hooks so every participant lands on one clock.
+          onStart?: (triggered: boolean, settleSeconds?: number) => void;
         }
       ) => Promise<boolean>;
       onSwipe: (
@@ -68,7 +71,10 @@ export type TransitionOptions =
           animate: SwipeAnimate;
           currentScreen: HTMLDivElement;
           prevScreen: HTMLDivElement;
-          onStart?: (triggered: boolean) => void;
+          // `settleSeconds` is the length the transition chose for its
+          // release (see swipeSettle). The binding forwards it to the
+          // decorator and part hooks so every participant lands on one clock.
+          onStart?: (triggered: boolean, settleSeconds?: number) => void;
         }
       ) => Promise<boolean>;
     }

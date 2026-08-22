@@ -453,12 +453,16 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       animate: animateForEnd,
       currentScreen: scope as HTMLDivElement,
       prevScreen: prevScreen as HTMLDivElement,
-      onStart: (triggered) => {
+      // `settleSeconds` is the length the TRANSITION chose for this release
+      // (see swipeSettle): forwarded so the decorator lands with the screens
+      // instead of on a fixed clock of its own.
+      onStart: (triggered, settleSeconds) => {
         const settledTrigger = forceCancel ? false : triggered;
         decoratorDef?.onSwipeEnd?.(settledTrigger, {
           animate: animateInline,
           currentDecorator: decorator as HTMLDivElement,
-          prevDecorator: prevDecorator as HTMLDivElement
+          prevDecorator: prevDecorator as HTMLDivElement,
+          settleSeconds
         });
         drivePartTransitions("end", settledTrigger, 0);
       }
