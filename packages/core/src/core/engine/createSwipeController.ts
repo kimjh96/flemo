@@ -380,6 +380,14 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     }
 
     swipeActive = true;
+    // The wake this gesture is about to trigger lands on the next commits;
+    // hold the motion until it has been painted (see the reveal hold). A
+    // screen that was never frozen is already displayed here, and then there
+    // is nothing to wait for — the hold costs that gesture nothing.
+    revealResolved = prevScreenRevealed();
+    revealSeenAt = 0;
+    revealHeldUntil =
+      (typeof performance === "undefined" ? Date.now() : performance.now()) + REVEAL_HOLD_CAP_MS;
     swipeMaxDragPx = 0;
     swipeStartPoint = { x: event.clientX, y: event.clientY };
     swipeLastPoint = { x: event.clientX, y: event.clientY };
@@ -438,6 +446,61 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   let pendingMove: PointerEvent | null = null;
   let followFrame = 0;
 
+  // THE REVEAL HOLD.
+  //
+  // The screen a back-swipe reveals is usually FROZEN — React's <Activity>
+  // hid it and unmounted its effects when it was covered — and starting the
+  // gesture is what wakes it. That wake is a commit over the whole screen
+  // subtree (its effects, and whatever the consumer re-subscribes there), and
+  // it lands on the first frames of the drag: measured on a device at 6x CPU
+  // throttle as one ~53ms task at the very start, with the rest of the drag
+  // clean. It reads as the drag catching once and then running.
+  //
+  // Waking earlier was rejected: it would pay that commit on every touch that
+  // never becomes a swipe. So the motion WAITS for it instead. Nothing moves
+  // until the revealed screen is actually displayed and has had a frame to
+  // paint; then the follow resumes from the finger's CURRENT position, so the
+  // gesture picks up where the finger is rather than replaying what it missed.
+  // The opening is a frame or two late and everything after it is continuous
+  // — the same trade the flight's anim-hold makes for a push.
+  //
+  // Costs nothing where there is nothing to wake: a screen that was never
+  // frozen is already displayed at the first check, and the hold releases in
+  // that same frame.
+  const REVEAL_HOLD_CAP_MS = 200;
+  let revealHeldUntil = 0;
+  let revealResolved = true;
+
+  const prevScreenRevealed = () => {
+    const container = prevScreen?.parentElement;
+    if (!container || !container.isConnected) return true;
+    if (typeof getComputedStyle !== "function") return true;
+    return getComputedStyle(container).display !== "none";
+  };
+
+  // Called once per follow frame while the hold is up. Returns true when the
+  // motion may run: the screen is displayed AND one frame has passed since, so
+  // the reveal has been painted rather than merely committed.
+  let revealSeenAt = 0;
+  const revealHoldReleased = (now: number) => {
+    if (revealResolved) return true;
+    if (now >= revealHeldUntil) {
+      // Cap: a wake that never lands must not strand the gesture.
+      revealResolved = true;
+      return true;
+    }
+    if (!prevScreenRevealed()) {
+      revealSeenAt = 0;
+      return false;
+    }
+    if (!revealSeenAt) {
+      revealSeenAt = now;
+      return false; // displayed this frame; let it paint before moving
+    }
+    revealResolved = true;
+    return true;
+  };
+
   // The release must settle from where the finger actually left the screen,
   // not from the last sample that happened to win a frame — so the trailing
   // move is written out synchronously before the settle is authored.
@@ -446,13 +509,26 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       cancelAnimationFrame(followFrame);
     }
     followFrame = 0;
+    // A release is not held: the gesture is over, and its settle is authored
+    // from where the finger actually left.
+    revealResolved = true;
     const trailing = pendingMove;
     pendingMove = null;
     if (trailing) continueSwipe(trailing);
   };
 
-  const flushFollow = () => {
+  const flushFollow = (
+    now = typeof performance === "undefined" ? Date.now() : performance.now()
+  ) => {
     followFrame = 0;
+    if (!revealHoldReleased(now)) {
+      // Keep the sample and look again next frame: the finger's position when
+      // the hold lifts is the one the motion resumes from.
+      if (pendingMove && typeof requestAnimationFrame === "function") {
+        followFrame = requestAnimationFrame(flushFollow);
+      }
+      return;
+    }
     const event = pendingMove;
     pendingMove = null;
     if (event) continueSwipe(event);
