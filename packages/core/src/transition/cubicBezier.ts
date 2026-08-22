@@ -41,6 +41,29 @@ const NAMED_EASES: Record<string, [number, number, number, number]> = {
   anticipate: [0.36, 0, 0.66, -0.56]
 };
 
+/**
+ * The control points behind an authored ease, named or spelled out — `null`
+ * for `linear`, which has no handles to work with.
+ *
+ * Exported for the swipe release, which re-aims an authored curve's opening
+ * slope onto the gesture that produced it (see swipeSettle.ts).
+ */
+export const easeControlPoints = (
+  ease: AnimationOptions["ease"] | undefined
+): [number, number, number, number] | null => {
+  if (Array.isArray(ease)) {
+    if (ease.length === 4 && ease.every((n) => typeof n === "number")) {
+      return [...(ease as [number, number, number, number])];
+    }
+    return null;
+  }
+  if (typeof ease === "string") {
+    if (ease === "linear") return null;
+    return [...(NAMED_EASES[ease] ?? NAMED_EASES.ease!)];
+  }
+  return [...NAMED_EASES.ease!];
+};
+
 export const resolveEasing = (ease: AnimationOptions["ease"] | undefined): EasingFunction => {
   if (Array.isArray(ease)) {
     if (ease.length === 4 && ease.every((n) => typeof n === "number")) {

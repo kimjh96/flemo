@@ -12,13 +12,69 @@
 //     A release that is nearly home finishes quickly; one that barely moved
 //     takes nearly the whole authored time, which is exactly the button-driven
 //     motion the user already knows.
-//   - BY SPEED: the time the finger's own speed would need for what is left.
-//     A flick keeps its momentum instead of being slowed to the authored span.
+//   - BY SPEED: the time the finger's own speed would need for what is left,
+//     paid out along a DECELERATING curve. A flick keeps its momentum instead
+//     of being slowed to the authored span.
 //
 // The result is clamped: never longer than the authored span (a gesture must
 // not end slower than the button), never shorter than MIN_SECONDS (a landing
 // the eye cannot follow reads as a cut, not as motion).
 export const MIN_SETTLE_SECONDS = 0.12;
+
+// THE CURVE MATTERS AS MUCH AS THE LENGTH, and for a while only the length was
+// being computed.
+//
+// A duration is an AVERAGE speed. What the eye reads at the instant the finger
+// leaves is the curve's speed at t=0, and an authored transition curve is
+// front-loaded because it starts from REST: cupertino's
+// cubic-bezier(0.32, 0.72, 0, 1) opens at 0.72/0.32 = 2.25x its own average.
+// Run that curve on a release and the screen does not continue the gesture, it
+// is THROWN — measured against the finger's own speed at the moment it let go,
+// on a 390px viewport:
+//
+//   finger      settle    speed at release    vs the finger
+//   150 px/s    0.556s    1254 px/s           8.4x
+//   350 px/s    0.521s    1254 px/s           3.6x
+//   800 px/s    0.338s    1800 px/s           2.3x
+//   1500 px/s   0.160s    3375 px/s           2.3x
+//
+// Every release accelerated away from the hand that made it, worst where the
+// gesture was gentlest — device-reported on Safari as "휙휙", too whippy at any
+// drag speed and worse when fast. The duration work (2026-08) had assumed a
+// linear payout and left the curve alone, and its own commit message noted the
+// curve "reads wider than it measures" without following the thread.
+//
+// So the release gets a curve of its own, built to LEAVE AT THE SPEED THE
+// FINGER HAD. Its x handles stay the authored ones (so it is the same family
+// of motion, and stays a valid CSS timing function); only the first y handle
+// moves, to put the initial slope where the gesture left it.
+//
+// This is NOT the retired front-softening (see compileTransitionStyles.ts). That
+// one softened the authored curve of a BUTTON-driven transition, which starts
+// from rest and whose front-loading is the point; it was prescribed against a
+// broken pipeline and read as a different transition once the pipeline was
+// fixed. Nothing here touches a compiled keyframe or a navigation that no
+// finger started.
+
+/**
+ * The initial slope a release curve is allowed to reach, as a multiple of its
+ * own average speed — the ceiling on "the finger was going fast".
+ *
+ * It is also what the by-speed length is derived from: a curve that starts at
+ * the finger's speed and decelerates to rest covers the remaining distance in
+ * `slope x remaining / speed`, not `remaining / speed`. The old formula solved
+ * for a motion that never slows down, which no landing does.
+ */
+export const RELEASE_LAUNCH_SLOPE = 1.6;
+
+/**
+ * The floor on that slope. A very slow drag with most of the screen left
+ * cannot be honored literally — matching 150 px/s over 310px would take two
+ * seconds — so the settle does accelerate away from it. It leaves at half its
+ * average rather than at 2.25x, which is the difference between the system
+ * taking over and the screen being snatched.
+ */
+export const MIN_LAUNCH_SLOPE = 0.5;
 
 // A RELEASE THAT REVERSES THE FINGER gets its own, longer floor.
 //
@@ -72,7 +128,80 @@ export const swipeSettleSeconds = ({
   const byDistance = span > 0 ? authoredSeconds * Math.min(1, remaining / span) : authoredSeconds;
   const speed = Math.abs(velocityPxPerSecond);
   // A reversal has no momentum to inherit: the finger was going the other way.
-  const bySpeed = !reversing && speed > 0 ? remaining / speed : Number.POSITIVE_INFINITY;
+  //
+  // The factor is what makes this the time a DECELERATING landing needs. At
+  // `remaining / speed` the settle only lasts that long if it never slows down,
+  // so the curve had to open well above the finger to arrive on time — which is
+  // the throw this term used to produce.
+  const bySpeed =
+    !reversing && speed > 0 ? (RELEASE_LAUNCH_SLOPE * remaining) / speed : Number.POSITIVE_INFINITY;
   const chosen = Math.min(byDistance, bySpeed);
   return Math.min(authoredSeconds, Math.max(minSeconds, chosen));
+};
+
+/**
+ * The release curve's normalized initial slope: the speed the settle leaves at,
+ * as a multiple of its own average. `velocity x seconds / remaining` is exactly
+ * the finger's speed expressed in those units.
+ *
+ * A reversal keeps the authored curve — it starts from a finger that was going
+ * the OTHER way, so there is no momentum to be continuous with, and the
+ * cancel's own floor already gives it a length the eye can follow.
+ */
+export const releaseLaunchSlope = ({
+  remainingPx,
+  velocityPxPerSecond,
+  seconds,
+  authoredSlope,
+  reversing = false
+}: {
+  remainingPx: number;
+  velocityPxPerSecond: number;
+  seconds: number;
+  /**
+   * The opening slope the transition's author drew. The floor never rises
+   * above it: a release that the gesture cannot support must not come out
+   * HARDER than the authored motion — the floor is there to stop a crawl, not
+   * to add energy the author did not ask for. The ceiling is not capped this
+   * way; a finger genuinely moving fast should leave fast, even out of a curve
+   * drawn to open gently, or the screen reads as braking the moment it is let
+   * go.
+   */
+  authoredSlope?: number;
+  reversing?: boolean;
+}): number | null => {
+  if (reversing) return null;
+  const remaining = Math.abs(remainingPx);
+  if (remaining <= 0.5 || seconds <= 0) return null;
+  const fingerSlope = (Math.abs(velocityPxPerSecond) * seconds) / remaining;
+  const floor =
+    typeof authoredSlope === "number" && authoredSlope > 0
+      ? Math.min(MIN_LAUNCH_SLOPE, authoredSlope)
+      : MIN_LAUNCH_SLOPE;
+  return Math.min(RELEASE_LAUNCH_SLOPE, Math.max(floor, fingerSlope));
+};
+
+/**
+ * Re-aim an authored cubic-bezier so it LEAVES at `slope` times its average
+ * speed, keeping its x handles and its landing.
+ *
+ * Only `y1` moves. `x1`/`x2` are the authored ones, so the result is still a
+ * valid CSS timing function by construction (x monotonicity is a property of
+ * the x handles alone) and still lands the way the transition's author drew it
+ * — the release differs from the authored curve exactly where the gesture
+ * differs from a standing start, and nowhere else.
+ *
+ * `y1` is capped below 1 so the curve cannot overshoot its own target; where a
+ * steep slope would need more, `x1` shrinks to buy it instead.
+ */
+export const reaimReleaseEase = (
+  authored: readonly [number, number, number, number],
+  slope: number
+): [number, number, number, number] => {
+  const [x1, y1, x2, y2] = authored;
+  // A curve with no horizontal room at the start has no slope to re-aim.
+  if (x1 <= 0 || slope <= 0) return [x1, y1, x2, y2];
+  const MAX_Y1 = 0.95;
+  const aimedX1 = Math.min(x1, MAX_Y1 / slope);
+  return [aimedX1, Math.min(MAX_Y1, slope * aimedX1), x2, y2];
 };

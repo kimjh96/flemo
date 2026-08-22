@@ -1,6 +1,7 @@
 import animateInline, { clearInlineAnimation } from "@transition/animateInline";
 
-import { swipeSettleSeconds } from "@transition/swipeSettle";
+import { easeControlPoints } from "@transition/cubicBezier";
+import { reaimReleaseEase, releaseLaunchSlope, swipeSettleSeconds } from "@transition/swipeSettle";
 
 import type { Transition } from "@transition/typing";
 
@@ -712,15 +713,33 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       ((target, value, options) => {
         const authored = typeof options?.duration === "number" ? options.duration : 0;
         if (authored <= 0) return write(target, value, options);
+        const remainingPx = releaseTriggered ? span - travelled : travelled;
+        const reversing = !releaseTriggered && !fingerHeadingBack;
+        const seconds = swipeSettleSeconds({
+          remainingPx,
+          spanPx: span,
+          velocityPxPerSecond: speed,
+          authoredSeconds: authored,
+          reversing
+        });
+        // ...and the curve, on the same gesture. The length alone decides the
+        // AVERAGE speed; what the eye reads at the moment the finger leaves is
+        // the curve's speed at t=0, and an authored curve opens fast because it
+        // starts from rest. Re-aim it to leave at the speed the finger had.
+        const authoredEase = reversing ? null : easeControlPoints(options?.ease);
+        const slope = authoredEase
+          ? releaseLaunchSlope({
+              remainingPx,
+              velocityPxPerSecond: speed,
+              seconds,
+              authoredSlope: authoredEase[0] > 0 ? authoredEase[1] / authoredEase[0] : undefined,
+              reversing
+            })
+          : null;
         return write(target, value, {
           ...options,
-          duration: swipeSettleSeconds({
-            remainingPx: releaseTriggered ? span - travelled : travelled,
-            spanPx: span,
-            velocityPxPerSecond: speed,
-            authoredSeconds: authored,
-            reversing: !releaseTriggered && !fingerHeadingBack
-          })
+          duration: seconds,
+          ...(authoredEase && slope !== null ? { ease: reaimReleaseEase(authoredEase, slope) } : {})
         });
       }) as T;
 
