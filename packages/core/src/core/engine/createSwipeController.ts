@@ -759,11 +759,15 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         if (authored <= 0) return write(target, value, options);
         const remainingPx = releaseTriggered ? span - travelled : travelled;
         const reversing = !releaseTriggered && !fingerHeadingBack;
+        const authoredEase = easeControlPoints(options?.ease);
         const seconds = swipeSettleSeconds({
           remainingPx,
           spanPx: span,
           velocityPxPerSecond: speed,
           authoredSeconds: authored,
+          // The distance term is the time the authored curve spends on the
+          // stretch that is left, so it needs the curve.
+          authoredEase: authoredEase ?? undefined,
           reversing
         });
         // ...and the curve, on the same gesture. The length alone decides the
@@ -775,7 +779,6 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         // own direction, so it lands on the floor and opens like the standing
         // screen it is. One rule — the release leaves at the speed the screen
         // already had — rather than one for a commit and another for a cancel.
-        const authoredEase = easeControlPoints(options?.ease);
         const slope = authoredEase
           ? releaseLaunchSlope({
               remainingPx,

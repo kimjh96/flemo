@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { cubicBezier } from "@transition/cubicBezier";
 import {
+  authoredTailSeconds,
   MIN_LAUNCH_SLOPE,
+  MIN_REVERSAL_SECONDS,
   MIN_SETTLE_SECONDS,
   RELEASE_LAUNCH_SLOPE,
   reaimReleaseEase,
@@ -373,5 +375,99 @@ describe("a broken measurement never becomes a broken curve", () => {
     expect(reaimReleaseEase(CUPERTINO, Number.NaN)).toEqual(CUPERTINO);
     expect(reaimReleaseEase(CUPERTINO, Number.POSITIVE_INFINITY)).toEqual(CUPERTINO);
     for (const value of reaimReleaseEase(CUPERTINO, 1.2)) expect(Number.isFinite(value)).toBe(true);
+  });
+});
+
+// A CURVE IS NOT A STRAIGHT LINE, and the distance term used to read it as one.
+//
+// `authored x fraction remaining` is the time a CONSTANT-RATE motion would need.
+// cupertino's curve is front-loaded on purpose, so its tail is slow — and the
+// claim that a release "lands like the button-driven pop" was measuring a
+// straight line against a curve. On a 390px viewport, released with 30% left,
+// the button pop covers that last 117px in 0.550s and the release covered it in
+// 0.210s: 2.6x faster than the motion it claimed to match, and 6.3x at 90%,
+// which is where a swipe-back commit usually happens.
+describe("the distance term follows the authored curve's own tail", () => {
+  const CUPERTINO: [number, number, number, number] = [0.32, 0.72, 0, 1];
+  const SPAN = 390;
+
+  it("gives the last stretch the time the authored motion gives it", () => {
+    // 30% left. The authored curve spends 0.550s there; a linear reading said
+    // 0.210s.
+    expect(authoredTailSeconds(0.7, 0.7, CUPERTINO)).toBeCloseTo(0.55, 2);
+    expect(authoredTailSeconds(0.9, 0.7, CUPERTINO)).toBeCloseTo(0.444, 2);
+    // The whole motion when nothing has been travelled, nothing when it is done.
+    expect(authoredTailSeconds(0, 0.7, CUPERTINO)).toBeCloseTo(0.7, 5);
+    expect(authoredTailSeconds(1, 0.7, CUPERTINO)).toBe(0);
+  });
+
+  it("is monotone: the further along, the less time is left", () => {
+    let previous = Number.POSITIVE_INFINITY;
+    for (let progress = 0; progress <= 1; progress += 0.05) {
+      const seconds = authoredTailSeconds(progress, 0.7, CUPERTINO);
+      expect(seconds).toBeLessThanOrEqual(previous + 1e-9);
+      previous = seconds;
+    }
+  });
+
+  it("agrees with the linear reading for a linear curve", () => {
+    const LINEAR: [number, number, number, number] = [0, 0, 1, 1];
+    expect(authoredTailSeconds(0.7, 0.7, LINEAR)).toBeCloseTo(0.21, 2);
+  });
+
+  it("lengthens a slow release without touching a flick's momentum", () => {
+    const settle = (velocity: number, remainingPx: number) =>
+      swipeSettleSeconds({
+        remainingPx,
+        spanPx: SPAN,
+        velocityPxPerSecond: velocity,
+        authoredSeconds: 0.7,
+        authoredEase: CUPERTINO
+      });
+
+    // 30% left, a finger that had almost stopped: the authored tail, in full.
+    expect(settle(200, 117)).toBeCloseTo(0.55, 2);
+    // Moving, but not fast: the speed term caps it below the tail.
+    expect(settle(600, 117)).toBeCloseTo(0.312, 2);
+    // A real flick keeps its momentum, exactly as before.
+    expect(settle(2000, 117)).toBeCloseTo(MIN_SETTLE_SECONDS, 5);
+  });
+
+  it("does not make a near-complete release sticky", () => {
+    // 10% left is 39px. The tail alone would ask for 0.44s, but there is
+    // barely any distance and the speed term rules — a landing that crawled
+    // here would read as the screen sticking to the finger.
+    expect(
+      swipeSettleSeconds({
+        remainingPx: 39,
+        spanPx: SPAN,
+        velocityPxPerSecond: 600,
+        authoredSeconds: 0.7,
+        authoredEase: CUPERTINO
+      })
+    ).toBeCloseTo(MIN_SETTLE_SECONDS, 5);
+  });
+
+  it("keeps the linear reading without a curve, and for a reversal", () => {
+    const linearReading = swipeSettleSeconds({
+      remainingPx: 117,
+      spanPx: SPAN,
+      velocityPxPerSecond: 0,
+      authoredSeconds: 0.7
+    });
+    expect(linearReading).toBeCloseTo(0.21, 2);
+
+    // A cancel walks back the way the finger came, which is not a stretch of
+    // the authored curve at all — and its own floor already decides its length.
+    expect(
+      swipeSettleSeconds({
+        remainingPx: 40,
+        spanPx: SPAN,
+        velocityPxPerSecond: 0,
+        authoredSeconds: 0.7,
+        authoredEase: CUPERTINO,
+        reversing: true
+      })
+    ).toBeCloseTo(MIN_REVERSAL_SECONDS, 5);
   });
 });

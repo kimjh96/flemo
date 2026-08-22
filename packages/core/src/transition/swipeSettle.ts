@@ -8,10 +8,24 @@
 // pop driven by a button, whose authored span is 0.7s.
 //
 // Two candidate lengths, and the shorter wins:
-//   - BY DISTANCE: the authored span scaled by the fraction still to travel.
-//     A release that is nearly home finishes quickly; one that barely moved
-//     takes nearly the whole authored time, which is exactly the button-driven
-//     motion the user already knows.
+//   - BY DISTANCE: the time the AUTHORED CURVE ITSELF spends covering the
+//     stretch that is left. A release that is nearly home finishes quickly; one
+//     that barely moved takes nearly the whole authored time.
+//
+//     This used to be `authored x fraction remaining`, which assumes the
+//     authored motion travels at a CONSTANT rate. It does not — cupertino's
+//     curve is front-loaded on purpose, so its tail is slow, and the claim that
+//     a release "lands like the button-driven pop" was measuring a straight
+//     line against a curve. On a 390px viewport, released with 30% left:
+//
+//       the button pop covers that last 117px in   0.550s   (213 px/s)
+//       the release covered it in                  0.210s   (557 px/s)
+//
+//     2.6x faster than the motion it claimed to match, and worse the closer to
+//     the end the finger let go — 6.3x at 90%, which is where a swipe-back
+//     commit usually happens. Device-reported on Safari as still too whippy
+//     after the curve itself had been fixed: the same mistake as the curve bug,
+//     one level up. A decelerating motion read as a linear one.
 //   - BY SPEED: the time the finger's own speed would need for what is left,
 //     paid out along a DECELERATING curve. A flick keeps its momentum instead
 //     of being slowed to the authored span.
@@ -115,14 +129,53 @@ export interface SwipeSettleInput {
   // The transition's own duration, in seconds — the ceiling and the reference
   // the distance term scales.
   authoredSeconds: number;
+  /**
+   * The authored curve's control points. Given them, the distance term is the
+   * time that curve itself spends on the stretch that is left; without them it
+   * falls back to reading the motion as linear, which is what this used to do
+   * for every transition.
+   */
+  authoredEase?: readonly [number, number, number, number];
   minSeconds?: number;
 }
+
+/**
+ * How long the authored curve takes to travel its LAST `1 - progress` — the
+ * stretch a release that let go at `progress` still has to cover.
+ *
+ * The curve maps time to distance, so this inverts it: find the time at which
+ * it has covered `progress`, and return what is left of the duration. Both
+ * searches are on a monotone function.
+ */
+export const authoredTailSeconds = (
+  progress: number,
+  authoredSeconds: number,
+  ease: readonly [number, number, number, number]
+): number => {
+  if (!(progress > 0)) return authoredSeconds;
+  if (progress >= 1) return 0;
+  const [x1, y1, x2, y2] = ease;
+  const sampleX = (u: number) => 3 * (1 - u) ** 2 * u * x1 + 3 * (1 - u) * u * u * x2 + u ** 3;
+  const sampleY = (u: number) => 3 * (1 - u) ** 2 * u * y1 + 3 * (1 - u) * u * u * y2 + u ** 3;
+  // Solve for the parameter where the curve has covered `progress` of its
+  // travel, then read the time (x) there.
+  let low = 0;
+  let high = 1;
+  for (let i = 0; i < 40; i += 1) {
+    const mid = (low + high) / 2;
+    if (sampleY(mid) < progress) low = mid;
+    else high = mid;
+  }
+  const timeFraction = sampleX((low + high) / 2);
+  return authoredSeconds * Math.min(1, Math.max(0, 1 - timeFraction));
+};
 
 export const swipeSettleSeconds = ({
   remainingPx,
   spanPx,
   velocityPxPerSecond,
   authoredSeconds,
+  authoredEase,
   reversing = false,
   minSeconds = reversing ? MIN_REVERSAL_SECONDS : MIN_SETTLE_SECONDS
 }: SwipeSettleInput): number => {
@@ -130,7 +183,14 @@ export const swipeSettleSeconds = ({
   // Nothing to travel: animating zero distance only delays the commit.
   if (remaining <= 0.5) return 0;
   const span = Math.abs(spanPx);
-  const byDistance = span > 0 ? authoredSeconds * Math.min(1, remaining / span) : authoredSeconds;
+  const remainingFraction = span > 0 ? Math.min(1, remaining / span) : 1;
+  // A REVERSAL keeps the linear reading: it walks back the way the finger came,
+  // which is not a stretch of the authored curve at all, and its own floor
+  // already decides its length. The user judged that motion right as it is.
+  const byDistance =
+    authoredEase && !reversing
+      ? authoredTailSeconds(1 - remainingFraction, authoredSeconds, authoredEase)
+      : authoredSeconds * remainingFraction;
   const speed = Math.abs(velocityPxPerSecond);
   // A reversal has no momentum to inherit: the finger was going the other way.
   //
