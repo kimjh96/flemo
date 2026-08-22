@@ -183,12 +183,6 @@ export const WARM_VIDEO_ATTR = "data-flemo-warm-video";
 /** The one-shot GPU pipeline prewarm element. */
 export const GPU_PREWARM_ATTR = "data-flemo-gpu-prewarm";
 
-/**
- * An offloaded `<img>`'s AUTHORED source, kept while `src` points at the
- * decoded-to-scale replacement.
- */
-export const OFFLOADED_SRC_ATTR = "data-flemo-image-src";
-
 // ── Reserved for @flemo/devtools ────────────────────────────────────────────
 
 /**
@@ -238,6 +232,5 @@ export const FLEMO_ATTRIBUTES = [
   WARM_ATTR,
   WARM_VIDEO_ATTR,
   GPU_PREWARM_ATTR,
-  OFFLOADED_SRC_ATTR,
   DEVTOOLS_PANEL_ATTR
 ] as const;

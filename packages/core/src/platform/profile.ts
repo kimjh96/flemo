@@ -1,13 +1,12 @@
 import {
   readDeferReleaseCommitFlag,
   readDesktopReleaseFlipFlag,
-  readImageOffloadOverride,
   readPrerasterFlag,
   readRestLayerPromotionFlag,
   readSettleGateFlag
 } from "@core/engine/diagnosticFlags";
 
-import { detectBlinkEngine, isLegacyAndroidBlink } from "@platform/engineProbes";
+import { detectBlinkEngine } from "@platform/engineProbes";
 import { governedCompiledActive } from "@platform/governedCompiled";
 
 // THE PLATFORM PROFILE.
@@ -80,13 +79,6 @@ export interface PlatformProfile {
    * consumer overlay inside the screen.
    */
   readonly restLayerPromotion: boolean;
-
-  /**
-   * Rewrite oversized `<img>` sources to decoded-to-scale blobs off the main
-   * thread. Auto on legacy Android Blink only — it touches consumer content,
-   * so it must never run where the paint is already cheap.
-   */
-  readonly imageDecodeOffload: boolean;
 }
 
 export interface PlatformProfileInput {
@@ -114,12 +106,7 @@ export const resolvePlatformProfile = (input: PlatformProfileInput = {}): Platfo
     deferReleaseCommit: readDeferReleaseCommitFlag(),
     renderSettleGate: readSettleGateFlag(),
     parkOver: readPrerasterFlag() || touchWebKit,
-    restLayerPromotion: readRestLayerPromotionFlag(),
-    imageDecodeOffload: (() => {
-      const override = readImageOffloadOverride();
-      if (override === "off") return false;
-      return override === "on" || isLegacyAndroidBlink();
-    })()
+    restLayerPromotion: readRestLayerPromotionFlag()
   };
 };
 

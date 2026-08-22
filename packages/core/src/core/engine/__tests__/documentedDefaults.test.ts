@@ -7,7 +7,6 @@ import {
   readDesktopHeadFlag,
   readDesktopReleaseFlipFlag,
   readImageHoldFlag,
-  readImageOffloadOverride,
   readRestLayerPromotionFlag,
   readPrerasterFlag,
   readSettleGateFlag,
@@ -318,16 +317,5 @@ describe("documented default: the REST half of flemo:preraster", () => {
     setEnv({ blink: false, touch: true });
     sessionStorage.setItem("flemo:preraster", "on");
     expect(readRestLayerPromotionFlag()).toBe(true);
-  });
-});
-
-describe("documented default: flemo:imgoffload", () => {
-  // Table: "auto (legacy Android Blink)" — the reader reports the OVERRIDE
-  // only; auto is the absence of one.
-  it("reports no override until set, then reports it verbatim", () => {
-    setEnv({ blink: true, touch: true, android: true, uaCh: false });
-    expect(readImageOffloadOverride()).toBeNull();
-    sessionStorage.setItem("flemo:imgoffload", "off");
-    expect(readImageOffloadOverride()).toBe("off");
   });
 });

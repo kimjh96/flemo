@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   readArrivalHoldFlag,
   readImageHoldFlag,
-  readImageOffloadOverride,
   readPrerasterFlag,
   readSettleGateFlag,
   resetResidentLayersForTesting,
@@ -20,8 +19,7 @@ const FLAG_KEYS = [
   "flemo:arrivalhold",
   "flemo:layers",
   "flemo:freeze",
-  "flemo:preraster",
-  "flemo:imgoffload"
+  "flemo:preraster"
 ];
 
 const resetAllCaches = () => {
@@ -123,18 +121,6 @@ describe("readSettleGateFlag", () => {
   });
 });
 
-describe("readImageOffloadOverride", () => {
-  it("returns on/off verbatim and null for anything else", () => {
-    expect(readImageOffloadOverride()).toBe(null);
-    sessionStorage.setItem("flemo:imgoffload", "on");
-    expect(readImageOffloadOverride()).toBe("on");
-    sessionStorage.setItem("flemo:imgoffload", "off");
-    expect(readImageOffloadOverride()).toBe("off");
-    sessionStorage.setItem("flemo:imgoffload", "auto");
-    expect(readImageOffloadOverride()).toBe(null);
-  });
-});
-
 describe("URL-armed toggles (layers / freeze)", () => {
   it("read their armed values, cached per page load", () => {
     expect(residentScreenLayers()).toBe(false);
@@ -157,7 +143,6 @@ describe("storage degradation", () => {
     expect(readPrerasterFlag()).toBe(false);
     expect(readArrivalHoldFlag()).toBe(true);
     expect(readSettleGateFlag()).toBe(false);
-    expect(readImageOffloadOverride()).toBe(null);
     expect(residentScreenLayers()).toBe(false);
     expect(shallowFreeze()).toBe(false);
   });
@@ -170,7 +155,6 @@ describe("storage degradation", () => {
     });
     expect(readImageHoldFlag()).toBe(null);
     expect(readArrivalHoldFlag()).toBe(true);
-    expect(readImageOffloadOverride()).toBe(null);
     expect(residentScreenLayers()).toBe(false);
     expect(shallowFreeze()).toBe(false);
   });

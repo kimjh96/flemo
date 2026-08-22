@@ -148,26 +148,6 @@ describe("restLayerPromotion", () => {
   });
 });
 
-describe("imageDecodeOffload", () => {
-  it("is auto ON for legacy Android Blink only", () => {
-    setEnv({ blink: true, touch: true, android: true, uaCh: false });
-    expect(resolvePlatformProfile().imageDecodeOffload).toBe(true);
-    setEnv({ blink: true, touch: true, android: true, uaCh: true });
-    expect(resolvePlatformProfile().imageDecodeOffload).toBe(false);
-    setEnv({ blink: false, touch: true });
-    expect(resolvePlatformProfile().imageDecodeOffload).toBe(false);
-  });
-
-  it("honors the override both ways", () => {
-    setEnv({ blink: false, touch: true });
-    sessionStorage.setItem("flemo:imgoffload", "on");
-    expect(resolvePlatformProfile().imageDecodeOffload).toBe(true);
-    setEnv({ blink: true, touch: true, android: true, uaCh: false });
-    sessionStorage.setItem("flemo:imgoffload", "off");
-    expect(resolvePlatformProfile().imageDecodeOffload).toBe(false);
-  });
-});
-
 describe("the profile as a whole", () => {
   it("is resolved fresh on every call, so a DevTools toggle lands on the next navigation", () => {
     setEnv({ blink: false, touch: false, mac: true });
@@ -190,8 +170,7 @@ describe("the profile as a whole", () => {
         deferReleaseCommit: false,
         renderSettleGate: false,
         parkOver: false,
-        restLayerPromotion: false,
-        imageDecodeOffload: false
+        restLayerPromotion: false
       });
     } finally {
       Object.defineProperty(globalThis, "navigator", { value: saved, configurable: true });

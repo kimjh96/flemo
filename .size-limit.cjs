@@ -13,18 +13,17 @@ module.exports = [
     // What the number covers: the navigation/task/history/store core, the
     // compiled-style engine and its per-platform head kits, the flight's
     // glass-integrity machinery (arrival/response/image/layer holds, the
-    // perceptual completion cut), the swipe controller, the image decode
-    // offloader (with its embedded worker source), the compositor warm-up and
-    // the GPU pipeline prewarm.
+    // perceptual completion cut), the swipe controller, the
+    // compositor warm-up and the GPU pipeline prewarm.
     //
     // History worth keeping, because it is the shape of the budget: the
     // device campaigns of 2026-08 took it 22.4 -> 25.3 -> 31.9 -> 36.9 KB,
-    // each step device-justified. Retiring the rAF motion driver (2026-08-22
-    // — the player, its landing pixel-snap, the kind classifier, the driver
-    // policy and five diagnostic flags) gave 2.8 KB back, to 34.1 KB.
-    // Re-based to 37 KB with ~8% headroom so the gate still trips on a
+    // each step device-justified. Two removals then gave most of it back —
+    // the rAF motion driver (-2.8 KB) and the image decode offloader with its
+    // embedded worker source (-2.7 KB) — landing at 32 KB.
+    // Re-based to 35 KB with ~9% headroom so the gate still trips on a
     // multi-KB balloon.
-    limit: "37 KB",
+    limit: "35 KB",
     gzip: true
   },
   {

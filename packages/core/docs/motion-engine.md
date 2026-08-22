@@ -237,7 +237,6 @@ is not a consumer value; the landed scope belongs to the compiled rest rules.**
 | `invisibleAnimationHold.ts` | Pauses invisible consumer animations for the flight (the culled-subtree first-composite stall). |
 | `imageRevealHold.ts` | The `<img>` analog of responseHold. Opt-in (`flemo:imghold`). |
 | `imageDecodeHygiene.ts` | Stamps `decoding="async"` on participants' images, respecting authored attributes. |
-| `imageDecodeOffloader.ts` | Off-main decode-to-scale for oversized images; auto-gated to legacy Android Blink. |
 | `flightWindow.ts` | Global nestable "a flight is in progress" latch for out-of-engine modules. |
 | `layerSettleHold.ts` | Inline-pinned compositor promotions and their deferred demotion past the flip. |
 | `landingGovernor.ts` | Reshapes the compiled easing so the convergence tail never falls under one device pixel per frame. Its removed sibling — the integer-pixel SNAP — is documented there as falsified; do not re-derive it. |
@@ -278,7 +277,21 @@ Campaign modules outside those directories:
 | `transition/compileTransitionStyles.ts` | The keyframes compiler: variant rules, `will-change`/`contain` scoping, hold/park rules, the flat-head keyframes behind each head's gate attribute, translate3d-only transforms. Timing is LITERAL by contract — `calc(var())` in animation timing demotes WebKit fades to the main thread (device-bisected). |
 | `transition/enteringInitialStyle.ts` | The entering screen's inline from-pose for its first styled frame (see the lease hazard in section 3). |
 
-## 5. Who resolves a flight — "never a double resolution"
+## 5. Removed, and not to be re-derived
+
+Machinery this engine used to carry, with the finding that ended it. Each was
+device-verified when it landed; each was device-falsified later. The point of
+the list is that "it solved a real measured problem" is not by itself a reason
+to bring one back — all of these did.
+
+| removed | why it went |
+| --- | --- |
+| The rAF motion **player** (2026-08) | The routing sent every supported browser to the compiled tier before the player was ever consulted, so it drove nothing but desktop Firefox. Its measured costs are recorded where they were paid — the 120Hz partial-present trace in `platform/engineProbes.ts`, the 30Hz Low Power Mode ceiling in `createSwipeController.ts`. |
+| The integer-device-pixel **landing snap** | A live A/B on real content judged texel-rigid stepping WORSE than the authored fractional glide — the same verdict as the transformPart 2D-vs-3D experiment, where translate3d was chosen precisely FOR filtered sub-pixel compositing. See `landingGovernor.ts`. |
+| Governed-tier **front-softening** | Prescribed against a broken pipeline (var-timing demotion plus the opening skips). With those cured, the softened curve became the "different transition" the user could feel against the authored curve. Check the pipeline underneath before reaching for a curve change. |
+| The **image decode offloader** (2026-08-23) | It rewrote oversized `<img>` sources to downscaled blobs in a worker, to answer WebKit's synchronous full-resolution decode (a members list painting 44px avatars from 4971x7456 originals — a recurring ~380ms stall). Two things ended it: its auto-gate keyed on the absence of UA-CH brands, which selects an old BROWSER rather than slow hardware (the same Note 9 armed it on Samsung Internet and was excluded on current Chrome), and a device round found it a NET LOSS where it did arm — the probe, hold and re-encode cost more than the decode it avoided. Serving images at their display size is the fix; a transition library rewriting consumer content is not. |
+
+## 6. Who resolves a flight — "never a double resolution"
 
 A flight's navigation task (`TaskManger`) is resolved by exactly ONE live path; every
 other path is a backstop that is a no-op once the task settled (`resolveTask` ignores

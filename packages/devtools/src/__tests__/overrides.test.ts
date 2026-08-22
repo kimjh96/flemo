@@ -29,8 +29,7 @@ describe("FLAG_REGISTRY", () => {
       "flemo:relcommit",
       "flemo:layers",
       "flemo:freeze",
-      "flemo:preraster",
-      "flemo:imgoffload"
+      "flemo:preraster"
     ]) {
       expect(keys).toContain(expected);
     }

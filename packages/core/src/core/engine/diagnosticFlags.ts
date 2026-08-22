@@ -30,7 +30,6 @@ import { steadySixtyDesktopProfile } from "@platform/steadySixtyCadence";
 // | flemo:creep               | session | "on"/"off"                      | touch WebKit               | production-default-with-override | creep head: the head's end keyframe carries a hair of motion so the compositor is already carrying the animation at the boundary |
 // | flemo:relcommit           | session | "defer"/"sync"                  | touch WebKit               | production-default-with-override | release's React reconcile lands next frame instead of flushSync (react ScreenMotion) |
 // | flemo:preraster           | session | "on"                            | off                        | opt-in diagnostic                | REST-time scope promotion (readRestLayerPromotionFlag, react ScreenMotion, after hydration); also selects the park-over hold variant. Flight-time promotion is the engine's stamp and needs no flag |
-// | flemo:imgoffload          | session | "on"/"off"                      | auto (legacy Android Blink)| production-default-with-override | image decode offloader override (react Router)                         |
 //
 // THIS TABLE IS TESTED. `__tests__/documentedDefaults.test.ts` asserts every
 // computable default above against the reader that implements it, because the
@@ -44,7 +43,8 @@ import { steadySixtyDesktopProfile } from "@platform/steadySixtyCadence";
 // (integer-device-pixel tail A/B — falsified on device, see
 // landingGovernor.ts), `flemo:handoff` / `flemo:handoffms` (the player's
 // anchored-opening handoff), `flemo:apply` (scrub-WAAPI application tier),
-// `flemo:snap` / `flemo:snapband` (the player's device-pixel snap policy).
+// `flemo:snap` / `flemo:snapband` (the player's device-pixel snap policy),
+// `flemo:imgoffload` (the image decode offloader).
 // Values persisted on users' devices are never read again.
 //
 // Caching contract: the URL-armed toggles (`flemo:layers`, `flemo:freeze`) are
@@ -314,14 +314,6 @@ export const readPrerasterFlag = (): boolean => readStorageValue("flemo:preraste
 // flight's layers alive for LAYER_SETTLE_MS past the landing, which already
 // covers a quick browse rhythm.
 export const readRestLayerPromotionFlag = (): boolean => readPrerasterFlag();
-
-// `flemo:imgoffload` — image decode offloader override for the react Router:
-// "on" forces it on any engine, "off" opts a legacy device back out, anything
-// else defers to the caller's auto-detection (isLegacyAndroidBlink).
-export const readImageOffloadOverride = (): "on" | "off" | null => {
-  const value = readStorageValue("flemo:imgoffload");
-  return value === "on" || value === "off" ? value : null;
-};
 
 // ── Cached URL-armed toggles (layers / freeze) ──────────────────────────────
 // The `flemo:layers` / `flemo:freeze` keys are set directly; their readers stay in the owning

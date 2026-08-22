@@ -17,8 +17,6 @@ import {
   createBrowserHistoryDriver,
   createRouterScope,
   ensureGpuPipelinePrewarm,
-  ensureImageDecodeOffloader,
-  resolvePlatformProfile,
   holdCompositorWarm,
   seedRouterEntry,
   isServer,
@@ -390,16 +388,6 @@ function Router({
   // injects the compiled CSS keyframes into the document head. Runs in
   // useInsertionEffect so styles are committed before any screen paints.
   useTransitionStyles(transitions, decorators, partTransitions);
-
-  // Off-main decode-to-scale for oversized images (see @flemo/core
-  // imageDecodeOffloader). WHETHER it runs is the platform profile's call —
-  // it rewrites consumer <img> sources, so it must never run where the paint
-  // is already cheap; see `imageDecodeOffload` there. Document-wide and
-  // refcounted, so nested Routers share one observer.
-  useEffect(
-    () => (resolvePlatformProfile().imageDecodeOffload ? ensureImageDecodeOffloader() : undefined),
-    []
-  );
 
   // One-shot GPU pipeline prewarm (see @flemo/core gpuPipelinePrewarm):
   // Chrome's Graphite backend compiles the flight's GPU pipelines on their

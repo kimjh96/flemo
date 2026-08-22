@@ -94,12 +94,6 @@ export const FLAG_REGISTRY: readonly FlagDescriptor[] = [
     description: "promote the entering content layer through the hold"
   },
   {
-    key: "flemo:imgoffload",
-    storage: "session",
-    kind: "production-default-with-override",
-    description: "image decode offloader override"
-  },
-  {
     key: "flemo:devtools",
     storage: "session",
     kind: "opt-in-diagnostic",
@@ -159,6 +153,11 @@ export const RETIRED_FLAGS: readonly RetiredFlag[] = [
     key: "flemo:snapband",
     storage: "session",
     retiredWith: "the player's device-pixel snap policy (2026-08-22)"
+  },
+  {
+    key: "flemo:imgoffload",
+    storage: "session",
+    retiredWith: "the image decode offloader (removed 2026-08-22)"
   },
   {
     key: "flemo:lat",

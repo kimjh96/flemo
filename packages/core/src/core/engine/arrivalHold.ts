@@ -36,7 +36,6 @@
 // invisible; freezing its construction would be wasted work).
 
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
-import { OFFLOADED_SRC_ATTR } from "@core/engine/imageDecodeOffloader";
 import { attrSelector, HELD_ARRIVAL_ATTR, IMAGE_HOLD_ATTR, PART_NAME_ATTR } from "@dom/attributes";
 
 export { HELD_ARRIVAL_ATTR } from "@dom/attributes";
@@ -77,17 +76,13 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
   // stamp) are its write surface too: it swaps/hides them at INSERTION time,
   // which lands after this observer arms on an entering screen — freezing
   // those writes reverted the swap and let the raw original paint mid-flight.
-  // The offloader governs their mid-flight visibility itself.
   const exemptFromFreeze = (node: Node): boolean => {
     const element = node instanceof Element ? node : node.parentElement;
     if (!element) return true;
     if (element === scope) return true;
     return (
-      element.closest(
-        `${attrSelector(PART_NAME_ATTR)}, ${attrSelector(HELD_ARRIVAL_ATTR)}, ${attrSelector(
-          OFFLOADED_SRC_ATTR
-        )}`
-      ) !== null
+      element.closest(`${attrSelector(PART_NAME_ATTR)}, ${attrSelector(HELD_ARRIVAL_ATTR)}`) !==
+      null
     );
   };
 

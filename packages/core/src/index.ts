@@ -221,7 +221,7 @@ export {
 // Engine probe (Blink vs everything else). Public for bindings whose release
 // policy branches per engine — the entry content-settle gate runs only where
 // the compiled (untouched) animation is the driver (non-Blink).
-export { detectBlinkEngine, isDesktopBlink, isLegacyAndroidBlink } from "@platform/engineProbes";
+export { detectBlinkEngine, isDesktopBlink } from "@platform/engineProbes";
 // Steady-60 desktop session predicate (see steadySixtyCadence.ts). What still
 // keys on it is the compositor warm-up's cadence lock, which is a claim about
 // the panel's rate; the desktop defaults that are about Blink's layer handling
@@ -244,17 +244,6 @@ export { default as holdCompositorWarm } from "@core/engine/compositorWarmUp";
 // pipeline compilation at boot idle so a cold cache's ~100ms GPU stalls never
 // land inside the first flight.
 export { default as ensureGpuPipelinePrewarm } from "@core/engine/gpuPipelinePrewarm";
-
-// Off-main decode-to-scale for oversized images (WebKit decodes synchronously
-// on the main thread at full source resolution, recurringly; see the module).
-export {
-  default as ensureImageDecodeOffloader,
-  createImageDecodeOffloader,
-  shouldOffloadImage,
-  OVERSIZE_AREA_RATIO,
-  OFFLOADED_SRC_ATTR,
-  type OversizeInput
-} from "@core/engine/imageDecodeOffloader";
 
 // Transition types
 export type {
