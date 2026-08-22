@@ -80,17 +80,14 @@ const overlay = createDecorator({
           duration: 0
         }
       ),
-    onSwipeEnd: (triggered, { animate, prevDecorator, settleSeconds }) =>
+    onSwipeEnd: (triggered, { animate, prevDecorator }) =>
       animate(
         prevDecorator,
         {
           opacity: triggered ? 0 : 1
         },
         {
-          // The screens' own release length when the transition reports one
-          // (cupertino derives it from what is left and how fast the finger
-          // was going); the historical fixed clock otherwise.
-          duration: settleSeconds ?? 0.3
+          duration: 0.3
         }
       )
   }

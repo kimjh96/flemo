@@ -29,10 +29,6 @@ export type DecoratorOptions = {
       animate: SwipeAnimate;
       currentDecorator: HTMLDivElement;
       prevDecorator: HTMLDivElement;
-      // The length the transition chose for this release, so the decorator
-      // lands with the screens instead of on a clock of its own. Absent when
-      // the transition does not report one.
-      settleSeconds?: number;
     }
   ) => void;
 };

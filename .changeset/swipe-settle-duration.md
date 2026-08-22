@@ -1,5 +1,5 @@
 ---
-"@flemo/core": minor
+"@flemo/core": patch
 ---
 
-Give a cupertino swipe's release the length its gesture asks for. It ran a fixed 0.3s whether six pixels or three hundred were left, so a swipe-completed pop landed in a different time — and read as a different motion — from the identical pop driven by a button, whose authored span is 0.7s. The release now derives its length from what is left and how fast the finger was going, capped by the transition's own span, on the authored curve. The dim rides the same clock: `settleSeconds` reaches decorator swipe-end hooks, and `swipeSettleSeconds` is exported for transitions that want the same derivation.
+Give every swipe release the length its gesture asks for. A release ran whatever duration its handler named — one number for six pixels left or three hundred — so the same navigation landed in a different time depending on whether it was swiped or tapped. The swipe controller now scales that authored duration by what is left to travel and how fast the finger was going, keeping it as the ceiling, at the one place every release write passes through: the transition's hooks, its decorator's, and its parts'. Transitions authored by consumers get it without changing a line.
