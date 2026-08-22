@@ -1,6 +1,6 @@
 {
   "name": "@flemo/devtools",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Zero-config flight recorder for flemo screen transitions: captures per-flight driver routing, frame pacing, long tasks, landing residues, active debug overrides, and environment/observation-trap fingerprints into one JSON report readable by humans and coding agents.",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
