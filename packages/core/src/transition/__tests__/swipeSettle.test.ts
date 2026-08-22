@@ -471,3 +471,56 @@ describe("the distance term follows the authored curve's own tail", () => {
     ).toBeCloseTo(MIN_REVERSAL_SECONDS, 5);
   });
 });
+
+// THE TAIL IS THE TRANSITION'S, NOT CUPERTINO'S.
+//
+// The rule reads whatever curve the handler authored, so it moves in BOTH
+// directions: a front-loaded curve's tail is slow and its release lengthens, an
+// ease-IN accelerates into the end and its release SHORTENS. A linear curve is
+// unchanged by construction, which is the sanity check on the whole idea —
+// under a constant rate the old reading was already right.
+describe("the tail belongs to whatever curve the transition authored", () => {
+  const AT = 0.7; // released with 30% left
+
+  it("lengthens a front-loaded release and shortens an ease-in one", () => {
+    const linearTail = (seconds: number) => seconds * (1 - AT);
+
+    // cupertino: slowest exactly where a release lands.
+    const cupertino = authoredTailSeconds(AT, 0.7, [0.32, 0.72, 0, 1]);
+    expect(cupertino / linearTail(0.7)).toBeGreaterThan(2);
+
+    // material's committing swipe is an ease-IN — it is FASTEST at the end, so
+    // the same rule gives its release less time, not more.
+    const material = authoredTailSeconds(AT, 0.22, [0.4, 0, 1, 1]);
+    expect(material / linearTail(0.22)).toBeLessThan(1);
+  });
+
+  it("leaves a linear curve exactly where it was", () => {
+    for (const progress of [0.25, 0.5, 0.75, 0.9]) {
+      expect(authoredTailSeconds(progress, 0.5, [0, 0, 1, 1])).toBeCloseTo(0.5 * (1 - progress), 3);
+    }
+  });
+
+  it("stays inside the authored duration for any curve, overshooting ones too", () => {
+    // backOut's y handles rise above 1, so the inverse is not unique. The
+    // search may pick either crossing; what must hold is that it never returns
+    // a length outside the motion it came from.
+    const CURVES: [number, number, number, number][] = [
+      [0.32, 0.72, 0, 1],
+      [0.4, 0, 1, 1],
+      [0, 0, 0.2, 1],
+      [0.25, 0.1, 0.25, 1],
+      [0, 0, 1, 1],
+      [0.33, 1.53, 0.69, 0.99],
+      [0.36, 0, 0.66, -0.56]
+    ];
+    for (const ease of CURVES) {
+      for (const progress of [0, 0.1, 0.5, 0.9, 1]) {
+        const seconds = authoredTailSeconds(progress, 0.5, ease);
+        expect(Number.isFinite(seconds), `${ease} @ ${progress}`).toBe(true);
+        expect(seconds, `${ease} @ ${progress}`).toBeGreaterThanOrEqual(0);
+        expect(seconds, `${ease} @ ${progress}`).toBeLessThanOrEqual(0.5);
+      }
+    }
+  });
+});
