@@ -683,9 +683,18 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // Does the finger still HELP? A completion always travels the way the
     // finger went, so it never reverses. A cancel walks back — a reversal
     // unless the finger had already turned around and is carrying it home.
+    //
+    // "Carrying it home" has to mean something: a finger that merely eases off
+    // registers a few px/s backwards at release (device-traced: a small drag
+    // released gently still read as heading back, which handed the cancel the
+    // short floor it was supposed to escape). Only a deliberate flick back
+    // counts.
+    const TOWARD_REST_MIN_PX_PER_S = 300;
     const travelSign = Math.sign(offsetOnAxis);
     const fingerHeadingBack =
-      travelSign !== 0 && Math.sign(velocityOnAxis) === -travelSign && speed > 0;
+      travelSign !== 0 &&
+      Math.sign(velocityOnAxis) === -travelSign &&
+      speed >= TOWARD_REST_MIN_PX_PER_S;
     // Read at WRITE time, not now: a handler reports its verdict through
     // `onStart` before it animates (every preset does), and until it does the
     // conservative reading is the cancel — the distance back to rest.
