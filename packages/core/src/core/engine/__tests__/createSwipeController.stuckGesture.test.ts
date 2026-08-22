@@ -153,9 +153,29 @@ describe("a gesture whose pointer never comes back", () => {
   it("recovers on lostpointercapture — the element went out from under it", async () => {
     const controller = await armAndStrand();
 
-    controller.lostPointerCapture(event({ pointerId: 1 }));
+    controller.lostPointerCapture(event({ pointerId: 1, target: dom.scope }));
 
     expect(controller.shouldPreventTouch()).toBe(false);
+  });
+
+  it("ignores the capture TRANSFER that starting a touch gesture performs", async () => {
+    // A touch pointer is given implicit capture on whatever element it landed
+    // on — a child, in any real screen. beginSwipe then captures it onto the
+    // scope, and that transfer fires `lostpointercapture` on the CHILD, which
+    // bubbles to the scope where the binding listens. Reacting to it cancels
+    // the gesture on its first frame: every touch swipe dies.
+    //
+    // Nothing cheaper than a real touch device sees this. A mouse gets no
+    // implicit capture, so there is no transfer and no event — mouse-driven
+    // tests and headless probes all pass. jsdom has no pointer capture at all.
+    const child = document.createElement("div");
+    dom.scope.appendChild(child);
+    const controller = await armAndStrand();
+
+    controller.lostPointerCapture(event({ pointerId: 1, target: child }));
+
+    // Still the gesture's own: it was set up, not torn down.
+    expect(controller.shouldPreventTouch()).toBe(true);
   });
 
   it("ignores a lostpointercapture for some other pointer", async () => {

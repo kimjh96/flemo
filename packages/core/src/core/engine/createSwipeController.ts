@@ -949,9 +949,21 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   /**
    * Losing capture without an up or a cancel means the element went out from
    * under the gesture. Treat it as the cancel the browser did not send.
+   *
+   * ONLY when the SCOPE is what lost it. A touch pointer is given IMPLICIT
+   * capture on whatever element it landed on — a child, in any real screen —
+   * and `beginSwipe` then captures it onto the scope. That transfer fires
+   * `lostpointercapture` on the child, and the event BUBBLES to the scope,
+   * where this binding listens. Reacting to it cancels the gesture at the exact
+   * moment it is being set up, so every touch swipe dies on its first frame.
+   *
+   * Device-reported, and invisible to everything cheaper: a mouse gets no
+   * implicit capture, so there is no transfer and no event — every mouse-driven
+   * test and headless probe passes. jsdom has no pointer capture at all.
    */
   const lostPointerCapture = (event: PointerEvent) => {
     if (event.pointerId !== activePointerId || !swipeActive) return;
+    if (event.target !== config.getElements().scope) return;
     pointerCancel(event);
   };
 
