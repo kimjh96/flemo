@@ -130,10 +130,10 @@ export const clearInlineAnimation = (el: HTMLElement, properties?: string[], own
 
 // Imperative replacement for Motion's `animate()` inside transition swipe
 // handlers. Instant writes (duration 0 — the drag-follow path) mutate inline
-// styles directly. Timed writes (the release settle) run on the settle
-// scrubber's shared main-thread clock (see settleScrub.ts), falling back to
-// an inline CSS `transition` where WAAPI is unavailable. Returns a Promise
-// that resolves when the motion lands (never rejects).
+// styles directly. Timed writes (the release settle) run as an inline CSS
+// `transition`, on every engine — see the note at the settle below for why
+// there is no second path. Returns a Promise that resolves when the motion
+// lands (never rejects).
 const animateInline = (
   target: HTMLElement,
   value: Parameters<SwipeAnimate>[1],
