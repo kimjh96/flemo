@@ -204,7 +204,7 @@ describe("holdCompositorWarm cadence video", () => {
   const NAV = navigator as { userAgentData?: unknown };
 
   const eligible = () => {
-    // steadySixtyPlayerEligible(): a verified steady-60 verdict on a
+    // steadySixtyDesktopProfile(): a verified steady-60 verdict on a
     // non-touch Blink session at HiDPI.
     reportInFlightCadence(16.7);
     reportInFlightCadence(16.7);

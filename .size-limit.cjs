@@ -7,31 +7,24 @@ module.exports = [
   {
     name: "@flemo/core",
     path: "packages/core/dist/index.mjs",
-    // Measured with all dependencies bundled (zustand + path-to-regexp).
-    // That's the real wire cost for a fresh consumer. On top of the
-    // framework-neutral engine (lifecycle, swipe, bar-riding, screen store,
-    // navigation controller, popstate bridge), core now also carries the rAF
-    // motion engine (transition player, driver policy, cubic-bezier solver,
-    // variant motion) and the in-flight glass-integrity machinery (commit
-    // hold, perceptual completion cut) — the latter pushed the local ruler to
-    // ~22.3 KB, a deliberate +0.6 KB for measured judder mechanisms. The
-    // fetch-overlap work added the image decode offloader (with its embedded
-    // worker source), the compositor warm-up, the pending-network counter and
-    // the content-settle gate — measured on-device as the difference between
-    // swallowed/juddering flights and clean ones — for a deliberate +2.9 KB
-    // (CI ruler: 22.4 -> 25.3 KB). Budget re-based with ~15% headroom so the
-    // gate still trips on a multi-KB accidental balloon. The motion-driver
-    // hardening (five review rounds: writer-scoped inline/settle leases,
-    // marker-scoped choreography, method-agnostic response hold, async image
-    // decode, platform-density snap defaults, slow-cadence clock) measured
-    // 31.9 KB — deliberate, device-justified growth; re-based to 33 KB with
-    // ~3% headroom tightened back until the next feature wave.
-    // The pop-convergence round (image-reveal hold, layer settle, governed
-    // touch-WebKit routing, compiled landing governor + easing, LPM
-    // release-latency probing, legacy-Blink image offloader gating) measured
-    // 36.9 KB — all device-verified in the final185 build. Re-based to 40 KB
-    // with ~8% headroom so the gate still trips on a multi-KB balloon.
-    limit: "40 KB",
+    // Measured with all dependencies bundled (zustand + path-to-regexp) —
+    // the real wire cost for a fresh consumer.
+    //
+    // What the number covers: the navigation/task/history/store core, the
+    // compiled-style engine and its per-platform head kits, the flight's
+    // glass-integrity machinery (arrival/response/image/layer holds, the
+    // perceptual completion cut), the swipe controller, the image decode
+    // offloader (with its embedded worker source), the compositor warm-up and
+    // the GPU pipeline prewarm.
+    //
+    // History worth keeping, because it is the shape of the budget: the
+    // device campaigns of 2026-08 took it 22.4 -> 25.3 -> 31.9 -> 36.9 KB,
+    // each step device-justified. Retiring the rAF motion driver (2026-08-22
+    // — the player, its landing pixel-snap, the kind classifier, the driver
+    // policy and five diagnostic flags) gave 2.8 KB back, to 34.1 KB.
+    // Re-based to 37 KB with ~8% headroom so the gate still trips on a
+    // multi-KB balloon.
+    limit: "37 KB",
     gzip: true
   },
   {

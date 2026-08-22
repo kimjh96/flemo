@@ -82,7 +82,6 @@ describe("attachFlightRecorder", () => {
     expect(report.version).toBe("2");
     expect(report.blindSpots.length).toBeGreaterThanOrEqual(4);
     expect(report.flights).toEqual([]);
-    expect(report.driverPolicy).toEqual({ demotion: null, forcePin: null });
     expect(report.overrides).toEqual({ active: {}, warnings: [] });
     expect(() => JSON.stringify(report)).not.toThrow();
   });
@@ -119,7 +118,7 @@ describe("attachFlightRecorder", () => {
     await settle();
 
     // Player DOM signature: inline `animation` suppression + advancing
-    // inline transform (what transitionPlayer writes each frame).
+    // inline transform (what a per-frame writer leaves each frame).
     screen.style.animation = "none";
     screen.setAttribute("data-flemo-status", "PUSHING");
     screen.setAttribute("data-flemo-active", "true");
@@ -201,31 +200,19 @@ describe("attachFlightRecorder", () => {
     );
   });
 
-  it("keeps a pin that core cleared after attach visible in overrides.warnings", async () => {
-    sessionStorage.setItem("flemo:motion-driver-force", "raf");
-    attach();
-    await settle();
-    // Simulate core stripping the malformed pin on its first decision.
-    sessionStorage.removeItem("flemo:motion-driver-force");
-
-    const report = handle!.report();
-    expect(
-      report.overrides.warnings.some((entry) => entry.includes("flemo:motion-driver-force"))
-    ).toBe(true);
-    expect(report.driverPolicy.forcePin).toBeNull();
-    expect(report.anomalies.some((entry) => entry.includes("was present at attach"))).toBe(true);
-  });
-
-  it("reports an active force pin in driverPolicy and anomalies", () => {
-    const pin = `css@${Date.now()}`;
-    sessionStorage.setItem("flemo:motion-driver-force", pin);
+  it("names a persisted retired key as inert residue", () => {
+    // The library stopped reading this key with the rAF player. A report must
+    // still surface it — and say plainly that it explains nothing — so an
+    // investigator rules it out instead of chasing it.
+    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     attach();
     const report = handle!.report();
-    expect(report.driverPolicy.forcePin).toBe(pin);
-    expect(report.anomalies.some((entry) => entry.includes("active force pin"))).toBe(true);
     expect(
-      report.overrides.warnings.some((entry) => entry.includes("A DRIVER PIN IS ACTIVE"))
+      Object.keys(report.overrides.active).some(
+        (key) => key.startsWith("flemo:motion-driver-force") && key.includes("retired")
+      )
     ).toBe(true);
+    expect(report.overrides.warnings.some((entry) => entry.includes("RETIRED residue"))).toBe(true);
   });
 
   it("caps stored flights at maxFlights", async () => {

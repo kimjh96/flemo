@@ -476,45 +476,4 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     removeSpy.mockRestore();
     dispose();
   });
-
-  it("does not wire the recovery when the rAF player drives the active screen", () => {
-    // A player-drivable variant (pure x → the numeric tier joins in jsdom)
-    // hands motion to the player: its onComplete + the floor own liveness, and
-    // wiring animationcancel would catch the join's own `animation: none`. So a
-    // cancel here must NOT trigger the restart trick.
-    const player = document.createElement("div");
-    document.body.appendChild(player);
-    transitionMap.set(
-      "player-drivable" as never,
-      createTransition({
-        name: "player-drivable" as never,
-        initial: { x: "100%" },
-        idle: { value: { x: 0 }, options: { duration: 0 } },
-        enter: { value: { x: 0 }, options: { duration: 0.3 } },
-        enterBack: { value: { x: "100%" }, options: { duration: 0.3 } },
-        exit: { value: { x: "-30%" }, options: { duration: 0.3 } },
-        exitBack: { value: { x: 0 }, options: { duration: 0.3 } }
-      })
-    );
-    const removeSpy = vi.spyOn(player.style, "removeProperty");
-    const engine = createTransitionEngine(deps);
-    const dispose = engine.driveScreenLifecycle({
-      getElements: () => ({ scope: player }),
-      transitionName: "player-drivable" as never,
-      prevTransitionName: "player-drivable" as never,
-      status: "PUSHING",
-      isActive: true,
-      animHoldReleased: true
-    });
-
-    // The player joined and suppressed the compiled animation.
-    expect(player.style.animation).toBe("none");
-    player.dispatchEvent(animationCancelEvent("flemo-screen-player-drivable-PUSHING-true"));
-    expect(removeSpy).not.toHaveBeenCalled();
-
-    removeSpy.mockRestore();
-    dispose();
-    player.remove();
-    transitionMap.delete("player-drivable" as never);
-  });
 });

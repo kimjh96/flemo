@@ -13,7 +13,7 @@ import type { TransitionEngineDeps } from "@core/engine/types";
 
 // The DESKTOP flat head (`flemo:deskhead`, `:root[data-flemo-desk-head]`).
 //
-// Desktop macOS Safari runs the compiled tier by joinPlayer's gate 3 and WebKit
+// Desktop macOS Safari runs the compiled tier (isDesktopMacWebKit) and WebKit
 // presents that clock from the main thread, so the release-to-glass pipeline is
 // aging it before a single frame is shown. The head is the touch tier's cure,
 // re-sized for a 60Hz pipeline: pure gate-scoped style, no WAAPI write.

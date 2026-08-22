@@ -592,7 +592,7 @@ const compileVariantBlock = (
         : v.startsWith("POPPING")
           ? 0.08
           : 0;
-  // DESKTOP macOS Safari runs the same compiled clock (joinPlayer gate 3) and
+  // DESKTOP macOS Safari runs the same compiled clock (isDesktopMacWebKit) and
   // presents it from the main thread, so it needs the same active-from-birth
   // head — sized to ITS pipeline, not to a governor-throttled phone's. The LPM
   // numbers above cover 2-4 frames of a ~30Hz capped pipeline; a 60Hz desktop

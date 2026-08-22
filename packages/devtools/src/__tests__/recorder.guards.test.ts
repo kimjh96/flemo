@@ -576,7 +576,6 @@ describe("recorder — report-time storage failures", () => {
     const report = recorder.report();
     vi.unstubAllGlobals();
 
-    expect(report.driverPolicy).toEqual({ demotion: null, forcePin: null });
     expect(report.overrides.active).toEqual({});
   });
 

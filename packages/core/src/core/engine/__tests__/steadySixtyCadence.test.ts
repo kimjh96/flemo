@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   reportInFlightCadence,
   resetSteadySixtyForTests,
-  steadySixtyPlayerEligible,
+  steadySixtyDesktopProfile,
   steadySixtyVerified
 } from "@core/engine/steadySixtyCadence";
 
@@ -77,7 +77,7 @@ describe("steadySixtyCadence verdict", () => {
     reportInFlightCadence(16.7);
 
     // jsdom: non-Blink (no userAgentData), dpr 1 — verdict alone is not enough.
-    expect(steadySixtyPlayerEligible()).toBe(false);
+    expect(steadySixtyDesktopProfile()).toBe(false);
 
     NAV.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
     // jsdom ships no maxTouchPoints; a real desktop Blink reports 0.
@@ -85,9 +85,9 @@ describe("steadySixtyCadence verdict", () => {
     const originalDpr = window.devicePixelRatio;
     try {
       Object.defineProperty(window, "devicePixelRatio", { value: 2, configurable: true });
-      expect(steadySixtyPlayerEligible()).toBe(true);
+      expect(steadySixtyDesktopProfile()).toBe(true);
       Object.defineProperty(window, "devicePixelRatio", { value: 1, configurable: true });
-      expect(steadySixtyPlayerEligible()).toBe(false);
+      expect(steadySixtyDesktopProfile()).toBe(false);
     } finally {
       Object.defineProperty(window, "devicePixelRatio", {
         value: originalDpr,
@@ -229,7 +229,7 @@ describe("steadySixtyCadence reload seeding", () => {
     const originalDpr = window.devicePixelRatio;
     try {
       Object.defineProperty(window, "devicePixelRatio", { value: 0, configurable: true });
-      expect(steadySixtyPlayerEligible()).toBe(false);
+      expect(steadySixtyDesktopProfile()).toBe(false);
     } finally {
       Object.defineProperty(window, "devicePixelRatio", { value: originalDpr, configurable: true });
       delete (navigator as unknown as Record<string, unknown>).maxTouchPoints;

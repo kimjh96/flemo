@@ -181,10 +181,6 @@ export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
 };
 
 export interface ReportAnomalyInput {
-  forcePin: string | null;
-  legacyLocalForcePin: string | null;
-  /** Force-pin value seen at attach but cleared by report time, if any. */
-  clearedForcePin: string | null;
   emulationSuspected: boolean;
   platform: string;
   /** True when a flight is still transitional past STUCK_STATUS_MS. */
@@ -194,26 +190,6 @@ export interface ReportAnomalyInput {
 
 export const deriveReportAnomalies = (input: ReportAnomalyInput): string[] => {
   const anomalies: string[] = [];
-
-  if (input.forcePin !== null) {
-    anomalies.push(
-      `active force pin flemo:motion-driver-force=${input.forcePin} — every transition this session ` +
-        "is pinned to one driver (A/B residue? pins expire after 24h; clear the key before judging behavior)"
-    );
-  }
-  if (input.clearedForcePin !== null && input.forcePin === null) {
-    anomalies.push(
-      `force pin flemo:motion-driver-force=${input.clearedForcePin} was present at attach and has since ` +
-        "been cleared (the library strips malformed/expired pins on sight) — early driver decisions in " +
-        "this session may still have been shaped by it"
-    );
-  }
-  if (input.legacyLocalForcePin !== null) {
-    anomalies.push(
-      `legacy localStorage driver pin present (flemo:motion-driver-force=${input.legacyLocalForcePin}) — ` +
-        "never honored, but it marks A/B residue on this profile"
-    );
-  }
 
   if (input.emulationSuspected) {
     const windowsCaveat = /Win/i.test(input.platform)

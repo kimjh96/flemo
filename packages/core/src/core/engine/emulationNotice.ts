@@ -1,4 +1,4 @@
-import { detectBlinkEngine } from "@core/engine/driverPolicy";
+import { detectBlinkEngine } from "@core/engine/engineProbes";
 
 // DevTools device-emulation notice.
 //

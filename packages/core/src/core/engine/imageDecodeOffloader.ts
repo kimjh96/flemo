@@ -48,7 +48,7 @@
 // Well-sized, data:/blob: sources and engines without the needed APIs are
 // left exactly as authored.
 
-import { detectBlinkEngine } from "@core/engine/driverPolicy";
+import { detectBlinkEngine } from "@core/engine/engineProbes";
 import {
   flightWindowActive,
   onFlightWindowIdle,

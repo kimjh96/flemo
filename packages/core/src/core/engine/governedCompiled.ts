@@ -1,4 +1,4 @@
-import { detectBlinkEngine } from "@core/engine/driverPolicy";
+import { detectBlinkEngine } from "@core/engine/engineProbes";
 
 // THE TOUCH-WEBKIT GOVERNED-COMPILED TIER: compiled keyframes, the governed
 // head, and the synchronous atomic release. Every slide on touch WebKit runs

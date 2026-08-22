@@ -3,7 +3,7 @@
 // jsdom environment `window === globalThis`, so those Node globals shadow
 // jsdom's storage. Back each with an in-memory Storage-shaped stub when it's
 // unavailable; where jsdom's real storage resolves (e.g. CI's Node 24) this
-// is a no-op. Mirrors the fix in packages/core driverPolicy.test.ts.
+// is a no-op. Mirrors the fix in packages/core engineProbes.test.ts.
 const backfillStorage = (name: "localStorage" | "sessionStorage") => {
   const available = (() => {
     try {

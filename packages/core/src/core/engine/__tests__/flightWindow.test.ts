@@ -5,13 +5,13 @@ import TaskManger from "@core/TaskManger";
 import { transitionMap } from "@transition/transition";
 
 import createTransitionEngine from "@core/engine/createTransitionEngine";
+import { learnedFrameIntervalMs, reportDisplayIntervalMs } from "@core/engine/displayCadence";
 import {
   beginFlightWindow,
   flightWindowActive,
   onFlightWindowIdle,
   resetFlightWindowForTests
 } from "@core/engine/flightWindow";
-import { learnedFrameIntervalMs, reportDisplayIntervalMs } from "@core/engine/transitionPlayer";
 
 // The global flight-window latch (flightWindow.ts): insertion-time machinery
 // outside the engine's drive learns a navigation is mid-flight and defers
@@ -89,7 +89,7 @@ describe("engine wiring", () => {
   });
 });
 
-// Compiled-tier routing (createTransitionEngine.joinPlayer): high-refresh
+// The learned display cadence (displayCadence.ts): high-refresh
 // Blink (measured 36% partial presents on the 120Hz player) and desktop
 // WebKit (rAF capped at 60Hz against the panel's 120) both route to the
 // compositor-driven compiled tier; phones and 60Hz displays keep the

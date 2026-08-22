@@ -1,11 +1,11 @@
-import { detectBlinkEngine } from "@core/engine/driverPolicy";
+import { detectBlinkEngine } from "@core/engine/engineProbes";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Genuine-steady-60Hz verdict for the DESKTOP Blink profile.
 //
 // It no longer routes anything (Blink runs the compiled tier everywhere since
 // 2026-08-19); the verdict now selects desktop DEFAULTS only — see
-// steadySixtyPlayerEligible below. The reasoning that produced it is kept in
+// steadySixtyDesktopProfile below. The reasoning that produced it is kept in
 // full because the measurement is what makes those defaults defensible, and
 // because it records why an idle cadence probe must never gate anything.
 //
@@ -105,13 +105,13 @@ const canAccumulateVerdict = (): boolean =>
   typeof navigator === "undefined" || (navigator.maxTouchPoints ?? 0) === 0;
 
 // Feed one in-flight cadence median (RAW, unclamped — the learned-interval
-// clamp in transitionPlayer would erase the 60-vs-default distinction).
+// clamp in displayCadence would erase the 60-vs-default distinction).
 // Called by the engine's display-interval probe during compiled flights, so
 // the verdict only ever forms from measurements taken while a compositor
 // animation had the panel at its true rate.
 export const reportInFlightCadence = (rawMedianMs: number, rawMaxMs?: number): void => {
   if (!Number.isFinite(rawMedianMs) || rawMedianMs <= 0) return;
-  // A TOUCH session can never consume this verdict (steadySixtyPlayerEligible
+  // A TOUCH session can never consume this verdict (steadySixtyDesktopProfile
   // requires maxTouchPoints === 0), so it must not pay for one: the streak
   // bookkeeping and — the part that actually costs — a synchronous
   // sessionStorage write on EVERY flight. The display probe that feeds this
@@ -159,14 +159,14 @@ export const steadySixtyVerified = (): boolean =>
 // The desktop-PROFILE predicate: a desktop (non-touch) Blink session on a
 // HiDPI display whose in-flight cadence has verified steady-60.
 //
-// It does NOT route the driver. The 2026-08-18 live ladder settled desktop on
-// the compiled tier unconditionally (see the verdict block in
-// createTransitionEngine's joinPlayer), so this gates desktop-profile DEFAULTS
-// only: the render-settle gate, the unpainted-only image hold, the compositor
-// warm-up's cadence video, and the rest-promotion term in the binding. The
-// name is historical — read it as "this session qualifies for the steady-60
-// desktop profile", not "the player drives here".
-export const steadySixtyPlayerEligible = (): boolean =>
+// It gates DEFAULTS, never a driver: the render-settle gate, the
+// unpainted-only image hold, and the compositor warm-up's cadence video. It
+// once carried the name `steadySixtyPlayerEligible`, from the 2026-08-17 round
+// that routed these sessions to the rAF player for its device-pixel snap; the
+// 2026-08-18 live ladder settled desktop on the compiled tier unconditionally
+// and the player was retired outright, so the name outlived its meaning by a
+// long way.
+export const steadySixtyDesktopProfile = (): boolean =>
   steadySixtyVerified() &&
   detectBlinkEngine() &&
   typeof navigator !== "undefined" &&

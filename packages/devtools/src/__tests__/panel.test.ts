@@ -58,7 +58,6 @@ const report = (over: Record<string, unknown> = {}): FlemoReport =>
       rafCadence: { medianGapMs: 16.67, sampleCount: 20 }
     },
     overrides: { active: {}, warnings: [] },
-    driverPolicy: { demotion: null, forcePin: null },
     flights: [],
     anomalies: [],
     blindSpots: ["present pipeline"],

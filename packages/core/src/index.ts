@@ -181,12 +181,12 @@ export {
 // Engine probe (Blink vs everything else). Public for bindings whose release
 // policy branches per engine — the entry content-settle gate runs only where
 // the compiled (untouched) animation is the driver (non-Blink).
-export { detectBlinkEngine, isDesktopBlink, isLegacyAndroidBlink } from "@core/engine/driverPolicy";
+export { detectBlinkEngine, isDesktopBlink, isLegacyAndroidBlink } from "@core/engine/engineProbes";
 // Steady-60 desktop session predicate (see steadySixtyCadence.ts). What still
 // keys on it is the compositor warm-up's cadence lock, which is a claim about
 // the panel's rate; the desktop defaults that are about Blink's layer handling
 // or a desktop's memory read `isDesktopBlink` instead.
-export { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
+export { steadySixtyDesktopProfile } from "@core/engine/steadySixtyCadence";
 export {
   swipeSettleSeconds,
   MIN_SETTLE_SECONDS,

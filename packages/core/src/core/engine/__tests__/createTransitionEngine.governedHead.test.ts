@@ -23,7 +23,7 @@ import type { TransitionEngineDeps } from "@core/engine/types";
 // (every Blink flight already routes compiled), so if it also flipped the kit
 // on, a pinned session would run a DIFFERENT motion than the same device runs
 // in production — an instrument that alters what it observes. The condition
-// carried exactly that bug through `!driverPolicy.playerAllowed()`, which
+// carried exactly that bug through a `!playerAllowed()` term, which
 // meant "demoted device" until demotion was retired (2026-08-19) and then
 // silently meant "css pin".
 
