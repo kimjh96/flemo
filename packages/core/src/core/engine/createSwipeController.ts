@@ -71,6 +71,19 @@ export interface SwipeController {
   pointerMove: (event: PointerEvent) => void;
   pointerUp: (event: PointerEvent) => void;
   pointerCancel: (event: PointerEvent) => void;
+  // Pointer capture was released without the gesture ending — the element was
+  // removed or hidden under it. Forwarded by the binding as `lostpointercapture`.
+  lostPointerCapture: (event: PointerEvent) => void;
+  /**
+   * Abandon whatever gesture is in flight, with no pointer to close it.
+   *
+   * The binding calls this when the SCREEN goes away underneath one: an unmount,
+   * or a freeze (which detaches the listeners but keeps this controller, since
+   * it outlives the effects). Without it the gesture state has exactly one way
+   * out — a pointerup carrying the id that armed it — and if the browser never
+   * delivers that event, nothing ever does. See the note on `abandon` below.
+   */
+  abandon: () => void;
   // Whether an in-progress drag wants touchmove default suppressed.
   shouldPreventTouch: () => boolean;
 }
@@ -818,17 +831,34 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   };
 
   const pointerDown = (event: PointerEvent) => {
+    // A second finger, or a non-left mouse button: proves nothing about the
+    // gesture in flight and starts nothing of its own.
+    if (event.isPrimary === false || (event.pointerType === "mouse" && event.button !== 0)) return;
+
+    // A PRIMARY pointer going down is proof that no other pointer is down —
+    // that is what primary MEANS for touch. So a gesture still marked active
+    // here belongs to a pointer that is already gone, and its closing event is
+    // never coming. Take it out.
+    //
+    // BEFORE the readiness gate, deliberately. Readiness governs whether a NEW
+    // drag may start; it says nothing about cleaning up a dead one — and while
+    // a stale gesture is around, readiness is closed precisely BECAUSE of it
+    // (dragStatus sits at PENDING), so a recovery behind that gate never runs.
+    //
+    // Standing aside is what used to happen (`swipeActive` was part of the
+    // guard below) and it deadlocked: the abandoned gesture keeps
+    // `isTouchPrevented` armed, every touchmove on the screen is
+    // preventDefault-ed, the screen cannot scroll — and this function, the one
+    // place that would clear the flag, refuses to run because the gesture is
+    // active. Device-reported on Safari, which drops the remaining pointer
+    // events when the element holding capture is removed or hidden (Blink
+    // retargets them to the document and recovers on its own).
+    if (swipeActive || activePointerId !== null) abandon();
+
     // Before intent resolves we do not own pointer capture, so a release
-    // outside the scope may never deliver pointerup/pointercancel. Let the
-    // next primary pointer replace that stale candidate. `swipeActive` guards
-    // captured gestures, while `isPrimary` rejects an actual second finger.
-    if (
-      !config.isReadyForDrag() ||
-      swipeActive ||
-      event.isPrimary === false ||
-      (event.pointerType === "mouse" && event.button !== 0)
-    )
-      return;
+    // outside the scope may never deliver pointerup/pointercancel. Letting the
+    // next primary pointer replace that stale candidate is the same rule.
+    if (!config.isReadyForDrag()) return;
 
     activePointerId = event.pointerId;
     forceCancelRequested = false;
@@ -916,11 +946,49 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     }
   };
 
+  /**
+   * Losing capture without an up or a cancel means the element went out from
+   * under the gesture. Treat it as the cancel the browser did not send.
+   */
+  const lostPointerCapture = (event: PointerEvent) => {
+    if (event.pointerId !== activePointerId || !swipeActive) return;
+    pointerCancel(event);
+  };
+
+  /**
+   * End a gesture that has no pointer left to end it.
+   *
+   * Synthesises the cancel for whichever pointer is active and runs the
+   * ordinary cancel path, so the screen settles back to rest exactly as a real
+   * `pointercancel` would settle it — this is a recovery, and a recovery that
+   * teleported the screen would trade one visible defect for another. With no
+   * gesture in flight it still clears the arming flags, which is the state that
+   * actually blocks scrolling.
+   */
+  function abandon() {
+    const pointerId = activePointerId;
+    shouldStartDrag = false;
+    isTouchPrevented = false;
+    if (pointerId === null) {
+      // Nothing captured, nothing to settle: just make sure nothing is armed.
+      return;
+    }
+    pointerCancel({
+      pointerId,
+      clientX: swipeLastPoint.x,
+      clientY: swipeLastPoint.y,
+      timeStamp: swipeLastTime
+    } as PointerEvent);
+    activePointerId = null;
+  }
+
   return {
     pointerDown,
     pointerMove,
     pointerUp,
     pointerCancel,
+    lostPointerCapture,
+    abandon,
     shouldPreventTouch: () => isTouchPrevented
   };
 }

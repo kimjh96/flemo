@@ -196,6 +196,86 @@ describe("swipe wiring on a swipeable (non-root) screen", () => {
       await Promise.resolve();
     });
   });
+
+  // THE DEAD SCROLL, end to end through the binding.
+  //
+  // An armed drag preventDefaults every touchmove on the screen — that is the
+  // whole point while a finger owns the gesture, and it is the only thing in
+  // the library that can stop a screen from scrolling. So if the pointer's
+  // closing event never arrives, the screen stops scrolling for good.
+  // Device-reported on Safari, which drops the remaining pointer events when
+  // the element holding capture is removed or hidden.
+  const armStrandedDrag = async (container: HTMLElement) => {
+    const scope = container.querySelector<HTMLElement>("[data-flemo-screen]")!;
+    scope.setPointerCapture = vi.fn();
+    scope.hasPointerCapture = vi.fn(() => true);
+    scope.releasePointerCapture = vi.fn();
+
+    const outermost = container.firstElementChild as HTMLElement;
+    const prevContainer = document.createElement("div");
+    const prevScope = document.createElement("div");
+    prevScope.setAttribute("data-flemo-screen", "");
+    prevContainer.appendChild(prevScope);
+    outermost.before(prevContainer);
+
+    scope.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 4, clientY: 300 }));
+    scope.dispatchEvent(
+      new MouseEvent("pointermove", { bubbles: true, clientX: 40, clientY: 300 })
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // No pointerup and no pointercancel — the browser simply stopped talking.
+    return scope;
+  };
+
+  const scrolls = (scope: HTMLElement) => {
+    const touchMove = new Event("touchmove", { bubbles: true, cancelable: true });
+    scope.dispatchEvent(touchMove);
+    return !touchMove.defaultPrevented;
+  };
+
+  it("gives the scroll back when capture is lost without a pointerup", async () => {
+    const { container } = render(
+      <Screen>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isRoot: false }) }
+    );
+
+    const scope = await armStrandedDrag(container);
+    expect(scrolls(scope), "the drag must actually own the gesture first").toBe(false);
+
+    scope.dispatchEvent(new Event("lostpointercapture", { bubbles: true }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(scrolls(scope)).toBe(true);
+  });
+
+  it("gives the scroll back on the next press, however the pointer vanished", async () => {
+    const { container } = render(
+      <Screen>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isRoot: false }) }
+    );
+
+    const scope = await armStrandedDrag(container);
+    expect(scrolls(scope)).toBe(false);
+
+    // A fresh press — a different pointer, because the first was never closed.
+    scope.dispatchEvent(
+      new MouseEvent("pointerdown", { bubbles: true, clientX: 200, clientY: 300 })
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(scrolls(scope)).toBe(true);
+  });
 });
 
 describe("keyboard-visible layout", () => {
