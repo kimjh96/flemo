@@ -261,6 +261,12 @@ is not a consumer value; the landed scope belongs to the compiled rest rules.**
 | `displayProbe.ts` | That probe, plus the frame-pacing keepalive — rAF run during flights, once to measure and once merely to exist. |
 | `steadySixtyCadence.ts` | The steady-60 desktop verdict, derived from the same samples. Selects defaults, never a driver. |
 
+`packages/core/src/runtime/` — what the app sits in, between navigations:
+
+| Module | One line |
+| --- | --- |
+| `flemoRuntime.ts` | `startFlemoRuntime()`: the ambient machinery an app holds so the FIRST navigation is not the one that pays — GPU pipelines compiled at boot idle, oversized image decodes off the main thread where the profile asks, and the compositor kept awake while the user is interacting. Refcounted; a binding starts it per Router mount. |
+
 `packages/core/src/dom/` — the contract between the packages:
 
 | Module | One line |

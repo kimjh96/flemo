@@ -16,11 +16,19 @@ export default defineConfig({
   },
   plugins: [dts()],
   resolve: {
-    alias: ["core", "dom", "history", "navigate", "platform", "screen", "transition", "utils"].map(
-      (input) => ({
-        find: `@${input}`,
-        replacement: resolve(__dirname, `src/${input}`)
-      })
-    )
+    alias: [
+      "core",
+      "dom",
+      "history",
+      "navigate",
+      "platform",
+      "runtime",
+      "screen",
+      "transition",
+      "utils"
+    ].map((input) => ({
+      find: `@${input}`,
+      replacement: resolve(__dirname, `src/${input}`)
+    }))
   }
 });
