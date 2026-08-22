@@ -726,7 +726,12 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         // AVERAGE speed; what the eye reads at the moment the finger leaves is
         // the curve's speed at t=0, and an authored curve opens fast because it
         // starts from rest. Re-aim it to leave at the speed the finger had.
-        const authoredEase = reversing ? null : easeControlPoints(options?.ease);
+        //
+        // Cancels included: a reversal contributes zero speed in the settle's
+        // own direction, so it lands on the floor and opens like the standing
+        // screen it is. One rule — the release leaves at the speed the screen
+        // already had — rather than one for a commit and another for a cancel.
+        const authoredEase = easeControlPoints(options?.ease);
         const slope = authoredEase
           ? releaseLaunchSlope({
               remainingPx,

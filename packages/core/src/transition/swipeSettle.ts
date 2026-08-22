@@ -92,6 +92,11 @@ export const MIN_LAUNCH_SLOPE = 0.5;
 // So a reversal ignores the speed it cannot borrow and lands no faster than
 // this — still capped by the authored span, so a transition that wants a brisk
 // return only has to author one.
+//
+// Its CURVE is not a special case, though: a reversal contributes zero speed in
+// the settle's own direction, so the one rule below puts it on the floor. Under
+// the authored curve a screen the finger had brought to a STOP still departed
+// at 2.25x its average — the same defect the commit had, at a quarter the size.
 export const MIN_REVERSAL_SECONDS = 0.28;
 
 export interface SwipeSettleInput {
@@ -144,9 +149,17 @@ export const swipeSettleSeconds = ({
  * as a multiple of its own average. `velocity x seconds / remaining` is exactly
  * the finger's speed expressed in those units.
  *
- * A reversal keeps the authored curve — it starts from a finger that was going
- * the OTHER way, so there is no momentum to be continuous with, and the
- * cancel's own floor already gives it a length the eye can follow.
+ * ONE RULE, INCLUDING THE CANCEL. A reversal's finger was going the other way,
+ * so the speed it contributes to the settle's own direction is not its own
+ * speed — it is zero or less. Zero is what this reads it as, which puts every
+ * reversal on the floor: the screen is standing still when the settle begins,
+ * and it opens like something standing still.
+ *
+ * Full velocity continuity for a reversal would mean OVERSHOOT — the screen
+ * carrying on the way the finger was pushing for a hair before it returns,
+ * which is what a real spring does. That is a different primitive, not a
+ * re-aimed bezier, and it is deliberately not attempted here. Clamping at zero
+ * is the closest a monotone curve gets.
  */
 export const releaseLaunchSlope = ({
   remainingPx,
@@ -170,10 +183,9 @@ export const releaseLaunchSlope = ({
   authoredSlope?: number;
   reversing?: boolean;
 }): number | null => {
-  if (reversing) return null;
   const remaining = Math.abs(remainingPx);
   if (remaining <= 0.5 || seconds <= 0) return null;
-  const fingerSlope = (Math.abs(velocityPxPerSecond) * seconds) / remaining;
+  const fingerSlope = reversing ? 0 : (Math.abs(velocityPxPerSecond) * seconds) / remaining;
   const floor =
     typeof authoredSlope === "number" && authoredSlope > 0
       ? Math.min(MIN_LAUNCH_SLOPE, authoredSlope)

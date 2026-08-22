@@ -206,15 +206,41 @@ describe("the release curve leaves at the speed the finger had", () => {
     expect(departure).toBeGreaterThan(150);
   });
 
-  it("keeps the authored curve for a reversal, which has no momentum to match", () => {
-    expect(
-      releaseLaunchSlope({
-        remainingPx: 40,
-        velocityPxPerSecond: 200,
-        seconds: 0.28,
-        reversing: true
-      })
-    ).toBeNull();
+  it("puts a reversal on the floor: the screen it starts from is standing still", () => {
+    // A cancel's finger was going the OTHER way, so the speed it contributes to
+    // the settle's own direction is zero — however hard it was pushing. One
+    // rule, not a special case: the release leaves at the speed the SCREEN had.
+    for (const velocity of [0, 200, 1200]) {
+      expect(
+        releaseLaunchSlope({
+          remainingPx: 40,
+          velocityPxPerSecond: velocity,
+          seconds: 0.28,
+          reversing: true
+        }),
+        `${velocity} px/s`
+      ).toBeCloseTo(MIN_LAUNCH_SLOPE, 5);
+    }
+  });
+
+  it("softens a cancel that the authored curve used to throw", () => {
+    // The same defect the commit had, at a quarter the magnitude: a screen the
+    // finger had brought to a stop still departed at 2.25x its average.
+    const REVERSAL_SECONDS = 0.28;
+    for (const travelled of [20, 40, 49]) {
+      const floored = reaimReleaseEase(
+        CUPERTINO,
+        releaseLaunchSlope({
+          remainingPx: travelled,
+          velocityPxPerSecond: 0,
+          seconds: REVERSAL_SECONDS,
+          reversing: true
+        })!
+      );
+      const before = departureSpeed(CUPERTINO, travelled, REVERSAL_SECONDS);
+      const after = departureSpeed(floored, travelled, REVERSAL_SECONDS);
+      expect(before / after, `${travelled}px`).toBeCloseTo(4.5, 1);
+    }
   });
 
   it("returns no slope when there is nothing to travel or no time to travel it", () => {

@@ -243,21 +243,22 @@ describe("the release clock", () => {
     expect(fast[1]! / fast[0]!).toBeGreaterThan(slow[1]! / slow[0]!);
   });
 
-  it("leaves a cancel on its authored curve — it has no momentum to match", async () => {
+  it("re-aims a cancel too — it starts from a screen the finger had stopped", async () => {
     const written: (number[] | null)[] = [];
-    let sawAuthoredKeyword = false;
-    const observer = new MutationObserver(() => {
-      written.push(easingOn(dom.scope));
-      if (/\bease\b/.test(dom.scope.style.transition)) sawAuthoredKeyword = true;
-    });
+    const observer = new MutationObserver(() => written.push(easingOn(dom.scope)));
     observer.observe(dom.scope, { attributes: true, attributeFilter: ["style"] });
     await release(80, 400);
     observer.disconnect();
 
-    // Nothing was re-aimed: every write carried the authored easing through
-    // untouched, which for this handler is the `ease` keyword.
-    expect(written.some((curve) => curve !== null)).toBe(false);
-    expect(sawAuthoredKeyword).toBe(true);
+    // One rule for both directions. A reversal contributes no speed of its own,
+    // so every curve it wrote sits on the floor rather than on the authored
+    // 0.4 opening.
+    const curves = written.filter((curve): curve is number[] => curve !== null);
+    expect(curves.length).toBeGreaterThan(0);
+    for (const curve of curves) {
+      expect(curve[1]! / curve[0]!).toBeLessThanOrEqual(0.4);
+      expect(curve.slice(2)).toEqual([0.25, 1]);
+    }
   });
 
   // A CANCEL is the settle walking BACK the way the finger came, and it only
