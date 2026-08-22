@@ -181,6 +181,64 @@ describe("observeKeyboardInset", () => {
     expect(listeners.has("resize")).toBe(false);
   });
 
+  // Chrome's overlay mode: the app told the browser to stop resizing anything
+  // and hand it the geometry instead, so the visual viewport never shrinks and
+  // the ordinary formula would report no keyboard at all.
+  describe("when the app opted into VirtualKeyboard overlay mode", () => {
+    const stubVirtualKeyboard = (overlaysContent: boolean, height: number) => {
+      const keyboardListeners = new Map<string, () => void>();
+      Object.defineProperty(navigator, "virtualKeyboard", {
+        configurable: true,
+        value: {
+          overlaysContent,
+          boundingRect: { height } as DOMRect,
+          addEventListener: (type: string, listener: () => void) =>
+            keyboardListeners.set(type, listener),
+          removeEventListener: (type: string) => keyboardListeners.delete(type)
+        }
+      });
+      return keyboardListeners;
+    };
+
+    afterEach(() => {
+      Reflect.deleteProperty(navigator, "virtualKeyboard");
+    });
+
+    it("reads the keyboard's own geometry", () => {
+      stubVirtualKeyboard(true, 320);
+
+      const seen: number[] = [];
+      observeKeyboardInset((inset) => seen.push(inset));
+      flushFrames();
+
+      // The viewport is untouched at 800 — only the geometry knows.
+      expect(seen.at(-1)).toBe(320);
+    });
+
+    it("subscribes to geometrychange, and releases it with the last listener", () => {
+      const keyboardListeners = stubVirtualKeyboard(true, 320);
+
+      const dispose = observeKeyboardInset(() => {});
+      expect(keyboardListeners.has("geometrychange")).toBe(true);
+
+      dispose();
+      expect(keyboardListeners.has("geometrychange")).toBe(false);
+    });
+
+    it("ignores the API when the app did not opt in", () => {
+      stubVirtualKeyboard(false, 320);
+      viewportHeight = 500;
+
+      const seen: number[] = [];
+      observeKeyboardInset((inset) => seen.push(inset));
+      flushFrames();
+
+      // overlaysContent is false, so the browser IS resizing the viewport and
+      // that measurement is the truthful one.
+      expect(seen.at(-1)).toBe(300);
+    });
+  });
+
   it("measures directly for callers that only want the number", () => {
     viewportHeight = 500;
     expect(measureKeyboardInset()).toBe(300);

@@ -17,11 +17,49 @@
 // overflow — useful as "is something covering the viewport", useless as a
 // distance to offset by.
 //
+// WHAT THE INSET DOES DURING THE KEYBOARD'S SLIDE, measured on an iPhone:
+// the page gets ONE value, already final, about 150ms after the field was
+// focused — and it is barely running while that happens (frames stalled 139ms
+// in the measured window). There are no intermediate heights to follow, on any
+// of the three ways of applying them (`bottom`, a transform, or a box anchored
+// to the visual viewport — all three land at the same time).
+//
+// So this reports the value the moment it arrives and does not soften it: an
+// easing of our own would start after the platform unfroze, which is when the
+// keyboard is nearly up, and would therefore arrive LATE. A consumer who
+// prefers softness over accuracy can add a transition; the default should be
+// the honest position.
+//
+// Chrome does report the geometry as it changes, and a keyboard that resizes
+// while it stays open (emoji panel, suggestion bar) is reported everywhere,
+// since that fires a viewport resize like any other.
+//
 // Pinch-zoom makes the formula meaningless (the visual viewport shrinks with
 // scale, which would read as a giant keyboard), so a zoomed page reports 0 —
 // the pinned element returns to its resting place rather than jumping to a
 // fabricated one.
 const ZOOM_EPSILON = 0.01;
+
+// An app can ask Chrome to stop resizing anything and hand it the keyboard's
+// geometry instead (`navigator.virtualKeyboard.overlaysContent = true`). In
+// that mode the visual viewport does NOT shrink, so the formula above reads 0
+// and a pinned element sits behind a keyboard it cannot see. Read the geometry
+// the app opted into instead. flemo never sets `overlaysContent` itself: it
+// changes how the whole page responds to the keyboard, which belongs to the
+// app, not to a measurement.
+interface VirtualKeyboardLike {
+  overlaysContent: boolean;
+  boundingRect: DOMRect;
+  addEventListener: (type: string, listener: () => void) => void;
+  removeEventListener: (type: string, listener: () => void) => void;
+}
+
+const virtualKeyboard = (): VirtualKeyboardLike | undefined => {
+  if (typeof navigator === "undefined") return undefined;
+  const candidate = (navigator as Navigator & { virtualKeyboard?: VirtualKeyboardLike })
+    .virtualKeyboard;
+  return candidate?.overlaysContent ? candidate : undefined;
+};
 
 // Browser chrome that grows or shrinks (the collapsing URL bar) moves these
 // numbers by a few pixels with no keyboard involved. Anything under this is
@@ -29,6 +67,12 @@ const ZOOM_EPSILON = 0.01;
 const KEYBOARD_MIN_INSET_PX = 24;
 
 export const measureKeyboardInset = (): number => {
+  const keyboard = virtualKeyboard();
+  if (keyboard) {
+    const height = keyboard.boundingRect?.height || 0;
+    return height < KEYBOARD_MIN_INSET_PX ? 0 : Math.round(height);
+  }
+
   const viewport = typeof window === "undefined" ? undefined : window.visualViewport;
   if (!viewport) return 0;
   if (viewport.scale > 1 + ZOOM_EPSILON) return 0;
@@ -65,6 +109,16 @@ const handleViewportChange = () => {
   rafId = requestAnimationFrame(measure);
 };
 
+// Whichever source this build has: the overlay geometry when the app opted
+// into it, the visual viewport otherwise. Both are rAF-coalesced the same way.
+const listen = (subscribe: boolean) => {
+  const keyboard = virtualKeyboard();
+  const method = subscribe ? "addEventListener" : "removeEventListener";
+  if (keyboard) keyboard[method]("geometrychange", handleViewportChange);
+  window.visualViewport?.[method]("resize", handleViewportChange);
+  window.visualViewport?.[method]("scroll", handleViewportChange);
+};
+
 // Test seam: the module state above is app-wide by design, so a suite that
 // wants an isolated session clears it here instead of reasoning about the order
 // its cases ran in.
@@ -73,8 +127,7 @@ export function resetKeyboardInsetForTesting() {
   lastKeyboardInset = 0;
   measured = false;
   rafId = 0;
-  window.visualViewport?.removeEventListener("resize", handleViewportChange);
-  window.visualViewport?.removeEventListener("scroll", handleViewportChange);
+  listen(false);
 }
 
 // Reports the keyboard inset whenever it changes. Coalesces the visualViewport's
@@ -85,10 +138,7 @@ export default function observeKeyboardInset(onChange: KeyboardInsetListener): (
   const cold = listeners.size === 0;
   listeners.add(onChange);
 
-  if (cold) {
-    window.visualViewport?.addEventListener("resize", handleViewportChange);
-    window.visualViewport?.addEventListener("scroll", handleViewportChange);
-  }
+  if (cold) listen(true);
 
   // Unlike the shortfall measurement, measuring on attach is safe and wanted
   // here: the formula reads 0 for a page with no keyboard, so a subscriber
@@ -105,7 +155,6 @@ export default function observeKeyboardInset(onChange: KeyboardInsetListener): (
     listeners.delete(onChange);
     if (listeners.size > 0) return;
     cancelAnimationFrame(rafId);
-    window.visualViewport?.removeEventListener("resize", handleViewportChange);
-    window.visualViewport?.removeEventListener("scroll", handleViewportChange);
+    listen(false);
   };
 }
