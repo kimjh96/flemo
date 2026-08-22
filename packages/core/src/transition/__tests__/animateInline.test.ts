@@ -1,12 +1,6 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import animateInline, { clearInlineAnimation, trackInlineWrite } from "@transition/animateInline";
-
-// jsdom reads as non-Blink (no navigator.userAgentData), where the player
-// defaults OFF; these suites exercise the player paths, so pin it on via
-// the diagnostic force key.
-beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`));
-afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
 
 const newDiv = () => {
   const el = document.createElement("div");
@@ -136,18 +130,16 @@ describe("animateInline", () => {
     expect(el.style.backgroundColor).toBe("");
   });
 
-  it("keeps the CSS transition settle where the policy disallows the player", () => {
+  it("settles on a CSS transition, never on WAAPI", () => {
+    // There is ONE settle path, on every engine. It used to be a paused Web
+    // Animation stepped from a main-thread rAF clock; that tier is retired,
+    // and a WAAPI call reappearing here means it grew back.
     const animate = vi.fn();
     el.animate = animate;
-    // Engine default / demotion territory (e.g. WebKit): the compositor
-    // drives the settle even though WAAPI exists.
-    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
 
     void animateInline(el, { x: 0 }, { duration: 0.3 });
     expect(animate).not.toHaveBeenCalled();
     expect(el.style.transition).toContain("transform");
-
-    sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`);
   });
 
   it("clearInlineAnimation falls back to transform + opacity for untracked elements", () => {

@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import TaskManger from "@core/TaskManger";
 
@@ -11,12 +11,6 @@ import createTransitionEngine from "@core/engine/createTransitionEngine";
 import { resetFlightWindowForTests } from "@core/engine/flightWindow";
 import { LAYER_SETTLE_MS } from "@core/engine/layerSettleHold";
 import { SKIP_ANIMATION_ATTR, type TransitionEngineDeps } from "@core/engine/types";
-
-// jsdom reads as non-Blink (no navigator.userAgentData), where the player
-// defaults OFF; these suites exercise the player paths, so pin it on via
-// the diagnostic force key.
-beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`));
-afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
 
 // A transition whose enter variant actually animates (duration > 0), so
 // `PUSHING-true` reports an animation and the engine waits for animationend.

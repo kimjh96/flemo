@@ -31,6 +31,7 @@ import {
 // Do not "improve" this into a live-updating dashboard. The instrument that
 // perturbs the measurement is worse than no instrument.
 
+import { PANEL_HEIGHT_KEY } from "../overrides";
 import { attachFlightRecorder } from "../recorder";
 import { el, setText } from "./dom";
 import { DASH, environmentSummary, flightListSignature } from "./format";
@@ -62,7 +63,6 @@ const IN_FLIGHT_SELECTOR = TRANSITIONAL_STATUSES.map(
   (status) => attrSelector(SCREEN_ATTR) + attrValueSelector(STATUS_ATTR, status)
 ).join(",");
 
-const HEIGHT_KEY = "flemo:devtools-panel-height";
 /** ~3 refreshes/second while open — fast enough to feel live, far below the
  *  frame budget, and irrelevant anyway since refreshes never run in flight. */
 const OPEN_REFRESH_MS = 320;
@@ -190,7 +190,7 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
 
   const readStoredHeight = (): number | null => {
     try {
-      const raw = sessionStorage.getItem(HEIGHT_KEY);
+      const raw = sessionStorage.getItem(PANEL_HEIGHT_KEY);
       if (raw === null) return null;
       const value = Number.parseFloat(raw);
       return Number.isFinite(value) ? value : null;
@@ -201,7 +201,7 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
 
   const writeStoredHeight = (value: number): void => {
     try {
-      sessionStorage.setItem(HEIGHT_KEY, String(Math.round(value)));
+      sessionStorage.setItem(PANEL_HEIGHT_KEY, String(Math.round(value)));
     } catch {
       // Storage denied (private mode / partitioned iframe): the height is
       // still applied for this session, it just won't be remembered.

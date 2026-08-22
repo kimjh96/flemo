@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import TaskManger from "@core/TaskManger";
 
@@ -23,9 +23,6 @@ import { partTransitionMap } from "@transition/partTransition/partTransition";
 // variants below still take the compiled-CSS path (no WAAPI in jsdom), which is
 // exactly the path this recovery guards.
 // ─────────────────────────────────────────────────────────────────────────────
-
-beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`));
-afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
 
 // delay 0, duration 0.15 → span 150ms, watchdog deadline 400ms. Mismatched
 // clipPath templates ("inset(0)" vs "inset(0 0 0 100%)") keep both sides on the

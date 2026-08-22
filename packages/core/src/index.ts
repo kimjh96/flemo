@@ -197,6 +197,17 @@ export {
   WARM_ATTR,
   WARM_VIDEO_ATTR
 } from "@dom/attributes";
+// The `flemo:*` DIAGNOSTIC-FLAG REGISTRY: what each storage key is, what it
+// defaults to, and which keys are retired residue. Exported so a report or a
+// panel enumerates the flags the library actually reads instead of a copy that
+// drifts from it. See @core/engine/diagnosticRegistry.
+export {
+  DIAGNOSTIC_FLAGS,
+  RETIRED_DIAGNOSTIC_FLAGS,
+  type DiagnosticFlag,
+  type DiagnosticFlagKind,
+  type RetiredDiagnosticFlag
+} from "@core/engine/diagnosticRegistry";
 export { TRANSITIONAL_STATUS_VALUES } from "@navigate/store";
 export {
   SKIP_ANIMATION_ATTR,

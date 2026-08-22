@@ -80,11 +80,6 @@ describe("governed head kit on touch Blink", () => {
     delete (navigator as unknown as Record<string, unknown>).maxTouchPoints;
     setUserAgent(originalUserAgent);
     document.documentElement.removeAttribute(LPM_ATTR);
-    try {
-      sessionStorage.removeItem("flemo:motion-driver-force");
-    } catch {
-      // Storage unavailable in this environment; nothing to clear.
-    }
   });
 
   const drive = () => {
@@ -111,13 +106,6 @@ describe("governed head kit on touch Blink", () => {
 
   it("stays off for a modern touch Blink session", () => {
     NAV.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
-    drive();
-    expect(governed()).toBe(false);
-  });
-
-  it("stays off under a css force pin — the pin must reproduce production", () => {
-    NAV.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
-    sessionStorage.setItem("flemo:motion-driver-force", `css@${Date.now()}`);
     drive();
     expect(governed()).toBe(false);
   });

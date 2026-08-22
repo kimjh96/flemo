@@ -32,10 +32,10 @@ compiled clock is stamped when the style change commits: a heavy first frame age
 while nothing is presented, and the transition reads as abbreviated (the "swallowed
 opening"). Two questions decide the treatment, and each is answered in one place:
 
-| question | answered by | returns |
-| --- | --- | --- |
-| what kind of browser is this? | `platform/profile.ts` — `resolvePlatformProfile()` | the atomic release flip, the render-settle gate, the deferred release commit, the park variant, the rest promotion, the image-decode offload |
-| so what does THIS navigation get? | `core/engine/flightRouting.ts` — `resolveFlightRouting()` | the governed / desktop head and its length, whether clock surgery is allowed, the frame-pacing keepalive |
+| question                          | answered by                                               | returns                                                                                                                                      |
+| --------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| what kind of browser is this?     | `platform/profile.ts` — `resolvePlatformProfile()`        | the atomic release flip, the render-settle gate, the deferred release commit, the park variant, the rest promotion, the image-decode offload |
+| so what does THIS navigation get? | `core/engine/flightRouting.ts` — `resolveFlightRouting()` | the governed / desktop head and its length, whether clock surgery is allowed, the frame-pacing keepalive                                     |
 
 Neither is cached: both read their flags live, so a DevTools toggle lands on the next
 navigation. A binding asks and renders; it never re-derives either. (It used to, and
@@ -224,65 +224,66 @@ is not a consumer value; the landed scope belongs to the compiled rest rules.**
 
 `packages/core/src/core/engine/` — the flight itself:
 
-| Module | One line |
-| --- | --- |
-| `createTransitionEngine.ts` | The conductor: per-screen lifecycle drive, holds arming, the resolution paths, COMPLETED cleanup. |
-| `flightRouting.ts` | Per-flight decision: which opening treatment, and may the engine touch the clock (section 1). |
-| `flightParticipants.ts` | Who is in this flight — a screen's parts vs a nested screen's, this Router's vs another's. Scoping is by the `data-flemo-router` marker, never by DOM ancestry. |
-| `participantLayers.ts` | The compositor-layer lease held for the flight, released off-cadence after it; the landing governor's inline easing rides the same lease. |
-| `flightHolds.ts` | Every hold one screen owns across drive runs: the compositor warm-up and its settle window, the in-flight arrival armor, the warm side's image-only hold. |
-| `cancelResume.ts` | Re-joins a browser-cancelled compiled animation to its own timeline with a negative inline delay, up to `RESUME_BUDGET`. |
-| `arrivalHold.ts` | In-flight commit hold: mid-flight swaps/additions held off-glass and reflected in one commit at rest. |
-| `responseHold.ts` | Flight-scoped fetch-resolution park (every method, minus streams), delivered in one batch at rest. |
-| `invisibleAnimationHold.ts` | Pauses invisible consumer animations for the flight (the culled-subtree first-composite stall). |
-| `imageRevealHold.ts` | The `<img>` analog of responseHold. Opt-in (`flemo:imghold`). |
-| `imageDecodeHygiene.ts` | Stamps `decoding="async"` on participants' images, respecting authored attributes. |
-| `imageDecodeOffloader.ts` | Off-main decode-to-scale for oversized images; auto-gated to legacy Android Blink. |
-| `flightWindow.ts` | Global nestable "a flight is in progress" latch for out-of-engine modules. |
-| `layerSettleHold.ts` | Inline-pinned compositor promotions and their deferred demotion past the flip. |
-| `landingGovernor.ts` | Reshapes the compiled easing so the convergence tail never falls under one device pixel per frame. Its removed sibling — the integer-pixel SNAP — is documented there as falsified; do not re-derive it. |
-| `perceptualSpan.ts` | The imperceptibility-band math shared by the completion cut and the early landing. |
-| `nativeStallAnchor.ts` | Clock surgery for main-thread-presenting engines. Authored `driver: "native"` pins only. |
-| `compositorWarmUp.ts` | An invisible raster-class animation keeping the frame cadence alive through the flight and its settle window; refcounted. |
-| `gpuPipelinePrewarm.ts` | One-shot boot-idle probes compiling Chrome Graphite's GPU pipelines before the first flight. |
-| `diagnosticFlags.ts` | The `flemo:*` registry — every storage-backed toggle in one header table, pinned to the shipped readers by `documentedDefaults.test.ts`. |
-| `emulationNotice.ts` | Once-per-session warning when a transition runs under DevTools device emulation (a scaled surface fabricates shimmer). |
-| `createSwipeController.ts` | Framework-neutral swipe-back: drag-follow inline writes, the release settle clock, bar mirroring, tap slop. Its header carries the Low Power Mode DO-NOT-RETRY list. |
-| `types.ts` | The injected engine interface (`TransitionEngineDeps`). |
+| Module                      | One line                                                                                                                                                                                                                                                   |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createTransitionEngine.ts` | The conductor: per-screen lifecycle drive, holds arming, the resolution paths, COMPLETED cleanup.                                                                                                                                                          |
+| `flightRouting.ts`          | Per-flight decision: which opening treatment, and may the engine touch the clock (section 1).                                                                                                                                                              |
+| `flightParticipants.ts`     | Who is in this flight — a screen's parts vs a nested screen's, this Router's vs another's. Scoping is by the `data-flemo-router` marker, never by DOM ancestry.                                                                                            |
+| `participantLayers.ts`      | The compositor-layer lease held for the flight, released off-cadence after it; the landing governor's inline easing rides the same lease.                                                                                                                  |
+| `flightHolds.ts`            | Every hold one screen owns across drive runs: the compositor warm-up and its settle window, the in-flight arrival armor, the warm side's image-only hold.                                                                                                  |
+| `cancelResume.ts`           | Re-joins a browser-cancelled compiled animation to its own timeline with a negative inline delay, up to `RESUME_BUDGET`.                                                                                                                                   |
+| `arrivalHold.ts`            | In-flight commit hold: mid-flight swaps/additions held off-glass and reflected in one commit at rest.                                                                                                                                                      |
+| `responseHold.ts`           | Flight-scoped fetch-resolution park (every method, minus streams), delivered in one batch at rest.                                                                                                                                                         |
+| `invisibleAnimationHold.ts` | Pauses invisible consumer animations for the flight (the culled-subtree first-composite stall).                                                                                                                                                            |
+| `imageRevealHold.ts`        | The `<img>` analog of responseHold. Opt-in (`flemo:imghold`).                                                                                                                                                                                              |
+| `imageDecodeHygiene.ts`     | Stamps `decoding="async"` on participants' images, respecting authored attributes.                                                                                                                                                                         |
+| `imageDecodeOffloader.ts`   | Off-main decode-to-scale for oversized images; auto-gated to legacy Android Blink.                                                                                                                                                                         |
+| `flightWindow.ts`           | Global nestable "a flight is in progress" latch for out-of-engine modules.                                                                                                                                                                                 |
+| `layerSettleHold.ts`        | Inline-pinned compositor promotions and their deferred demotion past the flip.                                                                                                                                                                             |
+| `landingGovernor.ts`        | Reshapes the compiled easing so the convergence tail never falls under one device pixel per frame. Its removed sibling — the integer-pixel SNAP — is documented there as falsified; do not re-derive it.                                                   |
+| `perceptualSpan.ts`         | The imperceptibility-band math shared by the completion cut and the early landing.                                                                                                                                                                         |
+| `nativeStallAnchor.ts`      | Clock surgery for main-thread-presenting engines. Authored `driver: "native"` pins only.                                                                                                                                                                   |
+| `compositorWarmUp.ts`       | An invisible raster-class animation keeping the frame cadence alive through the flight and its settle window; refcounted.                                                                                                                                  |
+| `gpuPipelinePrewarm.ts`     | One-shot boot-idle probes compiling Chrome Graphite's GPU pipelines before the first flight.                                                                                                                                                               |
+| `diagnosticRegistry.ts`     | The `flemo:*` registry as DATA — every storage-backed key, its default, and the retired ones. Exported from the package so `@flemo/devtools` mirrors it instead of hand-copying; pinned to the readers by `diagnosticRegistry.test.ts` in both directions. |
+| `diagnosticFlags.ts`        | The flag READERS. Each computes a default and lets its key override it; `documentedDefaults.test.ts` holds every registry row to the reader that implements it.                                                                                            |
+| `emulationNotice.ts`        | Once-per-session warning when a transition runs under DevTools device emulation (a scaled surface fabricates shimmer).                                                                                                                                     |
+| `createSwipeController.ts`  | Framework-neutral swipe-back: drag-follow inline writes, the release settle clock, bar mirroring, tap slop. Its header carries the Low Power Mode DO-NOT-RETRY list.                                                                                       |
+| `types.ts`                  | The injected engine interface (`TransitionEngineDeps`).                                                                                                                                                                                                    |
 
 `packages/core/src/platform/` — what kind of browser this is:
 
-| Module | One line |
-| --- | --- |
-| `profile.ts` | `resolvePlatformProfile()`: every per-browser decision as one object of named fields. |
-| `engineProbes.ts` | Pure `navigator` reads (Blink, legacy Android Blink, desktop macOS WebKit, desktop Blink). Its header records the retired driver policy. |
-| `governedCompiled.ts` | Whether this session takes the governed compiled treatment (touch WebKit). |
-| `displayCadence.ts` | The session's learned frame interval, fed by the in-flight probe. |
-| `displayProbe.ts` | That probe, plus the frame-pacing keepalive — rAF run during flights, once to measure and once merely to exist. |
-| `steadySixtyCadence.ts` | The steady-60 desktop verdict, derived from the same samples. Selects defaults, never a driver. |
+| Module                  | One line                                                                                                                                 |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `profile.ts`            | `resolvePlatformProfile()`: every per-browser decision as one object of named fields.                                                    |
+| `engineProbes.ts`       | Pure `navigator` reads (Blink, legacy Android Blink, desktop macOS WebKit, desktop Blink). Its header records the retired driver policy. |
+| `governedCompiled.ts`   | Whether this session takes the governed compiled treatment (touch WebKit).                                                               |
+| `displayCadence.ts`     | The session's learned frame interval, fed by the in-flight probe.                                                                        |
+| `displayProbe.ts`       | That probe, plus the frame-pacing keepalive — rAF run during flights, once to measure and once merely to exist.                          |
+| `steadySixtyCadence.ts` | The steady-60 desktop verdict, derived from the same samples. Selects defaults, never a driver.                                          |
 
 `packages/core/src/runtime/` — what the app sits in, between navigations:
 
-| Module | One line |
-| --- | --- |
+| Module            | One line                                                                                                                                                                                                                                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `flemoRuntime.ts` | `startFlemoRuntime()`: the ambient machinery an app holds so the FIRST navigation is not the one that pays — GPU pipelines compiled at boot idle, oversized image decodes off the main thread where the profile asks, and the compositor kept awake while the user is interacting. Refcounted; a binding starts it per Router mount. |
 
 `packages/core/src/dom/` — the contract between the packages:
 
-| Module | One line |
-| --- | --- |
+| Module          | One line                                                                                                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `attributes.ts` | Every `data-flemo-*` name and the animation hold's value vocabulary. Enforced from both ends: core fails on a raw literal, the binding fails on an undeclared attribute. |
 
 Campaign modules outside those directories:
 
-| Module | One line |
-| --- | --- |
-| `screen/animStartAnchor.ts` | The anim-hold decision (`animHoldKey`) and release scheduling — decode readiness, the render-settle gate, the pop pair coordinator. |
-| `screen/pendingNetwork.ts` | In-flight request accounting, so the settle gate can tell "still loading" from "already complete". |
-| `transition/variantMotion.ts` | The variant → `{from, to, duration, delay, ease}` resolver: one source for "where does each variant start". |
-| `transition/animateInline.ts` | The inline lease model (section 3) and the imperative swipe write path. |
+| Module                                  | One line                                                                                                                                                                                                                                                                                                      |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `screen/animStartAnchor.ts`             | The anim-hold decision (`animHoldKey`) and release scheduling — decode readiness, the render-settle gate, the pop pair coordinator.                                                                                                                                                                           |
+| `screen/pendingNetwork.ts`              | In-flight request accounting, so the settle gate can tell "still loading" from "already complete".                                                                                                                                                                                                            |
+| `transition/variantMotion.ts`           | The variant → `{from, to, duration, delay, ease}` resolver: one source for "where does each variant start".                                                                                                                                                                                                   |
+| `transition/animateInline.ts`           | The inline lease model (section 3) and the imperative swipe write path.                                                                                                                                                                                                                                       |
 | `transition/compileTransitionStyles.ts` | The keyframes compiler: variant rules, `will-change`/`contain` scoping, hold/park rules, the flat-head keyframes behind each head's gate attribute, translate3d-only transforms. Timing is LITERAL by contract — `calc(var())` in animation timing demotes WebKit fades to the main thread (device-bisected). |
-| `transition/enteringInitialStyle.ts` | The entering screen's inline from-pose for its first styled frame (see the lease hazard in section 3). |
+| `transition/enteringInitialStyle.ts`    | The entering screen's inline from-pose for its first styled frame (see the lease hazard in section 3).                                                                                                                                                                                                        |
 
 ## 5. Removed, and not to be re-derived
 
@@ -291,11 +292,11 @@ device-verified when it landed; each was device-falsified later. The point of
 the list is that "it solved a real measured problem" is not by itself a reason
 to bring one back — all of these did.
 
-| removed | why it went |
-| --- | --- |
-| The rAF motion **player** (2026-08) | The routing sent every supported browser to the compiled tier before the player was ever consulted, so it drove nothing but desktop Firefox. Its measured costs are recorded where they were paid — the 120Hz partial-present trace in `platform/engineProbes.ts`, the 30Hz Low Power Mode ceiling in `createSwipeController.ts`. |
-| The integer-device-pixel **landing snap** | A live A/B on real content judged texel-rigid stepping WORSE than the authored fractional glide — the same verdict as the transformPart 2D-vs-3D experiment, where translate3d was chosen precisely FOR filtered sub-pixel compositing. See `landingGovernor.ts`. |
-| Governed-tier **front-softening** | Prescribed against a broken pipeline (var-timing demotion plus the opening skips). With those cured, the softened curve became the "different transition" the user could feel against the authored curve. Check the pipeline underneath before reaching for a curve change. |
+| removed                                   | why it went                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The rAF motion **player** (2026-08)       | The routing sent every supported browser to the compiled tier before the player was ever consulted, so it drove nothing but desktop Firefox. Its measured costs are recorded where they were paid — the 120Hz partial-present trace in `platform/engineProbes.ts`, the 30Hz Low Power Mode ceiling in `createSwipeController.ts`. |
+| The integer-device-pixel **landing snap** | A live A/B on real content judged texel-rigid stepping WORSE than the authored fractional glide — the same verdict as the transformPart 2D-vs-3D experiment, where translate3d was chosen precisely FOR filtered sub-pixel compositing. See `landingGovernor.ts`.                                                                 |
+| Governed-tier **front-softening**         | Prescribed against a broken pipeline (var-timing demotion plus the opening skips). With those cured, the softened curve became the "different transition" the user could feel against the authored curve. Check the pipeline underneath before reaching for a curve change.                                                       |
 
 ## 6. Who resolves a flight — "never a double resolution"
 

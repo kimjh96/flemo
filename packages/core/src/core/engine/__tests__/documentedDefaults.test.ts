@@ -12,18 +12,25 @@ import {
   readPrerasterFlag,
   readSettleGateFlag,
   residentScreenLayers,
-  resetResidentLayersForTesting
+  resetResidentLayersForTesting,
+  resetShallowFreezeForTesting,
+  shallowFreeze
 } from "@core/engine/diagnosticFlags";
 import { reportInFlightCadence, resetSteadySixtyForTests } from "@platform/steadySixtyCadence";
 
-// The registry table at the top of diagnosticFlags.ts is what every other reference
-// delegates truth to, and it drifted from the code four keys at a time between
+// `diagnosticRegistry.ts` is what every other reference delegates truth to, and
+// as a comment table it drifted from the code four keys at a time between
 // 2026-08-17 and 08-19 — each time because a change updated the reader and one
 // of the several prose copies of its default, but not the table. Every default
 // that can be computed is asserted here, per environment, so a change to a
-// default fails until the documented row matches it.
+// default fails until the declared row matches it.
 //
-// Environments are named the way the table names them.
+// The registry is also held to THIS suite: `diagnosticRegistry.test.ts` fails
+// if a row with a computable default is not asserted here, because a row
+// nothing asserts is a row free to drift again. `flemo:freeze` was found that
+// way, having shipped its whole life with no assertion at all.
+//
+// Environments are named the way the registry names them.
 
 const NAV = navigator as { userAgentData?: unknown };
 let originalDpr: number;
@@ -329,5 +336,30 @@ describe("documented default: flemo:imgoffload", () => {
     expect(readImageOffloadOverride()).toBeNull();
     sessionStorage.setItem("flemo:imgoffload", "off");
     expect(readImageOffloadOverride()).toBe("off");
+  });
+});
+
+describe("documented default: flemo:freeze", () => {
+  // Registry: "shallow", opt-in, default off. The read is CACHED per page load
+  // — it selects a code path for a whole session — so the reset seam is part of
+  // the contract being asserted, not test scaffolding.
+  it("is off until explicitly armed, and only the documented value arms it", () => {
+    resetShallowFreezeForTesting();
+    expect(shallowFreeze()).toBe(false);
+
+    sessionStorage.setItem("flemo:freeze", "shallow");
+    resetShallowFreezeForTesting();
+    expect(shallowFreeze()).toBe(true);
+
+    sessionStorage.setItem("flemo:freeze", "on");
+    resetShallowFreezeForTesting();
+    expect(shallowFreeze()).toBe(false);
+  });
+
+  it("caches: a mid-session change does not switch the path under a live flight", () => {
+    resetShallowFreezeForTesting();
+    expect(shallowFreeze()).toBe(false);
+    sessionStorage.setItem("flemo:freeze", "shallow");
+    expect(shallowFreeze()).toBe(false);
   });
 });
