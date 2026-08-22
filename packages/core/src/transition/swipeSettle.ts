@@ -186,8 +186,12 @@ export const releaseLaunchSlope = ({
   const remaining = Math.abs(remainingPx);
   if (remaining <= 0.5 || seconds <= 0) return null;
   const fingerSlope = reversing ? 0 : (Math.abs(velocityPxPerSecond) * seconds) / remaining;
+  // `>= 0`, not `> 0`: an authored ease-IN opens at exactly zero — material's
+  // committing swipe is cubic-bezier(0.4, 0, 1, 1) — and that is a drawn
+  // intention, not a missing value. Reading it as absent handed the floor a
+  // curve the author had deliberately started from rest.
   const floor =
-    typeof authoredSlope === "number" && authoredSlope > 0
+    typeof authoredSlope === "number" && authoredSlope >= 0
       ? Math.min(MIN_LAUNCH_SLOPE, authoredSlope)
       : MIN_LAUNCH_SLOPE;
   return Math.min(RELEASE_LAUNCH_SLOPE, Math.max(floor, fingerSlope));

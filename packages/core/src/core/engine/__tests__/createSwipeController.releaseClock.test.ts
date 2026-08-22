@@ -261,6 +261,51 @@ describe("the release clock", () => {
     }
   });
 
+  it("re-aims the curve the HANDLER authored, not one the controller knows", async () => {
+    // The rule is the controller's, but the curve is the transition's. A
+    // consumer's own ease has to come out re-aimed, with its own landing.
+    const CONSUMER_EASE = [0.6, 0.9, 0.15, 1];
+    config = {
+      ...config,
+      getTransition: () =>
+        ({
+          name: "consumer-curve",
+          initial: { x: "100%" },
+          variants: {} as Transition["variants"],
+          swipeDirection: "x",
+          onSwipeStart: async () => true,
+          onSwipe: () => 0,
+          onSwipeEnd: async (
+            _event: PointerEvent,
+            info: { offset: { x: number } },
+            api: {
+              animate: (t: unknown, v: unknown, o: { duration: number; ease: number[] }) => void;
+              currentScreen: HTMLElement;
+              onStart?: (triggered: boolean) => void;
+            }
+          ) => {
+            const triggered = info.offset.x > 50;
+            api.onStart?.(triggered);
+            api.animate(
+              api.currentScreen,
+              { x: triggered ? "100%" : 0 },
+              { duration: AUTHORED, ease: CONSUMER_EASE }
+            );
+            return triggered;
+          }
+        }) as unknown as Transition
+    };
+
+    await release(Math.round(window.innerWidth / 2), 4000);
+
+    const written = easingOn(dom.scope);
+    expect(written).not.toBeNull();
+    // Its landing is untouched, and its opening — authored at 1.5 — has been
+    // brought down to what this near-stationary finger can support.
+    expect(written!.slice(2)).toEqual([0.15, 1]);
+    expect(written![1]! / written![0]!).toBeLessThan(0.9 / 0.6);
+  });
+
   // A CANCEL is the settle walking BACK the way the finger came, and it only
   // ever happens below the transition's commit threshold — so the distance
   // term is tiny by construction and used to hand every cancel the short

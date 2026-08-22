@@ -281,3 +281,64 @@ describe("the release curve leaves at the speed the finger had", () => {
     expect(reaimReleaseEase([0, 0, 0.58, 1], 1.2)).toEqual([0, 0, 0.58, 1]);
   });
 });
+
+// THE RULE IS THE CONTROLLER'S, NOT ANY PRESET'S.
+//
+// Every release write in the library passes through one place — a transition's
+// own hooks, its decorator's, its parts' — so a curve authored by a consumer
+// tomorrow gets the same treatment. What is re-aimed is whatever ease the
+// HANDLER passed, and the authored intention is what bounds it.
+describe("re-aiming respects whatever curve the transition authored", () => {
+  const slopeOf = (ease: readonly [number, number, number, number]) =>
+    ease[0] > 0 ? ease[1] / ease[0] : undefined;
+
+  const aim = (
+    authored: [number, number, number, number],
+    velocityPxPerSecond: number,
+    remainingPx = 200,
+    seconds = 0.3
+  ) => {
+    const slope = releaseLaunchSlope({
+      remainingPx,
+      velocityPxPerSecond,
+      seconds,
+      authoredSlope: slopeOf(authored)
+    })!;
+    return { slope, ease: reaimReleaseEase(authored, slope) };
+  };
+
+  it("never adds energy to a curve the author drew from rest", () => {
+    // material's committing swipe is an ease-IN: it opens at exactly zero, on
+    // purpose. A stopped finger must leave it there rather than be floored up.
+    const MATERIAL_IN: [number, number, number, number] = [0.4, 0, 1, 1];
+    const { slope, ease } = aim(MATERIAL_IN, 0);
+    expect(slope).toBe(0);
+    expect(ease).toEqual(MATERIAL_IN);
+  });
+
+  it("still lets a fast finger leave fast out of that same curve", () => {
+    // The ceiling is NOT capped by the authored slope: a screen genuinely
+    // moving reads as braking if the settle opens slower than the hand did.
+    const { slope } = aim([0.4, 0, 1, 1], 4000);
+    expect(slope).toBeCloseTo(RELEASE_LAUNCH_SLOPE, 5);
+  });
+
+  it("holds a gently-drawn curve to its own opening when the gesture is slow", () => {
+    // The default `ease` opens at 0.4 — below the floor, so the floor yields.
+    const { slope } = aim([0.25, 0.1, 0.25, 1], 0);
+    expect(slope).toBeCloseTo(0.4, 5);
+  });
+
+  it("caps a curve drawn to overshoot at the same ceiling as any other", () => {
+    // backOut opens at 4.6. A release is not the place to discover that.
+    const { slope, ease } = aim([0.33, 1.53, 0.69, 0.99], 4000);
+    expect(slope).toBeCloseTo(RELEASE_LAUNCH_SLOPE, 5);
+    // Its landing — the part that overshoots — is the author's and stays.
+    expect(ease.slice(2)).toEqual([0.69, 0.99]);
+  });
+
+  it("leaves an ease-out alone: it has no opening handle to re-aim", () => {
+    const EASE_OUT: [number, number, number, number] = [0, 0, 0.58, 1];
+    expect(reaimReleaseEase(EASE_OUT, aim(EASE_OUT, 1200).slope)).toEqual(EASE_OUT);
+  });
+});
