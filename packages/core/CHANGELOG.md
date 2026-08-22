@@ -1,5 +1,17 @@
 # @flemo/core
 
+## 1.28.1
+
+### Patch Changes
+
+- [`ab29846`](https://github.com/kimjh96/flemo/commit/ab29846347076b8c102e8acca6a95b859174a72c) Make a swipe-back as cheap per frame as a transition is. The gesture promoted its riding bars only, so both full-screen scopes and the dim were repainted from scratch on every frame the finger moved, and it ran the whole follow — both screens, the bars, the dim and every `<Part>` — on every pointer move rather than once per frame. Both now match what a flight already does; the release still settles from the finger's last real position.
+
+- [`a97af55`](https://github.com/kimjh96/flemo/commit/a97af5544dc6cb426a9daf8868af5cd7b11b2903) Stop a back-swipe from catching once at its start. The screen a swipe reveals is normally frozen, and starting the gesture is what wakes it — a commit over that whole screen that used to land on the drag's first frames. The motion now waits for the reveal to be painted and then resumes from where the finger is, so the opening is a frame or two later and nothing stutters after it. A gesture with nothing to wake is unaffected.
+
+- [`c987660`](https://github.com/kimjh96/flemo/commit/c987660617927cdcfbc733e5b8cf4fe67bd707fd) Give every swipe release the length its gesture asks for. A release ran whatever duration its handler named — one number for six pixels left or three hundred — so the same navigation landed in a different time depending on whether it was swiped or tapped. The swipe controller now scales that authored duration by what is left to travel and how fast the finger was going, keeping it as the ceiling, at the one place every release write passes through: the transition's hooks, its decorator's, and its parts'. Transitions authored by consumers get it without changing a line.
+
+- [`e093b50`](https://github.com/kimjh96/flemo/commit/e093b50d19e7c3e526f44c2a6b29f9ceffa7bdfc) Settle a swipe release on the compositor. The motion after a gesture lets go was driven by a main-thread clock that stepped every settle frame — a trade inherited from the retired player, and the wrong one where the main thread is the scarce resource: on iOS in Low Power Mode the release stuttered along with the drag. It is now an ordinary CSS transition carrying the same authored duration and easing, on every engine, and the scrub clock is gone.
+
 ## 1.28.0
 
 ### Minor Changes
