@@ -82,7 +82,13 @@ function buildNestedDom() {
 const event = (over: Partial<PointerEvent> & { target?: EventTarget }) =>
   ({ clientX: 0, clientY: 0, timeStamp: 0, pointerId: 1, ...over }) as unknown as PointerEvent;
 
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+// The drag's follow write lands on an ANIMATION FRAME — one write per frame,
+// not one per pointermove (see createSwipeController's queueFollow) — so a
+// flush has to let a frame run before the assertions read the DOM.
+const flush = () =>
+  new Promise((resolve) => {
+    requestAnimationFrame(() => setTimeout(resolve, 0));
+  });
 
 describe("swipe-back on a screen that hosts a nested Router", () => {
   let dom: ReturnType<typeof buildNestedDom>;
@@ -119,6 +125,10 @@ describe("swipe-back on a screen that hosts a nested Router", () => {
       getDecorator: () =>
         ({
           name: "overlay",
+          // A real decorator carries initial/variants; the controller now
+          // promotes it for the drag, which reads them.
+          initial: { opacity: 0 },
+          variants: {},
           onSwipeStart: (_triggered: boolean, api: { prevDecorator: HTMLElement }) => {
             seen.prevDecorator = api.prevDecorator;
           }
