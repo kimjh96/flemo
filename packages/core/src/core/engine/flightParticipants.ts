@@ -138,6 +138,8 @@ export const collectStampedOuterParts = (scope: HTMLElement): HTMLElement[] => {
   return Array.from(
     scope.ownerDocument.querySelectorAll<HTMLElement>(`[${PART_NAME_ATTR}][${ANIM_HOLD_ATTR}]`)
   ).filter((part) => {
+    /* v8 ignore next -- a part reached by a document query always has a parent;
+       the optional chain is a guard against a detached caller, not a path. */
     if (part.parentElement?.closest(`[${ANIM_HOLD_ATTR}]`) != null) return false;
     if (flightId === null) return true;
     const carrier = part.closest(attrSelector(ROUTER_ATTR));
@@ -153,15 +155,18 @@ export const statusChoreographySpanMs = (
   let spanMs = 0;
   for (const variant of [`${status}-true`, `${status}-false`] as TransitionVariant[]) {
     if (!variantHasAnimation(transition, variant)) continue;
-    const motion = resolveVariantMotion(transition, variant);
-    if (motion) spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
+    // variantHasAnimation and resolveVariantMotion share one gate (a non-rest
+    // variant with duration or delay > 0 — see variantMotion.ts), so past the
+    // check the motion always resolves.
+    const motion = resolveVariantMotion(transition, variant)!;
+    spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
   }
   for (const part of collectFlightParts(scope, status)) {
     const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
     const partVariant = `${status}-${part.getAttribute(ACTIVE_ATTR)}` as TransitionVariant;
     if (!definition || !variantHasAnimation(definition, partVariant)) continue;
-    const motion = resolveVariantMotion(definition, partVariant);
-    if (motion) spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
+    const motion = resolveVariantMotion(definition, partVariant)!;
+    spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
   }
   // The decorator is a full participant too (it joins the shared player): a
   // 3s custom dim over a 700ms screen must extend every flight deadline,
@@ -172,8 +177,8 @@ export const statusChoreographySpanMs = (
   if (decoratorDefinition) {
     for (const variant of [`${status}-true`, `${status}-false`] as TransitionVariant[]) {
       if (!variantHasAnimation(decoratorDefinition, variant)) continue;
-      const motion = resolveVariantMotion(decoratorDefinition, variant);
-      if (motion) spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
+      const motion = resolveVariantMotion(decoratorDefinition, variant)!;
+      spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
     }
   }
   return spanMs;

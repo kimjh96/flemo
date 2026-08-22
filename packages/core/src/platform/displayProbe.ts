@@ -43,6 +43,8 @@ export const COMPILED_TIER_MAX_INTERVAL_MS = 12;
 // (so it never runs before the app navigates) and then kept warm forever.
 let keepaliveHandle: number | null = null;
 const keepaliveTick = () => {
+  /* v8 ignore next 2 -- the loop only runs where rAF existed to start it; the
+     re-check covers an environment that removes it mid-session. */
   keepaliveHandle =
     typeof requestAnimationFrame === "function" ? requestAnimationFrame(keepaliveTick) : null;
 };

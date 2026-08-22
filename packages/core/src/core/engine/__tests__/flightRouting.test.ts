@@ -108,6 +108,16 @@ describe("the governed head kit", () => {
     expect(route().governedHead).toBe(false);
   });
 
+  it("falls back to a zero head for a status the tables do not size", () => {
+    // Only the three animating statuses have head lengths. A drive run for any
+    // other status must take 0 rather than NaN into every deadline.
+    setEnv({ blink: false, touch: true });
+    expect(route({ status: "COMPLETED" }).birthHoldMs).toBe(0);
+    setEnv({ blink: false, touch: false, mac: true });
+    expect(route({ status: "COMPLETED" }).desktopHead).toBe(true);
+    expect(route({ status: "COMPLETED" }).birthHoldMs).toBe(0);
+  });
+
   it("is off for desktop, on either engine", () => {
     setEnv({ blink: true, touch: false });
     expect(route().governedHead).toBe(false);

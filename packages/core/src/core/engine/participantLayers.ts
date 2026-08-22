@@ -63,7 +63,9 @@ export const holdParticipantLayers = (
   };
   if (variantHasAnimation(transition, variant)) {
     holdScopeLayer(scope, transition, containment, owner);
-    const scopeMotion = resolveVariantMotion(transition, variant) ?? null;
+    // Same shared gate as the span helper: variantHasAnimation has already
+    // passed, so the motion resolves.
+    const scopeMotion = resolveVariantMotion(transition, variant)!;
     const easing = easingFor(scopeMotion, scope);
     if (easing) {
       trackInlineWrite(scope, "animation-timing-function", owner);
@@ -89,7 +91,7 @@ export const holdParticipantLayers = (
     const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
     if (definition && variantHasAnimation(definition, variant)) {
       holdScopeLayer(part, definition, containment, owner);
-      const partMotion = resolveVariantMotion(definition, variant) ?? null;
+      const partMotion = resolveVariantMotion(definition, variant)!;
       const partEasing = easingFor(partMotion, part);
       if (partEasing) {
         trackInlineWrite(part, "animation-timing-function", owner);
