@@ -1,6 +1,6 @@
-import { detectBlinkEngine, isDesktopMacWebKit } from "@core/engine/engineProbes";
-import { governedCompiledActive } from "@core/engine/governedCompiled";
-import { steadySixtyDesktopProfile } from "@core/engine/steadySixtyCadence";
+import { detectBlinkEngine, isDesktopMacWebKit } from "@platform/engineProbes";
+import { governedCompiledActive } from "@platform/governedCompiled";
+import { steadySixtyDesktopProfile } from "@platform/steadySixtyCadence";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The `flemo:*` diagnostic-flag registry.

@@ -821,7 +821,7 @@ describe("createTransitionEngine gate-phase reporting", () => {
     // high-refresh cadence (see landingGovernor.ts) — that stamp is the
     // superseded stake this test is about.
     Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
-    const { reportDisplayIntervalMs } = await import("@core/engine/displayCadence");
+    const { reportDisplayIntervalMs } = await import("@platform/displayCadence");
     reportDisplayIntervalMs(1000 / 120);
     const { transitionMap } = await import("@transition/transition");
     const createTransition = (await import("@transition/createTransition")).default;
@@ -893,7 +893,7 @@ describe("createTransitionEngine gate-phase reporting", () => {
     Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
     const originalDpr = window.devicePixelRatio;
     Object.defineProperty(window, "devicePixelRatio", { value: 0, configurable: true });
-    const { reportDisplayIntervalMs } = await import("@core/engine/displayCadence");
+    const { reportDisplayIntervalMs } = await import("@platform/displayCadence");
     reportDisplayIntervalMs(1000 / 120);
     const { scope } = elements();
     Object.defineProperty(scope, "clientWidth", { value: 1400, configurable: true });

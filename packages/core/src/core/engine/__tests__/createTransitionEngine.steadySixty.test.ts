@@ -12,7 +12,7 @@ import {
   reportInFlightCadence,
   resetSteadySixtyForTests,
   steadySixtyVerified
-} from "@core/engine/steadySixtyCadence";
+} from "@platform/steadySixtyCadence";
 
 import type { TransitionEngineDeps } from "@core/engine/types";
 

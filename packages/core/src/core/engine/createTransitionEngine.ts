@@ -26,15 +26,8 @@ import {
   readCreepHeadFlag,
   readSettleGateFlag
 } from "@core/engine/diagnosticFlags";
-import { learnedFrameIntervalMs, reportDisplayIntervalMs } from "@core/engine/displayCadence";
 import { noticeDeviceEmulationOnce } from "@core/engine/emulationNotice";
-import {
-  detectBlinkEngine,
-  isDesktopMacWebKit,
-  isLegacyAndroidBlink
-} from "@core/engine/engineProbes";
 import { beginFlightWindow } from "@core/engine/flightWindow";
-import { governedCompiledActive } from "@core/engine/governedCompiled";
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
 import { beginImageRevealHold } from "@core/engine/imageRevealHold";
 import createInvisibleAnimationHold from "@core/engine/invisibleAnimationHold";
@@ -52,7 +45,6 @@ import { beginResponseHold } from "@core/engine/responseHold";
 // placement is uniform and the image hold is opt-in. It still FEEDS it — the
 // display probe below reports the in-flight cadence the desktop cadence lock
 // and the settle-gate default read.
-import { reportInFlightCadence } from "@core/engine/steadySixtyCadence";
 import {
   SKIP_ANIMATION_ATTR,
   type ScreenLifecycleInput,
@@ -73,6 +65,14 @@ import {
   SCREEN_ATTR,
   STATUS_ATTR
 } from "@dom/attributes";
+import { learnedFrameIntervalMs, reportDisplayIntervalMs } from "@platform/displayCadence";
+import {
+  detectBlinkEngine,
+  isDesktopMacWebKit,
+  isLegacyAndroidBlink
+} from "@platform/engineProbes";
+import { governedCompiledActive } from "@platform/governedCompiled";
+import { reportInFlightCadence } from "@platform/steadySixtyCadence";
 import { decoratorMap } from "@transition/decorator/decorator";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 

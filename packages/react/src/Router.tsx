@@ -18,8 +18,7 @@ import {
   createRouterScope,
   ensureGpuPipelinePrewarm,
   ensureImageDecodeOffloader,
-  isLegacyAndroidBlink,
-  readImageOffloadOverride,
+  resolvePlatformProfile,
   holdCompositorWarm,
   seedRouterEntry,
   isServer,
@@ -393,32 +392,14 @@ function Router({
   useTransitionStyles(transitions, decorators, partTransitions);
 
   // Off-main decode-to-scale for oversized images (see @flemo/core
-  // imageDecodeOffloader): WebKit decodes full-resolution originals
-  // synchronously on the main thread, which was measured eating a tab
-  // transition whole — a 190ms fade presented 5 of its 12 frames and ran for
-  // 384ms. Document-wide and refcounted, so nested Routers share one observer.
-  //
-  // AUTO on legacy Android Blink only; OFF everywhere else. It rewrites
-  // oversized consumer <img> sources to re-encoded, downscaled blobs, so it
-  // must never run where the paint is already cheap — the old blanket opt-in
-  // existed only because the library "could not tell a GPU-starved phone from
-  // a flagship at load." `isLegacyAndroidBlink()` closes exactly that gap: a
-  // touch Chromium that ships NO UA-CH brands is confidently pre-2021 hardware
-  // (device-confirmed: Galaxy Note 9 Samsung Internet reports no brands, and
-  // its 37MP-original members list stalled the opening on every re-entry).
-  // A flagship ships UA-CH brands → excluded; iPhone carries no Android token →
-  // excluded; and even on a matched device only genuinely OVERSIZED sources
-  // (OVERSIZE_AREA_RATIO) are ever touched — a well-sized image is left as
-  // authored. `flemo:imgoffload` (readImageOffloadOverride, from @flemo/core's
-  // diagnostic-flag registry) overrides both ways: `on` forces it (any
-  // engine, for a consumer whose own measurement demands it), `off` opts a
-  // legacy device back out.
-  useEffect(() => {
-    const flag = readImageOffloadOverride();
-    if (flag === "off") return undefined;
-    const enabled = flag === "on" || isLegacyAndroidBlink();
-    return enabled ? ensureImageDecodeOffloader() : undefined;
-  }, []);
+  // imageDecodeOffloader). WHETHER it runs is the platform profile's call —
+  // it rewrites consumer <img> sources, so it must never run where the paint
+  // is already cheap; see `imageDecodeOffload` there. Document-wide and
+  // refcounted, so nested Routers share one observer.
+  useEffect(
+    () => (resolvePlatformProfile().imageDecodeOffload ? ensureImageDecodeOffloader() : undefined),
+    []
+  );
 
   // One-shot GPU pipeline prewarm (see @flemo/core gpuPipelinePrewarm):
   // Chrome's Graphite backend compiles the flight's GPU pipelines on their

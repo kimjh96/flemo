@@ -1,5 +1,5 @@
-import { steadySixtyDesktopProfile } from "@core/engine/steadySixtyCadence";
 import { WARM_ATTR, WARM_VIDEO_ATTR } from "@dom/attributes";
+import { steadySixtyDesktopProfile } from "@platform/steadySixtyCadence";
 // Compositor warm-up for the length of a flight.
 //
 // A transition normally starts from an IDLE browser: nothing has been

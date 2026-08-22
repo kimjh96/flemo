@@ -6,7 +6,7 @@ import createTransition from "@transition/createTransition";
 import { transitionMap } from "@transition/transition";
 
 import createTransitionEngine from "@core/engine/createTransitionEngine";
-import { reportInFlightCadence, resetSteadySixtyForTests } from "@core/engine/steadySixtyCadence";
+import { reportInFlightCadence, resetSteadySixtyForTests } from "@platform/steadySixtyCadence";
 
 import type { TransitionEngine, TransitionEngineDeps } from "@core/engine/types";
 

@@ -4,6 +4,14 @@ The React binding over `@flemo/core`. The split is strict: core owns everything
 imperative and reusable (task queue, stores, engine, compiled styles, gesture math);
 this package owns React wiring — rendering the declarative state (data-attributes,
 inline styles) core's engine reads, and calling core at the right lifecycle moments.
+Per-browser decisions are NOT this package's to make. `resolvePlatformProfile()`
+(@flemo/core) returns every one of them as a named field; this package asks and
+renders. It calls no engine probe and reads no `flemo:*` flag directly — a lint-clean
+grep for `detectBlinkEngine()` / `read*Flag()` in `src/` returns nothing, and it should
+stay that way. The one input core cannot see is whether a transition authored
+`driver: "native"`, so that is passed in. Resolve the profile PER DECISION; never
+hoist one, or a DevTools toggle stops taking effect.
+
 The `data-flemo-*` attributes this package renders are NOT free-form: they are the
 DOM PROTOCOL, declared once in core's `src/dom/attributes.ts` and enforced from both
 sides — core's `dom/__tests__/attributes.test.ts` fails on any raw literal in core,

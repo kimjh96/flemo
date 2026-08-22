@@ -16,21 +16,16 @@ import {
   ANIM_HOLD_ATTR,
   computeBarRiding,
   computeScreenFreeze,
-  detectBlinkEngine,
   eagerlyDecodeImages,
   isOpaqueColor,
   createSwipeController,
   createTransitionEngine,
   decoratorMap,
   enteringInitialStyle,
-  governedCompiledActive,
   observeBarHeight,
-  readDeferReleaseCommitFlag,
-  readDesktopReleaseFlipFlag,
-  readRestLayerPromotionFlag,
-  readPrerasterFlag,
-  readSettleGateFlag,
+  resolvePlatformProfile,
   resolveTransition,
+  restLayerPromotionEnabled,
   sharedBarsMatch,
   type AnimHoldCoordinator
 } from "@flemo/core";
@@ -54,19 +49,16 @@ import useStores from "@stores/useStores";
 
 import RouterIdContext from "../RouterIdContext";
 
-// The RENDER-settle entry gate (readSettleGateFlag, from @flemo/core's
-// diagnostic-flag registry — the same reader the engine's routing uses, so
-// both sides always agree) holds the motion until the entering screen's
-// mount render quiesces, so a heavy screen's own commit storm can't drop the
-// opening frames. ON BY DEFAULT for touch WebKit (governedCompiledActive) — it
-// ships with the governed-compiled tier that needs a quiet opening. Explicit
-// `flemo:settle-gate=off` opts out; `=on` is redundant but honored.
+// Every per-browser decision this component makes comes from ONE call:
+// `resolvePlatformProfile()` (@flemo/core). This file asks and renders; it does
+// not derive policy. The reasoning behind each field — which populations were
+// measured, what each one is curing — lives with the profile, so core and the
+// binding cannot disagree about it. That disagreement is not hypothetical: the
+// settle gate's arming widened here while the flag enabling it stayed
+// WebKit-only in core, and Android ran ungated for two release rounds.
 //
-// readPrerasterFlag (`flemo:preraster=on`): promote the entering content
-// layer from the hold onward (will-change: transform below) so its tiles keep
-// a live backing store across the flight. Retained as an opt-in probe; the
-// swallow itself is solved by the scrub tier's freeze-on-block opening, not
-// by pre-raster.
+// The profile is resolved PER DECISION, never hoisted: every field reads its
+// flag live, so a DevTools toggle takes effect on the next navigation.
 
 function ScreenMotion({
   children,
@@ -569,7 +561,7 @@ function ScreenMotion({
   // means an interleaved commit renders the released value instead of writing
   // the paused hold attribute back over a running animation — the defect
   // `flushSync` was closing by timing, closed by construction instead, which is
-  // what lets the reconcile leave the release frame (see readDeferReleaseCommitFlag).
+  // what lets the reconcile leave the release frame (profile.deferReleaseCommit).
   const releasedKeyRef = useRef<string | null>(null);
 
   const [animRelease, setAnimRelease] = useState<{ key: string | null; released: boolean }>({
@@ -623,7 +615,7 @@ function ScreenMotion({
       : isActive &&
           (status === "PUSHING" || status === "REPLACING") &&
           partnerSurface?.opaqueBackground
-        ? readPrerasterFlag() || governedCompiledActive()
+        ? resolvePlatformProfile().parkOver
           ? // Touch WebKit parks the entering screen ON TOP at 0.02 opacity by
             // default (2026-08-20/21 device round): park-under leaves the layer
             // occluded, and the tiles the slide is about to reveal are then
@@ -645,9 +637,9 @@ function ScreenMotion({
   // The FLIGHT-time promotion is not here: the engine stamps every participant
   // for the length of the flight (layerSettleHold), on every tier. The binding
   // used to promote the scope through the hold as well, and that duplicate is
-  // what made the stamp restore a promotion forever — see
-  // readRestLayerPromotionFlag's note in core.
-  const restLayerPromotion = useHydrationSafeFlag(readRestLayerPromotionFlag);
+  // what made the stamp restore a promotion forever — see the profile's
+  // `restLayerPromotion` note in core.
+  const restLayerPromotion = useHydrationSafeFlag(restLayerPromotionEnabled);
 
   // Drive the navigation-task lifecycle through the framework-neutral engine.
   // It resolves the active screen's task on its animationend (or a microtask
@@ -712,24 +704,16 @@ function ScreenMotion({
         // both screens' callbacks in one tick, so the pair still departs
         // on one clock.
         //
-        // WHO GETS IT. The flip is the cure for a clock that is stamped on the
-        // main thread and presented from it, so it is scoped to non-Blink —
-        // Blink's compiled animation is compositor-driven and rides a
-        // main-thread gap without aging. Within non-Blink, three device-verified
-        // populations: an authored `driver: "native"` pin, touch WebKit
-        // (governedCompiledActive), and desktop macOS Safari (`flemo:deskflip`,
-        // default-on there). Desktop macOS Safari was missing from the list
-        // until 2026-08-20 and showed the same swallow the other two do: the
-        // push opening frozen ~100-400ms, then a leap to mid-curve.
+        // WHO GETS IT is the profile's call (`atomicReleaseFlip`), not this
+        // file's. The one input core cannot see is whether THIS transition
+        // authored `driver: "native"`, so that is the one thing passed in.
         //
         // Read via the latest-ref (not the render closure) so no stale value
         // and no extra effect dependency: currentTransition is a fresh object
         // each render, which as a dep would re-run this effect every render.
-        const authoredNative =
+        const authoredNativeDriver =
           (swipeEnvRef.current.transition as { driver?: string }).driver === "native";
-        const directFlip =
-          (authoredNative || governedCompiledActive() || readDesktopReleaseFlipFlag()) &&
-          !detectBlinkEngine();
+        const directFlip = resolvePlatformProfile({ authoredNativeDriver }).atomicReleaseFlip;
         if (directFlip) {
           for (const el of [
             scopeRef.current,
@@ -773,7 +757,7 @@ function ScreenMotion({
           // commit IS the release and must stay in this task.
           if (
             directFlip &&
-            readDeferReleaseCommitFlag() &&
+            resolvePlatformProfile().deferReleaseCommit &&
             typeof requestAnimationFrame === "function"
           ) {
             requestAnimationFrame(() => reconcile());
@@ -825,7 +809,7 @@ function ScreenMotion({
           // been hiding it as a (felt-as-dead-tap) delayed start. The pair
           // coordinator already barriers the pop pair, so gating the
           // returning side moves the WHOLE pair's departure past the storm.
-          readSettleGateFlag() &&
+          resolvePlatformProfile().renderSettleGate &&
           (isActive ? status === "PUSHING" || status === "POPPING" : status === "POPPING")
             ? {
                 // firstWaitMs: no qualifying mount commit within this → warm/

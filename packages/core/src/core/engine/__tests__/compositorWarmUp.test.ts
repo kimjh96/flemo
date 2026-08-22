@@ -4,7 +4,7 @@ import holdCompositorWarm, {
   resetCompositorWarmForTesting,
   WARM_ATTR
 } from "@core/engine/compositorWarmUp";
-import { reportInFlightCadence, resetSteadySixtyForTests } from "@core/engine/steadySixtyCadence";
+import { reportInFlightCadence, resetSteadySixtyForTests } from "@platform/steadySixtyCadence";
 
 const warmElement = () => document.querySelector(`[${WARM_ATTR}]`);
 

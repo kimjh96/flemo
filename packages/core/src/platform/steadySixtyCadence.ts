@@ -1,4 +1,4 @@
-import { detectBlinkEngine } from "@core/engine/engineProbes";
+import { detectBlinkEngine } from "@platform/engineProbes";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Genuine-steady-60Hz verdict for the DESKTOP Blink profile.

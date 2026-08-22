@@ -4,10 +4,12 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: {
-    alias: ["core", "dom", "history", "navigate", "screen", "transition", "utils"].map((input) => ({
-      find: `@${input}`,
-      replacement: resolve(__dirname, `src/${input}`)
-    }))
+    alias: ["core", "dom", "history", "navigate", "platform", "screen", "transition", "utils"].map(
+      (input) => ({
+        find: `@${input}`,
+        replacement: resolve(__dirname, `src/${input}`)
+      })
+    )
   },
   test: {
     environment: "jsdom",

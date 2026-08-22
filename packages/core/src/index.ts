@@ -136,21 +136,22 @@ export { default as animateInline, clearInlineAnimation } from "@transition/anim
 // Framework-neutral transition engine. Owns the navigation-task lifecycle and
 // cleanup for a screen; bindings feed it plain DOM elements + state.
 export { default as createTransitionEngine } from "@core/engine/createTransitionEngine";
-export { governedCompiledActive } from "@core/engine/governedCompiled";
+export { governedCompiledActive } from "@platform/governedCompiled";
 // The `flemo:*` diagnostic-flag registry (see the module's header table).
 // Only the readers a binding consumes are public: the render-settle gate
 // (shared with the engine's routing so both sides always agree), the
 // desktop-Safari atomic release flip, the pre-raster probe, its
 // layer-promotion half (hydration-deferred by the binding — see the reader's
 // SSR contract), and the image-offloader override.
+// THE PLATFORM PROFILE: every per-browser decision, resolved in one place.
+// A binding asks for the profile and renders the answer; it never re-derives
+// policy from the probes and flag readers itself (see @platform/profile).
 export {
-  readSettleGateFlag,
-  readDeferReleaseCommitFlag,
-  readDesktopReleaseFlipFlag,
-  readPrerasterFlag,
-  readRestLayerPromotionFlag,
-  readImageOffloadOverride
-} from "@core/engine/diagnosticFlags";
+  resolvePlatformProfile,
+  restLayerPromotionEnabled,
+  type PlatformProfile,
+  type PlatformProfileInput
+} from "@platform/profile";
 // The DOM PROTOCOL: every `data-flemo-*` attribute the library writes, and the
 // values the animation hold takes. This is the real interface between the
 // packages — a binding renders these, the compiled stylesheet selects on them,
@@ -220,12 +221,12 @@ export {
 // Engine probe (Blink vs everything else). Public for bindings whose release
 // policy branches per engine — the entry content-settle gate runs only where
 // the compiled (untouched) animation is the driver (non-Blink).
-export { detectBlinkEngine, isDesktopBlink, isLegacyAndroidBlink } from "@core/engine/engineProbes";
+export { detectBlinkEngine, isDesktopBlink, isLegacyAndroidBlink } from "@platform/engineProbes";
 // Steady-60 desktop session predicate (see steadySixtyCadence.ts). What still
 // keys on it is the compositor warm-up's cadence lock, which is a claim about
 // the panel's rate; the desktop defaults that are about Blink's layer handling
 // or a desktop's memory read `isDesktopBlink` instead.
-export { steadySixtyDesktopProfile } from "@core/engine/steadySixtyCadence";
+export { steadySixtyDesktopProfile } from "@platform/steadySixtyCadence";
 export {
   swipeSettleSeconds,
   MIN_SETTLE_SECONDS,

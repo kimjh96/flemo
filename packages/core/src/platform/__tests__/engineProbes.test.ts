@@ -5,7 +5,7 @@ import {
   isDesktopBlink,
   isDesktopMacWebKit,
   isLegacyAndroidBlink
-} from "@core/engine/engineProbes";
+} from "@platform/engineProbes";
 
 // Pure navigator reads (engineProbes.ts). The driver policy that used to live
 // beside them — the demotion ledger, its probation probe and the force pin —
