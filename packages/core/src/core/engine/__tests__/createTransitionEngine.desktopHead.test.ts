@@ -50,7 +50,7 @@ const animated = createTransition({
 });
 
 const DESK_ATTR = "data-flemo-desk-head";
-const LPM_ATTR = "data-flemo-lpm";
+const LPM_ATTR = "data-flemo-governed";
 
 describe("desktop flat head", () => {
   let deps: TransitionEngineDeps;

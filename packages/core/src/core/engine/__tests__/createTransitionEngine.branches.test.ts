@@ -787,13 +787,13 @@ describe("createTransitionEngine branches", () => {
 
   it("resolves on a head tier's suffixed animation name", async () => {
     // A head tier (LPM, desktop) plays the SAME flight under a copied keyframe
-    // set, so its end event carries `<name>-lpm` / `<name>-deskhead`. A
+    // set, so its end event carries `<name>-gov` / `<name>-deskhead`. A
     // listener that only knows the base name never resolves the flight, and
     // the restart watchdog replays the whole transition — glass-visible on
     // desktop Safari as a second fade after a tab REPLACE (2026-08-20).
     const TaskManger = (await import("@core/TaskManger")).default;
 
-    for (const suffix of ["", "-lpm", "-deskhead"]) {
+    for (const suffix of ["", "-gov", "-deskhead"]) {
       const { scope } = elements();
       const d = { ...deps(), getTransitionTaskId: vi.fn(() => `task-head${suffix}`) };
       const engine = createTransitionEngine(d);

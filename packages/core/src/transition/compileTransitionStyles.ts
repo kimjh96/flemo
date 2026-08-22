@@ -271,14 +271,14 @@ export const easingToCss = (ease: AnimationOptions["ease"] | undefined): string 
   return "ease";
 };
 
-// ---- LPM front-softening: compile-time, per authored curve ----
+// ---- Governed-tier front-softening: compile-time, per authored curve ----
 //
 // Under iOS Low Power Mode the main pipeline runs ~30Hz, so a curve that
 // packs half its travel into the first ~20% of its duration crosses the
 // opening in 5-6 presented frames — faster than the eye locks on (the
 // device-judged "60-100 jump"). For every SCREEN-scope rule the compiler
 // pre-computes a softened variant of ITS OWN authored curve and emits it
-// behind a `:root[data-flemo-lpm]` gate the engine toggles: no runtime
+// behind a `:root[data-flemo-governed]` gate the engine toggles: no runtime
 // math, no one-size-fits-all override, and a curve that is not
 // front-loaded (ease-in, linear, gentle ease-out…) is left exactly as
 // authored. Softening blends the control points toward a device-judged
@@ -419,7 +419,7 @@ export const animationName = (
 // the restart watchdog then replays the whole transition (glass-visible as a
 // second fade on REPLACE). Keep this list beside the suffixes the compiler
 // emits, and route every name comparison through the matcher.
-export const HEAD_ANIMATION_SUFFIXES = ["-lpm", "-deskhead", "-lpmcreep"] as const;
+export const HEAD_ANIMATION_SUFFIXES = ["-gov", "-deskhead", "-govcreep"] as const;
 
 export const matchesFlightAnimationName = (eventName: string, expectedName: string): boolean =>
   eventName === expectedName ||
@@ -505,13 +505,13 @@ const compileVariantBlock = (
     .filter(Boolean)
     .join(" ");
 
-  // LPM overrides, consumed as longhand declarations after the shorthand.
+  // Governed-tier overrides, consumed as longhand declarations after the shorthand.
   // Both vars are published by the engine before the release and stay unset
   // (fallbacks: 0ms / 1) everywhere else — pure style, resolved at the
   // animation's own birth: no WAAPI touch, so WebKit's accelerated
   // (out-of-process) playback is never at risk.
   //
-  // --flemo-lpm-birth-hold: a compiled clock is born at the release
+  // --flemo-gov-birth-hold: a compiled clock is born at the release
   // update's style resolution but its first frame reaches the glass only
   // after that update's paint and the compositor's commit — under iOS Low
   // Power Mode (main pipeline ~30Hz) that's 2-3 frames of aging, so the
@@ -521,7 +521,7 @@ const compileVariantBlock = (
   // presented frame while fill-mode `both` (backwards) holds the authored
   // from-pose — the same pose the hold already shows.
   //
-  // --flemo-lpm-stretch: the user-selected LPM time dilation, applied to
+  // --flemo-gov-stretch: the user-selected time dilation, applied to
   // the COMPILED animation so it keeps its panel-rate presentation (the
   // 60fps screen-recording round proved compiled flights present at panel
   // rate under LPM while rAF is capped ~30Hz). At wall-clock playback the
@@ -533,35 +533,37 @@ const compileVariantBlock = (
   // LITERAL timing only — no var()/calc() in animation-delay or -duration.
   // Device-bisected (2026-08-13, tab-starve rig): a screen fade whose
   // timing depended on custom properties (the earlier
-  // calc(var(--flemo-lpm-*)) plumbing) lost WebKit's compositor playback
+  // calc(var(--flemo-gov-*)) plumbing) lost WebKit's compositor playback
   // and collapsed to a 2-frame snap under main-thread starvation, while
   // literalizing EITHER property restored a fully presented fade. The LPM
   // birth hold and REPLACING stretch are applied by the ENGINE as inline
   // literal longhands on the participants instead (pre-birth, style-only).
   const delayDecl = "";
   const durationDecl = "";
-  // LPM front-softening (see softenFrontLoadedEasing): SCREEN scope (and
+  // Front-softening (see softenFrontLoadedEasing): SCREEN scope (and
   // its riding bar) only — parts keep their authored per-element easing so
   // choreography internals never re-time. Emitted as a separate rule behind
-  // the engine-toggled `:root[data-flemo-lpm]` gate; nothing changes for
+  // the engine-toggled `:root[data-flemo-governed]` gate; nothing changes for
   // any other session.
   // A/B 2026-08-13: softening RETIRED (flag off) — it was prescribed
   // against the broken pipeline (var-timing demotion + opening skips), and
   // with those cured the softened curve is itself the "different
   // transition" the user senses vs the player's authored iOS curve. Flip
   // the flag to re-arm if the whoosh returns.
-  const LPM_SOFTEN_ENABLED = false;
+  const GOVERNED_SOFTEN_ENABLED = false;
   const softened =
-    LPM_SOFTEN_ENABLED && scope === "screen" ? softenFrontLoadedEasing(easing, duration) : null;
+    GOVERNED_SOFTEN_ENABLED && scope === "screen"
+      ? softenFrontLoadedEasing(easing, duration)
+      : null;
   const softenedBlock =
     softened !== null
       ? `\n${selector
           .split(",\n")
-          .map((one) => `:root[data-flemo-lpm] ${one}`)
+          .map((one) => `:root[data-flemo-governed] ${one}`)
           .join(",\n")} {\n  animation-timing-function: ${softened};\n}`
       : "";
 
-  // LPM REPLACING: the hold lives INSIDE the keyframes as a flat head,
+  // Governed REPLACING: the hold lives INSIDE the keyframes as a flat head,
   // not in animation-delay. Device-chased to the end (2026-08-13): with a
   // delay-based hold the fade-start starvation rode the delay expiry at
   // every hold size — WebKit commits the accelerated animation only when
@@ -570,9 +572,9 @@ const compileVariantBlock = (
   // birth: the accelerated commit happens during the (invisible) held
   // head, the UI process then plays the whole fade autonomously, and the
   // authored from→to curve is reproduced exactly after the head. Static,
-  // literal, gate-scoped — the engine only raises data-flemo-lpm.
+  // literal, gate-scoped — the engine only raises data-flemo-governed.
   // Per-status head lengths, shared with the engine's deadline math (see
-  // LPM_HEAD_MS below). REPLACING's 0.35 is the device-verified value that
+  // GOVERNED_HEAD_MS below). REPLACING's 0.35 is the device-verified value that
   // closed the tab swallow; PUSHING covers the measured release latency
   // tier; POPPING stays short — its release is measured clean and it is
   // the most latency-sensitive gesture.
@@ -599,7 +601,7 @@ const compileVariantBlock = (
   // of the clock's way), so the cover is 2 frames for an entry and 1 for a pop —
   // the same shape of estimate, re-derived rather than inherited. These are a
   // FIRST estimate against the post-flip baseline; dial them here, on glass.
-  // Two heads, two gates: a session is either touch (LPM) or desktop Mac, never
+  // Two heads, two gates: a session is either touch (governed) or desktop Mac, never
   // both, and one shared attribute could not carry two head lengths — the timing
   // must stay LITERAL (var()/calc() timing lost WebKit's accelerated playback,
   // device-bisected 2026-08-13).
@@ -617,8 +619,8 @@ const compileVariantBlock = (
   // accelerated commit happens during the invisible head instead of at the
   // animation's first visible frame.
   //
-  // `shiftDelay` is the LPM tier's extra: it ALSO pushes animation-delay out by
-  // the head, so an LPM flight sits still for two heads, not one. That is the
+  // `shiftDelay` is the governed tier's extra: it ALSO pushes animation-delay out by
+  // the head, so a governed flight sits still for two heads, not one. That is the
   // shipped, device-dialed behavior on touch (the numbers were walked down
   // against the felt result, so the doubling is baked into the value that was
   // chosen) and it is not this change's business to re-dial. The DESKTOP head is
@@ -648,7 +650,7 @@ const compileVariantBlock = (
   };
   // Parts keep their own keyframes but ride the same head via a gated
   // LITERAL delay so the choreography's relative timing to the screens is
-  // preserved under LPM.
+  // preserved on the governed tier.
   const partDelayBlock = (attribute: string, headS: number): string => {
     if (scope !== "part") return "";
     if (headS <= 0 || duration <= 0) return "";
@@ -659,7 +661,7 @@ const compileVariantBlock = (
         .join(",\n");
     return `\n${gate()} {\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`;
   };
-  // The CREEP head (`flemo:creep`, `:root[data-flemo-lpm][data-flemo-creep]`).
+  // The CREEP head (`flemo:creep`, `:root[data-flemo-governed][data-flemo-creep]`).
   //
   // Device timelines (iPhone, 2026-08-20) put one dropped frame at the head's
   // LENGTH, not at any clock time: a 100ms head dropped the 6th frame after the
@@ -699,18 +701,18 @@ const compileVariantBlock = (
     })();
     const total = duration + headS;
     const headPct = ((headS / total) * 100).toFixed(3);
-    const kf = `${keyframe}-lpmcreep`;
+    const kf = `${keyframe}-govcreep`;
     const gatedSelector = selector
       .split(",\n")
-      .map((one) => `:root[data-flemo-lpm][data-flemo-creep] ${one}`)
+      .map((one) => `:root[data-flemo-governed][data-flemo-creep] ${one}`)
       .join(",\n");
     return (
       `\n@keyframes ${kf} {\n  0% {\n${declsToBlock(fromDecls).replace(/^/gm, "  ")}\n  }\n  ${headPct}% {\n${declsToBlock(creepDecls).replace(/^/gm, "  ")}\n  }\n  100% {\n${declsToBlock(toDecls).replace(/^/gm, "  ")}\n  }\n}\n` +
       `${gatedSelector} {\n  animation-name: ${kf};\n  animation-duration: ${total.toFixed(3)}s;\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`
     );
   })();
-  const lpmHeadBlock = headBlock("data-flemo-lpm", "lpm", headForVariant(variant), true);
-  const lpmPartDelayBlock = partDelayBlock("data-flemo-lpm", headForVariant(variant));
+  const governedHeadBlock = headBlock("data-flemo-governed", "gov", headForVariant(variant), true);
+  const governedPartDelayBlock = partDelayBlock("data-flemo-governed", headForVariant(variant));
   const deskHeadBlock = headBlock(
     "data-flemo-desk-head",
     "deskhead",
@@ -828,7 +830,7 @@ const compileVariantBlock = (
         )}\n  opacity: 0.02;\n}`
       : "";
 
-  return `${keyframeBlock}\n${ruleBlock}${softenedBlock}${lpmHeadBlock}${lpmPartDelayBlock}${creepHeadBlock}${deskHeadBlock}${deskPartDelayBlock}${parkBlock}${parkUnderBlock}${parkOverBlock}`;
+  return `${keyframeBlock}\n${ruleBlock}${softenedBlock}${governedHeadBlock}${governedPartDelayBlock}${creepHeadBlock}${deskHeadBlock}${deskPartDelayBlock}${parkBlock}${parkUnderBlock}${parkOverBlock}`;
 };
 
 // Whether a variant's `from` target leaves the screen invisible on its first
@@ -1000,7 +1002,7 @@ export const variantHasAnimation = (
 
 // Engine-shared head lengths (ms) for the DESKTOP flat-head keyframes above —
 // the desktop macOS Safari tier's own cover, derived from a 60Hz pipeline (two
-// frames for an entry, one for a pop) rather than inherited from the LPM table.
+// frames for an entry, one for a pop) rather than inherited from the governed table.
 // Same contract: the engine's wall-clock deadlines must ride the head.
 export const DESKTOP_HEAD_MS: Record<string, number> = {
   REPLACING: 33,
@@ -1008,9 +1010,9 @@ export const DESKTOP_HEAD_MS: Record<string, number> = {
   POPPING: 17
 };
 
-// Engine-shared head lengths (ms) for the LPM flat-head keyframes above:
+// Engine-shared head lengths (ms) for the governed flat-head keyframes above:
 // wall-clock deadlines (watchdog, cut) must ride the head.
-export const LPM_HEAD_MS: Record<string, number> = {
+export const GOVERNED_HEAD_MS: Record<string, number> = {
   REPLACING: 180,
   PUSHING: 100,
   POPPING: 80

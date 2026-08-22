@@ -68,7 +68,7 @@ const STEADY_SIXTY_FLIGHTS = 2;
 const STEADY_SIXTY_MIN_DPR = 1.5;
 
 // PERSISTED across reloads (`flemo:sixty`, sessionStorage — production-state,
-// same class as flemo:lpm): the verdict is a property of the tab's display
+// same class as the retired flemo:lpm seed): the verdict is a property of the tab's display
 // environment, not of one page load. Without the seed, EVERY reload re-ran
 // the two-flight compiled warm-up — a user who reloads while evaluating
 // effectively lives in the old tier and never sees the graduated behavior

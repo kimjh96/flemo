@@ -65,8 +65,8 @@ describe("compileTransitionStyles", () => {
     // Device-bisected (2026-08-13): var-dependent timing cost WebKit's
     // compositor playback of screen fades. The LPM birth hold / stretch
     // are applied by the engine as inline literals instead.
-    expect(css).not.toContain("--flemo-lpm-birth-hold");
-    expect(css).not.toContain("--flemo-lpm-stretch");
+    expect(css).not.toContain("--flemo-gov-birth-hold");
+    expect(css).not.toContain("--flemo-gov-stretch");
     expect(css).not.toContain("animation-delay: calc(");
     expect(css).not.toContain("animation-duration: calc(");
   });
@@ -149,7 +149,7 @@ describe("compileTransitionStyles", () => {
     expect(rule).not.toContain("var(");
     // The touch head keeps its own, longer cover under its own attribute.
     expect(css).toContain(
-      `animation-name: ${animationName("screen", "cupertino", "PUSHING-true")}-lpm`
+      `animation-name: ${animationName("screen", "cupertino", "PUSHING-true")}-gov`
     );
     expect(css).toContain("animation-delay: 0.100s");
   });
@@ -179,7 +179,7 @@ describe("compileTransitionStyles", () => {
     const creepFrames = opacityOnly
       .split("@keyframes ")
       .find((block) =>
-        block.startsWith(`${animationName("screen", "custom-fade-blur", "PUSHING-true")}-lpmcreep`)
+        block.startsWith(`${animationName("screen", "custom-fade-blur", "PUSHING-true")}-govcreep`)
       );
     expect(creepFrames).toContain("transform: translateZ(0.02px)");
 
@@ -192,7 +192,7 @@ describe("compileTransitionStyles", () => {
     // `none` animates nothing, so no variant carries a head — and a part rides
     // the screen's head by delay instead of owning keyframes.
     const nothing = compileTransitionStyles([none], []);
-    expect(nothing).not.toContain("-lpmcreep");
+    expect(nothing).not.toContain("-govcreep");
 
     const partOnly = compileTransitionStyles(
       [],
@@ -207,7 +207,7 @@ describe("compileTransitionStyles", () => {
         })
       ]
     );
-    expect(partOnly).not.toContain("-lpmcreep");
+    expect(partOnly).not.toContain("-govcreep");
   });
 
   it("rides parts on the desktop head with a gated literal delay", () => {
@@ -255,7 +255,7 @@ describe("compileTransitionStyles", () => {
     // exactly as written.
     expect(css).not.toContain("animation-timing-function: var(");
     for (const block of css.split("\n\n")) {
-      if (!block.includes("data-flemo-lpm")) continue;
+      if (!block.includes("data-flemo-governed")) continue;
       expect(block).not.toContain("animation-timing-function");
     }
   });

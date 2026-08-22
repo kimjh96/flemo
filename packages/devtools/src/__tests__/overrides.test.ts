@@ -20,7 +20,6 @@ describe("FLAG_REGISTRY", () => {
     for (const expected of [
       "flemo:motion-driver",
       "flemo:motion-driver-force",
-      "flemo:lpm",
       "flemo:lat",
       "flemo:landing-snap",
       "flemo:imghold",
@@ -177,8 +176,6 @@ describe("deriveOverrideWarnings", () => {
   });
 
   it("does not warn about learned production-state ledgers or the devtools arming key", () => {
-    expect(
-      deriveOverrideWarnings({ "flemo:lpm": "1", "flemo:lat": "120", "flemo:devtools": "on" })
-    ).toEqual([]);
+    expect(deriveOverrideWarnings({ "flemo:lat": "120", "flemo:devtools": "on" })).toEqual([]);
   });
 });
