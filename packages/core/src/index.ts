@@ -136,7 +136,7 @@ export { default as animateInline, clearInlineAnimation } from "@transition/anim
 // Framework-neutral transition engine. Owns the navigation-task lifecycle and
 // cleanup for a screen; bindings feed it plain DOM elements + state.
 export { default as createTransitionEngine } from "@core/engine/createTransitionEngine";
-export { lowPowerCadenceActive, governedCompiledActive } from "@core/engine/lowPowerCadence";
+export { governedCompiledActive } from "@core/engine/governedCompiled";
 // The `flemo:*` diagnostic-flag registry (see the module's header table).
 // Only the readers a binding consumes are public: the render-settle gate
 // (shared with the engine's routing so both sides always agree), the

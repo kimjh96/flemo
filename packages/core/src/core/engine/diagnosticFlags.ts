@@ -1,5 +1,5 @@
 import { detectBlinkEngine, isDesktopMacWebKit } from "@core/engine/driverPolicy";
-import { governedCompiledActive } from "@core/engine/lowPowerCadence";
+import { governedCompiledActive } from "@core/engine/governedCompiled";
 import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -21,7 +21,6 @@ import { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
 // |---------------------------|---------|---------------------------------|----------------------------|----------------------------------|------------------------------------------------------------------------|
 // | flemo:motion-driver       | local   | learned ledger                  | (learned)                  | production-state                 | player demotion ledger — owned by driverPolicy.ts, not read here       |
 // | flemo:motion-driver-force | session | "css@<epoch-ms>"/"raf@<epoch-ms>" | unset                    | opt-in diagnostic                | hard driver pin (24h TTL) — owned by driverPolicy.ts, not read here    |
-// | flemo:lpm                 | session | "1"/"0"                         | (learned)                  | production-state                 | low-power cadence seed — owned by lowPowerCadence.ts, not read here    |
 // | flemo:sixty               | session | "high" / streak count           | (learned)                  | production-state                 | steady-60 desktop verdict seed — owned by steadySixtyCadence.ts        |
 // | flemo:landing-snap        | session | "on"                            | off                        | opt-in diagnostic                | Blink landing pixel-snap easing A/B (landingPixelSnap.ts)              |
 // | flemo:imghold             | session | "on"                            | off                        | opt-in diagnostic                | flight-scoped <img> reveal hold (imageRevealHold.ts)                   |
@@ -253,7 +252,7 @@ export const readDeferReleaseCommitFlag = (): boolean => {
 // on a phone, the "whoosh" on a Mac.
 //
 // DEFAULT-ON for desktop macOS Safari (isDesktopMacWebKit), which is the only
-// desktop session on that clock. Touch WebKit has its own head (data-flemo-lpm)
+// desktop session on that clock. Touch WebKit has its own head (data-flemo-governed)
 // with its own lengths and is unaffected by this key.
 //
 // STYLE ONLY, and that is the point: the head is baked into gate-scoped literal

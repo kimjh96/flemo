@@ -7,7 +7,7 @@ import {
 } from "@transition/animateInline";
 import {
   DESKTOP_HEAD_MS,
-  LPM_HEAD_MS,
+  GOVERNED_HEAD_MS,
   matchesFlightAnimationName,
   animationName,
   variantHasAnimation
@@ -35,6 +35,7 @@ import driverPolicy, {
 } from "@core/engine/driverPolicy";
 import { noticeDeviceEmulationOnce } from "@core/engine/emulationNotice";
 import { beginFlightWindow } from "@core/engine/flightWindow";
+import { governedCompiledActive } from "@core/engine/governedCompiled";
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
 import { beginImageRevealHold } from "@core/engine/imageRevealHold";
 import createInvisibleAnimationHold from "@core/engine/invisibleAnimationHold";
@@ -44,11 +45,6 @@ import {
   snappedEasingForMotion
 } from "@core/engine/landingPixelSnap";
 import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
-import {
-  armLowPowerCadenceLifecycle,
-  governedCompiledActive,
-  probeLowPowerCadence
-} from "@core/engine/lowPowerCadence";
 
 import { classifyTransitionDriver } from "@core/engine/motionDriverKind";
 import {
@@ -630,7 +626,7 @@ const wireCancelResume = (config: CancelResumeConfig) => {
 
   const onCancel = (event: AnimationEvent) => {
     if (midRestart) return;
-    // A head tier fires under a suffixed keyframe name (`<name>-lpm`,
+    // A head tier fires under a suffixed keyframe name (`<name>-gov`,
     // `<name>-deskhead`) — same flight, same resolver.
     if (
       event.target !== element ||
@@ -717,9 +713,6 @@ const wireCancelResume = (config: CancelResumeConfig) => {
 // - Anything the player can't provably interpolate keeps the compiled CSS
 //   animation exactly as before.
 export default function createTransitionEngine(deps: TransitionEngineDeps): TransitionEngine {
-  // Low Power Mode cadence sampling (see lowPowerCadence.ts): boot probe +
-  // visibility-return re-probe, deduped module-wide; non-Blink touch only.
-  armLowPowerCadenceLifecycle();
   // This engine instance's layer-hold owner token, distinct per instance so
   // two nested Routers promoting the SAME shared bar refcount independently —
   // a module-global token would collapse both into one holder and let the
@@ -1225,28 +1218,29 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       //    and the only unfalsified route to it is making the release
       //    commit itself cheap (release scheduling), a design campaign of
       //    its own. Until then: player.
-      // 4. LOW-POWER-MODE touch WebKit runs single SLIDES on the COMPILED
-      //    tier (see lowPowerCadence.ts — isolated detection, never the
-      //    player's learned interval). The 60fps screen-recording round
+      // 4. TOUCH WEBKIT runs single SLIDES on the COMPILED tier (see
+      //    governedCompiled.ts). The 60fps screen-recording round
       //    (2026-08-12) proved the compiled flight presents at panel rate
-      //    under LPM while the player is rAF-capped to ~30Hz — the routed
-      //    tier is structurally the smooth one. What the routing alone
+      //    while the rAF player is capped to ~30Hz in Low Power Mode — the
+      //    routed tier is structurally the smooth one, and it held on a
+      //    60Hz iPhone with LPM off too, which is why the routing asks only
+      //    "is this touch WebKit" and no longer measures a cadence. What the routing alone
       //    could not fix is the FELT "60-100 jump": at wall-clock playback
       //    the authored curve's front-loaded 0-60% crosses faster than the
       //    eye locks on, so routed flights pair the birth-hold delay (the
-      //    opening plays from pose 0) with the LPM front-softened easing
-      //    (--flemo-lpm-ease — user-selected over the duration stretch:
+      //    opening plays from pose 0) with the front-softened easing
+      //    (--flemo-gov-ease — user-selected over the duration stretch:
       //    total time stays player-identical, the 0-60% just gets a
       //    trackable share of it). REPLACING routes too — the 2026-08-13
       //    instrumented round (first-ever REPLACING capture: opacity
       //    trajectories + longtask + 60fps recording) closed the mystery:
-      //    the fade always presents smoothly at 60fps, but the LPM
+      //    the fade always presents smoothly at 60fps, but the OS
       //    governor schedules rendering updates 100-340ms apart at a cold
       //    tab mount WITH ZERO long tasks — pure OS throttling — so the
       //    clock aged past the old 66ms hold and a 200ms fade opened
       //    30-50% in (the "씹힘"). User-selected configuration C: a 150ms
-      //    REPLACING birth hold plus an LPM-only 1.5x fade stretch (see
-      //    lpmStretch) — the residual worst-case aging dilutes into a
+      //    REPLACING birth hold plus a 1.5x fade stretch on this tier (see
+      //    governedStretch) — the residual worst-case aging dilutes into a
       //    300ms fade instead of consuming half a 200ms one. Chains keep
       //    the one-frame-swap protection.
       if (
@@ -1269,7 +1263,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // guard: replaces are controller-hard-guarded and pop chains serialize
         // on the task queue, so their one-frame-swap protection only demoted
         // clean sequential flights to the 30Hz player.
-        // ALL slides route to the compiled tier under LPM — REPLACING,
+        // ALL slides route to the compiled tier here — REPLACING,
         // POPPING, PUSHING. The pending-chain guard PUSHING once kept was
         // over-firing on the everyday tab→detail sequence: navigations are
         // already serialized (createNavigationController drops any input that
@@ -1284,7 +1278,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // 60Hz, no jump, no 30Hz demotion.
         (status === "REPLACING" || status === "POPPING" || status === "PUSHING")
       ) {
-        probeLowPowerCadence(); // keep the flag fresh per routed flight
         return null;
       }
       // 4. A `css` force pin. This gate once also caught devices the
@@ -1806,12 +1799,12 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // remain the right medicine.
     const nativeSurgeryAllowed =
       (currentTransition as { driver?: string }).driver === "native" && !detectBlinkEngine();
-    // LPM-routed flights supervise with plain startTime rewinds only (the
+    // Governed-tier flights supervise with plain startTime rewinds only (the
     // R30-verified birth anchor + the stall watcher). The pause/play
     // first-frame hold stays authored-native-only (falsified: it costs
     // WebKit's accelerated representation), and the two-phase hold with
     // pending-clock pins is on the do-not-reattempt list.
-    const routedLpmSupervision =
+    const routedTouchGoverned =
       !detectBlinkEngine() &&
       typeof navigator !== "undefined" &&
       navigator.maxTouchPoints > 0 &&
@@ -1852,7 +1845,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       typeof navigator !== "undefined" &&
       navigator.maxTouchPoints > 0 &&
       forceCompiledStatus(status);
-    const routedGovernedHead = routedLpmSupervision || routedBlinkGoverned || routedForceCompiled;
+    const routedGovernedHead = routedTouchGoverned || routedBlinkGoverned || routedForceCompiled;
     // The DESKTOP head (`flemo:deskhead`): desktop macOS Safari runs the same
     // compiled clock as the touch tier and presents it from the main thread, so
     // it gets the same active-from-birth cover — its own lengths (see
@@ -1877,8 +1870,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // block's rendering update. ONE-SHOT rewind form only (holdFirstFrame=
     // false): the R30-verified clock intervention on DESKTOP WebKit.
     //
-    // TOUCH WebKit (LPM and the routed-force-compiled tier) is EXCLUDED, the
-    // same as LPM below: R30 verified this rewind on desktop glass, but a
+    // TOUCH WebKit (the governed tier and the routed-force-compiled one) is
+    // EXCLUDED, the same as the governed tier below: R30 verified this rewind on desktop glass, but a
     // touch iPhone's out-of-process accelerated animation treats ANY startTime
     // write on a running clock as a re-sync trip — device-reported as the
     // compiled tier intermittently CUTTING a push straight to its end. Touch
@@ -1886,12 +1879,12 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // routedGovernedHead), never by surgery. Blink stays excluded too: its
     // compositor plays through main-thread stalls, where a rewind would yank a
     // smooth animation backwards.
-    let detachLpmBirthAnchor: (() => void) | null = null;
+    let detachGovernedBirthAnchor: (() => void) | null = null;
     if (
       playerCanDrive &&
       !detectBlinkEngine() &&
       !nativeSurgeryAllowed &&
-      !routedLpmSupervision &&
+      !routedTouchGoverned &&
       !routedForceCompiled &&
       // The desktop head covers this flight by STYLE. Rewinding the clock
       // underneath it would correct a latency the head has already covered —
@@ -1899,21 +1892,21 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // was built to avoid.
       !routedDesktopHead
     ) {
-      detachLpmBirthAnchor = armFlightStartAnchorAtRelease(
+      detachGovernedBirthAnchor = armFlightStartAnchorAtRelease(
         scope,
         () => [scope.ownerDocument.documentElement],
         () => startHoldDisarms.get(scope)?.(),
         false
       );
     }
-    // LPM flights run the compiled animation COMPLETELY untouched — not even
+    // Governed-tier flights run the compiled animation COMPLETELY untouched — not even
     // the birth anchor. Device-falsified in sequence (iPhone LPM 2026-08):
     // the co-flush watch's capped-rAF eyes rewound healthy flights (backward
     // jump every push, up to 570dpx), and the corrected first-tick-only
     // rewind is still a WAAPI startTime write on a running animation — the
     // intervention class the falsification series implicated for WebKit's
     // accelerated (out-of-process) path. The opening protection is pure
-    // STYLE instead: the compiled rules read --flemo-lpm-birth-hold into
+    // STYLE instead: the compiled rules read --flemo-gov-birth-hold into
     // animation-delay (see compileTransitionStyles), and this pre-release
     // write predicts the release→first-present latency (two frames of the
     // measured cadence — style resolution tops the release update, its
@@ -1923,7 +1916,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // span — the very pose the anim-hold already shows, so nothing changes
     // on glass except that the curve now PLAYS from 0 instead of being
     // entered 25-40% in (the device-reported "starts at 60" jump). The var
-    // is synced both ways so a lifted LPM never leaves a stale delay.
+    // is synced both ways so a tier change never leaves a stale delay.
     //
     // STATUS-SPLIT prediction, frame-stepped from the 60fps screen-recording
     // round (iPhone LPM 2026-08-12): a push's release update co-flushes the
@@ -1943,20 +1936,20 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // authored pose with the 2-frame hold — and it is the most
     // latency-sensitive gesture, so it keeps the smaller hold rather than
     // paying 66ms more of reaction time it measurably doesn't need.
-    // ENTRY holds (PUSHING/REPLACING) use the static LPM_HEAD_MS table.
+    // ENTRY holds (PUSHING/REPLACING) use the static GOVERNED_HEAD_MS table.
     // An adaptive version sized from a measured release-latency ledger was
     // built and retired unread (2026-08-19): the probe fed a ledger nothing
     // consumed, so the "adaptive" hold was always the static guess. POPPING
     // keeps the small hold — its release is measured clean and it is the
     // most latency-sensitive gesture.
     // Deadline offsets ONLY: the visual hold lives in the gated flat-head
-    // keyframes (compileTransitionStyles.LPM_HEAD_MS — same numbers). No
+    // keyframes (compileTransitionStyles.GOVERNED_HEAD_MS — same numbers). No
     // inline timing is written anywhere: static CSS cannot miss a
     // late-mounting participant the way the inline stamping missed the
     // decorator (device 2026-08-13: the dim faded in ahead of the held
     // screens).
-    const lpmBirthHoldMs = routedGovernedHead
-      ? (LPM_HEAD_MS[status] ?? 0)
+    const governedBirthHoldMs = routedGovernedHead
+      ? (GOVERNED_HEAD_MS[status] ?? 0)
       : routedDesktopHead
         ? (DESKTOP_HEAD_MS[status] ?? 0)
         : 0;
@@ -1981,24 +1974,25 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // can never balloon.
     // REPLACING stretch retired with the delay-hold: the flat-head
     // keyframes carry their own literal total duration.
-    const lpmStretch = 1;
+    const governedStretch = 1;
     // The LPM front-softening gate (see softenFrontLoadedEasing in
     // compileTransitionStyles): the compiler pre-computes a softened
     // variant of every front-loaded SCREEN curve behind
-    // `:root[data-flemo-lpm]`; the engine only toggles the attribute.
+    // `:root[data-flemo-governed]`; the engine only toggles the attribute.
     // User-selected over the stretch: total time stays player-identical
     // while the front of the curve gets a trackable share of it. SLIDES
     // only — a REPLACING cross-fade has no front-loaded travel to soften.
-    const lpmSoftenActive = routedLpmSupervision && (status === "PUSHING" || status === "POPPING");
+    const governedSoftenActive =
+      routedTouchGoverned && (status === "PUSHING" || status === "POPPING");
     {
       const root = scope.ownerDocument.documentElement;
       const creepHeadProbe = routedGovernedHead && readCreepHeadFlag();
       if (creepHeadProbe) root.setAttribute("data-flemo-creep", "true");
       else root.removeAttribute("data-flemo-creep");
       if (routedGovernedHead) {
-        root.setAttribute("data-flemo-lpm", "true");
+        root.setAttribute("data-flemo-governed", "true");
       } else {
-        root.removeAttribute("data-flemo-lpm");
+        root.removeAttribute("data-flemo-governed");
       }
       // The desktop gate is the same mechanism one attribute over: a session is
       // either touch (LPM) or desktop Mac, never both, and the two heads carry
@@ -2216,7 +2210,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // resorts.
     // The LPM stretch multiplies the real animation span, so every deadline
     // derived from authored time rides with it (birth hold included).
-    const restartWatchdogMs = motionSpanMs * lpmStretch + lpmBirthHoldMs + 250;
+    const restartWatchdogMs = motionSpanMs * governedStretch + governedBirthHoldMs + 250;
 
     // Whether this scope's recovery may still act. Requires a live task id (no
     // task → nothing to gate or resolve), THIS transition still current, the
@@ -2288,7 +2282,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // render pass is the one block the stall watcher has no baseline for —
     // the swallowed opening of the covered screen's parallax. Same non-Blink
     // gate, same deadline pushes as a stall shift.
-    if (recovering && (nativeSurgeryAllowed || routedLpmSupervision)) {
+    if (recovering && (nativeSurgeryAllowed || routedTouchGoverned)) {
       startHoldDisarms.set(scope, () => {
         disarmPerceptualCut();
         if (flooredTaskId && watchdog !== undefined) armWatchdog();
@@ -2326,7 +2320,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // through it — so the rewind yanks a smoothly-presenting flight
       // backwards and WebKit answers the running-clock write by cutting the
       // flight to its end. Worse, before LPM is DETECTED (the first flight of
-      // a session) a force-compiled flight read !routedLpmSupervision as true
+      // a session) a force-compiled flight read !routedTouchGoverned as true
       // and armed the watch, so the very first push of every LPM session
       // jumped (probe: clock rewound 322→113 on flight 0 while flights 1+,
       // LPM-detected and watch-free, held a perfect maxdx=0). The reveal-block
@@ -2394,7 +2388,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // to COMPLETED read WORSE (the end hitch interrupts the settle), and
     // the pre-release placement was the settle-gate deadlock era. The
     // early-landing placement stays — least-bad of three.)
-    if (recovering && flooredTaskId && !lpmSoftenActive && !routedForceCompiled) {
+    if (recovering && flooredTaskId && !governedSoftenActive && !routedForceCompiled) {
       const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
       const activeCut = perceptualCutMs(activeMotion!, scope, dpr);
       // Both sides must be inside their bands before the COMPLETED flip cuts
@@ -2455,7 +2449,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
             // The LPM stretch dilates the playing curve and the birth hold
             // shifts it — the wall-clock cut rides with both.
           },
-          cutMs * lpmStretch + 17 + lpmBirthHoldMs
+          cutMs * governedStretch + 17 + governedBirthHoldMs
         );
       }
     }
@@ -2503,7 +2497,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (choreographyTimer !== undefined) clearTimeout(choreographyTimer);
       cancelLandingClear();
       detachFirstFrameHold?.();
-      detachLpmBirthAnchor?.();
+      detachGovernedBirthAnchor?.();
       detachStallWatch?.();
       clearPerceptualCut();
       scope.removeEventListener("animationend", onEnd);

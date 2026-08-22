@@ -14,7 +14,7 @@ import type { TransitionEngineDeps } from "@core/engine/types";
 // Who gets the governed head kit on touch Blink, and — the point of this file
 // — who must NOT.
 //
-// The kit (held head + `data-flemo-lpm` gated keyframes) exists for a device
+// The kit (held head + `data-flemo-governed` gated keyframes) exists for a device
 // whose mount commits would age a bare compiled flight's clock past its whole
 // opening. `isLegacyAndroidBlink()` selects that class: Android, touch, no
 // UA-CH brands.
@@ -38,7 +38,7 @@ const animated = createTransition({
 });
 
 const NAV = navigator as { userAgentData?: unknown };
-const LPM_ATTR = "data-flemo-lpm";
+const LPM_ATTR = "data-flemo-governed";
 
 describe("governed head kit on touch Blink", () => {
   let deps: TransitionEngineDeps;

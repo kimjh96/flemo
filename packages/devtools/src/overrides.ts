@@ -38,12 +38,6 @@ export const FLAG_REGISTRY: readonly FlagDescriptor[] = [
       "hard driver pin ('css@<epoch-ms>' / 'raf@<epoch-ms>', 24h TTL) — pins EVERY transition"
   },
   {
-    key: "flemo:lpm",
-    storage: "session",
-    kind: "production-state",
-    description: "low-power-mode cadence seed (learned)"
-  },
-  {
     key: "flemo:sixty",
     storage: "session",
     kind: "production-state",
