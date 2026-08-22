@@ -5,7 +5,7 @@ import {
   resetSteadySixtyForTests,
   steadySixtyDesktopProfile,
   steadySixtyVerified
-} from "@core/engine/steadySixtyCadence";
+} from "@platform/steadySixtyCadence";
 
 const NAV = navigator as { userAgentData?: unknown };
 
@@ -147,7 +147,7 @@ describe("high-latch uniformity guard", () => {
 describe("steadySixtyCadence reload seeding", () => {
   const freshModule = async () => {
     vi.resetModules();
-    return import("@core/engine/steadySixtyCadence");
+    return import("@platform/steadySixtyCadence");
   };
 
   afterEach(() => {

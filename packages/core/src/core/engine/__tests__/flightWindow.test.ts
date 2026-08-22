@@ -5,13 +5,13 @@ import TaskManger from "@core/TaskManger";
 import { transitionMap } from "@transition/transition";
 
 import createTransitionEngine from "@core/engine/createTransitionEngine";
-import { learnedFrameIntervalMs, reportDisplayIntervalMs } from "@core/engine/displayCadence";
 import {
   beginFlightWindow,
   flightWindowActive,
   onFlightWindowIdle,
   resetFlightWindowForTests
 } from "@core/engine/flightWindow";
+import { learnedFrameIntervalMs, reportDisplayIntervalMs } from "@platform/displayCadence";
 
 // The global flight-window latch (flightWindow.ts): insertion-time machinery
 // outside the engine's drive learns a navigation is mid-flight and defers

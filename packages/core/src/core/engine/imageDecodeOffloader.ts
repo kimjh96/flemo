@@ -49,13 +49,13 @@ import { TRANSITIONAL_STATUS_VALUES } from "@navigate/store";
 // Well-sized, data:/blob: sources and engines without the needed APIs are
 // left exactly as authored.
 
-import { detectBlinkEngine } from "@core/engine/engineProbes";
 import {
   flightWindowActive,
   onFlightWindowIdle,
   onFlightWindowStart
 } from "@core/engine/flightWindow";
 import { attrSelector, OFFLOADED_SRC_ATTR, SCREEN_ATTR, STATUS_ATTR } from "@dom/attributes";
+import { detectBlinkEngine } from "@platform/engineProbes";
 
 // An image is "oversized" when it carries more than this many times the
 // pixels its layout box (at device resolution) can show. 8× area is far

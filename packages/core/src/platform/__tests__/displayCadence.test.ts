@@ -4,7 +4,7 @@ import {
   learnedFrameIntervalMs,
   reportDisplayIntervalMs,
   resetDisplayCadenceForTests
-} from "@core/engine/displayCadence";
+} from "@platform/displayCadence";
 
 // The session's learned display cadence. One number, fed by the engine's
 // in-flight rAF probe and read by the compiled tier's landing governor.

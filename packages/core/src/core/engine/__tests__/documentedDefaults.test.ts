@@ -14,7 +14,7 @@ import {
   residentScreenLayers,
   resetResidentLayersForTesting
 } from "@core/engine/diagnosticFlags";
-import { reportInFlightCadence, resetSteadySixtyForTests } from "@core/engine/steadySixtyCadence";
+import { reportInFlightCadence, resetSteadySixtyForTests } from "@platform/steadySixtyCadence";
 
 // The registry table at the top of diagnosticFlags.ts is what docs/diagnostics.md
 // delegates truth to, and it drifted from the code four keys at a time between

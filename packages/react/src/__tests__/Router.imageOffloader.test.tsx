@@ -5,34 +5,47 @@ import Route from "@Route";
 
 const dispose = vi.fn();
 const ensure = vi.fn(() => dispose);
-const legacy = vi.fn(() => false);
 
 vi.mock("@flemo/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@flemo/core")>();
-  return {
-    ...actual,
-    ensureImageDecodeOffloader: ensure,
-    isLegacyAndroidBlink: () => legacy()
-  };
+  return { ...actual, ensureImageDecodeOffloader: ensure };
 });
 
 const { default: Router } = await import("../Router");
 
+// WHETHER the offloader runs is the platform profile's decision (core), not the
+// Router's, so these suites drive the ENVIRONMENT the profile reads rather than
+// stubbing the verdict. That is the stronger test anyway: it exercises the real
+// legacy-Android predicate instead of asserting the Router forwards a boolean.
+//
+// The legacy signal is a touch Chromium that ships NO UA-CH brands list —
+// device-confirmed on a Galaxy Note 9 running Samsung Internet.
+const asLegacyAndroidBlink = () => {
+  Object.defineProperty(navigator, "userAgent", {
+    value: "Mozilla/5.0 (Linux; Android 10; SM-N960N) AppleWebKit/537.36 SamsungBrowser/12",
+    configurable: true
+  });
+  Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
+  delete (navigator as { userAgentData?: unknown }).userAgentData;
+};
+
 beforeEach(() => {
   ensure.mockClear();
   dispose.mockClear();
-  legacy.mockReturnValue(false);
   sessionStorage.clear();
 });
 
 afterEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
+  delete (navigator as unknown as Record<string, unknown>).userAgent;
+  delete (navigator as unknown as Record<string, unknown>).maxTouchPoints;
+  delete (navigator as { userAgentData?: unknown }).userAgentData;
 });
 
 describe("Router image-decode offloader", () => {
   it("auto-mounts on legacy Android Blink and disposes with the Router", () => {
-    legacy.mockReturnValue(true);
+    asLegacyAndroidBlink();
     const view = render(
       <Router>
         <Route path="/" element={<div>home</div>} />
@@ -47,7 +60,12 @@ describe("Router image-decode offloader", () => {
     expect(dispose).toHaveBeenCalledTimes(1);
   });
 
-  it("stays OFF on a modern engine (no UA-CH-brands signal, no flag)", () => {
+  it("stays OFF on a modern engine (UA-CH brands present, no flag)", () => {
+    Object.defineProperty(navigator, "userAgentData", {
+      value: { brands: [{ brand: "Chromium", version: "120" }] },
+      configurable: true
+    });
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
     render(
       <Router>
         <Route path="/" element={<div>home</div>} />
@@ -69,7 +87,7 @@ describe("Router image-decode offloader", () => {
   });
 
   it("lets `flemo:imgoffload=off` opt a legacy device back out", () => {
-    legacy.mockReturnValue(true);
+    asLegacyAndroidBlink();
     sessionStorage.setItem("flemo:imgoffload", "off");
     render(
       <Router>
@@ -81,7 +99,7 @@ describe("Router image-decode offloader", () => {
   });
 
   it("lets each Router take its own refcounted hold", () => {
-    legacy.mockReturnValue(true);
+    asLegacyAndroidBlink();
     const first = render(
       <Router>
         <Route path="/" element={<div>a</div>} />

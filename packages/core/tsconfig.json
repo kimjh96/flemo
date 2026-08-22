@@ -12,6 +12,8 @@
       "@dom/*": ["./src/dom/*"],
       "@history": ["./src/history"],
       "@history/*": ["./src/history/*"],
+      "@platform": ["./src/platform"],
+      "@platform/*": ["./src/platform/*"],
       "@navigate": ["./src/navigate"],
       "@navigate/*": ["./src/navigate/*"],
       "@screen": ["./src/screen"],

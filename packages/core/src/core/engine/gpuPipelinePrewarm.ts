@@ -28,8 +28,8 @@ import { TRANSITIONAL_STATUS_VALUES } from "@navigate/store";
 // draws over warm pipelines end to end (verified by trace: the injected
 // prewarm removed every in-flight compile burst on a cold profile).
 
-import { detectBlinkEngine } from "@core/engine/engineProbes";
 import { attrValueSelector, GPU_PREWARM_ATTR, STATUS_ATTR } from "@dom/attributes";
+import { detectBlinkEngine } from "@platform/engineProbes";
 
 const noop = () => {};
 
