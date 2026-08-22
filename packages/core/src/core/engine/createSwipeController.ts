@@ -118,6 +118,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   let swipeLastPoint = { x: 0, y: 0 };
   let swipeLastTime = 0;
   let swipeVelocity = { x: 0, y: 0 };
+  /** Recent pointer positions, for the release velocity. See below. */
+  let velocityTrail: { t: number; x: number; y: number }[] = [];
 
   let scrollableX: { element: HTMLElement | null; hasMarker: boolean } = {
     element: null,
@@ -170,12 +172,40 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     }
   };
 
+  // HOW FAST THE FINGER WAS GOING, over a WINDOW rather than a single pair.
+  //
+  // This used to be the last two pointermoves: `(x - lastX) / (t - lastT)`. One
+  // sample, and the release reads it as the gesture's speed — so a single
+  // unlucky pair decides the whole landing. Browsers do not deliver pointermove
+  // on an even clock: they coalesce, they batch behind a busy frame, and a pair
+  // that happens to span 6ms with 12px between them reports 2000 px/s for a
+  // finger that was moving at 500.
+  //
+  // What that costs is not subtle, because the release length divides BY this
+  // number. With 30% of the screen left, an honest 600 px/s asks for 0.21s; a
+  // spurious 2000 px/s collapses it onto the 0.12s floor — the same landing in
+  // little more than half the time, which is exactly what "too whippy" is.
+  // Device-reported on Safari, against Android on the same gesture.
+  //
+  // A window over the last VELOCITY_WINDOW_MS averages the jitter out while
+  // still following a real flick: it is the finger's recent trend, which is
+  // what a release continues. `delta` and the follow keep using the LAST pair —
+  // those track the finger, and must not be smoothed.
+  const VELOCITY_WINDOW_MS = 80;
+
   const updateSwipeVelocity = (event: PointerEvent) => {
     const now = event.timeStamp;
-    const dt = Math.max(1, now - swipeLastTime);
+    velocityTrail.push({ t: now, x: event.clientX, y: event.clientY });
+    // Keep at least two samples, so a gesture shorter than the window still has
+    // a measurement to give.
+    while (velocityTrail.length > 2 && now - velocityTrail[0]!.t > VELOCITY_WINDOW_MS) {
+      velocityTrail.shift();
+    }
+    const oldest = velocityTrail[0]!;
+    const dt = Math.max(1, now - oldest.t);
     swipeVelocity = {
-      x: ((event.clientX - swipeLastPoint.x) / dt) * 1000,
-      y: ((event.clientY - swipeLastPoint.y) / dt) * 1000
+      x: ((event.clientX - oldest.x) / dt) * 1000,
+      y: ((event.clientY - oldest.y) / dt) * 1000
     };
     swipeLastPoint = { x: event.clientX, y: event.clientY };
     swipeLastTime = now;
@@ -416,6 +446,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     swipeLastPoint = { x: event.clientX, y: event.clientY };
     swipeLastTime = event.timeStamp;
     swipeVelocity = { x: 0, y: 0 };
+    velocityTrail = [{ t: event.timeStamp, x: event.clientX, y: event.clientY }];
     scope.setPointerCapture(event.pointerId);
     captureRidingBars(prevScreenContainer);
     capturePartTransitions(prevScreenContainer);
