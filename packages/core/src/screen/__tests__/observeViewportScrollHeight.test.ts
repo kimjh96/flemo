@@ -75,6 +75,7 @@ describe("observeViewportScrollHeight", () => {
     const onChange = vi.fn();
     const dispose = observeViewportScrollHeight(onChange);
 
+    trigger(); // the page at rest, which is what `changed` measures against
     viewportHeight = 500; // keyboard eats 300px
     trigger();
 
@@ -106,6 +107,7 @@ describe("observeViewportScrollHeight", () => {
     // resize + scroll, once for the whole app whatever the subscriber count.
     expect(listeners.size).toBe(2);
 
+    trigger(); // at rest
     viewportHeight = 500;
     trigger();
     expect(frames.size).toBe(0); // one frame served both
@@ -129,6 +131,7 @@ describe("observeViewportScrollHeight", () => {
     const live = vi.fn();
     const disposeLive = observeViewportScrollHeight(live);
 
+    trigger(); // at rest
     viewportHeight = 500; // keyboard opens
     trigger();
     expect(live).toHaveBeenLastCalledWith(300, 300);
@@ -154,6 +157,7 @@ describe("observeViewportScrollHeight", () => {
   it("hands over AND re-measures when the last observer had gone", () => {
     const first = vi.fn();
     const disposeFirst = observeViewportScrollHeight(first);
+    trigger(); // at rest
     viewportHeight = 500;
     trigger();
     disposeFirst();
@@ -166,6 +170,48 @@ describe("observeViewportScrollHeight", () => {
     flushFrames();
     expect(woken).toHaveBeenLastCalledWith(0, 0); // corrected a frame later
 
+    dispose();
+  });
+
+  // The defect this baseline replaced: the FIRST non-zero measurement became
+  // the baseline, so the first keyboard opening was reported and every one
+  // after it read 0 — the second focus of a field lifted nothing.
+  it("reports every keyboard opening, not just the first", () => {
+    const onChange = vi.fn();
+    const dispose = observeViewportScrollHeight(onChange);
+
+    trigger(); // at rest
+    viewportHeight = 500;
+    trigger(); // opens
+    expect(onChange).toHaveBeenLastCalledWith(300, 300);
+
+    viewportHeight = 800;
+    trigger(); // closes
+    viewportHeight = 500;
+    trigger(); // opens again — the case that used to read 0
+
+    expect(onChange).toHaveBeenLastCalledWith(300, 300);
+    dispose();
+  });
+
+  // A screen that mounts with an autofocused field can put the keyboard up
+  // before anything has measured the page at rest. There is nothing to compare
+  // against yet, so `changed` says nothing rather than guessing — and the first
+  // close teaches it what rest is.
+  it("self-corrects when the first measurement is already keyboard-open", () => {
+    const onChange = vi.fn();
+    const dispose = observeViewportScrollHeight(onChange);
+
+    viewportHeight = 500;
+    trigger();
+    expect(onChange).toHaveBeenLastCalledWith(300, 0);
+
+    viewportHeight = 800;
+    trigger(); // rest, at last
+    viewportHeight = 500;
+    trigger();
+
+    expect(onChange).toHaveBeenLastCalledWith(300, 300);
     dispose();
   });
 

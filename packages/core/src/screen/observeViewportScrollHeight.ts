@@ -1,8 +1,22 @@
-// The first non-zero measurement across the whole app becomes the baseline, so
-// `changed` reports growth relative to the page's initial state (an open
-// software keyboard) rather than absolute overflow. Module-level on purpose:
-// every screen shares one baseline.
-let initialViewportScrollHeight = 0;
+// THE BASELINE IS THE SMALLEST SHORTFALL SEEN SO FAR, app-wide, so `changed`
+// reports growth over the page at rest (an open software keyboard) rather than
+// absolute overflow.
+//
+// It used to be the first NON-ZERO measurement, which broke `changed` in two
+// ways that both end in "the keyboard is open and nothing says so":
+//
+//   - A page whose resting shortfall is genuinely 0 never recorded a baseline
+//     (the guard tested falsiness), so the FIRST keyboard opening became the
+//     baseline. It reported that opening correctly and then every opening
+//     after it as 0 — the second focus of a field lifted nothing.
+//   - A first measurement taken while the keyboard was already open (a screen
+//     that mounts with an autofocused field) baselined the open state, and
+//     `changed` — clamped at 0 — could never rise again.
+//
+// A running minimum has neither hole: the keyboard-closed state is by
+// definition the smallest shortfall, so whenever the app sees it, the baseline
+// self-corrects to it, and every later opening measures from there.
+let baselineViewportScrollHeight = Number.POSITIVE_INFINITY;
 
 // The latest measurement, plus whether anything has measured at all. One
 // observer serves every subscriber, so this IS the app-wide truth for as long
@@ -36,13 +50,14 @@ const measure = () => {
   let newViewportScrollHeight =
     document.documentElement.scrollHeight - (window.visualViewport?.height || 0);
   newViewportScrollHeight = newViewportScrollHeight < 0 ? 0 : newViewportScrollHeight;
-  let newChangedViewportScrollHeight = newViewportScrollHeight - initialViewportScrollHeight;
+
+  if (newViewportScrollHeight < baselineViewportScrollHeight) {
+    baselineViewportScrollHeight = newViewportScrollHeight;
+  }
+
+  let newChangedViewportScrollHeight = newViewportScrollHeight - baselineViewportScrollHeight;
   newChangedViewportScrollHeight =
     newChangedViewportScrollHeight < 0 ? 0 : newChangedViewportScrollHeight;
-
-  if (!initialViewportScrollHeight) {
-    initialViewportScrollHeight = newViewportScrollHeight;
-  }
 
   lastViewportScrollHeight = newViewportScrollHeight;
   lastChangedViewportScrollHeight = newChangedViewportScrollHeight;
@@ -65,7 +80,7 @@ const handleResize = () => {
 // clears it here instead of reasoning about the order its cases ran in.
 export function resetViewportScrollHeightForTesting() {
   listeners.clear();
-  initialViewportScrollHeight = 0;
+  baselineViewportScrollHeight = Number.POSITIVE_INFINITY;
   lastViewportScrollHeight = 0;
   lastChangedViewportScrollHeight = 0;
   measured = false;

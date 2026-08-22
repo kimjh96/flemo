@@ -195,6 +195,10 @@ export {
 
 export { default as observeBarHeight } from "@screen/observeBarHeight";
 export { default as observeViewportScrollHeight } from "@screen/observeViewportScrollHeight";
+export {
+  default as observeKeyboardInset,
+  measureKeyboardInset
+} from "@screen/observeKeyboardInset";
 
 // Compositor warm-up (see the module): also pre-armed by the React binding on
 // pointerdown, so a tap's flight starts on an already-spinning compositor.

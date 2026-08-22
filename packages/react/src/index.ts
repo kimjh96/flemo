@@ -33,6 +33,7 @@ export {
   type SharedBarsMetadata
 } from "@screen/store";
 export { default as useViewportScrollHeight } from "@screen/useViewportScrollHeight";
+export { default as useKeyboardInset } from "@screen/useKeyboardInset";
 
 // Framework-agnostic primitives re-exported so users importing from
 // "@flemo/react" still get the full transition/decorator API in one place.
