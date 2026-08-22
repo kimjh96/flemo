@@ -151,6 +151,45 @@ export {
   readRestLayerPromotionFlag,
   readImageOffloadOverride
 } from "@core/engine/diagnosticFlags";
+// The DOM PROTOCOL: every `data-flemo-*` attribute the library writes, and the
+// values the animation hold takes. This is the real interface between the
+// packages — a binding renders these, the compiled stylesheet selects on them,
+// and @flemo/devtools observes them. See @dom/attributes for the table.
+export {
+  FLEMO_ATTR_PREFIX,
+  FLEMO_ATTRIBUTES,
+  attrSelector,
+  attrValueSelector,
+  ANIM_HOLD,
+  ANIM_HOLD_ATTR,
+  ANIM_HOLD_PAUSED_VALUES,
+  ACTIVE_ATTR,
+  BAR_ACTIVE_ATTR,
+  BAR_ATTR,
+  BAR_ID_ATTR,
+  BAR_ID_TYPE_ATTR,
+  BAR_RIDING_ATTR,
+  BAR_SPACER_ATTR,
+  BAR_STATUS_ATTR,
+  BAR_TRANSITION_ATTR,
+  CREEP_ATTR,
+  DECORATOR_ATTR,
+  DECORATOR_NAME_ATTR,
+  DESK_HEAD_ATTR,
+  DEVTOOLS_PANEL_ATTR,
+  GOVERNED_ATTR,
+  GPU_PREWARM_ATTR,
+  HELD_ARRIVAL_ATTR,
+  IMAGE_HOLD_ATTR,
+  PART_NAME_ATTR,
+  ROUTER_ATTR,
+  SCREEN_ATTR,
+  STATUS_ATTR,
+  TRANSITION_ATTR,
+  WARM_ATTR,
+  WARM_VIDEO_ATTR
+} from "@dom/attributes";
+export { TRANSITIONAL_STATUS_VALUES } from "@navigate/store";
 export {
   SKIP_ANIMATION_ATTR,
   type TransitionEngine,

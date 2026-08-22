@@ -4,6 +4,7 @@ import type { Transition } from "@transition/typing";
 
 import { residentScreenLayers } from "@core/engine/diagnosticFlags";
 import { flightWindowActive, onFlightWindowIdle } from "@core/engine/flightWindow";
+import { attrSelector, SCREEN_ATTR } from "@dom/attributes";
 
 // Test seam re-export: the cached `flemo:layers` read lives in the flag
 // registry, but the suites reach it through this module.
@@ -249,7 +250,7 @@ export const releaseScopeLayerAfterSettle = (scope: HTMLElement, owner: symbol =
   if (
     residentScreenLayers() &&
     typeof scope.closest === "function" &&
-    scope.closest("[data-flemo-screen]")
+    scope.closest(attrSelector(SCREEN_ATTR))
   ) {
     if (stamp.pending != null) clearTimeout(stamp.pending);
     stamp.pending = null;

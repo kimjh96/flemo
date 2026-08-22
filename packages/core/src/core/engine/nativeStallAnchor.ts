@@ -1,3 +1,4 @@
+import { ANIM_HOLD_ATTR } from "@dom/attributes";
 // Stall re-anchoring for the NATIVE (compiled CSS) clock, on engines that
 // present from the main thread (non-Blink).
 //
@@ -201,16 +202,16 @@ export function holdNativeClocksToFirstFrame(
   };
   const observer = new MutationObserver(() => {
     if (released) return;
-    if (scope.getAttribute("data-flemo-anim-hold") !== "false") return;
+    if (scope.getAttribute(ANIM_HOLD_ATTR) !== "false") return;
     engage();
   });
   // The release can beat this arming on a fast machine (the effect and the
   // release race exactly like the effect and the block do) — engage
   // immediately then: the fresh/pending gate keeps aged clocks untouched.
-  if (scope.getAttribute("data-flemo-anim-hold") === "false") {
+  if (scope.getAttribute(ANIM_HOLD_ATTR) === "false") {
     engage();
   } else {
-    observer.observe(scope, { attributes: true, attributeFilter: ["data-flemo-anim-hold"] });
+    observer.observe(scope, { attributes: true, attributeFilter: [ANIM_HOLD_ATTR] });
   }
   return () => {
     disposed = true;
@@ -547,16 +548,16 @@ export function armFlightStartAnchorAtRelease(
     detachAnchor = anchorNativeFlightStart(elements, onShift, holdFirstFrame, firstTickOnly);
   };
   const observer = new MutationObserver(() => {
-    if (scope.getAttribute("data-flemo-anim-hold") !== "false") return;
+    if (scope.getAttribute(ANIM_HOLD_ATTR) !== "false") return;
     engage();
   });
-  if (scope.getAttribute("data-flemo-anim-hold") === "false") {
+  if (scope.getAttribute(ANIM_HOLD_ATTR) === "false") {
     // Already released at arm time (a hold-free variant, or the arming lost
     // the race): engage NOW — the anchor's first rAF still tops the coming
     // update when this runs inside the release commit's own task.
     engage();
   } else {
-    observer.observe(scope, { attributes: true, attributeFilter: ["data-flemo-anim-hold"] });
+    observer.observe(scope, { attributes: true, attributeFilter: [ANIM_HOLD_ATTR] });
   }
   const record: ReleaseAnchorRecord = {
     refs: 1,

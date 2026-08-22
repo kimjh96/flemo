@@ -1,3 +1,5 @@
+import { steadySixtyDesktopProfile } from "@core/engine/steadySixtyCadence";
+import { WARM_ATTR, WARM_VIDEO_ATTR } from "@dom/attributes";
 // Compositor warm-up for the length of a flight.
 //
 // A transition normally starts from an IDLE browser: nothing has been
@@ -18,9 +20,7 @@
 // emitting keyframes into the sheet would break the contract that a `none`
 // transition emits no rules.
 
-import { steadySixtyDesktopProfile } from "@core/engine/steadySixtyCadence";
-
-export const WARM_ATTR = "data-flemo-warm";
+export { WARM_ATTR } from "@dom/attributes";
 
 // A flight that never reports its end (an engine torn down mid-transition)
 // must not leave the element animating forever. Far longer than any real
@@ -152,7 +152,7 @@ export default function holdCompositorWarm(): () => void {
         video.setAttribute("aria-hidden", "true");
         // NOT the WARM_ATTR: the element is the warm-up's public contract
         // (tests and diagnostics count it); the video is an internal auxiliary.
-        video.setAttribute("data-flemo-warm-video", "");
+        video.setAttribute(WARM_VIDEO_ATTR, "");
         video.setAttribute(
           "style",
           "position:fixed;top:0;left:52px;width:8px;height:8px;pointer-events:none;opacity:0.02;"

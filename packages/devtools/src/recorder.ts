@@ -1,5 +1,22 @@
 import { deriveFlightAnomalies, deriveReportAnomalies, STUCK_STATUS_MS } from "./anomalies";
 import { BLIND_SPOTS } from "./blindSpots";
+import {
+  ACTIVE_ATTR,
+  ANIM_HOLD_ATTR,
+  attrSelector,
+  BAR_ATTR,
+  BAR_RIDING_ATTR,
+  BAR_STATUS_ATTR,
+  DECORATOR_ATTR,
+  HELD_ARRIVAL_ATTR,
+  HOLD_VALUES,
+  IMAGE_HOLD_ATTR,
+  PART_NAME_ATTR,
+  ROUTER_ATTR,
+  SCREEN_ATTR,
+  STATUS_ATTR,
+  TRANSITIONAL_STATUSES
+} from "./domProtocol";
 import { captureEnvironment, sampleRafCadence } from "./environment";
 import { JUDGING_PROTOCOL } from "./judging";
 import { deriveOverrideWarnings, snapshotOverrides } from "./overrides";
@@ -30,19 +47,15 @@ import type {
 
 export const REPORT_SCHEMA_VERSION = "2";
 
-const TRANSITIONAL = new Set(["PUSHING", "POPPING", "REPLACING"]);
-const HOLD_KINDS = new Set(["true", "park", "park-under", "park-over"]);
-const SCREEN_SELECTOR = "[data-flemo-screen]";
-const STATUS_ATTR = "data-flemo-status";
-const ACTIVE_ATTR = "data-flemo-active";
-const HOLD_ATTR = "data-flemo-anim-hold";
+const TRANSITIONAL = new Set<string>(TRANSITIONAL_STATUSES);
+const HOLD_KINDS = new Set<string>(HOLD_VALUES);
+const SCREEN_SELECTOR = attrSelector(SCREEN_ATTR);
+const HOLD_ATTR = ANIM_HOLD_ATTR;
 /** How many rAF frames past flight end the landing audit waits (the engine's
  *  own COMPLETED cleanup and the deferred freeze land in those commits). */
 const LANDING_AUDIT_FRAMES = 2;
 const MAX_FRAME_GAPS = 2000;
-/** The engine's hold markers, checked for orphans at rest (core owns these). */
-const IMAGE_HOLD_ATTR = "data-flemo-img-hold";
-const HELD_ARRIVAL_ATTR = "data-flemo-held-arrival";
+
 /**
  * A released frame counts as stalled only once the flight has moved at least
  * once — the first released frame has nothing to compare against, and a
@@ -185,15 +198,15 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
     );
 
   const countParticipants = (screens: Element[]): FlightRecord["participants"] => {
-    const bars = Array.from(document.querySelectorAll("[data-flemo-bar]")).filter(
+    const bars = Array.from(document.querySelectorAll(attrSelector(BAR_ATTR))).filter(
       (element) =>
-        TRANSITIONAL.has(element.getAttribute("data-flemo-bar-status") ?? "") ||
-        element.getAttribute("data-flemo-bar-riding") === "true"
+        TRANSITIONAL.has(element.getAttribute(BAR_STATUS_ATTR) ?? "") ||
+        element.getAttribute(BAR_RIDING_ATTR) === "true"
     ).length;
-    const decorators = Array.from(document.querySelectorAll("[data-flemo-decorator]")).filter(
+    const decorators = Array.from(document.querySelectorAll(attrSelector(DECORATOR_ATTR))).filter(
       (element) => TRANSITIONAL.has(element.getAttribute(STATUS_ATTR) ?? "")
     ).length;
-    const parts = Array.from(document.querySelectorAll("[data-flemo-part-name]")).filter(
+    const parts = Array.from(document.querySelectorAll(attrSelector(PART_NAME_ATTR))).filter(
       (element) => TRANSITIONAL.has(element.getAttribute(STATUS_ATTR) ?? "")
     ).length;
     return { screens: screens.length, bars, decorators, parts };
@@ -438,7 +451,7 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
     current = {
       id: `flight-${flightSeq}`,
       kind,
-      routerId: activeFirst.getAttribute("data-flemo-router") ?? undefined,
+      routerId: activeFirst.getAttribute(ROUTER_ATTR) ?? undefined,
       t0Ms: now,
       t0Iso: new Date().toISOString(),
       elements: [...screens],

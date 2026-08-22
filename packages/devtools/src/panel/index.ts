@@ -1,3 +1,11 @@
+import {
+  attrSelector,
+  attrValueSelector,
+  DEVTOOLS_PANEL_ATTR,
+  SCREEN_ATTR,
+  STATUS_ATTR,
+  TRANSITIONAL_STATUSES
+} from "../domProtocol";
 // The visual panel for @flemo/devtools.
 //
 // THE ONE RULE THIS FILE EXISTS TO ENFORCE: the panel must never touch the
@@ -50,10 +58,9 @@ export interface DevtoolsPanelHandle {
 }
 
 /** Any screen mid-transition: while this matches, the panel stays frozen. */
-const IN_FLIGHT_SELECTOR =
-  '[data-flemo-screen][data-flemo-status="PUSHING"],' +
-  '[data-flemo-screen][data-flemo-status="POPPING"],' +
-  '[data-flemo-screen][data-flemo-status="REPLACING"]';
+const IN_FLIGHT_SELECTOR = TRANSITIONAL_STATUSES.map(
+  (status) => attrSelector(SCREEN_ATTR) + attrValueSelector(STATUS_ATTR, status)
+).join(",");
 
 const HEIGHT_KEY = "flemo:devtools-panel-height";
 /** ~3 refreshes/second while open — fast enough to feel live, far below the
@@ -100,7 +107,7 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
 
   // --- shell (built once) ----------------------------------------------
   const host = el("div");
-  host.setAttribute("data-flemo-devtools-panel", "");
+  host.setAttribute(DEVTOOLS_PANEL_ATTR, "");
   // Zero-size fixed host: it participates in no layout, and its fixed
   // children position against the viewport. It carries no data-flemo-screen
   // attributes, so the recorder never sees the panel as a participant.

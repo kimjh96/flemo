@@ -145,6 +145,9 @@ importers:
 
   packages/devtools:
     devDependencies:
+      '@flemo/core':
+        specifier: workspace:*
+        version: link:../core
       '@flemo/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
@@ -2489,6 +2492,7 @@ packages:
   eslint@9.39.5:
     resolution: {integrity: sha512-DgZS62aPLXKlnxILS/AYCoRvHaZeXceIzlXPkkGGzJWSow1aEk0lbTlxUSlyjC8jcaKxAdOnTDz+o1JFSBsyjw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'

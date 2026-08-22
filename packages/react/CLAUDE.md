@@ -4,6 +4,14 @@ The React binding over `@flemo/core`. The split is strict: core owns everything
 imperative and reusable (task queue, stores, engine, compiled styles, gesture math);
 this package owns React wiring — rendering the declarative state (data-attributes,
 inline styles) core's engine reads, and calling core at the right lifecycle moments.
+The `data-flemo-*` attributes this package renders are NOT free-form: they are the
+DOM PROTOCOL, declared once in core's `src/dom/attributes.ts` and enforced from both
+sides — core's `dom/__tests__/attributes.test.ts` fails on any raw literal in core,
+and this package's `screen/__tests__/domProtocol.test.tsx` fails if a rendered
+attribute is not in core's table. Import the constants for imperative reads/writes;
+JSX prop names stay literal (they cannot be symbols) and the render test is what
+holds them honest.
+
 Engine internals live in the engine's own comments — `createTransitionEngine.ts`
 (`driveScreenLifecycle` for the flight) and
 `diagnosticFlags.ts` (the flag registry table, which `documentedDefaults.test.ts`
