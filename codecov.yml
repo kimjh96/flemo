@@ -33,13 +33,14 @@ flag_management:
 # `packages/react/CLAUDE.md`: "prefer the playground for interactive
 # transitions, these are hard to assert in jsdom".
 #
-# TEMPORARY (pop-convergence round): the rAF player clock, the LPM cadence
-# probes, and the image offloader's worker/decode path are the same kind —
-# per-frame present timing, Web Workers, createImageBitmap and canvas do not
-# run in jsdom, so their branches are device-verified (final185) and covered
-# by the motion-perception e2e suite, not by unit tests. Ignored here so the
-# gate reflects reality until a headless-Chromium coverage lane can measure
-# the e2e paths. TODO: replace these ignores with real e2e-lane coverage.
+# The image offloader's worker/decode path is the same kind: Web Workers,
+# createImageBitmap and canvas do not run in jsdom, so its branches are
+# device-verified and covered by the e2e suite, not by unit tests. Ignored here
+# so the gate reflects reality until a headless-Chromium coverage lane can
+# measure the e2e paths. TODO: replace this ignore with real e2e-lane coverage.
+#
+# The rAF player and the Low Power Mode cadence probes were ignored here too;
+# both were deleted in 2026-08, so their entries went with them.
 ignore:
   - "**/index.ts"
   - "**/__tests__/**"
@@ -47,9 +48,7 @@ ignore:
   - "**/*.spec.{ts,tsx}"
   - "**/dist/**"
   - "packages/react/src/screen/ScreenMotion.tsx"
-  - "packages/core/src/core/engine/transitionPlayer.ts"
   - "packages/core/src/core/engine/imageDecodeOffloader.ts"
-  - "packages/core/src/core/engine/lowPowerCadence.ts"
 
 comment:
   layout: "reach,diff,flags,files"

@@ -259,3 +259,54 @@ describe("isLegacyAndroidBlink", () => {
     }
   });
 });
+
+// Malformed-navigator paths. These probes run on whatever a page's embedder
+// hands them — a WebView, a spoofing extension, a headless harness — and a
+// missing field must read as "not this platform" rather than throw inside a
+// transition.
+describe("the probes under a malformed navigator", () => {
+  const withNavigator = (patch: Record<string, unknown>, run: () => void) => {
+    const saved: [string, PropertyDescriptor | undefined][] = Object.keys(patch).map((key) => [
+      key,
+      Object.getOwnPropertyDescriptor(navigator, key)
+    ]);
+    for (const [key, value] of Object.entries(patch)) {
+      Object.defineProperty(navigator, key, { value, configurable: true });
+    }
+    try {
+      run();
+    } finally {
+      for (const [key, descriptor] of saved) {
+        if (descriptor) Object.defineProperty(navigator, key, descriptor);
+        else delete (navigator as unknown as Record<string, unknown>)[key];
+      }
+    }
+  };
+
+  it("reads a brands entry with no brand string as non-Chromium", () => {
+    withNavigator({ userAgentData: { brands: [{ version: "120" }, {}] } }, () => {
+      expect(detectBlinkEngine()).toBe(false);
+    });
+  });
+
+  it("treats an absent userAgent as no signal, on both UA-fallback probes", () => {
+    withNavigator({ userAgent: undefined, maxTouchPoints: 5 }, () => {
+      expect(detectBlinkEngine()).toBe(false);
+      expect(isLegacyAndroidBlink()).toBe(false);
+    });
+  });
+
+  it("treats an absent touch count as no touch surface", () => {
+    withNavigator(
+      {
+        userAgent: "Mozilla/5.0 (Linux; Android 10) SamsungBrowser/12",
+        maxTouchPoints: undefined
+      },
+      () => {
+        // The UA says legacy Android Chromium, but nothing confirms a touch
+        // surface — the governed head kit must not arm on a guess.
+        expect(isLegacyAndroidBlink()).toBe(false);
+      }
+    );
+  });
+});

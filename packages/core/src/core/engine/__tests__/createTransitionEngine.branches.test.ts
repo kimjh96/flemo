@@ -882,6 +882,50 @@ describe("createTransitionEngine gate-phase reporting", () => {
     }
   });
 
+  it("falls back to a device-pixel ratio of 1 when the environment reports none", async () => {
+    // The governed easing is expressed in DEVICE pixels, so it needs a ratio.
+    // An embedder that reports 0 (or nothing) must not make the reshape
+    // divide by a falsy density — it takes 1 and stays correct.
+    Object.defineProperty(navigator, "userAgentData", {
+      value: { brands: [{ brand: "Chromium", version: "120" }] },
+      configurable: true
+    });
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
+    const originalDpr = window.devicePixelRatio;
+    Object.defineProperty(window, "devicePixelRatio", { value: 0, configurable: true });
+    const { reportDisplayIntervalMs } = await import("@core/engine/displayCadence");
+    reportDisplayIntervalMs(1000 / 120);
+    const { scope } = elements();
+    Object.defineProperty(scope, "clientWidth", { value: 1400, configurable: true });
+    Object.defineProperty(scope, "clientHeight", { value: 800, configurable: true });
+    scope.style.animationTimingFunction = "ease-in";
+    document.body.appendChild(scope);
+    const engine = createTransitionEngine(deps());
+    try {
+      const cleanup = engine.driveScreenLifecycle({
+        getElements: () => ({ scope, decorator: null, bars: [] }),
+        transitionName: "cupertino" as never,
+        prevTransitionName: "cupertino" as never,
+        status: "PUSHING",
+        isActive: true,
+        animHoldReleased: true
+      });
+      // The reshape landed: a falsy ratio did not abort it, and the curve is
+      // the one a ratio of 1 produces.
+      expect(scope.style.animationTimingFunction).toMatch(/^linear\(/);
+      cleanup();
+    } finally {
+      reportDisplayIntervalMs(1000 / 60);
+      Object.defineProperty(window, "devicePixelRatio", {
+        value: originalDpr,
+        configurable: true
+      });
+      delete (navigator as unknown as Record<string, unknown>).maxTouchPoints;
+      delete (navigator as { userAgentData?: unknown }).userAgentData;
+      scope.remove();
+    }
+  });
+
   it("spans the OPPOSITE screen's part across per-screen wrappers (the real React shape)", async () => {
     // Each screen sits in its own wrapper div — the two screens of ONE
     // flight share no parentElement. The boundary is the explicit

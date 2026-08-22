@@ -1593,15 +1593,16 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // REPLACING stretch retired with the delay-hold: the flat-head
     // keyframes carry their own literal total duration.
     const governedStretch = 1;
-    // The LPM front-softening gate (see softenFrontLoadedEasing in
-    // compileTransitionStyles): the compiler pre-computes a softened
-    // variant of every front-loaded SCREEN curve behind
-    // `:root[data-flemo-governed]`; the engine only toggles the attribute.
-    // User-selected over the stretch: total time stays player-identical
-    // while the front of the curve gets a trackable share of it. SLIDES
-    // only — a REPLACING cross-fade has no front-loaded travel to soften.
-    const governedSoftenActive =
-      routedTouchGoverned && (status === "PUSHING" || status === "POPPING");
+    // A SLIDE on the governed touch tier. It stands the wall-clock
+    // accelerators down for the same reason routedForceCompiled does — see
+    // the cut block below — and it covers one case that predicate does not:
+    // a touch-WebKit PUSH in a session that has turned the settle gate off.
+    //
+    // Its name used to be `governedSoftenActive`, from the front-softening
+    // treatment it was introduced alongside. That treatment was retired in
+    // 2026-08-13 and deleted with the rAF player; this gate outlived it
+    // because what it actually guards is the clock, not the curve.
+    const governedSlide = routedTouchGoverned && (status === "PUSHING" || status === "POPPING");
     {
       const root = scope.ownerDocument.documentElement;
       const creepHeadProbe = routedGovernedHead && readCreepHeadFlag();
@@ -1993,7 +1994,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // to COMPLETED read WORSE (the end hitch interrupts the settle), and
     // the pre-release placement was the settle-gate deadlock era. The
     // early-landing placement stays — least-bad of three.)
-    if (recovering && flooredTaskId && !governedSoftenActive && !routedForceCompiled) {
+    if (recovering && flooredTaskId && !governedSlide && !routedForceCompiled) {
       const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
       const activeCut = perceptualCutMs(activeMotion!, scope, dpr);
       // Both sides must be inside their bands before the COMPLETED flip cuts

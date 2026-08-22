@@ -41,10 +41,10 @@ import { channelValue, type PerceptualBox } from "@core/engine/perceptualSpan";
 const SAMPLES = 400;
 const FAST_PHASE_STRIDE = 4;
 
-const format = (value: number) => {
-  const rounded = +value.toFixed(5);
-  return Object.is(rounded, -0) ? 0 : rounded;
-};
+// `+ 0` normalizes -0 away: a curve that undershoots by less than the fifth
+// decimal rounds to -0, and `linear(-0 0%, ...)` is a needlessly odd thing to
+// emit. Adding zero is identity for every other value.
+const format = (value: number) => +value.toFixed(5) + 0;
 
 // Engagement range: the governor only takes over a tail whose remaining
 // travel is this short. A longer remainder is still ordinary motion.
@@ -118,6 +118,16 @@ export const governedEasingForMotion = (
   const engagePct = (engage / SAMPLES) * 100;
   const sprintMs = remainingDevice * frameIntervalMs;
   const sprintPct = (sprintMs / durationMs) * 100;
+  /* v8 ignore next 2 -- unreachable for a decelerating cubic bezier, and kept
+     anyway. The sprint's share of the timeline works out to roughly (samples
+     of travel remaining at the engagement velocity) / 4 percent, independent
+     of box, duration and cadence — a few percent. Reaching 100 therefore needs
+     an engagement past ~95%, which only happens when the per-frame limit is
+     tiny, which is exactly when the remainder has already fallen under one
+     device pixel and the check above has bailed. The two conditions pull
+     against each other, so no bezier satisfies both. A hand-built motion or a
+     future easing type is not bound by that geometry, and this is the guard
+     that keeps one from emitting a curve that lands past its own end. */
   if (engagePct + sprintPct >= 100) return null;
 
   const points: string[] = [];

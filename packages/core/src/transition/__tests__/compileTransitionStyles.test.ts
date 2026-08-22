@@ -5,7 +5,6 @@ import {
   collectAnimatedProperties,
   compileTransitionStyles,
   easingToCss,
-  softenFrontLoadedEasing,
   targetToDecls,
   variantHasAnimation
 } from "@transition/compileTransitionStyles";
@@ -91,39 +90,13 @@ describe("compileTransitionStyles", () => {
     expect(css).toMatch(/animation: [^;]*0\.7s[^;]*;/);
   });
 
-  it("softening is retired (flag off): the authored curve plays under LPM too", () => {
+  it("emits no softened-curve rule: front-softening is gone", () => {
+    // The compiler used to emit a gentler variant of every front-loaded screen
+    // curve behind the governed gate. It was a prescription for a broken
+    // pipeline; with that cured it read as a different transition, so the flag
+    // went off in 2026-08 and the machinery was deleted with the rAF player.
     const css = compileTransitionStyles([cupertino], []);
-    // The softener was a prescription for the broken pipeline (var-timing
-    // demotion, opening skips); with those cured the softened curve read
-    // as a different transition vs the player. The pure function and its
-    // tests stay for a possible re-arm.
     expect(css).not.toContain("animation-timing-function: cubic-bezier(0.4, 0.3, 0.1, 1);");
-  });
-
-  it("softenFrontLoadedEasing leaves non-front-loaded curves untouched", () => {
-    expect(softenFrontLoadedEasing("cubic-bezier(0.32, 0.72, 0, 1)", 0.7)).toBe(
-      "cubic-bezier(0.4, 0.3, 0.1, 1)"
-    );
-    expect(softenFrontLoadedEasing("ease-in", 0.7)).toBeNull();
-    expect(softenFrontLoadedEasing("linear", 0.7)).toBeNull();
-    expect(softenFrontLoadedEasing("ease-out", 0.7)).toBeNull();
-    // Mildly front-loaded: softened proportionally, not snapped to the
-    // reference.
-    const mild = softenFrontLoadedEasing("cubic-bezier(0.25, 0.55, 0.2, 1)", 0.7);
-    if (mild !== null) {
-      expect(mild).not.toBe("cubic-bezier(0.4, 0.3, 0.1, 1)");
-    }
-  });
-
-  it("softening is ABSOLUTE-time aware: a long authored flight keeps its curve", () => {
-    // The same cupertino shape over 10s reaches half travel in ~1.7s —
-    // trackable by any eye, so the authored motion is untouched however
-    // front-loaded the SHAPE is.
-    expect(softenFrontLoadedEasing("cubic-bezier(0.32, 0.72, 0, 1)", 10)).toBeNull();
-    // And a mid-length flight softens only partially.
-    const mid = softenFrontLoadedEasing("cubic-bezier(0.32, 0.72, 0, 1)", 1.8);
-    expect(mid).not.toBeNull();
-    expect(mid).not.toBe("cubic-bezier(0.4, 0.3, 0.1, 1)");
   });
 
   it("emits the desktop flat head behind its own gate, sized for a 60Hz pipeline", () => {

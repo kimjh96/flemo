@@ -70,3 +70,89 @@ describe("governedEasingForMotion", () => {
     expect(governedEasingForMotion(withConstant, box, 1, 1000 / 120)).toMatch(/^linear\(/);
   });
 });
+
+// Bail paths. Each is a deliberate conservatism — the governor reshapes the
+// ONE animation every channel of the flight rides, so anything it cannot
+// reason about must leave the authored easing alone rather than guess.
+describe("governedEasingForMotion bails", () => {
+  const box = { clientWidth: 1400, clientHeight: 800 } as unknown as HTMLElement;
+  const slide = {
+    from: { x: "100%" },
+    to: { x: 0 },
+    duration: 0.7,
+    delay: 0,
+    ease: [0.32, 0.72, 0, 1]
+  } as VariantMotion;
+
+  it("treats a nonsensical device-pixel ratio as 1 rather than refusing", () => {
+    // A zero/NaN/negative dpr is an embedder quirk, not a reason to drop the
+    // landing: the reshape is still correct at 1.
+    for (const dpr of [0, -2, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(governedEasingForMotion(slide, box, dpr, 1000 / 120)).toBe(
+        governedEasingForMotion(slide, box, 1, 1000 / 120)
+      );
+    }
+  });
+
+  it("bails when a target is missing or is not an object", () => {
+    expect(
+      governedEasingForMotion({ ...slide, from: null } as unknown as VariantMotion, box, 1, 8.3)
+    ).toBeNull();
+    expect(
+      governedEasingForMotion({ ...slide, to: "0" } as unknown as VariantMotion, box, 1, 8.3)
+    ).toBeNull();
+  });
+
+  it("bails when a channel's endpoint cannot be resolved to a number", () => {
+    expect(
+      governedEasingForMotion(
+        { ...slide, from: { x: "calc(100% - 3em)" } } as unknown as VariantMotion,
+        box,
+        1,
+        8.3
+      )
+    ).toBeNull();
+  });
+
+  it("bails when the curve is slow from the very first frame", () => {
+    // A linear crawl is under one device pixel per frame throughout, so the
+    // engagement point walks back to 0 — there is no fast phase to preserve.
+    expect(
+      governedEasingForMotion(
+        { ...slide, duration: 40, ease: [0, 0, 1, 1] } as VariantMotion,
+        box,
+        1,
+        1000 / 120
+      )
+    ).toBeNull();
+  });
+
+  it("bails when the remaining travel is outside the engagement range", () => {
+    // Above the range there is still real motion to play; at or below one
+    // device pixel there is nothing left to govern.
+    const wide = { clientWidth: 20000, clientHeight: 800 } as unknown as HTMLElement;
+    expect(governedEasingForMotion(slide, wide, 1, 1000 / 120)).toBeNull();
+    expect(
+      governedEasingForMotion({ ...slide, ease: [0, 0, 1, 1] } as VariantMotion, box, 1, 1000 / 120)
+    ).toBeNull();
+  });
+
+  it("never emits a negative zero, however the curve undershoots", () => {
+    const undershoot = { ...slide, ease: [0.05, -0.8, 0, 1] } as VariantMotion;
+    const easing = governedEasingForMotion(undershoot, box, 1, 1000 / 120);
+    expect(easing).not.toBeNull();
+    expect(easing).not.toMatch(/(^|[,(])\s*-0[ ,)]/);
+  });
+
+  it("bails once the tail is already inside a device pixel", () => {
+    // Three ways to arrive there: a narrow box, a short slide, and a slow
+    // cadence. In each the engagement point lands with under one device pixel
+    // to go, so there is nothing left for the governor to close.
+    const narrow = { clientWidth: 390, clientHeight: 800 } as unknown as HTMLElement;
+    expect(governedEasingForMotion(slide, narrow, 1, 1000 / 120)).toBeNull();
+    expect(
+      governedEasingForMotion({ ...slide, duration: 0.2 } as VariantMotion, box, 1, 1000 / 120)
+    ).toBeNull();
+    expect(governedEasingForMotion(slide, box, 1, 1000 / 30)).toBeNull();
+  });
+});

@@ -4,7 +4,8 @@ import {
   NATIVE_STALL_STEP_MS,
   watchNativeStalls,
   anchorNativeFlightStart,
-  holdNativeClocksToFirstFrame
+  holdNativeClocksToFirstFrame,
+  armFlightStartAnchorAtRelease
 } from "@core/engine/nativeStallAnchor";
 
 interface FakeAnimation {
@@ -494,6 +495,133 @@ describe("holdNativeClocksToFirstFrame", () => {
 
     raf.mockRestore();
     vi.useRealTimers();
+    scope.remove();
+  });
+});
+
+// Both release-armed anchors watch the SAME signal — the hold attribute
+// flipping to "false" — and both have to handle the two ways that signal can
+// arrive: after they armed, or before (the release beat the arming, which is a
+// real race on a fast machine). A miss on either end is a flight that runs
+// with no anchor at all.
+describe("arming against the hold release", () => {
+  const armed = (scope: HTMLElement, target: HTMLElement) => {
+    const rafCbs: FrameRequestCallback[] = [];
+    const raf = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((cb: FrameRequestCallback) => (rafCbs.push(cb), rafCbs.length));
+    const detach = armFlightStartAnchorAtRelease(scope, () => [target]);
+    return { rafCbs, raf, detach };
+  };
+
+  const hostWith = (animation: CSSAnimation) => {
+    const el = document.createElement("div");
+    (el as unknown as { getAnimations: unknown }).getAnimations = () => [animation];
+    return el;
+  };
+
+  const freshAnimation = () =>
+    ({
+      animationName: "flemo-screen-x-PUSHING-true",
+      playState: "running",
+      currentTime: 2,
+      startTime: 1000
+    }) as unknown as CSSAnimation;
+
+  it("engages immediately when the release has ALREADY landed at arm time", () => {
+    const scope = document.createElement("div");
+    scope.setAttribute("data-flemo-anim-hold", "false");
+    document.body.appendChild(scope);
+    const target = hostWith(freshAnimation());
+    const { rafCbs, raf, detach } = armed(scope, target);
+
+    // No mutation is coming — the anchor must not sit waiting for one.
+    expect(rafCbs.length).toBeGreaterThan(0);
+
+    detach();
+    raf.mockRestore();
+    scope.remove();
+  });
+
+  it("ignores a hold mutation that is not the release", async () => {
+    const scope = document.createElement("div");
+    scope.setAttribute("data-flemo-anim-hold", "true");
+    document.body.appendChild(scope);
+    const target = hostWith(freshAnimation());
+    const { rafCbs, raf, detach } = armed(scope, target);
+    expect(rafCbs.length).toBe(0);
+
+    // A park is still a HOLD: the clock has not started, so anchoring here
+    // would anchor nothing.
+    scope.setAttribute("data-flemo-anim-hold", "park-under");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(rafCbs.length).toBe(0);
+
+    scope.setAttribute("data-flemo-anim-hold", "false");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(rafCbs.length).toBeGreaterThan(0);
+
+    detach();
+    raf.mockRestore();
+    scope.remove();
+  });
+
+  it("holdNativeClocksToFirstFrame ignores a non-release mutation too", async () => {
+    const scope = document.createElement("div");
+    scope.setAttribute("data-flemo-anim-hold", "true");
+    document.body.appendChild(scope);
+    const paused: string[] = [];
+    const animation = {
+      animationName: "flemo-screen-x-PUSHING-true",
+      playState: "running",
+      currentTime: 2,
+      startTime: 0,
+      pause: () => paused.push("pause"),
+      play: () => paused.push("play")
+    } as unknown as CSSAnimation;
+    const target = hostWith(animation);
+    const raf = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation(() => 1 as unknown as number);
+    const dispose = holdNativeClocksToFirstFrame(scope, () => [target]);
+
+    scope.setAttribute("data-flemo-anim-hold", "park");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(paused).toEqual([]);
+
+    scope.setAttribute("data-flemo-anim-hold", "false");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(paused).toContain("pause");
+
+    dispose();
+    raf.mockRestore();
+    scope.remove();
+  });
+
+  it("holdNativeClocksToFirstFrame engages when the release beat the arming", async () => {
+    const scope = document.createElement("div");
+    scope.setAttribute("data-flemo-anim-hold", "false");
+    document.body.appendChild(scope);
+    const paused: string[] = [];
+    const animation = {
+      animationName: "flemo-screen-x-PUSHING-true",
+      playState: "running",
+      currentTime: 2,
+      startTime: 0,
+      pause: () => paused.push("pause"),
+      play: () => paused.push("play")
+    } as unknown as CSSAnimation;
+    const target = hostWith(animation);
+    const raf = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation(() => 1 as unknown as number);
+    const dispose = holdNativeClocksToFirstFrame(scope, () => [target]);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(paused).toContain("pause");
+
+    dispose();
+    raf.mockRestore();
     scope.remove();
   });
 });

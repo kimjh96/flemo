@@ -108,6 +108,19 @@ describe("snapshotOverrides", () => {
     );
   });
 
+  it("skips an index whose key read comes back empty", () => {
+    // Storage.key(i) can return null while another tab mutates the store; an
+    // empty key is not a flag and must not be reported as an unknown one.
+    vi.stubGlobal("sessionStorage", {
+      get length() {
+        return 2;
+      },
+      key: (index: number) => (index === 0 ? null : ""),
+      getItem: () => null
+    });
+    expect(snapshotOverrides()).toEqual({});
+  });
+
   it("returns an empty record when storage access throws entirely", () => {
     const throwing = new Proxy(
       {},
@@ -158,6 +171,18 @@ describe("deriveOverrideWarnings", () => {
     // The retirement note travels with the warning, so the reader learns what
     // the key used to do without leaving the report.
     expect(warnings[0]).toContain("the hard driver pin");
+  });
+
+  it("still names an unrecognised retired key as inert, without a retirement note", () => {
+    // A marked key whose base name is not in the table (an older devtools build
+    // reading a newer report, a hand-edited snapshot) must still be ruled out
+    // rather than fall through as an active diagnostic.
+    const warnings = deriveOverrideWarnings({
+      [`flemo:from-the-future (sessionStorage) ${RETIRED_MARKER}`]: "1"
+    });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("RETIRED residue");
+    expect(warnings[0]).toContain("a removed feature");
   });
 
   it("warns about opt-in diagnostics as possible A/B residue", () => {
