@@ -434,6 +434,58 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     });
   };
 
+  // WHY THIS FOLLOW IS 30Hz ON iOS LOW POWER MODE, AND WHY THAT IS THE FLOOR.
+  //
+  // A drag on that device is visibly steppier than the same motion played as a
+  // transition, and it is tempting to read that as something this file does
+  // wrong. It is not. Measured on the device, with the page in a production
+  // build and no inspector attached:
+  //
+  //   - requestAnimationFrame is capped at 30Hz (33ms between frames, even
+  //     while the page is idle), and the cap is unconditional — media playback
+  //     does not lift it.
+  //   - The compositor keeps running at 60Hz in the same moment: an untouched
+  //     CSS animation is smooth, including three viewport-sized layers with
+  //     real content, and including while a finger rests on the glass.
+  //   - Any main-thread mutation of a running compositor animation, at that
+  //     30Hz cadence, costs its smoothness. Proven with the tracking removed
+  //     entirely: an animation that ignored the finger, nudged only by
+  //     `playbackRate = 1.02 / 0.98` every 33ms — visually a no-op — went
+  //     rough, while the identical animation left alone stayed smooth.
+  //
+  // So following a finger costs 30Hz: to track it we must commit, and each
+  // commit is charged. FALSIFIED ON THE DEVICE, do not retry:
+  //   1. Cutting per-frame work (fewer writes, native listeners instead of
+  //      React's, no forced reflow) — the cap is not a throughput problem.
+  //   2. Short compositor segments (33ms / 100ms chained transitions).
+  //   3. Long segments (250ms) with velocity dead reckoning — smooth, but each
+  //      re-aim jumps, and computing the true current position analytically to
+  //      remove the jump did not save it.
+  //   4. Resampling at the frame's own timestamp from a coalesced-event buffer
+  //      (the regularity hypothesis).
+  //   5. Velocity control: one long animation, never restarted, whose
+  //      playbackRate follows the finger — per frame, and on 120/200/320ms
+  //      cadences, and on an error threshold with step-free correction.
+  //   6. Driving a hidden 1x1 scroller (its timeline reaching the screens via
+  //      `timeline-scope`, so nothing wraps them) with `scrollTo({behavior:
+  //      "smooth"})` — the scrolling thread does NOT charge the toll above, but
+  //      the UA picks the scroll animation's length and easing, so the motion
+  //      trails the finger no matter how the destination is fed.
+  //
+  // The one gesture that IS smooth there is a scroll the finger drives
+  // directly — which requires the screens to live inside a scroller with their
+  // visual position decoupled (sticky), plus a gutter to scroll against. That
+  // structure was weighed and rejected: it lands hit-testing, nested routers,
+  // scroll restoration and consumer CSS on top of a scroller, and it cannot
+  // serve y-axis transitions at all (the gesture axis collides with content
+  // scrolling, iOS locks the scroll chain at gesture start, and a vertical
+  // root scroll opens and closes the address bar).
+  //
+  // Blink does not charge any of this, which is why the same code is smooth on
+  // Android in battery saver. Nothing here changes until WebKit stops capping
+  // the main thread in Low Power Mode, decouples compositor animation updates
+  // from that cap, or ships an off-main-thread animation API.
+  //
   // ONE follow write per animation frame. Pointer moves arrive faster than
   // frames — a finger delivers several per frame, and more still on a device
   // whose frames are long — and every one of them used to run the whole
