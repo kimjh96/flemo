@@ -15,6 +15,18 @@ import { measureKeyboardInset, observeKeyboardInset } from "@flemo/core";
 //
 // 0 means no keyboard (and a pinch-zoomed page, where the number cannot be
 // derived — see the core module).
+//
+// The inset is re-measured on every viewport change, so a keyboard that CHANGES
+// height while open — an emoji panel, a suggestion bar, a language switch —
+// moves the pinned element with it. What the platform does not give is the
+// keyboard's animation: iOS reports the new size roughly at the start and end
+// of the slide rather than each frame, so a pinned element jumps unless it
+// carries its own easing. Give it one:
+//
+//     style={{ bottom: keyboardInset, transition: "bottom 250ms ease-out" }}
+//
+// An iPad floating or split keyboard does not shrink the visual viewport at
+// all, so it reads 0; nothing in the platform exposes its frame.
 export default function useKeyboardInset() {
   // Seeded from a direct measurement rather than 0: a screen that mounts while
   // the keyboard is already open (a push from a focused field) would otherwise

@@ -107,6 +107,32 @@ describe("observeKeyboardInset", () => {
     expect(seen.at(-1)).toBe(0);
   });
 
+  // The keyboard is not one height: an emoji panel, a suggestion bar appearing,
+  // a language switch and an accessory row all resize it while it stays open.
+  // Each of those fires a viewport resize, so each is measured — the inset is
+  // never latched to whatever the first opening happened to be.
+  it("follows the keyboard changing height while it stays open", () => {
+    const seen: number[] = [];
+    observeKeyboardInset((inset) => seen.push(inset));
+    flushFrames();
+
+    viewportHeight = 500; // keyboard
+    trigger();
+    expect(seen.at(-1)).toBe(300);
+
+    viewportHeight = 460; // ... plus a suggestion bar
+    trigger();
+    expect(seen.at(-1)).toBe(340);
+
+    viewportHeight = 420; // ... swapped for the emoji panel
+    trigger();
+    expect(seen.at(-1)).toBe(380);
+
+    viewportHeight = 500; // ... and back to the plain keyboard
+    trigger();
+    expect(seen.at(-1)).toBe(300);
+  });
+
   it("reports zero while the page is pinch-zoomed", () => {
     const seen: number[] = [];
     observeKeyboardInset((inset) => seen.push(inset));
