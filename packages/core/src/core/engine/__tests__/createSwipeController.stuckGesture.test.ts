@@ -77,7 +77,12 @@ describe("a gesture whose pointer never comes back", () => {
         swipeDirection: "x",
         onSwipeStart: vi.fn(async () => true),
         onSwipe: vi.fn(() => 0),
-        onSwipeEnd: vi.fn(async () => false)
+        onSwipeEnd: vi.fn(
+          async (_event: unknown, _info: unknown, api: { onStart?: (t: boolean) => void }) => {
+            api.onStart?.(false);
+            return false;
+          }
+        )
       }) as unknown as Transition,
     getDecorator: () => undefined,
     getElements: () => ({
@@ -194,6 +199,22 @@ describe("a gesture whose pointer never comes back", () => {
     controller.abandon();
     expect(() => controller.abandon()).not.toThrow();
     expect(controller.shouldPreventTouch()).toBe(false);
+  });
+
+  it("returns dragStatus to IDLE, or every later swipe is blocked", async () => {
+    // The recovery has to leave the binding's readiness gate OPEN. A gesture
+    // torn down without returning dragStatus to IDLE would trade a dead scroll
+    // for a dead swipe — every later drag refused by the gate, which is the
+    // same class of defect wearing the other symptom.
+    const setDragStatus = config.setDragStatus as ReturnType<typeof vi.fn>;
+    const controller = await armAndStrand();
+    setDragStatus.mockClear();
+
+    controller.abandon();
+    await flush();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    expect(setDragStatus.mock.calls.map((call) => call[0])).toContain("IDLE");
   });
 
   it("takes a whole new gesture after a recovery", async () => {
