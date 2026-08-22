@@ -137,6 +137,23 @@ describe("the release clock", () => {
 
   // Read the duration the element's inline transition actually carries: that
   // is what the write landed with, whoever wrote it.
+  // A CANCEL clears its inline styles once the settle lands, so reading the
+  // element afterwards finds nothing: watch what was written instead.
+  const watchSeconds = (el: HTMLElement) => {
+    const written: number[] = [];
+    const observer = new MutationObserver(() => {
+      const match = /([\d.]+)s/.exec(el.style.transition);
+      if (match) written.push(Number(match[1]));
+    });
+    observer.observe(el, { attributes: true, attributeFilter: ["style"] });
+    return {
+      stop: () => {
+        observer.disconnect();
+        return written;
+      }
+    };
+  };
+
   const secondsOn = (el: HTMLElement) => {
     const match = /([\d.]+)s/.exec(el.style.transition);
     return match ? Number(match[1]) : null;
@@ -189,6 +206,43 @@ describe("the release clock", () => {
     const seconds = secondsOn(dom.scope)!;
     expect(seconds).toBeLessThanOrEqual(AUTHORED);
     expect(seconds).toBeGreaterThan(AUTHORED / 2);
+  });
+
+  // A CANCEL is the settle walking BACK the way the finger came, and it only
+  // ever happens below the transition's commit threshold — so the distance
+  // term is tiny by construction and used to hand every cancel the short
+  // floor, snapping the authored curve (device-reported on Safari after a
+  // small drag).
+  it("gives a cancelled swipe time to be seen", async () => {
+    // 40px of travel (the helper starts the drag at x=40), released gently:
+    // under the handler's 50px commit threshold, so this cancels.
+    const watch = watchSeconds(dom.scope);
+    await release(80, 400);
+    const written = watch.stop();
+
+    expect(written.length).toBeGreaterThan(0);
+    expect(Math.max(...written)).toBeGreaterThanOrEqual(0.28);
+    expect(Math.max(...written)).toBeLessThanOrEqual(AUTHORED);
+  });
+
+  it("still lets a deliberate flick back land fast", async () => {
+    const watch = watchSeconds(dom.scope);
+    const controller = createSwipeController(config);
+    controller.pointerDown(event({ target: dom.scope }));
+    controller.pointerMove(event({ clientX: 40, timeStamp: 0 }));
+    await frame();
+    controller.pointerMove(event({ clientX: 120, timeStamp: 100 }));
+    await frame();
+    // The finger turns around and throws it home: 60px back in 50ms, which is
+    // 1200px/s — a deliberate flick, not the drift of easing off.
+    controller.pointerMove(event({ clientX: 60, timeStamp: 150 }));
+    await frame();
+    controller.pointerUp(event({ clientX: 60, timeStamp: 150 }));
+    await frame();
+    const written = watch.stop();
+
+    expect(written.length).toBeGreaterThan(0);
+    expect(Math.min(...written)).toBeLessThan(0.28);
   });
 
   it("leaves a tap-like release instant, as before", async () => {

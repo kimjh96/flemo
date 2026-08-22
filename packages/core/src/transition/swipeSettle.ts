@@ -20,6 +20,24 @@
 // the eye cannot follow reads as a cut, not as motion).
 export const MIN_SETTLE_SECONDS = 0.12;
 
+// A RELEASE THAT REVERSES THE FINGER gets its own, longer floor.
+//
+// Both terms above assume the settle CONTINUES the gesture. A cancel does the
+// opposite: it walks back the way the finger came. The speed term then reads
+// backwards — the harder you pushed away from rest, the shorter the return —
+// and the distance term collapses, because a cancel only happens BELOW the
+// transition's commit threshold and so never has far to travel (cupertino
+// commits at 50px, so every cancel asks for 0.7s x 50/390 = 0.09s and lands on
+// the floor). Both together made every cancelled swipe a 0.12s snap of an
+// authored curve whose front is loaded — device-reported on Safari as "it just
+// jumps back" after a small drag, where the same cancel used to run the
+// preset's own 0.3s.
+//
+// So a reversal ignores the speed it cannot borrow and lands no faster than
+// this — still capped by the authored span, so a transition that wants a brisk
+// return only has to author one.
+export const MIN_REVERSAL_SECONDS = 0.28;
+
 export interface SwipeSettleInput {
   // Distance still to travel when the finger lets go, in px.
   remainingPx: number;
@@ -27,6 +45,12 @@ export interface SwipeSettleInput {
   spanPx: number;
   // The finger's speed along the axis at release, px per second, sign-agnostic.
   velocityPxPerSecond: number;
+  // Whether the settle travels AGAINST the gesture (a cancel walking back to
+  // rest while the finger was pushing away, or standing still). A settle that
+  // continues the finger is not a reversal, even when it is a cancel — a
+  // finger already flicking back toward rest lends its momentum like any
+  // other.
+  reversing?: boolean;
   // The transition's own duration, in seconds — the ceiling and the reference
   // the distance term scales.
   authoredSeconds: number;
@@ -38,7 +62,8 @@ export const swipeSettleSeconds = ({
   spanPx,
   velocityPxPerSecond,
   authoredSeconds,
-  minSeconds = MIN_SETTLE_SECONDS
+  reversing = false,
+  minSeconds = reversing ? MIN_REVERSAL_SECONDS : MIN_SETTLE_SECONDS
 }: SwipeSettleInput): number => {
   const remaining = Math.abs(remainingPx);
   // Nothing to travel: animating zero distance only delays the commit.
@@ -46,7 +71,8 @@ export const swipeSettleSeconds = ({
   const span = Math.abs(spanPx);
   const byDistance = span > 0 ? authoredSeconds * Math.min(1, remaining / span) : authoredSeconds;
   const speed = Math.abs(velocityPxPerSecond);
-  const bySpeed = speed > 0 ? remaining / speed : Number.POSITIVE_INFINITY;
+  // A reversal has no momentum to inherit: the finger was going the other way.
+  const bySpeed = !reversing && speed > 0 ? remaining / speed : Number.POSITIVE_INFINITY;
   const chosen = Math.min(byDistance, bySpeed);
   return Math.min(authoredSeconds, Math.max(minSeconds, chosen));
 };
