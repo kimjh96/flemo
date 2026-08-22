@@ -187,6 +187,12 @@ export { detectBlinkEngine, isDesktopBlink, isLegacyAndroidBlink } from "@core/e
 // the panel's rate; the desktop defaults that are about Blink's layer handling
 // or a desktop's memory read `isDesktopBlink` instead.
 export { steadySixtyPlayerEligible } from "@core/engine/steadySixtyCadence";
+export {
+  swipeSettleSeconds,
+  MIN_SETTLE_SECONDS,
+  type SwipeSettleInput
+} from "@transition/swipeSettle";
+
 export { default as observeBarHeight } from "@screen/observeBarHeight";
 export { default as observeViewportScrollHeight } from "@screen/observeViewportScrollHeight";
 

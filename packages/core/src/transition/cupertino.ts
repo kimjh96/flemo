@@ -122,7 +122,12 @@ const cupertino = createTransition({
             x: isTriggered ? "100%" : 0
           },
           {
-            duration: 0.3,
+            // This transition's own span is the release's CEILING: the swipe
+            // controller shortens it to what is left and how fast the finger
+            // was going (see swipeSettleSeconds), so a swipe-completed pop
+            // lands like the same pop driven by a button instead of on a
+            // clock of its own.
+            duration: DURATION,
             ease: EASE
           }
         ),
@@ -132,7 +137,12 @@ const cupertino = createTransition({
             x: isTriggered ? 0 : `-${PARALLAX}%`
           },
           {
-            duration: 0.3,
+            // This transition's own span is the release's CEILING: the swipe
+            // controller shortens it to what is left and how fast the finger
+            // was going (see swipeSettleSeconds), so a swipe-completed pop
+            // lands like the same pop driven by a button instead of on a
+            // clock of its own.
+            duration: DURATION,
             ease: EASE
           }
         )

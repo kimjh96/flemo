@@ -138,6 +138,31 @@ describe("cupertino swipe", () => {
     );
   });
 
+  it("authors its own span as the release ceiling", () => {
+    // The release length itself is the swipe controller's (it knows what is
+    // left and how fast the finger was going, for EVERY transition — see
+    // swipeSettleSeconds). What the preset owns is the ceiling, and it is this
+    // transition's own duration: a release must never outlast the same pop
+    // driven by a button, and with the finger nearly still it should match it.
+    const ctx = context();
+    void cupertino.onSwipeEnd!(
+      pointerEvent,
+      swipeInfo({ offset: { x: 120, y: 0 }, velocity: { x: 0, y: 0 } }),
+      { ...ctx, onStart: vi.fn() }
+    );
+
+    expect(ctx.calls).toHaveBeenCalledWith(
+      ctx.currentScreen,
+      expect.anything(),
+      expect.objectContaining({ duration: 0.7 })
+    );
+    expect(ctx.calls).toHaveBeenCalledWith(
+      ctx.prevScreen,
+      expect.anything(),
+      expect.objectContaining({ duration: 0.7 })
+    );
+  });
+
   it("cancels back to rest under the threshold", async () => {
     const ctx = context();
     const onStart = vi.fn();

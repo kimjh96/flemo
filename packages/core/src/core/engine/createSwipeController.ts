@@ -1,5 +1,7 @@
 import animateInline, { clearInlineAnimation } from "@transition/animateInline";
 
+import { swipeSettleSeconds } from "@transition/swipeSettle";
+
 import type { Transition } from "@transition/typing";
 
 import findScrollable from "@utils/findScrollable";
@@ -319,7 +321,10 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   const drivePartTransitions = (
     hook: "start" | "swipe" | "end",
     triggered: boolean,
-    progress: number
+    progress: number,
+    // The release passes its gesture-scaled writer so a part lands with the
+    // screens (see endSwipe); the drag phase writes instantly as before.
+    animateOverride?: typeof animateInline
   ) => {
     const run = (element: HTMLElement, active: boolean) => {
       // Selected by [data-flemo-part-name], so the attribute is present.
@@ -329,8 +334,9 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       // releasePartTransitions clears under it, and an unstaked write would
       // never match that owner-scoped clear (leaking the inline values and
       // their leases past a cancelled swipe).
-      const animate: typeof animateInline = (target, value, animOptions) =>
-        animateInline(target, value, animOptions, layerOwner);
+      const animate: typeof animateInline =
+        animateOverride ??
+        ((target, value, animOptions) => animateInline(target, value, animOptions, layerOwner));
       const options = { animate, element, active };
       if (hook === "swipe") def.onSwipe?.(triggered, progress, options);
       else if (hook === "start") def.onSwipeStart?.(triggered, options);
@@ -505,9 +511,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // durations to zero so the restore is instantaneous and no settle
     // animation exists to fight a navigation the same tap triggered.
     const tapLike = forceCancel || swipeMaxDragPx < SWIPE_TAP_SLOP_PX;
-    const animateForEnd: typeof animateSwipe = tapLike
-      ? (target, value, options) => animateSwipe(target, value, { ...options, duration: 0 })
-      : animateSwipe;
+
     // `pointercancel` means the browser/OS took ownership (usually a native
     // scroll). It can arrive with a noisy offset and velocity; feeding those
     // into an ordinary swipe end may satisfy a consumer's commit threshold.
@@ -520,18 +524,78 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
           velocity: { x: 0, y: 0 }
         }
       : buildSwipeInfo(event);
+
+    // THE RELEASE CLOCK, for every transition — the shipped presets, and every
+    // one a consumer will ever write.
+    //
+    // A release is the continuation of a gesture, so its length belongs to the
+    // gesture: what is LEFT to travel and how fast the finger was going. An
+    // authored duration cannot know either — it is one number for every
+    // release — so a handler that writes `duration: 0.3` runs the same clock
+    // whether six pixels or three hundred remain, and the same navigation
+    // lands in a different time depending on how it was started. Measured on a
+    // device: cupertino's release at a flat 0.3s against the identical pop
+    // driven by a button at 0.78s.
+    //
+    // So the authored duration becomes the CEILING and this scales it down to
+    // what the gesture asks for (swipeSettleSeconds). It applies here, at the
+    // one place every release write passes through — the transition's own
+    // hooks, its decorator's, and its parts' — rather than in any preset, so a
+    // transition written tomorrow gets it without asking, and one that wants
+    // a flat clock still names its own ceiling.
+    const axis = transition.swipeDirection;
+    const box = scope?.getBoundingClientRect();
+    const span =
+      (axis === "y" ? box?.height : box?.width) ||
+      (typeof window === "undefined" ? 0 : axis === "y" ? window.innerHeight : window.innerWidth);
+    const travelled = Math.abs(axis === "y" ? swipeInfo.offset.y : swipeInfo.offset.x);
+    const speed = Math.abs(axis === "y" ? swipeInfo.velocity.y : swipeInfo.velocity.x);
+    // Read at WRITE time, not now: a handler reports its verdict through
+    // `onStart` before it animates (every preset does), and until it does the
+    // conservative reading is the cancel — the distance back to rest.
+    let releaseTriggered = false;
+    const gestureScaled = <T extends typeof animateInline>(write: T): T =>
+      ((target, value, options) => {
+        const authored = typeof options?.duration === "number" ? options.duration : 0;
+        if (authored <= 0) return write(target, value, options);
+        return write(target, value, {
+          ...options,
+          duration: swipeSettleSeconds({
+            remainingPx: releaseTriggered ? span - travelled : travelled,
+            spanPx: span,
+            velocityPxPerSecond: speed,
+            authoredSeconds: authored
+          })
+        });
+      }) as T;
+
+    const animateForEnd: typeof animateSwipe = tapLike
+      ? (target, value, options) => animateSwipe(target, value, { ...options, duration: 0 })
+      : gestureScaled(animateSwipe);
+    const animateDecoratorForEnd: typeof animateInline = tapLike
+      ? (target, value, options) => animateInline(target, value, { ...options, duration: 0 })
+      : gestureScaled(animateInline);
+    const animatePartForEnd: typeof animateInline = tapLike
+      ? (target, value, options) =>
+          animateInline(target, value, { ...options, duration: 0 }, layerOwner)
+      : gestureScaled((target, value, options) =>
+          animateInline(target, value, options, layerOwner)
+        );
     const handlerTriggered = await transition.onSwipeEnd(event, swipeInfo, {
       animate: animateForEnd,
       currentScreen: scope as HTMLDivElement,
       prevScreen: prevScreen as HTMLDivElement,
       onStart: (triggered) => {
         const settledTrigger = forceCancel ? false : triggered;
+        // The verdict decides what is LEFT to travel, so the release clock
+        // reads it from here on.
+        releaseTriggered = settledTrigger;
         decoratorDef?.onSwipeEnd?.(settledTrigger, {
-          animate: animateInline,
+          animate: animateDecoratorForEnd,
           currentDecorator: decorator as HTMLDivElement,
           prevDecorator: prevDecorator as HTMLDivElement
         });
-        drivePartTransitions("end", settledTrigger, 0);
+        drivePartTransitions("end", settledTrigger, 0, animatePartForEnd);
       }
     });
     const isTriggered = !forceCancel && handlerTriggered;
