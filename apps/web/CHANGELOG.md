@@ -1,5 +1,14 @@
 # @flemo/web
 
+## 0.10.20
+
+### Patch Changes
+
+- Updated dependencies ([`8cb6366`](https://github.com/kimjh96/flemo/commit/8cb636674b2634510253d2265569904c6da05e69), [`5b83d3b`](https://github.com/kimjh96/flemo/commit/5b83d3b46ed268ee07e834e7d7819a4e577a1111), [`d70ced3`](https://github.com/kimjh96/flemo/commit/d70ced37926a359b192b5f5b3b8f9151f340ec5b), [`7b7fdd3`](https://github.com/kimjh96/flemo/commit/7b7fdd3595c8697967b9db56f6aea1aa942b149f), [`d15b18a`](https://github.com/kimjh96/flemo/commit/d15b18ad91687a7e564f0f8be54e55554b181adf), [`05e4d40`](https://github.com/kimjh96/flemo/commit/05e4d4072d4cd5555ef63cfde8dd0e8985426720), [`28fb128`](https://github.com/kimjh96/flemo/commit/28fb1280661f1d886f898310c5b86318e2772d36), [`3ddef71`](https://github.com/kimjh96/flemo/commit/3ddef71eed6bd53b2624d190668390295019c9ac), [`d250cc5`](https://github.com/kimjh96/flemo/commit/d250cc5bf3dbc9b8699f6387c219311bd23dca28), [`a4c1a74`](https://github.com/kimjh96/flemo/commit/a4c1a744f343b86352cc74e1616144f1b35109ad), [`ebf7d78`](https://github.com/kimjh96/flemo/commit/ebf7d786bd8a8154d9322796f2bec413fcf9131e), [`e67146a`](https://github.com/kimjh96/flemo/commit/e67146a4c6857d90de88c372732a92d005e6d305), [`a8ed9cd`](https://github.com/kimjh96/flemo/commit/a8ed9cd4aa3298eb6e3e6fc38930de3056f3ebc3), [`f32c2cc`](https://github.com/kimjh96/flemo/commit/f32c2cc7022dd8d32382420c3a26054546cfaf48), [`fbd937c`](https://github.com/kimjh96/flemo/commit/fbd937c2fe15b451c6b216e524379d85a4cf5849), [`9f1205c`](https://github.com/kimjh96/flemo/commit/9f1205c42d37f354828c17463862dd0838d0c0ba)):
+  - @flemo/core@1.30.0
+  - @flemo/react@1.12.8
+  - @flemo/react-layout@0.1.52
+
 ## 0.10.19
 
 ### Patch Changes

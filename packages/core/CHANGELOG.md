@@ -1,5 +1,92 @@
 # @flemo/core
 
+## 1.30.0
+
+### Minor Changes
+
+- [`5b83d3b`](https://github.com/kimjh96/flemo/commit/5b83d3b46ed268ee07e834e7d7819a4e577a1111) Declare the `data-flemo-*` DOM contract in one place. `@flemo/core` now exports the
+  whole protocol — every attribute name, the animation hold's values, and selector
+  helpers — instead of spreading ~27 string literals across four packages where a
+  rename broke the others silently. Consumers styling or querying flemo's attributes
+  can import the names rather than hard-code them.
+
+  The contract is now enforced from both ends: core fails its own suite on any raw
+  `data-flemo-*` literal, the React binding fails if it renders an attribute core does
+  not declare, and the devtools recorder's deliberately-separate copy is pinned against
+  core's table.
+
+- [`7b7fdd3`](https://github.com/kimjh96/flemo/commit/7b7fdd3595c8697967b9db56f6aea1aa942b149f) Export the `flemo:*` diagnostic-flag registry from `@flemo/core` as data — `DIAGNOSTIC_FLAGS` and `RETIRED_DIAGNOSTIC_FLAGS` declare every storage key the library reads, its default, and the keys it has stopped reading. It replaces a comment table that had drifted from the code, and it is now held to the readers in both directions: a key read without a row, or a row nothing reads, fails the build.
+
+  `@flemo/devtools` mirrors that registry field for field instead of hand-copying it (its runtime stays dependency-free), so reports name every live flag, state the default an override is departing from, and stop listing the panel's own storage key as unknown. `FlagDescriptor` gains `values` and `fallback`, and its `description` field is now `effect`.
+
+- [`d250cc5`](https://github.com/kimjh96/flemo/commit/d250cc5bf3dbc9b8699f6387c219311bd23dca28) Resolve every per-browser decision in one place. `@flemo/core` now exports
+  `resolvePlatformProfile()`, which returns the atomic release flip, the render-settle
+  gate, the deferred release commit, the park-over hold, the rest promotion and the
+  image-decode offload as named fields. `@flemo/react` asks for the profile and renders
+  the answer instead of combining engine probes and diagnostic flags itself, so a
+  binding for another framework has no policy to re-implement.
+
+  Platform detection modules (`engineProbes`, `governedCompiled`, `steadySixtyCadence`,
+  `displayCadence`) moved out of the engine directory to sit beside the profile. The
+  raw flag readers are no longer part of core's public surface — ask the profile.
+
+- [`f32c2cc`](https://github.com/kimjh96/flemo/commit/f32c2cc7022dd8d32382420c3a26054546cfaf48) Retire the rAF motion player. Every browser flemo supports already ran the compiled
+  compositor tier — Blink, desktop Safari and touch WebKit were each routed there
+  unconditionally — so the second driver, its landing pixel-snap, its kind classifier, the
+  driver policy and eight diagnostic flags (`flemo:motion-driver`, `-force`,
+  `landing-snap`, `handoff`, `handoffms`, `apply`, `snap`, `snapband`) are gone. Authored
+  `driver: "player"` pins are no longer accepted; `driver: "native"` keeps its meaning
+  (opt into clock surgery for that transition). `@flemo/core` drops 2.8 KB gzipped.
+
+  Devtools reports lose the `driverPolicy` section and instead list retired `flemo:*` keys
+  still persisted on a device, marked as inert, so residue is ruled out rather than chased.
+
+- [`fbd937c`](https://github.com/kimjh96/flemo/commit/fbd937c2fe15b451c6b216e524379d85a4cf5849) Add `startFlemoRuntime()` — flemo's ambient machinery behind one call. The GPU
+  pipeline prewarm, the image-decode offload and the interaction compositor warm-up
+  are what an app sits in so the first navigation is not the one that pays for them,
+  and none of it is framework-specific. A binding starts the runtime per Router mount
+  and releases on unmount; repeat calls share one runtime.
+
+  `@flemo/react` loses 58 lines and its last document event wiring. Nested Routers now
+  share one listener set instead of installing their own.
+
+### Patch Changes
+
+- [`8cb6366`](https://github.com/kimjh96/flemo/commit/8cb636674b2634510253d2265569904c6da05e69) Track the engine's architecture map. `packages/core/docs/motion-engine.md` describes the
+  compiled-tier design as it stands, and a test holds its module inventory to the code —
+  every module named must exist, every module under `core/engine/`, `platform/` and `dom/`
+  must be named. The previous version of that map sat untracked for a release cycle and
+  ended up describing a motion driver and two modules that had been deleted.
+
+  Source comments no longer cite documents that are not in the repository.
+
+- [`d70ced3`](https://github.com/kimjh96/flemo/commit/d70ced37926a359b192b5f5b3b8f9151f340ec5b) Split the transition engine into named modules. `createTransitionEngine` was a
+  2,138-line file holding participant discovery, compositor-layer leases, cancel-resume
+  wiring, the display probe and the per-flight routing decision alongside the lifecycle
+  it exists for. Those are now five modules with their own tests; the engine keeps the
+  navigation-task lifecycle, the holds and the resolution. No behavior change.
+
+- [`d15b18a`](https://github.com/kimjh96/flemo/commit/d15b18ad91687a7e564f0f8be54e55554b181adf) Add `flemo:governed`, an override for the governed head kit on touch Blink. The kit is armed by a browser-age probe, so a modern-but-weak phone — a 2022 foldable on a current Chrome — falls straight through it with no way to try it. The key arms or disarms it per session so a device can be measured instead of argued about.
+
+- [`05e4d40`](https://github.com/kimjh96/flemo/commit/05e4d4072d4cd5555ef63cfde8dd0e8985426720) Move the per-screen holds — the compositor warm-up, the in-flight arrival armor and the
+  warm side's image hold — into their own module, and pin the engine's "never a double
+  resolution" invariant with a test rather than by splitting the six resolution paths
+  apart. No behavior change.
+
+- [`28fb128`](https://github.com/kimjh96/flemo/commit/28fb1280661f1d886f898310c5b86318e2772d36) Stop treating a missing UA-CH brands list as proof of an old browser. `navigator.userAgentData` is exposed only in a secure context, so a current Chrome looks identical to a 2019 one the moment a page is served over plain HTTP — and a Galaxy Z Flip 4 was taking the legacy Android Blink profile (the image decode offloader, the governed head kit) on a LAN test server. The browser version is now read positively from the user-agent string when the brands list is unavailable.
+
+- [`3ddef71`](https://github.com/kimjh96/flemo/commit/3ddef71eed6bd53b2624d190668390295019c9ac) Let the image decide whether the decode offloader runs, not the browser. It was armed by a browser-age probe, and the cost it removes is not created by the browser: a 48px avatar holding a 37-megapixel original is expensive to decode wherever it lands. The offloader already makes the decision that matters — per image, from the source's own bytes — and leaves a well-sized one exactly as authored.
+
+- [`a4c1a74`](https://github.com/kimjh96/flemo/commit/a4c1a744f343b86352cc74e1616144f1b35109ad) Hand the navigation queue over on a frame boundary. A queued navigation woke synchronously with the previous flight's terminal flip, so one binding commit unmounted the finished flight's screen and stamped the queued flight's opening together — a single frame carrying two flights' worth of style, layout and paint. A fast double back dropped a frame at exactly that seam.
+
+- [`ebf7d78`](https://github.com/kimjh96/flemo/commit/ebf7d786bd8a8154d9322796f2bec413fcf9131e) Make a swipe release leave at the speed the screen already had. The settle ran the transition's authored curve, which is front-loaded because it starts from rest — so a committing swipe departed at 1.7x the finger's speed on a hard flick and 8.4x on a gentle drag, and a cancel departed at 2.25x from a screen the finger had brought to a stop. The release now re-aims that curve's opening onto the gesture and derives its length from a decelerating landing, in both directions.
+
+- [`e67146a`](https://github.com/kimjh96/flemo/commit/e67146a4c6857d90de88c372732a92d005e6d305) Give a swipe release the time the authored curve itself spends on the stretch that is left. The length came from `authored duration x fraction remaining`, which is the time a constant-rate motion would need — and a front-loaded transition curve is slowest exactly where a release lands. Released with 30% of the screen left, cupertino's button-driven pop covers that stretch in 0.550s where the release took 0.210s, and the gap widens the closer to the end the finger let go.
+
+- [`a8ed9cd`](https://github.com/kimjh96/flemo/commit/a8ed9cd4aa3298eb6e3e6fc38930de3056f3ebc3) Measure a swipe's release velocity over a short window instead of the last pointermove pair. A release's length divides by that number, so one unlucky pair — browsers coalesce pointer events and batch them behind a busy frame — could report several times the finger's real speed and collapse the landing onto its floor. With 30% of the screen left, an honest 600 px/s asks for a 0.21s settle where a spurious 2000 px/s gets 0.12s.
+
+- [`9f1205c`](https://github.com/kimjh96/flemo/commit/9f1205c42d37f354828c17463862dd0838d0c0ba) Stop a swipe gesture from surviving the pointer that started it. While a drag is armed the screen suppresses native touch scrolling, and that flag could only be cleared by a pointerup carrying the id that armed it — so when the browser never delivered one (Safari drops the remaining pointer events when the element holding capture is removed or hidden), the screen stopped scrolling for good, and the next press could not recover it either. A gesture now also ends on `lostpointercapture`, on the next primary press, and when the screen unmounts or freezes underneath it.
+
 ## 1.29.0
 
 ### Minor Changes

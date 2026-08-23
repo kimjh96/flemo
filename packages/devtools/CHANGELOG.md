@@ -1,5 +1,41 @@
 # @flemo/devtools
 
+## 0.3.0
+
+### Minor Changes
+
+- [`7b7fdd3`](https://github.com/kimjh96/flemo/commit/7b7fdd3595c8697967b9db56f6aea1aa942b149f) Export the `flemo:*` diagnostic-flag registry from `@flemo/core` as data — `DIAGNOSTIC_FLAGS` and `RETIRED_DIAGNOSTIC_FLAGS` declare every storage key the library reads, its default, and the keys it has stopped reading. It replaces a comment table that had drifted from the code, and it is now held to the readers in both directions: a key read without a row, or a row nothing reads, fails the build.
+
+  `@flemo/devtools` mirrors that registry field for field instead of hand-copying it (its runtime stays dependency-free), so reports name every live flag, state the default an override is departing from, and stop listing the panel's own storage key as unknown. `FlagDescriptor` gains `values` and `fallback`, and its `description` field is now `effect`.
+
+- [`f32c2cc`](https://github.com/kimjh96/flemo/commit/f32c2cc7022dd8d32382420c3a26054546cfaf48) Retire the rAF motion player. Every browser flemo supports already ran the compiled
+  compositor tier — Blink, desktop Safari and touch WebKit were each routed there
+  unconditionally — so the second driver, its landing pixel-snap, its kind classifier, the
+  driver policy and eight diagnostic flags (`flemo:motion-driver`, `-force`,
+  `landing-snap`, `handoff`, `handoffms`, `apply`, `snap`, `snapband`) are gone. Authored
+  `driver: "player"` pins are no longer accepted; `driver: "native"` keeps its meaning
+  (opt into clock surgery for that transition). `@flemo/core` drops 2.8 KB gzipped.
+
+  Devtools reports lose the `driverPolicy` section and instead list retired `flemo:*` keys
+  still persisted on a device, marked as inert, so residue is ruled out rather than chased.
+
+### Patch Changes
+
+- [`5b83d3b`](https://github.com/kimjh96/flemo/commit/5b83d3b46ed268ee07e834e7d7819a4e577a1111) Declare the `data-flemo-*` DOM contract in one place. `@flemo/core` now exports the
+  whole protocol — every attribute name, the animation hold's values, and selector
+  helpers — instead of spreading ~27 string literals across four packages where a
+  rename broke the others silently. Consumers styling or querying flemo's attributes
+  can import the names rather than hard-code them.
+
+  The contract is now enforced from both ends: core fails its own suite on any raw
+  `data-flemo-*` literal, the React binding fails if it renders an attribute core does
+  not declare, and the devtools recorder's deliberately-separate copy is pinned against
+  core's table.
+
+- [`d15b18a`](https://github.com/kimjh96/flemo/commit/d15b18ad91687a7e564f0f8be54e55554b181adf) Add `flemo:governed`, an override for the governed head kit on touch Blink. The kit is armed by a browser-age probe, so a modern-but-weak phone — a 2022 foldable on a current Chrome — falls straight through it with no way to try it. The key arms or disarms it per session so a device can be measured instead of argued about.
+
+- [`3ddef71`](https://github.com/kimjh96/flemo/commit/3ddef71eed6bd53b2624d190668390295019c9ac) Let the image decide whether the decode offloader runs, not the browser. It was armed by a browser-age probe, and the cost it removes is not created by the browser: a 48px avatar holding a 37-megapixel original is expensive to decode wherever it lands. The offloader already makes the decision that matters — per image, from the source's own bytes — and leaves a well-sized one exactly as authored.
+
 ## 0.2.2
 
 ### Patch Changes
