@@ -176,6 +176,25 @@ class TaskManager {
   // the next transition starts immediately instead of on the next poll tick.
   private pendingWaiters: Set<() => void> = new Set();
 
+  /**
+   * Wake the queue on the next frame, so the terminal flip's commit and the
+   * queued flight's opening commit land in different ones.
+   *
+   * Falls straight through where there is no frame clock (SSR, a non-browser
+   * embedder): there is no commit to separate from. That branch is defensive
+   * and is NOT covered — a waiter added while the queue is already empty
+   * resolves on the spot without going through the notify path at all, so a
+   * test that merely drives two tasks passes whether the fallback is there or
+   * not. Left uncovered rather than pinned by a test that proves nothing.
+   */
+  private wakeQueueNextFrame() {
+    if (typeof requestAnimationFrame !== "function") {
+      this.notifyPendingWaiters();
+      return;
+    }
+    requestAnimationFrame(() => this.notifyPendingWaiters());
+  }
+
   private notifyPendingWaiters() {
     for (const waiter of [...this.pendingWaiters]) waiter();
   }
@@ -215,7 +234,24 @@ class TaskManager {
 
       // 대기 큐 처리 재시작
       await this.processPendingTasks();
-      this.notifyPendingWaiters();
+      // ONE FRAME between a flight's teardown and the next flight's opening.
+      //
+      // Waking the queue here, synchronously with the terminal flip, put both
+      // state changes in ONE binding commit: the finished flight's screen is
+      // unmounted and the queued flight's opening is stamped together, so a
+      // single frame carries both subtrees' style, layout and paint.
+      //
+      // Reproduced by driving two system-back gestures 60ms apart against a
+      // production build under a 6x CPU throttle: a dropped frame of 31-37ms,
+      // in every run, at the exact millisecond the screen count falls — and
+      // none in the single-back control. No long task: it is not one script
+      // doing too much, it is one frame asked to commit two flights' worth of
+      // DOM. Device-reported on a Galaxy Z Flip 4 as one hitch on a fast
+      // double back.
+      //
+      // A queued navigation is already a whole flight behind, so the frame this
+      // costs is not one anybody is waiting on.
+      queueMicrotask(() => this.wakeQueueNextFrame());
     }
   }
 

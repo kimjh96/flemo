@@ -569,3 +569,51 @@ describe("TaskManger: gate phases (markGateHeld / anchorGate)", () => {
     expect(Date.now() - start).toBeLessThan(250);
   });
 });
+
+// ONE FRAME BETWEEN A FLIGHT'S TEARDOWN AND THE NEXT FLIGHT'S OPENING.
+//
+// The queue used to wake synchronously with a terminal flip, which put both
+// state changes in ONE binding commit: the finished flight's screen unmounted
+// and the queued flight's opening stamped together, so a single frame carried
+// two flights' worth of style, layout and paint.
+//
+// Reproduced by driving two system-back gestures 60ms apart against a
+// production build under a 6x CPU throttle: a dropped frame of 31-37ms in every
+// run, at the exact millisecond the screen count fell, and none in the
+// single-back control. No long task — not one script doing too much, one frame
+// asked to commit two flights. Device-reported on a Galaxy Z Flip 4 as a single
+// hitch on a fast double back. After the split: 22-28ms, and not every run.
+describe("TaskManger: the queue hands over on a frame boundary", () => {
+  it("wakes a waiting task on a FRAME, not inside the terminal flip", async () => {
+    const frames: (() => void)[] = [];
+    const raf = vi
+      .spyOn(globalThis, "requestAnimationFrame")
+      .mockImplementation((cb: FrameRequestCallback) => {
+        frames.push(() => cb(0));
+        return frames.length;
+      });
+
+    try {
+      const order: string[] = [];
+      const first = TaskManger.addTask(async () => {
+        order.push("first");
+        return 1;
+      });
+      const second = TaskManger.addTask(async () => {
+        order.push("second");
+        return 2;
+      });
+
+      await first;
+      // The terminal flip has landed. The queue must NOT have run the next task
+      // in that same turn — the binding needs the frame to commit the teardown.
+      expect(raf).toHaveBeenCalled();
+
+      for (const run of frames.splice(0)) run();
+      await second;
+      expect(order).toEqual(["first", "second"]);
+    } finally {
+      raf.mockRestore();
+    }
+  });
+});
