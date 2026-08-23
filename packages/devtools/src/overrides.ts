@@ -1,10 +1,17 @@
 // Enumeration of the `flemo:*` diagnostic/override storage keys.
 //
-// The registry mirrors the flag table documented in
-// packages/core/src/core/engine/diagnosticFlags.ts. Duplicated here ON
-// PURPOSE: this package is a pure consumer with zero dependencies, and the
-// keys are frozen strings — users' devices carry persisted values, so they
-// cannot drift.
+// The rows below are a VERBATIM copy of core's `DIAGNOSTIC_FLAGS` /
+// `RETIRED_DIAGNOSTIC_FLAGS`, plus the two keys devtools owns itself.
+// Duplicated ON PURPOSE: this package is a pure consumer with zero runtime
+// dependencies — it observes pages whose flemo version it cannot assume, and a
+// recorder that failed to load because core moved an export would be worse than
+// one whose wording is a release behind.
+//
+// What is NOT left to good intentions is the copy staying a copy.
+// `__tests__/overridesRegistry.test.ts` deep-compares every shared row against
+// core's, field by field, through the test-only `@flemo/core` devDependency.
+// The last hand-maintained version of this list was missing five live keys and
+// still offering two dead ones, which is why the comparison exists.
 //
 // Why this module exists at all: residual override keys are invisible in a
 // user's report ("it janks on my phone") and once burned a multi-day
@@ -19,93 +26,154 @@
 export type FlagClass =
   "production-state" | "production-default-with-override" | "opt-in-diagnostic";
 
+/**
+ * The panel's drawer height. Declared HERE rather than in the panel so the
+ * registry below can name it: a `flemo:` key the recorder writes but does not
+ * declare shows up in its own reports as an unknown key.
+ */
+export const PANEL_HEIGHT_KEY = "flemo:devtools-panel-height";
+
 export interface FlagDescriptor {
   key: string;
   storage: "session" | "local";
   kind: FlagClass;
-  description: string;
+  /** Accepted values, for a report to spell out. */
+  values: string;
+  /** The default when the key is unset. */
+  fallback: string;
+  /** What arming it changes. */
+  effect: string;
 }
 
-export const FLAG_REGISTRY: readonly FlagDescriptor[] = [
+/**
+ * Keys DEVTOOLS itself owns. Core neither reads nor declares them, so they are
+ * listed here and excluded from the comparison against core — without a row
+ * each one would surface in every report as an unknown key, which is the
+ * recorder generating its own false lead.
+ */
+export const DEVTOOLS_OWNED_FLAGS: readonly FlagDescriptor[] = [
+  {
+    key: "flemo:devtools",
+    storage: "session",
+    kind: "opt-in-diagnostic",
+    values: '"on" / "off"',
+    fallback: "off",
+    effect: "arms this flight recorder in the playground (?devtools=on)"
+  },
+  {
+    key: PANEL_HEIGHT_KEY,
+    storage: "session",
+    kind: "production-state",
+    values: "a pixel height",
+    fallback: "(the panel's default height)",
+    effect: "the drawer height this panel was last dragged to"
+  }
+];
+
+/** Every `flemo:*` key the library reads, mirrored from core. */
+export const CORE_FLAGS: readonly FlagDescriptor[] = [
   {
     key: "flemo:sixty",
     storage: "session",
     kind: "production-state",
-    description: "steady-60 display verdict seed ('high' latches, a count seeds the streak)"
-  },
-  {
-    key: "flemo:imghold",
-    storage: "session",
-    kind: "opt-in-diagnostic",
-    description: "flight-scoped <img> reveal hold"
-  },
-  {
-    key: "flemo:arrivalhold",
-    storage: "session",
-    kind: "production-default-with-override",
-    description: "in-flight arrival hold (default on; 'off' disarms the whole hold set)"
+    values: '"high" / a streak count',
+    fallback: "(learned)",
+    effect: "steady-60 desktop verdict seed — owned by steadySixtyCadence.ts"
   },
   {
     key: "flemo:settle-gate",
     storage: "session",
     kind: "production-default-with-override",
-    description: "render-settle entry gate override"
+    values: '"on" / "off"',
+    fallback: "touch WebKit + touch Blink + desktop macOS WebKit + steady-60 desktop",
+    effect: "render-settle entry gate, shared by the engine's routing and the binding"
+  },
+  {
+    key: "flemo:arrivalhold",
+    storage: "session",
+    kind: "production-default-with-override",
+    values: '"off"',
+    fallback: "on",
+    effect: "the whole in-flight hold set (arrival, response, invisible animations, images)"
   },
   {
     key: "flemo:deskflip",
     storage: "session",
     kind: "production-default-with-override",
-    description: "atomic release flip on desktop Safari (default on there)"
+    values: '"on" / "off"',
+    fallback: "desktop macOS WebKit",
+    effect: "atomic release flip: the hold attribute flips on the DOM inside the readiness rAF"
   },
   {
     key: "flemo:deskhead",
     storage: "session",
     kind: "production-default-with-override",
-    description: "desktop flat-head keyframes (default on for desktop Safari)"
+    values: '"on" / "off"',
+    fallback: "desktop macOS WebKit",
+    effect: "desktop flat-head keyframes; arming it retires the desktop birth anchor"
   },
   {
     key: "flemo:creep",
     storage: "session",
     kind: "production-default-with-override",
-    description: "creep head on touch WebKit (default on there)"
+    values: '"on" / "off"',
+    fallback: "touch WebKit",
+    effect:
+      "creep head: its end keyframe carries a hair of motion, so the compositor is already carrying the animation at the boundary"
   },
   {
     key: "flemo:relcommit",
     storage: "session",
     kind: "production-default-with-override",
-    description: "release reconcile deferred to the next frame (default on touch WebKit)"
-  },
-  {
-    key: "flemo:layers",
-    storage: "session",
-    kind: "opt-in-diagnostic",
-    description: "resident screen layers at rest"
-  },
-  {
-    key: "flemo:freeze",
-    storage: "session",
-    kind: "opt-in-diagnostic",
-    description: "keep the direct prev screen live"
-  },
-  {
-    key: "flemo:preraster",
-    storage: "session",
-    kind: "opt-in-diagnostic",
-    description: "promote the entering content layer through the hold"
+    values: '"defer" / "sync"',
+    fallback: "touch WebKit",
+    effect: "the release's reconcile lands next frame instead of synchronously"
   },
   {
     key: "flemo:imgoffload",
     storage: "session",
     kind: "production-default-with-override",
-    description: "image decode offloader override"
+    values: '"on" / "off"',
+    fallback: "auto (legacy Android Blink)",
+    effect: "image decode offloader override"
   },
   {
-    key: "flemo:devtools",
+    key: "flemo:imghold",
     storage: "session",
     kind: "opt-in-diagnostic",
-    description: "arms this flight recorder in the playground (?devtools=on)"
+    values: '"on" / "off"',
+    fallback: "off",
+    effect: "flight-scoped <img> reveal hold"
+  },
+  {
+    key: "flemo:preraster",
+    storage: "session",
+    kind: "opt-in-diagnostic",
+    values: '"on"',
+    fallback: "off",
+    effect:
+      "REST-time scope promotion, and the park-over hold variant. Flight-time promotion is the engine's own stamp and needs no flag"
+  },
+  {
+    key: "flemo:layers",
+    storage: "session",
+    kind: "opt-in-diagnostic",
+    values: '"resident" / "off"',
+    fallback: "off",
+    effect:
+      "keep screen layers resident at rest — a resident layer is a PERMANENT stacking context over the consumer's screen"
+  },
+  {
+    key: "flemo:freeze",
+    storage: "session",
+    kind: "opt-in-diagnostic",
+    values: '"shallow"',
+    fallback: "off",
+    effect: "keep the direct prev screen live instead of freezing it"
   }
 ];
+
+export const FLAG_REGISTRY: readonly FlagDescriptor[] = [...CORE_FLAGS, ...DEVTOOLS_OWNED_FLAGS];
 
 /**
  * Keys the library once read and no longer does. They are still ENUMERATED so
@@ -123,17 +191,17 @@ export const RETIRED_FLAGS: readonly RetiredFlag[] = [
   {
     key: "flemo:motion-driver",
     storage: "local",
-    retiredWith: "the per-origin driver demotion ledger (removed 2026-08-19)"
+    retiredWith: "the per-origin driver demotion ledger (2026-08-19)"
   },
   {
     key: "flemo:motion-driver-force",
     storage: "session",
-    retiredWith: "the hard driver pin (removed with the rAF player, 2026-08-22)"
+    retiredWith: "the hard driver pin, with the rAF player (2026-08-22)"
   },
   {
     key: "flemo:landing-snap",
     storage: "session",
-    retiredWith: "the integer-device-pixel landing snap A/B (falsified on device, 2026-08-22)"
+    retiredWith: "the integer-device-pixel landing snap, falsified on device (2026-08-22)"
   },
   {
     key: "flemo:handoff",
@@ -193,6 +261,7 @@ const readKey = (storage: StorageLike | null, key: string): string | null => {
 
 const registryKeys = new Set(FLAG_REGISTRY.map((flag) => flag.key));
 const retiredKeys = new Set(RETIRED_FLAGS.map((flag) => flag.key));
+const devtoolsOwnedKeys = new Set(DEVTOOLS_OWNED_FLAGS.map((flag) => flag.key));
 
 /**
  * Snapshot every `flemo:*` key currently set, from both storages: the live
@@ -266,15 +335,17 @@ export const deriveOverrideWarnings = (active: Record<string, string>): string[]
     const flag = FLAG_REGISTRY.find(
       (entry) => key === entry.key || key.startsWith(`${entry.key} `)
     );
-    if (!flag || flag.key === "flemo:devtools") continue;
+    // The recorder's own keys are not findings about the page it is recording.
+    if (!flag || devtoolsOwnedKeys.has(flag.key)) continue;
     if (flag.kind === "opt-in-diagnostic") {
       warnings.push(
-        `${key}=${value} — opt-in diagnostic active (${flag.description}); behavior differs from stock. ` +
+        `${key}=${value} — opt-in diagnostic active (${flag.effect}); behavior differs from stock. ` +
           "Possible left-over A/B toggle from an earlier debugging session."
       );
     } else if (flag.kind === "production-default-with-override") {
       warnings.push(
-        `${key}=${value} — production default overridden for this session (${flag.description}).`
+        `${key}=${value} — production default overridden for this session (${flag.effect}). ` +
+          `Stock behavior here is ${flag.fallback}.`
       );
     }
     // production-state keys (learned ledgers) are normal — no warning.

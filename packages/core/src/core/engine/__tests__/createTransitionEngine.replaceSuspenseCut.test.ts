@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import TaskManger from "@core/TaskManger";
 
@@ -41,9 +41,6 @@ import type { TransitionEngineDeps } from "@core/engine/types";
 // anim-hold never releases in the harness), which is NOT the on-device cause;
 // see git history of ScreenMotion.suspendedMountEffects.test.tsx.
 // ─────────────────────────────────────────────────────────────────────────────
-
-beforeAll(() => sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`));
-afterAll(() => sessionStorage.removeItem("flemo:motion-driver-force"));
 
 const TAB = "tab-forward" as never;
 

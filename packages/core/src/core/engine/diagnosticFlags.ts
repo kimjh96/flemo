@@ -2,60 +2,20 @@ import { detectBlinkEngine, isDesktopMacWebKit } from "@platform/engineProbes";
 import { governedCompiledActive } from "@platform/governedCompiled";
 import { steadySixtyDesktopProfile } from "@platform/steadySixtyCadence";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The `flemo:*` diagnostic-flag registry.
-//
-// Every storage-backed flag the library reads lives (or is documented) here —
-// one module, one table, instead of readers scattered across the engine. The
-// flags fall into three classes:
-//
-// - production-state: written by the library itself (learned ledgers). Never
-//   set these by hand; their KEY STRINGS are frozen — users' devices carry
-//   persisted values.
-// - production-default-with-override: the library computes a default; the key
-//   overrides it both ways for field debugging.
-// - opt-in diagnostic: default OFF; a measurement instrument that ships so a
-//   device session can be probed without a custom build.
-//
-// | key                       | storage | values                          | default                    | class                            | effect                                                                 |
-// |---------------------------|---------|---------------------------------|----------------------------|----------------------------------|------------------------------------------------------------------------|
-// | flemo:sixty               | session | "high" / streak count           | (learned)                  | production-state                 | steady-60 desktop verdict seed — owned by steadySixtyCadence.ts        |
-// | flemo:imghold             | session | "on"                            | off                        | opt-in diagnostic                | flight-scoped <img> reveal hold (imageRevealHold.ts)                   |
-// | flemo:arrivalhold         | session | "off"                           | on                         | production-default-with-override | arrival hold (freeze-and-replay of in-flight arrivals) — arrivalHold.ts |
-// | flemo:settle-gate         | session | "on"/"off"                      | touch WebKit + touch Blink + desktop macOS WebKit + steady-60 desktop | production-default-with-override | render-settle entry gate (engine routing + react ScreenMotion) |
-// | flemo:layers              | session | "resident"/"off"                | off                        | opt-in diagnostic                | resident screen layers at rest (layerSettleHold.ts) — a resident layer is a permanent stacking context over the consumer screen |
-// | flemo:freeze              | session | "shallow"                       | off                        | opt-in diagnostic                | keep the direct prev screen live (computeScreenFreeze.ts)               |
-// | flemo:deskflip            | session | "on"/"off"                      | desktop macOS WebKit       | production-default-with-override | atomic release flip on desktop Safari (react ScreenMotion's directFlip)  |
-// | flemo:deskhead            | session | "on"/"off"                      | desktop macOS WebKit       | production-default-with-override | desktop flat-head keyframes (`data-flemo-desk-head`, DESKTOP_HEAD_MS); arming it retires the desktop birth anchor |
-// | flemo:creep               | session | "on"/"off"                      | touch WebKit               | production-default-with-override | creep head: the head's end keyframe carries a hair of motion so the compositor is already carrying the animation at the boundary |
-// | flemo:relcommit           | session | "defer"/"sync"                  | touch WebKit               | production-default-with-override | release's React reconcile lands next frame instead of flushSync (react ScreenMotion) |
-// | flemo:preraster           | session | "on"                            | off                        | opt-in diagnostic                | REST-time scope promotion (readRestLayerPromotionFlag, react ScreenMotion, after hydration); also selects the park-over hold variant. Flight-time promotion is the engine's stamp and needs no flag |
-// | flemo:imgoffload          | session | "on"/"off"                      | auto (legacy Android Blink)| production-default-with-override | image decode offloader override (react Router)                         |
-//
-// THIS TABLE IS TESTED. `__tests__/documentedDefaults.test.ts` asserts every
-// computable default above against the reader that implements it, because the
-// table drifted from the code four keys at a time (2026-08-17 → 08-19) while
-// prose elsewhere was pointing readers here as the source of truth. If
-// you change a default, the test fails until the row matches.
-//
-// RETIRED with the rAF player (2026-08-22), and NOT to be reintroduced without
-// a driver to serve: `flemo:motion-driver` (the per-origin demotion ledger),
-// `flemo:motion-driver-force` (the hard driver pin), `flemo:landing-snap`
-// (integer-device-pixel tail A/B — falsified on device, see
-// landingGovernor.ts), `flemo:handoff` / `flemo:handoffms` (the player's
-// anchored-opening handoff), `flemo:apply` (scrub-WAAPI application tier),
-// `flemo:snap` / `flemo:snapband` (the player's device-pixel snap policy).
-// Values persisted on users' devices are never read again.
+// The `flemo:*` flag READERS. What each key is and what it defaults to is
+// declared as data next door, in `diagnosticRegistry.ts` — and pinned against
+// these readers by `__tests__/diagnosticRegistry.test.ts` (every key read here
+// is declared) and `__tests__/documentedDefaults.test.ts` (every documented
+// default matches the reader that computes it).
 //
 // Caching contract: the URL-armed toggles (`flemo:layers`, `flemo:freeze`) are
 // read ONCE per page load and cached — they select a code path for a whole
-// session. Every other reader here is uncached — read per decision, so a
+// session. Every other reader here is uncached: read per decision, so a
 // DevTools toggle takes effect on the next navigation without a reload.
 //
-// Every reader degrades to its default on storage failure: a partitioned or
+// Every reader degrades to its default on storage failure. A partitioned or
 // sandboxed document throws on sessionStorage ACCESS, and a diagnostic toggle
 // must never take a transition down with it.
-// ─────────────────────────────────────────────────────────────────────────────
 
 // Guarded raw read: null when the key is unset, storage is absent, or storage
 // access throws.

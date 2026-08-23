@@ -25,13 +25,16 @@ export {
 } from "./environment";
 
 export {
+  CORE_FLAGS,
   deriveOverrideWarnings,
+  DEVTOOLS_OWNED_FLAGS,
   FLAG_REGISTRY,
+  PANEL_HEIGHT_KEY,
   RETIRED_FLAGS,
   RETIRED_MARKER,
   snapshotOverrides
 } from "./overrides";
-export type { FlagClass, FlagDescriptor } from "./overrides";
+export type { FlagClass, FlagDescriptor, RetiredFlag } from "./overrides";
 
 export {
   classifyDriver,
