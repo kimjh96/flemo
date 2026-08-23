@@ -7,7 +7,7 @@ import {
   readSettleGateFlag
 } from "@core/engine/diagnosticFlags";
 
-import { detectBlinkEngine, isLegacyAndroidBlink } from "@platform/engineProbes";
+import { detectBlinkEngine } from "@platform/engineProbes";
 import { governedCompiledActive } from "@platform/governedCompiled";
 
 // THE PLATFORM PROFILE.
@@ -115,11 +115,25 @@ export const resolvePlatformProfile = (input: PlatformProfileInput = {}): Platfo
     renderSettleGate: readSettleGateFlag(),
     parkOver: readPrerasterFlag() || touchWebKit,
     restLayerPromotion: readRestLayerPromotionFlag(),
-    imageDecodeOffload: (() => {
-      const override = readImageOffloadOverride();
-      if (override === "off") return false;
-      return override === "on" || isLegacyAndroidBlink();
-    })()
+    // THE IMAGE DECIDES, NOT THE DEVICE.
+    //
+    // This used to be armed by `isLegacyAndroidBlink` — an old BROWSER. The
+    // cost it exists to remove is not created by the browser: a 48px avatar
+    // holding a 37-megapixel original is expensive to decode wherever it
+    // lands. Device-measured on a Galaxy Z Flip 4, a 2022 phone on a current
+    // Chrome that the browser-age probe excludes: a push janks without the
+    // offloader and is smooth with it, judged in both directions.
+    //
+    // The offloader already makes the decision that matters, per image and
+    // from the source's own bytes: only a source carrying more than
+    // OVERSIZE_AREA_RATIO times its display area is touched, and a well-sized
+    // one is left exactly as authored with zero added work. A second gate on
+    // top of that, keyed on something else entirely, only decided WHICH
+    // populations were allowed to benefit.
+    //
+    // Still nothing without a browser: SSR verifies nothing, and this profile's
+    // rule is that an unverified environment arms nothing.
+    imageDecodeOffload: typeof navigator !== "undefined" && readImageOffloadOverride() !== "off"
   };
 };
 
