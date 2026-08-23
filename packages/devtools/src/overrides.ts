@@ -134,8 +134,9 @@ export const CORE_FLAGS: readonly FlagDescriptor[] = [
     storage: "session",
     kind: "production-default-with-override",
     values: '"on" / "off"',
-    fallback: "auto (legacy Android Blink)",
-    effect: "image decode offloader override"
+    fallback: "on — the offloader decides per image, from the source's own size",
+    effect:
+      "image decode offloader: an oversized source is fetched and downscaled in a worker so its decode never lands in a paint"
   },
   {
     key: "flemo:governed",
