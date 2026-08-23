@@ -1,5 +1,55 @@
 # @flemo/react
 
+## 1.12.8
+
+### Patch Changes
+
+- [`5b83d3b`](https://github.com/kimjh96/flemo/commit/5b83d3b46ed268ee07e834e7d7819a4e577a1111) Declare the `data-flemo-*` DOM contract in one place. `@flemo/core` now exports the
+  whole protocol — every attribute name, the animation hold's values, and selector
+  helpers — instead of spreading ~27 string literals across four packages where a
+  rename broke the others silently. Consumers styling or querying flemo's attributes
+  can import the names rather than hard-code them.
+
+  The contract is now enforced from both ends: core fails its own suite on any raw
+  `data-flemo-*` literal, the React binding fails if it renders an attribute core does
+  not declare, and the devtools recorder's deliberately-separate copy is pinned against
+  core's table.
+
+- [`d250cc5`](https://github.com/kimjh96/flemo/commit/d250cc5bf3dbc9b8699f6387c219311bd23dca28) Resolve every per-browser decision in one place. `@flemo/core` now exports
+  `resolvePlatformProfile()`, which returns the atomic release flip, the render-settle
+  gate, the deferred release commit, the park-over hold, the rest promotion and the
+  image-decode offload as named fields. `@flemo/react` asks for the profile and renders
+  the answer instead of combining engine probes and diagnostic flags itself, so a
+  binding for another framework has no policy to re-implement.
+
+  Platform detection modules (`engineProbes`, `governedCompiled`, `steadySixtyCadence`,
+  `displayCadence`) moved out of the engine directory to sit beside the profile. The
+  raw flag readers are no longer part of core's public surface — ask the profile.
+
+- [`f32c2cc`](https://github.com/kimjh96/flemo/commit/f32c2cc7022dd8d32382420c3a26054546cfaf48) Retire the rAF motion player. Every browser flemo supports already ran the compiled
+  compositor tier — Blink, desktop Safari and touch WebKit were each routed there
+  unconditionally — so the second driver, its landing pixel-snap, its kind classifier, the
+  driver policy and eight diagnostic flags (`flemo:motion-driver`, `-force`,
+  `landing-snap`, `handoff`, `handoffms`, `apply`, `snap`, `snapband`) are gone. Authored
+  `driver: "player"` pins are no longer accepted; `driver: "native"` keeps its meaning
+  (opt into clock surgery for that transition). `@flemo/core` drops 2.8 KB gzipped.
+
+  Devtools reports lose the `driverPolicy` section and instead list retired `flemo:*` keys
+  still persisted on a device, marked as inert, so residue is ruled out rather than chased.
+
+- [`fbd937c`](https://github.com/kimjh96/flemo/commit/fbd937c2fe15b451c6b216e524379d85a4cf5849) Add `startFlemoRuntime()` — flemo's ambient machinery behind one call. The GPU
+  pipeline prewarm, the image-decode offload and the interaction compositor warm-up
+  are what an app sits in so the first navigation is not the one that pays for them,
+  and none of it is framework-specific. A binding starts the runtime per Router mount
+  and releases on unmount; repeat calls share one runtime.
+
+  `@flemo/react` loses 58 lines and its last document event wiring. Nested Routers now
+  share one listener set instead of installing their own.
+
+- [`9f1205c`](https://github.com/kimjh96/flemo/commit/9f1205c42d37f354828c17463862dd0838d0c0ba) Stop a swipe gesture from surviving the pointer that started it. While a drag is armed the screen suppresses native touch scrolling, and that flag could only be cleared by a pointerup carrying the id that armed it — so when the browser never delivered one (Safari drops the remaining pointer events when the element holding capture is removed or hidden), the screen stopped scrolling for good, and the next press could not recover it either. A gesture now also ends on `lostpointercapture`, on the next primary press, and when the screen unmounts or freezes underneath it.
+- Updated dependencies ([`8cb6366`](https://github.com/kimjh96/flemo/commit/8cb636674b2634510253d2265569904c6da05e69), [`5b83d3b`](https://github.com/kimjh96/flemo/commit/5b83d3b46ed268ee07e834e7d7819a4e577a1111), [`d70ced3`](https://github.com/kimjh96/flemo/commit/d70ced37926a359b192b5f5b3b8f9151f340ec5b), [`7b7fdd3`](https://github.com/kimjh96/flemo/commit/7b7fdd3595c8697967b9db56f6aea1aa942b149f), [`d15b18a`](https://github.com/kimjh96/flemo/commit/d15b18ad91687a7e564f0f8be54e55554b181adf), [`05e4d40`](https://github.com/kimjh96/flemo/commit/05e4d4072d4cd5555ef63cfde8dd0e8985426720), [`28fb128`](https://github.com/kimjh96/flemo/commit/28fb1280661f1d886f898310c5b86318e2772d36), [`3ddef71`](https://github.com/kimjh96/flemo/commit/3ddef71eed6bd53b2624d190668390295019c9ac), [`d250cc5`](https://github.com/kimjh96/flemo/commit/d250cc5bf3dbc9b8699f6387c219311bd23dca28), [`a4c1a74`](https://github.com/kimjh96/flemo/commit/a4c1a744f343b86352cc74e1616144f1b35109ad), [`ebf7d78`](https://github.com/kimjh96/flemo/commit/ebf7d786bd8a8154d9322796f2bec413fcf9131e), [`e67146a`](https://github.com/kimjh96/flemo/commit/e67146a4c6857d90de88c372732a92d005e6d305), [`a8ed9cd`](https://github.com/kimjh96/flemo/commit/a8ed9cd4aa3298eb6e3e6fc38930de3056f3ebc3), [`f32c2cc`](https://github.com/kimjh96/flemo/commit/f32c2cc7022dd8d32382420c3a26054546cfaf48), [`fbd937c`](https://github.com/kimjh96/flemo/commit/fbd937c2fe15b451c6b216e524379d85a4cf5849), [`9f1205c`](https://github.com/kimjh96/flemo/commit/9f1205c42d37f354828c17463862dd0838d0c0ba)):
+  - @flemo/core@1.30.0
+
 ## 1.12.7
 
 ### Patch Changes
