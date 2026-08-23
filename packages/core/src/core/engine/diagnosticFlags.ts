@@ -35,7 +35,7 @@ import { steadySixtyDesktopProfile } from "@platform/steadySixtyCadence";
 // THIS TABLE IS TESTED. `__tests__/documentedDefaults.test.ts` asserts every
 // computable default above against the reader that implements it, because the
 // table drifted from the code four keys at a time (2026-08-17 → 08-19) while
-// `docs/diagnostics.md` was pointing readers here as the source of truth. If
+// prose elsewhere was pointing readers here as the source of truth. If
 // you change a default, the test fails until the row matches.
 //
 // RETIRED with the rAF player (2026-08-22), and NOT to be reintroduced without
