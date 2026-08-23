@@ -64,7 +64,7 @@ describe("governed head kit on touch Blink", () => {
     originalUserAgent = navigator.userAgent;
     // A touch Blink phone.
     Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
-    setUserAgent("Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Mobile");
+    setUserAgent("Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/79 Mobile");
     resetDisplayProbeForTests();
     document.documentElement.removeAttribute(LPM_ATTR);
     disposers = [];
