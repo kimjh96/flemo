@@ -229,7 +229,15 @@ describe("createSwipeController", () => {
     expect(onSwipeStart).toHaveBeenCalledTimes(1);
   });
 
-  it("does not replace the captured pointer of an active swipe", async () => {
+  // This used to assert the opposite — that a captured swipe is never replaced
+  // — and that is what the field bug was. A PRIMARY pointer going down means no
+  // other pointer is down, so a swipe still marked active at that moment
+  // belongs to a finger that is already gone and whose closing event is never
+  // coming. Refusing to replace it left the screen unable to scroll (see
+  // createSwipeController.stuckGesture.test.ts). The rule is the same one the
+  // pre-capture case above already followed; capture does not make a vanished
+  // pointer any less vanished.
+  it("replaces the captured pointer of a swipe whose own pointer is gone", async () => {
     const c = createSwipeController(config);
     c.pointerDown(event({ target: dom.scope, pointerId: 1, isPrimary: true }));
     c.pointerMove(event({ clientX: 40, pointerId: 1, isPrimary: true }));
@@ -237,6 +245,21 @@ describe("createSwipeController", () => {
 
     c.pointerDown(event({ target: dom.scope, pointerId: 2, isPrimary: true }));
     c.pointerMove(event({ clientX: 80, pointerId: 2, isPrimary: true }));
+    await flush();
+
+    expect(onSwipeStart).toHaveBeenCalledTimes(2);
+    expect(c.shouldPreventTouch()).toBe(true);
+  });
+
+  it("does not let a SECOND finger disturb the swipe the first is driving", async () => {
+    const c = createSwipeController(config);
+    c.pointerDown(event({ target: dom.scope, pointerId: 1, isPrimary: true }));
+    c.pointerMove(event({ clientX: 40, pointerId: 1, isPrimary: true }));
+    await flush();
+
+    // isPrimary false: the first finger is still down, so its gesture is alive.
+    c.pointerDown(event({ target: dom.scope, pointerId: 2, isPrimary: false }));
+    c.pointerMove(event({ clientX: 80, pointerId: 2, isPrimary: false }));
     await flush();
 
     expect(onSwipeStart).toHaveBeenCalledTimes(1);

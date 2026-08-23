@@ -1,6 +1,7 @@
 import animateInline, { clearInlineAnimation } from "@transition/animateInline";
 
-import { swipeSettleSeconds } from "@transition/swipeSettle";
+import { easeControlPoints } from "@transition/cubicBezier";
+import { reaimReleaseEase, releaseLaunchSlope, swipeSettleSeconds } from "@transition/swipeSettle";
 
 import type { Transition } from "@transition/typing";
 
@@ -70,6 +71,19 @@ export interface SwipeController {
   pointerMove: (event: PointerEvent) => void;
   pointerUp: (event: PointerEvent) => void;
   pointerCancel: (event: PointerEvent) => void;
+  // Pointer capture was released without the gesture ending — the element was
+  // removed or hidden under it. Forwarded by the binding as `lostpointercapture`.
+  lostPointerCapture: (event: PointerEvent) => void;
+  /**
+   * Abandon whatever gesture is in flight, with no pointer to close it.
+   *
+   * The binding calls this when the SCREEN goes away underneath one: an unmount,
+   * or a freeze (which detaches the listeners but keeps this controller, since
+   * it outlives the effects). Without it the gesture state has exactly one way
+   * out — a pointerup carrying the id that armed it — and if the browser never
+   * delivers that event, nothing ever does. See the note on `abandon` below.
+   */
+  abandon: () => void;
   // Whether an in-progress drag wants touchmove default suppressed.
   shouldPreventTouch: () => boolean;
 }
@@ -104,6 +118,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   let swipeLastPoint = { x: 0, y: 0 };
   let swipeLastTime = 0;
   let swipeVelocity = { x: 0, y: 0 };
+  /** Recent pointer positions, for the release velocity. See below. */
+  let velocityTrail: { t: number; x: number; y: number }[] = [];
 
   let scrollableX: { element: HTMLElement | null; hasMarker: boolean } = {
     element: null,
@@ -156,12 +172,40 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     }
   };
 
+  // HOW FAST THE FINGER WAS GOING, over a WINDOW rather than a single pair.
+  //
+  // This used to be the last two pointermoves: `(x - lastX) / (t - lastT)`. One
+  // sample, and the release reads it as the gesture's speed — so a single
+  // unlucky pair decides the whole landing. Browsers do not deliver pointermove
+  // on an even clock: they coalesce, they batch behind a busy frame, and a pair
+  // that happens to span 6ms with 12px between them reports 2000 px/s for a
+  // finger that was moving at 500.
+  //
+  // What that costs is not subtle, because the release length divides BY this
+  // number. With 30% of the screen left, an honest 600 px/s asks for 0.21s; a
+  // spurious 2000 px/s collapses it onto the 0.12s floor — the same landing in
+  // little more than half the time, which is exactly what "too whippy" is.
+  // Device-reported on Safari, against Android on the same gesture.
+  //
+  // A window over the last VELOCITY_WINDOW_MS averages the jitter out while
+  // still following a real flick: it is the finger's recent trend, which is
+  // what a release continues. `delta` and the follow keep using the LAST pair —
+  // those track the finger, and must not be smoothed.
+  const VELOCITY_WINDOW_MS = 80;
+
   const updateSwipeVelocity = (event: PointerEvent) => {
     const now = event.timeStamp;
-    const dt = Math.max(1, now - swipeLastTime);
+    velocityTrail.push({ t: now, x: event.clientX, y: event.clientY });
+    // Keep at least two samples, so a gesture shorter than the window still has
+    // a measurement to give.
+    while (velocityTrail.length > 2 && now - velocityTrail[0]!.t > VELOCITY_WINDOW_MS) {
+      velocityTrail.shift();
+    }
+    const oldest = velocityTrail[0]!;
+    const dt = Math.max(1, now - oldest.t);
     swipeVelocity = {
-      x: ((event.clientX - swipeLastPoint.x) / dt) * 1000,
-      y: ((event.clientY - swipeLastPoint.y) / dt) * 1000
+      x: ((event.clientX - oldest.x) / dt) * 1000,
+      y: ((event.clientY - oldest.y) / dt) * 1000
     };
     swipeLastPoint = { x: event.clientX, y: event.clientY };
     swipeLastTime = now;
@@ -402,6 +446,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     swipeLastPoint = { x: event.clientX, y: event.clientY };
     swipeLastTime = event.timeStamp;
     swipeVelocity = { x: 0, y: 0 };
+    velocityTrail = [{ t: event.timeStamp, x: event.clientX, y: event.clientY }];
     scope.setPointerCapture(event.pointerId);
     captureRidingBars(prevScreenContainer);
     capturePartTransitions(prevScreenContainer);
@@ -712,15 +757,41 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       ((target, value, options) => {
         const authored = typeof options?.duration === "number" ? options.duration : 0;
         if (authored <= 0) return write(target, value, options);
+        const remainingPx = releaseTriggered ? span - travelled : travelled;
+        const reversing = !releaseTriggered && !fingerHeadingBack;
+        const authoredEase = easeControlPoints(options?.ease);
+        const seconds = swipeSettleSeconds({
+          remainingPx,
+          spanPx: span,
+          velocityPxPerSecond: speed,
+          authoredSeconds: authored,
+          // The distance term is the time the authored curve spends on the
+          // stretch that is left, so it needs the curve.
+          authoredEase: authoredEase ?? undefined,
+          reversing
+        });
+        // ...and the curve, on the same gesture. The length alone decides the
+        // AVERAGE speed; what the eye reads at the moment the finger leaves is
+        // the curve's speed at t=0, and an authored curve opens fast because it
+        // starts from rest. Re-aim it to leave at the speed the finger had.
+        //
+        // Cancels included: a reversal contributes zero speed in the settle's
+        // own direction, so it lands on the floor and opens like the standing
+        // screen it is. One rule — the release leaves at the speed the screen
+        // already had — rather than one for a commit and another for a cancel.
+        const slope = authoredEase
+          ? releaseLaunchSlope({
+              remainingPx,
+              velocityPxPerSecond: speed,
+              seconds,
+              authoredSlope: authoredEase[0] > 0 ? authoredEase[1] / authoredEase[0] : undefined,
+              reversing
+            })
+          : null;
         return write(target, value, {
           ...options,
-          duration: swipeSettleSeconds({
-            remainingPx: releaseTriggered ? span - travelled : travelled,
-            spanPx: span,
-            velocityPxPerSecond: speed,
-            authoredSeconds: authored,
-            reversing: !releaseTriggered && !fingerHeadingBack
-          })
+          duration: seconds,
+          ...(authoredEase && slope !== null ? { ease: reaimReleaseEase(authoredEase, slope) } : {})
         });
       }) as T;
 
@@ -794,17 +865,34 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   };
 
   const pointerDown = (event: PointerEvent) => {
+    // A second finger, or a non-left mouse button: proves nothing about the
+    // gesture in flight and starts nothing of its own.
+    if (event.isPrimary === false || (event.pointerType === "mouse" && event.button !== 0)) return;
+
+    // A PRIMARY pointer going down is proof that no other pointer is down —
+    // that is what primary MEANS for touch. So a gesture still marked active
+    // here belongs to a pointer that is already gone, and its closing event is
+    // never coming. Take it out.
+    //
+    // BEFORE the readiness gate, deliberately. Readiness governs whether a NEW
+    // drag may start; it says nothing about cleaning up a dead one — and while
+    // a stale gesture is around, readiness is closed precisely BECAUSE of it
+    // (dragStatus sits at PENDING), so a recovery behind that gate never runs.
+    //
+    // Standing aside is what used to happen (`swipeActive` was part of the
+    // guard below) and it deadlocked: the abandoned gesture keeps
+    // `isTouchPrevented` armed, every touchmove on the screen is
+    // preventDefault-ed, the screen cannot scroll — and this function, the one
+    // place that would clear the flag, refuses to run because the gesture is
+    // active. Device-reported on Safari, which drops the remaining pointer
+    // events when the element holding capture is removed or hidden (Blink
+    // retargets them to the document and recovers on its own).
+    if (swipeActive || activePointerId !== null) abandon();
+
     // Before intent resolves we do not own pointer capture, so a release
-    // outside the scope may never deliver pointerup/pointercancel. Let the
-    // next primary pointer replace that stale candidate. `swipeActive` guards
-    // captured gestures, while `isPrimary` rejects an actual second finger.
-    if (
-      !config.isReadyForDrag() ||
-      swipeActive ||
-      event.isPrimary === false ||
-      (event.pointerType === "mouse" && event.button !== 0)
-    )
-      return;
+    // outside the scope may never deliver pointerup/pointercancel. Letting the
+    // next primary pointer replace that stale candidate is the same rule.
+    if (!config.isReadyForDrag()) return;
 
     activePointerId = event.pointerId;
     forceCancelRequested = false;
@@ -892,11 +980,61 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     }
   };
 
+  /**
+   * Losing capture without an up or a cancel means the element went out from
+   * under the gesture. Treat it as the cancel the browser did not send.
+   *
+   * ONLY when the SCOPE is what lost it. A touch pointer is given IMPLICIT
+   * capture on whatever element it landed on — a child, in any real screen —
+   * and `beginSwipe` then captures it onto the scope. That transfer fires
+   * `lostpointercapture` on the child, and the event BUBBLES to the scope,
+   * where this binding listens. Reacting to it cancels the gesture at the exact
+   * moment it is being set up, so every touch swipe dies on its first frame.
+   *
+   * Device-reported, and invisible to everything cheaper: a mouse gets no
+   * implicit capture, so there is no transfer and no event — every mouse-driven
+   * test and headless probe passes. jsdom has no pointer capture at all.
+   */
+  const lostPointerCapture = (event: PointerEvent) => {
+    if (event.pointerId !== activePointerId || !swipeActive) return;
+    if (event.target !== config.getElements().scope) return;
+    pointerCancel(event);
+  };
+
+  /**
+   * End a gesture that has no pointer left to end it.
+   *
+   * Synthesises the cancel for whichever pointer is active and runs the
+   * ordinary cancel path, so the screen settles back to rest exactly as a real
+   * `pointercancel` would settle it — this is a recovery, and a recovery that
+   * teleported the screen would trade one visible defect for another. With no
+   * gesture in flight it still clears the arming flags, which is the state that
+   * actually blocks scrolling.
+   */
+  function abandon() {
+    const pointerId = activePointerId;
+    shouldStartDrag = false;
+    isTouchPrevented = false;
+    if (pointerId === null) {
+      // Nothing captured, nothing to settle: just make sure nothing is armed.
+      return;
+    }
+    pointerCancel({
+      pointerId,
+      clientX: swipeLastPoint.x,
+      clientY: swipeLastPoint.y,
+      timeStamp: swipeLastTime
+    } as PointerEvent);
+    activePointerId = null;
+  }
+
   return {
     pointerDown,
     pointerMove,
     pointerUp,
     pointerCancel,
+    lostPointerCapture,
+    abandon,
     shouldPreventTouch: () => isTouchPrevented
   };
 }

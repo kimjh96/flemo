@@ -208,6 +208,104 @@ describe("the release clock", () => {
     expect(seconds).toBeGreaterThan(AUTHORED / 2);
   });
 
+  // THE CURVE rides the same gesture. A duration only sets the AVERAGE speed;
+  // what the eye reads at the moment the finger leaves is the curve's opening
+  // slope, and an authored curve opens fast because it starts from rest.
+  const easingOn = (el: HTMLElement) => {
+    const match = /cubic-bezier\(([^)]+)\)/.exec(el.style.transition);
+    return match ? match[1]!.split(",").map((n) => Number(n.trim())) : null;
+  };
+
+  it("re-aims the release curve onto the gesture, on every participant", async () => {
+    await release(Math.round(window.innerWidth / 2), 4000);
+
+    const screen = easingOn(dom.scope);
+    expect(screen, "the settle must carry an explicit curve").not.toBeNull();
+    // The default `ease` is (0.25, 0.1, 0.25, 1) — an opening slope of 0.4.
+    // A near-stationary finger cannot support even that, so it is re-aimed
+    // down to the floor, and the landing handles are left exactly as authored.
+    expect(screen![1]! / screen![0]!).toBeLessThanOrEqual(0.4);
+    expect(screen!.slice(2)).toEqual([0.25, 1]);
+    // One gesture, one curve: the dim and the parts travel with the screen.
+    expect(easingOn(dom.prevDecorator)).toEqual(screen);
+    expect(easingOn(dom.part)).toEqual(screen);
+  });
+
+  it("opens faster for a fast finger than for a slow one", async () => {
+    await release(Math.round(window.innerWidth / 2), 4000);
+    const slow = easingOn(dom.scope)!;
+
+    dom.root.remove();
+    dom = buildDom();
+    await release(Math.round(window.innerWidth / 2), 40);
+    const fast = easingOn(dom.scope)!;
+
+    expect(fast[1]! / fast[0]!).toBeGreaterThan(slow[1]! / slow[0]!);
+  });
+
+  it("re-aims a cancel too — it starts from a screen the finger had stopped", async () => {
+    const written: (number[] | null)[] = [];
+    const observer = new MutationObserver(() => written.push(easingOn(dom.scope)));
+    observer.observe(dom.scope, { attributes: true, attributeFilter: ["style"] });
+    await release(80, 400);
+    observer.disconnect();
+
+    // One rule for both directions. A reversal contributes no speed of its own,
+    // so every curve it wrote sits on the floor rather than on the authored
+    // 0.4 opening.
+    const curves = written.filter((curve): curve is number[] => curve !== null);
+    expect(curves.length).toBeGreaterThan(0);
+    for (const curve of curves) {
+      expect(curve[1]! / curve[0]!).toBeLessThanOrEqual(0.4);
+      expect(curve.slice(2)).toEqual([0.25, 1]);
+    }
+  });
+
+  it("re-aims the curve the HANDLER authored, not one the controller knows", async () => {
+    // The rule is the controller's, but the curve is the transition's. A
+    // consumer's own ease has to come out re-aimed, with its own landing.
+    const CONSUMER_EASE = [0.6, 0.9, 0.15, 1];
+    config = {
+      ...config,
+      getTransition: () =>
+        ({
+          name: "consumer-curve",
+          initial: { x: "100%" },
+          variants: {} as Transition["variants"],
+          swipeDirection: "x",
+          onSwipeStart: async () => true,
+          onSwipe: () => 0,
+          onSwipeEnd: async (
+            _event: PointerEvent,
+            info: { offset: { x: number } },
+            api: {
+              animate: (t: unknown, v: unknown, o: { duration: number; ease: number[] }) => void;
+              currentScreen: HTMLElement;
+              onStart?: (triggered: boolean) => void;
+            }
+          ) => {
+            const triggered = info.offset.x > 50;
+            api.onStart?.(triggered);
+            api.animate(
+              api.currentScreen,
+              { x: triggered ? "100%" : 0 },
+              { duration: AUTHORED, ease: CONSUMER_EASE }
+            );
+            return triggered;
+          }
+        }) as unknown as Transition
+    };
+
+    await release(Math.round(window.innerWidth / 2), 4000);
+
+    const written = easingOn(dom.scope);
+    expect(written).not.toBeNull();
+    // Its landing is untouched, and its opening — authored at 1.5 — has been
+    // brought down to what this near-stationary finger can support.
+    expect(written!.slice(2)).toEqual([0.15, 1]);
+    expect(written![1]! / written![0]!).toBeLessThan(0.9 / 0.6);
+  });
+
   // A CANCEL is the settle walking BACK the way the finger came, and it only
   // ever happens below the transition's commit threshold — so the distance
   // term is tiny by construction and used to hand every cancel the short

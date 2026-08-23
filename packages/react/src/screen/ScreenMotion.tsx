@@ -352,6 +352,11 @@ function ScreenMotion({
     swipeController.pointerUp(event.nativeEvent);
   const handlePointerCancel = (event: ReactPointerEvent) =>
     swipeController.pointerCancel(event.nativeEvent);
+  // Capture released without the gesture ending: the element went out from
+  // under it. WebKit does not follow that with a pointerup or a pointercancel,
+  // so this is the only notice the controller gets.
+  const handleLostPointerCapture = (event: ReactPointerEvent) =>
+    swipeController.lostPointerCapture(event.nativeEvent);
   const handleClickCapture = (event: ReactMouseEvent<HTMLDivElement>) => {
     // PUSHING / REPLACING used to apply pointer-events:none to the entire
     // moving screen. That blocked activation, but also permanently targeted a
@@ -390,6 +395,13 @@ function ScreenMotion({
 
     return () => {
       scope.removeEventListener("touchmove", handleTouchMove);
+      // The screen is going away under whatever gesture is in flight — an
+      // unmount, or a freeze, which tears these effects down while the
+      // controller (a ref) survives to be re-attached later still armed. An
+      // armed controller preventDefaults every touchmove, so leaving one behind
+      // hands the revived screen a dead scroll that only the vanished pointer
+      // could have cleared.
+      swipeController.abandon();
     };
   }, [swipeController]);
 
@@ -886,6 +898,7 @@ function ScreenMotion({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
+        onLostPointerCapture={handleLostPointerCapture}
         data-flemo-screen
         data-flemo-router={routerId ?? undefined}
         data-flemo-transition={transitionName}
