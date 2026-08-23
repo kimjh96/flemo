@@ -283,6 +283,22 @@ export const readImageOffloadOverride = (): "on" | "off" | null => {
   return value === "on" || value === "off" ? value : null;
 };
 
+// `flemo:governed` — the GOVERNED HEAD KIT on touch Blink: "on" arms it for any
+// touch Blink session, "off" opts a legacy one out, anything else defers to the
+// browser-age auto-detection (isLegacyAndroidBlink).
+//
+// It exists because that auto-detection selects a browser, not a device. A
+// modern-but-weak touch Blink used to earn the kit through the driver demotion
+// machinery, which is gone — and a 2022 foldable on a current Chrome is exactly
+// the population that falls through. There is no way to try the kit on such a
+// device without this key, and extending it to ALL touch Blink is the lever
+// that was reverted on 2026-08-14 when fast devices picked up the compiled
+// landing snap. Measure per device first.
+export const readBlinkGovernedOverride = (): "on" | "off" | null => {
+  const value = readStorageValue("flemo:governed");
+  return value === "on" || value === "off" ? value : null;
+};
+
 // ── Cached URL-armed toggles (layers / freeze) ──────────────────────────────
 // The `flemo:layers` / `flemo:freeze` keys are set directly; their readers stay in the owning
 // modules (they just write these storage keys at module load, before the

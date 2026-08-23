@@ -239,3 +239,42 @@ describe("the routing as a whole", () => {
     expect(route({ status: "PUSHING" }).forceCompiled).toBe(false);
   });
 });
+
+// THE GAP THE BROWSER-AGE GATE LEAVES, made measurable.
+//
+// `isLegacyAndroidBlink` selects an old BROWSER. A modern-but-weak touch Blink
+// — a 2022 foldable on a current Chrome — falls straight through it, and used
+// to earn the kit through the driver demotion machinery that is now gone.
+// Extending the kit to ALL touch Blink is the lever that was reverted on
+// 2026-08-14 when fast devices picked up the compiled landing snap, so the
+// answer is per-device measurement, and this key is how it is taken.
+describe("the governed head kit's override", () => {
+  const routeOn = (over: Parameters<typeof setEnv>[0]) => {
+    setEnv(over);
+    return resolveFlightRouting({
+      status: "PUSHING",
+      transition: { swipeDirection: "x" } as never,
+      skipAnimation: false,
+      hasActiveMotion: true,
+      hasAnimation: true
+    }).governedHead;
+  };
+
+  it("arms the kit on a modern touch Blink that would not earn it", () => {
+    expect(routeOn({ blink: true, touch: true })).toBe(false);
+    sessionStorage.setItem("flemo:governed", "on");
+    expect(routeOn({ blink: true, touch: true })).toBe(true);
+  });
+
+  it("opts a legacy device back out", () => {
+    expect(routeOn({ blink: true, touch: true, android: true, uaCh: false })).toBe(true);
+    sessionStorage.setItem("flemo:governed", "off");
+    expect(routeOn({ blink: true, touch: true, android: true, uaCh: false })).toBe(false);
+  });
+
+  it("never reaches a session that is not touch Blink", () => {
+    sessionStorage.setItem("flemo:governed", "on");
+    // Desktop Blink: no touch surface, so the kit is not its to take.
+    expect(routeOn({ blink: true, touch: false })).toBe(false);
+  });
+});

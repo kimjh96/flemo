@@ -111,6 +111,15 @@ export const DIAGNOSTIC_FLAGS: readonly DiagnosticFlag[] = [
     effect: "image decode offloader override"
   },
   {
+    key: "flemo:governed",
+    storage: "session",
+    kind: "production-default-with-override",
+    values: '"on" / "off"',
+    fallback: "legacy Android Blink (an old browser, not a slow device)",
+    effect:
+      "the governed head kit on touch Blink — a flat head covering a compiled flight's opening. The auto-detection reads browser AGE, so a modern-but-weak phone falls through it; this is how such a device gets measured"
+  },
+  {
     key: "flemo:imghold",
     storage: "session",
     kind: "opt-in-diagnostic",

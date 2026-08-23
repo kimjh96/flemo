@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   readArrivalHoldFlag,
+  readBlinkGovernedOverride,
   readCreepHeadFlag,
   readDeferReleaseCommitFlag,
   readDesktopHeadFlag,
@@ -336,6 +337,25 @@ describe("documented default: flemo:imgoffload", () => {
     expect(readImageOffloadOverride()).toBeNull();
     sessionStorage.setItem("flemo:imgoffload", "off");
     expect(readImageOffloadOverride()).toBe("off");
+  });
+});
+
+describe("documented default: flemo:governed", () => {
+  // Registry: "legacy Android Blink (an old browser, not a slow device)". The
+  // key exists because that auto-detection reads browser AGE — a modern-but-weak
+  // touch Blink falls through it, and there is no other way to try the kit on
+  // such a device.
+  it("defers to the browser-age detection with nothing set", () => {
+    expect(readBlinkGovernedOverride()).toBeNull();
+  });
+
+  it("reads an explicit on/off, and nothing else", () => {
+    sessionStorage.setItem("flemo:governed", "on");
+    expect(readBlinkGovernedOverride()).toBe("on");
+    sessionStorage.setItem("flemo:governed", "off");
+    expect(readBlinkGovernedOverride()).toBe("off");
+    sessionStorage.setItem("flemo:governed", "yes");
+    expect(readBlinkGovernedOverride()).toBeNull();
   });
 });
 
