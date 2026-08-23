@@ -1,6 +1,6 @@
 import TaskManger from "@core/TaskManger";
 
-import { clearInlineAnimation, concludeInlineSettle } from "@transition/animateInline";
+import { clearInlineAnimation } from "@transition/animateInline";
 import {
   matchesFlightAnimationName,
   animationName,
@@ -11,24 +11,17 @@ import resolveTransition from "@transition/resolveTransition";
 import type { TransitionVariant } from "@transition/typing";
 import { resolveVariantMotion, type VariantMotion } from "@transition/variantMotion";
 
-import createArrivalHold from "@core/engine/arrivalHold";
 import { wireCancelResume } from "@core/engine/cancelResume";
-import holdCompositorWarm from "@core/engine/compositorWarmUp";
-import { readArrivalHoldFlag, readImageHoldFlag } from "@core/engine/diagnosticFlags";
-import { noticeDeviceEmulationOnce } from "@core/engine/emulationNotice";
+import { createFlightHolds } from "@core/engine/flightHolds";
 import {
   collectFlightParts,
   collectScreenParts,
   collectStampedOuterParts,
   collectUnheldOuterParts,
-  collectVariantParts,
-  statusChoreographySpanMs
+  collectVariantParts
 } from "@core/engine/flightParticipants";
 import { resolveFlightRouting } from "@core/engine/flightRouting";
-import { beginFlightWindow } from "@core/engine/flightWindow";
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
-import { beginImageRevealHold } from "@core/engine/imageRevealHold";
-import createInvisibleAnimationHold from "@core/engine/invisibleAnimationHold";
 
 import {
   armFlightStartAnchorAtRelease,
@@ -37,7 +30,6 @@ import {
 } from "@core/engine/nativeStallAnchor";
 import { holdParticipantLayers, releaseParticipantLayers } from "@core/engine/participantLayers";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
-import { beginResponseHold } from "@core/engine/responseHold";
 // The engine no longer consults the steady-60 verdict at all: the landing
 // placement is uniform and the image hold is opt-in. It still FEEDS it — the
 // display probe below reports the in-flight cadence the desktop cadence lock
@@ -68,11 +60,6 @@ import { decoratorMap } from "@transition/decorator/decorator";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 const noop = () => {};
-
-// How long the compositor warm-up outlives COMPLETED: covers the +2rAF
-// landing reveal and the convergence commits (drops measured at 400-700ms
-// into 600ms flights), comfortably under the warm-up's own 3s backstop.
-const WARM_SETTLE_MS = 400;
 
 // How many vsyncs a clean end waits before the COMPLETED flip so the motion's
 // last frames actually reach the glass first. Two covers the write; WebKit
@@ -135,30 +122,17 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   // (decorator, bars, parts, the passive scope) budget per drive-run instead —
   // their counters live and die with the wiring closure.
   const activeResumeCounts = new Map<string, number>();
+  // Every hold this screen owns across drive runs — the compositor warm-up,
+  // the in-flight arrival armor, the warm side's image hold and the settle
+  // timer. See flightHolds.ts; the two callbacks below are this engine's.
+  const holds = createFlightHolds({
+    landNow: () => landNow(),
+    scheduleLanding: (land) => scheduleLanding(land)
+  });
 
   // The in-flight commit hold for this screen's CURRENT transition (see
   // arrivalHold.ts). Engine-level, not per drive-run: the driver effect
   // re-runs mid-transition (the anim-hold release), and the hold must span
-  // those re-runs and release only at COMPLETED or on an interrupt.
-  let releaseArrivalHold: (() => void) | null = null;
-  // The WARM side's image-only hold (see the holdsFlightImages block in the
-  // drive). Engine-level for the same spanning reason as the arrival hold.
-  let releaseFlightImageHold: (() => void) | null = null;
-  // This screen's hold on the compositor warm-up (see compositorWarmUp.ts).
-  // Engine-level for the same reason as the arrival hold: the driver effect
-  // re-runs mid-transition, and the warm-up must span those re-runs and end
-  // only when the screen leaves its transitional statuses.
-  let releaseWarm: (() => void) | null = null;
-  // The warm-up outlives COMPLETED by the settle window. The convergence
-  // storm — status-flip commits, the covered screen's freeze, the landing
-  // reveal two frames past COMPLETED — lands right AFTER the motion rests,
-  // where frame production is back to on-demand; measured on the user's own
-  // machine (attached real Chrome, 180s of hand-driven journeys) as 17
-  // dropped frames clustered at 400-700ms into 600ms flights with no
-  // compositor animation live — the convergence tremor. Forcing frames
-  // through the settle keeps that window on the vsync cadence, exactly what
-  // a DevTools Performance recording does when it masks the judder.
-  let warmSettleTimer: ReturnType<typeof setTimeout> | null = null;
   // A landing scheduled two frames past COMPLETED (see below). Tracked so a
   // navigation starting inside that window can land it immediately instead of
   // letting it punch into the new flight.
@@ -264,196 +238,14 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       }
     }
 
-    // Keep the compositor producing frames for as long as this screen is in
-    // motion (opening spin-up) AND through the settle window past COMPLETED
-    // (the convergence storm) — see warmSettleTimer above.
-    if (isTransitional) {
-      // Motion judged under DevTools device emulation chases phantoms — warn
-      // once (see emulationNotice.ts).
-      noticeDeviceEmulationOnce();
-      // A navigation starting inside the settle window keeps the SAME hold:
-      // cancel the pending release without spending it.
-      if (warmSettleTimer) {
-        clearTimeout(warmSettleTimer);
-        warmSettleTimer = null;
-      }
-      if (!releaseWarm) releaseWarm = holdCompositorWarm();
-    }
-    if (!isTransitional && releaseWarm && !warmSettleTimer) {
-      if (typeof setTimeout === "function") {
-        warmSettleTimer = setTimeout(() => {
-          warmSettleTimer = null;
-          releaseWarm?.();
-          releaseWarm = null;
-        }, WARM_SETTLE_MS);
-      } else {
-        releaseWarm();
-        releaseWarm = null;
-      }
-    }
+    holds.sync({
+      isTransitional,
+      isActive,
+      status,
+      transitionName,
+      getScope: () => getElements().scope
+    });
 
-    // No content landing while the screen is in motion: the COLD side of a
-    // navigation (freshly-mounted enter on push/replace, unfreezing pop
-    // destination — the screens whose async data can resolve mid-flight)
-    // holds in-flight DOM swaps and reflects them at rest. Armed from the
-    // FIRST transitional commit, not at the anim-hold release: an earlier
-    // policy armed at release on the reasoning that a pre-release landing is
-    // invisible (the screen is parked/held) and reflecting it immediately is
-    // free — but "free" counted only pixels, not the rendering update. A
-    // query's commit task finishing just before the RELEASE frame's vsync
-    // joins that frame's rendering update UNHELD, and its full style/layout
-    // ages the compiled clock (timestamped at the frame's top) before the
-    // flight ever presents — device-measured as the intermittent "gathers
-    // then rushes" opening on a multi-query detail push (a timing lottery:
-    // the collision needs the commit to land in the release frame itself).
-    // Held from the first commit, every arrival in the hold window is
-    // display:none (the compiled HELD_ARRIVAL rule) — the release frame can
-    // only ever carry cheap, layout-skipped arrivals, and everything lands
-    // in ONE commit at rest exactly like a mid-flight arrival always has
-    // (the delayed-but-complete contract, now uniform across the whole
-    // navigation window).
-    const holdsArrivals =
-      isTransitional &&
-      (isActive ? status === "PUSHING" || status === "REPLACING" : status === "POPPING");
-
-    // The WARM side of the navigation — the screens the arrival hold below
-    // never covers (the leaving screen of a push/replace, the leaving top of
-    // a pop) — is a MOVING layer too, and an <img> still loading there
-    // decodes and first-rasters ON that sliding layer: the list page's lazy
-    // avatars spawned by the scroll that preceded this push, or a detail
-    // photo resolving during the pop back out of it. Glass-measured
-    // (2026-08-18, CDP presentation feedback on the live app with delayed
-    // image responses): every such mid-flight decode landed a skipped
-    // present, 1:1 — the push-side "뚝뚝" that survived the cold-side hold.
-    // So the warm side holds its UNPAINTED images for the flight span too,
-    // revealed at rest through the same two-rAF landing scheduler (armed
-    // further below). Strictly unpainted-only even under flemo:imghold=on:
-    // this screen is VISIBLE, and a painted image must never blink out
-    // mid-flight. The RELEASE half runs here, BEFORE the arrival blocks: on
-    // an interrupt that flips this screen warm→cold, the arrival arm's own
-    // beginImageRevealHold would otherwise capture this hold's display:none
-    // as the "original" and re-park the image forever.
-    const holdsFlightImages = isTransitional && !holdsArrivals;
-    if (!holdsFlightImages && releaseFlightImageHold) {
-      const release = releaseFlightImageHold;
-      releaseFlightImageHold = null;
-      if (isTransitional) {
-        // Interrupt: a new flight owns this screen — reveal before its
-        // first frame.
-        release();
-      } else {
-        scheduleLanding(release);
-      }
-    }
-
-    if (!holdsArrivals && releaseArrivalHold) {
-      // COMPLETED, IDLE, or an interrupt that flipped this screen's role.
-      const release = releaseArrivalHold;
-      releaseArrivalHold = null;
-      if (isTransitional) {
-        // Interrupt: a new transition owns the glass right now — land
-        // everything immediately, before its first frame.
-        release();
-      } else {
-        scheduleLanding(release);
-      }
-    }
-    if (holdsArrivals && !releaseArrivalHold && readArrivalHoldFlag()) {
-      // A navigation starting inside a still-pending landing window: land it
-      // now so the deferred reveal can never punch into the new flight.
-      landNow();
-      const { scope } = getElements();
-      if (scope) {
-        // The same cold screens whose commits the hold shields also carry
-        // the invisible-animation layer storm (see invisibleAnimationHold.ts)
-        // — hold their unseen animations for the same span. And the reveal
-        // commits are TRIGGERED by network responses resolving mid-flight
-        // (see responseHold.ts — every method; real reveals arrive as GET
-        // selects, POST RPCs, and HEAD counts alike): parking those moves the
-        // reveal's REACT RENDER — the script cost display:none cannot touch,
-        // the player's convergence frame famine — to rest, where the arrival
-        // hold was going to reveal its pixels anyway. Never a stream, and
-        // bounded by the WHOLE choreography's span (a 3s authored Part must
-        // not see parked responses flushed into its middle just because the
-        // screen itself lands at 700ms). All releases run together at every
-        // consumption path (early/deferred landing, interrupt, re-arm), so
-        // content lands, animations resume, and responses deliver in one
-        // commit at rest.
-        // A NAVIGATION owns its participants (same rule as the player join):
-        // conclude any running swipe settle before the compiled flight
-        // drives, or it keeps interpolating toward its own target underneath.
-        concludeInlineSettle(scope);
-        const releaseHold = createArrivalHold(scope);
-        const releaseAnimations = createInvisibleAnimationHold(scope);
-        const holdSpanMs = statusChoreographySpanMs(
-          scope,
-          resolveTransition(transitionName),
-          status
-        );
-        const releaseResponses = beginResponseHold(holdSpanMs + GATE_MOTION_MARGIN_MS);
-        // Image reveal hold (see imageRevealHold.ts): parks an entering
-        // screen's still-loading (and oversized cached) <img> paints to rest
-        // so a mid-flight image load OR a re-entry's giant-texture
-        // re-composite can't re-raster the sliding layer. OPT-IN on every
-        // engine (`flemo:imghold=on`), shipped OFF by default: on WebKit the
-        // deferred decode is SYNCHRONOUS at the reveal, which stacks the
-        // stall at rest instead of removing it (device: WebKit got worse
-        // with the hold on), and the Blink case that motivated it (the
-        // Note 9's re-entry swallow) is solved by the auto-gated image
-        // decode offloader instead (isLegacyAndroidBlink). The fetch-level
-        // responseHold above ships on by default for every engine; this is
-        // its <img> analog, retained as a measurement instrument.
-        // OPT-IN ONLY (`flemo:imghold=on`). It shipped default-on for the
-        // steady-60 desktop profile from 2026-08-18 — the live-app staircase
-        // that isolated the F condition ("이미지 로딩 중 전환만 버벅; 캐시된
-        // 이미지는 무결") — and the default is retired 2026-08-21 after a
-        // desktop A/B rotating the hold per push/pop pair, on a session with
-        // images genuinely completing mid-flight, was judged INDISTINGUISHABLE.
-        // The touch round the same week measured it as a net loss: it moved
-        // ~1.4 in-flight hitches into ~3.6 at the landing, because parking the
-        // paint parks the decode with it and the decode still has to happen.
-        // The instrument stays for a consumer whose own measurement asks for
-        // it; nothing selects it automatically any more.
-        const releaseImages =
-          readImageHoldFlag() === "on"
-            ? beginImageRevealHold(scope, holdSpanMs + GATE_MOTION_MARGIN_MS)
-            : noop;
-        // The global flight-window latch (see flightWindow.ts): insertion-time
-        // machinery outside this drive (the image decode offloader) defers
-        // opaque-original reveals to the same rest this release lands.
-        const releaseFlightWindow = beginFlightWindow();
-        releaseArrivalHold = () => {
-          releaseResponses();
-          releaseImages();
-          releaseAnimations();
-          releaseHold();
-          releaseFlightWindow();
-        };
-      }
-    }
-
-    if (holdsFlightImages && !releaseFlightImageHold && readArrivalHoldFlag()) {
-      // Same protection as the arrival arm: a navigation starting inside a
-      // still-pending landing window lands it now, so the deferred reveal
-      // can never punch into the new flight.
-      landNow();
-      const { scope } = getElements();
-      // Warm side, same retirement as the arrival arm above: opt-in only.
-      if (scope && readImageHoldFlag() === "on") {
-        releaseFlightImageHold = beginImageRevealHold(
-          scope,
-          statusChoreographySpanMs(scope, resolveTransition(transitionName), status) +
-            GATE_MOTION_MARGIN_MS,
-          true
-        );
-      }
-    }
-
-    // Join this screen's participants (scope, riding bars, decorator) to the
-    // navigation's shared player. The player covers every motion — numeric
-    // interpolation or a scrubbed Web Animation — so a null here means the
-    // player must not or cannot run (Blink, replay chain, css pin, no WAAPI)
-    // and the compiled CSS path stays in charge.
     // The display-interval probe. Its samples feed two live consumers — the
     // compiled tier's landing governor (learnedFrameIntervalMs, see
     // landingGovernor.ts) and the steady-60 desktop profile

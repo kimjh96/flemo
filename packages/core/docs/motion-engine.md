@@ -230,6 +230,7 @@ is not a consumer value; the landed scope belongs to the compiled rest rules.**
 | `flightRouting.ts` | Per-flight decision: which opening treatment, and may the engine touch the clock (section 1). |
 | `flightParticipants.ts` | Who is in this flight — a screen's parts vs a nested screen's, this Router's vs another's. Scoping is by the `data-flemo-router` marker, never by DOM ancestry. |
 | `participantLayers.ts` | The compositor-layer lease held for the flight, released off-cadence after it; the landing governor's inline easing rides the same lease. |
+| `flightHolds.ts` | Every hold one screen owns across drive runs: the compositor warm-up and its settle window, the in-flight arrival armor, the warm side's image-only hold. |
 | `cancelResume.ts` | Re-joins a browser-cancelled compiled animation to its own timeline with a negative inline delay, up to `RESUME_BUDGET`. |
 | `arrivalHold.ts` | In-flight commit hold: mid-flight swaps/additions held off-glass and reflected in one commit at rest. |
 | `responseHold.ts` | Flight-scoped fetch-resolution park (every method, minus streams), delivered in one batch at rest. |
