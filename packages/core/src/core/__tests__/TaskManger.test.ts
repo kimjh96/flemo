@@ -584,7 +584,30 @@ describe("TaskManger: gate phases (markGateHeld / anchorGate)", () => {
 // asked to commit two flights. Device-reported on a Galaxy Z Flip 4 as a single
 // hitch on a fast double back. After the split: 22-28ms, and not every run.
 describe("TaskManger: the queue hands over on a frame boundary", () => {
-  it("wakes a waiting task on a FRAME, not inside the terminal flip", async () => {
+  /**
+   * A queued task only goes through the WAKE path when something is genuinely
+   * pending ahead of it — a waiter added to an empty queue resolves on the spot
+   * and never reaches the notify at all. So the fixture holds a manual task
+   * open, queues behind it, and then lets it finish.
+   */
+  const queueBehindAPendingTask = () => {
+    const id = `frame-${Math.random().toString(36).slice(2)}`;
+    const order: string[] = [];
+    const held = TaskManger.addTask(
+      async () => {
+        order.push("held");
+        return "held";
+      },
+      { id, control: { manual: true } }
+    );
+    const queued = TaskManger.addTask(async () => {
+      order.push("queued");
+      return "queued";
+    });
+    return { id, order, held, queued };
+  };
+
+  it("wakes the queued task on a FRAME, not inside the terminal flip", async () => {
     const frames: (() => void)[] = [];
     const raf = vi
       .spyOn(globalThis, "requestAnimationFrame")
@@ -594,26 +617,52 @@ describe("TaskManger: the queue hands over on a frame boundary", () => {
       });
 
     try {
-      const order: string[] = [];
-      const first = TaskManger.addTask(async () => {
-        order.push("first");
-        return 1;
-      });
-      const second = TaskManger.addTask(async () => {
-        order.push("second");
-        return 2;
-      });
+      const { id, order, held, queued } = queueBehindAPendingTask();
+      await new Promise((r) => setTimeout(r, 30));
 
-      await first;
-      // The terminal flip has landed. The queue must NOT have run the next task
-      // in that same turn — the binding needs the frame to commit the teardown.
-      expect(raf).toHaveBeenCalled();
+      await TaskManger.resolveTask(id);
+      await held;
+      await new Promise((r) => setTimeout(r, 30));
+
+      // The terminal flip has landed and the queued task has NOT run: the
+      // binding needs this frame to commit the finished flight's teardown
+      // alone. Running both in one commit is the dropped frame this exists to
+      // stop.
+      expect(order).toEqual(["held"]);
+      expect(frames.length).toBeGreaterThan(0);
 
       for (const run of frames.splice(0)) run();
-      await second;
-      expect(order).toEqual(["first", "second"]);
+      await queued;
+      expect(order).toEqual(["held", "queued"]);
     } finally {
       raf.mockRestore();
+    }
+  });
+
+  it("hands over immediately where there is no frame clock", async () => {
+    const saved = globalThis.requestAnimationFrame;
+    // SSR, or a non-browser embedder: nothing commits, so there is nothing to
+    // separate — and the queue must not limp along on the 100ms poll that backs
+    // the waiter up.
+    Object.defineProperty(globalThis, "requestAnimationFrame", {
+      value: undefined,
+      configurable: true
+    });
+    try {
+      const { id, order, held, queued } = queueBehindAPendingTask();
+      await new Promise((r) => setTimeout(r, 30));
+
+      const started = Date.now();
+      await TaskManger.resolveTask(id);
+      await Promise.all([held, queued]);
+
+      expect(order).toEqual(["held", "queued"]);
+      expect(Date.now() - started).toBeLessThan(80);
+    } finally {
+      Object.defineProperty(globalThis, "requestAnimationFrame", {
+        value: saved,
+        configurable: true
+      });
     }
   });
 });

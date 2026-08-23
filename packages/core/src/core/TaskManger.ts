@@ -181,11 +181,12 @@ class TaskManager {
    * queued flight's opening commit land in different ones.
    *
    * Falls straight through where there is no frame clock (SSR, a non-browser
-   * embedder): there is no commit to separate from. That branch is defensive
-   * and is NOT covered — a waiter added while the queue is already empty
-   * resolves on the spot without going through the notify path at all, so a
-   * test that merely drives two tasks passes whether the fallback is there or
-   * not. Left uncovered rather than pinned by a test that proves nothing.
+   * embedder): there is no commit to separate from.
+   *
+   * Reaching this at all takes a task genuinely PENDING ahead of the queued one
+   * — a waiter added to an empty queue resolves on the spot and never goes
+   * through the notify path, so a test that merely drives two tasks exercises
+   * nothing here. The suite holds a manual task open and queues behind it.
    */
   private wakeQueueNextFrame() {
     if (typeof requestAnimationFrame !== "function") {
