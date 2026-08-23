@@ -35,7 +35,7 @@ const DOC = import.meta.glob("../../../../docs/motion-engine.md", {
 });
 
 /** Source modules the doc's inventory is expected to cover, by directory. */
-const MAPPED = import.meta.glob("../../../{core/engine,platform,dom}/*.ts", {
+const MAPPED = import.meta.glob("../../../{core/engine,platform,dom,runtime}/*.ts", {
   query: "?raw",
   import: "default",
   eager: true
@@ -58,7 +58,7 @@ describe("packages/core/docs/motion-engine.md", () => {
     expect(doc).toContain("# The flemo motion engine");
   });
 
-  it("names every module under core/engine, platform and dom", () => {
+  it("names every module under core/engine, platform, dom and runtime", () => {
     const missing = moduleBasenames.filter((name) => !namedInDoc.has(name)).sort();
     expect(missing).toEqual([]);
   });

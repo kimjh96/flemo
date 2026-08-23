@@ -16,11 +16,8 @@ import {
 import {
   createBrowserHistoryDriver,
   createRouterScope,
-  ensureGpuPipelinePrewarm,
-  ensureImageDecodeOffloader,
-  resolvePlatformProfile,
-  holdCompositorWarm,
   seedRouterEntry,
+  startFlemoRuntime,
   isServer,
   type HistoryDriver,
   type PartTransition,
@@ -156,9 +153,6 @@ const CONTAINED_VIEWPORT = { contained: true };
 // continues, and how long it survives past the last interaction — enough to
 // bridge move -> tap -> the flight's own warm-up taking over, short enough
 // that a walked-away user costs nothing lasting.
-const INTERACTION_WARM_RENEW_MS = 500;
-const INTERACTION_WARM_TAIL_MS = 3000;
-
 function Router({
   children,
   name,
@@ -391,65 +385,13 @@ function Router({
   // useInsertionEffect so styles are committed before any screen paints.
   useTransitionStyles(transitions, decorators, partTransitions);
 
-  // Off-main decode-to-scale for oversized images (see @flemo/core
-  // imageDecodeOffloader). WHETHER it runs is the platform profile's call —
-  // it rewrites consumer <img> sources, so it must never run where the paint
-  // is already cheap; see `imageDecodeOffload` there. Document-wide and
-  // refcounted, so nested Routers share one observer.
-  useEffect(
-    () => (resolvePlatformProfile().imageDecodeOffload ? ensureImageDecodeOffloader() : undefined),
-    []
-  );
-
-  // One-shot GPU pipeline prewarm (see @flemo/core gpuPipelinePrewarm):
-  // Chrome's Graphite backend compiles the flight's GPU pipelines on their
-  // first draw — on a cold cache (fresh profile, Chrome update, GPU-process
-  // restart) that's ~100ms of GPU-thread stall landing INSIDE the session's
-  // first flight, worst on the deceleration frames. Imperceptible probes at
-  // boot idle compile them ahead of any motion.
-  useEffect(() => ensureGpuPipelinePrewarm(), []);
-
-  // Pre-warm the compositor while the user INTERACTS. The per-flight warm-up
-  // starts WITH the flight, so the first navigation after an idle period
-  // still pays the pipeline's wake-up (frame clock, GPU power state) inside
-  // its opening frames — observed as a first-journey judder that disappears
-  // while a Performance recording (a continuous frame producer) runs, and
-  // measured to survive a press-scoped warm: the wake costs more than the
-  // 50-300ms a press precedes its navigation by. So the warm rides ANY
-  // interaction — a pointer moving toward a tap precedes it by seconds —
-  // renewed at most twice a second, released a short tail after the
-  // interaction stops. This reproduces exactly what the recording does, but
-  // only while the user is actually about to do something.
-  useEffect(() => {
-    if (typeof document === "undefined") return undefined;
-    let release: (() => void) | null = null;
-    let tail: ReturnType<typeof setTimeout> | null = null;
-    let lastRenewal = 0;
-    const renew = () => {
-      const now = Date.now();
-      // Renew the hold (overlapping holds are refcounted; each carries the
-      // module's ~3s backstop, so a long interaction must keep re-taking it)
-      // at a throttled cadence — pointermove fires per frame.
-      if (now - lastRenewal < INTERACTION_WARM_RENEW_MS) return;
-      lastRenewal = now;
-      if (tail) clearTimeout(tail);
-      const previous = release;
-      release = holdCompositorWarm();
-      previous?.();
-      tail = setTimeout(() => {
-        tail = null;
-        release?.();
-        release = null;
-      }, INTERACTION_WARM_TAIL_MS);
-    };
-    const events = ["pointerdown", "pointermove", "wheel", "touchstart", "keydown"] as const;
-    for (const type of events) document.addEventListener(type, renew, { passive: true });
-    return () => {
-      for (const type of events) document.removeEventListener(type, renew);
-      if (tail) clearTimeout(tail);
-      release?.();
-    };
-  }, []);
+  // flemo's AMBIENT machinery — GPU pipelines compiled ahead of the first
+  // flight, oversized image decodes off the main thread where the platform
+  // profile asks for it, and the compositor kept awake while the user is about
+  // to navigate. All of it is framework-neutral and all of it is core's
+  // (@runtime/flemoRuntime); this effect only decides that a mounted Router is
+  // when an app wants it. Nested Routers share one runtime.
+  useEffect(() => startFlemoRuntime(), []);
 
   useEffect(() => {
     // Stamp this Router's identity onto the entry it mounted on: seed its keyed
