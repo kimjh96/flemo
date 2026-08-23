@@ -33,7 +33,7 @@ const setEnv = (over: {
     configurable: true
   });
   Object.defineProperty(navigator, "userAgent", {
-    value: android ? "Mozilla/5.0 (Linux; Android 10; SM-N960N) AppleWebKit/537.36 Chrome/120" : "",
+    value: android ? "Mozilla/5.0 (Linux; Android 10; SM-N960N) AppleWebKit/537.36 Chrome/79" : "",
     configurable: true
   });
 };

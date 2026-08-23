@@ -72,13 +72,37 @@ export const detectBlinkEngine = (): boolean => {
 // head) from flight ONE rather than swallowing the curve's start on a
 // 120-260ms mount commit. A modern device (UA-CH brands present) is excluded.
 // iOS carries no "Android" token, so this never touches WebKit.
+//
+// ABSENCE OF THE BRANDS LIST IS NOT PROOF OF AN OLD BROWSER, and reading it as
+// proof was a real misfire. `navigator.userAgentData` is exposed only in a
+// SECURE CONTEXT, so a current Chrome reports exactly what a 2019 one does the
+// moment the page is served over plain HTTP — measured, same browser and same
+// UA, only the URL differing:
+//
+//   http://127.0.0.1:5173    secure   userAgentData: object      -> modern
+//   http://192.168.0.74:5173 insecure userAgentData: undefined   -> "legacy"
+//
+// Device-reported on a Galaxy Z Flip 4 (2022, current Chrome) taking the
+// legacy profile over a LAN test server. The same blindness applies wherever
+// UA-CH is switched off — enterprise policy, privacy settings, a fork that does
+// not implement it.
+//
+// So the version is read POSITIVELY from the UA string when the brands list is
+// unavailable. A Chromium new enough to have shipped UA-CH is modern whatever
+// the context says; only a UA that reports an older Chromium — or none at all,
+// which is itself the mark of something ancient — is taken as legacy.
+const UA_CH_CHROMIUM_MAJOR = 90;
+
 export const isLegacyAndroidBlink = (): boolean => {
   if (typeof navigator === "undefined") return false;
   const brands = (navigator as { userAgentData?: { brands?: ReadonlyArray<unknown> } })
     .userAgentData?.brands;
   if (Array.isArray(brands)) return false;
   const ua = navigator.userAgent ?? "";
-  return /Android/i.test(ua) && !/Firefox|FxiOS/i.test(ua) && (navigator.maxTouchPoints ?? 0) > 0;
+  if (!/Android/i.test(ua) || /Firefox|FxiOS/i.test(ua)) return false;
+  if ((navigator.maxTouchPoints ?? 0) <= 0) return false;
+  const major = Number(/Chrom(?:e|ium)\/(\d+)/i.exec(ua)?.[1] ?? 0);
+  return major < UA_CH_CHROMIUM_MAJOR;
 };
 
 // DESKTOP macOS WebKit — the Safari session that takes the desktop compiled
