@@ -31,7 +31,7 @@ const setEnv = (over: {
     configurable: true
   });
   Object.defineProperty(navigator, "userAgent", {
-    value: android ? "Mozilla/5.0 (Linux; Android 10; SM-N960N) AppleWebKit/537.36 Chrome/120" : "",
+    value: android ? "Mozilla/5.0 (Linux; Android 10; SM-N960N) AppleWebKit/537.36 Chrome/79" : "",
     configurable: true
   });
   Object.defineProperty(window, "devicePixelRatio", { value: dpr, configurable: true });
@@ -149,13 +149,23 @@ describe("restLayerPromotion", () => {
 });
 
 describe("imageDecodeOffload", () => {
-  it("is auto ON for legacy Android Blink only", () => {
-    setEnv({ blink: true, touch: true, android: true, uaCh: false });
-    expect(resolvePlatformProfile().imageDecodeOffload).toBe(true);
-    setEnv({ blink: true, touch: true, android: true, uaCh: true });
-    expect(resolvePlatformProfile().imageDecodeOffload).toBe(false);
-    setEnv({ blink: false, touch: true });
-    expect(resolvePlatformProfile().imageDecodeOffload).toBe(false);
+  // The cost this removes is created by the IMAGE, not the browser: a 48px
+  // avatar holding a 37-megapixel original is expensive to decode wherever it
+  // lands. It used to be armed by a browser-age probe, which let a 2022 phone
+  // on a current Chrome through — device-measured as a janking push, smooth
+  // with the offloader, judged in both directions. The offloader already makes
+  // the decision that matters, per image and from the source's own bytes.
+  it("is on for every browser — the offloader decides per image", () => {
+    for (const env of [
+      { blink: true, touch: true, android: true, uaCh: false },
+      { blink: true, touch: true, android: true, uaCh: true },
+      { blink: false, touch: true },
+      { blink: true, touch: false },
+      { blink: false, touch: false, mac: true }
+    ]) {
+      setEnv(env);
+      expect(resolvePlatformProfile().imageDecodeOffload, JSON.stringify(env)).toBe(true);
+    }
   });
 
   it("honors the override both ways", () => {

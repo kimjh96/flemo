@@ -3,6 +3,7 @@ import { DESKTOP_HEAD_MS, GOVERNED_HEAD_MS } from "@transition/compileTransition
 import type { Transition } from "@transition/typing";
 
 import {
+  readBlinkGovernedOverride,
   readCreepHeadFlag,
   readDesktopHeadFlag,
   readSettleGateFlag
@@ -130,7 +131,15 @@ export const resolveFlightRouting = (input: FlightRoutingInput): FlightRouting =
   // Extending the kit to ALL touch Blink is the obvious next lever and must NOT
   // be taken blind: the 2026-08-14 round reverted exactly that blanket
   // treatment when fast devices picked up the compiled landing snap.
-  const blinkGoverned = blink && touch && isLegacyAndroidBlink();
+  //
+  // `flemo:governed` is how that gap gets measured rather than argued about: it
+  // arms or disarms the kit on a device whose browser age says otherwise, which
+  // is the only way to find out whether a given phone wants it.
+  const governedOverride = readBlinkGovernedOverride();
+  const blinkGoverned =
+    blink &&
+    touch &&
+    (governedOverride === "on" || (governedOverride !== "off" && isLegacyAndroidBlink()));
 
   // POP always: device-measured, a heavy returning screen's re-commit swallows
   // POP's opening exactly like PUSH's. PUSH only with the settle gate on, which
