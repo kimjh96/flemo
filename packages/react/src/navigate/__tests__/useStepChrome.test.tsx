@@ -38,7 +38,6 @@ function chromeHarness() {
             params: {},
             transitionName: "cupertino",
             prevTransitionName: "cupertino",
-            layoutId: null,
             // Chrome sits outside a <Screen>: no route to build from.
             routePath: ""
           }

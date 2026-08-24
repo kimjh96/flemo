@@ -30,14 +30,28 @@
 // (the transition gate for heavy mounts) extended from mount time to flight
 // time.
 //
-// Exempt from the freeze, on purpose: the scope element itself and <Part>
-// elements (flemo's own runtime writes live there), `data-flemo-*`
+// Exempt from the freeze, on purpose: the scope element itself, <Part>
+// elements and MORPHS (flemo's own runtime writes live there), `data-flemo-*`
 // attributes anywhere, and anything inside a held arrival (already
 // invisible; freezing its construction would be wasted work).
+//
+// A morph is exempt from the ARRIVAL side too, and that one is not an
+// optimisation: a shared element spends the flight staged in the flight layer
+// and comes home the moment its travel ends, which looks exactly like content
+// arriving mid-flight. Holding it would hide the element at the instant it
+// lands and reveal it again at rest — the blink the hold exists to prevent,
+// caused by the hold.
 
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
 import { OFFLOADED_SRC_ATTR } from "@core/engine/imageDecodeOffloader";
-import { attrSelector, HELD_ARRIVAL_ATTR, IMAGE_HOLD_ATTR, PART_NAME_ATTR } from "@dom/attributes";
+import {
+  attrSelector,
+  HELD_ARRIVAL_ATTR,
+  IMAGE_HOLD_ATTR,
+  MORPH_ATTR,
+  MORPH_SLOT_ATTR,
+  PART_NAME_ATTR
+} from "@dom/attributes";
 
 export { HELD_ARRIVAL_ATTR } from "@dom/attributes";
 
@@ -61,6 +75,18 @@ interface FrozenValue {
   pendingEcho: boolean;
 }
 
+// Everything flemo's own runtime owns the visibility of. Selected with
+// `closest`, so a subtree of one of them is covered too.
+const EXEMPT_SELECTOR = [
+  attrSelector(PART_NAME_ATTR),
+  attrSelector(MORPH_ATTR),
+  // The morph's placeholder is written by the runtime too: it is given the
+  // element's size for the flight and handed back its own at the landing.
+  attrSelector(MORPH_SLOT_ATTR),
+  attrSelector(HELD_ARRIVAL_ATTR),
+  attrSelector(OFFLOADED_SRC_ATTR)
+].join(", ");
+
 export default function createArrivalHold(scope: HTMLElement): () => void {
   if (typeof MutationObserver === "undefined") return () => {};
 
@@ -82,13 +108,7 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
     const element = node instanceof Element ? node : node.parentElement;
     if (!element) return true;
     if (element === scope) return true;
-    return (
-      element.closest(
-        `${attrSelector(PART_NAME_ATTR)}, ${attrSelector(HELD_ARRIVAL_ATTR)}, ${attrSelector(
-          OFFLOADED_SRC_ATTR
-        )}`
-      ) !== null
-    );
+    return element.closest(EXEMPT_SELECTOR) !== null;
   };
 
   // One decision per key per delivery (grouped): with N raw records for a key
@@ -178,6 +198,9 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
       for (const added of Array.from(record.addedNodes)) {
         if (selfInserted.delete(added)) continue;
         if (!(added instanceof Element)) continue;
+        // A morph coming home from the flight layer is not an arrival — it is
+        // the landing itself, and hiding it there IS the blink.
+        if (added.closest(EXEMPT_SELECTOR)) continue;
         added.setAttribute(HELD_ARRIVAL_ATTR, "");
         heldArrivals.add(added);
         batchOf(record.target).added.push(added);

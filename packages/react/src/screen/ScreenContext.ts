@@ -35,7 +35,6 @@ const ScreenContext = createContext<ScreenContextProps>({
   params: {},
   transitionName: "none",
   prevTransitionName: "none",
-  layoutId: null,
   routePath: ""
 });
 

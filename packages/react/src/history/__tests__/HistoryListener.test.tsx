@@ -22,8 +22,7 @@ const resetStores = () => {
         id: "root",
         pathname: "/",
         params: {},
-        transitionName: "cupertino",
-        layoutId: null
+        transitionName: "cupertino"
       }
     ]
   });
@@ -98,15 +97,13 @@ describe("HistoryListener", () => {
           id: "root",
           pathname: "/",
           params: {},
-          transitionName: "cupertino",
-          layoutId: null
+          transitionName: "cupertino"
         },
         {
           id: "second",
           pathname: "/posts/42",
           params: {},
-          transitionName: "cupertino",
-          layoutId: null
+          transitionName: "cupertino"
         }
       ]
     });

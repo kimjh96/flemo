@@ -8,8 +8,7 @@ const h = (id: string, transitionName = "cupertino"): History => ({
   id,
   pathname: `/${id}`,
   params: {},
-  transitionName: transitionName as History["transitionName"],
-  layoutId: null
+  transitionName: transitionName as History["transitionName"]
 });
 
 describe("createScreenSelector", () => {
@@ -36,6 +35,6 @@ describe("createScreenSelector", () => {
     const sel = createScreenSelector([h("a")], 0);
     expect(sel[0].id).toBe("a");
     expect(sel[0].pathname).toBe("/a");
-    expect(sel[0].layoutId).toBeNull();
+    expect(sel[0].transitionName).toBe("cupertino");
   });
 });

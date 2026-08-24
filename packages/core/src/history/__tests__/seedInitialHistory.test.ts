@@ -10,8 +10,7 @@ describe("seedInitialHistory", () => {
       id: "root",
       pathname: "/posts/hello",
       params: { slug: "hello", ref: "home" },
-      transitionName: "cupertino",
-      layoutId: null
+      transitionName: "cupertino"
     });
   });
 

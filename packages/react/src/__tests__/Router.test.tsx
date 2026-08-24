@@ -64,7 +64,6 @@ describe("nested Router key stability", () => {
     params: {},
     transitionName: "cupertino" as const,
     prevTransitionName: "cupertino" as const,
-    layoutId: null,
     routePath: "/host"
   };
 

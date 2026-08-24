@@ -1,6 +1,6 @@
 "use client";
 
-import { useNavigate } from "@flemo/react";
+import { Morph, useNavigate } from "@flemo/react";
 
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 
@@ -9,7 +9,10 @@ import MusicScreen from "../../_components/MusicScreen";
 import { artworkFor, musicCopy, TRACKS } from "../../_data/tracks";
 
 // The music library: a track list with the mini player pinned as the shared bar.
-// Tapping a track rises the Now Playing screen (material).
+// Tapping a track rises the Now Playing screen (material), and that track's
+// artwork is a <Morph>: it is the same square as the cover on the other side,
+// so it grows into place as the sheet arrives instead of being cut at the
+// boundary. Nothing about the screen or the transition changes to allow it.
 function MusicLibraryScreen() {
   const lang = useShellLang();
   const navigate = useNavigate();
@@ -35,7 +38,9 @@ function MusicLibraryScreen() {
                 onClick={() => handleOpen(track.id)}
                 className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-[var(--color-layer)]"
               >
-                <span
+                <Morph
+                  as="span"
+                  layoutId={`music-art-${track.id}`}
                   className="size-12 shrink-0 rounded-xl"
                   style={{ background: artworkFor(track.hue) }}
                   aria-hidden="true"

@@ -20,6 +20,7 @@ import {
   startFlemoRuntime,
   isServer,
   type HistoryDriver,
+  type MorphTransition,
   type PartTransition,
   type Decorator,
   type Transition,
@@ -30,6 +31,7 @@ import HistoryListener from "@history/HistoryListener";
 
 import Renderer from "@renderer/Renderer";
 
+import MorphLayer from "@screen/MorphLayer";
 import ScreenContext from "@screen/ScreenContext";
 
 import ScreenViewportContext from "@screen/ScreenViewportContext";
@@ -94,6 +96,10 @@ interface RouterProps {
   transitions?: Transition[];
   decorators?: Decorator[];
   partTransitions?: PartTransition[];
+  // Consumer morph transitions (createMorphTransition). They compile to no CSS
+  // — a shared element's keyframes need two rects that only a flight produces —
+  // so registering one is purely making its name resolvable to the runtime.
+  morphTransitions?: MorphTransition[];
   // Which history backend this Router drives. "browser" (default) reads/writes
   // `window.history` so the URL and browser back/forward work inside it, even
   // when the Router is nested. "memory" keeps an isolated in-memory stack that
@@ -145,6 +151,7 @@ const publishRouterConfig = typeof window === "undefined" ? useEffect : useInser
 const EMPTY_TRANSITIONS: Transition[] = [];
 const EMPTY_DECORATORS: Decorator[] = [];
 const EMPTY_PART_TRANSITIONS: PartTransition[] = [];
+const EMPTY_MORPH_TRANSITIONS: MorphTransition[] = [];
 
 // Stable context value so a nested Router's screens don't re-render on identity churn.
 const CONTAINED_VIEWPORT = { contained: true };
@@ -162,6 +169,7 @@ function Router({
   transitions = EMPTY_TRANSITIONS,
   decorators = EMPTY_DECORATORS,
   partTransitions = EMPTY_PART_TRANSITIONS,
+  morphTransitions = EMPTY_MORPH_TRANSITIONS,
   history = "browser",
   createDriver,
   className,
@@ -383,7 +391,7 @@ function Router({
   // Registers user-provided transitions/decorators with the global maps and
   // injects the compiled CSS keyframes into the document head. Runs in
   // useInsertionEffect so styles are committed before any screen paints.
-  useTransitionStyles(transitions, decorators, partTransitions);
+  useTransitionStyles(transitions, decorators, partTransitions, morphTransitions);
 
   // flemo's AMBIENT machinery — GPU pipelines compiled ahead of the first
   // flight, oversized image decodes off the main thread where the platform
@@ -451,15 +459,25 @@ function Router({
   // it via className/style) and clips the slide overflow. Everything outside this
   // <Router> in the layout persists across its navigations. A root Router renders
   // no wrapper: its screens are fixed to the viewport.
+  // The FLIGHT LAYER is rendered by the Router because only the Router knows
+  // which box bounds its screens. It is absolute in both cases: a nested region
+  // has the wrapper below, and a root Router inherits the app's own frame —
+  // which is exactly what <Slot> does for the screens themselves.
   if (isNested) {
     return (
       <div className={className} style={{ position: "relative", overflow: "hidden", ...style }}>
         {content}
+        <MorphLayer stores={stores} />
       </div>
     );
   }
 
-  return content;
+  return (
+    <>
+      {content}
+      <MorphLayer stores={stores} />
+    </>
+  );
 }
 
 export default Router;

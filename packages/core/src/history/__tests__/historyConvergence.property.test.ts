@@ -85,7 +85,6 @@ const mountRouter = (model: ReturnType<typeof createBrowserModel>) => {
           pathname: model.current().pathname,
           params: {},
           transitionName: "none" as const,
-          layoutId: null,
           frameIndex: seedStamp
         }
       ],
@@ -103,8 +102,7 @@ const mountRouter = (model: ReturnType<typeof createBrowserModel>) => {
         index: 0,
         status: "IDLE",
         params: {},
-        transitionName: "none",
-        layoutId: null
+        transitionName: "none"
       },
       model.current().pathname
     );

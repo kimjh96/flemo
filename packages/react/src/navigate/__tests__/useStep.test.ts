@@ -49,7 +49,6 @@ function buildHarness(routePath: string, dispatch: HarnessProps["dispatch"]) {
             params: { id: "1" },
             transitionName: "cupertino",
             prevTransitionName: "cupertino",
-            layoutId: null,
             routePath
           }
         },
@@ -100,8 +99,7 @@ const resetStores = () => {
         id: "screen-1",
         pathname: "/posts/1",
         params: { id: "1" },
-        transitionName: "cupertino",
-        layoutId: null
+        transitionName: "cupertino"
       }
     ]
   });
@@ -245,15 +243,13 @@ describe("useStep: popStep", () => {
           id: "screen-1",
           pathname: "/posts/1",
           params: { id: "1" },
-          transitionName: "cupertino",
-          layoutId: null
+          transitionName: "cupertino"
         },
         {
           id: "screen-1",
           pathname: "/posts/1",
           params: { id: "1", tab: "comments" },
-          transitionName: "cupertino",
-          layoutId: null
+          transitionName: "cupertino"
         }
       ]
     });

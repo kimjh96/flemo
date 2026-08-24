@@ -1,0 +1,134 @@
+import { type PropsWithChildren } from "react";
+
+import { act, render } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
+
+import { useStore } from "zustand";
+
+import Morph from "@screen/Morph";
+import ScreenContext, { type ScreenContextProps } from "@screen/ScreenContext";
+
+import { createTestStores } from "@stores/__tests__/testUtils";
+import StoreContext, { type FlemoStores } from "@stores/StoreContext";
+
+// The component itself is twenty lines; what is worth pinning is that it keeps
+// the runtime's CONTRACT — registered before paint, re-registered on every
+// status change — because everything a morph does depends on those two moments.
+
+let stores: FlemoStores;
+
+// jsdom lays nothing out and a morph is nothing but rects, so the boxes are
+// stated here and served by test id.
+const RECTS: Record<string, [number, number, number, number]> = {
+  thumb: [20, 600, 80, 80],
+  hero: [0, 0, 400, 300]
+};
+
+beforeEach(() => {
+  stores = createTestStores();
+  Element.prototype.getBoundingClientRect = function (this: Element) {
+    const id = this.getAttribute("data-testid");
+    const [x, y, width, height] = (id && RECTS[id]) || [0, 0, 400, 800];
+    return {
+      x,
+      y,
+      left: x,
+      top: y,
+      width,
+      height,
+      right: x + width,
+      bottom: y + height,
+      toJSON: () => ({})
+    } as DOMRect;
+  };
+});
+
+const base: ScreenContextProps = {
+  id: "screen-1",
+  isActive: true,
+  isRoot: false,
+  isPrev: false,
+  zIndex: 0,
+  pathname: "/photos",
+  params: {},
+  transitionName: "layout",
+  prevTransitionName: "layout",
+  routePath: "/photos"
+};
+
+function ScreenShell({ isActive, children }: PropsWithChildren<{ isActive: boolean }>) {
+  // The real Screen renders the LIVE status, and the morph runtime reads it to
+  // tell a screen that is in this flight from one that is merely stacked
+  // underneath. A shell pinned at IDLE would let this suite pass on a runtime
+  // that pairs across screens which are not transitioning at all.
+  const status = useStore(stores.navigate, (state) => state.status);
+  return (
+    <ScreenContext.Provider value={{ ...base, isActive }}>
+      <div
+        data-flemo-screen=""
+        data-flemo-transition="layout"
+        data-flemo-status={status}
+        data-flemo-active={isActive ? "true" : "false"}
+      >
+        {children}
+      </div>
+    </ScreenContext.Provider>
+  );
+}
+
+function Scene({ pushed }: { pushed: boolean }) {
+  return (
+    <StoreContext.Provider value={stores}>
+      <ScreenShell isActive={!pushed}>
+        <Morph layoutId="photo-1" data-testid="thumb" />
+      </ScreenShell>
+      {pushed ? (
+        <ScreenShell isActive>
+          <Morph layoutId="photo-1" data-testid="hero" />
+        </ScreenShell>
+      ) : null}
+    </StoreContext.Provider>
+  );
+}
+
+describe("Morph", () => {
+  it("renders a box carrying the morph marker", () => {
+    const { getByTestId } = render(<Scene pushed={false} />);
+    const element = getByTestId("thumb");
+    expect(element.hasAttribute("data-flemo-morph")).toBe(true);
+  });
+
+  it("hands the runtime both sides, so the arrival starts on its partner", () => {
+    const { getByTestId, rerender } = render(<Scene pushed={false} />);
+
+    // The flip has to reach the store while the source is still at rest: that
+    // is the one moment its rect is where the user last saw it.
+    act(() => {
+      stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+    });
+    rerender(<Scene pushed />);
+
+    const hero = getByTestId("hero");
+    const thumb = getByTestId("thumb");
+    expect(hero.style.animation).toContain("flemo-morph-");
+    expect(hero.getAttribute("data-flemo-morph")).toBe("enter");
+    expect(thumb.getAttribute("data-flemo-morph")).toBe("exit");
+  });
+
+  it("passes its props through to the box", () => {
+    const { getByTestId } = render(
+      <StoreContext.Provider value={stores}>
+        <ScreenShell isActive>
+          <Morph layoutId="photo-1" name="shared" className="card" data-testid="thumb">
+            <span>caption</span>
+          </Morph>
+        </ScreenShell>
+      </StoreContext.Provider>
+    );
+
+    const element = getByTestId("thumb");
+    expect(element.className).toBe("card");
+    expect(element.getAttribute("data-flemo-morph-name")).toBe("shared");
+    expect(element.textContent).toBe("caption");
+  });
+});

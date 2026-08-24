@@ -105,12 +105,38 @@ export { default as createPartTransition } from "@transition/partTransition/crea
 export { default as createRawPartTransition } from "@transition/partTransition/createRawPartTransition";
 export { partTransitionMap } from "@transition/partTransition/partTransition";
 
+// Morph primitives (shared elements: one thing on two screens, under one
+// `layoutId`). Authored exactly like every other flemo transition; the travel
+// between the two rects is measured per flight and composed by the runtime.
+export { default as createMorphTransition } from "@transition/morphTransition/createMorphTransition";
+export { default as createRawMorphTransition } from "@transition/morphTransition/createRawMorphTransition";
+export { morphTransitionMap } from "@transition/morphTransition/morphTransition";
+export { DEFAULT_MORPH_TRANSITION_NAME } from "@transition/morphTransition/typing";
+
+// THE MORPH RUNTIME. A binding registers an element and its `layoutId` before
+// paint; everything else — pairing, geometry, keyframes, cleanup — happens
+// here, off the DOM protocol, with no framework in sight. See @morph.
+export { default as attachMorph, type AttachMorphOptions } from "@morph/attachMorph";
+// The flight layer a scope stages its shared elements in. Published by the
+// binding because only a Router knows which box bounds its screens.
+export { registerMorphLayer } from "@morph/morphLayer";
+
+// THE INTERACTIVE MORPH. A gesture stages its own flights and moves them by
+// hand — the shared element follows the finger instead of running a clock — and
+// hands them back to the browser on release. A binding wires this to its swipe
+// controller once; no transition has to author anything for its morphs to
+// become draggable.
+export { beginMorphSwipe, type MorphSwipe } from "@morph/morphSwipe";
+
 // Built-in presets
 export { default as cupertino } from "@transition/cupertino";
 export { default as material } from "@transition/material";
 export { default as layout } from "@transition/layout";
 export { default as none } from "@transition/none";
 export { default as overlay } from "@transition/decorator/overlay";
+export { default as shared } from "@transition/morphTransition/shared";
+export { default as textMorph } from "@transition/morphTransition/text";
+export { default as zoomMorph } from "@transition/morphTransition/zoom";
 
 // Style compiler
 export {
@@ -189,6 +215,12 @@ export {
   GPU_PREWARM_ATTR,
   HELD_ARRIVAL_ATTR,
   IMAGE_HOLD_ATTR,
+  MORPH_ATTR,
+  MORPH_LAYER_ATTR,
+  MORPH_NAME_ATTR,
+  MORPH_ROLE,
+  MORPH_SLOT_ATTR,
+  MORPH_SHEET_ATTR,
   PART_NAME_ATTR,
   ROUTER_ATTR,
   SCREEN_ATTR,
@@ -302,6 +334,14 @@ export type {
   PartTransitionOptions,
   PartTransition
 } from "@transition/partTransition/typing";
+
+// Morph types
+export type {
+  RegisterMorphTransition,
+  MorphTransitionName,
+  MorphTransitionOptions,
+  MorphTransition
+} from "@transition/morphTransition/typing";
 
 // Pure utils
 export { default as isServer } from "@utils/isServer";

@@ -62,7 +62,6 @@ const harness = (): ((props: PropsWithChildren) => ReactNode) => {
     params: { id: "1" },
     transitionName: "cupertino" as TransitionName,
     prevTransitionName: "cupertino" as TransitionName,
-    layoutId: null,
     routePath: "/posts/:id"
   };
   return function Harness({ children }: PropsWithChildren): ReactNode {

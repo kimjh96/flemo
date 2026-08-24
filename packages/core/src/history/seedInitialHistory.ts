@@ -20,7 +20,6 @@ export default function seedInitialHistory(
     id: "root",
     pathname,
     params: getParams(routePaths, pathname, search),
-    transitionName: defaultTransitionName,
-    layoutId: null
+    transitionName: defaultTransitionName
   };
 }

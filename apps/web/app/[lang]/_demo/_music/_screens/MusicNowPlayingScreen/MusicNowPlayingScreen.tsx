@@ -1,6 +1,6 @@
 "use client";
 
-import { useNavigate, useParams } from "@flemo/react";
+import { Morph, useNavigate, useParams } from "@flemo/react";
 
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 
@@ -8,7 +8,9 @@ import MusicScreen from "../../_components/MusicScreen";
 import { artworkFor, musicCopy, trackById } from "../../_data/tracks";
 
 // Now Playing: a barless screen, so the mini player animates away as it rises.
-// The chevron pops back. Controls are decorative for the demo.
+// The chevron pops back. Controls are decorative for the demo. The cover is the
+// other half of the library row's <Morph>: same layoutId, so the little square
+// in the list and this one are one thing to flemo.
 function MusicNowPlayingScreen() {
   const lang = useShellLang();
   const navigate = useNavigate();
@@ -46,7 +48,8 @@ function MusicNowPlayingScreen() {
           <span className="size-9" aria-hidden="true" />
         </header>
 
-        <div
+        <Morph
+          layoutId={`music-art-${track.id}`}
           className="mt-4 aspect-square w-full rounded-3xl shadow-lg"
           style={{ background: artworkFor(track.hue) }}
           aria-hidden="true"

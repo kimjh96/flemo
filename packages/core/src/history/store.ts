@@ -7,7 +7,6 @@ export interface History {
   pathname: string;
   params: object;
   transitionName: TransitionName;
-  layoutId: string | number | null;
   // This entry's position stamp in the BROWSER's history line, chained from the
   // entry it was created on top of (previous frame's stamp + 1) and mirrored
   // into the keyed browser frame. The local `index` is this store's own

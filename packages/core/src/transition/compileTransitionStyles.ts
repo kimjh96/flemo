@@ -26,6 +26,8 @@ import {
   DESK_HEAD_ATTR,
   GOVERNED_ATTR,
   HELD_ARRIVAL_ATTR,
+  MORPH_ATTR,
+  MORPH_GHOST_ATTR,
   PART_NAME_ATTR,
   SCREEN_ATTR,
   STATUS_ATTR,
@@ -882,12 +884,22 @@ export const compileTransitionStyles = (
 // running). The nested selector covers `<Part>` elements inside held bars.
 const ANIM_HOLD_RULE = [
   // One selector per paused form, then the same set again scoped to the
-  // <Part> elements inside a held carrier.
+  // <Part> and morph elements inside a held carrier. A morph's keyframes are
+  // emitted per flight rather than compiled, but its CLOCK is the same one
+  // every other participant obeys — which is the whole reason a shared element
+  // starts on the same frame as the screen carrying it, with no timing code on
+  // either side.
   [
     ...ANIM_HOLD_PAUSED_VALUES.map((value) => attrValueSelector(ANIM_HOLD_ATTR, value)),
-    ...ANIM_HOLD_PAUSED_VALUES.map(
-      (value) => `${attrValueSelector(ANIM_HOLD_ATTR, value)} ${attrSelector(PART_NAME_ATTR)}`
-    )
+    ...ANIM_HOLD_PAUSED_VALUES.flatMap((value) => [
+      `${attrValueSelector(ANIM_HOLD_ATTR, value)} ${attrSelector(PART_NAME_ATTR)}`,
+      `${attrValueSelector(ANIM_HOLD_ATTR, value)} ${attrSelector(MORPH_ATTR)}`,
+      // The GHOST too. It is deliberately stripped of every morph marker so
+      // nothing mistakes the copy for the real element — which also took it
+      // out of the rule above, and a copy that dissolves while the flight is
+      // still held is an afterimage of the thing that has not moved yet.
+      `${attrValueSelector(ANIM_HOLD_ATTR, value)} ${attrSelector(MORPH_GHOST_ATTR)}`
+    ])
   ].join(",\n") + " {",
   `  animation-play-state: paused !important;`,
   `}`

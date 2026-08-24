@@ -24,6 +24,42 @@ export const cubicBezier = (x1: number, y1: number, x2: number, y2: number): Eas
   };
 };
 
+/**
+ * The INVERSE of a CSS timing function: given the value progress you want to
+ * see, the time progress that produces it.
+ *
+ * A scrubbed animation needs this. Setting an animation's clock to the drag's
+ * fraction moves the CLOCK linearly, and what the eye follows is the curve's
+ * output — with an ease that opens slowly, a finger a tenth of the way across
+ * moves the element a fiftieth, and everything it did not do is left for the
+ * release to rush through. Inverting the curve makes the element track the
+ * finger and leaves the release only what is really left.
+ *
+ * Binary search on y, the same shape as `cubicBezier`'s search on x. An
+ * overshooting curve (`backOut`, `anticipate`) is not monotonic in y, so the
+ * search returns the first crossing — which is the one before the overshoot,
+ * and the only one a drag can mean.
+ */
+export const invertEasing = (ease: AnimationOptions["ease"] | undefined): EasingFunction => {
+  const points = easeControlPoints(ease);
+  if (!points) return (value) => value;
+  const [x1, y1, x2, y2] = points;
+  const sampleX = (u: number) => 3 * (1 - u) * (1 - u) * u * x1 + 3 * (1 - u) * u * u * x2 + u ** 3;
+  const sampleY = (u: number) => 3 * (1 - u) * (1 - u) * u * y1 + 3 * (1 - u) * u * u * y2 + u ** 3;
+  return (value: number) => {
+    if (value <= 0) return 0;
+    if (value >= 1) return 1;
+    let low = 0;
+    let high = 1;
+    for (let i = 0; i < 40; i++) {
+      const mid = (low + high) / 2;
+      if (sampleY(mid) < value) low = mid;
+      else high = mid;
+    }
+    return sampleX((low + high) / 2);
+  };
+};
+
 const LINEAR: EasingFunction = (progress) => progress;
 
 // Named-ease control points, mirroring `easingToCss` in the keyframes

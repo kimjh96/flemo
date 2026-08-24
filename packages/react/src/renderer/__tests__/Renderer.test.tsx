@@ -25,8 +25,7 @@ const seed = (entries: Array<{ id: string; pathname: string; params?: object }>)
       id: e.id,
       pathname: e.pathname,
       params: e.params ?? {},
-      transitionName: "cupertino",
-      layoutId: null
+      transitionName: "cupertino"
     }))
   });
 };

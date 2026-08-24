@@ -8,17 +8,37 @@ const linear = (value: number, from: [number, number], to: [number, number]) => 
   return toMin + t * (toMax - toMin);
 };
 
+// ONE screen moves at a time, and it is always the one arriving or leaving.
+//
+// Two earlier shapes were wrong on glass. `0.97 → 1` was not a fade at all:
+// the arriving screen popped in whole and the dismissing one hard-cut. A true
+// cross-fade (both sides animating) was worse — two opaque screens at half
+// opacity double-expose, and the muddle reads as flicker exactly where a
+// shared element is meant to be carrying the eye.
+//
+// So: on a push the arriving screen fades in OVER a stationary one; on a pop
+// the dismissing screen fades out and the one underneath simply holds. The
+// fade is front-loaded (it is nearly over by a third of the flight) so the
+// window where anything shows through is short, while the shared element above
+// keeps travelling for the whole duration.
+// 0.4s, not the 0.3s it used to run. The screen's own fade is over in the first
+// third of it either way (that is what the front-loaded curve is for); the rest
+// belongs to the shared element travelling above, and 0.3s was not enough of it
+// to read as travel.
+const DURATION = 0.4;
+const FADE: [number, number, number, number] = [0.2, 0.9, 0.3, 1];
+
 const layout = createTransition({
   name: "layout",
   initial: {
-    opacity: 0.97
+    opacity: 0
   },
   idle: {
     value: {
       opacity: 1
     },
     options: {
-      duration: 0.3
+      duration: DURATION
     }
   },
   enter: {
@@ -26,23 +46,25 @@ const layout = createTransition({
       opacity: 1
     },
     options: {
-      duration: 0.3
+      duration: DURATION,
+      ease: FADE
     }
   },
   enterBack: {
     value: {
-      opacity: 0.97
+      opacity: 0
     },
     options: {
-      duration: 0.3
+      duration: DURATION,
+      ease: FADE
     }
   },
   exit: {
     value: {
-      opacity: 0.97
+      opacity: 1
     },
     options: {
-      duration: 0.3
+      duration: DURATION
     }
   },
   exitBack: {
@@ -50,7 +72,7 @@ const layout = createTransition({
       opacity: 1
     },
     options: {
-      duration: 0.3
+      duration: DURATION
     }
   },
   options: {

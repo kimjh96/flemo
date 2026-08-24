@@ -17,8 +17,7 @@ const root: History = {
   id: "root",
   pathname: "/",
   params: {},
-  transitionName: "cupertino",
-  layoutId: null
+  transitionName: "cupertino"
 };
 
 const setup = () => {
@@ -32,8 +31,7 @@ const setup = () => {
       index: 0,
       status: "IDLE",
       params: {},
-      transitionName: "cupertino",
-      layoutId: null
+      transitionName: "cupertino"
     },
     "",
     "/"
@@ -128,8 +126,7 @@ describe("createNavigationController router liveness", () => {
         index: 0,
         status: "IDLE",
         params: {},
-        transitionName: "cupertino",
-        layoutId: null
+        transitionName: "cupertino"
       },
       "",
       "/"
@@ -206,8 +203,7 @@ describe("createNavigationController router liveness", () => {
         index: 0,
         status: "IDLE",
         params: {},
-        transitionName: "cupertino",
-        layoutId: null
+        transitionName: "cupertino"
       },
       "",
       "/"

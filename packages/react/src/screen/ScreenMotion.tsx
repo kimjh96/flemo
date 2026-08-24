@@ -14,6 +14,7 @@ import {
   animHoldKey,
   ANIM_HOLD,
   ANIM_HOLD_ATTR,
+  beginMorphSwipe,
   computeBarRiding,
   computeScreenFreeze,
   eagerlyDecodeImages,
@@ -27,7 +28,8 @@ import {
   resolveTransition,
   restLayerPromotionEnabled,
   sharedBarsMatch,
-  type AnimHoldCoordinator
+  type AnimHoldCoordinator,
+  type MorphSwipe
 } from "@flemo/core";
 
 import getScopeAnimHoldCoordinator from "@screen/scopeAnimHoldCoordinator";
@@ -76,6 +78,7 @@ function ScreenMotion({
   hideSystemNavigationBar,
   backgroundColor = "white",
   contentScrollable = true,
+  paintHidden = false,
   ...props
 }: ScreenProps) {
   const { id, isActive, isRoot, isPrev, zIndex, transitionName, prevTransitionName } = useScreen();
@@ -299,6 +302,9 @@ function ScreenMotion({
   };
 
   const swipeControllerRef = useRef<ReturnType<typeof createSwipeController> | null>(null);
+  // The gesture's own morph flights, alive only between a drag's start and its
+  // release.
+  const morphSwipeRef = useRef<MorphSwipe | null>(null);
   if (!swipeControllerRef.current) {
     swipeControllerRef.current = createSwipeController({
       getTransition: () => swipeEnvRef.current.transition,
@@ -339,7 +345,32 @@ function ScreenMotion({
         return partnerId ? stores.screen.getState().sharedBarMetadata[partnerId] : undefined;
       },
       setDragStatus,
-      back: () => window.history.back()
+      // The ROUTER's own back, not the browser's. They are the same call for a
+      // browser Router and nothing alike for a memory one: `window.history`
+      // there belongs to the page around the Router, so a swipe-back committed
+      // inside a memory-history stack navigated the whole document away instead
+      // of popping the stack the gesture was dragging.
+      back: () => stores.driver.back(),
+      // THE SHARED ELEMENT FOLLOWS THE FINGER.
+      //
+      // A morph cannot be driven from a transition's swipe hooks the way a
+      // screen or a <Part> is — the element belongs to a flight the runtime
+      // stages, not to the author. So the gesture is handed to the morph
+      // runtime here, once, and every transition that declares a
+      // `swipeDirection` gets an interactive morph without authoring one.
+      //
+      // A drag that pairs nothing costs nothing: the handle reports itself
+      // inactive and every call after that is a no-op.
+      onDragStart: () => {
+        morphSwipeRef.current = beginMorphSwipe(stores.navigate, "POPPING");
+      },
+      onDragProgress: (progress) => {
+        morphSwipeRef.current?.scrub(progress);
+      },
+      onDragSettle: (committed, seconds) => {
+        morphSwipeRef.current?.settle(committed, seconds);
+        morphSwipeRef.current = null;
+      }
     });
   }
   const swipeController = swipeControllerRef.current;
@@ -874,6 +905,13 @@ function ScreenMotion({
         width: "100%",
         height: "100%",
         display: "flex",
+        // COVERED means not painted, from the commit it is covered — the
+        // release that also stops the paint can be seconds later (see
+        // ScreenFreeze), and until then this screen is a window onto
+        // everything under it for anything above that is not opaque. Paint is
+        // the cheap half: no boxes are removed and nothing is unmounted, so
+        // waking is a repaint rather than a re-layout.
+        visibility: paintHidden ? "hidden" : undefined,
         // Sibling screens stack by DOM order (no z-index) — the newest screen
         // naturally paints on top. During park-under the ENTERING screen must
         // sink BENEATH the previous screen while its destination tiles

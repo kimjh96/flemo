@@ -19,6 +19,7 @@ export { default as ScreenMotion } from "@screen/ScreenMotion";
 export { default as ScreenFreeze } from "@screen/ScreenFreeze";
 export { default as ScreenDecorator } from "@screen/ScreenDecorator";
 export { default as Part, type PartProps } from "@screen/Part";
+export { default as Morph, type MorphProps } from "@screen/Morph";
 export { default as ScreenContext, type ScreenContextProps } from "@screen/ScreenContext";
 export { default as useHistoryStore } from "@stores/useHistoryStore";
 export { default as useNavigateStore } from "@stores/useNavigateStore";
@@ -44,6 +45,9 @@ export {
   createPartTransition,
   createRawPartTransition,
   partTransitionMap,
+  createMorphTransition,
+  createRawMorphTransition,
+  morphTransitionMap,
   createBrowserHistoryDriver
 } from "@flemo/core";
 
@@ -55,6 +59,9 @@ export type {
   PartTransitionName,
   RegisterPartTransition,
   PartTransitionOptions,
+  MorphTransitionName,
+  RegisterMorphTransition,
+  MorphTransitionOptions,
   HistoryDriver,
   HistoryNavEvent
 } from "@flemo/core";

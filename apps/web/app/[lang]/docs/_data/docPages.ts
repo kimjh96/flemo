@@ -377,7 +377,10 @@ const EN: DocSection[] = [
                 "`transitionName`",
                 "Override the transition for this navigation (on `pop`, the back animation)"
               ],
-              ["`layoutId`", 'Pair with `transitionName: "layout"` for shared-element morphs'],
+              [
+                "`layoutId`",
+                "Tag this entry with which item opened it, readable as `useScreen().layoutId`"
+              ],
               ["`skip` / `until`", "Reach past the top in one transition"],
               ["`router`", "Run this navigation on a different Router, see below"]
             ]
@@ -479,7 +482,7 @@ const EN: DocSection[] = [
             rows: [
               ["`cupertino`", "iOS-style horizontal slide, edge swipe-back included (default)"],
               ["`material`", "Slides up from below, drag-down to dismiss"],
-              ["`layout`", "Light fade tuned for layoutId morphs"],
+              ["`layout`", "Light fade that leaves a shared element room to travel"],
               ["`none`", "Instant cut, no animation"]
             ]
           },
@@ -762,9 +765,9 @@ const EN: DocSection[] = [
                 "`@flemo/react`"
               ],
               [
-                "`LayoutScreen` / `LayoutConfig`",
-                "Shared `layoutId` morphs",
-                "`@flemo/react-layout`"
+                "`Morph`",
+                "A shared element: one thing on two screens, paired by `layoutId`",
+                "`@flemo/react`"
               ]
             ]
           },
@@ -800,8 +803,10 @@ const EN: DocSection[] = [
               "`createTransition` / `createRawTransition` author transitions",
               "`createDecorator` / `createRawDecorator` author decorators",
               "`createPartTransition` / `createRawPartTransition` author part transitions",
+              "`createMorphTransition` / `createRawMorphTransition` author shared-element morphs",
               "Built-in transitions: `cupertino`, `material`, `layout`, `none`",
-              "Built-in decorator: `overlay`"
+              "Built-in decorator: `overlay`",
+              "Built-in morph: `shared`"
             ]
           },
           { type: "h", text: "Type registries" },
@@ -813,89 +818,134 @@ const EN: DocSection[] = [
               ["`RegisterRouter`", "Register Router names for type-safe `router` targets"],
               ["`RegisterTransition`", "Register custom transition names"],
               ["`RegisterDecorator`", "Register custom decorator names"],
-              ["`RegisterPartTransition`", "Register custom part transition names"]
+              ["`RegisterPartTransition`", "Register custom part transition names"],
+              ["`RegisterMorphTransition`", "Register custom morph transition names"]
             ]
           },
           { type: "h", text: "Peer dependencies" },
           {
             type: "p",
-            text: "`@flemo/react` requires only `react ^19` and `react-dom ^19`. Shared-element transitions are the one thing that needs more: `@flemo/react-layout` with `motion ^12`, added only when you reach for them."
+            text: "`@flemo/react` requires only `react ^19` and `react-dom ^19`. Nothing else, shared-element morphs included: they used to need `@flemo/react-layout` and `motion`, and now they are `<Morph>` in the same package."
           }
         ]
       }
     ]
   },
   {
-    title: "Experimental",
+    title: "Shared elements",
     pages: [
       {
-        slug: "layout-screen",
-        title: "LayoutScreen",
+        slug: "morph",
+        title: "Morph",
         blocks: [
           {
+            type: "p",
+            text: "`<Morph>` marks an element that exists on two screens. Give both sides the same `layoutId` and flemo treats them as one thing: the arriving element starts where its partner was, the two trade places while they are still on top of each other, and it lands exactly where its own layout puts it."
+          },
+          {
             type: "note",
-            text: "`@flemo/react-layout` is experimental. Reach for it only when two screens share an element."
+            text: "A morph needs no special screen and no particular transition. Keep the one you chose: for the length of the flight the element is staged ABOVE both screens, so whatever they are doing — fading, sliding, cutting — cannot clip it, cover it or carry it along."
           },
+          { type: "h", text: "The source" },
           {
             type: "p",
-            text: "`LayoutScreen` is a drop-in replacement for `Screen` that adds shared-element morphing across navigation. A thumbnail in a list unfolds into the hero image on the next screen, then folds back when you go back. It is the gesture iOS uses for photos and Music, and Material 3 calls a container transform."
-          },
-          {
-            type: "p",
-            text: "It lives in `@flemo/react-layout`, a separate package, with `motion` as a peer dependency, so apps that do not morph do not pay for it."
-          },
-          { type: "code", lang: "bash", code: "pnpm add @flemo/react-layout motion" },
-          { type: "h", text: "The mental model" },
-          {
-            type: "table",
-            headers: ["Piece", "Job"],
-            rows: [
-              [
-                '`transitionName: "layout"`',
-                "Screen-level cross-fade that will not hide the morph"
-              ],
-              ["`layoutId` (push option)", "The pairing key, made available on the destination"],
-              ["`LayoutConfig`", "Aligns motion's layout timing with the screen transition"],
-              ["`LayoutScreen`", "Keeps the layoutId pairing alive across unmount"],
-              ["`motion.*` + `layoutId`", "Tells motion which DOM nodes are the same"]
-            ]
+            text: "Wrap the element you want to travel. The `layoutId` is the whole pairing — there is no push option to remember and no `Screen` to swap out."
           },
           {
             type: "code",
             lang: "tsx",
-            code: 'navigate.push("/photo/:id", { id }, { transitionName: "layout", layoutId: id });'
+            code: 'import { Morph, Screen, useNavigate } from "@flemo/react";\n\nfunction Gallery() {\n  const { push } = useNavigate();\n\n  return (\n    <Screen>\n      <ul>\n        {photos.map((photo) => (\n          <li key={photo.id}>\n            <Morph\n              layoutId={`photo-${photo.id}`}\n              onClick={() => push("/photos/:id", { id: photo.id })}\n            >\n              <img src={photo.thumb} alt="" />\n            </Morph>\n          </li>\n        ))}\n      </ul>\n    </Screen>\n  );\n}'
           },
-          { type: "h", text: "A complete example" },
+          { type: "h", text: "The destination" },
           {
             type: "p",
-            text: "The source wraps its morphing tree in `LayoutConfig`, tags each element with a shared `layoutId`, and pushes with the `layout` transition."
+            text: "The same `layoutId`, wherever that element belongs on the arriving screen."
           },
           {
             type: "code",
             lang: "tsx",
-            code: 'import { Screen, useNavigate } from "@flemo/react";\nimport { LayoutConfig } from "@flemo/react-layout";\nimport { motion } from "motion/react";\n\nfunction Gallery() {\n  const navigate = useNavigate();\n  const open = (p) =>\n    navigate.push("/photos/:id", { id: p.id }, { transitionName: "layout", layoutId: p.id });\n\n  return (\n    <Screen>\n      <LayoutConfig>\n        {photos.map((p) => (\n          <motion.li key={p.id} layoutId={`photo-card-${p.id}`} onClick={() => open(p)}>\n            <motion.img layoutId={`photo-image-${p.id}`} src={p.thumb} />\n          </motion.li>\n        ))}\n      </LayoutConfig>\n    </Screen>\n  );\n}'
+            code: 'import { Morph, Screen, useParams } from "@flemo/react";\n\nfunction Photo() {\n  const { id } = useParams<{ id: string }>();\n\n  return (\n    <Screen>\n      <Morph layoutId={`photo-${id}`} className="hero">\n        <img src={photoById(id).full} alt="" />\n      </Morph>\n    </Screen>\n  );\n}'
           },
-          {
-            type: "p",
-            text: "The destination replaces `Screen` with `LayoutScreen`, reads `useScreen().layoutId` to rebuild the same ids, and morphs a `fixed inset-0` container to fill the viewport."
-          },
-          {
-            type: "code",
-            lang: "tsx",
-            code: 'import { useScreen } from "@flemo/react";\nimport { LayoutScreen, LayoutConfig } from "@flemo/react-layout";\nimport { motion } from "motion/react";\n\nfunction Photo() {\n  const { layoutId } = useScreen();\n  const photo = usePhoto(layoutId);\n\n  return (\n    <LayoutScreen>\n      <LayoutConfig>\n        <motion.div layoutId={`photo-card-${layoutId}`} className="fixed inset-0">\n          <motion.img layoutId={`photo-image-${layoutId}`} src={photo.full} />\n        </motion.div>\n      </LayoutConfig>\n    </LayoutScreen>\n  );\n}'
-          },
+          { type: "h", text: "What it does" },
           {
             type: "list",
             items: [
-              "Both screens wrap their motion tree in `LayoutConfig`, so each side animates on the same timeline",
-              "Every paired element shares a `layoutId` prefix (`photo-card-`, `photo-image-`) with the same id appended",
-              "The destination reads `useScreen().layoutId`, the only channel for which card it came from",
-              "The destination's container is `fixed inset-0`, which is what creates the unfold to full screen"
+              "The source's box is measured the instant the navigation starts, while it is still where you last saw it",
+              "It leaves its screen for the flight and returns on landing, so no scroll container, no opaque arrival and no sliding transition can get in the way of the travel",
+              "It lands on its real layout box, so the resting frame is pixel-exact by construction",
+              "Its corner radius is carried across, pre-divided by the scale so it reads at its authored size on both ends"
             ]
           },
           {
             type: "note",
-            text: "The destination's `layoutId` must be identical to the source's for each element. If they differ, motion cannot pair them and the element just fades."
+            text: "Both sides must be mounted when the navigation starts — a morph pairs elements, not routes. The element itself is moved out of your tree for the length of the flight and put back exactly as it was, so avoid measuring or mutating it from outside during a navigation."
+          },
+          { type: "h", text: "Nesting" },
+          {
+            type: "p",
+            text: "Morphs nest, and a nested one RIDES its container. Make the card a `<Morph>` and the artwork inside it another, and the card is what travels — the artwork goes with it, staying exactly where it belongs on the card the whole way. That is deliberate: letting both fly on their own curves is what tears a card apart mid-flight, with the artwork drifting out of the box it is supposed to be inside. The container is the unit the eye follows."
+          },
+          {
+            type: "note",
+            text: 'A morph is a transform, so a heading that grows from 14px to 24px scales its glyphs rather than re-typesetting them. Use the built-in `text` preset (`<Morph name="text">`) for type: it scales by the LINE BOX and pins the start edge. Anchoring text to its WIDTH is the trap — a text block is as wide as whatever contains it, so the width ratio says nothing about the type size and the text bulges past its target before shrinking back into it.'
+          },
+          { type: "h", text: "When the element IS the screen" },
+          {
+            type: "p",
+            text: "A container that grows to fill the viewport is the same feature with a bigger box — and what happens behind it is the SCREEN transition's business, not the morph's. Author the screen to follow the element on its way out (`exit: { scale: 1.08, filter: \"blur(10px)\" }` — the element is opening OUT, so what is behind it pushes out too), leave the arriving screen transparent so it shows through, and the element opens over a background that moves with it. The two stay in step for free: a morph with no duration of its own inherits the flying screen's, and one hold releases both on the same frame."
+          },
+          { type: "h", text: "Authoring the morph" },
+          {
+            type: "p",
+            text: "A morph is a transition like every other one in flemo. `createMorphTransition` takes the same shape as `createTransition` — an `initial` plus the enter / exit sides — register it on the `Router`, and reference it by name."
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: 'import { createMorphTransition, Morph, Router } from "@flemo/react";\n\nconst unfold = createMorphTransition({\n  name: "unfold",\n  initial: { opacity: 0 },\n  idle: { value: { opacity: 1 }, options: { duration: 0 } },\n  enter: { value: { opacity: 1 }, options: { duration: 0.45, ease: [0.32, 0.72, 0, 1] } },\n  exit: { value: { opacity: 0 }, options: { duration: 0.45 } },\n  options: { crossFade: 0.25 }\n});\n\n<Router morphTransitions={[unfold]}>...</Router>;\n\n<Morph layoutId={`photo-${id}`} name="unfold" />;'
+          },
+          {
+            type: "p",
+            text: "The travel itself is not authored: it is measured per flight. What you write is everything else — the timing, the fade, an optional transform flourish that composes on top of the travel."
+          },
+          {
+            type: "table",
+            headers: ["Option", "What it does"],
+            rows: [
+              [
+                "`crossFade`",
+                "Share of the flight over which the two sides hand over (0-1, default 0.12)"
+              ],
+              [
+                "`scale`",
+                "`box` matches the partner per axis; `width` / `height` scale by one ratio and distort nothing; `none` only moves"
+              ],
+              [
+                "`anchor`",
+                "Which point the two boxes share — `centre`, or `start` for left-aligned content"
+              ],
+              [
+                "`radius`",
+                "Interpolate `border-radius` with scale-corrected endpoints (default true)"
+              ],
+              [
+                "`enter` / `exit`",
+                "The arriving element and the one it replaces, animating at the same time"
+              ],
+              [
+                "`options.duration`",
+                "Omit it and the morph inherits the flying screen's, so it lands with the screen"
+              ]
+            ]
+          },
+          {
+            type: "note",
+            text: "The built-in `shared` preset authors no duration on purpose. That is what lets one morph look right under any transition you pair it with."
+          },
+          { type: "h", text: "Coming from @flemo/react-layout" },
+          {
+            type: "p",
+            text: '`@flemo/react-layout` and its `motion` peer dependency are gone. `LayoutScreen` is now plain `Screen` (flemo keeps a screen carrying a travelling element from painting over its partner on its own), `LayoutConfig` has no job left because the timing is flemo\'s already, and each `motion.div layoutId="x"` becomes `<Morph layoutId="x">`.'
           }
         ]
       }
@@ -1253,7 +1303,10 @@ const KO: DocSection[] = [
             headers: ["옵션", "역할"],
             rows: [
               ["`transitionName`", "이 이동의 트랜지션을 재정의해요(`pop`에선 뒤로 애니메이션)"],
-              ["`layoutId`", '`transitionName: "layout"`과 짝지어 공유 요소 모핑'],
+              [
+                "`layoutId`",
+                "이 엔트리가 어느 항목에서 열렸는지 표시, `useScreen().layoutId`로 읽어요"
+              ],
               ["`skip` / `until`", "한 번의 전환으로 여러 화면 건너뛰기"],
               ["`router`", "이 내비게이션을 실행할 Router 지정, 아래 참고"]
             ]
@@ -1355,13 +1408,27 @@ const KO: DocSection[] = [
             rows: [
               ["`cupertino`", "iOS식 가로 슬라이드, 엣지 스와이프 뒤로 포함(기본)"],
               ["`material`", "아래에서 위로, 드래그로 닫기"],
-              ["`layout`", "layoutId 모핑에 맞춘 옅은 페이드"],
+              ["`layout`", "공유 요소가 이동할 자리를 남기는 옅은 페이드"],
               ["`none`", "즉시 컷, 애니메이션 없음"]
             ]
           },
           {
             type: "p",
             text: "`Router`에 전역 기본값을 두거나, 이동마다 `transitionName`으로 재정의해요."
+          },
+          { type: "h", text: "중첩" },
+          {
+            type: "p",
+            text: "모핑은 중첩되고, 안쪽 모핑은 바깥 모핑에 **실려서** 갑니다. 카드를 `<Morph>`로 두고 그 안의 아트워크도 `<Morph>`로 두면, 이동하는 건 카드이고 아트워크는 카드 위 제자리를 지킨 채 함께 갑니다. 의도된 선택이에요. 둘을 각자의 곡선으로 날리면 비행 도중에 카드가 분해돼서, 아트워크가 자기가 들어 있어야 할 상자 밖으로 흘러나갑니다. 눈이 따라가는 단위는 컨테이너예요."
+          },
+          {
+            type: "note",
+            text: '모핑은 transform이라, 14px에서 24px로 커지는 제목은 글자를 다시 조판하는 게 아니라 확대돼요. 텍스트에는 빌트인 `text` 프리셋(`<Morph name="text">`)을 쓰세요. 줄 상자(line box) 기준으로 키우고 시작 모서리를 고정해요. 가로폭 기준이 함정인데, 텍스트 블록의 폭은 담고 있는 컨테이너의 폭이라 글자 크기와 무관해서 목표보다 부풀었다가 다시 줄어드는 것처럼 보여요.'
+          },
+          { type: "h", text: "요소가 곧 화면이 될 때" },
+          {
+            type: "p",
+            text: '뷰포트를 가득 채우는 컨테이너도 상자가 커진 같은 기능이에요. 그 뒤에서 무슨 일이 일어나는지는 모핑이 아니라 **화면 트랜지션**의 소관이고요. 물러나는 화면이 축소되며 흐려지도록 작성하고(`exit: { scale: 0.92, filter: "blur(10px)" }`), 도착 화면은 투명하게 두어 그게 비치게 하면, 요소가 물러나는 배경 위로 열립니다. 둘의 박자는 저절로 맞아요. 길이를 안 정한 모핑은 비행 중인 화면의 길이를 물려받고, 하나의 홀드가 둘을 같은 프레임에 놓아줍니다.'
           },
           { type: "h", text: "직접 만들기" },
           {
@@ -1622,7 +1689,7 @@ const KO: DocSection[] = [
               ["`Screen`", "상단/하단 바와 세이프 에어리어 슬롯을 가진 화면", "`@flemo/react`"],
               ["`Slot`", "전환 영역 표시, 주변 레이아웃은 유지", "`@flemo/react`"],
               ["`Part`", "화면 안 한 요소에 이름 붙인 파트 트랜지션을 실행", "`@flemo/react`"],
-              ["`LayoutScreen` / `LayoutConfig`", "공유 `layoutId` 모핑", "`@flemo/react-layout`"]
+              ["`Morph`", "공유 요소, `layoutId`로 짝지은 두 화면의 한 물건", "`@flemo/react`"]
             ]
           },
           { type: "h", text: "훅" },
@@ -1676,80 +1743,98 @@ const KO: DocSection[] = [
           { type: "h", text: "Peer 의존성" },
           {
             type: "p",
-            text: "`@flemo/react`는 `react ^19`, `react-dom ^19`만 필요해요. 더 필요한 건 공유 요소 전환 하나뿐이에요. 그때만 `@flemo/react-layout`이 `motion ^12`을 함께 요구하니, 그 전환이 필요할 때 설치하면 돼요."
+            text: "`@flemo/react`는 `react ^19`, `react-dom ^19`만 필요해요. 공유 요소 모핑까지 포함해서 그게 전부예요. 예전에는 `@flemo/react-layout`과 `motion`이 필요했지만, 이제 같은 패키지의 `<Morph>`예요."
           }
         ]
       }
     ]
   },
   {
-    title: "실험적",
+    title: "공유 요소",
     pages: [
       {
-        slug: "layout-screen",
-        title: "LayoutScreen",
+        slug: "morph",
+        title: "Morph",
         blocks: [
           {
+            type: "p",
+            text: "`<Morph>`는 두 화면에 걸쳐 존재하는 요소를 표시해요. 양쪽에 같은 `layoutId`를 주면 flemo가 하나의 물건으로 다뤄요. 도착 요소가 짝이 있던 자리에서 출발하고, 아직 서로 겹쳐 있는 동안 자리를 바꾸고, 자기 레이아웃이 정한 위치에 정확히 착지해요."
+          },
+          {
             type: "note",
-            text: "`@flemo/react-layout`은 실험적이에요. 두 화면이 같은 요소를 공유할 때만 사용하세요."
+            text: "모핑에는 전용 화면도, 특정 트랜지션도 필요 없어요. 고른 트랜지션을 그대로 쓰세요. 비행하는 동안 요소는 두 화면 **위**에 올라가 있어서, 화면이 페이드하든 슬라이드하든 컷하든 요소를 자르거나 덮거나 끌고 갈 수 없어요."
           },
+          { type: "h", text: "출발 화면" },
           {
             type: "p",
-            text: "`LayoutScreen`은 `Screen`을 대체하면서 이동 중 공유 요소 모핑을 더해요. 목록의 썸네일이 다음 화면의 큰 이미지로 펼쳐졌다가, 뒤로 가면 다시 접혀요. iOS의 사진·뮤직이 사용하는 동작이고, Material 3은 컨테이너 트랜스폼이라 불러요."
-          },
-          {
-            type: "p",
-            text: "별도 패키지 `@flemo/react-layout`에 있고 `motion`이 peer 의존성이라, 모핑하지 않는 앱은 비용을 안 내요."
-          },
-          { type: "code", lang: "bash", code: "pnpm add @flemo/react-layout motion" },
-          { type: "h", text: "멘탈 모델" },
-          {
-            type: "table",
-            headers: ["조각", "역할"],
-            rows: [
-              ['`transitionName: "layout"`', "모핑을 가리지 않는 화면 레벨 크로스페이드"],
-              ["`layoutId` (push 옵션)", "짝짓기 키, 도착 화면에서 사용 가능"],
-              ["`LayoutConfig`", "motion의 레이아웃 타이밍을 화면 전환에 맞춤"],
-              ["`LayoutScreen`", "언마운트를 가로질러 layoutId 짝을 살려둠"],
-              ["`motion.*` + `layoutId`", "어떤 DOM 노드가 같은 것인지 motion에 알려줌"]
-            ]
+            text: "이동할 요소를 감싸요. 짝짓기는 `layoutId` 하나로 끝나요. 기억할 push 옵션도, 갈아끼울 `Screen`도 없어요."
           },
           {
             type: "code",
             lang: "tsx",
-            code: 'navigate.push("/photo/:id", { id }, { transitionName: "layout", layoutId: id });'
+            code: 'import { Morph, Screen, useNavigate } from "@flemo/react";\n\nfunction Gallery() {\n  const { push } = useNavigate();\n\n  return (\n    <Screen>\n      <ul>\n        {photos.map((photo) => (\n          <li key={photo.id}>\n            <Morph\n              layoutId={`photo-${photo.id}`}\n              onClick={() => push("/photos/:id", { id: photo.id })}\n            >\n              <img src={photo.thumb} alt="" />\n            </Morph>\n          </li>\n        ))}\n      </ul>\n    </Screen>\n  );\n}'
           },
-          { type: "h", text: "전체 예제" },
+          { type: "h", text: "도착 화면" },
           {
             type: "p",
-            text: "출발 화면은 모핑할 트리를 `LayoutConfig`로 감싸고, 각 요소에 공유 `layoutId`를 달고, `layout` 트랜지션으로 push해요."
+            text: "같은 `layoutId`를, 그 요소가 도착 화면에서 있어야 할 자리에 두면 돼요."
           },
           {
             type: "code",
             lang: "tsx",
-            code: 'import { Screen, useNavigate } from "@flemo/react";\nimport { LayoutConfig } from "@flemo/react-layout";\nimport { motion } from "motion/react";\n\nfunction Gallery() {\n  const navigate = useNavigate();\n  const open = (p) =>\n    navigate.push("/photos/:id", { id: p.id }, { transitionName: "layout", layoutId: p.id });\n\n  return (\n    <Screen>\n      <LayoutConfig>\n        {photos.map((p) => (\n          <motion.li key={p.id} layoutId={`photo-card-${p.id}`} onClick={() => open(p)}>\n            <motion.img layoutId={`photo-image-${p.id}`} src={p.thumb} />\n          </motion.li>\n        ))}\n      </LayoutConfig>\n    </Screen>\n  );\n}'
+            code: 'import { Morph, Screen, useParams } from "@flemo/react";\n\nfunction Photo() {\n  const { id } = useParams<{ id: string }>();\n\n  return (\n    <Screen>\n      <Morph layoutId={`photo-${id}`} className="hero">\n        <img src={photoById(id).full} alt="" />\n      </Morph>\n    </Screen>\n  );\n}'
           },
-          {
-            type: "p",
-            text: "도착 화면은 `Screen` 대신 `LayoutScreen`을 사용하고, `useScreen().layoutId`로 같은 id를 다시 만들고, `fixed inset-0` 컨테이너를 화면 가득 모핑해요."
-          },
-          {
-            type: "code",
-            lang: "tsx",
-            code: 'import { useScreen } from "@flemo/react";\nimport { LayoutScreen, LayoutConfig } from "@flemo/react-layout";\nimport { motion } from "motion/react";\n\nfunction Photo() {\n  const { layoutId } = useScreen();\n  const photo = usePhoto(layoutId);\n\n  return (\n    <LayoutScreen>\n      <LayoutConfig>\n        <motion.div layoutId={`photo-card-${layoutId}`} className="fixed inset-0">\n          <motion.img layoutId={`photo-image-${layoutId}`} src={photo.full} />\n        </motion.div>\n      </LayoutConfig>\n    </LayoutScreen>\n  );\n}'
-          },
+          { type: "h", text: "무슨 일이 일어나나요" },
           {
             type: "list",
             items: [
-              "두 화면 모두 motion 트리를 `LayoutConfig`로 감싸서 양쪽이 같은 타임라인으로 움직여요",
-              "짝이 되는 요소는 같은 `layoutId` 접두사(`photo-card-`, `photo-image-`)에 같은 id를 붙여요",
-              "도착 화면은 `useScreen().layoutId`를 읽어요. 어느 카드에서 왔는지 아는 유일한 통로예요",
-              "도착 컨테이너가 `fixed inset-0`이라서 화면 가득 펼쳐지는 효과가 나요"
+              "이동이 시작되는 순간 출발 요소의 박스를 재요. 사용자가 마지막으로 본 그 자리예요",
+              "비행 동안 요소는 자기 화면을 떠났다가 착지할 때 돌아와요. 스크롤 컨테이너도, 불투명한 도착 화면도, 미끄러지는 트랜지션도 이동을 방해할 수 없어요",
+              "실제 레이아웃 박스에 착지하므로, 정지 프레임은 구조적으로 픽셀 단위까지 정확해요",
+              "모서리 반경도 함께 옮겨가요. 스케일로 미리 나눠 두어서 양 끝에서 작성한 크기 그대로 보여요"
             ]
           },
           {
             type: "note",
-            text: "도착의 `layoutId`가 출발과 정확히 같아야 motion이 짝지어요. 다르면 짝을 못 찾아 요소가 그냥 페이드돼요."
+            text: "이동이 시작될 때 양쪽이 모두 마운트돼 있어야 해요. 모핑은 라우트가 아니라 요소를 짝지어요. 그리고 비행 동안 요소는 여러분의 트리 밖으로 잠깐 옮겨졌다가 원래대로 돌아오니, 이동 중에 바깥에서 그 요소를 재거나 건드리지 마세요."
+          },
+          { type: "h", text: "직접 만들기" },
+          {
+            type: "p",
+            text: "모핑도 flemo의 다른 트랜지션과 똑같은 1급 프리미티브예요. `createMorphTransition`은 `createTransition`과 같은 모양(`initial` + enter/exit 두 면)이고, `Router`에 등록한 뒤 이름으로 참조해요."
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: 'import { createMorphTransition, Morph, Router } from "@flemo/react";\n\nconst unfold = createMorphTransition({\n  name: "unfold",\n  initial: { opacity: 0 },\n  idle: { value: { opacity: 1 }, options: { duration: 0 } },\n  enter: { value: { opacity: 1 }, options: { duration: 0.45, ease: [0.32, 0.72, 0, 1] } },\n  exit: { value: { opacity: 0 }, options: { duration: 0.45 } },\n  options: { crossFade: 0.25 }\n});\n\n<Router morphTransitions={[unfold]}>...</Router>;\n\n<Morph layoutId={`photo-${id}`} name="unfold" />;'
+          },
+          {
+            type: "p",
+            text: "이동 자체는 작성하는 게 아니라 비행마다 측정돼요. 작성하는 건 그 밖의 전부예요. 타이밍, 페이드, 그리고 이동 위에 합성되는 선택적인 transform 장식이요."
+          },
+          {
+            type: "table",
+            headers: ["옵션", "역할"],
+            rows: [
+              ["`crossFade`", "두 면이 넘겨받는 구간, 전체 길이 대비 비율(0-1, 기본 0.12)"],
+              [
+                "`scale`",
+                "`box`는 축별로 짝에 맞추고, `width`/`height`는 한 비율로만 키워 왜곡이 없으며, `none`은 이동만"
+              ],
+              ["`anchor`", "두 상자가 겹칠 기준점 — `centre`, 좌측 정렬 콘텐츠라면 `start`"],
+              ["`radius`", "스케일 보정된 양 끝값으로 `border-radius` 보간(기본 true)"],
+              ["`enter` / `exit`", "도착 요소와 그것이 대체하는 요소, 동시에 움직여요"],
+              ["`options.duration`", "비우면 비행 중인 화면의 길이를 물려받아 화면과 함께 착지해요"]
+            ]
+          },
+          {
+            type: "note",
+            text: "빌트인 `shared` 프리셋은 일부러 길이를 안 정해요. 그래서 어떤 트랜지션과 짝지어도 하나의 모핑이 알맞게 보여요."
+          },
+          { type: "h", text: "@flemo/react-layout에서 옮겨오기" },
+          {
+            type: "p",
+            text: '`@flemo/react-layout`과 `motion` peer 의존성은 사라졌어요. `LayoutScreen`은 그냥 `Screen`이고(이동 중인 요소를 실은 화면이 짝을 덮지 않도록 flemo가 알아서 처리해요), `LayoutConfig`는 타이밍이 이미 flemo 것이라 할 일이 없어요. `motion.div layoutId="x"`는 각각 `<Morph layoutId="x">`가 돼요.'
           }
         ]
       }

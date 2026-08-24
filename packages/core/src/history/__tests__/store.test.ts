@@ -6,8 +6,7 @@ const makeEntry = (overrides: Partial<History> = {}): History => ({
   id: overrides.id ?? Math.random().toString(36).slice(2),
   pathname: overrides.pathname ?? "/",
   params: overrides.params ?? {},
-  transitionName: overrides.transitionName ?? "cupertino",
-  layoutId: overrides.layoutId ?? null
+  transitionName: overrides.transitionName ?? "cupertino"
 });
 
 let store: HistoryStoreApi;

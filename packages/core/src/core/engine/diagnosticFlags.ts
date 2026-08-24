@@ -37,6 +37,16 @@ export const readImageHoldFlag = (): "on" | "off" | null => {
   return value === "on" || value === "off" ? value : null;
 };
 
+// `flemo:morph=on` — trace the morph runtime's decisions.
+//
+// A flight that does not happen is SILENT by design: a morph with no partner,
+// no measurable box or no layer simply declines, because a shared element is
+// an enhancement and a broken one must never take the navigation with it. The
+// cost of that is that a miss looks exactly like a screen transition without
+// a morph in it — which is what a consumer reports, once, with no way to ask
+// for it again. Armed, every decision says which one it was.
+export const morphTraceArmed = (): boolean => readStorageValue("flemo:morph") === "on";
+
 // A touch Blink session — the phone class the gate was actually validated on.
 // See the default below: this is NOT a weak-device predicate. The evidence is
 // about the phenomenon (a heavy mount commit stalling even the compositor's

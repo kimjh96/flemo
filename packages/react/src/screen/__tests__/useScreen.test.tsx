@@ -31,7 +31,6 @@ describe("useScreen", () => {
       params: { id: "42" },
       transitionName: "cupertino",
       prevTransitionName: "cupertino",
-      layoutId: 42,
       routePath: "/posts/:id"
     };
 

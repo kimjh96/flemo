@@ -18,8 +18,7 @@ const historyEntry = (id: string): History => ({
   id,
   pathname: `/${id}`,
   params: {},
-  transitionName: "cupertino" as History["transitionName"],
-  layoutId: null
+  transitionName: "cupertino" as History["transitionName"]
 });
 
 // An in-test driver capturing pushes/replaces and letting a test fire the

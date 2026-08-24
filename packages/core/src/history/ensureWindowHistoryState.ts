@@ -26,8 +26,7 @@ export default function ensureWindowHistoryState(
     index: 0,
     status: "IDLE",
     params: rootParams,
-    transitionName: defaultTransitionName,
-    layoutId: null
+    transitionName: defaultTransitionName
   };
 
   if (routerKey === null) {

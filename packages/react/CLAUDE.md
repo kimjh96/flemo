@@ -212,6 +212,29 @@ animHold]` — the anim-hold release re-runs it, which is how motion hands to th
   persistent element means the first release un-holds it for the other.
 - `ScreenDecorator.tsx`: the dim/decorator element (`decoratorMap` lookup), driven by
   the same holds/engine joins.
+- `Morph.tsx` + `MorphLayer/`: a SHARED ELEMENT — the same thing on two screens,
+  paired by `layoutId`. Twenty lines on purpose: it renders a SLOT and a box, and calls
+  core's `attachMorph` in a layout effect, re-registering on every status change (that
+  IS the runtime's contract, and it is what lets an unfrozen previous screen still take
+  its side of a pop). Everything else — pairing, the measured travel, the per-flight
+  keyframes, cleanup — is core's `src/morph`, which reads the DOM PROTOCOL rather than
+  any store, so a Solid or Svelte binding is the same twenty lines.
+  Four things are worth knowing before touching this:
+  1. For the flight the element is MOVED into the flight layer (`MorphLayer`, rendered
+     by the Router because only a Router knows whether its box is the viewport or a
+     contained region) and moved back on landing. Inside a screen it would be clipped
+     by it, covered by it and dragged along by it — all three are properties of being a
+     descendant, which is why it stops being one. That is also why a morph needs no
+     particular screen transition.
+  2. The SLOT is React's safety: React must never be asked to remove a node that is not
+     where it left it, so the slot stays put and takes that removal while the box flies.
+     It is `display: contents` at rest.
+  3. The arriving side of a POP is the `data-flemo-active="false"` screen — the flag
+     follows the stack, not the direction of travel, and a pop's dismissing screen keeps
+     `"true"` until it lands.
+  4. The layer MIRRORS the arriving screen's `data-flemo-anim-hold`, which is how a
+     morph is still paused by the same compiled rule its screen obeys and starts on the
+     same frame, with no timing code on either side.
 - Hooks: `useNavigate`/`usePathname`/`useStep` (navigation), `useScreen` (identity/
   role), `useParams`, store hooks (`useHistoryStore` etc. — zustand selectors over the
   scope bundle), `useViewportScrollHeight` (keyboard detection; hides bottom chrome).

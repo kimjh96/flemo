@@ -32,7 +32,6 @@ function buildHarness(isActive: boolean) {
     params: { id: "1" },
     transitionName: "cupertino",
     prevTransitionName: "cupertino",
-    layoutId: null,
     routePath: "/album/:id"
   };
 
@@ -93,7 +92,6 @@ describe("Part", () => {
       params: {},
       transitionName: "cupertino",
       prevTransitionName: "cupertino",
-      layoutId: null,
       routePath: "/playground/:n",
       navigateStore: owningStores.navigate
     };
@@ -130,7 +128,6 @@ describe("Part", () => {
       params: {},
       transitionName: "cupertino",
       prevTransitionName: "cupertino",
-      layoutId: null,
       routePath: "/playground/:n",
       navigateStore: owningStores.navigate
     };
@@ -166,7 +163,6 @@ describe("Part owner Router marker", () => {
       params: {},
       transitionName: "cupertino",
       prevTransitionName: "cupertino",
-      layoutId: null,
       routePath: "/a",
       navigateStore: stores.navigate,
       routerId: "outer-router"

@@ -314,11 +314,14 @@ describe("compileTransitionStyles", () => {
     expect(css).not.toContain('data-flemo-transition="none"');
   });
 
-  it("animates opacity for the layout transition", () => {
+  it("cross-fades both ways for the layout transition", () => {
+    // A real fade in each direction, not the 0.97 hair it used to run: that
+    // read as a pop on the way in and a hard cut on the way out, which only
+    // passed unnoticed while its partner was a transparent screen.
     const css = compileTransitionStyles([layout], []);
 
     expect(css).toContain(`@keyframes ${animationName("screen", "layout", "PUSHING-true")}`);
-    expect(css).toContain("opacity: 0.97");
+    expect(css).toContain("opacity: 0");
     expect(css).toContain("opacity: 1");
   });
 
@@ -1130,6 +1133,24 @@ describe("consumer animations", () => {
     // Nothing in the compiled sheet may reach into the consumer's subtree.
     expect(css).not.toContain(":not([data-flemo-part-name])");
     expect(css).not.toContain("animation: none !important");
+  });
+});
+
+describe("morph rules", () => {
+  it("pauses a morph with the screen carrying it", () => {
+    // A morph's keyframes are emitted per flight rather than compiled, but its
+    // CLOCK is the one every other participant obeys. This selector is the
+    // entire reason a shared element starts on the same frame as its screen
+    // with no timing code on either side.
+    const css = compileTransitionStyles([cupertino], []);
+    expect(css).toContain('[data-flemo-anim-hold="true"] [data-flemo-morph]');
+    expect(css).toContain('[data-flemo-anim-hold="park"] [data-flemo-morph]');
+    expect(css).toContain('[data-flemo-anim-hold="park-under"] [data-flemo-morph]');
+    // The ghost too: it is stripped of every morph marker so nothing mistakes
+    // the copy for the real element, which also took it out of the selector
+    // above — and a copy that dissolves while the flight is still held is an
+    // afterimage of the thing that has not moved yet.
+    expect(css).toContain('[data-flemo-anim-hold="true"] [data-flemo-morph-ghost]');
   });
 });
 

@@ -27,8 +27,7 @@ const historyEntry = (id: string): History => ({
   id,
   pathname: "/",
   params: {},
-  transitionName: "cupertino" as TransitionName,
-  layoutId: null
+  transitionName: "cupertino" as TransitionName
 });
 
 const screenContext = (): ScreenContextProps => ({
@@ -41,7 +40,6 @@ const screenContext = (): ScreenContextProps => ({
   params: {},
   transitionName: "cupertino" as TransitionName,
   prevTransitionName: "cupertino" as TransitionName,
-  layoutId: null,
   routePath: "/"
 });
 

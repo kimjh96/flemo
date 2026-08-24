@@ -64,6 +64,19 @@ export interface SwipeControllerConfig {
   setDragStatus: (status: "IDLE" | "PENDING") => void;
   // Commit a swipe-back navigation (window.history.back in the browser binding).
   back: () => void;
+  // THE GESTURE, offered to whatever else the binding drives with it.
+  //
+  // A shared element cannot be driven from a transition's `onSwipe` the way a
+  // screen or a <Part> is: it is not the author's element to write, it belongs
+  // to a flight the runtime stages. So the controller reports the gesture
+  // instead — start, progress, release — and the binding hands it to the morph
+  // runtime. Every transition with a `swipeDirection` gets an interactive morph
+  // out of this without authoring anything, cupertino included.
+  onDragStart?: () => void;
+  /** 0 at rest, 1 at the point the gesture would commit. */
+  onDragProgress?: (progress: number) => void;
+  /** The release: whether it committed, and the seconds the screens settle in. */
+  onDragSettle?: (committed: boolean, seconds: number) => void;
 }
 
 export interface SwipeController {
@@ -469,6 +482,11 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
 
     if (isTriggered && !forceCancelRequested) {
       config.setDragStatus("PENDING");
+      // The drag is CONFIRMED here, not in the handler's `onStart`: every
+      // built-in transition returns `true` from `onSwipeStart` without ever
+      // calling that callback, so anything hung off it never runs. This is the
+      // controller's own moment and fires for whatever the author wrote.
+      config.onDragStart?.();
     } else if (!isTriggered) {
       config.setDragStatus("IDLE");
       swipeActive = false;
@@ -663,7 +681,29 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
 
     const { scope, decorator } = config.getElements();
     const decoratorDef = config.getDecorator();
-    transition.onSwipe(event, buildSwipeInfo(event), {
+    const info = buildSwipeInfo(event);
+    // THE GESTURE'S OWN PROGRESS, not the handler's.
+    //
+    // A transition's `progress` means whatever its author decided — cupertino
+    // divides the drag by `window.innerWidth` — and that is only the same
+    // question for a Router that fills the window. Inside a contained one it
+    // is a different denominator entirely: a full drag across a 378px stage in
+    // a 1500px window reads as 8% travelled, so anything driven by it barely
+    // moves and the release has to rush the rest. The screen being dragged is
+    // the span that matters, which is the same one the release already scales
+    // by below.
+    const dragAxis = transition.swipeDirection;
+    const dragBox = scope?.getBoundingClientRect();
+    const dragSpan =
+      (dragAxis === "y" ? dragBox?.height : dragBox?.width) ||
+      (typeof window === "undefined"
+        ? 0
+        : dragAxis === "y"
+          ? window.innerHeight
+          : window.innerWidth);
+    const dragged = Math.abs(dragAxis === "y" ? info.offset.y : info.offset.x);
+
+    transition.onSwipe(event, info, {
       animate: animateSwipe,
       currentScreen: scope as HTMLDivElement,
       prevScreen: prevScreen as HTMLDivElement,
@@ -676,6 +716,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         drivePartTransitions("swipe", triggered, progress);
       }
     });
+    config.onDragProgress?.(dragSpan > 0 ? dragged / dragSpan : 0);
   };
 
   const endSwipe = async (event: PointerEvent, forceCancel = false) => {
@@ -753,8 +794,33 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // `onStart` before it animates (every preset does), and until it does the
     // conservative reading is the cancel — the distance back to rest.
     let releaseTriggered = false;
+    // The seconds the SCREENS were given, kept so anything else the release
+    // drives lands with them rather than on a clock of its own.
+    let settleSeconds: number | null = null;
+    let settleReported = false;
+    // Reported the MOMENT the release is decided, not after the handler's own
+    // settle resolves. A handler awaits its screen animations — cupertino
+    // awaits every one of them — so anything hung off that await sits frozen
+    // for the whole settle and only then moves. On glass: the shared element
+    // stops dead under the finger, waits out the screen, and only then goes
+    // back. The verdict and the clock are both known here, which is where the
+    // screens themselves start moving.
+    const reportSettle = (committed: boolean, seconds: number) => {
+      if (settleReported) return;
+      settleReported = true;
+      config.onDragSettle?.(committed, seconds);
+    };
+
     const gestureScaled = <T extends typeof animateInline>(write: T): T =>
       ((target, value, options) => {
+        // Whether THIS write is one of the screens'. The release scales every
+        // participant's clock — screens, bars, the decorator, parts — and each
+        // gets its own number because each names its own ceiling. What rides
+        // the gesture from outside has to be given the SCREENS' number, or it
+        // lands early: the decorator settles first and settles faster, and a
+        // shared element handed that clock finished 21px before the screen
+        // carrying its slot did, then jumped the difference on landing.
+        const isScreenWrite = target === scope || target === prevScreen;
         const authored = typeof options?.duration === "number" ? options.duration : 0;
         if (authored <= 0) return write(target, value, options);
         const remainingPx = releaseTriggered ? span - travelled : travelled;
@@ -779,6 +845,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         // own direction, so it lands on the floor and opens like the standing
         // screen it is. One rule — the release leaves at the speed the screen
         // already had — rather than one for a commit and another for a cancel.
+        if (settleSeconds === null) settleSeconds = seconds;
+        if (isScreenWrite) reportSettle(releaseTriggered, seconds);
         const slope = authoredEase
           ? releaseLaunchSlope({
               remainingPx,
@@ -825,6 +893,10 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       }
     });
     const isTriggered = !forceCancel && handlerTriggered;
+    // A tap-like release wrote everything at zero duration and never reached
+    // the scaler above, so there is no settle to share: whatever the binding
+    // drives lands at once too.
+    reportSettle(isTriggered, tapLike ? 0 : (settleSeconds ?? 0));
 
     if (isTriggered) {
       // The swipe already animated the screen out. Suppress the upcoming

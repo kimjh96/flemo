@@ -1,9 +1,20 @@
 import { Activity, useEffect, useRef, useState, type ReactNode } from "react";
 
-import { isDesktopBlink } from "@flemo/core";
+import { isDesktopBlink, type ScreenFreezeMode } from "@flemo/core";
 
 interface ScreenFreezeProps {
   freeze: boolean;
+  /**
+   * WHY this screen is freezing, which decides whether the hide may wait.
+   *
+   * Only the JUST-COVERED screen can be re-revealed by a pop, so only its hide
+   * can be the one a pop has to undo — and the debounce below exists for
+   * exactly that round trip. A DEEP screen is never what a pop wakes, so
+   * waiting buys it nothing and costs the thing the delay is invisible for
+   * right up until it is not: for the length of the wait it is still PAINTING,
+   * under whatever is on top of it.
+   */
+  mode?: ScreenFreezeMode;
   children: ReactNode;
 }
 
@@ -26,7 +37,28 @@ const FREEZE_REST_DEBOUNCE_MS = 3000;
 // unmounts its effects, then on "visible" it remounts the effects without losing
 // that state. This replaces the manual display:none wrapper and frozen-children
 // snapshot with React's built-in offscreen handling.
-function ScreenFreeze({ freeze, children }: ScreenFreezeProps) {
+//
+// TWO THINGS, ON TWO CLOCKS. A freeze does two jobs, and only one of them is
+// expensive:
+//
+//   1. stop PAINTING the screen — cheap, and the only one that is visible;
+//   2. RELEASE it — unmount its effect tree, drop its boxes, let the raster go.
+//
+// They were one commit, so the delay that job 2 needs was also delaying job 1:
+// a covered screen went on painting for as long as the release was deferred,
+// which on a desktop is three seconds. Nothing above it is obliged to be
+// opaque, so that was three seconds of a stack showing through itself.
+//
+// Split, job 1 lands in the commit the screen is marked covered, on every
+// platform — `visibility: hidden` on the screen container (ScreenMotion owns
+// it; no wrapper is added here, because a node between a screen and its
+// siblings is a node the swipe's previous-sibling walk has to climb) removes
+// it from paint without removing its boxes or unmounting anything, so it
+// cannot cause the re-layout half of the thrash the debounce was measured
+// against. Job 2 — this module — keeps its clock. What the user sees is now
+// uniform and immediate; what differs by platform is only when the memory
+// comes back.
+function ScreenFreeze({ freeze, mode = "deferred", children }: ScreenFreezeProps) {
   const [applied, setApplied] = useState(freeze);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // UNFREEZE is instant, in this very commit: the returning screen must be
@@ -35,8 +67,18 @@ function ScreenFreeze({ freeze, children }: ScreenFreezeProps) {
   if (!freeze && applied) setApplied(false);
   useEffect(() => {
     if (!freeze || applied) return undefined;
-    // Freeze: immediate everywhere except DESKTOP BLINK, where the hide
-    // debounces past the browse-rhythm window (see FREEZE_REST_DEBOUNCE_MS).
+    // Freeze: immediate everywhere except a DESKTOP BLINK screen that a pop
+    // could come back to, where the hide debounces past the browse-rhythm
+    // window (see FREEZE_REST_DEBOUNCE_MS).
+    //
+    // A deep screen is not that screen. Screen.tsx already makes the same
+    // distinction one stage earlier and says why in as many words — a rapid
+    // push storm never offers a quiet window, so deferring the deep freezes
+    // let 15-20 live full-screen layers accumulate — and then collapses the
+    // mode to a boolean, which is how the argument stopped being made here.
+    // The visible half of that: every screen in a stack kept painting for
+    // three seconds after it was covered, so anything that made the screens
+    // above it translucent showed the whole pile.
     //
     // The debounce trades MEMORY (one screen kept alive a few seconds longer)
     // for the hide/unhide raster thrash a quick detail-and-back otherwise pays
@@ -45,7 +87,7 @@ function ScreenFreeze({ freeze, children }: ScreenFreezeProps) {
     // that verdict once routed the driver and every desktop default hung off
     // it; a desktop pays the same raster either way, and no longer waits two
     // flights to stop paying it.
-    if (!isDesktopBlink()) {
+    if (mode === "immediate" || !isDesktopBlink()) {
       setApplied(true);
       return undefined;
     }
@@ -59,7 +101,7 @@ function ScreenFreeze({ freeze, children }: ScreenFreezeProps) {
         timer.current = null;
       }
     };
-  }, [freeze, applied]);
+  }, [freeze, applied, mode]);
   return <Activity mode={freeze && applied ? "hidden" : "visible"}>{children}</Activity>;
 }
 
