@@ -696,6 +696,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const dragBox = scope?.getBoundingClientRect();
     const dragSpan =
       (dragAxis === "y" ? dragBox?.height : dragBox?.width) ||
+      /* v8 ignore next -- no window means no pointer to have started a drag;
+         the guard is for the same SSR-safety the rest of the file keeps. */
       (typeof window === "undefined"
         ? 0
         : dragAxis === "y"
@@ -716,6 +718,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         drivePartTransitions("swipe", triggered, progress);
       }
     });
+    /* v8 ignore next -- a zero span needs both an unlaid-out screen and no
+       window to fall back to. */
     config.onDragProgress?.(dragSpan > 0 ? dragged / dragSpan : 0);
   };
 

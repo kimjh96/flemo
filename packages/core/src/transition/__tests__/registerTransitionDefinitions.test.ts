@@ -8,6 +8,8 @@ import type { TransitionName, TransitionVariantValue } from "@transition/typing"
 
 import createRawDecorator from "@transition/decorator/createRawDecorator";
 import { decoratorMap } from "@transition/decorator/decorator";
+import createMorphTransition from "@transition/morphTransition/createMorphTransition";
+import { morphTransitionMap } from "@transition/morphTransition/morphTransition";
 import createRawPartTransition from "@transition/partTransition/createRawPartTransition";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
@@ -88,6 +90,28 @@ describe("registerTransitionDefinitions (reference-counted)", () => {
     second();
     expect(decoratorMap.has("shared-deco" as DecoratorName)).toBe(false);
     expect(partTransitionMap.has("shared-part" as PartTransitionName)).toBe(false);
+  });
+
+  it("registers a morph transition by name, and reference-counts it like the rest", () => {
+    // A morph compiles to no CSS at registration — its keyframes need two rects
+    // that only a flight produces — so this is a pure name lookup for the morph
+    // runtime. Several Routers may still register the same one.
+    const morph = createMorphTransition({
+      name: "shared-morph" as never,
+      initial: {},
+      idle: { value: { opacity: 1 }, options: { duration: 0 } },
+      enter: { value: { opacity: 1 }, options: { duration: 0.3 } },
+      exit: { value: { opacity: 0 }, options: {} }
+    });
+
+    const first = registerTransitionDefinitions([], [], [], [morph]);
+    const second = registerTransitionDefinitions([], [], [], [morph]);
+    expect(morphTransitionMap.has("shared-morph" as never)).toBe(true);
+
+    first();
+    expect(morphTransitionMap.has("shared-morph" as never)).toBe(true);
+    second();
+    expect(morphTransitionMap.has("shared-morph" as never)).toBe(false);
   });
 
   it("a lone registrant still unregisters on cleanup", () => {

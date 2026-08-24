@@ -85,6 +85,9 @@ function Morph({ ref, layoutId, name, as = "div", style, children, ...props }: M
   // tell the runtime the flight had begun.
   useLayoutEffect(() => {
     const element = elementRef.current;
+    /* v8 ignore next -- the ref is set in the same commit the effect runs in;
+       the guard is for a consumer rendering `as` into something React does not
+       give a node for. */
     if (!element) return;
     return attachMorph(element, { layoutId, name, navigateStore: store });
   }, [layoutId, name, store, status, isActive]);

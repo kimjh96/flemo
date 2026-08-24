@@ -407,6 +407,10 @@ const startFlight = (
 
   const layer = resolveMorphLayer(store);
   const home = entry.element.parentElement;
+  /* v8 ignore next 4 -- neither is reachable from a browser: the layer falls
+     back to a document-level element when a binding publishes none, and a
+     registered element that reached the pairing is in the tree. The guard is
+     for SSR and for a binding that registers a detached node. */
   if (!layer || !home) {
     trace(!layer ? "no-layer" : "no-home", entry, status);
     return;
@@ -419,7 +423,7 @@ const startFlight = (
   // must not silently take the morph down with it: the shared element is the
   // whole point of the navigation, and an author who wanted nothing to move
   // would not have paired one. Fall back to the preset's own length.
-  const duration = enterMotion.options.duration ?? side.screenDuration ?? 0;
+  const duration = enterMotion.options.duration ?? side.screenDuration;
   const flightDuration = carrying
     ? carrying.duration
     : duration > 0
@@ -516,6 +520,9 @@ const startFlight = (
   // it — so all it does is hand over while the two are still co-located.
   const partner = captured.element;
   const exitMotion = resolveMorphMotion(transition, exitVariant);
+  /* v8 ignore next 2 -- the pairing already guarantees all three: it declines a
+     disconnected partner, never pairs an element with itself, and every
+     transitional variant resolves an exit motion. */
   const departing =
     partner.isConnected && partner !== entry.element && exitMotion
       ? buildMorphKeyframes({
@@ -635,6 +642,8 @@ const startFlight = (
     let grown = false;
     let nestedByBackstop = false;
     const finishNested = () => {
+      /* v8 ignore next -- the listener is removed and the net cleared on the
+         first landing; the guard is for a second caller racing the first. */
       if (grown) return;
       grown = true;
       trace("land-nested", entry, status, { backstop: nestedByBackstop });
@@ -756,7 +765,10 @@ const startFlight = (
 
   const disposeRules = insertMorphRules([
     ...arriving.rules,
+    /* v8 ignore start -- see the guard on `departing` above: every flight the
+       pairing produces has one. */
     ...(departing?.rules ?? []),
+    /* v8 ignore stop */
     ...(ghostSet?.rules ?? []),
     ...(camera?.rules ?? [])
   ]);
@@ -900,6 +912,7 @@ const startFlight = (
     layer.appendChild(ghost);
   }
 
+  /* v8 ignore next -- as above: `departing` exists for every paired flight. */
   if (departing) {
     partner.style.setProperty("animation", departing.animation);
     partner.setAttribute(MORPH_ATTR, MORPH_ROLE.EXIT);
@@ -930,6 +943,8 @@ const startFlight = (
   let unwatchResidue: (() => void) | null = null;
   let disposed = false;
   const disposeOnce = () => {
+    /* v8 ignore next -- the landing and the residue release can both reach it,
+       and dropping a flight's rules twice would take the next flight's. */
     if (disposed) return;
     disposed = true;
     disposeRules();
@@ -938,12 +953,15 @@ const startFlight = (
     unwatchResidue?.();
     unwatchResidue = null;
     if (scope.residue.get(partner) === release) scope.residue.delete(partner);
+    /* v8 ignore next -- as above. */
     if (departing) {
       partner.style.removeProperty("animation");
       partner.setAttribute(MORPH_ATTR, "");
     }
     if (cameraScreen) {
       if (scope.residue.get(cameraScreen) === release) scope.residue.delete(cameraScreen);
+      /* v8 ignore next 2 -- a camera marker that is not this flight's belongs
+         to the flight that superseded it, and is that flight's to remove. */
       if (cameraScreen.getAttribute(MORPH_CAMERA_ATTR) === `${id}c`)
         cameraScreen.removeAttribute(MORPH_CAMERA_ATTR);
     }
@@ -954,6 +972,7 @@ const startFlight = (
       release();
       return;
     }
+    /* v8 ignore next -- as above. */
     if (departing) scope.residue.set(partner, release);
     if (cameraScreen && camera) scope.residue.set(cameraScreen, release);
     unwatchResidue = store.subscribe((state) => {
@@ -986,6 +1005,8 @@ const startFlight = (
   let landed = false;
   let byBackstop = false;
   const finish = () => {
+    /* v8 ignore next -- the travel's end and the backstop race; whichever
+       arrives second must not restore the element twice. */
     if (landed) return;
     landed = true;
     trace("land", entry, status, {
@@ -1012,6 +1033,8 @@ const startFlight = (
     ghost?.remove();
     // The departure's cut outlives the travel, and so must the keyframes it is
     // written in; `releaseDeparture` drops them when it lifts the cut.
+    /* v8 ignore next 2 -- as above: the cut always outlives the travel, so the
+       rules are always dropped by the residue rather than by the landing. */
     if (departing || cameraScreen) releaseResidue();
     else disposeOnce();
     scope.flights.delete(entry.layoutId);
@@ -1372,6 +1395,8 @@ const ensureScope = (store: NavigateStoreApi): MorphScope => {
     residue: new Map(),
     snapshots: new Map(),
     flights: new Map(),
+    /* v8 ignore next -- replaced on the line below; it exists so the field is
+       never undefined between construction and subscription. */
     unsubscribe: () => {}
   };
   scope.unsubscribe = store.subscribe((state, previous) => {

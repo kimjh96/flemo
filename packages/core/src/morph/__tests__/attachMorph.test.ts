@@ -17,6 +17,9 @@ import {
 import attachMorph from "@morph/attachMorph";
 import { registerMorphLayer } from "@morph/morphLayer";
 
+import createMorphTransition from "@transition/morphTransition/createMorphTransition";
+import { morphTransitionMap } from "@transition/morphTransition/morphTransition";
+
 // jsdom lays nothing out, so every rect a morph reads has to be supplied. That
 // is the whole environment this needs: the runtime's inputs are rects and
 // protocol attributes, both of which a test can state exactly.
@@ -1073,6 +1076,785 @@ describe("attachMorph", () => {
       })
     );
     expect(layer.contains(hero)).toBe(false);
+  });
+
+  it("lands a NESTED morph on its own animation's end", async () => {
+    // A nested morph is its own flight record — it has to be taken off the
+    // scope's book when it is done, and give its element back exactly the
+    // style the consumer wrote, or the next flight restores this one's.
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 160, 160]);
+    const label = makeMorph(card, [28, 730, 140, 20]);
+    label.style.fontSize = "14px";
+    attachMorph(card, { layoutId: "card-1", navigateStore: store });
+    attachMorph(label, { layoutId: "title-1", name: "text", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+    const heading = makeMorph(bigCard, [16, 260, 360, 32]);
+    heading.style.fontSize = "24px";
+    attachMorph(bigCard, { layoutId: "card-1", navigateStore: store });
+    attachMorph(heading, { layoutId: "title-1", name: "text", navigateStore: store });
+    await Promise.resolve();
+
+    const nestedName = /flemo-morph-\d+n-(?:travel|paint)/.exec(heading.style.animation)![0];
+
+    // An end that ran for no time is a rebuilt animation, not a finished one —
+    // the same rule the container's landing keeps.
+    const early = animationEndEvent(nestedName);
+    Object.defineProperty(early, "elapsedTime", { value: 0 });
+    heading.dispatchEvent(early);
+    expect(heading.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.ENTER);
+
+    const real = animationEndEvent(nestedName);
+    Object.defineProperty(real, "elapsedTime", { value: 0.4 });
+    heading.dispatchEvent(real);
+
+    expect(heading.getAttribute(MORPH_ATTR)).toBe("");
+    // Exactly the style the consumer wrote, and nothing the flight added.
+    expect(heading.getAttribute("style")).toBe("font-size: 24px;");
+  });
+
+  it("brings a NESTED morph home on the backstop when no end ever arrives", async () => {
+    // Nothing guarantees an `animationend`: a rule dropped from the sheet, an
+    // element hidden mid-flight, a browser that cancels rather than ends. The
+    // net is what keeps the element from staying marked for the rest of the
+    // session.
+    vi.useFakeTimers();
+    try {
+      const gallery = makeScreen("layout", true);
+      const card = makeMorph(gallery, [20, 600, 160, 160]);
+      const label = makeMorph(card, [28, 730, 140, 20]);
+      label.style.fontSize = "14px";
+      attachMorph(card, { layoutId: "card-2", navigateStore: store });
+      attachMorph(label, { layoutId: "title-2", name: "text", navigateStore: store });
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("layout", true);
+      const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+      const heading = makeMorph(bigCard, [16, 260, 360, 32]);
+      heading.style.fontSize = "24px";
+      attachMorph(bigCard, { layoutId: "card-2", navigateStore: store });
+      attachMorph(heading, { layoutId: "title-2", name: "text", navigateStore: store });
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(heading.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.ENTER);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(heading.getAttribute(MORPH_ATTR)).toBe("");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ignores an animationend that belongs to something else on the element", () => {
+    // The flyer keeps whatever the consumer was already animating inside it,
+    // and those ends bubble to the same listener.
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
+
+    hero.dispatchEvent(animationEndEvent("someone-elses-animation"));
+    expect(hero.parentElement).toBe(layer);
+
+    const travelName = /flemo-morph-\d+i-travel/.exec(hero.style.animation)![0];
+    hero.dispatchEvent(animationEndEvent(travelName));
+    expect(hero.parentElement).toBe(detail);
+    // A second end changes nothing: the flight is already off the books.
+    hero.dispatchEvent(animationEndEvent(travelName));
+    expect(hero.parentElement).toBe(detail);
+  });
+
+  it("drops an element whose home left the document while it was flying", () => {
+    // The slot the element flew out of is React's promise that it can be put
+    // back. A screen that unmounts mid-flight takes that promise with it, and
+    // putting the element back into a detached tree would leave it on the
+    // layer instead.
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
+
+    detail.remove();
+    hero.dispatchEvent(animationEndEvent(/flemo-morph-\d+i-travel/.exec(hero.style.animation)![0]));
+
+    expect(hero.isConnected).toBe(false);
+    expect(layer.contains(hero)).toBe(false);
+  });
+
+  it("declines a flight with no box at either end", () => {
+    // An element that has not laid out has no honest travel to compute, and
+    // dividing by its zero reaches the compositor as an infinity.
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const unlaid = makeMorph(detail, [0, 0, 0, 0]);
+    attachMorph(unlaid, { layoutId: "photo-1", navigateStore: store });
+
+    expect(unlaid.parentElement).toBe(detail);
+    expect(unlaid.style.animation).toBe("");
+  });
+
+  it("declines a flight whose ORIGIN never had a box", () => {
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 0, 0]);
+    attachMorph(thumbnail, { layoutId: "photo-3", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-3", navigateStore: store });
+
+    expect(hero.parentElement).toBe(detail);
+    expect(hero.style.animation).toBe("");
+  });
+
+  it("flies where there is no MutationObserver to mirror the hold with", () => {
+    // The mirror is how the layer stays under the same pause as the screens.
+    // Without an observer the first mirror still happens; what is lost is
+    // tracking later changes, not the flight.
+    const observer = globalThis.MutationObserver;
+    (globalThis as { MutationObserver?: unknown }).MutationObserver = undefined;
+    try {
+      const gallery = makeScreen("layout", true);
+      const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+      attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("layout", true);
+      detail.setAttribute(ANIM_HOLD_ATTR, ANIM_HOLD.HELD);
+      const hero = makeMorph(detail, [0, 0, 400, 300]);
+      attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
+
+      expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.HELD);
+      hero.dispatchEvent(
+        animationEndEvent(/flemo-morph-\d+i-travel/.exec(hero.style.animation)![0])
+      );
+      expect(hero.parentElement).toBe(detail);
+    } finally {
+      (globalThis as { MutationObserver?: unknown }).MutationObserver = observer;
+    }
+  });
+
+  it("forgets a snapshot whose element left the document", async () => {
+    // Snapshots outlive the flight that took them, which is what lets an
+    // interrupted navigation continue from where the eye last had the element.
+    // They must not outlive the ELEMENT: a stack walked twice would otherwise
+    // measure its second walk against rects taken on screens that are gone —
+    // the element appearing full size in the middle of nowhere.
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    const dispose = attachMorph(thumbnail, { layoutId: "photo-9", navigateStore: store });
+    flipTo("PUSHING");
+
+    // The screen goes, and the registration with it.
+    gallery.remove();
+    dispose();
+    flipTo("COMPLETED");
+    flipTo("POPPING");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-9", navigateStore: store });
+
+    // Nothing to pair with — and above all not a rect measured on a screen
+    // that no longer exists.
+    expect(hero.parentElement).toBe(detail);
+    expect(hero.style.animation).toBe("");
+  });
+
+  it("ignores a store notification that did not change the status", () => {
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
+
+    // A task id changing is not a navigation starting; finishing the flights
+    // here would land the element before it had moved.
+    store.getState().setStatus("PUSHING");
+
+    expect(hero.parentElement).toBe(layer);
+  });
+
+  it("drops only its own registration when an element is re-registered", () => {
+    // A binding re-registers on every status change, and React runs the
+    // previous effect's cleanup AFTER the next one's setup in some paths. A
+    // disposer that deleted whatever it found would unregister the live entry.
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    const disposeFirst = attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+    attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+    disposeFirst();
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
+
+    // The second registration is still there, so the pair still flies.
+    expect(hero.parentElement).toBe(layer);
+  });
+
+  it("names every decision on the trace when it is armed", () => {
+    // A morph that declines is silent by design — a broken shared element must
+    // never take the navigation down with it — so a miss looks exactly like a
+    // screen transition with no morph in it. Armed, each decision says which
+    // it was.
+    sessionStorage.setItem("flemo:morph", "on");
+    try {
+      const gallery = makeScreen("layout", true);
+      const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+      attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+
+      const trace = () =>
+        ((globalThis as { flemoMorphTrace?: { why: string }[] }).flemoMorphTrace ?? []).map(
+          (line) => line.why
+        );
+
+      // Registered while nothing is navigating: the commonest decision of all.
+      expect(trace()).toContain("not-transitional");
+
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+      const detail = makeScreen("layout", true);
+      const hero = makeMorph(detail, [0, 0, 400, 300]);
+      attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
+      hero.dispatchEvent(
+        animationEndEvent(/flemo-morph-\d+i-travel/.exec(hero.style.animation)![0])
+      );
+
+      expect(trace()).toContain("land");
+    } finally {
+      sessionStorage.clear();
+      delete (globalThis as { flemoMorphTrace?: unknown }).flemoMorphTrace;
+    }
+  });
+
+  it("keeps the trace to its last few hundred decisions", () => {
+    // A screen with a grid of pairs writes a line per pair per status change,
+    // so the buffer has to hold a navigation's worth without growing forever.
+    sessionStorage.setItem("flemo:morph", "on");
+    try {
+      const gallery = makeScreen("layout", true);
+      for (let index = 0; index < 520; index += 1) {
+        const cell = makeMorph(gallery, [0, 0, 10, 10]);
+        attachMorph(cell, { layoutId: `cell-${index}`, navigateStore: store });
+      }
+
+      const trace = (globalThis as { flemoMorphTrace?: unknown[] }).flemoMorphTrace ?? [];
+      expect(trace.length).toBeLessThanOrEqual(500);
+      expect(trace.length).toBeGreaterThan(400);
+    } finally {
+      sessionStorage.clear();
+      delete (globalThis as { flemoMorphTrace?: unknown }).flemoMorphTrace;
+    }
+  });
+
+  it("fades the arrival in when the author gave it a pose to fade from", () => {
+    // The presets do not: the arrival is opaque and the ghost dissolves on top
+    // of it, because fading both bleeds the background through the pair. An
+    // author who asks for the other thing gets it.
+    morphTransitionMap.set(
+      "fading" as never,
+      createMorphTransition({
+        name: "fading" as never,
+        initial: { opacity: 0, x: "10%" },
+        idle: { value: { opacity: 1 }, options: { duration: 0 } },
+        enter: { value: { opacity: 1, x: 0 }, options: { duration: 0.5, delay: 0.05 } },
+        exit: { value: { opacity: 0 }, options: {} },
+        options: { crossFade: 0.25, radius: false }
+      })
+    );
+    try {
+      const gallery = makeScreen("layout", true);
+      const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+      attachMorph(thumbnail, {
+        layoutId: "photo-5",
+        name: "fading" as never,
+        navigateStore: store
+      });
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("layout", true);
+      const hero = makeMorph(detail, [0, 0, 400, 300]);
+      attachMorph(hero, { layoutId: "photo-5", name: "fading" as never, navigateStore: store });
+
+      // Its own duration, its own delay, its own cross-fade window — and the
+      // authored translate composed on top of the measured travel.
+      expect(hero.style.animation).toContain("-travel 0.500s");
+      expect(hero.style.animation).toContain("0.050s both");
+      expect(hero.style.animation).toContain("-fade 0.125s");
+      const travel = inserted.find((rule) => rule.includes("-travel"))!;
+      expect(travel).toContain("translate3d(40px, 0px, 0)");
+    } finally {
+      morphTransitionMap.delete("fading" as never);
+    }
+  });
+
+  it("takes the rects as measured when an authored pose cannot be resolved", () => {
+    // A length this runtime cannot turn into a number would be a GUESS, and a
+    // guessed pose puts the shared element somewhere it never was.
+    morphTransitionMap.set(
+      "unresolvable" as never,
+      createMorphTransition({
+        name: "unresolvable" as never,
+        initial: { x: "2rem" },
+        idle: { value: { opacity: 1 }, options: { duration: 0 } },
+        enter: { value: { x: "calc(100% - 8px)" }, options: { duration: 0.4 } },
+        exit: { value: { opacity: 0 }, options: {} }
+      })
+    );
+    try {
+      const gallery = makeScreen("layout", true);
+      const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+      attachMorph(thumbnail, {
+        layoutId: "photo-6",
+        name: "unresolvable" as never,
+        navigateStore: store
+      });
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("layout", true);
+      const hero = makeMorph(detail, [0, 0, 400, 300]);
+      attachMorph(hero, {
+        layoutId: "photo-6",
+        name: "unresolvable" as never,
+        navigateStore: store
+      });
+
+      const travel = inserted.find((rule) => rule.includes("-travel"))!;
+      expect(travel).toContain("left: 20px");
+      expect(travel).not.toContain("translate3d");
+    } finally {
+      morphTransitionMap.delete("unresolvable" as never);
+    }
+  });
+
+  it("falls back to the built-in preset for a name nobody registered", () => {
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-7", name: "nope" as never, navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-7", name: "nope" as never, navigateStore: store });
+
+    expect(hero.parentElement).toBe(layer);
+  });
+
+  it("points the camera at whatever origin the screen actually scales about", () => {
+    // Read rather than assumed: a consumer who moved the origin must not get a
+    // background that zooms toward the wrong corner. A percentage read as a
+    // length would put the anchor 50px from the corner of an 800px screen.
+    for (const [origin, expected] of [
+      ["left top", "translate(0px, 0px)"],
+      ["10px 20px", "translate("],
+      ["nonsense", "translate("]
+    ] as const) {
+      const gallery = makeScreen("layout", true);
+      gallery.style.transformOrigin = origin;
+      const thumbnail = makeMorph(gallery, [0, 0, 100, 100]);
+      attachMorph(thumbnail, { layoutId: `zoomed-${origin}`, name: "zoom", navigateStore: store });
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("layout", true);
+      const hero = makeMorph(detail, [0, 0, 400, 400]);
+      attachMorph(hero, { layoutId: `zoomed-${origin}`, name: "zoom", navigateStore: store });
+
+      const cameraRule = inserted.find((rule) => rule.includes("-camera {"))!;
+      expect(cameraRule).toContain(expected);
+      hero.dispatchEvent(
+        animationEndEvent(/flemo-morph-\d+i-travel/.exec(hero.style.animation)![0])
+      );
+      flipTo("COMPLETED");
+      document.body.querySelectorAll(`[${SCREEN_ATTR}]`).forEach((node) => node.remove());
+      inserted.length = 0;
+    }
+  });
+
+  it("stages a flight in a layer that has not been laid out", () => {
+    // A layer inside a transformed ancestor is measured against its own laid
+    // out size to find the ratio. Before layout there is no ratio to find, and
+    // dividing by that zero would send the flight to infinity.
+    Object.defineProperty(layer, "offsetWidth", { value: 0, configurable: true });
+    Object.defineProperty(layer, "offsetHeight", { value: 0, configurable: true });
+
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-8", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-8", navigateStore: store });
+
+    const travel = inserted.find((rule) => rule.includes("-travel"))!;
+    expect(travel).toContain("left: 20px");
+    expect(travel).not.toContain("Infinity");
+  });
+
+  it("flies where there are no computed styles to read", () => {
+    // Everything the runtime reads off the computed style is an enhancement —
+    // the inherited type the stand-in has to keep, the paint channels, the
+    // screen's origin. The travel is not, and it still has to happen.
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    vi.stubGlobal("getComputedStyle", undefined);
+    try {
+      attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
+      expect(hero.parentElement).toBe(layer);
+      expect(inserted.find((rule) => rule.includes("-travel"))).toContain("width: 400px");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("stages a flight in a layer that has not been painted", () => {
+    // Laid out but not painted — a layer inside a `content-visibility: hidden`
+    // ancestor measures zero. The ratio it would give is zero, and a rect
+    // divided by it is an infinity on the compositor.
+    setRect(layer, 0, 0, 0, 0);
+
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
+
+    const travel = inserted.find((rule) => rule.includes("-travel"))!;
+    expect(travel).toContain("left: 20px");
+    expect(travel).not.toContain("Infinity");
+  });
+
+  it("clamps a cross-fade window that would outlast the flight", () => {
+    morphTransitionMap.set(
+      "long-faded" as never,
+      createMorphTransition({
+        name: "long-faded" as never,
+        initial: {},
+        idle: { value: { opacity: 1 }, options: { duration: 0 } },
+        enter: { value: { opacity: 1 }, options: { duration: 0.4 } },
+        exit: { value: { opacity: 0 }, options: {} },
+        options: { crossFade: 2 }
+      })
+    );
+    try {
+      const gallery = makeScreen("layout", true);
+      const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+      attachMorph(thumbnail, {
+        layoutId: "photo-11",
+        name: "long-faded" as never,
+        navigateStore: store
+      });
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("layout", true);
+      const hero = makeMorph(detail, [0, 0, 400, 300]);
+      attachMorph(hero, {
+        layoutId: "photo-11",
+        name: "long-faded" as never,
+        navigateStore: store
+      });
+
+      // The ghost dissolves over the flight, never past it: a fade still
+      // running at the landing is a copy of the departure left on the layer.
+      const ghost = layer.querySelector<HTMLElement>("[data-flemo-morph-ghost]");
+      expect(ghost?.style.animation ?? "").toContain("0.400s");
+    } finally {
+      morphTransitionMap.delete("long-faded" as never);
+    }
+  });
+
+  it("clamps a cross-fade window an author put outside the flight", () => {
+    morphTransitionMap.set(
+      "over-faded" as never,
+      createMorphTransition({
+        name: "over-faded" as never,
+        initial: {},
+        idle: { value: { opacity: 1 }, options: { duration: 0 } },
+        enter: { value: { opacity: 1 }, options: { duration: 0.4 } },
+        exit: { value: { opacity: 0 }, options: {} },
+        options: { crossFade: -2 }
+      })
+    );
+    try {
+      const gallery = makeScreen("layout", true);
+      const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+      attachMorph(thumbnail, {
+        layoutId: "photo-4",
+        name: "over-faded" as never,
+        navigateStore: store
+      });
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("layout", true);
+      const hero = makeMorph(detail, [0, 0, 400, 300]);
+      attachMorph(hero, {
+        layoutId: "photo-4",
+        name: "over-faded" as never,
+        navigateStore: store
+      });
+
+      // A negative window means no ghost at all, not a negative duration in a
+      // keyframe — and the travel itself is unaffected.
+      expect(hero.parentElement).toBe(layer);
+      expect(inserted.find((rule) => rule.includes("-travel"))).toContain("left: 20px");
+      expect(inserted.some((rule) => rule.includes("-ghost"))).toBe(false);
+    } finally {
+      morphTransitionMap.delete("over-faded" as never);
+    }
+  });
+
+  it("lets an element inside an unpaired morph fly on its own", async () => {
+    // A container that has no partner this navigation is not a flight, so the
+    // element inside it is not riding anything — it flies, and its ghost has to
+    // stack above a container that is still painting.
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 160, 160]);
+    const label = makeMorph(card, [28, 730, 140, 20]);
+    attachMorph(card, { layoutId: "lonely-card", navigateStore: store });
+    attachMorph(label, { layoutId: "title-5", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const panel = makeMorph(detail, [0, 0, 400, 340]);
+    panel.setAttribute(MORPH_ATTR, "");
+    const heading = makeMorph(panel, [16, 260, 360, 32]);
+    attachMorph(heading, { layoutId: "title-5", navigateStore: store });
+    // The decision waits a microtask: a container has to decline before the
+    // morphs inside it know they are not riding one.
+    await Promise.resolve();
+
+    expect(heading.parentElement).toBe(layer);
+  });
+
+  it("says which decision it took for an element that is on no screen at all", () => {
+    sessionStorage.setItem("flemo:morph", "on");
+    try {
+      const orphan = document.createElement("div");
+      document.body.appendChild(orphan);
+      setRect(orphan, 0, 0, 40, 40);
+      attachMorph(orphan, { layoutId: "orphan-1", navigateStore: store });
+      flipTo("PUSHING");
+      attachMorph(orphan, { layoutId: "orphan-1", navigateStore: store });
+
+      const why = (
+        (globalThis as { flemoMorphTrace?: { why: string }[] }).flemoMorphTrace ?? []
+      ).map((line) => line.why);
+      expect(why).toContain("no-screen");
+    } finally {
+      sessionStorage.clear();
+      delete (globalThis as { flemoMorphTrace?: unknown }).flemoMorphTrace;
+    }
+  });
+
+  it("reads a screen's transform-origin however it is written", async () => {
+    // A percentage read as a length would put the camera's anchor 50px from the
+    // corner of an 800px screen — a zoom toward the wrong place. jsdom hands
+    // back the specified value rather than resolving it, which is exactly the
+    // environment the keyword and single-token forms have to survive.
+    for (const [origin, expected] of [
+      ["left top", "translate(0px, 0px)"],
+      ["left", "translate(0px, "],
+      ["nonsense nonsense", "translate("]
+    ] as const) {
+      vi.stubGlobal("getComputedStyle", () => ({ transformOrigin: origin }));
+      try {
+        const gallery = makeScreen("layout", true);
+        const thumbnail = makeMorph(gallery, [0, 0, 100, 100]);
+        attachMorph(thumbnail, { layoutId: "cam-1", name: "zoom", navigateStore: store });
+        flipTo("PUSHING");
+        gallery.setAttribute(ACTIVE_ATTR, "false");
+
+        const detail = makeScreen("layout", true);
+        const hero = makeMorph(detail, [0, 0, 400, 400]);
+        attachMorph(hero, { layoutId: "cam-1", name: "zoom", navigateStore: store });
+
+        expect(inserted.find((rule) => rule.includes("-camera {"))).toContain(expected);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+      document.body.querySelectorAll(`[${SCREEN_ATTR}]`).forEach((node) => node.remove());
+      inserted.length = 0;
+      flipTo("COMPLETED");
+    }
+  });
+
+  it("aims a camera where there are no computed styles to read", () => {
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [0, 0, 100, 100]);
+    attachMorph(thumbnail, { layoutId: "cam-2", name: "zoom", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 400]);
+    vi.stubGlobal("getComputedStyle", undefined);
+    try {
+      attachMorph(hero, { layoutId: "cam-2", name: "zoom", navigateStore: store });
+      // No origin to read is the same as the default one: the screen's centre.
+      expect(inserted.find((rule) => rule.includes("-camera {"))).toContain("scale(4)");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("carries a NESTED element's own spacing too", async () => {
+    // Same reason as the container's padding: a nested element sits where its
+    // ARRIVAL's margins put it from the first frame otherwise, which is a
+    // flinch at the exact moment of the tap.
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 160, 160]);
+    const label = makeMorph(card, [28, 730, 140, 20]);
+    label.style.padding = "2px";
+    label.style.margin = "1px";
+    attachMorph(card, { layoutId: "card-7", navigateStore: store });
+    attachMorph(label, { layoutId: "title-7", name: "text", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+    const heading = makeMorph(bigCard, [16, 260, 360, 32]);
+    heading.style.padding = "8px";
+    heading.style.margin = "4px";
+    attachMorph(bigCard, { layoutId: "card-7", navigateStore: store });
+    attachMorph(heading, { layoutId: "title-7", name: "text", navigateStore: store });
+    await Promise.resolve();
+
+    const growth = inserted.find((rule) => rule.includes("n-travel"))!;
+    expect(growth).toContain("padding: 2px");
+    expect(growth).toContain("margin: 4px");
+  });
+
+  it("gives a NESTED element back the absence of a style attribute", async () => {
+    // The flight writes an inline `animation` onto an element that had no
+    // `style` at all. Landing has to remove the attribute rather than leave an
+    // empty one, or the consumer's DOM is not what they wrote.
+    const sheet = document.createElement("style");
+    sheet.textContent = ".small { font-size: 14px } .big { font-size: 24px }";
+    document.head.appendChild(sheet);
+
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 160, 160]);
+    const label = makeMorph(card, [28, 730, 140, 20]);
+    label.className = "small";
+    attachMorph(card, { layoutId: "card-8", navigateStore: store });
+    attachMorph(label, { layoutId: "title-8", name: "text", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+    const heading = makeMorph(bigCard, [16, 260, 360, 32]);
+    heading.className = "big";
+    attachMorph(bigCard, { layoutId: "card-8", navigateStore: store });
+    attachMorph(heading, { layoutId: "title-8", name: "text", navigateStore: store });
+    await Promise.resolve();
+
+    const nestedName = /flemo-morph-\d+n-(?:travel|paint)/.exec(heading.style.animation)![0];
+    // Something else on the element ending is not this flight ending.
+    heading.dispatchEvent(animationEndEvent("not-this-flight"));
+    expect(heading.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.ENTER);
+
+    const real = animationEndEvent(nestedName);
+    Object.defineProperty(real, "elapsedTime", { value: 0.4 });
+    heading.dispatchEvent(real);
+    expect(heading.getAttribute("style")).toBeNull();
+
+    // And a second end is not a second landing.
+    heading.dispatchEvent(real);
+    expect(heading.getAttribute("style")).toBeNull();
+  });
+
+  it("measures a partner that is already in the flight layer", () => {
+    // An interrupted navigation: the element the new flight pairs with is
+    // mid-flight itself, so it is not on any screen. What it is WEARING is
+    // where it is, and there is no screen pose to undo.
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    // Straight into the layer, exactly as a flight would have staged it, and
+    // registered only now — so there is no snapshot for the arrival to find and
+    // it has to measure the partner where it currently is.
+    layer.appendChild(thumbnail);
+    attachMorph(thumbnail, { layoutId: "photo-2", navigateStore: store });
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-2", navigateStore: store });
+
+    expect(hero.parentElement).toBe(layer);
+    expect(inserted.find((rule) => rule.includes("-travel"))).toContain("left: 20px");
+  });
+
+  it("declines when there is no morph transition to fly at all", () => {
+    // The preset is a registration like any other: a consumer bundling their
+    // own registry, or a teardown that ran early, can leave the map empty.
+    const preset = morphTransitionMap.get("shared" as never)!;
+    morphTransitionMap.delete("shared" as never);
+    try {
+      const gallery = makeScreen("layout", true);
+      const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+      attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("layout", true);
+      const hero = makeMorph(detail, [0, 0, 400, 300]);
+      attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
+
+      expect(hero.parentElement).toBe(detail);
+      expect(hero.style.animation).toBe("");
+    } finally {
+      morphTransitionMap.set("shared" as never, preset);
+    }
   });
 
   it("re-registering during a flight does not restart or abort it", () => {

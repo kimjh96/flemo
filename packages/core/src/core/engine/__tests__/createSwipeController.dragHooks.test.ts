@@ -147,6 +147,106 @@ describe("createSwipeController drag hooks", () => {
     expect(onDragProgress.mock.calls.at(-1)?.[0]).toBeCloseTo(0.3, 2);
   });
 
+  it("falls back to the viewport when the screen has no box to measure", async () => {
+    // A scope that has not laid out (or an exotic embedder with no rect) still
+    // has to report a progress between 0 and 1, and the window is the only
+    // other span there is.
+    dom.scope.getBoundingClientRect = () =>
+      ({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        width: 0,
+        height: 0,
+        right: 0,
+        bottom: 0,
+        toJSON: () => ({})
+      }) as DOMRect;
+
+    const controller = createSwipeController(buildConfig(silentHandlers(true)));
+    controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
+    for (const clientX of [40, 80]) {
+      controller.pointerMove(event({ clientX, clientY: 100 }));
+      await flush();
+    }
+
+    expect(onDragProgress).toHaveBeenCalled();
+    expect(onDragProgress.mock.calls.at(-1)?.[0]).toBeCloseTo(40 / window.innerWidth, 5);
+  });
+
+  it("measures a vertical drag against the screen's height", async () => {
+    // The axis is the transition's, not the gesture's: a sheet that dismisses
+    // downwards divides by the height it is travelling through.
+    dom.scope.getBoundingClientRect = () =>
+      ({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        width: 400,
+        height: 800,
+        right: 400,
+        bottom: 800,
+        toJSON: () => ({})
+      }) as DOMRect;
+
+    const handlers = silentHandlers(true);
+    const config = buildConfig(handlers);
+    const vertical: SwipeControllerConfig = {
+      ...config,
+      getTransition: () =>
+        ({
+          ...(config.getTransition() as unknown as Record<string, unknown>),
+          swipeDirection: "y"
+        }) as unknown as ReturnType<typeof config.getTransition>
+    };
+
+    const controller = createSwipeController(vertical);
+    controller.pointerDown(event({ target: dom.scope, clientX: 100, clientY: 0 }));
+    for (const clientY of [40, 200]) {
+      controller.pointerMove(event({ clientX: 100, clientY }));
+      await flush();
+    }
+
+    // 200 minus the 40 that armed the drag, over the screen's own 800.
+    expect(onDragProgress.mock.calls.at(-1)?.[0]).toBeCloseTo(0.2, 2);
+  });
+
+  it("falls back to the viewport's HEIGHT for a vertical drag", async () => {
+    dom.scope.getBoundingClientRect = () =>
+      ({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        width: 0,
+        height: 0,
+        right: 0,
+        bottom: 0,
+        toJSON: () => ({})
+      }) as DOMRect;
+
+    const config = buildConfig(silentHandlers(true));
+    const vertical: SwipeControllerConfig = {
+      ...config,
+      getTransition: () =>
+        ({
+          ...(config.getTransition() as unknown as Record<string, unknown>),
+          swipeDirection: "y"
+        }) as unknown as ReturnType<typeof config.getTransition>
+    };
+
+    const controller = createSwipeController(vertical);
+    controller.pointerDown(event({ target: dom.scope, clientX: 100, clientY: 0 }));
+    for (const clientY of [40, 90]) {
+      controller.pointerMove(event({ clientX: 100, clientY }));
+      await flush();
+    }
+
+    expect(onDragProgress.mock.calls.at(-1)?.[0]).toBeCloseTo(50 / window.innerHeight, 5);
+  });
+
   it("reports the release before the handler's own settle resolves", async () => {
     // A handler awaits its screen animations — every built-in does — and
     // anything reported after that await is a passenger frozen for the whole

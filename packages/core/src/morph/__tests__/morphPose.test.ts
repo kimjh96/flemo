@@ -25,6 +25,18 @@ describe("resolveLength", () => {
     expect(resolveLength(undefined, 400)).toBe(0);
   });
 
+  it("reads an empty string as no offset at all", () => {
+    // `x: ""` reaches here from an authored target that computed its own
+    // value and came up with nothing. It is not an unresolvable unit — it is
+    // zero — and returning null for it would drop a whole flight's counter-ride.
+    expect(resolveLength("", 400)).toBe(0);
+  });
+
+  it("refuses a unit whose number is not a number", () => {
+    expect(resolveLength("%", 400)).toBeNull();
+    expect(resolveLength("px", 400)).toBeNull();
+  });
+
   it("refuses units it cannot turn into a number", () => {
     // The alternative is a guess, and a guessed length puts a shared element
     // somewhere it never was. A null degrades the counter-ride instead.
@@ -57,6 +69,32 @@ describe("resolvePose", () => {
   it("returns null when any channel is unresolvable", () => {
     expect(resolvePose({ x: "2rem" }, SCREEN)).toBeNull();
   });
+
+  it("reads scale and rotate however the author wrote them", () => {
+    // A transition target is authored by hand, so every channel arrives in
+    // whichever form its author found natural: a number, a string with a unit,
+    // or a string without one. All three mean the same thing here.
+    expect(resolvePose({ scale: "0.5", rotate: "90deg" }, SCREEN)).toMatchObject({
+      scaleX: 0.5,
+      scaleY: 0.5,
+      rotate: 90
+    });
+    expect(resolvePose({ scaleX: 2, rotate: 45 }, SCREEN)).toMatchObject({ scaleX: 2, rotate: 45 });
+    expect(resolvePose({ rotate: "45" }, SCREEN)).toMatchObject({ rotate: 45 });
+  });
+
+  it("falls back to rotateZ when rotate is absent", () => {
+    expect(resolvePose({ rotateZ: "12deg" }, SCREEN)).toMatchObject({ rotate: 12 });
+  });
+
+  it("returns null for a scale or an angle it cannot resolve", () => {
+    // Same rule as a length: a guessed number is worse than declining, because
+    // the caller can take the rect as measured instead.
+    expect(resolvePose({ scale: "auto" }, SCREEN)).toBeNull();
+    expect(resolvePose({ scaleY: "auto" }, SCREEN)).toBeNull();
+    expect(resolvePose({ rotate: "2turn" }, SCREEN)).toBeNull();
+    expect(resolvePose({ rotate: "xdeg" }, SCREEN)).toBeNull();
+  });
 });
 
 describe("poseToCss", () => {
@@ -71,6 +109,16 @@ describe("poseToCss", () => {
   it("collapses the identity to none", () => {
     expect(poseToCss(IDENTITY_POSE)).toBe("none");
     expect(poseIsIdentity(IDENTITY_POSE)).toBe(true);
+  });
+
+  it("emits a rotation, and rounds every channel to three places", () => {
+    expect(poseToCss({ x: 1.00049, y: 0, scaleX: 1, scaleY: 1, rotate: 12.3456 })).toBe(
+      "translate3d(1px, 0px, 0) rotate(12.346deg)"
+    );
+  });
+
+  it("composes nothing but identities into none", () => {
+    expect(composePosesToCss([IDENTITY_POSE, { ...IDENTITY_POSE }])).toBe("none");
   });
 
   it("composes several poses outermost-first, skipping identities", () => {

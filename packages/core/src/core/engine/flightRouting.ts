@@ -129,32 +129,13 @@ const hasTouch = (): boolean => typeof navigator !== "undefined" && navigator.ma
  */
 export const resolveHeadKit = (
   status: string
-): { governedHead: boolean; desktopHead: boolean; headMs: number } => {
-  const blink = detectBlinkEngine();
-  const touch = hasTouch();
-  const touchGoverned = !blink && touch && governedCompiledActive();
-  const governedOverride = readBlinkGovernedOverride();
-  const blinkGoverned =
-    blink &&
-    touch &&
-    (governedOverride === "on" || (governedOverride !== "off" && isLegacyAndroidBlink()));
-  const forceCompiled =
-    !blink && touch && (status === "POPPING" || (status === "PUSHING" && readSettleGateFlag()));
-  const governedHead = touchGoverned || blinkGoverned || forceCompiled;
-  const desktopHead = isDesktopMacWebKit() && readDesktopHeadFlag();
-  return {
-    governedHead,
-    desktopHead,
-    headMs: governedHead
-      ? (GOVERNED_HEAD_MS[status] ?? 0)
-      : desktopHead
-        ? (DESKTOP_HEAD_MS[status] ?? 0)
-        : 0
-  };
-};
-
-export const resolveFlightRouting = (input: FlightRoutingInput): FlightRouting => {
-  const { status, transition, skipAnimation, hasActiveMotion, hasAnimation } = input;
+): {
+  touchGoverned: boolean;
+  forceCompiled: boolean;
+  governedHead: boolean;
+  desktopHead: boolean;
+  headMs: number;
+} => {
   const blink = detectBlinkEngine();
   const touch = hasTouch();
 
@@ -190,6 +171,29 @@ export const resolveFlightRouting = (input: FlightRoutingInput): FlightRouting =
 
   const governedHead = touchGoverned || blinkGoverned || forceCompiled;
   const desktopHead = isDesktopMacWebKit() && readDesktopHeadFlag();
+  return {
+    touchGoverned,
+    forceCompiled,
+    governedHead,
+    desktopHead,
+    headMs: governedHead
+      ? (GOVERNED_HEAD_MS[status] ?? 0)
+      : desktopHead
+        ? (DESKTOP_HEAD_MS[status] ?? 0)
+        : 0
+  };
+};
+
+export const resolveFlightRouting = (input: FlightRoutingInput): FlightRouting => {
+  const { status, transition, skipAnimation, hasActiveMotion, hasAnimation } = input;
+  const blink = detectBlinkEngine();
+
+  // One definition of the head kit, shared with the morph runtime — see
+  // resolveHeadKit. The two answers must never be able to drift apart: a morph
+  // staged against a different kit from the flight carrying it runs its element
+  // a head ahead of the screen.
+  const { touchGoverned, forceCompiled, governedHead, desktopHead, headMs } =
+    resolveHeadKit(status);
 
   return {
     hasDrivableMotion: !skipAnimation && hasActiveMotion,
@@ -198,11 +202,7 @@ export const resolveFlightRouting = (input: FlightRoutingInput): FlightRouting =
     forceCompiled,
     governedHead,
     desktopHead,
-    birthHoldMs: governedHead
-      ? (GOVERNED_HEAD_MS[status] ?? 0)
-      : desktopHead
-        ? (DESKTOP_HEAD_MS[status] ?? 0)
-        : 0,
+    birthHoldMs: headMs,
     governedSlide: touchGoverned && (status === "PUSHING" || status === "POPPING"),
     // Desktop Blink always, and touch Blink only at a genuine high-refresh
     // cadence — a 60Hz phone has nothing to steady.

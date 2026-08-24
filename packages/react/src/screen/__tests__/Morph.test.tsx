@@ -115,6 +115,67 @@ describe("Morph", () => {
     expect(thumb.getAttribute("data-flemo-morph")).toBe("exit");
   });
 
+  it("gives the consumer the same node the runtime flies", () => {
+    // A consumer's ref is how they reach their own element — an IntersectionObserver,
+    // a measurement, a focus call. It has to be the BOX, not the slot, because
+    // the slot is `display: contents` and has no box at all.
+    let fromCallback: HTMLElement | null = null;
+    const objectRef: { current: HTMLDivElement | null } = { current: null };
+
+    const { getByTestId, rerender } = render(
+      <StoreContext.Provider value={stores}>
+        <ScreenShell isActive>
+          <Morph
+            layoutId="photo-1"
+            data-testid="thumb"
+            ref={(node: HTMLDivElement | null) => {
+              fromCallback = node;
+            }}
+          />
+        </ScreenShell>
+      </StoreContext.Provider>
+    );
+
+    expect(fromCallback).toBe(getByTestId("thumb"));
+
+    rerender(
+      <StoreContext.Provider value={stores}>
+        <ScreenShell isActive>
+          <Morph layoutId="photo-1" data-testid="thumb" ref={objectRef} />
+        </ScreenShell>
+      </StoreContext.Provider>
+    );
+
+    expect(objectRef.current).toBe(getByTestId("thumb"));
+  });
+
+  it("pins a morph on a resting screen instead of flipping it every navigation", () => {
+    // Same rule as <Part>: without the pin, every navigation in the app would
+    // run every stacked screen's morphs through PUSHING and back, re-registering
+    // elements nothing can see.
+    const { getByTestId } = render(
+      <StoreContext.Provider value={stores}>
+        <ScreenContext.Provider value={{ ...base, isActive: false, isPrev: true }}>
+          <div
+            data-flemo-screen=""
+            data-flemo-transition="layout"
+            data-flemo-status="COMPLETED"
+            data-flemo-active="false"
+          >
+            <Morph layoutId="photo-1" data-testid="thumb" />
+          </div>
+        </ScreenContext.Provider>
+      </StoreContext.Provider>
+    );
+
+    act(() => {
+      stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+    });
+
+    // Nothing staged it, and nothing marked it: it is not in this flight.
+    expect(getByTestId("thumb").getAttribute("data-flemo-morph")).toBe("");
+  });
+
   it("passes its props through to the box", () => {
     const { getByTestId } = render(
       <StoreContext.Provider value={stores}>

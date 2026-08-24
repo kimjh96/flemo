@@ -33,6 +33,22 @@ describe("createArrivalHold", () => {
     }
   });
 
+  it("does not hold a morph coming home from the flight layer", async () => {
+    // A shared element landing is not an arrival — it is the landing itself,
+    // and holding it there IS the blink the hold exists to prevent.
+    const { scope, section } = buildScreen();
+    const release = createArrivalHold(scope);
+
+    const landing = document.createElement("div");
+    landing.setAttribute("data-flemo-morph", "enter");
+    section.appendChild(landing);
+    await observerFlush();
+
+    expect(landing.hasAttribute(HELD_ARRIVAL_ATTR)).toBe(false);
+    release();
+    scope.remove();
+  });
+
   it("ignores comment-node removals inside a swap batch", async () => {
     const { scope, section, skeleton } = buildScreen();
     const comment = document.createComment("marker");
