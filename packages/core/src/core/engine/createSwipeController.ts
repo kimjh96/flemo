@@ -696,13 +696,15 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const dragBox = scope?.getBoundingClientRect();
     const dragSpan =
       (dragAxis === "y" ? dragBox?.height : dragBox?.width) ||
-      /* v8 ignore next -- no window means no pointer to have started a drag;
-         the guard is for the same SSR-safety the rest of the file keeps. */
+      /* v8 ignore start -- no window means no pointer event to have started a
+         drag, so this arm cannot run; it is here for the same SSR-safety the
+         release's own span keeps a few lines below. */
       (typeof window === "undefined"
         ? 0
         : dragAxis === "y"
           ? window.innerHeight
           : window.innerWidth);
+    /* v8 ignore stop */
     const dragged = Math.abs(dragAxis === "y" ? info.offset.y : info.offset.x);
 
     transition.onSwipe(event, info, {

@@ -26,8 +26,17 @@ node_modules
 .vscode
 .cursor
 .claude
-# Root CLAUDE.md stays a local, per-checkout file; package-level CLAUDE.md
-# files (packages/react, apps/web) are tracked documentation.
+# EVERY CLAUDE.md is a local, per-checkout file — the root one and the
+# package-level ones (packages/react, apps/web) alike. They are the
+# maintainer's agent-facing notes: they churn on every round and the churn
+# dominated review, which is the same reason `/docs/` below is local.
+#
+# Deliberately NOT anchored, unlike `/docs/`: this pattern matches a FILE of
+# that exact name, so it can never swallow a directory the way an unanchored
+# `docs/` swallowed the docs site. The one thing to keep in mind is the mirror
+# of that hazard — a new package's CLAUDE.md is ignored without anyone saying
+# so, which is the intent here.
+CLAUDE.md
 
 # Agent-facing engine documentation (architecture notes, the diagnostics flag
 # reference, the device-campaign postmortems). Local per-checkout, same as the
@@ -42,7 +51,6 @@ node_modules
 # vanished from the bundle and the aside stayed `display: none`, failing the
 # docs e2e specs with a build that compiled cleanly.
 /docs/
-/CLAUDE.md
 
 # OS
 .DS_Store

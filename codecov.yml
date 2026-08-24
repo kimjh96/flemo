@@ -29,9 +29,9 @@ flag_management:
 # Don't bother counting type-only files or entry barrels.
 # ScreenMotion drives `animationend`, `setPointerCapture`, and pointer-event
 # choreography that don't behave usefully in jsdom. Its lifecycle is
-# verified by the Playwright e2e suite in `apps/web/e2e/` instead. See
-# `packages/react/CLAUDE.md`: "prefer the playground for interactive
-# transitions, these are hard to assert in jsdom".
+# verified by the Playwright e2e suite in `apps/web/e2e/` instead: interactive
+# transitions are judged in a browser, on the playground, because a jsdom
+# assertion about them proves nothing about what reaches glass.
 #
 # The image offloader's worker/decode path is the same kind: Web Workers,
 # createImageBitmap and canvas do not run in jsdom, so its branches are
