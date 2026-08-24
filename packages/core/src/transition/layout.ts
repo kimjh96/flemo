@@ -76,7 +76,26 @@ const layout = createTransition({
     }
   },
   options: {
-    decoratorName: "overlay",
+    // NO DIM, and the reason is a timing one rather than a taste one.
+    //
+    // A decorator is compiled once per NAME, not once per transition that
+    // names it: one set of keyframes, with the durations its author wrote.
+    // `overlay`'s are 0.7s, sized for cupertino, whose flight is also 0.7s —
+    // they resolve in lockstep there. This transition runs 0.4s, so the dim
+    // outlived it by 300ms: measured on a pop, the dismissing screen was fully
+    // gone at 335ms while the screen underneath was still carrying a 10% black
+    // wash, which reads as a grey cast appearing out of nowhere and then
+    // lifting for no reason.
+    //
+    // Sizing a second dim to 0.4s was the other option and it is worse for
+    // THIS preset: a dim's job is depth under a screen that slides over
+    // another, and nothing here slides. One screen fades, the other holds
+    // still, and a shared element travels above both — a wash over the
+    // stationary screen is one more thing changing in frames that exist to
+    // let the element be followed.
+    //
+    // A consumer who wants one authors it: `createDecorator` is public, and
+    // the timing to match is the transition's own.
     swipeDirection: "y",
     onSwipeStart: async () => {
       return true;
