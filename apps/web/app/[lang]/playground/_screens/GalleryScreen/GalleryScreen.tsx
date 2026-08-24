@@ -1,6 +1,8 @@
 "use client";
 
-import { Morph, Screen, useNavigate } from "@flemo/react";
+import { Screen, useNavigate } from "@flemo/react";
+
+import Shared from "../../_components/Shared";
 
 import { useTransitionChoice } from "../../_providers/TransitionChoiceContext";
 
@@ -15,7 +17,7 @@ import { PIECES, surfaceFor } from "../../_data/gallery";
 // none of the morphs is told anything about that choice.
 function GalleryScreen() {
   const { push } = useNavigate();
-  const { transitionName, morphName } = useTransitionChoice();
+  const { transition, morph } = useTransitionChoice();
 
   return (
     <Screen backgroundColor="var(--color-bg)">
@@ -24,7 +26,9 @@ function GalleryScreen() {
           Gallery
         </h2>
         <p className="mt-0.5 text-sm text-[var(--color-text-disabled)]">
-          Tap a card. The card, its artwork and its title each cross on their own.
+          {morph.name
+            ? "Tap a card. The card, its artwork and its title each cross on their own."
+            : "Tap a card. No shared element this time — the screen transition is on its own."}
         </p>
         <ul className="mt-5 grid grid-cols-2 gap-4">
           {PIECES.map((piece) => (
@@ -32,29 +36,32 @@ function GalleryScreen() {
               <button
                 type="button"
                 onClick={() =>
-                  push("/playground/gallery/:id", { id: piece.id }, { transitionName })
+                  push(
+                    "/playground/gallery/:id",
+                    { id: piece.id },
+                    { transitionName: transition.id }
+                  )
                 }
                 className="w-full cursor-pointer text-left"
               >
-                <Morph
+                <Shared
                   layoutId={`card-${piece.id}`}
-                  name={morphName}
-                  className="overflow-hidden rounded-2xl bg-[var(--color-layer)] p-2"
+                  className="block overflow-hidden rounded-2xl bg-[var(--color-layer)] p-2"
                 >
-                  <Morph
+                  <Shared
                     layoutId={`art-${piece.id}`}
                     className="block aspect-square w-full rounded-xl"
                     style={{ background: surfaceFor(piece.hue) }}
                     aria-hidden="true"
                   />
-                  <Morph
+                  <Shared
                     layoutId={`title-${piece.id}`}
                     name="text"
                     className="mt-2 block truncate text-sm font-semibold text-[var(--color-text-primary)]"
                   >
                     {piece.title}
-                  </Morph>
-                </Morph>
+                  </Shared>
+                </Shared>
               </button>
             </li>
           ))}

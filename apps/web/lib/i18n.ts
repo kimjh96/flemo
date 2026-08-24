@@ -30,6 +30,7 @@ export const dict = {
       nav: {
         home: "Home",
         showcase: "Showcase",
+        playground: "Playground",
         docs: "Docs",
         github: "GitHub"
       },
@@ -101,6 +102,7 @@ export const dict = {
       nav: {
         home: "홈",
         showcase: "쇼케이스",
+        playground: "플레이그라운드",
         docs: "문서",
         github: "GitHub"
       },

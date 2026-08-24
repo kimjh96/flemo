@@ -3,6 +3,9 @@
 import { Route, Router, Slot } from "@flemo/react";
 
 import detailContent from "../../_transitions/detailContent";
+import drift from "../../_transitions/drift";
+import fade from "../../_transitions/fade";
+import raise from "../../_transitions/raise";
 import sheet from "../../_transitions/sheet";
 
 import GalleryScreen from "../../_screens/GalleryScreen";
@@ -14,7 +17,10 @@ import TransitionChoiceContext, {
 
 import "./PlaygroundRouter.types";
 
-const TRANSITIONS = [sheet];
+// Every consumer-authored transition the catalog offers. The built-in presets
+// need no registration — flemo ships them — which is itself the difference the
+// bench is showing.
+const TRANSITIONS = [sheet, drift, fade, raise];
 const PART_TRANSITIONS = [detailContent];
 
 export interface PlaygroundRouterProps {
@@ -32,7 +38,7 @@ function PlaygroundRouter({ choice }: PlaygroundRouterProps) {
         history="memory"
         transitions={TRANSITIONS}
         partTransitions={PART_TRANSITIONS}
-        defaultTransitionName={choice.transitionName}
+        defaultTransitionName={choice.transition.id}
         className="h-full w-full bg-[var(--color-bg)]"
       >
         <Slot className="h-full w-full">

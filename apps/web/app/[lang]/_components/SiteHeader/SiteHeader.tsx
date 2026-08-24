@@ -68,6 +68,7 @@ function SiteHeader() {
 
   const goHome = () => goPeer("/");
   const goShowcase = () => goPeer("/showcase");
+  const goPlayground = () => goPeer("/playground");
 
   const goDocs = () => {
     if (activePath === "/docs") return;
@@ -77,6 +78,7 @@ function SiteHeader() {
   const shellLinks: { label: string; path: ShellPath; onClick: () => void }[] = [
     { label: dict.nav.home, path: "/", onClick: goHome },
     { label: dict.nav.showcase, path: "/showcase", onClick: goShowcase },
+    { label: dict.nav.playground, path: "/playground", onClick: goPlayground },
     { label: dict.nav.docs, path: "/docs", onClick: goDocs }
   ];
 
