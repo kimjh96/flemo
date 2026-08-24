@@ -100,7 +100,7 @@ function ChainScreen() {
   );
 
   return (
-    <Screen backgroundColor={fullBleed ? "transparent" : undefined}>
+    <Screen backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}>
       <div className="relative flex h-full flex-col">
         <header
           className={

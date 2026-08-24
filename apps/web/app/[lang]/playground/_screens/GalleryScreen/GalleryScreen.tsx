@@ -18,7 +18,7 @@ function GalleryScreen() {
   const { transitionName, morphName } = useTransitionChoice();
 
   return (
-    <Screen>
+    <Screen backgroundColor="var(--color-bg)">
       <div className="h-full overflow-y-auto px-5 pt-6 pb-10">
         <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
           Gallery

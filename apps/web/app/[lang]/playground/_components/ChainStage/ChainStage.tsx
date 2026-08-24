@@ -1,44 +1,48 @@
 "use client";
 
+import BenchCard from "../BenchCard";
+import StageFrame from "../StageFrame";
+
 import ChainRouter from "../../_router/ChainRouter";
 
 import { CHAIN } from "../../_data/chain";
 
 // THE CHAIN. Five pushes, a different transition on each, two of them carrying
-// a morph — including one with a camera (`zoom`). The strip above answers
+// a morph — including one with a camera (`zoom`). The strip beside it answers
 // "does this transition work"; this answers the question that only a stack can:
 // does a morph flight leave anything behind for the NEXT transition to trip on,
 // and do five pops unwind five different transitions in the right order.
 function ChainStage() {
   return (
-    <div className="mx-auto flex max-w-[1100px] flex-col gap-6 px-6 pb-20">
-      <header>
-        <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
-          Transition chain
-        </h2>
-        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-          One stack, five transitions, two of them morphs. Walk it down and pop it back.
-        </p>
-        <ol className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-text-disabled)]">
-          {CHAIN.map((step) => (
-            <li key={step.id}>
-              <span className="font-bold text-[var(--color-text-secondary)]">{step.label}</span>{" "}
-              {step.transitionName}
-              {step.morphName ? ` + ${step.morphName} morph` : ""}
+    <BenchCard
+      title="Five transitions, one stack"
+      question="Whether a flight leaves anything behind for the next transition to trip on, and whether five pops unwind five different transitions in the right order."
+      controls={
+        <ol className="flex flex-col gap-1.5">
+          {CHAIN.map((step, index) => (
+            <li
+              key={step.id}
+              className="grid grid-cols-[1.25rem_3rem_1fr] items-baseline gap-x-3 text-xs"
+            >
+              <span className="font-mono text-[var(--color-text-disabled)] tabular-nums">
+                {index === 0 ? "—" : index}
+              </span>
+              <span className="font-bold text-[var(--color-text-primary)]">{step.label}</span>
+              <span className="font-mono text-[var(--color-text-secondary)]">
+                {index === 0 ? "root" : step.transitionName}
+                {step.morphName ? (
+                  <span className="text-[var(--color-primary)]"> + {step.morphName} morph</span>
+                ) : null}
+              </span>
             </li>
           ))}
         </ol>
-      </header>
-
-      <div className="flex justify-center">
-        <div
-          className="relative h-[720px] w-[380px] overflow-hidden rounded-[34px] border border-[var(--color-border-light)] shadow-[0_34px_80px_-26px_rgba(15,23,42,0.35)]"
-          data-chain-stage=""
-        >
-          <ChainRouter />
-        </div>
-      </div>
-    </div>
+      }
+    >
+      <StageFrame marker="chain" caption="Walk it down, then pop it back — nested inside a screen.">
+        <ChainRouter />
+      </StageFrame>
+    </BenchCard>
   );
 }
 
