@@ -4,9 +4,11 @@ import { transitionMap } from "@transition/transition";
 import type { Transition } from "@transition/typing";
 
 import { decoratorMap } from "@transition/decorator/decorator";
+import { morphTransitionMap } from "@transition/morphTransition/morphTransition";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 import type { Decorator } from "@transition/decorator/typing";
+import type { MorphTransition } from "@transition/morphTransition/typing";
 import type { PartTransition } from "@transition/partTransition/typing";
 
 // Live registrations per definition name. Multiple Routers can register the
@@ -21,6 +23,7 @@ import type { PartTransition } from "@transition/partTransition/typing";
 const transitionRefs = new Map<string, number>();
 const decoratorRefs = new Map<string, number>();
 const partTransitionRefs = new Map<string, number>();
+const morphTransitionRefs = new Map<string, number>();
 
 const retain = (refs: Map<string, number>, name: string) => {
   refs.set(name, (refs.get(name) ?? 0) + 1);
@@ -46,7 +49,8 @@ const release = (refs: Map<string, number>, name: string) => {
 export default function registerTransitionDefinitions(
   transitions: Transition[],
   decorators: Decorator[],
-  partTransitions: PartTransition[] = []
+  partTransitions: PartTransition[] = [],
+  morphTransitions: MorphTransition[] = []
 ): () => void {
   for (const transition of transitions) {
     transitionMap.set(transition.name, transition);
@@ -60,6 +64,14 @@ export default function registerTransitionDefinitions(
     partTransitionMap.set(partTransition.name, partTransition);
     retain(partTransitionRefs, partTransition.name);
   }
+  // Morph transitions compile to no CSS at registration — their keyframes need
+  // two rects that only a flight produces — so this is a pure name lookup for
+  // the morph runtime. It still reference-counts like the rest: several Routers
+  // may register the same name, and the last one out is the one that removes it.
+  for (const morphTransition of morphTransitions) {
+    morphTransitionMap.set(morphTransition.name, morphTransition);
+    retain(morphTransitionRefs, morphTransition.name);
+  }
   applyTransitionStyles();
   return () => {
     for (const transition of transitions) {
@@ -71,6 +83,10 @@ export default function registerTransitionDefinitions(
     for (const partTransition of partTransitions) {
       if (release(partTransitionRefs, partTransition.name))
         partTransitionMap.delete(partTransition.name);
+    }
+    for (const morphTransition of morphTransitions) {
+      if (release(morphTransitionRefs, morphTransition.name))
+        morphTransitionMap.delete(morphTransition.name);
     }
     applyTransitionStyles();
   };

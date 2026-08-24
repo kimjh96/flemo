@@ -69,7 +69,6 @@ const screenContext = (overrides: Partial<ScreenContextProps>): ScreenContextPro
   params: {},
   transitionName: "cupertino" as TransitionName,
   prevTransitionName: "cupertino" as TransitionName,
-  layoutId: null,
   routePath: "/",
   ...overrides
 });

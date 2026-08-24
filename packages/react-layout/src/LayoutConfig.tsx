@@ -6,7 +6,15 @@ import { transitionMap } from "@flemo/core";
 
 import { useNavigateStore, useScreen } from "@flemo/react";
 
+import deprecationNotice from "./deprecationNotice";
+
+/**
+ * DEPRECATED. A morph now runs on the screen transition's own timing, so there
+ * is nothing left for this to align — see deprecationNotice.ts.
+ */
 function LayoutConfig({ children, ...props }: PropsWithChildren<MotionConfigProps>) {
+  deprecationNotice("LayoutConfig");
+
   const { isActive, transitionName } = useScreen();
   const status = useNavigateStore((state) => state.status);
   const currentTransition = transitionMap.get(transitionName);

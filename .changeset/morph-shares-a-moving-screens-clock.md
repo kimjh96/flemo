@@ -1,0 +1,5 @@
+---
+"@flemo/core": patch
+---
+
+Run a morph's travel on the arriving screen's own curve when that screen's transition moves it. A morph's destination is a place ON the arriving screen, so a screen that slides or rises in carries that place along with it — the element is chasing a moving target, and chasing it on a second clock leaves the two disagreeing in both position and size. Measured on a cupertino pop, at the same point in the flight: on two clocks the element fell from 75px behind its place to 118px behind before turning round, and was still 160px too wide; on one clock it was 61px behind and closing, 149px too wide and closing — monotone on both axes and closer on both at every sample. A screen that arrives in place carries nothing, and a morph there keeps its own curve. Whether the screen moves is read from the transition's definition rather than from the element, because at the moment a flight is staged the arriving screen is parked at its destination with no transform on it yet.

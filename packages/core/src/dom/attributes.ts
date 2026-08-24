@@ -108,6 +108,96 @@ export const DECORATOR_NAME_ATTR = "data-flemo-decorator-name";
  */
 export const PART_NAME_ATTR = "data-flemo-part-name";
 
+// ── Morphs (shared elements) ────────────────────────────────────────────────
+// A morph is one element that exists on BOTH screens of a flight under the
+// same `layoutId`. The binding marks it; the morph runtime (see @morph) pairs
+// the two sides, emits the per-flight keyframes, and stamps the role.
+
+/**
+ * Marks a registered morph element. Presence only — the value is the ROLE
+ * (see MORPH_ROLE). Written by the binding, read by the morph runtime (to find
+ * the pair), by the compiled hold rule (so a morph pauses with its screen),
+ * and by devtools.
+ */
+export const MORPH_ATTR = "data-flemo-morph";
+
+/** The morph's side of the flight, stamped by the runtime for its duration. */
+export const MORPH_ROLE = {
+  /** The arriving element: it travels from its partner's rect to its own. */
+  ENTER: "enter",
+  /** The element left behind: it stays put and trades places with the arrival. */
+  EXIT: "exit"
+} as const;
+
+/**
+ * The registered morph-transition name for this element, so a consumer can run
+ * different morph choreography per element. Absent means the default preset.
+ */
+export const MORPH_NAME_ATTR = "data-flemo-morph-name";
+
+/**
+ * The per-Router FLIGHT LAYER: the box a shared element is staged in while it
+ * travels. Rendered by the binding (a Router knows which box bounds its
+ * screens); the morph runtime moves the element in at the start of a flight and
+ * back on landing. A morph inside a screen would be clipped by it, covered by
+ * it and dragged along with it — all three are properties of being a
+ * descendant, so for the flight it stops being one.
+ */
+export const MORPH_LAYER_ATTR = "data-flemo-morph-layer";
+
+/**
+ * The morph's placeholder: the box that stays behind in the layout, at the
+ * element's own size, while the element itself is up in the flight layer. It is
+ * what keeps the arriving screen laid out exactly as it will be at rest, so the
+ * landing has somewhere true to land.
+ */
+export const MORPH_SLOT_ATTR = "data-flemo-morph-slot";
+
+/**
+ * The STAND-IN: a copy of the element that is flying, left in its slot to hold
+ * its place in the layout.
+ *
+ * A placeholder measured in pixels is a placeholder that can be wrong, and
+ * "wrong" here is a layout shift lasting exactly as long as the flight. A copy
+ * of the element cannot be: the layout has no way to tell it apart from what
+ * was there — same box, same margins, same baseline. It paints nothing and
+ * takes no input, and it is replaced by the real element on landing. Owned
+ * entirely by the morph runtime.
+ */
+export const MORPH_STAND_IN_ATTR = "data-flemo-morph-stand-in";
+
+/**
+ * The GHOST: a copy of the element being replaced, carried inside the flight so
+ * the travelling box shows what was actually there at the start instead of the
+ * arrival's content squeezed into the departure's size. It cross-fades into the
+ * real element and is removed on landing. Owned entirely by the morph runtime.
+ */
+export const MORPH_GHOST_ATTR = "data-flemo-morph-ghost";
+
+/**
+ * The SCREEN a flight is driving as a camera, stamped with the flight's id.
+ *
+ * A morph with `carry: "screen"` does not just move its element: it moves the
+ * whole screen the element is small on, by exactly the zoom that takes the
+ * element from one end of the flight to the other. Everything else on that
+ * screen is then dragged along and pushed out of frame, which is what makes a
+ * container transform read as one camera move rather than as one card
+ * escaping a grid that stayed behind.
+ *
+ * The id is in the value because two flights can overlap: the rule that
+ * matches is the one whose keyframes are still in the sheet.
+ */
+export const MORPH_CAMERA_ATTR = "data-flemo-morph-camera";
+
+/**
+ * The `<style>` tag the morph runtime writes its per-flight keyframes into. A
+ * morph's geometry only exists once two rects do, so unlike every other
+ * animation in the library its keyframes cannot be compiled at registration —
+ * they are inserted when a flight starts and dropped when it lands. Kept out of
+ * the compiled sheet so that sheet stays a pure function of the definitions.
+ */
+export const MORPH_SHEET_ATTR = "data-flemo-morph-sheet";
+
 // ── Holds ───────────────────────────────────────────────────────────────────
 // The holds are how a flight's opening survives a heavy mount commit: the
 // compiled rules pause on these attributes, and the release flips them.
@@ -229,6 +319,14 @@ export const FLEMO_ATTRIBUTES = [
   DECORATOR_ATTR,
   DECORATOR_NAME_ATTR,
   PART_NAME_ATTR,
+  MORPH_ATTR,
+  MORPH_CAMERA_ATTR,
+  MORPH_GHOST_ATTR,
+  MORPH_LAYER_ATTR,
+  MORPH_NAME_ATTR,
+  MORPH_SLOT_ATTR,
+  MORPH_STAND_IN_ATTR,
+  MORPH_SHEET_ATTR,
   ANIM_HOLD_ATTR,
   HELD_ARRIVAL_ATTR,
   IMAGE_HOLD_ATTR,

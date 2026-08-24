@@ -38,7 +38,6 @@ export interface UseNavigateOptions {
 
 type RouteOptions = DistanceOptions &
   UseNavigateOptions & {
-    layoutId?: string | number;
     transitionName?: TransitionName;
   };
 

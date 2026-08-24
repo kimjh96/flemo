@@ -38,7 +38,6 @@ function buildHarness(overrides: Partial<ScreenContextProps> = {}) {
     params: { id: "1" },
     transitionName: "cupertino" as TransitionName,
     prevTransitionName: "cupertino" as TransitionName,
-    layoutId: null,
     routePath: "/posts/:id",
     ...overrides
   };
@@ -81,6 +80,37 @@ describe("Screen", () => {
     expect(content).toBeDefined();
     const freezeWrapper = content.closest("div[style*='display']");
     expect(freezeWrapper).not.toBeNull();
+  });
+
+  it("stops PAINTING a covered screen in the same commit, not when it is released", () => {
+    // The release — effects unmounted, boxes dropped, raster let go — is
+    // deferred on purpose, and on a desktop by three seconds. Until it lands
+    // the screen was still painting under whatever covered it, and nothing
+    // above a screen is obliged to be opaque: that was a stack showing through
+    // itself for the whole wait. Paint is the cheap half and does not wait.
+    stores.history.setState({ index: 1, histories: [] });
+
+    const { container } = render(
+      <Screen>
+        <div data-testid="content">hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: false }) }
+    );
+
+    const outer = container.querySelector<HTMLElement>("[data-flemo-screen]")!.parentElement!;
+    expect(outer.style.visibility).toBe("hidden");
+  });
+
+  it("paints the active screen", () => {
+    const { container } = render(
+      <Screen>
+        <div data-testid="content">hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true }) }
+    );
+
+    const outer = container.querySelector<HTMLElement>("[data-flemo-screen]")!.parentElement!;
+    expect(outer.style.visibility).toBe("");
   });
 
   // The "settled" clause is short-circuited away while a transition is mid-flight
@@ -182,8 +212,7 @@ describe("Screen", () => {
     id,
     pathname: "/",
     params: {},
-    transitionName: "cupertino" as TransitionName,
-    layoutId: null
+    transitionName: "cupertino" as TransitionName
   });
 
   // The bar's CSS ride rule keys on `data-flemo-bar-riding` AND
@@ -731,7 +760,6 @@ describe("Screen freeze deferral during a live transition", () => {
         params: {},
         transitionName: "cupertino" as TransitionName,
         prevTransitionName: "cupertino" as TransitionName,
-        layoutId: null,
         routePath: "/live"
       };
       function LiveHarness({ children }: PropsWithChildren): ReactNode {

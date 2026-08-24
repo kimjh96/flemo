@@ -53,7 +53,6 @@ interface PopStateFrame {
   status: NavigateStatus;
   params: object;
   transitionName: TransitionName;
-  layoutId: string | number | null;
 }
 
 // Bridge the Back/Forward traversals the driver reports into flemo's navigation
@@ -173,7 +172,6 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
             pathname: event.pathname,
             params: frame.params,
             transitionName: frame.transitionName,
-            layoutId: frame.layoutId,
             frameIndex: frame.index
           };
 

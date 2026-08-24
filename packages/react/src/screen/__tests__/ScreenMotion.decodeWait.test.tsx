@@ -21,8 +21,7 @@ const historyEntry = (id: string): History => ({
   id,
   pathname: "/",
   params: {},
-  transitionName: "cupertino" as TransitionName,
-  layoutId: null
+  transitionName: "cupertino" as TransitionName
 });
 
 const screenContext = (overrides: Partial<ScreenContextProps>): ScreenContextProps => ({
@@ -35,7 +34,6 @@ const screenContext = (overrides: Partial<ScreenContextProps>): ScreenContextPro
   params: {},
   transitionName: "cupertino" as TransitionName,
   prevTransitionName: "cupertino" as TransitionName,
-  layoutId: null,
   routePath: "/",
   ...overrides
 });

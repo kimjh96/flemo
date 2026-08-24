@@ -2,7 +2,13 @@ import { AnimatePresence } from "motion/react";
 
 import { Screen, type ScreenProps } from "@flemo/react";
 
+import deprecationNotice from "./deprecationNotice";
+
 /**
+ * DEPRECATED. Use `<Screen>` with `<Morph layoutId="...">` from `@flemo/react`
+ * — see deprecationNotice.ts for what maps to what. This release exists to say
+ * so; the next one removes the package.
+ *
  * A Screen whose children are wrapped in motion's `AnimatePresence`, so
  * elements with matching `layoutId` morph between screens instead of being
  * cut at the boundary.
@@ -21,6 +27,8 @@ import { Screen, type ScreenProps } from "@flemo/react";
  * over the one beneath it.
  */
 function LayoutScreen({ children, ...props }: ScreenProps) {
+  deprecationNotice("LayoutScreen");
+
   return (
     <Screen
       {...props}

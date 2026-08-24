@@ -12,8 +12,7 @@ const entry = (pathname: string) => ({
   id: pathname,
   pathname,
   params: {},
-  transitionName: "none" as const,
-  layoutId: null
+  transitionName: "none" as const
 });
 
 describe("usePathname", () => {

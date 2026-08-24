@@ -23,7 +23,6 @@ export interface DistanceOptions {
 }
 
 export interface NavigateOptions extends DistanceOptions {
-  layoutId?: string | number;
   transitionName?: TransitionName;
 }
 
@@ -144,7 +143,6 @@ export default function createNavigationController(deps: NavigationControllerDep
       index?: number;
       params?: object;
       transitionName?: TransitionName;
-      layoutId?: string | number | null;
     } | null;
     if (!frame?.id) return null;
 
@@ -160,7 +158,6 @@ export default function createNavigationController(deps: NavigationControllerDep
         pathname: driver.readPathname(),
         params: frame.params ?? {},
         transitionName: frame.transitionName ?? "none",
-        layoutId: frame.layoutId ?? null,
         frameIndex: frame.index
       });
     }
@@ -175,7 +172,7 @@ export default function createNavigationController(deps: NavigationControllerDep
     }
 
     const defaultTransitionName = stores.transition.getState().defaultTransitionName;
-    const { transitionName = defaultTransitionName, layoutId = null } = options ?? {};
+    const { transitionName = defaultTransitionName } = options ?? {};
 
     const id = TaskManager.generateTaskId();
 
@@ -218,8 +215,7 @@ export default function createNavigationController(deps: NavigationControllerDep
             id,
             pathname: toPathname,
             params: params ?? {},
-            transitionName,
-            layoutId
+            transitionName
           };
 
           // The new frame's browser-space stamp chains from the entry it is
@@ -232,7 +228,7 @@ export default function createNavigationController(deps: NavigationControllerDep
             // Plain push. The new screen stacks on the current top, unchanged.
             markTimelineRewrite();
             driver.pushState(
-              { id, index: topStamp + 1, status: "PUSHING", params, transitionName, layoutId },
+              { id, index: topStamp + 1, status: "PUSHING", params, transitionName },
               pathname
             );
             addHistory({ ...newEntry, frameIndex: topStamp + 1 });
@@ -258,8 +254,7 @@ export default function createNavigationController(deps: NavigationControllerDep
                 index: keptStamp + 1,
                 status: "PUSHING",
                 params,
-                transitionName,
-                layoutId
+                transitionName
               },
               pathname
             );
@@ -297,7 +292,7 @@ export default function createNavigationController(deps: NavigationControllerDep
     }
 
     const defaultTransitionName = stores.transition.getState().defaultTransitionName;
-    const { transitionName = defaultTransitionName, layoutId = null } = options ?? {};
+    const { transitionName = defaultTransitionName } = options ?? {};
 
     const id = TaskManager.generateTaskId();
 
@@ -346,8 +341,7 @@ export default function createNavigationController(deps: NavigationControllerDep
             id,
             pathname: toPathname,
             params: params ?? {},
-            transitionName,
-            layoutId
+            transitionName
           };
 
           const replacedStamp = presentFrame?.index ?? histories[index]?.frameIndex ?? index;
@@ -356,7 +350,7 @@ export default function createNavigationController(deps: NavigationControllerDep
             // Single-screen replace. Unchanged from the original behavior.
             markTimelineRewrite();
             driver.replaceState(
-              { id, index: replacedStamp, status: "REPLACING", params, transitionName, layoutId },
+              { id, index: replacedStamp, status: "REPLACING", params, transitionName },
               pathname
             );
             addHistory({ ...newEntry, frameIndex: replacedStamp });
@@ -389,8 +383,7 @@ export default function createNavigationController(deps: NavigationControllerDep
                   index: collapseKeptStamp,
                   status: "REPLACING",
                   params,
-                  transitionName,
-                  layoutId
+                  transitionName
                 },
                 pathname
               );
@@ -407,8 +400,7 @@ export default function createNavigationController(deps: NavigationControllerDep
                   index: collapseKeptStamp,
                   status: "REPLACING",
                   params,
-                  transitionName,
-                  layoutId
+                  transitionName
                 },
                 pathname
               );

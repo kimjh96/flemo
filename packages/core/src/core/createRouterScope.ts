@@ -204,8 +204,7 @@ export default function createRouterScope(input: CreateRouterScopeInput): FlemoS
           index: 0,
           status: "IDLE",
           params: rootHistory.params,
-          transitionName: rootHistory.transitionName,
-          layoutId: rootHistory.layoutId
+          transitionName: rootHistory.transitionName
         },
         url: rootHistory.pathname
       })

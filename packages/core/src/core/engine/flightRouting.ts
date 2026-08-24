@@ -113,8 +113,29 @@ export interface FlightRoutingInput {
 /** A touch device, on either engine. No navigator means no touch surface. */
 const hasTouch = (): boolean => typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
 
-export const resolveFlightRouting = (input: FlightRoutingInput): FlightRouting => {
-  const { status, transition, skipAnimation, hasActiveMotion, hasAnimation } = input;
+/**
+ * WHICH HEAD KIT this session plays, and how long its flat head is.
+ *
+ * Extracted so it has exactly one definition. It is a pure function of the
+ * platform, the diagnostic flags and the status — nothing about the flight —
+ * and the MORPH runtime needs the same answer at a moment when it cannot get
+ * it from the DOM: the head is announced by an attribute on the root, and the
+ * engine writes that attribute from the SAME commit the morph is staged in.
+ * React runs a descendant's layout effect first, so a morph reading the
+ * attribute reads the PREVIOUS flight's answer — right by luck from the second
+ * navigation on, and wrong on the first, which is what made a first push run
+ * its element 33ms ahead of the screen carrying it while every push after it
+ * was aligned.
+ */
+export const resolveHeadKit = (
+  status: string
+): {
+  touchGoverned: boolean;
+  forceCompiled: boolean;
+  governedHead: boolean;
+  desktopHead: boolean;
+  headMs: number;
+} => {
   const blink = detectBlinkEngine();
   const touch = hasTouch();
 
@@ -150,6 +171,29 @@ export const resolveFlightRouting = (input: FlightRoutingInput): FlightRouting =
 
   const governedHead = touchGoverned || blinkGoverned || forceCompiled;
   const desktopHead = isDesktopMacWebKit() && readDesktopHeadFlag();
+  return {
+    touchGoverned,
+    forceCompiled,
+    governedHead,
+    desktopHead,
+    headMs: governedHead
+      ? (GOVERNED_HEAD_MS[status] ?? 0)
+      : desktopHead
+        ? (DESKTOP_HEAD_MS[status] ?? 0)
+        : 0
+  };
+};
+
+export const resolveFlightRouting = (input: FlightRoutingInput): FlightRouting => {
+  const { status, transition, skipAnimation, hasActiveMotion, hasAnimation } = input;
+  const blink = detectBlinkEngine();
+
+  // One definition of the head kit, shared with the morph runtime — see
+  // resolveHeadKit. The two answers must never be able to drift apart: a morph
+  // staged against a different kit from the flight carrying it runs its element
+  // a head ahead of the screen.
+  const { touchGoverned, forceCompiled, governedHead, desktopHead, headMs } =
+    resolveHeadKit(status);
 
   return {
     hasDrivableMotion: !skipAnimation && hasActiveMotion,
@@ -158,11 +202,7 @@ export const resolveFlightRouting = (input: FlightRoutingInput): FlightRouting =
     forceCompiled,
     governedHead,
     desktopHead,
-    birthHoldMs: governedHead
-      ? (GOVERNED_HEAD_MS[status] ?? 0)
-      : desktopHead
-        ? (DESKTOP_HEAD_MS[status] ?? 0)
-        : 0,
+    birthHoldMs: headMs,
     governedSlide: touchGoverned && (status === "PUSHING" || status === "POPPING"),
     // Desktop Blink always, and touch Blink only at a genuine high-refresh
     // cadence — a 60Hz phone has nothing to steady.

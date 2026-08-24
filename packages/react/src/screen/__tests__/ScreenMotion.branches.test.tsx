@@ -31,7 +31,6 @@ function buildHarness(overrides: Partial<ScreenContextProps> = {}) {
     params: {},
     transitionName: "cupertino" as TransitionName,
     prevTransitionName: "cupertino" as TransitionName,
-    layoutId: null,
     routePath: "/",
     ...overrides
   };

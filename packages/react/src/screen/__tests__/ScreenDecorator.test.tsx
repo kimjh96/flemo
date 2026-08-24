@@ -32,7 +32,6 @@ function buildHarness(transitionName: TransitionName) {
     params: { id: "1" },
     transitionName,
     prevTransitionName: transitionName,
-    layoutId: null,
     routePath: "/posts/:id"
   };
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cubicBezier, resolveEasing } from "@transition/cubicBezier";
+import { cubicBezier, invertEasing, resolveEasing } from "@transition/cubicBezier";
 
 describe("cubicBezier", () => {
   it("anchors the endpoints exactly", () => {
@@ -39,5 +39,41 @@ describe("cubicBezier", () => {
     expect(resolveEasing("mystery" as never)(1)).toBe(1);
     expect(resolveEasing([1, 2] as never)(0.4)).toBe(0.4);
     expect(resolveEasing(undefined)(0)).toBe(0);
+  });
+});
+
+describe("invertEasing", () => {
+  // A scrub asks the opposite question from a clock: not "where is the value at
+  // this time" but "what time shows this value". The two are the same number
+  // only for a linear ease — which is exactly why a drag under the built-in
+  // curve barely moved the element it was supposed to be carrying.
+  it("returns the time that produces the value the drag asked for", () => {
+    const ease: [number, number, number, number] = [0.4, 0, 0.2, 1];
+    const forward = cubicBezier(...ease);
+    const inverse = invertEasing(ease);
+
+    for (const value of [0.1, 0.25, 0.5, 0.75, 0.9]) {
+      expect(forward(inverse(value))).toBeCloseTo(value, 4);
+    }
+  });
+
+  it("moves the element as far as the finger, not as far as the clock", () => {
+    const ease: [number, number, number, number] = [0.4, 0, 0.2, 1];
+    const forward = cubicBezier(...ease);
+    // A tenth of the way across: the clock says a tenth, the curve shows a
+    // fiftieth. The inverse is what closes that gap.
+    expect(forward(0.1)).toBeLessThan(0.05);
+    expect(forward(invertEasing(ease)(0.1))).toBeCloseTo(0.1, 4);
+  });
+
+  it("passes a linear ease through untouched", () => {
+    const inverse = invertEasing("linear");
+    expect(inverse(0.42)).toBeCloseTo(0.42, 6);
+  });
+
+  it("clamps outside the curve", () => {
+    const inverse = invertEasing([0.4, 0, 0.2, 1]);
+    expect(inverse(-1)).toBe(0);
+    expect(inverse(2)).toBe(1);
   });
 });

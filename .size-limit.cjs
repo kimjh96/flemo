@@ -21,19 +21,42 @@ module.exports = [
     // device campaigns of 2026-08 took it 22.4 -> 25.3 -> 31.9 -> 36.9 KB,
     // each step device-justified. Retiring the rAF motion driver (2026-08-22
     // — the player, its landing pixel-snap, the kind classifier, the driver
-    // policy and five diagnostic flags) gave 2.8 KB back, to 34.1 KB.
-    // Re-based to 37 KB with ~8% headroom so the gate still trips on a
-    // multi-KB balloon.
-    limit: "37 KB",
+    // policy and five diagnostic flags) gave 2.8 KB back, to 34.1 KB, and the
+    // 37 KB re-base after it was fully spent again by 2026-08-23 (36.98 kB, 16
+    // bytes of headroom — the gate was one commit from tripping on anything).
+    //
+    // Internalizing shared-element morphs (2026-08-25) took it to 45.0 kB:
+    // the pairing, the measured travel, the per-flight keyframe compiler, the
+    // paint-channel table, the stand-in and the gesture handle, which used to
+    // be `motion` in a consumer's node_modules and are now flemo's own. That
+    // is a whole feature's worth of growth and it is measured separately
+    // below, so the next KB has to say which half it came from.
+    limit: "48 KB",
+    gzip: true
+  },
+  // The morph runtime, measured as its own reachable graph. It is a real
+  // split, not bookkeeping: `<Morph>` is the only thing that pulls this in, so
+  // an app that ships no shared element tree-shakes every byte of it, and the
+  // number above is the ceiling rather than the bill. Budgeting it separately
+  // is what keeps morph growth from quietly eating the engine's headroom —
+  // the same reason the devtools entries are split below.
+  {
+    name: "@flemo/core (morph)",
+    path: "packages/core/dist/index.mjs",
+    import: "{ attachMorph, beginMorphSwipe, registerMorphLayer, createMorphTransition }",
+    // 15.6 kB at birth, including what it shares with the engine (the easing
+    // solver, the style compiler's declaration writer). ~15% headroom.
+    limit: "18 KB",
     gzip: true
   },
   {
     name: "@flemo/react",
     path: "packages/react/dist/index.mjs",
-    // ~6.2 KB current — a thin binding now that the transition logic moved to
-    // @flemo/core. Tightened from 12 KB to lock in the shrink and trip on an
-    // accidental balloon back.
-    limit: "8 KB",
+    // ~6.2 KB when the transition logic moved to @flemo/core, tightened to
+    // 8 KB to lock that shrink in. `<Morph>` and its flight layer put it at
+    // 8.0 kB — twenty lines of binding plus the layer a Router renders, since
+    // everything else about a morph is core's. Re-based to 9 KB.
+    limit: "9 KB",
     gzip: true,
     // peers + workspace dep, already excluded by Vite externals, but list
     // them here too so size-limit doesn't try to resolve and bundle them

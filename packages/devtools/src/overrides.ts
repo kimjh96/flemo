@@ -174,6 +174,15 @@ export const CORE_FLAGS: readonly FlagDescriptor[] = [
       "keep screen layers resident at rest — a resident layer is a PERMANENT stacking context over the consumer's screen"
   },
   {
+    key: "flemo:morph",
+    storage: "session",
+    kind: "opt-in-diagnostic",
+    values: '"on" / "off"',
+    fallback: "off",
+    effect:
+      "trace every morph flight decision to the console — why a pair did or did not fly, and whether it landed on its own animation or on the backstop"
+  },
+  {
     key: "flemo:freeze",
     storage: "session",
     kind: "opt-in-diagnostic",

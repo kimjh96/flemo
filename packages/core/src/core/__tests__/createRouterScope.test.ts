@@ -108,8 +108,7 @@ describe("createRouterScope persistence (persistKey)", () => {
       id: "deep",
       pathname: "/posts/9",
       params: { id: "9" },
-      transitionName: "cupertino",
-      layoutId: null
+      transitionName: "cupertino"
     });
     first.navigate.getState().setStatus("POPPING");
     first.life.alive = false;

@@ -20,6 +20,7 @@ export default defineConfig({
       "core",
       "dom",
       "history",
+      "morph",
       "navigate",
       "platform",
       "runtime",

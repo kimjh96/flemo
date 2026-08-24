@@ -9,6 +9,7 @@ import {
   readDesktopReleaseFlipFlag,
   readImageHoldFlag,
   readImageOffloadOverride,
+  morphTraceArmed,
   readRestLayerPromotionFlag,
   readPrerasterFlag,
   readSettleGateFlag,
@@ -356,6 +357,21 @@ describe("documented default: flemo:governed", () => {
     expect(readBlinkGovernedOverride()).toBe("off");
     sessionStorage.setItem("flemo:governed", "yes");
     expect(readBlinkGovernedOverride()).toBeNull();
+  });
+});
+
+describe("documented default: flemo:morph", () => {
+  // Registry: "on" / "off", opt-in, default off. Uncached, so arming it in
+  // DevTools takes effect on the next navigation without a reload — which is
+  // the whole point of a flag you reach for after seeing something once.
+  it("is off until explicitly armed, and only the documented value arms it", () => {
+    expect(morphTraceArmed()).toBe(false);
+    sessionStorage.setItem("flemo:morph", "on");
+    expect(morphTraceArmed()).toBe(true);
+    sessionStorage.setItem("flemo:morph", "off");
+    expect(morphTraceArmed()).toBe(false);
+    sessionStorage.setItem("flemo:morph", "yes");
+    expect(morphTraceArmed()).toBe(false);
   });
 });
 

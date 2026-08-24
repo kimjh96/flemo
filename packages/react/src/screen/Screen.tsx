@@ -22,6 +22,12 @@ export interface ScreenProps extends PropsWithChildren<
     "onPointerDown" | "onPointerMove" | "onPointerUp" | "onPointerCancel"
   >
 > {
+  /**
+   * Covered: stop painting this screen, from this commit. Written by the
+   * binding, never by a consumer — the prop exists so <Screen> can hand the
+   * decision to the container ScreenMotion renders.
+   */
+  paintHidden?: boolean;
   statusBarHeight?: string;
   statusBarColor?: string;
   systemNavigationBarHeight?: string;
@@ -86,8 +92,10 @@ function Screen({ children, ...props }: ScreenProps) {
   }, [freezeMode, frozen]);
 
   return (
-    <ScreenFreeze freeze={frozen}>
-      <ScreenMotion {...props}>{children}</ScreenMotion>
+    <ScreenFreeze freeze={frozen} mode={freezeMode}>
+      <ScreenMotion paintHidden={frozen} {...props}>
+        {children}
+      </ScreenMotion>
     </ScreenFreeze>
   );
 }

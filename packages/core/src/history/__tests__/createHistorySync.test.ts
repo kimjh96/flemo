@@ -20,8 +20,7 @@ const root: History = {
   id: "root",
   pathname: "/",
   params: {},
-  transitionName: "cupertino",
-  layoutId: null
+  transitionName: "cupertino"
 };
 
 // Every live sync stays subscribed to window popstate; without disposal each
@@ -79,8 +78,7 @@ describe("createHistorySync (headless, no React)", () => {
       index: 1,
       status: "PUSHING",
       params: {},
-      transitionName: "cupertino",
-      layoutId: null
+      transitionName: "cupertino"
     });
     await settle();
 
@@ -127,8 +125,7 @@ describe("createHistorySync (headless, no React)", () => {
       index: 1,
       status: "REPLACING",
       params: {},
-      transitionName: "material",
-      layoutId: null
+      transitionName: "material"
     });
     await settle();
 
@@ -181,8 +178,7 @@ describe("createHistorySync (headless, no React)", () => {
       index: 2,
       status: "PUSHING",
       params: {},
-      transitionName: "cupertino",
-      layoutId: null
+      transitionName: "cupertino"
     });
     await settle();
 
@@ -191,8 +187,7 @@ describe("createHistorySync (headless, no React)", () => {
       id: "p4",
       pathname: "/p4",
       params: {},
-      transitionName: "cupertino",
-      layoutId: null
+      transitionName: "cupertino"
     });
 
     // Single browser back onto p3.
@@ -201,8 +196,7 @@ describe("createHistorySync (headless, no React)", () => {
       index: 2,
       status: "PUSHING",
       params: {},
-      transitionName: "cupertino",
-      layoutId: null
+      transitionName: "cupertino"
     });
     await settle();
 
@@ -223,8 +217,7 @@ describe("createHistorySync (headless, no React)", () => {
       index: 1,
       status: "PUSHING",
       params: { n: "3" },
-      transitionName: "cupertino",
-      layoutId: null
+      transitionName: "cupertino"
     });
     await settle();
 
@@ -243,8 +236,7 @@ describe("createHistorySync (headless, no React)", () => {
       index: 1,
       status: "PUSHING",
       params: {},
-      transitionName: "cupertino",
-      layoutId: null
+      transitionName: "cupertino"
     });
     await settle();
 
@@ -314,16 +306,14 @@ describe("createHistorySync (headless, no React)", () => {
       index: 1,
       status: "PUSHING",
       params: {},
-      transitionName: "cupertino",
-      layoutId: null
+      transitionName: "cupertino"
     });
     firePopState({
       id: "root",
       index: 0,
       status: "IDLE",
       params: {},
-      transitionName: "cupertino",
-      layoutId: null
+      transitionName: "cupertino"
     });
     await new Promise((r) => setTimeout(r, 10));
 
@@ -403,8 +393,7 @@ describe("createHistorySync convergence pass", () => {
         index: 2,
         status: "PUSHING",
         params: {},
-        transitionName: "cupertino",
-        layoutId: null
+        transitionName: "cupertino"
       }),
       consume: () => false
     });
@@ -434,8 +423,7 @@ describe("createHistorySync convergence pass", () => {
         index: 0,
         status: "PUSHING",
         params: {},
-        transitionName: "cupertino",
-        layoutId: null
+        transitionName: "cupertino"
       }),
       consume: () => false
     });
@@ -473,8 +461,7 @@ describe("createHistorySync fold guards", () => {
         index: 1,
         status: "PUSHING",
         params: {},
-        transitionName: "cupertino",
-        layoutId: null
+        transitionName: "cupertino"
       },
       "",
       "/elsewhere"
@@ -508,8 +495,7 @@ describe("createHistorySync fold guards", () => {
       index: 0,
       status: "POPPING",
       params: {},
-      transitionName: "cupertino",
-      layoutId: null
+      transitionName: "cupertino"
     });
     await new Promise((r) => setTimeout(r, 10));
 
@@ -545,8 +531,7 @@ describe("createHistorySync zone replay and traversal recorder", () => {
     index,
     status: "PUSHING",
     params: {},
-    transitionName: "cupertino",
-    layoutId: null
+    transitionName: "cupertino"
   });
 
   it("a zone Router mounting mid-walk replays the traversals its zone missed", async () => {

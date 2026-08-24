@@ -70,8 +70,7 @@ const historyEntry = (id: string): History => ({
   id,
   pathname: "/",
   params: {},
-  transitionName: TAB,
-  layoutId: null
+  transitionName: TAB
 });
 
 const screenContext = (overrides: Partial<ScreenContextProps>): ScreenContextProps => ({
@@ -84,7 +83,6 @@ const screenContext = (overrides: Partial<ScreenContextProps>): ScreenContextPro
   params: {},
   transitionName: TAB,
   prevTransitionName: TAB,
-  layoutId: null,
   routePath: "/",
   ...overrides
 });
