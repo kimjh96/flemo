@@ -7,6 +7,8 @@ import fade from "../../_transitions/fade";
 import sheet from "../../_transitions/sheet";
 import stepContent from "../../_transitions/stepContent";
 
+import StackReadout from "../../_components/StackReadout";
+
 import GalleryScreen from "../../_screens/GalleryScreen";
 import PieceScreen from "../../_screens/PieceScreen";
 
@@ -40,10 +42,15 @@ function PlaygroundRouter({ choice }: PlaygroundRouterProps) {
         defaultTransitionName={choice.transition.id}
         className="h-full w-full bg-[var(--color-bg)]"
       >
-        <Slot className="h-full w-full">
-          <Route path="/playground/gallery" element={<GalleryScreen />} />
-          <Route path="/playground/gallery/:id" element={<PieceScreen />} />
-        </Slot>
+        {/* Chrome BESIDE the stack, not inside it: everything in the <Slot>
+          transitions, everything outside it stays. */}
+        <div className="flex h-full w-full flex-col">
+          <Slot className="min-h-0 flex-1">
+            <Route path="/playground/gallery" element={<GalleryScreen />} />
+            <Route path="/playground/gallery/:id" element={<PieceScreen />} />
+          </Slot>
+          <StackReadout />
+        </div>
       </Router>
     </TransitionChoiceContext.Provider>
   );

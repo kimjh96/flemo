@@ -105,6 +105,18 @@ export const dict = {
         shared: "The card, its artwork and its title each cross on their own.",
         zoom: "Container transform: the grid itself zooms into the tapped card."
       },
+      demo: {
+        filter: "Filter",
+        filterTitle: "Filter",
+        filterBody:
+          "This panel is a STEP, not a screen. It is a sub-state of the screen you are on, so it goes back the way everything else does and the stack count under the frame never moves. Push stacks a screen, replace swaps the one you are on, a step stacks nothing.",
+        filterClose: "Close",
+        replace: "Swap in another piece",
+        path: "path",
+        status: "status",
+        depth: "stack",
+        swipeHint: "Drag the artwork down to take it back."
+      },
       gallery: {
         title: "Gallery",
         hintShared: "Tap a card. The card, its artwork and its title each cross on their own.",
@@ -237,6 +249,18 @@ export const dict = {
         off: "공유 요소 없이 화면 전환만 돕니다.",
         shared: "카드와 그 안의 이미지, 제목이 각각 건너갑니다.",
         zoom: "컨테이너 트랜스폼입니다. 누른 카드를 향해 그리드 전체가 확대됩니다."
+      },
+      demo: {
+        filter: "필터",
+        filterTitle: "필터",
+        filterBody:
+          "이 패널은 화면이 아니라 스텝입니다. 지금 화면의 하위 상태라 뒤로가기로 그대로 닫히고, 프레임 아래 스택 숫자는 변하지 않습니다. push는 화면을 쌓고, replace는 지금 화면을 바꾸고, 스텝은 아무것도 쌓지 않습니다.",
+        filterClose: "닫기",
+        replace: "다른 작품으로 교체",
+        path: "경로",
+        status: "상태",
+        depth: "스택",
+        swipeHint: "이미지를 아래로 끌면 그대로 되돌아갑니다."
       },
       gallery: {
         title: "갤러리",

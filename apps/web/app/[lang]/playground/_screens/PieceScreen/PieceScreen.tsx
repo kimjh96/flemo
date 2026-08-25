@@ -6,10 +6,11 @@ import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
 import Shared from "../../_components/Shared";
+import StageBar from "../../_components/StageBar";
 
 import { useTransitionChoice } from "../../_providers/TransitionChoiceContext";
 
-import { pieceById, surfaceFor } from "../../_data/gallery";
+import { PIECES, pieceById, surfaceFor } from "../../_data/gallery";
 
 // The destination side. The same three `layoutId`s, at the sizes they belong at
 // here: the card fills the screen, the artwork becomes the hero, the title
@@ -32,15 +33,72 @@ function PieceScreen() {
 
   if (!piece) return null;
 
+  // REPLACE, not push: the same slot in the stack, a different piece in it.
+  // The stack readout under the frame is where it shows — the depth does not
+  // move, and the back control still returns to the gallery rather than to the
+  // piece that was here a moment ago.
+  const nextPiece =
+    PIECES[(PIECES.findIndex((entry) => entry.id === piece.id) + 1) % PIECES.length];
+
+  const back = (
+    <button
+      type="button"
+      onClick={() => navigate.pop()}
+      aria-label="Back"
+      className="grid size-8 cursor-pointer place-items-center rounded-full text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-layer)]"
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M15 6l-6 6 6 6"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  );
+
   return (
-    <Screen backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}>
+    <Screen
+      backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}
+      // The bar the gallery also renders, under the same id: it holds still and
+      // changes what it says instead of travelling with the screens. A
+      // full-bleed case hands the whole frame to the element instead, so it
+      // takes no bar at all.
+      sharedTopBarId={fullBleed ? undefined : "stage"}
+      sharedTopBar={
+        fullBleed ? undefined : (
+          <StageBar
+            title={piece.title}
+            lead={back}
+            trail={
+              nextPiece ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate.replace(
+                      "/playground/gallery/:id",
+                      { id: nextPiece.id },
+                      { transitionName: transition.id }
+                    )
+                  }
+                  className="cursor-pointer rounded-full px-3 py-1 font-mono text-xs font-semibold text-[var(--color-primary)] hover:bg-[var(--color-layer)]"
+                >
+                  {t.demo.replace}
+                </button>
+              ) : null
+            }
+          />
+        )
+      }
+    >
       <div className="relative flex h-full flex-col">
         <Part
           name={partName}
+          hidden={!fullBleed}
           className={
-            fullBleed
-              ? "absolute inset-x-0 top-0 z-10 flex items-center gap-2 px-4 pt-4"
-              : "relative z-10 flex items-center gap-2 px-4 pt-4"
+            fullBleed ? "absolute inset-x-0 top-0 z-10 flex items-center gap-2 px-4 pt-4" : "hidden"
           }
         >
           <button
