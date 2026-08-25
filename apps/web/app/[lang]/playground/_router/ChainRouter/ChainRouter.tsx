@@ -7,6 +7,9 @@ import fade from "../../_transitions/fade";
 import stepContent from "../../_transitions/stepContent";
 import sheet from "../../_transitions/sheet";
 
+import StackReadout from "../../_components/StackReadout";
+import StepRail from "../../_components/StepRail";
+
 import ChainScreen from "../../_screens/ChainScreen";
 
 import "./ChainRouter.types";
@@ -32,9 +35,17 @@ function ChainStack() {
       defaultTransitionName="cupertino"
       className="h-full w-full bg-[var(--color-bg)]"
     >
-      <Slot className="h-full w-full">
-        <Route path="/playground/chain/:step" element={<ChainScreen />} />
-      </Slot>
+      {/* Chrome beside the stack, exactly like the browse bench's header: the
+          rail must not travel with the screens, so it does not live among
+          them. It reads the history store, so it cannot drift out of step with
+          what the pops actually did. */}
+      <div className="flex h-full w-full flex-col">
+        <StepRail />
+        <Slot className="min-h-0 flex-1">
+          <Route path="/playground/chain/:step" element={<ChainScreen />} />
+        </Slot>
+        <StackReadout label="chain" />
+      </div>
     </Router>
   );
 }
@@ -51,7 +62,7 @@ function ChainRouter() {
         <Route
           path="/playground/nest"
           element={
-            <Screen>
+            <Screen statusBarHeight="0px" systemNavigationBarHeight="0px">
               <ChainStack />
             </Screen>
           }

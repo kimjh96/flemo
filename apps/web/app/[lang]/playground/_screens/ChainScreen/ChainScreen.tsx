@@ -120,23 +120,24 @@ function ChainScreen() {
   );
 
   return (
-    <StageScreen backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}>
-      <div className="relative flex h-full flex-col">
-        <header
-          className={
-            fullBleed
-              ? "absolute inset-x-0 top-0 z-10 flex items-center gap-2 px-4 pt-4"
-              : "relative z-10 flex items-center gap-2 px-4 pt-4"
-          }
-        >
+    <StageScreen
+      backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}
+      // A PER-SCREEN bar, and deliberately not the other kind. It mounts and
+      // unmounts with this screen, so it travels with it: pushed in, carried
+      // out, and gone when the screen is. The browse bench's header is the
+      // opposite arrangement (chrome beside the Slot, which never moves), and
+      // having both on one page is the point — the difference is structural,
+      // not a prop on a bar.
+      topBar={
+        <div className="flex h-11 items-center gap-2 border-b border-[var(--color-border-light)] bg-[var(--color-bg)] px-3">
           <button
             type="button"
             onClick={() => pop()}
             aria-label="Back"
             hidden={index === 0}
-            className="grid size-9 cursor-pointer place-items-center rounded-full text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-layer)]"
+            className="grid size-8 cursor-pointer place-items-center rounded-full text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-layer)]"
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path
                 d="M15 6l-6 6 6 6"
                 stroke="currentColor"
@@ -149,8 +150,10 @@ function ChainScreen() {
           <span className="text-xs font-bold tracking-[0.12em] text-[var(--color-text-disabled)] uppercase">
             {t.chainScreen.step} {step.label}
           </span>
-        </header>
-
+        </div>
+      }
+    >
+      <div className="relative flex h-full flex-col">
         <div
           className={
             fullBleed
