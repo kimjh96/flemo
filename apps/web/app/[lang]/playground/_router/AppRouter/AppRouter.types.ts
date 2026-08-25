@@ -7,7 +7,7 @@ declare module "@flemo/react" {
     "/studio/saved": Record<string, never>;
     "/browse/list": { filter?: boolean };
     "/browse/piece/:id": { id: string };
-    "/browse/viewer/:id": { id: string };
+    "/studio/info/:id": { id: string };
   }
 }
 

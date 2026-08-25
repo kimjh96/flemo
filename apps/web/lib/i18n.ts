@@ -122,6 +122,9 @@ export const dict = {
         status: "status",
         depth: "stack",
         swipeHint: "Drag the artwork down to take it back.",
+        info: "Open at the app level",
+        infoBody:
+          "This screen was pushed one Router up. The header and the tab bar are not hidden for it: they belong to the level below, and that whole region left with its own transition while this one arrived with its own.",
         open: "Open the artwork",
         close: "Close"
       },
@@ -275,6 +278,9 @@ export const dict = {
         status: "상태",
         depth: "스택",
         swipeHint: "이미지를 아래로 끌면 그대로 되돌아갑니다.",
+        info: "앱 레벨에서 열기",
+        infoBody:
+          "이 화면은 라우터 한 단계 위로 push된 것입니다. 헤더와 탭바를 숨긴 게 아니라, 그것들은 아래 레벨에 속해 있고 그 영역 전체가 자기 전환으로 물러난 것입니다.",
         open: "이미지 크게 보기",
         close: "닫기"
       },

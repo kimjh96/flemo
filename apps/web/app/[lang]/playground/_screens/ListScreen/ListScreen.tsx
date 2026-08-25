@@ -7,7 +7,6 @@ import { getDict } from "@/lib/i18n";
 
 import Shared from "../../_components/Shared";
 import StageScreen from "../../_components/StageScreen";
-import StageBar from "../../_components/StageBar";
 
 import { useTransitionChoice } from "../../_providers/TransitionChoiceContext";
 
@@ -18,15 +17,13 @@ import { PIECES, surfaceFor } from "../../_data/gallery";
 // All three are paired across the flight, so this is the container case, the
 // element case and the nested case in one screen.
 //
-// It also carries two things that are not about morphing at all, because a
-// fixture that only exercises one feature is not a fixture for the library:
+// It carries no header of its own. The header belongs to the Router (it is
+// rendered beside the <Slot>, see BrowseRouter), which is what keeps it still
+// across every push in here without any screen declaring it.
 //
-// - `sharedTopBar`, under an ID the detail screen repeats. A shared bar is kept
-//   out of the screen transition, so it holds still while the screens move
-//   under it and simply changes what it says.
-// - A filter panel opened with `useStep`. A step is a sub-state pushed onto
-//   history WITHOUT stacking a screen, which is what makes the browser's Back
-//   button close it — the thing every hand-rolled modal gets wrong.
+// What it does carry is a filter panel opened with `useStep`: a sub-state of
+// this screen rather than a screen of its own, so it stacks nothing and the
+// readout under the frame does not move.
 function ListScreen() {
   const { push } = useNavigate();
   const { transition, morph } = useTransitionChoice();
@@ -39,30 +36,22 @@ function ListScreen() {
   const filterOpen = Boolean(params?.filter);
 
   return (
-    <StageScreen
-      backgroundColor="var(--color-bg)"
-      sharedTopBarId="stage"
-      sharedTopBar={
-        <StageBar
-          title={t.gallery.title}
-          trail={
+    <StageScreen backgroundColor="var(--color-bg)">
+      <div className="relative h-full">
+        <div className="h-full overflow-y-auto px-5 pt-4 pb-10">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm text-[var(--color-text-disabled)]">
+              {morph.name ? t.gallery.hintShared : t.gallery.hintPlain}
+            </p>
             <button
               type="button"
               onClick={() => (filterOpen ? popStep() : pushStep({ filter: true }))}
               aria-expanded={filterOpen}
-              className="cursor-pointer rounded-full px-3 py-1 font-mono text-xs font-semibold text-[var(--color-primary)] hover:bg-[var(--color-layer)]"
+              className="shrink-0 cursor-pointer rounded-full bg-[var(--color-layer)] px-3 py-1 font-mono text-xs font-semibold text-[var(--color-primary)]"
             >
               {t.demo.filter}
             </button>
-          }
-        />
-      }
-    >
-      <div className="relative h-full">
-        <div className="h-full overflow-y-auto px-5 pt-4 pb-10">
-          <p className="text-sm text-[var(--color-text-disabled)]">
-            {morph.name ? t.gallery.hintShared : t.gallery.hintPlain}
-          </p>
+          </div>
           <ul className="mt-4 grid grid-cols-2 gap-4">
             {PIECES.map((piece) => (
               <li key={piece.id}>

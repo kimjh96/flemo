@@ -7,7 +7,6 @@ import { getDict } from "@/lib/i18n";
 
 import Shared from "../../_components/Shared";
 import StageScreen from "../../_components/StageScreen";
-import StageBar from "../../_components/StageBar";
 
 import { useTransitionChoice } from "../../_providers/TransitionChoiceContext";
 
@@ -19,6 +18,9 @@ import { PIECES, pieceById, surfaceFor } from "../../_data/gallery";
 // no wrapper screen, no transition requirement.
 function PieceScreen() {
   const navigate = useNavigate();
+  // The SAME hook, aimed one Router up: `router: "parent"` is how a screen in a
+  // nested stack pushes onto the app\u2019s stack instead of its own.
+  const parent = useNavigate({ router: "parent" });
   const params = useParams<"/browse/piece/:id">();
   const piece = pieceById(params?.id ?? "1");
   // The "element becomes the whole screen" case: the card covers the viewport
@@ -41,59 +43,8 @@ function PieceScreen() {
   const nextPiece =
     PIECES[(PIECES.findIndex((entry) => entry.id === piece.id) + 1) % PIECES.length];
 
-  const back = (
-    <button
-      type="button"
-      onClick={() => navigate.pop()}
-      aria-label="Back"
-      className="grid size-8 cursor-pointer place-items-center rounded-full text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-layer)]"
-    >
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path
-          d="M15 6l-6 6 6 6"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </button>
-  );
-
   return (
-    <StageScreen
-      backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}
-      // The bar the gallery also renders, under the same id: it holds still and
-      // changes what it says instead of travelling with the screens. A
-      // full-bleed case hands the whole frame to the element instead, so it
-      // takes no bar at all.
-      sharedTopBarId={fullBleed ? undefined : "stage"}
-      sharedTopBar={
-        fullBleed ? undefined : (
-          <StageBar
-            title={piece.title}
-            lead={back}
-            trail={
-              nextPiece ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate.replace(
-                      "/browse/piece/:id",
-                      { id: nextPiece.id },
-                      { transitionName: transition.id }
-                    )
-                  }
-                  className="cursor-pointer rounded-full px-3 py-1 font-mono text-xs font-semibold text-[var(--color-primary)] hover:bg-[var(--color-layer)]"
-                >
-                  {t.demo.replace}
-                </button>
-              ) : null
-            }
-          />
-        )
-      }
-    >
+    <StageScreen backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}>
       <div className="relative flex h-full flex-col">
         <Part
           name={partName}
@@ -138,23 +89,14 @@ function PieceScreen() {
                 : "overflow-hidden rounded-3xl bg-[var(--color-layer)] p-3"
             }
           >
-            <button
-              type="button"
-              onClick={() =>
-                navigate.push("/browse/viewer/:id", { id: piece.id }, { transitionName: "sheet" })
+            <Shared
+              layoutId={`art-${piece.id}`}
+              className={
+                fullBleed ? "block aspect-[4/3] w-full" : "block aspect-[4/3] w-full rounded-2xl"
               }
-              className="block w-full cursor-zoom-in"
-              aria-label={t.demo.open}
-            >
-              <Shared
-                layoutId={`art-${piece.id}`}
-                className={
-                  fullBleed ? "block aspect-[4/3] w-full" : "block aspect-[4/3] w-full rounded-2xl"
-                }
-                style={{ background: surfaceFor(piece.hue) }}
-                aria-hidden="true"
-              />
-            </button>
+              style={{ background: surfaceFor(piece.hue) }}
+              aria-hidden="true"
+            />
             <Shared
               layoutId={`title-${piece.id}`}
               name="text"
@@ -175,6 +117,35 @@ function PieceScreen() {
               }
             >
               {t.piece.body}
+            </Part>
+            <Part name={partName} className={fullBleed ? "mt-4 px-4" : "mt-4"}>
+              <span className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate.replace(
+                      "/browse/piece/:id",
+                      { id: nextPiece!.id },
+                      { transitionName: transition.id }
+                    )
+                  }
+                  className="cursor-pointer rounded-full bg-[var(--color-layer)] px-3 py-1.5 font-mono text-xs font-semibold text-[var(--color-primary)]"
+                >
+                  {t.demo.replace}
+                </button>
+                {/* One Router UP. Same push, different level: the screen that
+                    arrives is outside this Router's Slot, so the header and the
+                    tab bar are not hidden for it, they are simply not there. */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    parent.push("/studio/info/:id", { id: piece.id }, { transitionName: "fade" })
+                  }
+                  className="cursor-pointer rounded-full bg-[var(--color-layer)] px-3 py-1.5 font-mono text-xs font-semibold text-[var(--color-text-secondary)]"
+                >
+                  {t.demo.info}
+                </button>
+              </span>
             </Part>
           </Shared>
         </div>

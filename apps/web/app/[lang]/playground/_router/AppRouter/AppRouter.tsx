@@ -6,9 +6,12 @@ import Crumb from "../../_components/Crumb";
 import StackReadout from "../../_components/StackReadout";
 
 import crumb from "../../_transitions/crumb";
+import detailContent from "../../_transitions/detailContent";
 import fade from "../../_transitions/fade";
+import stepContent from "../../_transitions/stepContent";
 
 import BrowseTab from "../../_screens/BrowseTab";
+import InfoScreen from "../../_screens/InfoScreen";
 import SavedTab from "../../_screens/SavedTab";
 
 import TransitionChoiceContext, {
@@ -18,7 +21,7 @@ import TransitionChoiceContext, {
 import "./AppRouter.types";
 
 const TRANSITIONS = [fade];
-const PART_TRANSITIONS = [crumb];
+const PART_TRANSITIONS = [crumb, detailContent, stepContent];
 
 export interface AppRouterProps {
   choice: PlaygroundChoice;
@@ -41,6 +44,7 @@ function AppRouter({ choice }: AppRouterProps) {
   return (
     <TransitionChoiceContext.Provider value={choice}>
       <Router
+        name="studio"
         initPath="/studio/browse"
         history="memory"
         transitions={TRANSITIONS}
@@ -52,6 +56,9 @@ function AppRouter({ choice }: AppRouterProps) {
           <Slot className="min-h-0 flex-1">
             <Route path="/studio/browse" element={<BrowseTab />} />
             <Route path="/studio/saved" element={<SavedTab />} />
+            {/* A level ABOVE the tabs: no tab bar, no Browse header, because
+                neither is at this level. */}
+            <Route path="/studio/info/:id" element={<InfoScreen />} />
           </Slot>
           <Crumb />
           <StackReadout label="outer" />
