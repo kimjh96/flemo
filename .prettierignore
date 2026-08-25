@@ -5,3 +5,10 @@ node_modules
 coverage
 pnpm-lock.yaml
 *.md.snap
+
+# Lervo owns the exact bytes of these documents: AGENTS.md is the canonical
+# instruction source and CLAUDE.md carries the provider bridge block, whose
+# begin/end markers must wrap the import with no blank line between them.
+# Prettier inserts one, which invalidates the bridge on every commit.
+AGENTS.md
+CLAUDE.md

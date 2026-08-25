@@ -33,13 +33,12 @@ Published packages are `@flemo/core`, `@flemo/react`, `@flemo/react-layout`, and
 1. Never manually edit `package.json#version` in `packages/core`, `packages/react`, `packages/react-layout`, `packages/devtools`, or `apps/web`. For every user-visible change, create `.changeset/<short-kebab-slug>.md` without using the interactive `pnpm changeset` prompt or delegating it to the user:
 
 ```md
----
+   ---
+   "@flemo/react": minor
+   ---
 
-"@flemo/react": minor
----
-
-1–2 sentence user-facing summary. Imperative voice.
-```
+   1–2 sentence user-facing summary. Imperative voice.
+   ```
 
 List each affected package (`@flemo/core`, `@flemo/react`, `@flemo/react-layout`, `@flemo/devtools`, or `@flemo/web`) on its own frontmatter line. Use `patch` for fixes/internal changes, `minor` for features, and `major` only for actual API breaks. Skip changesets only for typos, behavior-neutral internal refactors, or documentation-only edits outside `docs/*`. Release automation creates the Version PR, versions, changelogs, npm publications, and GitHub Releases; write the summary for changelog readers.
 
@@ -49,7 +48,7 @@ List each affected package (`@flemo/core`, `@flemo/react`, `@flemo/react-layout`
 
 ```bash
    pnpm turbo run typecheck lint test build
-```
+   ```
 
 CI installs with `pnpm install --frozen-lockfile`. Local development may use `bun install` and `bunx turbo run typecheck lint test build`; do not commit `bun.lock` churn unless dependencies changed. If validation cannot run, report that explicitly and do not claim success.
 
@@ -91,7 +90,6 @@ CI installs with `pnpm install --frozen-lockfile`. Local development may use `bu
 5. Stage source and changeset in the same commit.
 
 <!-- lervo:begin block=repository_instruction_routes schema=1 -->
-
 ## Repository instruction routes
 
 - Read the verified current state with `lervo workstream current --context` before continuing repository work.
@@ -99,5 +97,4 @@ CI installs with `pnpm install --frozen-lockfile`. Local development may use `bu
 - Translate explicit natural-language requests to hire, assign, inspect, resolve, hand off, or retire repository agents into `lervo agent`, `lervo assignment`, and workstream operations yourself; when authority or scope is ambiguous, record one bounded pending decision instead of guessing or asking for a bookkeeping command.
 - Resolve roles with `lervo role list|show|validate`; treat the six built-ins as templates, author a lazy `.lervo/roles/<role-id>.json` source when a requested repository role does not exist, and never bypass version, hash, capability, verification, or ancestry validation.
 - Register every subagent with its parent and apply the same durable identity, scoped lease, path-conflict, evidence, verification, and finalization contracts used for root agents.
-
 <!-- lervo:end block=repository_instruction_routes -->
