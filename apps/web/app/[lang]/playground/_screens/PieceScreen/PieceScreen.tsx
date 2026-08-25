@@ -5,6 +5,8 @@ import { Part, useNavigate, useParams } from "@flemo/react";
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
+import AppBar from "../../_components/AppBar";
+import BackButton from "../../_components/BackButton";
 import Shared from "../../_components/Shared";
 import StageScreen from "../../_components/StageScreen";
 
@@ -44,7 +46,17 @@ function PieceScreen() {
     PIECES[(PIECES.findIndex((entry) => entry.id === piece.id) + 1) % PIECES.length];
 
   return (
-    <StageScreen backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}>
+    <StageScreen
+      backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}
+      // The full-bleed cases hand the whole frame to the element, so they
+      // declare no bar and it leaves with its own motion.
+      sharedTopBarId={fullBleed ? undefined : "app"}
+      sharedTopBar={
+        fullBleed ? undefined : (
+          <AppBar title={piece.title} lead={<BackButton onClick={() => navigate.pop()} />} />
+        )
+      }
+    >
       <div className="relative flex h-full flex-col">
         <Part
           name={partName}

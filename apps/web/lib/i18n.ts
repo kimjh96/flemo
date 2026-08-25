@@ -90,7 +90,7 @@ export const dict = {
         question:
           "Whether a flight leaves anything behind for the next transition to trip on, and whether five pops unwind five different transitions in the right order.",
         caption:
-          "Walk it down, then pop it back. The rail at the top is chrome of this Router, so it never travels; the bar under it belongs to each screen, so it does. Both are on screen at once on purpose.",
+          "Walk it down, then pop it back. The rail is chrome of this Router and never travels; the bar under it is shared by every step, so its box holds still while its label hands over with the flight.",
         root: "root"
       },
       transitions: {
@@ -247,7 +247,7 @@ export const dict = {
         question:
           "비행이 다음 전환이 걸려 넘어질 무언가를 남기는지, 그리고 다섯 번의 pop이 서로 다른 다섯 전환을 순서대로 풀어내는지 봅니다.",
         caption:
-          "끝까지 내려갔다가 되돌아 나와보세요. 위 레일은 이 라우터의 크롬이라 절대 따라 움직이지 않고, 그 아래 바는 각 화면의 것이라 화면과 함께 움직입니다. 둘을 한 화면에 둔 건 그 차이를 보라는 뜻입니다.",
+          "끝까지 내려갔다가 되돌아 나와보세요. 위 레일은 이 라우터의 크롬이라 따라 움직이지 않고, 아래 앱바는 모든 단계가 공유해서 틀은 그대로 둔 채 라벨만 비행과 함께 넘어갑니다.",
         root: "루트"
       },
       transitions: {

@@ -2,6 +2,8 @@
 
 import { Morph, Part, useNavigate, useParams } from "@flemo/react";
 
+import AppBar from "../../_components/AppBar";
+import BackButton from "../../_components/BackButton";
 import StageScreen from "../../_components/StageScreen";
 
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
@@ -122,35 +124,17 @@ function ChainScreen() {
   return (
     <StageScreen
       backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}
-      // A PER-SCREEN bar, and deliberately not the other kind. It mounts and
-      // unmounts with this screen, so it travels with it: pushed in, carried
-      // out, and gone when the screen is. The browse bench's header is the
-      // opposite arrangement (chrome beside the Slot, which never moves), and
-      // having both on one page is the point — the difference is structural,
-      // not a prop on a bar.
-      topBar={
-        <div className="flex h-11 items-center gap-2 border-b border-[var(--color-border-light)] bg-[var(--color-bg)] px-3">
-          <button
-            type="button"
-            onClick={() => pop()}
-            aria-label="Back"
-            hidden={index === 0}
-            className="grid size-8 cursor-pointer place-items-center rounded-full text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-layer)]"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M15 6l-6 6 6 6"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-          <span className="text-xs font-bold tracking-[0.12em] text-[var(--color-text-disabled)] uppercase">
-            {t.chainScreen.step} {step.label}
-          </span>
-        </div>
+      // The same app bar as the browse bench, under one id across every step:
+      // its box holds still while the contents hand over with the flight. The
+      // full-bleed step declares none, so the bar leaves with its own motion.
+      sharedTopBarId={fullBleed ? undefined : "app"}
+      sharedTopBar={
+        fullBleed ? undefined : (
+          <AppBar
+            title={`${t.chainScreen.step} ${step.label}`}
+            lead={index === 0 ? undefined : <BackButton onClick={() => pop()} />}
+          />
+        )
       }
     >
       <div className="relative flex h-full flex-col">

@@ -5,6 +5,7 @@ import { useNavigate, useParams, useStep } from "@flemo/react";
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
+import AppBar from "../../_components/AppBar";
 import Shared from "../../_components/Shared";
 import StageScreen from "../../_components/StageScreen";
 
@@ -36,22 +37,30 @@ function ListScreen() {
   const filterOpen = Boolean(params?.filter);
 
   return (
-    <StageScreen backgroundColor="var(--color-bg)">
-      <div className="relative h-full">
-        <div className="h-full overflow-y-auto px-5 pt-4 pb-10">
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-sm text-[var(--color-text-disabled)]">
-              {morph.name ? t.gallery.hintShared : t.gallery.hintPlain}
-            </p>
+    <StageScreen
+      backgroundColor="var(--color-bg)"
+      sharedTopBarId="app"
+      sharedTopBar={
+        <AppBar
+          title={t.gallery.title}
+          trail={
             <button
               type="button"
               onClick={() => (filterOpen ? popStep() : pushStep({ filter: true }))}
               aria-expanded={filterOpen}
-              className="shrink-0 cursor-pointer rounded-full bg-[var(--color-layer)] px-3 py-1 font-mono text-xs font-semibold text-[var(--color-primary)]"
+              className="cursor-pointer rounded-full px-3 py-1 font-mono text-xs font-semibold text-[var(--color-primary)] hover:bg-[var(--color-layer)]"
             >
               {t.demo.filter}
             </button>
-          </div>
+          }
+        />
+      }
+    >
+      <div className="relative h-full">
+        <div className="h-full overflow-y-auto px-5 pt-4 pb-10">
+          <p className="text-sm text-[var(--color-text-disabled)]">
+            {morph.name ? t.gallery.hintShared : t.gallery.hintPlain}
+          </p>
           <ul className="mt-4 grid grid-cols-2 gap-4">
             {PIECES.map((piece) => (
               <li key={piece.id}>

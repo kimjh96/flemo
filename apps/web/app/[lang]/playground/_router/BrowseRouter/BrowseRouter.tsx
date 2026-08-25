@@ -2,9 +2,9 @@
 
 import { Route, Router, Slot } from "@flemo/react";
 
-import BrowseHeader from "../../_components/BrowseHeader";
 import StackReadout from "../../_components/StackReadout";
 
+import barContent from "../../_transitions/barContent";
 import detailContent from "../../_transitions/detailContent";
 import fade from "../../_transitions/fade";
 import sheet from "../../_transitions/sheet";
@@ -16,20 +16,21 @@ import PieceScreen from "../../_screens/PieceScreen";
 import "../AppRouter/AppRouter.types";
 
 const TRANSITIONS = [sheet, fade];
-const PART_TRANSITIONS = [detailContent, stepContent];
+const PART_TRANSITIONS = [barContent, detailContent, stepContent];
 
-// THE NESTED ROUTER, and the level that owns the header.
+// THE NESTED ROUTER: a stack of its own, inside one screen of the app's stack.
 //
-// Everything about "the header stays" is decided here, by structure: the
-// header is rendered BESIDE the <Slot>, so the screens inside it transition and
-// it does not. There is no bar to hand over, no id to match, and nothing to
-// cross-fade — a navigation cannot move a thing it does not contain.
+// Two kinds of chrome, and the difference between them is which side of the
+// <Slot> they are on.
 //
-// The same structure decides the other half. A screen that must escape this
-// header does not ask for a different bar: it is pushed on the PARENT Router,
-// where this Slot is not, and the whole region including the header goes with
-// its own transition. That is what `router: "parent"` on the piece screen does,
-// and why `name` is set here and on the app.
+// The app bar is a SHARED bar: the screens hand the same one up under one id,
+// so its box is kept out of the transition while its contents move with the
+// flight (see AppBar). The readout below is chrome of this Router, outside the
+// Slot entirely, so a navigation cannot touch it at all.
+//
+// And a screen that must escape both is not a screen with different bars: it is
+// a screen at a different LEVEL, pushed on the parent with `router: "parent"`,
+// where this Slot is not. That is why `name` is set here and on the app.
 //
 // `history="memory"` because the browser's URL belongs to the site around it.
 function BrowseRouter() {
@@ -44,7 +45,6 @@ function BrowseRouter() {
       className="h-full w-full"
     >
       <div className="flex h-full w-full flex-col">
-        <BrowseHeader />
         <Slot className="min-h-0 flex-1">
           <Route path="/browse/list" element={<ListScreen />} />
           <Route path="/browse/piece/:id" element={<PieceScreen />} />
