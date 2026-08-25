@@ -1,0 +1,17 @@
+assurance: unreviewed
+bundleId: bundle_f30402500333f4447ba5d2b8
+conceptIds:
+  - concept_5c59b56d8b315c375d9a47fc
+  - concept_893def074f1dd043146dd1ae
+  - concept_eb2ddad7add35914f2fb41cf
+  - concept_29d8db13185b107c46cbd62c
+  - concept_4e36d2ec8d8c2db35a1c4921
+  - concept_d4c7fcdd6f2eb26457cf3007
+  - concept_666392fba3c494c93f8a2ef2
+  - concept_497b2547e76004c79bb2ba50
+entryPath: docs/knowledge/index.md
+publicationLanguage: en
+publicationRoot: docs/knowledge
+schemaVersion: 1
+sourceSnapshotId: ksnap_d128a2e0bea0329720162812
+title: Repository knowledge

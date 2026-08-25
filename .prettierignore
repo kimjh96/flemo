@@ -12,3 +12,7 @@ pnpm-lock.yaml
 # Prettier inserts one, which invalidates the bridge on every commit.
 AGENTS.md
 CLAUDE.md
+
+# Same reason, for the same owner: everything under .lervo is generated with a
+# recorded content hash, so reformatting it invalidates the record it belongs to.
+.lervo

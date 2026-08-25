@@ -1,0 +1,12 @@
+schemaVersion: 1
+projectId: prj_55ba572fea3e42b6
+name: flemo
+root: .
+createdAt: 2026-08-25T13:28:31.459Z
+dataPolicy:
+  eventMetadataRetentionDays: 90
+  artifactRetentionDays: 30
+  persistRawPrompts: false
+  persistDocumentBodiesInEvents: false
+  hubSyncEnabled: false
+  eventPayloadMode: allowlist

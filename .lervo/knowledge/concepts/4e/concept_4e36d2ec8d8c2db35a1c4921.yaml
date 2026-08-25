@@ -1,0 +1,14 @@
+assurance: unreviewed
+bundleId: bundle_f30402500333f4447ba5d2b8
+conceptId: concept_4e36d2ec8d8c2db35a1c4921
+freshness: current
+ownership: user
+path: AGENTS.md
+publicationLanguage: en
+publicationProfile: reference
+publicationStatus: stable
+schemaVersion: 1
+sourceUnitVersionIds:
+  - uv_0750a912986b3d6033468b10
+title: flemo workspace rules
+type: invariant

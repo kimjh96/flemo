@@ -1,0 +1,14 @@
+assurance: unreviewed
+bundleId: bundle_f30402500333f4447ba5d2b8
+conceptId: concept_d4c7fcdd6f2eb26457cf3007
+freshness: current
+ownership: user
+path: CLAUDE.md
+publicationLanguage: en
+publicationProfile: reference
+publicationStatus: stable
+schemaVersion: 1
+sourceUnitVersionIds:
+  - uv_690367849ab418b4a2d747a8
+title: Claude Compatibility Entry
+type: invariant
