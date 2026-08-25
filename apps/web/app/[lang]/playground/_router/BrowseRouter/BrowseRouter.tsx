@@ -4,6 +4,7 @@ import { Route, Router, Slot } from "@flemo/react";
 
 import StackReadout from "../../_components/StackReadout";
 
+import barContent from "../../_transitions/barContent";
 import detailContent from "../../_transitions/detailContent";
 import fade from "../../_transitions/fade";
 import sheet from "../../_transitions/sheet";
@@ -16,7 +17,7 @@ import ViewerScreen from "../../_screens/ViewerScreen";
 import "../AppRouter/AppRouter.types";
 
 const TRANSITIONS = [sheet, fade];
-const PART_TRANSITIONS = [detailContent, stepContent];
+const PART_TRANSITIONS = [barContent, detailContent, stepContent];
 
 // THE NESTED ROUTER: a stack of its own, inside one screen of the app's stack.
 //
