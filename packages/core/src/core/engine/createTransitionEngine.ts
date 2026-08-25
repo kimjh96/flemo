@@ -836,6 +836,11 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // the player's onComplete resolves instead — never a double, and never a
     // gap where nothing is wired to resolve.
     const expectedName = animationName("screen", transitionName, variantKey);
+    // The flight's own active length, for the zero-length guard in `onEnd`.
+    // Read here rather than at the listener: `activeMotion` is resolved long
+    // before this point, and the span is wanted whether or not anything else
+    // in the drive needs it.
+    const activeSpanMs = activeMotion ? (activeMotion.delay + activeMotion.duration) * 1000 : 0;
 
     // Compiled-CSS liveness recovery state (see the recovery block below the
     // player join). Declared up here so the always-wired `animationend`
@@ -920,6 +925,24 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // miss here does not just skip a resolve, it strands the flight until
       // the restart watchdog replays it.
       if (!matchesFlightAnimationName(event.animationName, expectedName)) return;
+      // AN END THAT RAN FOR NO TIME IS NOT AN END.
+      //
+      // `elapsedTime` is how long the animation actually ran. A real end
+      // reports the flight's own active duration; zero means the animation was
+      // torn down and rebuilt rather than finished, and WebKit reports that as
+      // an `animationend` with the name, the keyframes and the duration all
+      // still intact, so nothing else about the event tells the two apart.
+      //
+      // Resolving on one commits the store move and flips the screen to
+      // COMPLETED while the motion is still at its from-pose: the navigation
+      // lands, and what the eye gets is a cut. It is the same defect the morph
+      // runtime was landing flights on, in the same shape, and the fix is the
+      // same: wait for an end that ran.
+      //
+      // Guarded on a non-zero duration, because a variant with no motion of
+      // its own (a `none` transition, a zero-duration step) legitimately ends
+      // in no time at all.
+      if (activeSpanMs > 0 && event.elapsedTime === 0) return;
       scope.removeEventListener("animationend", onEnd);
       clearWatchdog();
       stopScopeRecovery();

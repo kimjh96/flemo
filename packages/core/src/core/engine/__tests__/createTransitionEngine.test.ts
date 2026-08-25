@@ -33,9 +33,10 @@ const newDiv = () => {
   return el;
 };
 
-const animationEndEvent = (name: string) => {
+const animationEndEvent = (name: string, elapsedTime = 0.3) => {
   const event = new Event("animationend");
   Object.defineProperty(event, "animationName", { value: name });
+  Object.defineProperty(event, "elapsedTime", { value: elapsedTime });
   return event as AnimationEvent;
 };
 
@@ -216,6 +217,28 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     expect(resolveSpy).not.toHaveBeenCalled();
     await presentedFlush();
     expect(vi.mocked(deps.getTransitionTaskId)).toHaveBeenCalled();
+    expect(resolveSpy).toHaveBeenCalledWith("task-1");
+
+    dispose();
+  });
+
+  it("does not land a flight on an end that ran for no time", async () => {
+    // `elapsedTime` is how long the animation actually ran. Zero means the
+    // animation was torn down and rebuilt rather than finished — WebKit
+    // reports that as an `animationend`, with the name, the keyframes and the
+    // duration all still intact, so nothing else about the event tells the two
+    // apart. Resolving on one commits the store move and flips the screen to
+    // COMPLETED while the motion is still at its from-pose, which is a cut
+    // where a transition was authored.
+    const dispose = drive({ status: "PUSHING" });
+
+    scope.dispatchEvent(animationEndEvent("flemo-screen-engine-test-PUSHING-true", 0));
+    await presentedFlush();
+    expect(resolveSpy).not.toHaveBeenCalled();
+
+    // The end that really ran still lands it.
+    scope.dispatchEvent(animationEndEvent("flemo-screen-engine-test-PUSHING-true", 0.3));
+    await presentedFlush();
     expect(resolveSpy).toHaveBeenCalledWith("task-1");
 
     dispose();
