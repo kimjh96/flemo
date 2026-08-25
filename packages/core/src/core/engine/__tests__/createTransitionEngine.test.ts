@@ -244,6 +244,24 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     dispose();
   });
 
+  it("lands a variant with no motion of its own on the end that reports no time", async () => {
+    // The other side of the guard. `none` animates nothing, so its end
+    // legitimately reports `elapsedTime: 0` — there was no time to report — and
+    // a flight that refused it would wait out the watchdog on every screen that
+    // authored no motion.
+    const dispose = drive({
+      status: "PUSHING",
+      transitionName: "none",
+      prevTransitionName: "none"
+    });
+
+    scope.dispatchEvent(animationEndEvent("flemo-screen-none-PUSHING-true", 0));
+    await presentedFlush();
+    expect(resolveSpy).toHaveBeenCalledWith("task-1");
+
+    dispose();
+  });
+
   it("anchors the task gate with the authored motion span (a long motion is never cut)", () => {
     const anchorSpy = vi.spyOn(TaskManger, "anchorGate").mockImplementation(() => {});
     const dispose = drive({ status: "PUSHING" });

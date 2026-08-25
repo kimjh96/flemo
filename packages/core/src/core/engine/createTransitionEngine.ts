@@ -836,11 +836,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // the player's onComplete resolves instead — never a double, and never a
     // gap where nothing is wired to resolve.
     const expectedName = animationName("screen", transitionName, variantKey);
-    // The flight's own active length, for the zero-length guard in `onEnd`.
-    // Read here rather than at the listener: `activeMotion` is resolved long
-    // before this point, and the span is wanted whether or not anything else
-    // in the drive needs it.
-    const activeSpanMs = activeMotion ? (activeMotion.delay + activeMotion.duration) * 1000 : 0;
 
     // Compiled-CSS liveness recovery state (see the recovery block below the
     // player join). Declared up here so the always-wired `animationend`
@@ -939,10 +934,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // runtime was landing flights on, in the same shape, and the fix is the
       // same: wait for an end that ran.
       //
-      // Guarded on a non-zero duration, because a variant with no motion of
-      // its own (a `none` transition, a zero-duration step) legitimately ends
-      // in no time at all.
-      if (activeSpanMs > 0 && event.elapsedTime === 0) return;
+      // Guarded on there BEING a motion, because a variant with none of its
+      // own (a `none` transition, a zero-duration step) legitimately ends in no
+      // time at all — `resolveVariantMotion` returns null for exactly those.
+      if (activeMotion && event.elapsedTime === 0) return;
       scope.removeEventListener("animationend", onEnd);
       clearWatchdog();
       stopScopeRecovery();
