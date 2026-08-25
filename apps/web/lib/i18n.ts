@@ -105,6 +105,12 @@ export const dict = {
         shared: "The card, its artwork and its title each cross on their own.",
         zoom: "Container transform: the grid itself zooms into the tapped card."
       },
+      app: {
+        browse: "Browse",
+        saved: "Saved",
+        savedHint:
+          "The other tab. It holds no Router of its own, and the bar does not care: same shared id, so it stays where it is while the content behind it changes."
+      },
       demo: {
         filter: "Filter",
         filterTitle: "Filter",
@@ -115,7 +121,9 @@ export const dict = {
         path: "path",
         status: "status",
         depth: "stack",
-        swipeHint: "Drag the artwork down to take it back."
+        swipeHint: "Drag the artwork down to take it back.",
+        open: "Open the artwork",
+        close: "Close"
       },
       gallery: {
         title: "Gallery",
@@ -250,6 +258,12 @@ export const dict = {
         shared: "카드와 그 안의 이미지, 제목이 각각 건너갑니다.",
         zoom: "컨테이너 트랜스폼입니다. 누른 카드를 향해 그리드 전체가 확대됩니다."
       },
+      app: {
+        browse: "둘러보기",
+        saved: "저장함",
+        savedHint:
+          "다른 탭입니다. 여기엔 자체 라우터가 없지만 바는 상관하지 않습니다. 같은 공유 id라서 뒤 내용만 바뀌고 바는 그 자리에 있습니다."
+      },
       demo: {
         filter: "필터",
         filterTitle: "필터",
@@ -260,7 +274,9 @@ export const dict = {
         path: "경로",
         status: "상태",
         depth: "스택",
-        swipeHint: "이미지를 아래로 끌면 그대로 되돌아갑니다."
+        swipeHint: "이미지를 아래로 끌면 그대로 되돌아갑니다.",
+        open: "이미지 크게 보기",
+        close: "닫기"
       },
       gallery: {
         title: "갤러리",

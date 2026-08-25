@@ -1,11 +1,12 @@
 "use client";
 
-import { Screen, useNavigate, useParams, useStep } from "@flemo/react";
+import { useNavigate, useParams, useStep } from "@flemo/react";
 
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
 import Shared from "../../_components/Shared";
+import StageScreen from "../../_components/StageScreen";
 import StageBar from "../../_components/StageBar";
 
 import { useTransitionChoice } from "../../_providers/TransitionChoiceContext";
@@ -26,19 +27,19 @@ import { PIECES, surfaceFor } from "../../_data/gallery";
 // - A filter panel opened with `useStep`. A step is a sub-state pushed onto
 //   history WITHOUT stacking a screen, which is what makes the browser's Back
 //   button close it — the thing every hand-rolled modal gets wrong.
-function GalleryScreen() {
+function ListScreen() {
   const { push } = useNavigate();
   const { transition, morph } = useTransitionChoice();
   const t = getDict(useShellLang()).playground;
   // The step's state is the SCREEN's params: `useStep` pushes and pops it,
   // `useParams` reads it back. (`useStep`'s own `step` is the chrome path, for
   // an overlay rendered outside any screen.)
-  const { pushStep, popStep } = useStep<"/playground/gallery">();
-  const params = useParams<"/playground/gallery">();
+  const { pushStep, popStep } = useStep<"/browse/list">();
+  const params = useParams<"/browse/list">();
   const filterOpen = Boolean(params?.filter);
 
   return (
-    <Screen
+    <StageScreen
       backgroundColor="var(--color-bg)"
       sharedTopBarId="stage"
       sharedTopBar={
@@ -68,11 +69,7 @@ function GalleryScreen() {
                 <button
                   type="button"
                   onClick={() =>
-                    push(
-                      "/playground/gallery/:id",
-                      { id: piece.id },
-                      { transitionName: transition.id }
-                    )
+                    push("/browse/piece/:id", { id: piece.id }, { transitionName: transition.id })
                   }
                   className="w-full cursor-pointer text-left"
                 >
@@ -118,8 +115,8 @@ function GalleryScreen() {
           </div>
         ) : null}
       </div>
-    </Screen>
+    </StageScreen>
   );
 }
 
-export default GalleryScreen;
+export default ListScreen;

@@ -1,11 +1,12 @@
 "use client";
 
-import { Part, Screen, useNavigate, useParams } from "@flemo/react";
+import { Part, useNavigate, useParams } from "@flemo/react";
 
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
 import Shared from "../../_components/Shared";
+import StageScreen from "../../_components/StageScreen";
 import StageBar from "../../_components/StageBar";
 
 import { useTransitionChoice } from "../../_providers/TransitionChoiceContext";
@@ -18,7 +19,7 @@ import { PIECES, pieceById, surfaceFor } from "../../_data/gallery";
 // no wrapper screen, no transition requirement.
 function PieceScreen() {
   const navigate = useNavigate();
-  const params = useParams<"/playground/gallery/:id">();
+  const params = useParams<"/browse/piece/:id">();
   const piece = pieceById(params?.id ?? "1");
   // The "element becomes the whole screen" case: the card covers the viewport
   // edge to edge (the back button floats OVER it rather than taking a strip off
@@ -60,7 +61,7 @@ function PieceScreen() {
   );
 
   return (
-    <Screen
+    <StageScreen
       backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}
       // The bar the gallery also renders, under the same id: it holds still and
       // changes what it says instead of travelling with the screens. A
@@ -78,7 +79,7 @@ function PieceScreen() {
                   type="button"
                   onClick={() =>
                     navigate.replace(
-                      "/playground/gallery/:id",
+                      "/browse/piece/:id",
                       { id: nextPiece.id },
                       { transitionName: transition.id }
                     )
@@ -137,14 +138,23 @@ function PieceScreen() {
                 : "overflow-hidden rounded-3xl bg-[var(--color-layer)] p-3"
             }
           >
-            <Shared
-              layoutId={`art-${piece.id}`}
-              className={
-                fullBleed ? "block aspect-[4/3] w-full" : "block aspect-[4/3] w-full rounded-2xl"
+            <button
+              type="button"
+              onClick={() =>
+                navigate.push("/browse/viewer/:id", { id: piece.id }, { transitionName: "sheet" })
               }
-              style={{ background: surfaceFor(piece.hue) }}
-              aria-hidden="true"
-            />
+              className="block w-full cursor-zoom-in"
+              aria-label={t.demo.open}
+            >
+              <Shared
+                layoutId={`art-${piece.id}`}
+                className={
+                  fullBleed ? "block aspect-[4/3] w-full" : "block aspect-[4/3] w-full rounded-2xl"
+                }
+                style={{ background: surfaceFor(piece.hue) }}
+                aria-hidden="true"
+              />
+            </button>
             <Shared
               layoutId={`title-${piece.id}`}
               name="text"
@@ -169,7 +179,7 @@ function PieceScreen() {
           </Shared>
         </div>
       </div>
-    </Screen>
+    </StageScreen>
   );
 }
 

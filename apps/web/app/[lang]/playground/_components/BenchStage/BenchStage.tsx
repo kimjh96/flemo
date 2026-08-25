@@ -7,7 +7,7 @@ import { getDict } from "@/lib/i18n";
 
 import StageFrame from "../StageFrame";
 
-import PlaygroundRouter from "../../_router/PlaygroundRouter";
+import AppRouter from "../../_router/AppRouter";
 
 import {
   MORPHS,
@@ -117,7 +117,7 @@ function BenchStage() {
 
         <div className="flex justify-center lg:justify-end">
           <StageFrame marker="playground">
-            <PlaygroundRouter key={key} choice={choice} />
+            <AppRouter key={key} choice={choice} />
           </StageFrame>
         </div>
       </div>

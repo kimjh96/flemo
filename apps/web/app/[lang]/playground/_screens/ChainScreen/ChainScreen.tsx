@@ -1,6 +1,8 @@
 "use client";
 
-import { Morph, Part, Screen, useNavigate, useParams } from "@flemo/react";
+import { Morph, Part, useNavigate, useParams } from "@flemo/react";
+
+import StageScreen from "../../_components/StageScreen";
 
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
@@ -118,7 +120,7 @@ function ChainScreen() {
   );
 
   return (
-    <Screen backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}>
+    <StageScreen backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}>
       <div className="relative flex h-full flex-col">
         <header
           className={
@@ -197,7 +199,7 @@ function ChainScreen() {
           )}
         </div>
       </div>
-    </Screen>
+    </StageScreen>
   );
 }
 
