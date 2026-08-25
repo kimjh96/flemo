@@ -2,6 +2,9 @@
 
 import { Part, Screen, useNavigate, useParams } from "@flemo/react";
 
+import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
+import { getDict } from "@/lib/i18n";
+
 import Shared from "../../_components/Shared";
 
 import { useTransitionChoice } from "../../_providers/TransitionChoiceContext";
@@ -17,10 +20,11 @@ function PieceScreen() {
   const params = useParams<"/playground/gallery/:id">();
   const piece = pieceById(params?.id ?? "1");
   // The "element becomes the whole screen" case: the card covers the viewport
-  // edge to edge — the back button floats OVER it rather than taking a strip
-  // off the top — and the screen itself paints nothing, so the receding,
-  // blurring screen underneath is what shows around the element while it opens.
+  // edge to edge (the back button floats OVER it rather than taking a strip off
+  // the top) and the screen itself paints nothing, so the receding, blurring
+  // screen underneath is what shows around the element while it opens.
   const { transition } = useTransitionChoice();
+  const t = getDict(useShellLang()).playground;
   const fullBleed = transition.fullBleed ?? false;
 
   if (!piece) return null;
@@ -99,9 +103,7 @@ function PieceScreen() {
                   : "mt-2 text-sm leading-relaxed text-[var(--color-text-secondary)]"
               }
             >
-              The card you tapped, its artwork and its title are the same three elements as the ones
-              on the list. flemo measured where each was the instant the navigation started and
-              moved them here, above both screens.
+              {t.piece.body}
             </Part>
           </Shared>
         </div>

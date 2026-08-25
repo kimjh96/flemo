@@ -2,16 +2,20 @@
 
 import { Morph, Part, Screen, useNavigate, useParams } from "@flemo/react";
 
+import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
+import { getDict } from "@/lib/i18n";
+
 import { CHAIN, stepAt, surfaceFor } from "../../_data/chain";
 
 // One component for every step of the chain. A screen carries at most two
 // morph elements: the BIG side of the pair that brought it here (when it
 // arrived by morph) and the SMALL side of the pair that takes it to the next
 // step (when the next step arrives by morph). Nothing here knows which
-// transition is flying — that is the whole claim being tested.
+// transition is flying, which is the whole claim being tested.
 function ChainScreen() {
   const { push, pop } = useNavigate();
   const params = useParams<"/playground/chain/:step">();
+  const t = getDict(useShellLang()).playground;
   const found = stepAt(params?.step);
 
   if (!found) return null;
@@ -25,10 +29,10 @@ function ChainScreen() {
   // at both ends, small on the card and large on the screen it opens into, so
   // the text grows into place instead of one string being cross-faded into a
   // different one.
-  const heading = `Screen ${step.label}`;
+  const heading = `${t.chainScreen.next} ${step.label}`;
 
-  // A morph carries what is PAIRED. Everything else on the arriving screen —
-  // the note, the button to the next step — has no counterpart to travel from,
+  // A morph carries what is PAIRED. Everything else on the arriving screen (the
+  // note, the button to the next step) has no counterpart to travel from,
   // so without a choreography of its own it simply appears the moment its
   // screen does, a beat away from the element that is still moving. `<Part>` is
   // what the library gives that content.
@@ -38,7 +42,7 @@ function ChainScreen() {
         name="detail-content"
         className={`${pad} mt-2 text-xs font-semibold text-[var(--color-text-disabled)]`}
       >
-        {step.note}
+        {t.chainSteps[step.id as keyof typeof t.chainSteps]}
       </Part>
       {next ? (
         <Part name="detail-content">
@@ -58,7 +62,7 @@ function ChainScreen() {
               // THREE pairs. The card is the container; the artwork and the
               // heading inside it are paired on their own, so they grow with it
               // instead of being covered by the ghost's cross-fade while the box
-              // around them changes size — which is what "it just fades" looks
+              // around them changes size, which is what "it just fades" looks
               // like.
               <Morph
                 layoutId={`chain-${next.id}`}
@@ -78,12 +82,12 @@ function ChainScreen() {
                   as="span"
                   className="mt-2 block truncate text-sm font-semibold text-[var(--color-text-primary)]"
                 >
-                  Screen {next.label}
+                  {t.chainScreen.next} {next.label}
                 </Morph>
               </Morph>
             ) : (
               <span className="block rounded-2xl bg-[var(--color-layer)] px-4 py-3 text-sm font-semibold text-[var(--color-text-primary)]">
-                Screen {next.label} · {next.transitionName}
+                {t.chainScreen.next} {next.label} · {next.transitionName}
               </span>
             )}
           </button>
@@ -93,7 +97,7 @@ function ChainScreen() {
           name="detail-content"
           className={`${pad} mt-4 text-sm text-[var(--color-text-secondary)]`}
         >
-          End of the chain. Pop back out and every transition runs in reverse, in order.
+          {t.chainScreen.end}
         </Part>
       )}
     </>
@@ -127,7 +131,7 @@ function ChainScreen() {
             </svg>
           </button>
           <span className="text-xs font-bold tracking-[0.12em] text-[var(--color-text-disabled)] uppercase">
-            step {step.label}
+            {t.chainScreen.step} {step.label}
           </span>
         </header>
 

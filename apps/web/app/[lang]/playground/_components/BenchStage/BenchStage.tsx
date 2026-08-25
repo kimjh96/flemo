@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 
+import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
+import { getDict } from "@/lib/i18n";
+
 import BenchCard from "../BenchCard";
 import StageFrame from "../StageFrame";
 
@@ -22,45 +25,51 @@ import {
 // switching the transition has to leave a working morph. Anything that only
 // works in one combination shows up here as an empty cell.
 //
-// Remounting the Router on either change is deliberate — a switch should start
+// Remounting the Router on either change is deliberate: a switch should start
 // from a clean stack rather than land mid-flight.
-const GROUPS = ["built-in", "authored here"] as const;
+const PILL =
+  "cursor-pointer rounded-xl px-3.5 py-1.5 font-mono text-[13px] font-semibold transition-colors";
+const PILL_ON = "bg-[var(--color-primary)] text-white";
+const PILL_OFF =
+  "text-[var(--color-text-secondary)] hover:bg-[var(--color-layer)] hover:text-[var(--color-text-primary)]";
 
 function BenchStage() {
+  const t = getDict(useShellLang()).playground;
   const [choice, setChoice] = useState<PlaygroundChoice>({
     transition: TRANSITIONS[2]!,
     morph: MORPHS[1]!
   });
   const key = `${choice.transition.id}-${choice.morph.id}`;
 
+  const groups = [
+    { origin: "built-in" as const, label: t.bench.builtIn },
+    { origin: "authored here" as const, label: t.bench.authored }
+  ];
+
   return (
     <BenchCard
-      title="Every transition, one pair of screens"
-      question="Four presets and four transitions written the way a consumer writes them — with the shared element on its own switch, because the two are separate systems that compose."
+      title={t.bench.title}
+      question={t.bench.question}
       controls={
         <div className="flex flex-col gap-3">
-          {GROUPS.map((group) => (
-            <div key={group} className="flex flex-col gap-1.5">
+          {groups.map((group) => (
+            <div key={group.origin} className="flex flex-col gap-1.5">
               <span className="text-[11px] font-semibold tracking-[0.12em] text-[var(--color-text-disabled)] uppercase">
-                {group}
+                {group.label}
               </span>
               <div
                 role="radiogroup"
-                aria-label={`${group} transitions`}
+                aria-label={group.label}
                 className="flex flex-wrap gap-1.5 rounded-2xl bg-[var(--color-bg)] p-1.5"
               >
-                {TRANSITIONS.filter((entry) => entry.origin === group).map((entry) => (
+                {TRANSITIONS.filter((entry) => entry.origin === group.origin).map((entry) => (
                   <button
                     key={entry.id}
                     type="button"
                     role="radio"
                     aria-checked={entry.id === choice.transition.id}
                     onClick={() => setChoice((current) => ({ ...current, transition: entry }))}
-                    className={`cursor-pointer rounded-xl px-3.5 py-1.5 font-mono text-[13px] font-semibold transition-colors ${
-                      entry.id === choice.transition.id
-                        ? "bg-[var(--color-primary)] text-white"
-                        : "text-[var(--color-text-secondary)] hover:bg-[var(--color-layer)] hover:text-[var(--color-text-primary)]"
-                    }`}
+                    className={`${PILL} ${entry.id === choice.transition.id ? PILL_ON : PILL_OFF}`}
                   >
                     {entry.label}
                   </button>
@@ -71,11 +80,11 @@ function BenchStage() {
 
           <div className="flex flex-col gap-1.5">
             <span className="text-[11px] font-semibold tracking-[0.12em] text-[var(--color-text-disabled)] uppercase">
-              shared element
+              {t.bench.element}
             </span>
             <div
               role="radiogroup"
-              aria-label="Shared element"
+              aria-label={t.bench.element}
               className="flex flex-wrap gap-1.5 rounded-2xl bg-[var(--color-bg)] p-1.5"
             >
               {MORPHS.map((entry) => (
@@ -85,11 +94,7 @@ function BenchStage() {
                   role="radio"
                   aria-checked={entry.id === choice.morph.id}
                   onClick={() => setChoice((current) => ({ ...current, morph: entry }))}
-                  className={`cursor-pointer rounded-xl px-3.5 py-1.5 font-mono text-[13px] font-semibold transition-colors ${
-                    entry.id === choice.morph.id
-                      ? "bg-[var(--color-primary)] text-white"
-                      : "text-[var(--color-text-secondary)] hover:bg-[var(--color-layer)] hover:text-[var(--color-text-primary)]"
-                  }`}
+                  className={`${PILL} ${entry.id === choice.morph.id ? PILL_ON : PILL_OFF}`}
                 >
                   {entry.label}
                 </button>
@@ -98,19 +103,19 @@ function BenchStage() {
           </div>
 
           <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1 text-xs">
-            <dt className="text-[var(--color-text-disabled)]">screen</dt>
+            <dt className="text-[var(--color-text-disabled)]">{t.bench.screenLabel}</dt>
             <dd className="m-0 leading-relaxed text-[var(--color-text-secondary)]">
-              {choice.transition.note}
+              {t.transitions[choice.transition.id]}
             </dd>
-            <dt className="text-[var(--color-text-disabled)]">element</dt>
+            <dt className="text-[var(--color-text-disabled)]">{t.bench.elementLabel}</dt>
             <dd className="m-0 leading-relaxed text-[var(--color-text-secondary)]">
-              {choice.morph.note}
+              {t.morphs[choice.morph.id]}
             </dd>
           </dl>
         </div>
       }
     >
-      <StageFrame marker="playground" caption="Tap a card, then swipe or tap back.">
+      <StageFrame marker="playground" caption={t.bench.caption}>
         <PlaygroundRouter key={key} choice={choice} />
       </StageFrame>
     </BenchCard>

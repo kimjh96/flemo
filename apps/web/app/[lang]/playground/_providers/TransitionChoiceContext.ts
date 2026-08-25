@@ -4,20 +4,18 @@ import { createContext, useContext } from "react";
 
 import type { MorphTransitionName, TransitionName } from "@flemo/react";
 
-// WHAT THE BENCH IS SET TO — two independent axes, because that is what the
-// library claims and the fixture exists to show it.
+// WHAT THE BENCH IS SET TO: two independent axes, because that is what the
+// library claims and the fixture exists to show.
 //
 // A screen transition and a shared element are separate systems that compose:
 // the transition carries everything behind the element, the morph carries the
 // element. So they are two controls, not a list of pre-mixed cases, and either
 // one can be looked at with the other turned off.
 export interface TransitionCase {
-  id: TransitionName;
+  id: TransitionName & ("cupertino" | "material" | "layout" | "none" | "fade" | "sheet");
   label: string;
   /** Whether flemo ships it or the site authored it, which is worth knowing. */
   origin: "built-in" | "authored here";
-  /** What to watch, in one line. */
-  note: string;
   /**
    * Whether the destination's shared element covers the frame edge to edge.
    * A property of the SCREEN transition: `sheet` is authored to hand the whole
@@ -27,9 +25,8 @@ export interface TransitionCase {
 }
 
 export interface MorphCase {
-  id: string;
+  id: "off" | "shared" | "zoom";
   label: string;
-  note: string;
   /** Undefined is the honest value for "no shared element in this navigation". */
   name?: MorphTransitionName;
 }
@@ -38,50 +35,32 @@ export const TRANSITIONS: TransitionCase[] = [
   {
     id: "cupertino",
     label: "cupertino",
-    origin: "built-in",
-    note: "slides in from the right, over a screen that recedes under a dim"
+    origin: "built-in"
   },
   {
     id: "material",
     label: "material",
-    origin: "built-in",
-    note: "rises from below and fades in"
+    origin: "built-in"
   },
   {
     id: "layout",
     label: "layout",
-    origin: "built-in",
-    note: "one screen fades at a time — nothing moves, so a shared element is the whole show"
+    origin: "built-in"
   },
   {
     id: "none",
     label: "none",
-    origin: "built-in",
-    note: "an instant cut: whatever still moves is not the screen transition"
+    origin: "built-in"
   },
   {
     id: "fade",
     label: "fade",
-    origin: "authored here",
-    note: "the arrival fades in over a screen that holds perfectly still"
-  },
-  {
-    id: "raise",
-    label: "raise",
-    origin: "authored here",
-    note: "createRawTransition — up into place on a push, down and out faster on a pop"
-  },
-  {
-    id: "drift",
-    label: "drift",
-    origin: "authored here",
-    note: "reveal-shaped: everything happens on the arriving screen"
+    origin: "authored here"
   },
   {
     id: "sheet",
     label: "sheet",
     origin: "authored here",
-    note: "the screen behind scales up and blurs while the element opens over it",
     fullBleed: true
   }
 ];
@@ -89,20 +68,17 @@ export const TRANSITIONS: TransitionCase[] = [
 export const MORPHS: MorphCase[] = [
   {
     id: "off",
-    label: "off",
-    note: "no shared element: the screen transition is the only thing running"
+    label: "off"
   },
   {
     id: "shared",
     label: "shared",
-    name: "shared",
-    note: "the card, its artwork and its title each cross on their own"
+    name: "shared"
   },
   {
     id: "zoom",
     label: "zoom",
-    name: "zoom",
-    note: "container transform — the grid itself zooms into the tapped card"
+    name: "zoom"
   }
 ];
 

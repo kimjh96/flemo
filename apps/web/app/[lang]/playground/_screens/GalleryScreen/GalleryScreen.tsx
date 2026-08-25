@@ -2,6 +2,9 @@
 
 import { Screen, useNavigate } from "@flemo/react";
 
+import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
+import { getDict } from "@/lib/i18n";
+
 import Shared from "../../_components/Shared";
 
 import { useTransitionChoice } from "../../_providers/TransitionChoiceContext";
@@ -18,17 +21,16 @@ import { PIECES, surfaceFor } from "../../_data/gallery";
 function GalleryScreen() {
   const { push } = useNavigate();
   const { transition, morph } = useTransitionChoice();
+  const t = getDict(useShellLang()).playground;
 
   return (
     <Screen backgroundColor="var(--color-bg)">
       <div className="h-full overflow-y-auto px-5 pt-6 pb-10">
         <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
-          Gallery
+          {t.gallery.title}
         </h2>
         <p className="mt-0.5 text-sm text-[var(--color-text-disabled)]">
-          {morph.name
-            ? "Tap a card. The card, its artwork and its title each cross on their own."
-            : "Tap a card. No shared element this time — the screen transition is on its own."}
+          {morph.name ? t.gallery.hintShared : t.gallery.hintPlain}
         </p>
         <ul className="mt-5 grid grid-cols-2 gap-4">
           {PIECES.map((piece) => (

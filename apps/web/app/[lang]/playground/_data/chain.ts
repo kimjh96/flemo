@@ -15,7 +15,6 @@ export interface ChainStep {
   morphName?: MorphTransitionName;
   /** Whether the shared element covers this screen edge to edge. */
   fullBleed?: boolean;
-  note: string;
   hue: number;
 }
 
@@ -28,14 +27,12 @@ export const CHAIN: ChainStep[] = [
     id: "start",
     label: "Start",
     transitionName: "none",
-    note: "the bottom of the stack",
     hue: 200
   },
   {
     id: "a",
     label: "A",
     transitionName: "cupertino",
-    note: "cupertino — slides in from the right",
     hue: 214
   },
   {
@@ -44,21 +41,18 @@ export const CHAIN: ChainStep[] = [
     transitionName: "sheet",
     morphName: "zoom",
     fullBleed: true,
-    note: "zoom morph — the card opens into the screen and the grid zooms with it",
     hue: 268
   },
   {
     id: "c",
     label: "C",
     transitionName: "material",
-    note: "material — rises from below",
     hue: 154
   },
   {
     id: "d",
     label: "D",
-    transitionName: "drift",
-    note: "drift — a consumer transition flemo does not ship",
+    transitionName: "fade",
     hue: 28
   },
   {
@@ -66,7 +60,6 @@ export const CHAIN: ChainStep[] = [
     label: "E",
     transitionName: "layout",
     morphName: "shared",
-    note: "layout + shared morph — the element arrives in place",
     hue: 330
   }
 ];
