@@ -30,6 +30,23 @@ describe("transition presets", () => {
     expect(layout.initial).not.toHaveProperty("y");
   });
 
+  it("no preset wears a dim whose clock is not its own", () => {
+    // A decorator is compiled once per NAME, with the durations its author
+    // wrote — not once per transition that names it. `overlay` runs 0.7s,
+    // which is cupertino's own flight, so the two resolve together there.
+    // `layout` runs 0.4s: naming the same dim left it washing the screen
+    // underneath for 300ms after the dismissing screen had already gone.
+    const durationOf = (transition: typeof cupertino) =>
+      transition.variants["PUSHING-true"].options?.duration;
+
+    expect(cupertino.decoratorName).toBe("overlay");
+    expect(durationOf(cupertino)).toBe(overlay.variants["PUSHING-false"].options?.duration);
+
+    for (const preset of [layout, material, none]) {
+      expect(preset.decoratorName).toBeUndefined();
+    }
+  });
+
   it("none keeps every variant empty (no animatable target)", () => {
     expect(none.name).toBe("none");
     expect(none.initial).toEqual({});
