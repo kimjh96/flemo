@@ -33,9 +33,10 @@ const newDiv = () => {
   return el;
 };
 
-const animationEndEvent = (name: string) => {
+const animationEndEvent = (name: string, elapsedTime = 0.3) => {
   const event = new Event("animationend");
   Object.defineProperty(event, "animationName", { value: name });
+  Object.defineProperty(event, "elapsedTime", { value: elapsedTime });
   return event as AnimationEvent;
 };
 
@@ -216,6 +217,46 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     expect(resolveSpy).not.toHaveBeenCalled();
     await presentedFlush();
     expect(vi.mocked(deps.getTransitionTaskId)).toHaveBeenCalled();
+    expect(resolveSpy).toHaveBeenCalledWith("task-1");
+
+    dispose();
+  });
+
+  it("does not land a flight on an end that ran for no time", async () => {
+    // `elapsedTime` is how long the animation actually ran. Zero means the
+    // animation was torn down and rebuilt rather than finished — WebKit
+    // reports that as an `animationend`, with the name, the keyframes and the
+    // duration all still intact, so nothing else about the event tells the two
+    // apart. Resolving on one commits the store move and flips the screen to
+    // COMPLETED while the motion is still at its from-pose, which is a cut
+    // where a transition was authored.
+    const dispose = drive({ status: "PUSHING" });
+
+    scope.dispatchEvent(animationEndEvent("flemo-screen-engine-test-PUSHING-true", 0));
+    await presentedFlush();
+    expect(resolveSpy).not.toHaveBeenCalled();
+
+    // The end that really ran still lands it.
+    scope.dispatchEvent(animationEndEvent("flemo-screen-engine-test-PUSHING-true", 0.3));
+    await presentedFlush();
+    expect(resolveSpy).toHaveBeenCalledWith("task-1");
+
+    dispose();
+  });
+
+  it("lands a variant with no motion of its own on the end that reports no time", async () => {
+    // The other side of the guard. `none` animates nothing, so its end
+    // legitimately reports `elapsedTime: 0` — there was no time to report — and
+    // a flight that refused it would wait out the watchdog on every screen that
+    // authored no motion.
+    const dispose = drive({
+      status: "PUSHING",
+      transitionName: "none",
+      prevTransitionName: "none"
+    });
+
+    scope.dispatchEvent(animationEndEvent("flemo-screen-none-PUSHING-true", 0));
+    await presentedFlush();
     expect(resolveSpy).toHaveBeenCalledWith("task-1");
 
     dispose();

@@ -920,6 +920,24 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // miss here does not just skip a resolve, it strands the flight until
       // the restart watchdog replays it.
       if (!matchesFlightAnimationName(event.animationName, expectedName)) return;
+      // AN END THAT RAN FOR NO TIME IS NOT AN END.
+      //
+      // `elapsedTime` is how long the animation actually ran. A real end
+      // reports the flight's own active duration; zero means the animation was
+      // torn down and rebuilt rather than finished, and WebKit reports that as
+      // an `animationend` with the name, the keyframes and the duration all
+      // still intact, so nothing else about the event tells the two apart.
+      //
+      // Resolving on one commits the store move and flips the screen to
+      // COMPLETED while the motion is still at its from-pose: the navigation
+      // lands, and what the eye gets is a cut. It is the same defect the morph
+      // runtime was landing flights on, in the same shape, and the fix is the
+      // same: wait for an end that ran.
+      //
+      // Guarded on there BEING a motion, because a variant with none of its
+      // own (a `none` transition, a zero-duration step) legitimately ends in no
+      // time at all — `resolveVariantMotion` returns null for exactly those.
+      if (activeMotion && event.elapsedTime === 0) return;
       scope.removeEventListener("animationend", onEnd);
       clearWatchdog();
       stopScopeRecovery();
