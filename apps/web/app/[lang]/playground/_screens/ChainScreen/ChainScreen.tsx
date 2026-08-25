@@ -88,8 +88,18 @@ function ChainScreen() {
                 </Morph>
               </Morph>
             ) : (
-              <span className="block rounded-2xl bg-[var(--color-layer)] px-4 py-3 text-sm font-semibold text-[var(--color-text-primary)]">
-                {t.chainScreen.next} {next.label} · {next.transitionName}
+              // The same card, minus the pairing. A step that arrives without a
+              // morph should look like every other step until it is tapped:
+              // what differs is the flight, not the furniture.
+              <span className="block overflow-hidden rounded-2xl bg-[var(--color-layer)] p-2">
+                <span
+                  className="block aspect-square w-full rounded-xl"
+                  style={{ background: surfaceFor(next.hue) }}
+                  aria-hidden="true"
+                />
+                <span className="mt-2 block truncate text-sm font-semibold text-[var(--color-text-primary)]">
+                  {t.chainScreen.next} {next.label} · {next.transitionName}
+                </span>
               </span>
             )}
           </button>
