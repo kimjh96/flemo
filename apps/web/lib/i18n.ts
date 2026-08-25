@@ -127,6 +127,7 @@ export const dict = {
       chainScreen: {
         step: "step",
         next: "Screen",
+        rootTitle: "Start screen",
         end: "End of the chain. Pop back out and every transition runs in reverse, in order.",
         bottom: "the bottom of the stack"
       }
@@ -260,6 +261,7 @@ export const dict = {
       chainScreen: {
         step: "단계",
         next: "화면",
+        rootTitle: "시작 화면",
         end: "체인의 끝입니다. 되돌아 나오면 모든 전환이 순서대로 역재생됩니다.",
         bottom: "스택의 바닥"
       }

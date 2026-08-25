@@ -29,7 +29,9 @@ function ChainScreen() {
   // at both ends, small on the card and large on the screen it opens into, so
   // the text grows into place instead of one string being cross-faded into a
   // different one.
-  const heading = `${t.chainScreen.next} ${step.label}`;
+  // The bottom of the stack is not "screen Start": it is where the chain
+  // begins, and the lettered steps above it are the ones being counted.
+  const heading = index === 0 ? t.chainScreen.rootTitle : `${t.chainScreen.next} ${step.label}`;
 
   // A morph carries what is PAIRED. Everything else on the arriving screen (the
   // note, the button to the next step) has no counterpart to travel from,
