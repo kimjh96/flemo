@@ -53,7 +53,11 @@ function PieceScreen() {
       sharedTopBarId={fullBleed ? undefined : "app"}
       sharedTopBar={
         fullBleed ? undefined : (
-          <AppBar title={piece.title} lead={<BackButton onClick={() => navigate.pop()} />} />
+          <AppBar
+            motion={transition.slides ? "slide" : "fade"}
+            title={piece.title}
+            lead={<BackButton onClick={() => navigate.pop()} />}
+          />
         )
       }
     >

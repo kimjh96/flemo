@@ -1,6 +1,7 @@
 declare module "@flemo/react" {
   interface RegisterPartTransition {
-    "bar-content": "bar-content";
+    "bar-slide": "bar-slide";
+    "bar-fade": "bar-fade";
   }
 }
 

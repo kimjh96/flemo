@@ -42,6 +42,7 @@ function ListScreen() {
       sharedTopBarId="app"
       sharedTopBar={
         <AppBar
+          motion={transition.slides ? "slide" : "fade"}
           title={t.gallery.title}
           trail={
             <button

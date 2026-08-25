@@ -16,6 +16,10 @@ import { CHAIN, stepAt, surfaceFor } from "../../_data/chain";
 // arrived by morph) and the SMALL side of the pair that takes it to the next
 // step (when the next step arrives by morph). Nothing here knows which
 // transition is flying, which is the whole claim being tested.
+// The built-ins that translate their screens; the bar's contents are authored
+// against that, exactly like the catalog bench does with its own switch.
+const SLIDING = new Set(["cupertino", "material"]);
+
 function ChainScreen() {
   const { push, pop } = useNavigate();
   const params = useParams<"/playground/chain/:step">();
@@ -131,6 +135,7 @@ function ChainScreen() {
       sharedTopBar={
         fullBleed ? undefined : (
           <AppBar
+            motion={SLIDING.has(step.transitionName) ? "slide" : "fade"}
             title={`${t.chainScreen.step} ${step.label}`}
             lead={index === 0 ? undefined : <BackButton onClick={() => pop()} />}
           />

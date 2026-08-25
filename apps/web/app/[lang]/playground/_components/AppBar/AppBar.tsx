@@ -4,6 +4,13 @@ import { Part } from "@flemo/react";
 
 export interface AppBarProps {
   title: string;
+  /**
+   * Which flavour of content motion this bar's screens are moving with:
+   * `slide` for a transition that translates, `fade` for one that does not.
+   * Naming it here is the point — an app bar is authored against the
+   * transition underneath it, not in spite of it.
+   */
+  motion?: "slide" | "fade";
   /** The back control, on the screens that have somewhere to go back to. */
   lead?: ReactNode;
   /** The screen's own action, if it has one. */
@@ -24,18 +31,19 @@ export interface AppBarProps {
 //
 // A screen that wants none of this simply declares no bar, and the whole thing
 // animates away with its own motion — see the full-bleed steps.
-function AppBar({ title, lead, trail }: AppBarProps) {
+function AppBar({ title, lead, trail, motion = "fade" }: AppBarProps) {
+  const part = motion === "slide" ? "bar-slide" : "bar-fade";
   return (
     <div className="flex h-12 items-center gap-2 border-b border-[var(--color-border-light)] bg-[var(--color-bg)] px-3">
-      <Part name="bar-content" className="flex size-8 shrink-0 items-center justify-center">
+      <Part name={part} className="flex size-8 shrink-0 items-center justify-center">
         {lead}
       </Part>
-      <Part name="bar-content" className="min-w-0 flex-1">
+      <Part name={part} className="min-w-0 flex-1">
         <span className="block truncate text-sm font-bold text-[var(--color-text-primary)]">
           {title}
         </span>
       </Part>
-      <Part name="bar-content" className="shrink-0">
+      <Part name={part} className="shrink-0">
         {trail}
       </Part>
     </div>

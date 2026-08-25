@@ -2,53 +2,60 @@ import { createRawPartTransition } from "@flemo/react";
 
 import "./barContent.types";
 
-// The bar's CONTENTS, which is the half of a shared bar that has to move.
+// THE APP BAR'S CONTENTS, in two flavours, because one is not enough.
 //
-// A shared bar is kept out of the screen transition on purpose: it holds its
-// place while the screens travel under it. What that leaves is the thing this
-// exists to fix. Traced during a pop, before it existed and again with the
-// collapsed factory:
+// The bar's BOX is shared: flemo keeps it out of the screen transition and it
+// holds its place. What moves inside it has to match what the screens are
+// doing, and the screens are not all doing the same thing:
 //
-//   returning screen's bar content   0.00 -> 1.00   (fading in, correctly)
-//   dismissing screen's bar content  1.00 -> 1.00   (never leaves)
+//   a screen that SLIDES (cupertino, material)   the label has to travel with
+//                                                it, or the content moves a
+//                                                screen-width while the title
+//                                                twitches 12px and the two
+//                                                read as unrelated
+//   a screen that FADES  (layout, fade)          nothing translates, so a
+//                                                label that slides is inventing
+//                                                a direction the flight has not
 //
-// The dismissing bar sits ABOVE the returning one, so a label fading in
-// underneath an opaque label that never fades out is invisible: what reaches
-// the eye is the screen you are leaving, named in the bar, for the whole way
-// back, and then a swap at the end. Which is exactly what it looked like.
+// Traced on a cupertino pop with only the small cross-fade: the screens carried
+// a full width while the titles moved twelve pixels. That is the "따로 논다".
 //
-// `createPartTransition` cannot express the fix, because it hands `POPPING-true`
-// the rest variant — right for a bar that LEAVES with its screen, wrong for one
-// that stays behind while the contents hand over. The raw factory gives that
-// status its own pose, so the outgoing label goes out the way its screen is
-// going and the incoming one arrives from the other side, in the same box.
+// So two named transitions, and the bar picks the one that belongs to the
+// screen transition it is sitting above. Both are the same shape otherwise: out
+// the way the screen is going, in from the other side, and the dismissing side
+// gets its own pose because a shared bar's contents hand over while the box
+// stays (see the POPPING-true note below).
 const EASE: [number, number, number, number] = [0.32, 0.72, 0, 1];
-const DURATION = 0.32;
+const DURATION = 0.34;
 const REST = { opacity: 1, x: 0 };
 const HELD = { value: REST, options: { duration: 0 } };
-const ARRIVE = { value: REST, options: { duration: DURATION, ease: EASE } };
-// Going behind: out toward the trailing edge, and GONE rather than dimmed,
-// because the other screen's label is arriving into the same box.
-const BEHIND = { value: { opacity: 0, x: -12 }, options: { duration: DURATION, ease: EASE } };
-// Being dismissed: out the way the screen is going, which is the other way.
-const DISMISSED = { value: { opacity: 0, x: 12 }, options: { duration: DURATION, ease: EASE } };
 
-const barContent = createRawPartTransition({
-  name: "bar-content",
-  initial: { opacity: 0, x: 12 },
-  idle: HELD,
-  pushOnEnter: ARRIVE,
-  pushOnExit: BEHIND,
-  replaceOnEnter: ARRIVE,
-  replaceOnExit: BEHIND,
-  // The screen on top, leaving.
-  popOnEnter: DISMISSED,
-  // The screen underneath, coming back: from BEHIND's pose to rest.
-  popOnExit: ARRIVE,
-  completedOnEnter: HELD,
-  // Settled behind: stay gone, so it is not waiting at full opacity for the
-  // next flight to reveal it.
-  completedOnExit: { value: { opacity: 0, x: -12 }, options: { duration: 0 } }
-});
+const build = (name: "bar-slide" | "bar-fade", travel: number) =>
+  createRawPartTransition({
+    name,
+    initial: { opacity: 0, x: travel },
+    idle: HELD,
+    pushOnEnter: { value: REST, options: { duration: DURATION, ease: EASE } },
+    // Going behind: out the way the screen is going.
+    pushOnExit: { value: { opacity: 0, x: -travel }, options: { duration: DURATION, ease: EASE } },
+    replaceOnEnter: { value: REST, options: { duration: DURATION, ease: EASE } },
+    replaceOnExit: {
+      value: { opacity: 0, x: -travel },
+      options: { duration: DURATION, ease: EASE }
+    },
+    // The screen on top, being dismissed: out the other way. `createPartTransition`
+    // hands this status the REST variant, which is right for a bar that leaves
+    // with its screen and wrong for one that stays while its contents hand over.
+    popOnEnter: { value: { opacity: 0, x: travel }, options: { duration: DURATION, ease: EASE } },
+    // The screen underneath, returning: from `pushOnExit`'s pose back to rest.
+    popOnExit: { value: REST, options: { duration: DURATION, ease: EASE } },
+    completedOnEnter: HELD,
+    completedOnExit: { value: { opacity: 0, x: -travel }, options: { duration: 0 } }
+  });
 
-export default barContent;
+// A slide's worth of travel, and a fade's worth: 56px reads as "with the
+// screen" at a bar's scale without becoming a second animation of its own.
+export const barSlide = build("bar-slide", 56);
+export const barFade = build("bar-fade", 0);
+
+export default barSlide;

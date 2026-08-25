@@ -17,6 +17,13 @@ export interface TransitionCase {
   /** Whether flemo ships it or the site authored it, which is worth knowing. */
   origin: "built-in" | "authored here";
   /**
+   * Whether this transition TRANSLATES its screens. The app bar's contents are
+   * authored against it: a label that slides over a screen that only fades is
+   * inventing a direction the flight does not have, and a label that twitches
+   * over a screen carrying a full width reads as unrelated to it.
+   */
+  slides?: boolean;
+  /**
    * Whether the destination's shared element covers the frame edge to edge.
    * A property of the SCREEN transition: `sheet` is authored to hand the whole
    * frame to the element opening over it.
@@ -35,12 +42,14 @@ export const TRANSITIONS: TransitionCase[] = [
   {
     id: "cupertino",
     label: "cupertino",
-    origin: "built-in"
+    origin: "built-in",
+    slides: true
   },
   {
     id: "material",
     label: "material",
-    origin: "built-in"
+    origin: "built-in",
+    slides: true
   },
   {
     id: "layout",
