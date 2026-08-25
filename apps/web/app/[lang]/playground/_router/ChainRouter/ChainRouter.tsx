@@ -4,6 +4,7 @@ import { Route, Router, Screen, Slot } from "@flemo/react";
 
 import detailContent from "../../_transitions/detailContent";
 import fade from "../../_transitions/fade";
+import stepContent from "../../_transitions/stepContent";
 import sheet from "../../_transitions/sheet";
 
 import ChainScreen from "../../_screens/ChainScreen";
@@ -11,7 +12,7 @@ import ChainScreen from "../../_screens/ChainScreen";
 import "./ChainRouter.types";
 
 const TRANSITIONS = [sheet, fade];
-const PART_TRANSITIONS = [detailContent];
+const PART_TRANSITIONS = [detailContent, stepContent];
 
 // A second memory Router, independent of the strip above: the point of this one
 // is the STACK, not any single transition.

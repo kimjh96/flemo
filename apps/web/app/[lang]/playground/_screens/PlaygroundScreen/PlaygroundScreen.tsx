@@ -2,9 +2,6 @@
 
 import { Screen } from "@flemo/react";
 
-import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
-import { getDict } from "@/lib/i18n";
-
 import BenchStage from "../../_components/BenchStage";
 import ChainStage from "../../_components/ChainStage";
 
@@ -21,16 +18,11 @@ import ChainStage from "../../_components/ChainStage";
 // the live thing on the other. The first one fills the viewport, so the glass
 // is there the moment the page is.
 function PlaygroundScreen() {
-  const t = getDict(useShellLang()).playground;
-
   return (
     <Screen hideStatusBar hideSystemNavigationBar backgroundColor="transparent">
       <div className="h-full overflow-y-auto">
         <BenchStage />
         <ChainStage />
-        <footer className="mx-auto w-full max-w-[1180px] px-6 pb-16 text-xs leading-relaxed text-[var(--color-text-disabled)]">
-          {t.footer}
-        </footer>
       </div>
     </Screen>
   );

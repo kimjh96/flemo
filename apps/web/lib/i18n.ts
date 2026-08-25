@@ -74,8 +74,6 @@ export const dict = {
       title: "Every transition, on glass",
       subtitle:
         "The built-in presets, two more written the way a consumer writes them, and a shared element you can switch on over any of them. Nothing in the fixtures is told which transition is running.",
-      footer:
-        "Judge on a production build, with devtools closed. Arm ?flemo:morph=on to record every flight decision on globalThis.flemoMorphTrace.",
       bench: {
         title: "Every transition, one pair of screens",
         question:
@@ -209,8 +207,6 @@ export const dict = {
       title: "모든 전환을 화면에서",
       subtitle:
         "내장 프리셋과, 소비자가 쓰는 방식 그대로 작성한 전환 두 개, 그리고 그 위에 켜고 끌 수 있는 공유 요소입니다. 픽스처의 화면들은 지금 어떤 전환이 도는지 모릅니다.",
-      footer:
-        "프로덕션 빌드에서, 개발자 도구를 닫고 판정하세요. ?flemo:morph=on 을 붙이면 모든 비행 결정이 globalThis.flemoMorphTrace 에 남습니다.",
       bench: {
         title: "전환 전부, 같은 화면 한 쌍",
         question:

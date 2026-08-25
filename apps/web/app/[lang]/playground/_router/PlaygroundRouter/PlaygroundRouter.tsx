@@ -5,6 +5,7 @@ import { Route, Router, Slot } from "@flemo/react";
 import detailContent from "../../_transitions/detailContent";
 import fade from "../../_transitions/fade";
 import sheet from "../../_transitions/sheet";
+import stepContent from "../../_transitions/stepContent";
 
 import GalleryScreen from "../../_screens/GalleryScreen";
 import PieceScreen from "../../_screens/PieceScreen";
@@ -19,7 +20,7 @@ import "./PlaygroundRouter.types";
 // need no registration — flemo ships them — which is itself the difference the
 // bench is showing.
 const TRANSITIONS = [sheet, fade];
-const PART_TRANSITIONS = [detailContent];
+const PART_TRANSITIONS = [detailContent, stepContent];
 
 export interface PlaygroundRouterProps {
   choice: PlaygroundChoice;

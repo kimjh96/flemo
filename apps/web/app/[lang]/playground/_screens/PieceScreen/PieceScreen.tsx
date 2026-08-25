@@ -23,9 +23,12 @@ function PieceScreen() {
   // edge to edge (the back button floats OVER it rather than taking a strip off
   // the top) and the screen itself paints nothing, so the receding, blurring
   // screen underneath is what shows around the element while it opens.
-  const { transition } = useTransitionChoice();
+  const { transition, morph } = useTransitionChoice();
   const t = getDict(useShellLang()).playground;
   const fullBleed = transition.fullBleed ?? false;
+  // See ChainScreen: the copy leaves early only when there is an element to
+  // leave with.
+  const partName = morph.name ? "detail-content" : "step-content";
 
   if (!piece) return null;
 
@@ -33,7 +36,7 @@ function PieceScreen() {
     <Screen backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}>
       <div className="relative flex h-full flex-col">
         <Part
-          name="detail-content"
+          name={partName}
           className={
             fullBleed
               ? "absolute inset-x-0 top-0 z-10 flex items-center gap-2 px-4 pt-4"
@@ -96,7 +99,7 @@ function PieceScreen() {
               {piece.title}
             </Shared>
             <Part
-              name="detail-content"
+              name={partName}
               className={
                 fullBleed
                   ? "mt-2 px-4 text-sm leading-relaxed text-[var(--color-text-secondary)]"

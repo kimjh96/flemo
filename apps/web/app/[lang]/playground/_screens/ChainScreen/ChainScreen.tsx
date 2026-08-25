@@ -24,6 +24,11 @@ function ChainScreen() {
   const next = CHAIN[index + 1];
   const fullBleed = Boolean(step.fullBleed);
   const pad = fullBleed ? "px-5" : "";
+  // A step that arrives with a shared element hands its copy to
+  // `detail-content`, which leaves early because the eye is following the
+  // element out. A step with no element has nothing to follow, so its copy
+  // leaves on the clock it arrived with.
+  const partName = step.morphName ? "detail-content" : "step-content";
 
   // The heading is its own piece because a morph step PAIRS it: the same words
   // at both ends, small on the card and large on the screen it opens into, so
@@ -41,13 +46,13 @@ function ChainScreen() {
   const trail = (
     <>
       <Part
-        name="detail-content"
+        name={partName}
         className={`${pad} mt-2 text-xs font-semibold text-[var(--color-text-disabled)]`}
       >
         {t.chainSteps[step.id as keyof typeof t.chainSteps]}
       </Part>
       {next ? (
-        <Part name="detail-content">
+        <Part name={partName}>
           <button
             type="button"
             onClick={() =>
@@ -105,10 +110,7 @@ function ChainScreen() {
           </button>
         </Part>
       ) : (
-        <Part
-          name="detail-content"
-          className={`${pad} mt-4 text-sm text-[var(--color-text-secondary)]`}
-        >
+        <Part name={partName} className={`${pad} mt-4 text-sm text-[var(--color-text-secondary)]`}>
           {t.chainScreen.end}
         </Part>
       )}
