@@ -919,11 +919,10 @@ function ScreenMotion({
         // container: a z-index on the inner scope only reorders within this
         // box and leaks the park (a full-screen flash of the next screen).
         zIndex: holdAttr === ANIM_HOLD.PARK_UNDER ? -1 : undefined,
-        // `contain: layout style` keeps layout/style scoped without `paint`,
-        // which would make this element the containing block for `position:
-        // fixed` descendants and trap consumer overlays (e.g. bottom sheets)
-        // inside the screen.
-        contain: "layout style",
+        // Layout containment also creates a containing block and stacking
+        // context. Keep it off the resting screen so fixed consumer overlays
+        // can escape a nested Slot and stack above surrounding shared bars.
+        contain: "style",
         flexDirection: "column",
         boxSizing: "border-box",
         overscrollBehavior: "contain"
