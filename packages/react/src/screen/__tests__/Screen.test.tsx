@@ -195,6 +195,46 @@ describe("Screen", () => {
     expect(screenContainer!.style.contain).toBe("style");
   });
 
+  // The pair that keeps a screen's stacking to itself without becoming the
+  // containing block for a consumer's `position: fixed` overlay. Layout
+  // containment would give both and traps bottom sheets in a nested Slot;
+  // `isolation` alone leaves the overlay anchored to the viewport, and the
+  // container's own number is what carries it over the surrounding bars.
+  it("isolates a screen's stacking and numbers it by stack position", () => {
+    stores.history.setState({ index: 0, histories: [] });
+
+    const { container } = render(
+      <Screen>
+        <div data-testid="content">hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true }) }
+    );
+
+    const screenContainer = container.querySelector<HTMLElement>('div[style*="contain"]');
+    expect(screenContainer!.style.isolation).toBe("isolate");
+    expect(screenContainer!.style.zIndex).toBe("1");
+  });
+
+  // flemo's own chrome must not carry a number: it is positioned and rendered
+  // after the scope, so tree order already paints it over the screen content.
+  // A number would escape the screen the moment the container stopped being a
+  // stacking context, which is how the covered screen's dim reached the
+  // incoming one.
+  it("leaves the decorator's stacking to tree order", () => {
+    stores.history.setState({ index: 0, histories: [] });
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+
+    const { container } = render(
+      <Screen>
+        <div data-testid="content">hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: false }) }
+    );
+
+    const decorator = container.querySelector<HTMLElement>("[data-flemo-decorator]");
+    if (decorator) expect(decorator.style.zIndex).toBe("");
+  });
+
   it("keeps a deeper prev screen frozen once the top has moved more than one entry past it", () => {
     stores.navigate.setState({ status: "POPPING", transitionTaskId: null });
     // index - 2 (1) > zIndex (0) → frozen regardless of replaceTransitionStatus.

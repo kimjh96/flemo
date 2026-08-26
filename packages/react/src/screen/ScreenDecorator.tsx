@@ -40,7 +40,12 @@ function ScreenDecorator({ ref, style, ...props }: ComponentPropsWithRef<"div">)
         width: "100%",
         height: "100%",
         pointerEvents: "none",
-        zIndex: 1,
+        // No z-index: the decorator is positioned and rendered after the
+        // scope, so tree order already paints it over the screen's content.
+        // A number here would only matter for beating consumer content that
+        // carries one of its own — and that is what put the covered screen's
+        // dim over the INCOMING screen once the container stopped being a
+        // stacking context.
         ...style
       }}
       {...props}
