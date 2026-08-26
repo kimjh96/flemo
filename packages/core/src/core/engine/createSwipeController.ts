@@ -928,6 +928,18 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       // element.
       partEls = { current: [], prev: [] };
       config.back();
+      // Hand the drag promotion back. A hold is owned, and the engine's
+      // COMPLETED cleanup releases under ITS owner — a release this owner
+      // never makes is a release that never happens, and the screen the swipe
+      // dragged IN survives the navigation carrying `will-change: transform`
+      // for the rest of the session. That is not merely a resident layer: it
+      // makes the scope a containing block, so a consumer's `position: fixed`
+      // overlay stays trapped under the shared bars from the first swipe on.
+      //
+      // After `back()`, so the landing flight has already re-held these
+      // elements under the engine's owner: the union keeps them promoted and
+      // nothing demotes between the two.
+      releaseDragLayers();
     } else {
       // Cancel: animation already played back to rest. Clear inline styles so
       // the CSS rest rule resumes ownership.
