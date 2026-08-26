@@ -265,7 +265,7 @@ const EN: DocSection[] = [
           { type: "h", text: "Give it a size" },
           {
             type: "p",
-            text: 'The `Slot` is the box your screens animate inside. It clips to its own bounds and stacks the screens with absolute positioning, so without an explicit size it can collapse to zero height and show nothing. Size it from the outside, usually `className="h-full w-full"` to fill its parent.'
+            text: 'The `Slot` is the box your screens animate inside. It clips ordinary screen content to its own bounds and stacks the screens with absolute positioning, so without an explicit size it can collapse to zero height and show nothing. A `position: fixed` overlay intentionally escapes that region at rest so a sheet or dialog can cover surrounding shared bars; use absolute positioning when an overlay should remain clipped to the Slot. Size the Slot from the outside, usually `className="h-full w-full"` to fill its parent.'
           },
           {
             type: "note",
@@ -1197,7 +1197,7 @@ const KO: DocSection[] = [
           { type: "h", text: "크기를 주세요" },
           {
             type: "p",
-            text: '`Slot`은 화면이 그 안에서 움직이는 박스예요. 자기 영역으로 잘라내고 화면을 absolute로 쌓기 때문에, 크기를 명시하지 않으면 높이가 0으로 줄어 아무것도 안 보일 수 있어요. 보통 부모를 채우도록 바깥에서 `className="h-full w-full"`로 크기를 주세요.'
+            text: '`Slot`은 화면이 그 안에서 움직이는 박스예요. 일반 화면 콘텐츠를 자기 영역으로 잘라내고 화면을 absolute로 쌓기 때문에, 크기를 명시하지 않으면 높이가 0으로 줄어 아무것도 안 보일 수 있어요. `position: fixed` 오버레이는 시트나 다이얼로그가 주변 공유 바까지 덮을 수 있도록 정지 상태에서 의도적으로 이 영역을 벗어나요. 오버레이도 Slot 안에 잘려야 한다면 absolute 배치를 사용하세요. 보통 부모를 채우도록 바깥에서 `className="h-full w-full"`로 크기를 주세요.'
           },
           {
             type: "note",

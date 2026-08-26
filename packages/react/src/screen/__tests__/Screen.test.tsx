@@ -159,7 +159,8 @@ describe("Screen", () => {
 
   // The screen container is fixed to the viewport for a root <Router>, and
   // contained (position: absolute, anchored to its region) under a nested
-  // <Router>. The container is the element carrying `contain: layout style`.
+  // <Router>. Style containment must not become layout containment because
+  // that traps fixed consumer overlays below surrounding shared bars.
   it("anchors the screen container to the viewport by default", () => {
     stores.history.setState({ index: 0, histories: [] });
 
@@ -173,6 +174,7 @@ describe("Screen", () => {
     const screenContainer = container.querySelector<HTMLElement>('div[style*="contain"]');
     expect(screenContainer).not.toBeNull();
     expect(screenContainer!.style.position).toBe("fixed");
+    expect(screenContainer!.style.contain).toBe("style");
   });
 
   it("contains the screen within its region when nested (ScreenViewportContext)", () => {
@@ -190,6 +192,7 @@ describe("Screen", () => {
     const screenContainer = container.querySelector<HTMLElement>('div[style*="contain"]');
     expect(screenContainer).not.toBeNull();
     expect(screenContainer!.style.position).toBe("absolute");
+    expect(screenContainer!.style.contain).toBe("style");
   });
 
   it("keeps a deeper prev screen frozen once the top has moved more than one entry past it", () => {
