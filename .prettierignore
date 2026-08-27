@@ -9,5 +9,6 @@ pnpm-lock.yaml
 AGENTS.md
 CLAUDE.md
 docs/architecture/motion-engine.md
+docs/instructions/coverage.md
 packages/devtools/README.md
 # lervo:end document-rewrite-ownership
