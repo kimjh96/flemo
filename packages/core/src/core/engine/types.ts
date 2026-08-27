@@ -26,6 +26,11 @@ export interface ScreenLifecycleInput {
     scope: HTMLElement | null;
     decorator?: HTMLElement | null;
     bars?: (HTMLElement | null | undefined)[];
+    // The screen's container. Passed rather than the overlays themselves
+    // because a `<Layer>` overlay is not always IN this container — a nested
+    // screen's is in an ancestor's host — so finding it is a rule rather than
+    // a ref, and the rule belongs with the protocol (see layerRiders.ts).
+    screenContainer?: HTMLElement | null;
   };
   transitionName: TransitionName;
   prevTransitionName: TransitionName;

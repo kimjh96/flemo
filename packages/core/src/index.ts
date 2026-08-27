@@ -215,6 +215,9 @@ export {
   GPU_PREWARM_ATTR,
   HELD_ARRIVAL_ATTR,
   IMAGE_HOLD_ATTR,
+  LAYER_HOST_ATTR,
+  LAYER_OWNER_ATTR,
+  LAYER_SLOT_ATTR,
   MORPH_ATTR,
   MORPH_LAYER_ATTR,
   MORPH_NAME_ATTR,
@@ -229,6 +232,10 @@ export {
   WARM_ATTR,
   WARM_VIDEO_ATTR
 } from "@dom/attributes";
+// The STACKING CONTRACT a screen keeps inside its own box: content under its
+// chrome, chrome under an overlay that exists to cover it, and the dim over
+// all three. See @dom/stacking.
+export { OVERLAY_LEVEL, SCREEN_STACKING_ORDER, UNNUMBERED_LEVEL } from "@dom/stacking";
 // The `flemo:*` DIAGNOSTIC-FLAG REGISTRY: what each storage key is, what it
 // defaults to, and which keys are retired residue. Exported so a report or a
 // panel enumerates the flags the library actually reads instead of a copy that

@@ -8,11 +8,12 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent
 } from "react";
-import { flushSync } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 
 import {
   animHoldKey,
   ANIM_HOLD,
+  ACTIVE_ATTR,
   ANIM_HOLD_ATTR,
   beginMorphSwipe,
   computeBarRiding,
@@ -20,6 +21,10 @@ import {
   eagerlyDecodeImages,
   isOpaqueColor,
   createSwipeController,
+  LAYER_HOST_ATTR,
+  OVERLAY_LEVEL,
+  STATUS_ATTR,
+  TRANSITION_ATTR,
   createTransitionEngine,
   decoratorMap,
   enteringInitialStyle,
@@ -32,6 +37,12 @@ import {
   type MorphSwipe
 } from "@flemo/core";
 
+import {
+  LayerHostContext,
+  LayerOwnerContext,
+  useLayerHost,
+  type LayerOwner
+} from "@screen/LayerContext";
 import getScopeAnimHoldCoordinator from "@screen/scopeAnimHoldCoordinator";
 
 import type { ScreenProps } from "@screen/Screen";
@@ -164,6 +175,30 @@ function ScreenMotion({
   const { viewportScrollHeight } = useViewportScrollHeight();
 
   const isKeyboardVisible = viewportScrollHeight > 0;
+
+  // The <Layer> host. State rather than a ref because a portal can only render
+  // once its target exists, and a ref would hold the element without ever
+  // telling the children it arrived.
+  const [layerHost, setLayerHost] = useState<HTMLDivElement | null>(null);
+  // Only the OUTERMOST screen renders one; every screen nested inside it
+  // inherits this. An overlay has to clear the chrome of every screen above
+  // its own, and chrome an ancestor declared sits outside that ancestor's
+  // scope — so a host in a nested container is already one box too deep. What
+  // nesting must NOT cost is ownership, and that is the owner context below,
+  // which every screen overwrites for its own children.
+  const inheritedLayerHost = useLayerHost();
+  const layerHostTarget = inheritedLayerHost ?? layerHost;
+  // Whether this screen currently HAS an escaped overlay. The dim has to
+  // follow one out (see below), and a dim rendered unconditionally would paint
+  // over the shared bars on every flight whether an overlay exists or not.
+  const layerSlotsRef = useRef<Set<HTMLElement>>(new Set());
+  const [hasLayerSlot, setHasLayerSlot] = useState(false);
+  const registerSlot = useCallback((element: HTMLElement | null) => {
+    const slots = layerSlotsRef.current;
+    if (element) slots.add(element);
+    else slots.clear();
+    setHasLayerSlot(slots.size > 0);
+  }, []);
 
   const hasSharedTopBar = !!sharedTopBar;
   const hasSharedBottomBar = !!sharedBottomBar;
@@ -669,6 +704,23 @@ function ScreenMotion({
           : ANIM_HOLD.PARK_UNDER
         : ANIM_HOLD.HELD;
 
+  // What a <Layer> slot needs to keep being this screen while sitting outside
+  // it. Every value here is one the slot cannot get by being where it is: it
+  // is a sibling of no scope it belongs to, in a container that may not even
+  // be this screen's, so its stack position, its paint state and the flight it
+  // is part of all have to be handed over. See LayerContext.
+  const layerOwner: LayerOwner = {
+    zIndex,
+    paintHidden,
+    transitionName,
+    status,
+    isActive,
+    animHold: holdAttr,
+    rendersHost: !inheritedLayerHost,
+    screenId: id,
+    registerSlot
+  };
+
   // The scope's REST promotion (`flemo:preraster=on`). Browser-only state that
   // reaches the DOM as an INLINE STYLE, so it is read through the hydration
   // gate: evaluated directly, a server-rendered screen emits no `will-change`
@@ -695,7 +747,11 @@ function ScreenMotion({
         getElements: () => ({
           scope: scopeRef.current,
           decorator: decoratorRef.current,
-          bars: [sharedTopBarRef.current, sharedBottomBarRef.current]
+          bars: [sharedTopBarRef.current, sharedBottomBarRef.current],
+          // Not the overlays themselves: a nested screen's <Layer> lives in an
+          // ancestor's host, so which elements ride is a rule over the DOM
+          // rather than a ref the binding holds (see core layerRiders.ts).
+          screenContainer: screenRef.current
         }),
         transitionName,
         prevTransitionName,
@@ -770,8 +826,11 @@ function ScreenMotion({
           }
           // park-under sank the whole screen container beneath its cover;
           // the released flight must surface in the same frame its clock
-          // starts, not a React commit later.
-          if (screenRef.current) screenRef.current.style.zIndex = "";
+          // starts, not a React commit later. Restore the screen's own stack
+          // position rather than clearing the property: the containers are
+          // isolated, so `auto` would drop this screen behind every sibling
+          // that still carries a number.
+          if (screenRef.current) screenRef.current.style.zIndex = String(zIndex + 1);
           // From here on this screen renders as released, whoever renders it.
           releasedKeyRef.current = key;
         }
@@ -881,7 +940,7 @@ function ScreenMotion({
             : undefined
       }
     );
-  }, [animHold, holdKey, holdAttr, isActive, status, stores.navigate]);
+  }, [animHold, holdKey, holdAttr, isActive, status, stores.navigate, zIndex]);
 
   const initialStyle =
     holdAttr === ANIM_HOLD.PARK_UNDER || holdAttr === ANIM_HOLD.PARK_OVER
@@ -912,18 +971,33 @@ function ScreenMotion({
         // the cheap half: no boxes are removed and nothing is unmounted, so
         // waking is a repaint rather than a re-layout.
         visibility: paintHidden ? "hidden" : undefined,
-        // Sibling screens stack by DOM order (no z-index) — the newest screen
-        // naturally paints on top. During park-under the ENTERING screen must
-        // sink BENEATH the previous screen while its destination tiles
-        // pre-rasterize, and that stacking decision lives HERE on the outer
-        // container: a z-index on the inner scope only reorders within this
-        // box and leaks the park (a full-screen flash of the next screen).
-        zIndex: holdAttr === ANIM_HOLD.PARK_UNDER ? -1 : undefined,
-        // `contain: layout style` keeps layout/style scoped without `paint`,
-        // which would make this element the containing block for `position:
-        // fixed` descendants and trap consumer overlays (e.g. bottom sheets)
-        // inside the screen.
-        contain: "layout style",
+        // Sibling screens carry their own stack position rather than leaning
+        // on DOM order, because `isolation` below hands the ordering of
+        // anything that escapes a screen to THIS number. Without it a
+        // consumer's `z-index: 1` beat every sibling container at `auto` and
+        // painted over the screen that covered it. Offset by one so the
+        // bottom screen still sits above an unpositioned ancestor background.
+        //
+        // During park-under the ENTERING screen must sink BENEATH the previous
+        // screen while its destination tiles pre-rasterize, and that stacking
+        // decision lives HERE on the outer container: a z-index on the inner
+        // scope only reorders within this box and leaks the park (a
+        // full-screen flash of the next screen). One below the previous
+        // screen's own number does it, and never goes negative — park-under
+        // only arms on a push, so there is always a screen beneath.
+        zIndex: holdAttr === ANIM_HOLD.PARK_UNDER ? zIndex - 1 : zIndex + 1,
+        // A stacking context WITHOUT a containing block, which is the whole
+        // point: layout/paint containment and transforms would give both, and
+        // the containing block is what trapped consumer bottom sheets inside a
+        // nested Slot (#341). `isolation` confines what a screen stacks —
+        // flemo's own dim and bars, and the consumer's own z-index — while a
+        // `position: fixed` overlay still resolves against the viewport. It
+        // reaches over the surrounding shared bars because this container
+        // outranks them, not because it escaped the screen.
+        isolation: "isolate",
+        // Style containment scopes counters and quotes. It is not what keeps
+        // the screen's stacking to itself; `isolation` above is.
+        contain: "style",
         flexDirection: "column",
         boxSizing: "border-box",
         overscrollBehavior: "contain"
@@ -937,7 +1011,7 @@ function ScreenMotion({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onLostPointerCapture={handleLostPointerCapture}
-        data-flemo-screen
+        data-flemo-screen={id}
         data-flemo-router={routerId ?? undefined}
         data-flemo-transition={transitionName}
         data-flemo-status={status}
@@ -1072,7 +1146,9 @@ function ScreenMotion({
             overflowY: contentScrollable ? "auto" : undefined
           }}
         >
-          {children}
+          <LayerHostContext.Provider value={layerHostTarget}>
+            <LayerOwnerContext.Provider value={layerOwner}>{children}</LayerOwnerContext.Provider>
+          </LayerHostContext.Provider>
         </div>
         {bottomBar}
         {sharedBottomBar && (
@@ -1121,8 +1197,7 @@ function ScreenMotion({
             position: screenPosition,
             top: !hideStatusBar ? statusBarHeight : 0,
             left: 0,
-            width: "100%",
-            zIndex: 1
+            width: "100%"
           }}
         >
           {sharedTopBar}
@@ -1147,14 +1222,80 @@ function ScreenMotion({
             position: screenPosition,
             bottom: !hideSystemNavigationBar ? systemNavigationBarHeight : 0,
             left: 0,
-            width: "100%",
-            zIndex: 1
+            width: "100%"
           }}
         >
           {sharedBottomBar}
         </div>
       )}
       {decorator && <ScreenDecorator ref={decoratorRef} data-flemo-anim-hold={holdAttr} />}
+      {/*
+        THE DIM, FOLLOWED OUT.
+
+        A screen's decorator sits in that screen's container and covers
+        everything inside it. An overlay that left the container to clear the
+        shared bars leaves the dim behind with everything else it left — and
+        unlike the transform, nothing about paint order brings it back.
+        Measured: an inline sheet is covered by the dim, the same sheet through
+        <Layer> is not.
+
+        That is not a shade of grey. A consumer writes this decorator with
+        `createDecorator` and it can be anything, opaque included, so a screen
+        disappearing under its own dim while its sheet floats untouched is a
+        correctness hole rather than a cosmetic one.
+
+        So the overlay carries the dim out, the same way it carries the screen's
+        flight: one copy per owner, sitting immediately above that owner's own
+        slots and below any screen above it. Slots take even levels and their
+        dim the odd one after, which is what keeps the pair adjacent no matter
+        how many screens have overlays open.
+      */}
+      {decorator && hasLayerSlot && layerHostTarget
+        ? createPortal(
+            <ScreenDecorator data-flemo-anim-hold={holdAttr} style={{ zIndex: zIndex * 2 + 1 }} />,
+            layerHostTarget
+          )
+        : null}
+      {/*
+        The <Layer> host, rendered only by the OUTERMOST screen in a chain. It
+        is a sibling of the scope, and that is the entire mechanism: a
+        transform binds descendants, so the screen's motion cannot reach what
+        is portaled here.
+
+        Full-size and absolute so a consumer's absolutely positioned overlay
+        has the region to resolve against, and `pointer-events: none` because
+        an empty host that spans the screen would otherwise swallow every tap
+        meant for the screen underneath. Slots hand the pointers back to their
+        own children.
+
+        It carries no containment and no promotion of its own — either would
+        re-create the containing block the overlay left the screen to escape.
+        It DOES ride this screen's flight, on the same attributes a shared bar
+        uses, because when this screen moves everything it hosts has to move
+        with it: an overlay opened in a nested screen belongs to the region
+        this screen is, and a region that slides out from under its own sheet
+        is the bug this pairing exists to prevent. A slot only adds its owner's
+        flight on top when the owner is a DIFFERENT screen (see
+        LayerOwner.rendersHost), so the two never double up.
+      */}
+      {!inheritedLayerHost && (
+        <div
+          ref={setLayerHost}
+          {...{
+            [LAYER_HOST_ATTR]: "",
+            [TRANSITION_ATTR]: transitionName,
+            [STATUS_ATTR]: status,
+            [ACTIVE_ATTR]: isActive ? "true" : "false",
+            [ANIM_HOLD_ATTR]: holdAttr
+          }}
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            zIndex: OVERLAY_LEVEL
+          }}
+        />
+      )}
     </div>
   );
 }

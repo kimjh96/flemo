@@ -3,6 +3,7 @@ import { createElement, type PropsWithChildren, type ReactNode } from "react";
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { OVERLAY_LEVEL } from "@flemo/core";
 import type { History, SharedBarPresence, TransitionName } from "@flemo/core";
 
 import Screen from "@screen/Screen";
@@ -159,7 +160,8 @@ describe("Screen", () => {
 
   // The screen container is fixed to the viewport for a root <Router>, and
   // contained (position: absolute, anchored to its region) under a nested
-  // <Router>. The container is the element carrying `contain: layout style`.
+  // <Router>. Style containment must not become layout containment because
+  // that traps fixed consumer overlays below surrounding shared bars.
   it("anchors the screen container to the viewport by default", () => {
     stores.history.setState({ index: 0, histories: [] });
 
@@ -173,6 +175,7 @@ describe("Screen", () => {
     const screenContainer = container.querySelector<HTMLElement>('div[style*="contain"]');
     expect(screenContainer).not.toBeNull();
     expect(screenContainer!.style.position).toBe("fixed");
+    expect(screenContainer!.style.contain).toBe("style");
   });
 
   it("contains the screen within its region when nested (ScreenViewportContext)", () => {
@@ -190,6 +193,54 @@ describe("Screen", () => {
     const screenContainer = container.querySelector<HTMLElement>('div[style*="contain"]');
     expect(screenContainer).not.toBeNull();
     expect(screenContainer!.style.position).toBe("absolute");
+    expect(screenContainer!.style.contain).toBe("style");
+  });
+
+  // The pair that keeps a screen's stacking to itself without becoming the
+  // containing block for a consumer's `position: fixed` overlay. Layout
+  // containment would give both and traps bottom sheets in a nested Slot;
+  // `isolation` alone leaves the overlay anchored to the viewport, and the
+  // container's own number is what carries it over the surrounding bars.
+  it("isolates a screen's stacking and numbers it by stack position", () => {
+    stores.history.setState({ index: 0, histories: [] });
+
+    const { container } = render(
+      <Screen>
+        <div data-testid="content">hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true }) }
+    );
+
+    const screenContainer = container.querySelector<HTMLElement>('div[style*="contain"]');
+    expect(screenContainer!.style.isolation).toBe("isolate");
+    expect(screenContainer!.style.zIndex).toBe("1");
+  });
+
+  // flemo's own chrome stays UNNUMBERED, and that is the assertion. Giving the
+  // bars and the dim explicit levels reads as tidier and demotes whatever
+  // consumer content used to outrank them at `auto` — measured in a consumer
+  // app as a bottom sheet that stopped covering the tab bar. Only the <Layer>
+  // host bids, because it has to clear the screens inside the scope it left.
+  it("numbers its overlay host and nothing else", () => {
+    stores.history.setState({ index: 0, histories: [] });
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+
+    const { container } = render(
+      <Screen sharedBottomBar={<nav data-testid="bar" />} sharedBottomBarId="bar">
+        <div data-testid="content">hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: false }) }
+    );
+
+    const bar = container.querySelector<HTMLElement>('[data-flemo-bar="nav"]');
+    const host = container.querySelector<HTMLElement>("[data-flemo-layer-host]");
+    const decorator = container.querySelector<HTMLElement>("[data-flemo-decorator]");
+
+    expect(bar).not.toBeNull();
+    expect(host).not.toBeNull();
+    expect(bar!.style.zIndex).toBe("");
+    if (decorator) expect(decorator.style.zIndex).toBe("");
+    expect(Number(host!.style.zIndex)).toBe(OVERLAY_LEVEL);
   });
 
   it("keeps a deeper prev screen frozen once the top has moved more than one entry past it", () => {

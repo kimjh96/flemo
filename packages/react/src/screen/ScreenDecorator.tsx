@@ -40,7 +40,13 @@ function ScreenDecorator({ ref, style, ...props }: ComponentPropsWithRef<"div">)
         width: "100%",
         height: "100%",
         pointerEvents: "none",
-        zIndex: 1,
+        // No z-index, the way there has never been one. The decorator is
+        // positioned and rendered after the scope, so tree order already paints
+        // it over the screen's content, and a number here would demote whatever
+        // consumer content used to outrank it at `auto` — the same regression
+        // numbering the bars produced. It therefore does NOT reach a <Layer>
+        // overlay, which is above it by design; a screen dimming with its own
+        // sheet still bright is a real question and an open one.
         ...style
       }}
       {...props}
