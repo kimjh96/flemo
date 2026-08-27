@@ -26,6 +26,7 @@ import {
   DESK_HEAD_ATTR,
   GOVERNED_ATTR,
   HELD_ARRIVAL_ATTR,
+  LAYER_HOST_ATTR,
   LAYER_SLOT_ATTR,
   MORPH_ATTR,
   MORPH_GHOST_ATTR,
@@ -361,10 +362,22 @@ const barAttrSelector = (transitionName: string, variant: TransitionVariant): st
 // it applies: a bar rides only when its partner screen does not own it, while
 // a slot rides always, because an overlay has exactly one screen and always
 // leaves with it.
-const layerSlotSelector = (transitionName: string, variant: TransitionVariant): string => {
+//
+// BOTH boxes can ride, and which one does depends on which screen is moving.
+// The HOST rides the screen that renders it, because when that screen flies
+// everything it hosts flies with it — a region sliding out from under its own
+// sheet is the failure this pairing prevents. A SLOT rides its owner, which
+// matters when the owner is a nested screen moving inside a host that is not.
+// The binding gives exactly one of them the attributes for any single flight,
+// so the two can never compose and send an overlay twice as far as its screen.
+const layerRiderSelector = (
+  marker: string,
+  transitionName: string,
+  variant: TransitionVariant
+): string => {
   const [status, active] = variant.split("-");
   return (
-    attrSelector(LAYER_SLOT_ATTR) +
+    attrSelector(marker) +
     attrValueSelector(TRANSITION_ATTR, transitionName) +
     attrValueSelector(STATUS_ATTR, status!) +
     attrValueSelector(ACTIVE_ATTR, active!)
@@ -450,7 +463,12 @@ const compileVariantBlock = (
   const screenSelector = selectorBuilder(name, variant);
   const selector =
     scope === "screen"
-      ? `${screenSelector},\n${barAttrSelector(name, variant)},\n${layerSlotSelector(name, variant)}`
+      ? [
+          screenSelector,
+          barAttrSelector(name, variant),
+          layerRiderSelector(LAYER_HOST_ATTR, name, variant),
+          layerRiderSelector(LAYER_SLOT_ATTR, name, variant)
+        ].join(",\n")
       : screenSelector;
 
   // Variants with no animatable target: emit a rest rule so the element

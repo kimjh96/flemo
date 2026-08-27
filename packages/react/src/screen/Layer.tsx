@@ -58,13 +58,18 @@ function Layer({ children }: LayerProps) {
 
   return createPortal(
     <div
-      {...{
-        [LAYER_SLOT_ATTR]: "",
-        [TRANSITION_ATTR]: owner.transitionName,
-        [STATUS_ATTR]: owner.status,
-        [ACTIVE_ATTR]: owner.isActive ? "true" : "false",
-        [ANIM_HOLD_ATTR]: owner.animHold
-      }}
+      {...{ [LAYER_SLOT_ATTR]: "" }}
+      {...(owner.rendersHost
+        ? // The host is this screen's own and already rides this flight. Riding
+          // here too would compose the two transforms and send the overlay
+          // twice as far as the screen it belongs to.
+          {}
+        : {
+            [TRANSITION_ATTR]: owner.transitionName,
+            [STATUS_ATTR]: owner.status,
+            [ACTIVE_ATTR]: owner.isActive ? "true" : "false",
+            [ANIM_HOLD_ATTR]: owner.animHold
+          })}
       style={{
         // A box, deliberately. The slot animates, and an animating box is a
         // containing block for `position: fixed` children — which would be a

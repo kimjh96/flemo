@@ -13,6 +13,7 @@ import { flushSync } from "react-dom";
 import {
   animHoldKey,
   ANIM_HOLD,
+  ACTIVE_ATTR,
   ANIM_HOLD_ATTR,
   beginMorphSwipe,
   CHROME_LEVEL,
@@ -23,6 +24,8 @@ import {
   createSwipeController,
   LAYER_HOST_ATTR,
   OVERLAY_LEVEL,
+  STATUS_ATTR,
+  TRANSITION_ATTR,
   createTransitionEngine,
   decoratorMap,
   enteringInitialStyle,
@@ -702,7 +705,8 @@ function ScreenMotion({
     transitionName,
     status,
     isActive,
-    animHold: holdAttr
+    animHold: holdAttr,
+    rendersHost: !inheritedLayerHost
   };
 
   // The scope's REST promotion (`flemo:preraster=on`). Browser-only state that
@@ -1228,14 +1232,26 @@ function ScreenMotion({
         meant for the screen underneath. Slots hand the pointers back to their
         own children.
 
-        No transform, no containment and no promotion of its own — anything of
-        the kind here would re-create the containing block the overlay left the
-        screen to escape.
+        It carries no containment and no promotion of its own — either would
+        re-create the containing block the overlay left the screen to escape.
+        It DOES ride this screen's flight, on the same attributes a shared bar
+        uses, because when this screen moves everything it hosts has to move
+        with it: an overlay opened in a nested screen belongs to the region
+        this screen is, and a region that slides out from under its own sheet
+        is the bug this pairing exists to prevent. A slot only adds its owner's
+        flight on top when the owner is a DIFFERENT screen (see
+        LayerOwner.rendersHost), so the two never double up.
       */}
       {!inheritedLayerHost && (
         <div
           ref={setLayerHost}
-          {...{ [LAYER_HOST_ATTR]: "" }}
+          {...{
+            [LAYER_HOST_ATTR]: "",
+            [TRANSITION_ATTR]: transitionName,
+            [STATUS_ATTR]: status,
+            [ACTIVE_ATTR]: isActive ? "true" : "false",
+            [ANIM_HOLD_ATTR]: holdAttr
+          }}
           style={{
             position: "absolute",
             inset: 0,

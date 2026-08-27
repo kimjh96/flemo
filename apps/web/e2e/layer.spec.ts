@@ -56,6 +56,24 @@ async function atTheBar(page: Page) {
   });
 }
 
+// Wait until the OUTER screen has actually moved. The overlay lives in that
+// screen's container, so an outer push is the case where the thing moving
+// under the sheet is not the sheet's owner at all.
+async function waitForRegionDeparture(page: Page, minimumPx = 40) {
+  await page.waitForFunction(
+    (minimum) => {
+      const outer = document
+        .querySelector("[data-flemo-layer-host]")
+        ?.parentElement?.querySelector("[data-flemo-screen]");
+      if (!outer) return false;
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(outer).transform);
+      return Math.abs(matrix.m41) >= minimum;
+    },
+    minimumPx,
+    { polling: "raf" }
+  );
+}
+
 // Wait until the sheet's OWN screen has actually moved.
 //
 // Sampling on the PUSHING flip alone measures nothing: at t=0 the screen is
@@ -155,6 +173,46 @@ test.describe("overlay layering", () => {
     const inFlight = await registrationGap(page);
     expect(inFlight).not.toBeNull();
     expect(inFlight!).toBeLessThanOrEqual(4);
+
+    await waitForNavIdle(page);
+  });
+
+  test("an outer push carries the sheet with the region, not out from under it", async ({
+    page
+  }) => {
+    await openSheet(page, true);
+
+    const before = await page.evaluate(() => {
+      const sheet = document.querySelector("[data-layer-sheet]");
+      return sheet ? Math.round(sheet.getBoundingClientRect().left) : null;
+    });
+    expect(before).not.toBeNull();
+
+    await page.locator(OUT).click();
+    await waitForRegionDeparture(page);
+
+    // The case the unit tests could not have caught and the previous suite did
+    // not ask: here the moving screen is an ANCESTOR of the sheet's owner, so
+    // the owner's own status is idle for the whole flight. An overlay that
+    // only ever rides its owner sits perfectly still while the entire region
+    // slides out from under it — measured in a consumer app before the host
+    // learned to ride its own screen.
+    const [after, regionTx] = await page.evaluate(() => {
+      const sheet = document.querySelector("[data-layer-sheet]");
+      const outer = document
+        .querySelector("[data-flemo-layer-host]")
+        ?.parentElement?.querySelector("[data-flemo-screen]");
+      return [
+        sheet ? Math.round(sheet.getBoundingClientRect().left) : null,
+        outer ? Math.round(new DOMMatrixReadOnly(getComputedStyle(outer).transform).m41) : null
+      ];
+    });
+
+    expect(after).not.toBeNull();
+    expect(regionTx).not.toBeNull();
+    // The sheet moved by the same amount the region did, within a pixel of
+    // sampling skew.
+    expect(Math.abs(after! - before! - regionTx!)).toBeLessThanOrEqual(4);
 
     await waitForNavIdle(page);
   });

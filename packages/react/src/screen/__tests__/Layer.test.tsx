@@ -133,7 +133,28 @@ describe("Layer", () => {
     expect(Number(host(container)!.style.zIndex)).toBe(OVERLAY_LEVEL);
   });
 
-  it("carries its owner's flight so the compiled rule moves it with the screen", () => {
+  // WHICH BOX RIDES, and why exactly one of them does.
+  //
+  // An overlay has to travel with whatever is actually moving under it, and
+  // that is not always its owner. Both boxes carry the flight attributes the
+  // compiled screen rule pairs on; the binding decides which one gets them for
+  // a given arrangement. If both did, the two transforms would compose and the
+  // overlay would travel twice as far as its screen.
+  const FLIGHT = [
+    "data-flemo-transition",
+    "data-flemo-status",
+    "data-flemo-active",
+    "data-flemo-anim-hold"
+  ];
+
+  const ridesWith = (element: HTMLElement, scope: HTMLElement) =>
+    FLIGHT.every(
+      (attribute) =>
+        element.getAttribute(attribute) !== null &&
+        element.getAttribute(attribute) === scope.getAttribute(attribute)
+    );
+
+  it("rides on the host when the owner is the screen that hosts it", () => {
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
 
     const { container } = render(
@@ -143,33 +164,52 @@ describe("Layer", () => {
         </Layer>
       </Screen>,
       // Active, so the status the scope resolves is the live PUSHING rather
-      // than the COMPLETED a resting deep screen pins — otherwise a slot that
-      // simply hardcoded the default would satisfy the comparison below.
+      // than the COMPLETED a resting deep screen pins — otherwise an element
+      // that hardcoded the default would satisfy the comparison below.
       { wrapper: harness({ isActive: true, transitionName: "material" as TransitionName }) }
     );
 
-    const slot = slots(container)[0]!;
     const scope = container.querySelector<HTMLElement>("[data-flemo-screen]")!;
 
-    // The slot is a sibling of no scope it belongs to, so nothing moves it
-    // when the screen moves — unless these say which flight it is in. The
-    // compiled screen rule pairs on exactly this triple (see
-    // layerSlotSelector), the same way a riding shared bar does.
-    //
-    // Asserted AGAINST THE SCOPE rather than against literals, because the
-    // scope's own status is derived (a resting deep screen pins it) and a
-    // slot that agreed with a literal while disagreeing with its screen would
-    // be the exact failure this pins: two elements, one flight, one clock.
-    for (const attribute of [
-      "data-flemo-transition",
-      "data-flemo-status",
-      "data-flemo-active",
-      "data-flemo-anim-hold"
-    ]) {
-      expect(slot.getAttribute(attribute)).toBe(scope.getAttribute(attribute));
-      expect(slot.getAttribute(attribute)).not.toBeNull();
-    }
-    expect(slot.getAttribute("data-flemo-transition")).toBe("material");
+    // Compared AGAINST THE SCOPE rather than against literals: the scope's own
+    // status is derived, and a rider that agreed with a literal while
+    // disagreeing with its screen is the failure this pins — two elements, one
+    // flight, one clock.
+    expect(ridesWith(host(container)!, scope)).toBe(true);
+    expect(host(container)!.getAttribute("data-flemo-transition")).toBe("material");
+    // The slot stays out of it, or the pair would compose.
+    expect(FLIGHT.every((a) => slots(container)[0]!.getAttribute(a) === null)).toBe(true);
+  });
+
+  it("rides on the slot when the owner is a screen nested inside the host", () => {
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+
+    const { container } = render(
+      <StoreContext.Provider value={stores}>
+        <ScreenContext.Provider value={screenContext({ id: "outer", zIndex: 0 })}>
+          <Screen sharedBottomBar={<nav />} sharedBottomBarId="tabs">
+            <ScreenContext.Provider
+              value={screenContext({
+                id: "inner",
+                zIndex: 2,
+                isActive: true,
+                transitionName: "material" as TransitionName
+              })}
+            >
+              <Screen>
+                <Layer>
+                  <div data-testid="sheet" />
+                </Layer>
+              </Screen>
+            </ScreenContext.Provider>
+          </Screen>
+        </ScreenContext.Provider>
+      </StoreContext.Provider>
+    );
+
+    const innerScope = container.querySelectorAll<HTMLElement>("[data-flemo-screen]")[1]!;
+    expect(ridesWith(slots(container)[0]!, innerScope)).toBe(true);
+    expect(slots(container)[0]!.getAttribute("data-flemo-transition")).toBe("material");
   });
 
   it("goes dark with a covered screen, which CSS alone cannot make it do", () => {

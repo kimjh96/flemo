@@ -56,6 +56,23 @@ export interface LayerOwner {
    * it.
    */
   animHold: string;
+  /**
+   * Whether this owner is ALSO the screen that renders the host.
+   *
+   * An overlay has to travel with whatever is actually moving under it, and
+   * that is not always its owner. When an ancestor screen flies — a push on an
+   * outer Router, with the owner sitting inside it at rest — the thing that
+   * moves is the ancestor, and the host is inside the ancestor's container. So
+   * the HOST rides the screen that renders it, and a slot rides its owner only
+   * when the two are different screens. Otherwise the pair would both animate
+   * and the overlay would travel twice as far as its screen.
+   *
+   * Measured in a consumer app before this existed: a sheet in a nested screen
+   * sat perfectly still while the whole region slid out from under it, because
+   * its owner's status was IDLE for the entire flight and the compiled rule had
+   * nothing to match.
+   */
+  rendersHost: boolean;
 }
 
 const LayerOwnerContext = createContext<LayerOwner | null>(null);
