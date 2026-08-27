@@ -38,6 +38,9 @@ importers:
       '@flemo/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@flemo/devtools':
+        specifier: workspace:*
+        version: link:../../packages/devtools
       '@flemo/react':
         specifier: workspace:*
         version: link:../../packages/react

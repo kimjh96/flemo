@@ -20,6 +20,7 @@
       "version": "0.10.20",
       "dependencies": {
         "@flemo/core": "workspace:*",
+        "@flemo/devtools": "workspace:*",
         "@flemo/react": "workspace:*",
         "next": "^16.3.2",
         "next-themes": "^0.4.6",
