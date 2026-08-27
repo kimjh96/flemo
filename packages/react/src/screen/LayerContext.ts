@@ -81,6 +81,22 @@ export interface LayerOwner {
    * name its owner instead.
    */
   screenId: string;
+  /**
+   * Register a slot element with its owner, for the lifetime of the slot.
+   *
+   * The owner needs to know it HAS an escaped overlay, because the dim has to
+   * follow the overlay out. A screen's decorator lives in that screen's
+   * container and covers everything inside it, so an overlay that left the
+   * container leaves the dim behind — measured: an inline sheet is covered by
+   * the dim, the same sheet through `<Layer>` is not. And a consumer writes
+   * that decorator with `createDecorator`, so it can be anything, including
+   * fully opaque. A screen that vanishes under its own decorator while its
+   * sheet floats untouched is not a cosmetic difference.
+   *
+   * The dim copy exists only while a slot does. Rendered unconditionally it
+   * would paint over the shared bars for every flight, overlay or not.
+   */
+  registerSlot: (element: HTMLElement | null) => void;
 }
 
 const LayerOwnerContext = createContext<LayerOwner | null>(null);

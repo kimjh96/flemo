@@ -281,9 +281,12 @@ describe("Layer", () => {
       </div>
     );
 
+    // Doubled so each owner's dim can take the odd level right above its own
+    // slots; what this pins is the RELATION, not the arithmetic.
     const [first, second] = slots(container);
-    expect(Number(first!.style.zIndex)).toBe(3);
-    expect(Number(second!.style.zIndex)).toBe(1);
+    expect(Number(first!.style.zIndex)).toBeGreaterThan(Number(second!.style.zIndex));
+    expect(Number(first!.style.zIndex)).toBe(3 * 2);
+    expect(Number(second!.style.zIndex)).toBe(1 * 2);
   });
 
   describe("inside a nested screen", () => {
@@ -328,7 +331,7 @@ describe("Layer", () => {
       // Hoisting the box must not hoist the ownership. The slot sits in the
       // outer container and is still the inner screen's, which is what #344
       // gave up by sharing one host with no owner on it.
-      expect(Number(slots(container)[0]!.style.zIndex)).toBe(2);
+      expect(Number(slots(container)[0]!.style.zIndex)).toBe(2 * 2);
     });
   });
 });

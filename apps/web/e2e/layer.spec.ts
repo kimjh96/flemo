@@ -327,6 +327,66 @@ test.describe("overlay layering", () => {
     await waitForNavIdle(page);
   });
 
+  test("the dim reaches an escaped overlay, the way it reaches an inline one", async ({ page }) => {
+    // A screen's decorator sits in that screen's container and covers
+    // everything inside it. An overlay that left the container to clear the
+    // shared bars leaves the dim behind with everything else — and unlike the
+    // transform, nothing about paint order brings it back.
+    //
+    // Asked structurally rather than by sampling a pixel, because a consumer
+    // writes this decorator with `createDecorator` and it can be anything,
+    // opaque included. How dark the built-in preset happens to be says nothing
+    // about whether the mechanism is right.
+    const verdictFor = async (hosted: boolean) => {
+      await page.goto("/playground/layer");
+      await waitForNavIdle(page);
+      await openSheet(page, hosted);
+      await page.locator(STEP).click();
+      await page
+        .waitForFunction(
+          () => {
+            const dim = [...document.querySelectorAll("[data-flemo-decorator]")].find(
+              (element) => element.getAttribute("data-flemo-status") === "PUSHING"
+            );
+            return dim !== undefined && Number.parseFloat(getComputedStyle(dim).opacity) > 0.3;
+          },
+          undefined,
+          { polling: "raf" }
+        )
+        .catch(() => {});
+
+      const verdict = await page.evaluate(() => {
+        const sheet = document.querySelector("[data-layer-sheet]");
+        if (!sheet) return "no sheet";
+        const dims = [...document.querySelectorAll<HTMLElement>("[data-flemo-decorator]")].filter(
+          (element) => element.getAttribute("data-flemo-status") === "PUSHING"
+        );
+        const box = sheet.getBoundingClientRect();
+        // A decorator never takes pointers, so hit-testing cannot see it.
+        // Lend it pointer-events for the length of one read.
+        const saved = dims.map((element) => element.style.pointerEvents);
+        dims.forEach((element) => (element.style.pointerEvents = "auto"));
+        const stack = document.elementsFromPoint(
+          Math.round(box.left + box.width / 2),
+          Math.round(box.top + 30)
+        );
+        dims.forEach((element, index) => (element.style.pointerEvents = saved[index]!));
+        const sheetIndex = stack.findIndex((element) => sheet.contains(element));
+        const dimIndex = stack.findIndex((element) => element.hasAttribute("data-flemo-decorator"));
+        if (sheetIndex < 0 || dimIndex < 0) return "one missing";
+        return dimIndex < sheetIndex ? "dim over sheet" : "sheet over dim";
+      });
+
+      await waitForNavIdle(page);
+      return verdict;
+    };
+
+    // The inline placement is the reference: whatever it does is what the
+    // escape has to keep doing.
+    expect(await verdictFor(false)).toBe("dim over sheet");
+    expect(await verdictFor(true)).toBe("dim over sheet");
+  });
+
   test("the bar is reachable when the host is empty", async ({ page }) => {
     // The host spans the region. If it took pointers, the fixture's own bar
     // would stop hit-testing the moment a screen mounted, with nothing on

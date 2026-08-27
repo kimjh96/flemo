@@ -59,6 +59,7 @@ function Layer({ children }: LayerProps) {
 
   return createPortal(
     <div
+      ref={owner.registerSlot}
       {...{ [LAYER_SLOT_ATTR]: "", [LAYER_OWNER_ATTR]: owner.screenId }}
       {...(owner.rendersHost
         ? // The host is this screen's own and already rides this flight. Riding
@@ -90,7 +91,10 @@ function Layer({ children }: LayerProps) {
         // Stack by the OWNER, so two screens' overlays order the way their
         // screens do. Portal mount order — which is what a single shared host
         // leaves you with — has nothing to do with which screen is on top.
-        zIndex: owner.zIndex,
+        //
+        // Doubled so each owner's dim can sit on the odd level right above its
+        // own slots, and still below the next screen's.
+        zIndex: owner.zIndex * 2,
         // The half a portal cannot inherit: `visibility: hidden` on the screen
         // container is CSS and reaches only that container's own descendants.
         // React's freeze does cross the portal, but it lands later, so without

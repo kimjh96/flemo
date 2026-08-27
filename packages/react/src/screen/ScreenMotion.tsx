@@ -8,7 +8,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent
 } from "react";
-import { flushSync } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 
 import {
   animHoldKey,
@@ -188,6 +188,17 @@ function ScreenMotion({
   // which every screen overwrites for its own children.
   const inheritedLayerHost = useLayerHost();
   const layerHostTarget = inheritedLayerHost ?? layerHost;
+  // Whether this screen currently HAS an escaped overlay. The dim has to
+  // follow one out (see below), and a dim rendered unconditionally would paint
+  // over the shared bars on every flight whether an overlay exists or not.
+  const layerSlotsRef = useRef<Set<HTMLElement>>(new Set());
+  const [hasLayerSlot, setHasLayerSlot] = useState(false);
+  const registerSlot = useCallback((element: HTMLElement | null) => {
+    const slots = layerSlotsRef.current;
+    if (element) slots.add(element);
+    else slots.clear();
+    setHasLayerSlot(slots.size > 0);
+  }, []);
 
   const hasSharedTopBar = !!sharedTopBar;
   const hasSharedBottomBar = !!sharedBottomBar;
@@ -706,7 +717,8 @@ function ScreenMotion({
     isActive,
     animHold: holdAttr,
     rendersHost: !inheritedLayerHost,
-    screenId: id
+    screenId: id,
+    registerSlot
   };
 
   // The scope's REST promotion (`flemo:preraster=on`). Browser-only state that
@@ -1217,6 +1229,33 @@ function ScreenMotion({
         </div>
       )}
       {decorator && <ScreenDecorator ref={decoratorRef} data-flemo-anim-hold={holdAttr} />}
+      {/*
+        THE DIM, FOLLOWED OUT.
+
+        A screen's decorator sits in that screen's container and covers
+        everything inside it. An overlay that left the container to clear the
+        shared bars leaves the dim behind with everything else it left — and
+        unlike the transform, nothing about paint order brings it back.
+        Measured: an inline sheet is covered by the dim, the same sheet through
+        <Layer> is not.
+
+        That is not a shade of grey. A consumer writes this decorator with
+        `createDecorator` and it can be anything, opaque included, so a screen
+        disappearing under its own dim while its sheet floats untouched is a
+        correctness hole rather than a cosmetic one.
+
+        So the overlay carries the dim out, the same way it carries the screen's
+        flight: one copy per owner, sitting immediately above that owner's own
+        slots and below any screen above it. Slots take even levels and their
+        dim the odd one after, which is what keeps the pair adjacent no matter
+        how many screens have overlays open.
+      */}
+      {decorator && hasLayerSlot && layerHostTarget
+        ? createPortal(
+            <ScreenDecorator data-flemo-anim-hold={holdAttr} style={{ zIndex: zIndex * 2 + 1 }} />,
+            layerHostTarget
+          )
+        : null}
       {/*
         The <Layer> host, rendered only by the OUTERMOST screen in a chain. It
         is a sibling of the scope, and that is the entire mechanism: a
