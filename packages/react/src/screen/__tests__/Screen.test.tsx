@@ -3,6 +3,7 @@ import { createElement, type PropsWithChildren, type ReactNode } from "react";
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { OVERLAY_LEVEL } from "@flemo/core";
 import type { History, SharedBarPresence, TransitionName } from "@flemo/core";
 
 import Screen from "@screen/Screen";
@@ -215,24 +216,31 @@ describe("Screen", () => {
     expect(screenContainer!.style.zIndex).toBe("1");
   });
 
-  // flemo's own chrome must not carry a number: it is positioned and rendered
-  // after the scope, so tree order already paints it over the screen content.
-  // A number would escape the screen the moment the container stopped being a
-  // stacking context, which is how the covered screen's dim reached the
-  // incoming one.
-  it("leaves the decorator's stacking to tree order", () => {
+  // flemo's own chrome stays UNNUMBERED, and that is the assertion. Giving the
+  // bars and the dim explicit levels reads as tidier and demotes whatever
+  // consumer content used to outrank them at `auto` — measured in a consumer
+  // app as a bottom sheet that stopped covering the tab bar. Only the <Layer>
+  // host bids, because it has to clear the screens inside the scope it left.
+  it("numbers its overlay host and nothing else", () => {
     stores.history.setState({ index: 0, histories: [] });
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
 
     const { container } = render(
-      <Screen>
+      <Screen sharedBottomBar={<nav data-testid="bar" />} sharedBottomBarId="bar">
         <div data-testid="content">hello</div>
       </Screen>,
       { wrapper: buildHarness({ isActive: false }) }
     );
 
+    const bar = container.querySelector<HTMLElement>('[data-flemo-bar="nav"]');
+    const host = container.querySelector<HTMLElement>("[data-flemo-layer-host]");
     const decorator = container.querySelector<HTMLElement>("[data-flemo-decorator]");
+
+    expect(bar).not.toBeNull();
+    expect(host).not.toBeNull();
+    expect(bar!.style.zIndex).toBe("");
     if (decorator) expect(decorator.style.zIndex).toBe("");
+    expect(Number(host!.style.zIndex)).toBe(OVERLAY_LEVEL);
   });
 
   it("keeps a deeper prev screen frozen once the top has moved more than one entry past it", () => {

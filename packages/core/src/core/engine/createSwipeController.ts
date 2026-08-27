@@ -7,6 +7,7 @@ import type { Transition } from "@transition/typing";
 
 import findScrollable from "@utils/findScrollable";
 
+import { collectLayerRiders } from "@core/engine/layerRiders";
 import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
 import {
   attrSelector,
@@ -306,6 +307,15 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         prev.push(prevNavBar);
       }
     }
+
+    // <Layer> overlays ride too, and they are the one rider that is NOT in the
+    // container being walked. A drag does not go through the compiled rules —
+    // it writes inline styles frame by frame — so an overlay left out of these
+    // lists stands perfectly still while the screen it belongs to slides under
+    // it. Measured before this existed: mid-drag the screen reached -65 and the
+    // sheet held at 0.
+    current.push(...collectLayerRiders(config.getElements().screenContainer));
+    prev.push(...collectLayerRiders(prevScreenContainer));
 
     ridingBars = { current, prev };
 
