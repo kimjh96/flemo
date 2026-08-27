@@ -75,7 +75,7 @@ export const dict = {
         "A small ticket app running the real library. One shared element, one tab bar, and whichever transition you pick carrying the push. Nothing in the app is told which one it is.",
       bench: {
         label: "screen transition",
-        note: "Tap a row to open it, then come back. The artwork is the same square on both sides, so it grows into place. The tab bar holds still between the two tabs and rides away on the push, because the detail declares none."
+        note: "Tap a row to open it, then come back. The artwork is one element on both screens: flemo measures where it sits the instant you tap and carries it across, and it stays a square at both ends so the travel is a move rather than a reshape. The tab bar holds still between the two tabs because both declare it, and rides away on the push because the detail declares none. Buying reaches past the top in one transition, collapsing the list and the detail together."
       },
       app: {
         title: "Tonight",
@@ -84,9 +84,17 @@ export const dict = {
         tabTickets: "Tickets",
         ticketsNote: "Held for you",
         held: "Held",
+        order: "Order",
+        past: "Past",
+        used: "Used",
         detail: "Event",
         back: "Back",
-        body: "Doors an hour before. The artwork above is the same element that was in the list a moment ago. flemo measured where it sat when you tapped, and moved it here."
+        body: "A short set of new material, played once and not recorded. Standing room only, and the room is small enough that the back row is six metres from the stage.",
+        doors: "Doors",
+        venue: "Venue",
+        age: "Age",
+        ageValue: "18+",
+        getTickets: "Get tickets"
       }
     },
     showcase: {
@@ -167,7 +175,7 @@ export const dict = {
         "실제 라이브러리로 도는 작은 티켓 앱이에요. 공유 요소 하나, 탭바 하나, 그리고 고른 전환이 push를 나릅니다. 앱 안의 어떤 화면도 지금 무엇이 도는지 모릅니다.",
       bench: {
         label: "화면 전환",
-        note: "줄을 눌러 열고 다시 돌아와 보세요. 이미지는 양쪽 다 같은 정사각형이라 그대로 자라납니다. 탭바는 두 탭 사이에선 가만히 있다가, 상세로 밀 때는 함께 빠집니다. 상세가 바를 선언하지 않기 때문입니다."
+        note: "줄을 눌러 열고 다시 돌아와 보세요. 이미지는 양쪽 다 같은 정사각형이라 그대로 자라납니다. 탭바는 두 탭 사이에선 가만히 있다가, 상세로 밀 때는 함께 빠집니다. 상세가 바를 선언하지 않기 때문입니다. 예매 버튼은 한 번의 전환으로 목록 위를 건너뛰어, 목록과 상세를 함께 걷어냅니다."
       },
       app: {
         title: "투나잇",
@@ -176,9 +184,17 @@ export const dict = {
         tabTickets: "내 티켓",
         ticketsNote: "예매해 둔 공연",
         held: "예매됨",
+        order: "예매번호",
+        past: "지난 공연",
+        used: "관람 완료",
         detail: "공연",
         back: "뒤로",
-        body: "공연 한 시간 전 입장이에요. 위 이미지는 조금 전 목록에 있던 바로 그 요소입니다. 누른 순간 어디에 있었는지 flemo가 재서 여기로 옮겨온 거예요."
+        body: "녹음하지 않고 한 번만 연주하는 짧은 신곡 무대예요. 전석 스탠딩이고, 맨 뒷줄이 무대에서 6미터인 작은 공간입니다.",
+        doors: "입장",
+        venue: "장소",
+        age: "관람등급",
+        ageValue: "18세 이상",
+        getTickets: "예매하기"
       }
     },
     showcase: {

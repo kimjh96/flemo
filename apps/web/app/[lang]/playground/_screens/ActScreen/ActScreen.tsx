@@ -16,13 +16,18 @@ import { actById, artworkFor } from "../../_data/acts";
 //   attachMorph.ts
 //     "SHAPE, not just size. A square thumbnail becoming a 4:3 hero has to pass
 //      through the ratios between, or it snaps to its destination's proportions
-//      on the first frame and only the box around it grows -- which is the 'it
+//      on the first frame and only the box around it grows, which is the 'it
 //      does not scale proportionally' everyone sees and nobody can name."
 //
 // It declares NO shared bar, so the list's tab bar rides out with the list and
 // returns on the pop. Nothing here is transition-aware: no full-bleed flag, no
 // transparent background, no part transitions. Whatever the bench has selected
 // is carrying this screen, and this screen does not know which.
+//
+// THE COPY HERE IS THE APP'S, not the library's. An earlier version explained
+// the morph inside the very screen it was demonstrating, which reads as
+// documentation wearing app clothes. What flemo is doing belongs beside the
+// stage, where a reader can look at the sentence and the motion at once.
 function ActScreen() {
   const navigate = useNavigate();
   const params = useParams<"/tonight/act/:id">();
@@ -31,10 +36,25 @@ function ActScreen() {
 
   if (!act) return null;
 
+  // Reaching past the top in one transition. `until` collapses the list as well
+  // as this screen, so the stack lands on the tickets tab alone instead of
+  // leaving a stale detail underneath it:
+  //
+  //   createNavigationController.ts
+  //     "replace: replaces it; the target and everything above become the new
+  //      screen"
+  const getTickets = () => navigate.replace("/tonight/tickets", {}, { until: "/tonight" });
+
+  const facts: [string, string][] = [
+    [t.app.doors, `${act.day} ${act.time}`],
+    [t.app.venue, act.venue],
+    [t.app.age, t.app.ageValue]
+  ];
+
   return (
     <Screen statusBarHeight="0px" systemNavigationBarHeight="0px" backgroundColor="var(--color-bg)">
-      <div className="flex h-full flex-col px-6 pt-5 pb-8">
-        <header className="flex items-center justify-between">
+      <div className="flex h-full flex-col">
+        <header className="flex shrink-0 items-center justify-between px-4 pt-4">
           <button
             type="button"
             onClick={() => navigate.pop()}
@@ -57,26 +77,50 @@ function ActScreen() {
           <span className="size-9" aria-hidden="true" />
         </header>
 
-        <Morph
-          layoutId={`art-${act.id}`}
-          className="mt-4 aspect-square w-full rounded-3xl shadow-lg"
-          style={{ background: artworkFor(act.hue) }}
-          aria-hidden="true"
-        />
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-3 pb-4">
+          <Morph
+            layoutId={`art-${act.id}`}
+            className="mx-auto aspect-square w-[72%] rounded-3xl shadow-lg"
+            style={{ background: artworkFor(act.hue) }}
+            aria-hidden="true"
+          />
 
-        <h2 className="mt-5 text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
-          {act.artist}
-        </h2>
-        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-          {act.venue} · {act.day} {act.time}
-        </p>
-        <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
-          {t.app.body}
-        </p>
+          <h2 className="mt-6 text-center text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
+            {act.artist}
+          </h2>
+          <p className="mt-1 text-center text-sm text-[var(--color-text-secondary)]">
+            {act.venue} · {act.day} {act.time}
+          </p>
 
-        <span className="mt-auto block rounded-full bg-[var(--color-primary)] px-5 py-3 text-center text-sm font-semibold text-white">
-          ₩{act.price}
-        </span>
+          <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
+            {t.app.body}
+          </p>
+
+          <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px]">
+            {facts.map(([label, value]) => (
+              <div key={label} className="flex items-baseline justify-between gap-3">
+                <dt className="text-[var(--color-text-disabled)]">{label}</dt>
+                <dd className="m-0 font-semibold text-[var(--color-text-primary)]">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        {/* The footer is a sibling of the scroller, not the last thing inside
+            it, so the buy control stays reachable however far the page is
+            scrolled. The border and the translucent blur are the same treatment
+            the site's own MiniPlayer uses for a bar that sits over content;
+            without them, the row clipped at the scroller's edge reads as being
+            UNDER the button rather than scrolling behind it. */}
+        <div className="shrink-0 border-t border-[var(--color-border-light)] bg-[var(--color-bg)]/85 px-5 pt-4 pb-6 backdrop-blur-xl">
+          <button
+            type="button"
+            onClick={getTickets}
+            className="w-full cursor-pointer rounded-full bg-[var(--color-primary)] px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
+          >
+            {t.app.getTickets} · ₩{act.price}
+          </button>
+        </div>
       </div>
     </Screen>
   );
