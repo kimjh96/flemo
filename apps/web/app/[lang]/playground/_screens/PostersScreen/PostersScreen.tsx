@@ -64,7 +64,14 @@ function PostersScreen() {
                     { transitionName: transition }
                   )
                 }
-                className="w-full cursor-pointer text-left"
+                // `block`, because a <button> is inline-block by default and
+                // its line box then adds the strut's descender under the card
+                // inside it. Measured: the card's own box was 207px while the
+                // cell holding it was 214px, so a flight that starts from the
+                // card's box starts 7px SHORTER than the cell it left, which is
+                // the card appearing to shrink before it grows. `attachMorph`
+                // records the same 6.31px on WebKit for the same reason.
+                className="block w-full cursor-pointer text-left"
               >
                 {/* THE CARD is what flies under the container transform: the
                     cell becomes the page rather than a square escaping from

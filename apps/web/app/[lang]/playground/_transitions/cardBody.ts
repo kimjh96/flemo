@@ -34,8 +34,17 @@ import "./cardBody.types";
 // The clock is `aperture`'s, which is the only transition that carries this
 // case, so there is no table to keep in step: arrive in the last half of the
 // flight, leave in the first fifth of it.
+//
+// THE TWO ARRIVALS ARE NOT THE SAME ARRIVAL. A page arriving on a push has half
+// the flight to fill, and starting it at the halfway mark reads as the page
+// assembling itself. A caption arriving on a pop has two short lines to place
+// under an artwork that is still moving, and any of that movement under settling
+// type reads as the lines shifting. So the caption waits until the card has
+// stopped.
 const IN = 0.24;
 const IN_DELAY = 0.26;
+const LAND_DELAY = 0.42;
+const LAND_IN = 0.08;
 // Short on purpose. The detail's own buy control sits where the grid's tab bar
 // is about to reappear, so every frame the two are both drawn is two bars
 // stacked. Four frames is enough to read as leaving rather than cutting.
@@ -76,11 +85,10 @@ const cardBody = createRawPartTransition({
     value: HIDDEN,
     options: { duration: OUT, ease: EASE_OUT }
   },
-  // The grid coming back. Held out until the card has nearly landed, so the
-  // caption arrives under an artwork that has stopped moving.
+  // The grid coming back. Held out until the card HAS landed.
   popOnExit: {
     value: SHOWN,
-    options: { duration: IN, delay: IN_DELAY, ease: EASE_IN }
+    options: { duration: LAND_IN, delay: LAND_DELAY, ease: EASE_IN }
   },
   completedOnEnter: REST,
   completedOnExit: REST
