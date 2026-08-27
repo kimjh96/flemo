@@ -16,8 +16,8 @@ export interface LayerCase {
    * both of them and quietly make "does it travel with its screen" a question
    * about whichever copy the query happened to find first.
    */
-  openOn: "A" | "B" | null;
-  setOpenOn: (step: "A" | "B" | null) => void;
+  openOn: "A" | "B" | "SOLO" | null;
+  setOpenOn: (step: "A" | "B" | "SOLO" | null) => void;
   /**
    * The single variable. `true` wraps the sheet in <Layer>; `false` writes the
    * identical markup straight into the screen. Nothing else differs between

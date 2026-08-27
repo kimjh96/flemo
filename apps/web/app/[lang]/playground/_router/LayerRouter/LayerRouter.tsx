@@ -7,6 +7,7 @@ import { Route, Router, Screen, Slot } from "@flemo/react";
 import LayerTabBar from "../../_components/LayerTabBar";
 import LayerCaseContext from "../../_providers/LayerCaseContext";
 
+import LayerSoloScreen from "../../_screens/LayerSoloScreen";
 import LayerStepScreen from "../../_screens/LayerStepScreen";
 
 import "./LayerRouter.types";
@@ -54,7 +55,7 @@ function LayerAwayScreen() {
 }
 
 function LayerRouter() {
-  const [openOn, setOpenOn] = useState<"A" | "B" | null>(null);
+  const [openOn, setOpenOn] = useState<"A" | "B" | "SOLO" | null>(null);
   const [hosted, setHosted] = useState(true);
 
   return (
@@ -84,6 +85,7 @@ function LayerRouter() {
               </Screen>
             }
           />
+          <Route path="/playground/layer/solo" element={<LayerSoloScreen />} />
           <Route path="/playground/layer/away" element={<LayerAwayScreen />} />
         </Slot>
       </Router>

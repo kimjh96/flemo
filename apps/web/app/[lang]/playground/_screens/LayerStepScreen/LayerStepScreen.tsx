@@ -81,6 +81,15 @@ function LayerStepScreen({ step }: LayerStepScreenProps) {
           >
             OUT
           </button>
+          {/* The same case WITHOUT nesting, one push away. */}
+          <button
+            type="button"
+            data-layer-solo-push=""
+            onClick={() => outer.push("/playground/layer/solo")}
+            className="bg-white px-4 py-2 text-sm font-bold text-black"
+          >
+            SOLO
+          </button>
           <button
             type="button"
             data-layer-pop=""

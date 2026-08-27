@@ -457,6 +457,89 @@ test.describe("overlay layering", () => {
     await waitForNavIdle(page);
   });
 
+  test("the same window traps an overlay with no nesting anywhere", async ({ page }) => {
+    // The nested case reads as a GEOMETRY gap: a nested region is shorter than
+    // the viewport by its ancestor's bar, so a trapped sheet stops 72px short.
+    // That made it tempting to call this a nesting problem. It is not.
+    //
+    // Here one screen owns its own bar and there is no nested Router at all.
+    // The screen IS the viewport, so a trapped sheet reaches the floor and the
+    // loss shows up in STACKING instead: the bar comes over it. One root, two
+    // appearances, and the same escape fixes both.
+    const soloVerdict = async (hosted: boolean) => {
+      await page.goto("/playground/layer");
+      await waitForNavIdle(page);
+      const toggle = page.locator(TOGGLE).first();
+      if ((await toggle.getAttribute("aria-pressed")) !== String(hosted)) await toggle.click();
+      await page.locator("[data-layer-solo-push]").click();
+      await waitForNavIdle(page);
+      await page.locator(OUT).last().click();
+      await waitForNavIdle(page);
+
+      const viewport = page.viewportSize()!;
+      await page.mouse.move(2, viewport.height / 2);
+      await page.mouse.down();
+      for (const x of [40, 140, 260, 370]) {
+        await page.mouse.move(x, viewport.height / 2, { steps: 2 });
+        await page.waitForTimeout(25);
+      }
+      await page.mouse.up();
+
+      await page.waitForFunction(
+        () => {
+          const owner = document.querySelector("[data-layer-solo]")?.closest("[data-flemo-screen]");
+          return owner !== null && getComputedStyle(owner!).transform !== "none";
+        },
+        undefined,
+        { polling: "raf" }
+      );
+
+      const trapped = await page.evaluate(() => {
+        const owner = document
+          .querySelector("[data-layer-solo]")
+          ?.closest("[data-flemo-screen]") as HTMLElement;
+        const before = getComputedStyle(owner).transform;
+        owner
+          .querySelector<HTMLElement>("[data-layer-open]")
+          ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        return before;
+      });
+      expect(trapped).not.toBe("none");
+
+      const result = await page.evaluate(() => {
+        const owner = document.querySelector("[data-layer-solo]")?.closest("[data-flemo-screen]");
+        const bar = owner?.parentElement?.querySelector("[data-layer-bar]");
+        const sheet = document.querySelector('[data-layer-sheet="solo"]');
+        if (!bar || !sheet) return { verdict: "missing", gap: -1 };
+        const box = bar.getBoundingClientRect();
+        const stack = document.elementsFromPoint(
+          Math.round(box.left + box.width / 2),
+          Math.round(box.top + box.height / 2)
+        );
+        const sheetIndex = stack.findIndex((element) => sheet.contains(element));
+        const barIndex = stack.findIndex((element) => bar.contains(element));
+        return {
+          verdict:
+            sheetIndex < 0 || barIndex < 0 ? "neither" : sheetIndex < barIndex ? "sheet" : "bar",
+          gap: window.innerHeight - Math.round(sheet.getBoundingClientRect().bottom)
+        };
+      });
+
+      await waitForNavIdle(page);
+      return result;
+    };
+
+    // Written in the screen: reaches the floor, and loses the bar anyway.
+    const inline = await soloVerdict(false);
+    expect(inline.gap).toBeLessThanOrEqual(1);
+    expect(inline.verdict).toBe("bar");
+
+    // Through <Layer>: cuts the bar in the same window.
+    const hosted = await soloVerdict(true);
+    expect(hosted.gap).toBeLessThanOrEqual(1);
+    expect(hosted.verdict).toBe("sheet");
+  });
+
   test("the bar is reachable when the host is empty", async ({ page }) => {
     // The host spans the region. If it took pointers, the fixture's own bar
     // would stop hit-testing the moment a screen mounted, with nothing on

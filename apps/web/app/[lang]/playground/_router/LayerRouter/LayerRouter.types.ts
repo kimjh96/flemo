@@ -4,6 +4,7 @@ declare module "@flemo/react" {
   interface RegisterRoute {
     "/playground/layer": Record<string, never>;
     "/playground/layer/away": Record<string, never>;
+    "/playground/layer/solo": Record<string, never>;
     "/playground/layer/a": Record<string, never>;
     "/playground/layer/b": Record<string, never>;
   }
