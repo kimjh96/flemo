@@ -18,14 +18,24 @@ import "./aperture.types";
 // this bench moves a screen, and every one of those would have its move thrown
 // away by the camera rather than added to it.
 //
-// IT DOES FADE THE ARRIVAL IN, and an attempt to stop it is recorded here so it
-// is not tried again. The reasoning was that this screen is made of one card,
-// the card is a morph, and a morph is staged in the FLIGHT LAYER, so holding the
-// screen clear for the flight would keep the grid visible under a card that is
-// drawn regardless. It does not: with `enter` held at zero until the last
-// frame, the stage renders EMPTY for the whole flight. Measured on the running
-// build, the card sits in the layer at opacity 1 and paints nothing, so the
-// layer is subject to its screen after all. The fade stays.
+// IT DOES NOT FADE THE ARRIVAL AT ALL, and getting here took two wrong turns
+// that are recorded so they are not taken again.
+//
+// A front-loaded fade was the first. It covered the grid in about 50ms, so the
+// camera pushed a screen nobody could see any more and the stage read as going
+// black around a small card. That is the whole case defeated by its own
+// partner.
+//
+// Holding the screen at zero for the flight was the second, on the reasoning
+// that the card is a morph staged in the FLIGHT LAYER and therefore drawn
+// regardless. It is not: measured, the card sits in the layer at opacity 1 and
+// paints nothing while its screen is transparent, so the layer is subject to
+// its screen.
+//
+// What works is neither. The screen does not fade, and it does not paint: the
+// detail hands its background to the CARD when a card is carrying it, so this
+// screen contributes nothing of its own and the grid stays visible around a
+// card that is opaque from its first frame.
 //
 // THE DURATION IS WHY THIS IS A TRANSITION AT ALL rather than `none`. A morph
 // writes no duration of its own:
@@ -45,24 +55,23 @@ import "./aperture.types";
 // flight the screen is not the consumer's to drag: the camera owns its
 // transform.
 const DURATION = 0.5;
-// Front-loaded, so the arrival is solid early and the rest of the flight
-// belongs to the camera and the card.
-const FADE: [number, number, number, number] = [0.15, 0.95, 0.25, 1];
 
 const aperture = createTransition({
   name: "aperture",
-  initial: { opacity: 0 },
+  initial: { opacity: 1 },
   idle: {
     value: { opacity: 1 },
     options: { duration: 0 }
   },
+  // Nothing changes. The duration is here so the morph, the camera and the part
+  // inside the card all resolve to it.
   enter: {
     value: { opacity: 1 },
-    options: { duration: DURATION, ease: FADE }
+    options: { duration: DURATION }
   },
   enterBack: {
-    value: { opacity: 0 },
-    options: { duration: DURATION, ease: FADE }
+    value: { opacity: 1 },
+    options: { duration: DURATION }
   },
   // The covered screen holds. It is the one carrying the camera, and touching
   // its opacity would fade the very thing the zoom is pushing past the edges.

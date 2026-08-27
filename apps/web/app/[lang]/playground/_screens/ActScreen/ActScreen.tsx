@@ -37,7 +37,7 @@ function ActScreen() {
   const params = useParams<"/tonight/act/:id">();
   const act = actById(params?.id);
   const t = getDict(useShellLang()).playground;
-  const { morph } = useBench();
+  const { morph, cardMorph } = useBench();
 
   if (!act) return null;
 
@@ -57,7 +57,18 @@ function ActScreen() {
   ];
 
   return (
-    <Screen statusBarHeight="0px" systemNavigationBarHeight="0px" backgroundColor="var(--color-bg)">
+    <Screen
+      statusBarHeight="0px"
+      systemNavigationBarHeight="0px"
+      // WHOEVER OWNS THE SURFACE PAINTS IT. Under every case but one this
+      // screen is the surface and must be opaque, or the screen it slides over
+      // shows through it. Under the container transform the CARD is the
+      // surface: it is opaque, it fills this screen at rest, and it is the
+      // thing that grows. A background here as well would paint a full-size
+      // opaque rectangle over the grid from the first frame, which is the
+      // camera's own work covered up.
+      backgroundColor={cardMorph ? "transparent" : "var(--color-bg)"}
+    >
       {/* THE WHOLE SCREEN IS THE CARD under the container transform: the cell
           becomes this page, chrome included, rather than releasing a square
           into a page that was already drawn at full size around it. An earlier
