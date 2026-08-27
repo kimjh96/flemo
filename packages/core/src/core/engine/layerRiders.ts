@@ -30,11 +30,10 @@ import {
 // with three different ideas of what rides.
 
 /** A container's own direct child matching a selector, never a descendant. */
-const ownChild = (container: HTMLElement | null, selector: string): HTMLElement | null => {
-  if (!container) return null;
+const ownChild = (container: HTMLElement, selector: string): HTMLElement | null => {
   for (const child of Array.from(container.children)) {
     const element = child as HTMLElement;
-    if (typeof element.matches === "function" && element.matches(selector)) return element;
+    if (element.matches(selector)) return element;
   }
   return null;
 };

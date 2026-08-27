@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { OVERLAY_LEVEL, type TransitionName } from "@flemo/core";
 
 import Layer from "@screen/Layer";
+import { LayerHostContext } from "@screen/LayerContext";
 import Screen from "@screen/Screen";
 import ScreenContext, { type ScreenContextProps } from "@screen/ScreenContext";
 import ScreenMotion from "@screen/ScreenMotion";
@@ -73,6 +74,28 @@ describe("Layer", () => {
     );
 
     expect(container.querySelector("[data-testid='sheet']")).toBeNull();
+  });
+
+  it("renders nothing with a host but no owner", () => {
+    // The two halves come from two different screens and can arrive apart. A
+    // host inherited from an ancestor with no owning screen in between is not
+    // a target this can use: without an owner there is no stack position, no
+    // flight and no paint state to carry, and portalling anyway would put an
+    // unattached overlay above everything.
+    const target = document.createElement("div");
+    document.body.append(target);
+
+    const { container } = render(
+      <LayerHostContext.Provider value={target}>
+        <Layer>
+          <div data-testid="sheet" />
+        </Layer>
+      </LayerHostContext.Provider>
+    );
+
+    expect(container.querySelector("[data-testid='sheet']")).toBeNull();
+    expect(target.querySelector("[data-testid='sheet']")).toBeNull();
+    target.remove();
   });
 
   it("puts the overlay beside the screen rather than inside it", () => {
@@ -210,6 +233,37 @@ describe("Layer", () => {
     const innerScope = container.querySelectorAll<HTMLElement>("[data-flemo-screen]")[1]!;
     expect(ridesWith(slots(container)[0]!, innerScope)).toBe(true);
     expect(slots(container)[0]!.getAttribute("data-flemo-transition")).toBe("material");
+    expect(slots(container)[0]!.getAttribute("data-flemo-active")).toBe("true");
+  });
+
+  it("carries the INACTIVE side of a flight too", () => {
+    // Every push has one of each, and a slot that only ever agreed with the
+    // arriving screen would ride the wrong half of the pair.
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+
+    const { container } = render(
+      <StoreContext.Provider value={stores}>
+        <ScreenContext.Provider value={screenContext({ id: "outer", zIndex: 0 })}>
+          <Screen sharedBottomBar={<nav />} sharedBottomBarId="tabs">
+            <ScreenContext.Provider
+              value={screenContext({ id: "inner", zIndex: 2, isActive: false })}
+            >
+              <Screen>
+                <Layer>
+                  <div data-testid="sheet" />
+                </Layer>
+              </Screen>
+            </ScreenContext.Provider>
+          </Screen>
+        </ScreenContext.Provider>
+      </StoreContext.Provider>
+    );
+
+    const innerScope = container.querySelectorAll<HTMLElement>("[data-flemo-screen]")[1]!;
+    expect(slots(container)[0]!.getAttribute("data-flemo-active")).toBe("false");
+    expect(slots(container)[0]!.getAttribute("data-flemo-active")).toBe(
+      innerScope.getAttribute("data-flemo-active")
+    );
   });
 
   it("goes dark with a covered screen, which CSS alone cannot make it do", () => {
