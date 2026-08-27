@@ -9,6 +9,6 @@ publicationProfile: reference
 publicationStatus: stable
 schemaVersion: 1
 sourceUnitVersionIds:
-  - uv_aed6ac3b1bdbfe1820b264e6
+  - uv_a849e18b484222ee1126ae05
 title: This is NOT the Next.js you know
 type: invariant
