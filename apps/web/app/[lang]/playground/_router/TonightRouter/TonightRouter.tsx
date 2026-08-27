@@ -13,6 +13,7 @@ import reveal from "../../_transitions/reveal";
 
 import ActScreen from "../../_screens/ActScreen";
 import ActsScreen from "../../_screens/ActsScreen";
+import PostersScreen from "../../_screens/PostersScreen";
 import TicketsScreen from "../../_screens/TicketsScreen";
 
 import BenchContext, { type BenchCase } from "../../_providers/BenchContext";
@@ -57,6 +58,7 @@ function TonightRouter({ bench }: TonightRouterProps) {
       >
         <Slot className="h-full w-full">
           <Route path="/tonight" element={<ActsScreen />} />
+          <Route path="/tonight/posters" element={<PostersScreen />} />
           <Route path="/tonight/tickets" element={<TicketsScreen />} />
           <Route path="/tonight/act/:id" element={<ActScreen />} />
         </Slot>

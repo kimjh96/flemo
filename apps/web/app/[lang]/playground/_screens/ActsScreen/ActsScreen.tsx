@@ -61,7 +61,11 @@ function ActsScreen() {
               <button
                 type="button"
                 onClick={() =>
-                  push("/tonight/act/:id", { id: act.id }, { transitionName: transition })
+                  push(
+                    "/tonight/act/:id",
+                    { id: act.id, from: "row" },
+                    { transitionName: transition }
+                  )
                 }
                 className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-[var(--color-layer)]"
               >
@@ -71,8 +75,14 @@ function ActsScreen() {
                   // the element is small on, so on a push this list is what
                   // gets pushed past the edges, and on a pop the same zoom runs
                   // backwards. Both sides of a pair must name the same morph.
+                  //
+                  // The id is scoped to THIS surface. The posters tab shows the
+                  // same acts, and when the two tabs are in a flight together
+                  // one shared id would pair all ten of them: measured at 50
+                  // morph animations on a single tab switch, which is load this
+                  // stage manufactures for nothing.
                   name={morph}
-                  layoutId={`art-${act.id}`}
+                  layoutId={`row-${act.id}`}
                   className="size-12 shrink-0 rounded-xl"
                   style={{ background: artworkFor(act.hue) }}
                   aria-hidden="true"

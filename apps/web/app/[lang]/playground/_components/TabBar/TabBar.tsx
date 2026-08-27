@@ -5,11 +5,12 @@ import { useNavigate, usePathname } from "@flemo/react";
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
-const TAB_ORDER = ["/tonight", "/tonight/tickets"] as const;
+const TAB_ORDER = ["/tonight", "/tonight/posters", "/tonight/tickets"] as const;
 type TabPath = (typeof TAB_ORDER)[number];
 
 const ICONS: Record<TabPath, string> = {
   "/tonight": "M5 7h14M5 12h14M5 17h9",
+  "/tonight/posters": "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
   "/tonight/tickets":
     "M4 9a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2 2 2 0 0 0 0 6 2 2 0 0 1-2 2H6a2 2 0 0 1-2-2 2 2 0 0 0 0-6Z"
 };
@@ -21,9 +22,9 @@ const ICONS: Record<TabPath, string> = {
 //   "A bar rides when the partner screen does NOT own the same bar (there is no
 //    seamless hand-over); it stays put when the partner owns it."
 //
-// So across the two tabs it HOLDS (both declare it), and on a push into the
-// detail, which declares none. It RIDES out with the list and comes back on
-// the pop. Both are on show here, and neither is opted into.
+// So across the three tabs it HOLDS (all three declare it), and on a push into
+// the detail, which declares none, it RIDES out with the tab screen and comes
+// back on the pop. Both are on show here, and neither is opted into.
 //
 // Tabs are peers, so switching is a `replace` on the site's own shared-axis
 // transitions: "a short offset + fade, never a full-width push, so the move
@@ -48,6 +49,7 @@ function TabBar() {
 
   const tabs: { path: TabPath; label: string }[] = [
     { path: "/tonight", label: t.tabTonight },
+    { path: "/tonight/posters", label: t.tabPosters },
     { path: "/tonight/tickets", label: t.tabTickets }
   ];
 

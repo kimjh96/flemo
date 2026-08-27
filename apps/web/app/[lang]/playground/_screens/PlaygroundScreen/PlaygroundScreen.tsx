@@ -29,8 +29,10 @@ import { CASES, DEFAULT_BENCH, type BenchCase } from "../../_providers/BenchCont
 // mutating a screen DURING a flight, which `arrivalHold` would hide until rest
 // anyway ("a MutationObserver hides mid-flight swaps and additions ... then
 // reflects them in one rest commit").
+// Equal cells rather than shrink-to-fit, so eight options read as a block of
+// choices instead of one long line running off toward the stage.
 const PILL =
-  "cursor-pointer rounded-lg px-3 py-1.5 font-mono text-[13px] font-semibold transition-colors";
+  "cursor-pointer rounded-lg px-2 py-1.5 text-center font-mono text-[13px] font-semibold transition-colors";
 const PILL_ON = "bg-[var(--color-primary)] text-white";
 const PILL_OFF =
   "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text-primary)]";
@@ -65,7 +67,7 @@ function PlaygroundScreen() {
                 <div
                   role="radiogroup"
                   aria-label={t.bench.label}
-                  className="flex w-fit flex-wrap gap-1 rounded-xl bg-[var(--color-layer)] p-1"
+                  className="grid w-fit grid-cols-2 gap-1 rounded-xl bg-[var(--color-layer)] p-1 sm:grid-cols-4"
                 >
                   {CASES.map((option) => (
                     <button

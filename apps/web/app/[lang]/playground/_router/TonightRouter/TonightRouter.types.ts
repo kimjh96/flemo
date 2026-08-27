@@ -3,8 +3,14 @@
 declare module "@flemo/react" {
   interface RegisterRoute {
     "/tonight": Record<string, never>;
+    "/tonight/posters": Record<string, never>;
     "/tonight/tickets": Record<string, never>;
-    "/tonight/act/:id": { id: string };
+    // `from` is not in the pattern, so it compiles into the query string:
+    // "Params consumed by the pattern's tokens fill the path; the leftovers
+    // become the query string." The detail needs it because the two tab
+    // surfaces name their shared elements differently, and it has to pair with
+    // whichever one opened it.
+    "/tonight/act/:id": { id: string; from: "row" | "cell" };
   }
 }
 

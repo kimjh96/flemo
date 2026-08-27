@@ -81,10 +81,13 @@ function ActScreen() {
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-3 pb-4">
           <Morph
-            // The BIG side. It names the same morph as the list row, because a
-            // pair whose two halves disagree is not a pair.
+            // The BIG side. It names the same morph AND the same id as the
+            // surface that opened it, because a pair whose two halves disagree
+            // is not a pair. The list scopes its ids to rows and the posters
+            // grid scopes its to cells, so which one to answer to arrives on
+            // the route rather than being guessed.
             name={morph}
-            layoutId={`art-${act.id}`}
+            layoutId={`${params?.from ?? "row"}-${act.id}`}
             className="mx-auto aspect-square w-[72%] rounded-3xl shadow-lg"
             style={{ background: artworkFor(act.hue) }}
             aria-hidden="true"
