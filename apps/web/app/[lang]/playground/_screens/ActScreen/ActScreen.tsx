@@ -6,6 +6,7 @@ import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
 import { actById, artworkFor } from "../../_data/acts";
+import { useBench } from "../../_providers/BenchContext";
 
 // The detail. The other half of the list row's <Morph>: the same `layoutId`, so
 // the little square in the list and this one are one thing to flemo.
@@ -33,6 +34,7 @@ function ActScreen() {
   const params = useParams<"/tonight/act/:id">();
   const act = actById(params?.id);
   const t = getDict(useShellLang()).playground;
+  const { morph } = useBench();
 
   if (!act) return null;
 
@@ -79,6 +81,9 @@ function ActScreen() {
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-3 pb-4">
           <Morph
+            // The BIG side. It names the same morph as the list row, because a
+            // pair whose two halves disagree is not a pair.
+            name={morph}
             layoutId={`art-${act.id}`}
             className="mx-auto aspect-square w-[72%] rounded-3xl shadow-lg"
             style={{ background: artworkFor(act.hue) }}

@@ -2,40 +2,57 @@
 
 import { createContext, useContext } from "react";
 
-import type { TransitionName } from "@flemo/react";
+import type { MorphTransitionName, TransitionName } from "@flemo/react";
 
-// What the bench is set to. Deliberately ONE axis.
+// What the bench is set to.
 //
-// The previous playground offered a transition axis crossed with a morph axis
-// and a per-step clock table, and got the basics wrong underneath all of it.
-// The library author's own demos pair one element and change nothing else; this
-// starts there. A second axis goes in only once the first one is judged good.
-export interface Bench {
+// STILL ONE AXIS, even though there are now two things behind each entry. The
+// axis is "what carries the push", and an entry names both halves of the answer
+// because the two halves are not independent:
+//
+//   zoom.ts
+//     "PAIR IT WITH A STILL SCREEN TRANSITION. The camera supersedes that
+//      screen's own transform for the flight, so `none` or an opacity-only
+//      transition composes; a slide is replaced rather than combined."
+//
+// Offering a free cross product would put combinations on the page that the
+// library states do not compose, and a reader who picked one would be told by
+// the motion that flemo is broken. The previous playground did exactly that and
+// is why this one was rebuilt.
+export interface BenchCase {
+  // What the control shows, and what the case is called in the comments.
+  id: string;
   transition: TransitionName;
+  // Which morph the artwork flies as. `shared` moves the element and leaves the
+  // screens to their own transition; `zoom` adds a camera that carries the
+  // screen the element is small on.
+  morph: MorphTransitionName;
 }
 
-// The four the library ships, then the three this page authors. Presets first
-// so the familiar ones are where a reader looks for them, and the authored ones
+// The four the library ships, then the four this page authors. Presets first so
+// the familiar ones are where a reader looks for them, and the authored ones
 // after, because the point of having them here is that a consumer's transition
 // is not a second class of thing.
 //
-// Each authored entry exists for something the presets do not cover:
+// Each authored entry covers something the presets do not:
 //   reveal        a clip-path wipe, on a property no preset animates
 //   drift         depth, with a decorator sized to its own clock
 //   fade-through  two fades in sequence rather than overlapped
-export const TRANSITIONS: TransitionName[] = [
-  "cupertino",
-  "material",
-  "layout",
-  "none",
-  "reveal",
-  "drift",
-  "fade-through"
+//   zoom          the container transform, and the still transition it needs
+export const CASES: BenchCase[] = [
+  { id: "cupertino", transition: "cupertino", morph: "shared" },
+  { id: "material", transition: "material", morph: "shared" },
+  { id: "layout", transition: "layout", morph: "shared" },
+  { id: "none", transition: "none", morph: "shared" },
+  { id: "reveal", transition: "reveal", morph: "shared" },
+  { id: "drift", transition: "drift", morph: "shared" },
+  { id: "fade-through", transition: "fade-through", morph: "shared" },
+  { id: "zoom", transition: "aperture", morph: "zoom" }
 ];
 
-export const DEFAULT_BENCH: Bench = { transition: "cupertino" };
+export const DEFAULT_BENCH: BenchCase = CASES[0];
 
-const BenchContext = createContext<Bench>(DEFAULT_BENCH);
+const BenchContext = createContext<BenchCase>(DEFAULT_BENCH);
 
 export const useBench = () => useContext(BenchContext);
 

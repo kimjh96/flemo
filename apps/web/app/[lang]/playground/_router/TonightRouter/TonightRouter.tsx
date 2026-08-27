@@ -5,6 +5,7 @@ import { Route, Router, Slot } from "@flemo/react";
 import sharedAxisBackward from "@/app/[lang]/_transitions/sharedAxisBackward";
 import sharedAxisForward from "@/app/[lang]/_transitions/sharedAxisForward";
 
+import aperture from "../../_transitions/aperture";
 import drift from "../../_transitions/drift";
 import fadeThrough from "../../_transitions/fadeThrough";
 import recess from "../../_transitions/recess";
@@ -14,12 +15,12 @@ import ActScreen from "../../_screens/ActScreen";
 import ActsScreen from "../../_screens/ActsScreen";
 import TicketsScreen from "../../_screens/TicketsScreen";
 
-import BenchContext, { type Bench } from "../../_providers/BenchContext";
+import BenchContext, { type BenchCase } from "../../_providers/BenchContext";
 
 import "./TonightRouter.types";
 
 export interface TonightRouterProps {
-  bench: Bench;
+  bench: BenchCase;
 }
 
 // The mini-app. A NESTED <Router> with in-memory history, exactly as the
@@ -47,7 +48,7 @@ function TonightRouter({ bench }: TonightRouterProps) {
       <Router
         initPath="/tonight"
         history="memory"
-        transitions={[reveal, drift, fadeThrough, sharedAxisForward, sharedAxisBackward]}
+        transitions={[reveal, drift, fadeThrough, aperture, sharedAxisForward, sharedAxisBackward]}
         // `drift` names this one. A decorator is registered by the Router, not
         // by the transition that asks for it.
         decorators={[recess]}

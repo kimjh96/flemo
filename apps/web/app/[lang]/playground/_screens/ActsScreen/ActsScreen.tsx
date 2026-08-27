@@ -31,7 +31,7 @@ import { useBench } from "../../_providers/BenchContext";
 // accident. see `computeBarRiding`.
 function ActsScreen() {
   const { push } = useNavigate();
-  const { transition } = useBench();
+  const { transition, morph } = useBench();
   const t = getDict(useShellLang()).playground;
 
   return (
@@ -67,6 +67,11 @@ function ActsScreen() {
               >
                 <Morph
                   as="span"
+                  // The SMALL side. `zoom` puts its camera on whichever screen
+                  // the element is small on, so on a push this list is what
+                  // gets pushed past the edges, and on a pop the same zoom runs
+                  // backwards. Both sides of a pair must name the same morph.
+                  name={morph}
                   layoutId={`art-${act.id}`}
                   className="size-12 shrink-0 rounded-xl"
                   style={{ background: artworkFor(act.hue) }}

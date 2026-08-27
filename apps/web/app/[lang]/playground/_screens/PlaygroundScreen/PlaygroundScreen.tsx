@@ -12,7 +12,7 @@ import Stage from "../../_components/Stage";
 
 import TonightRouter from "../../_router/TonightRouter";
 
-import { DEFAULT_BENCH, TRANSITIONS, type Bench } from "../../_providers/BenchContext";
+import { CASES, DEFAULT_BENCH, type BenchCase } from "../../_providers/BenchContext";
 
 // The playground as a PEER of Home, Showcase and Docs: a screen of the site's
 // own Router, so the mini-app runs as a nested Router inside a screen of
@@ -37,7 +37,7 @@ const PILL_OFF =
 
 function PlaygroundScreen() {
   const t = getDict(useShellLang()).playground;
-  const [bench, setBench] = useState<Bench>(DEFAULT_BENCH);
+  const [bench, setBench] = useState<BenchCase>(DEFAULT_BENCH);
 
   return (
     <Screen hideStatusBar hideSystemNavigationBar backgroundColor="transparent">
@@ -67,16 +67,16 @@ function PlaygroundScreen() {
                   aria-label={t.bench.label}
                   className="flex w-fit flex-wrap gap-1 rounded-xl bg-[var(--color-layer)] p-1"
                 >
-                  {TRANSITIONS.map((name) => (
+                  {CASES.map((option) => (
                     <button
-                      key={name}
+                      key={option.id}
                       type="button"
                       role="radio"
-                      aria-checked={name === bench.transition}
-                      onClick={() => setBench({ transition: name })}
-                      className={`${PILL} ${name === bench.transition ? PILL_ON : PILL_OFF}`}
+                      aria-checked={option.id === bench.id}
+                      onClick={() => setBench(option)}
+                      className={`${PILL} ${option.id === bench.id ? PILL_ON : PILL_OFF}`}
                     >
-                      {name}
+                      {option.id}
                     </button>
                   ))}
                 </div>
@@ -89,7 +89,7 @@ function PlaygroundScreen() {
 
             <div className="order-1 flex justify-center lg:order-2 lg:justify-end">
               <Stage>
-                <TonightRouter key={bench.transition} bench={bench} />
+                <TonightRouter key={bench.id} bench={bench} />
               </Stage>
             </div>
           </div>
