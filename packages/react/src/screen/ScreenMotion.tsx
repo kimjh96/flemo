@@ -706,7 +706,8 @@ function ScreenMotion({
     status,
     isActive,
     animHold: holdAttr,
-    rendersHost: !inheritedLayerHost
+    rendersHost: !inheritedLayerHost,
+    screenId: id
   };
 
   // The scope's REST promotion (`flemo:preraster=on`). Browser-only state that
@@ -995,7 +996,7 @@ function ScreenMotion({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onLostPointerCapture={handleLostPointerCapture}
-        data-flemo-screen
+        data-flemo-screen={id}
         data-flemo-router={routerId ?? undefined}
         data-flemo-transition={transitionName}
         data-flemo-status={status}

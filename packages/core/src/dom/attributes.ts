@@ -33,7 +33,13 @@ export const FLEMO_ATTR_PREFIX = "data-flemo-";
 // participants), by the compiled variant rules (which select on
 // status/active), and by devtools (which reconstructs flights from the flips).
 
-/** Marks a screen scope. Presence only — the value carries nothing. */
+/**
+ * Marks a screen scope, and carries that screen's id.
+ *
+ * The value was empty until a `<Layer>` slot needed to name the screen it
+ * belongs to from the DOM alone. Presence selectors are unaffected, which is
+ * what every existing reader uses; nothing may start requiring the value.
+ */
 export const SCREEN_ATTR = "data-flemo-screen";
 
 /** The navigation status this screen is rendering: a `NavigateStatus` value. */
@@ -139,6 +145,19 @@ export const LAYER_HOST_ATTR = "data-flemo-layer-host";
  * subtree, so it dies with the screen without anything having to notice.
  */
 export const LAYER_SLOT_ATTR = "data-flemo-layer-slot";
+
+/**
+ * The id (see SCREEN_ATTR) of the screen a slot belongs to.
+ *
+ * A slot sits in an ancestor's host, so nothing about where it IS says whose
+ * it is. The gesture driver needs to: a drag moves a screen by writing inline
+ * styles frame by frame rather than through the compiled rules, so it has to
+ * enumerate everything that rides along, and it finds those by walking the
+ * moving screen's container. A slot is not in that container. This is how it
+ * is found anyway — the same problem a shared bar does not have, because a bar
+ * never leaves the container it belongs to.
+ */
+export const LAYER_OWNER_ATTR = "data-flemo-layer-owner";
 
 // ── Parts ───────────────────────────────────────────────────────────────────
 
@@ -360,6 +379,7 @@ export const FLEMO_ATTRIBUTES = [
   DECORATOR_ATTR,
   DECORATOR_NAME_ATTR,
   LAYER_HOST_ATTR,
+  LAYER_OWNER_ATTR,
   LAYER_SLOT_ATTR,
   PART_NAME_ATTR,
   MORPH_ATTR,

@@ -73,6 +73,14 @@ export interface LayerOwner {
    * nothing to match.
    */
   rendersHost: boolean;
+  /**
+   * The owning screen's id, written onto the slot so the gesture driver can
+   * find it. A drag does not go through the compiled rules — it writes inline
+   * styles frame by frame — and it enumerates what rides along by walking the
+   * moving screen's container. A slot is not in that container, so it has to
+   * name its owner instead.
+   */
+  screenId: string;
 }
 
 const LayerOwnerContext = createContext<LayerOwner | null>(null);

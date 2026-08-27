@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import {
   ACTIVE_ATTR,
   ANIM_HOLD_ATTR,
+  LAYER_OWNER_ATTR,
   LAYER_SLOT_ATTR,
   STATUS_ATTR,
   TRANSITION_ATTR
@@ -58,7 +59,7 @@ function Layer({ children }: LayerProps) {
 
   return createPortal(
     <div
-      {...{ [LAYER_SLOT_ATTR]: "" }}
+      {...{ [LAYER_SLOT_ATTR]: "", [LAYER_OWNER_ATTR]: owner.screenId }}
       {...(owner.rendersHost
         ? // The host is this screen's own and already rides this flight. Riding
           // here too would compose the two transforms and send the overlay

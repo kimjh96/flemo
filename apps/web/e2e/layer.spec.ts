@@ -217,6 +217,43 @@ test.describe("overlay layering", () => {
     await waitForNavIdle(page);
   });
 
+  test("a swipe-back drags the sheet along with the screen it belongs to", async ({ page }) => {
+    // The gesture is a THIRD driver, and it was the one nobody drove. A drag
+    // does not run the compiled rules: it writes inline styles frame by frame
+    // and enumerates its riders by walking the moving screen's container — a
+    // walk that cannot reach a slot, because a slot lives in an ancestor's
+    // host. Every earlier case here went through a programmatic push, so all
+    // of them passed while a real swipe left the sheet standing still.
+    await openSheet(page, true);
+    await page.locator(STEP).click();
+    await waitForNavIdle(page);
+
+    const viewport = page.viewportSize()!;
+    await page.mouse.move(2, viewport.height / 2);
+    await page.mouse.down();
+    for (const x of [20, 60, 110, 160, 210]) {
+      await page.mouse.move(x, viewport.height / 2, { steps: 3 });
+      await page.waitForTimeout(45);
+    }
+
+    const held = await page.evaluate(() => {
+      const owner = document.querySelector('[data-layer-step="A"]')?.closest("[data-flemo-screen]");
+      const slot = document.querySelector("[data-flemo-layer-slot]");
+      const tx = (element: Element | null | undefined) =>
+        element ? Math.round(new DOMMatrixReadOnly(getComputedStyle(element).transform).m41) : null;
+      return { ownerTx: tx(owner), slotTx: tx(slot) };
+    });
+
+    await page.mouse.up();
+
+    expect(held.ownerTx).not.toBeNull();
+    // Held far enough in that a sheet standing still is unmistakable.
+    expect(Math.abs(held.ownerTx!)).toBeGreaterThan(30);
+    expect(held.slotTx).toBe(held.ownerTx);
+
+    await waitForNavIdle(page);
+  });
+
   test("a push in the outer Router covers the sheet along with the region", async ({ page }) => {
     await openSheet(page, true);
     await page.locator(OUT).click();

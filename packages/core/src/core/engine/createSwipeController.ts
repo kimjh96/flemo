@@ -15,6 +15,9 @@ import {
   BAR_ID_ATTR,
   BAR_ID_TYPE_ATTR,
   DECORATOR_ATTR,
+  LAYER_HOST_ATTR,
+  LAYER_OWNER_ATTR,
+  LAYER_SLOT_ATTR,
   PART_NAME_ATTR,
   SCREEN_ATTR,
   SKIP_ANIMATION_ATTR
@@ -261,6 +264,33 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     return null;
   };
 
+  // What a screen's <Layer> overlays are, given its container.
+  //
+  // Two shapes, because a host is inherited. A screen that renders its OWN
+  // host moves everything portaled into it by moving that one box. A screen
+  // NESTED inside such a host has its overlays in a container that is not its
+  // own, and no walk of its subtree can find them — so they name their owner
+  // instead (LAYER_OWNER_ATTR) and are matched by the id the scope carries.
+  //
+  // Never both: driving a host and the slots inside it would compose the two
+  // writes and send the overlay twice as far as its screen.
+  const layerRiders = (container: HTMLElement | null): HTMLElement[] => {
+    if (!container) return [];
+
+    const host = ownChild(container, attrSelector(LAYER_HOST_ATTR));
+    if (host) return [host];
+
+    const scope = ownChild(container, attrSelector(SCREEN_ATTR));
+    const screenId = scope?.getAttribute(SCREEN_ATTR);
+    if (!screenId) return [];
+
+    return Array.from(
+      document.querySelectorAll<HTMLElement>(
+        attrSelector(LAYER_SLOT_ATTR) + attrValueSelector(LAYER_OWNER_ATTR, screenId)
+      )
+    );
+  };
+
   const captureRidingBars = (prevScreenContainer: HTMLElement | null) => {
     const partnerBars = config.getPartnerBars();
     const partnerMetadata = config.getPartnerBarMetadata?.();
@@ -306,6 +336,15 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         prev.push(prevNavBar);
       }
     }
+
+    // <Layer> overlays ride too, and they are the one rider that is NOT in the
+    // container being walked. A drag does not go through the compiled rules —
+    // it writes inline styles frame by frame — so an overlay left out of these
+    // lists stands perfectly still while the screen it belongs to slides under
+    // it. Measured before this existed: mid-drag the screen reached -65 and the
+    // sheet held at 0.
+    current.push(...layerRiders(config.getElements().screenContainer));
+    prev.push(...layerRiders(prevScreenContainer));
 
     ridingBars = { current, prev };
 
