@@ -5,6 +5,7 @@ import { Morph, Screen, useNavigate } from "@flemo/react";
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
+import CardBody from "../../_components/CardBody";
 import CardShell from "../../_components/CardShell";
 import TabBar from "../../_components/TabBar";
 
@@ -72,25 +73,44 @@ function PostersScreen() {
                   layoutId={`card-${act.id}`}
                   className="block overflow-hidden rounded-2xl bg-[var(--color-layer)]"
                 >
-                  <Morph
-                    as="span"
-                    // Scoped to THIS surface, not shared with the list tab. Both
-                    // tabs show the same acts, so one id across both would pair
-                    // all ten whenever the two tabs are in a flight together.
-                    // The detail is the big side for either, and is told which
-                    // one opened it through the route.
-                    name={morph}
-                    layoutId={`cell-${act.id}`}
-                    className="block aspect-square w-full"
-                    style={{ background: artworkFor(act.hue) }}
-                    aria-hidden="true"
-                  />
-                  <span className="mt-2 block truncate px-2.5 text-[13px] font-semibold text-[var(--color-text-primary)]">
-                    {act.artist}
+                  {/* THE BOX IS THE WRAPPER'S, not the morph's.
+                      
+                      A morph leaves a stand-in in its place for the flight, and
+                      that stand-in is sized to the element in flight, not to
+                      the element at rest: measured on a pop, the cell's artwork
+                      reported 241px inside a 151px cell and the caption under
+                      it was pushed 15px down until the flight landed. Holding
+                      the square here, and clipping, means nothing the flight
+                      does can move the two lines below. */}
+                  <span className="block aspect-square w-full overflow-hidden">
+                    <Morph
+                      as="span"
+                      // Scoped to THIS surface, not shared with the list tab. Both
+                      // tabs show the same acts, so one id across both would pair
+                      // all ten whenever the two tabs are in a flight together.
+                      // The detail is the big side for either, and is told which
+                      // one opened it through the route.
+                      name={morph}
+                      layoutId={`cell-${act.id}`}
+                      className="block size-full"
+                      style={{ background: artworkFor(act.hue) }}
+                      aria-hidden="true"
+                    />
                   </span>
-                  <span className="mt-0.5 block truncate px-2.5 pb-2.5 text-[11px] text-[var(--color-text-disabled)]">
-                    {act.day} {act.time} · ₩{act.price}
-                  </span>
+                  {/* The caption runs the same part as the detail's copy, so
+                      both ends of the card are bare while it travels. A
+                      caption here and none there is a line of type appearing
+                      out of nothing partway through the flight, which is the
+                      shift between the title and the date that a recording
+                      kept showing. */}
+                  <CardBody>
+                    <span className="mt-2 block truncate px-2.5 text-[13px] font-semibold text-[var(--color-text-primary)]">
+                      {act.artist}
+                    </span>
+                    <span className="mt-0.5 block truncate px-2.5 pb-2.5 text-[11px] text-[var(--color-text-disabled)]">
+                      {act.day} {act.time} · ₩{act.price}
+                    </span>
+                  </CardBody>
                 </CardShell>
               </button>
             </li>

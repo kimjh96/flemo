@@ -36,7 +36,10 @@ import "./cardBody.types";
 // flight, leave in the first fifth of it.
 const IN = 0.24;
 const IN_DELAY = 0.26;
-const OUT = 0.12;
+// Short on purpose. The detail's own buy control sits where the grid's tab bar
+// is about to reappear, so every frame the two are both drawn is two bars
+// stacked. Four frames is enough to read as leaving rather than cutting.
+const OUT = 0.07;
 const EASE_IN: [number, number, number, number] = [0, 0, 0.2, 1];
 const EASE_OUT: [number, number, number, number] = [0.4, 0, 1, 1];
 
@@ -54,9 +57,14 @@ const cardBody = createRawPartTransition({
     value: SHOWN,
     options: { duration: IN, delay: IN_DELAY, ease: EASE_IN }
   },
-  // The grid going behind. Its cells are not parts, so this only has to be a
-  // resting value.
-  pushOnExit: REST,
+  // The grid going behind. Its captions ARE parts, and they have to leave for
+  // the same reason the detail's copy does: while the card is a travelling box,
+  // a caption on one end and none on the other is a line of type appearing out
+  // of nothing partway through. Both ends carry text only at rest.
+  pushOnExit: {
+    value: HIDDEN,
+    options: { duration: OUT, ease: EASE_OUT }
+  },
   replaceOnEnter: {
     value: SHOWN,
     options: { duration: IN, delay: IN_DELAY, ease: EASE_IN }
@@ -68,8 +76,12 @@ const cardBody = createRawPartTransition({
     value: HIDDEN,
     options: { duration: OUT, ease: EASE_OUT }
   },
-  // The grid coming back.
-  popOnExit: REST,
+  // The grid coming back. Held out until the card has nearly landed, so the
+  // caption arrives under an artwork that has stopped moving.
+  popOnExit: {
+    value: SHOWN,
+    options: { duration: IN, delay: IN_DELAY, ease: EASE_IN }
+  },
   completedOnEnter: REST,
   completedOnExit: REST
 });

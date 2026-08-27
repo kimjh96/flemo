@@ -120,18 +120,24 @@ function ActScreen() {
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <Morph
-            // The BIG side. It names the same morph AND the same id as the
-            // surface that opened it, because a pair whose two halves disagree
-            // is not a pair. The list scopes its ids to rows and the posters
-            // grid scopes its to cells, so which one to answer to arrives on
-            // the route rather than being guessed.
-            name={morph}
-            layoutId={`${params?.from ?? "row"}-${act.id}`}
-            className="block aspect-square w-full"
-            style={{ background: artworkFor(act.hue) }}
-            aria-hidden="true"
-          />
+          {/* Same fixed box as the cell's, for the same reason: the stand-in
+              left behind during a flight is sized to the element in flight, and
+              without a wrapper to hold the square it moves everything under
+              it. */}
+          <span className="block aspect-square w-full overflow-hidden">
+            <Morph
+              // The BIG side. It names the same morph AND the same id as the
+              // surface that opened it, because a pair whose two halves disagree
+              // is not a pair. The list scopes its ids to rows and the posters
+              // grid scopes its to cells, so which one to answer to arrives on
+              // the route rather than being guessed.
+              name={morph}
+              layoutId={`${params?.from ?? "row"}-${act.id}`}
+              className="block size-full"
+              style={{ background: artworkFor(act.hue) }}
+              aria-hidden="true"
+            />
+          </span>
 
           <div className="px-5 pt-4 pb-4">
             {/* The name is NOT paired. Pairing it as a `text` morph did stop
