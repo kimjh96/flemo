@@ -1,3 +1,6 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
 candidateId: knorm_002b43e9e3103182a7dcaeaa
 compiler:
   compilerBuildId: sha256:a09ec801297fcee15bf91310e80048a6cf0377a299fe5c8ac3c909f2b578bc7a
@@ -16,7 +19,7 @@ outputs:
 profile: architecture_document
 recordId: knormdoc_9c0c355db7a307f165dca743
 resourceBindings: []
-schemaVersion: 1
+schemaVersion: 2
 sourceContentHash: sha256:e6d812804220fc6ed95700c4fc2ffd95f43113db90e81b053a7d10bd36403c02
 sourcePath: docs/architecture/motion-engine.md
 sourceUnitVersionIds:

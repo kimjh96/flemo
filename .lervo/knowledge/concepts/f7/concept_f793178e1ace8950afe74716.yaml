@@ -1,14 +1,14 @@
 assurance: unreviewed
 bundleId: bundle_f30402500333f4447ba5d2b8
-conceptId: concept_4e36d2ec8d8c2db35a1c4921
+conceptId: concept_f793178e1ace8950afe74716
 freshness: current
 ownership: user
-path: AGENTS.md
+path: docs/instructions/coverage.md
 publicationLanguage: en
 publicationProfile: reference
 publicationStatus: stable
 schemaVersion: 1
 sourceUnitVersionIds:
-  - uv_87ecaeb328d948ee2706c67e
-title: flemo workspace rules
+  - uv_0edd09736fdf48f53e323d50
+title: Coverage
 type: invariant

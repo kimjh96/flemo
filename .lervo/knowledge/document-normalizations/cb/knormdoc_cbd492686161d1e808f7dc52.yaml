@@ -1,3 +1,6 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
 candidateId: knorm_002b43e9e3103182a7dcaeaa
 compiler:
   compilerBuildId: sha256:a09ec801297fcee15bf91310e80048a6cf0377a299fe5c8ac3c909f2b578bc7a
@@ -16,7 +19,7 @@ outputs:
 profile: human_readme
 recordId: knormdoc_cbd492686161d1e808f7dc52
 resourceBindings: []
-schemaVersion: 1
+schemaVersion: 2
 sourceContentHash: sha256:307a678597e80036d63c06a1d1353d61151693272ab8ee822027f408c1d8e84d
 sourcePath: packages/devtools/README.md
 sourceUnitVersionIds:

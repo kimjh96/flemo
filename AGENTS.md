@@ -26,7 +26,7 @@ apps/web                  @flemo/web — Next.js 16 landing + docs (ko/en); the 
                           /playground
 ```
 
-Published packages are `@flemo/core`, `@flemo/react`, `@flemo/react-layout`, and `@flemo/devtools`. Devtools is a published, changeset-versioned package despite being development tooling. `@flemo/web` is private but changeset-versioned so its `CHANGELOG.md` records deployable changes. Ignore internal `@flemo/eslint-config` and `@flemo/tsconfig`. No `flemo` meta package exists; consumers install `@flemo/react`. Shared-element morphs are in that package, while `@flemo/react-layout` is a deprecated stub awaiting removal.
+Published packages: `@flemo/core`, `@flemo/react`, `@flemo/react-layout`, `@flemo/devtools`. Devtools is published and changeset-versioned despite being development tooling. `@flemo/web` is private but changeset-versioned so its `CHANGELOG.md` records deployable changes. Ignore internal `@flemo/eslint-config` and `@flemo/tsconfig`. No `flemo` meta package exists; consumers install `@flemo/react`. Shared-element morphs live in that package; `@flemo/react-layout` is a deprecated stub awaiting removal.
 
 ## Non-negotiable rules
 
@@ -40,9 +40,9 @@ Published packages are `@flemo/core`, `@flemo/react`, `@flemo/react-layout`, and
    1–2 sentence user-facing summary. Imperative voice.
    ```
 
-List each affected package (`@flemo/core`, `@flemo/react`, `@flemo/react-layout`, `@flemo/devtools`, or `@flemo/web`) on its own frontmatter line. Use `patch` for fixes/internal changes, `minor` for features, and `major` only for actual API breaks. Skip changesets only for typos, behavior-neutral internal refactors, or documentation-only edits outside `docs/*`. Release automation creates the Version PR, versions, changelogs, npm publications, and GitHub Releases; write the summary for changelog readers.
+List each affected package (`@flemo/core`, `@flemo/react`, `@flemo/react-layout`, `@flemo/devtools`, or `@flemo/web`) on its own frontmatter line. Use `patch` for fixes/internal changes, `minor` for features, `major` only for actual API breaks. Skip changesets only for typos, behavior-neutral internal refactors, or documentation-only edits outside `docs/*`. Release automation creates the Version PR, versions, changelogs, npm publications, and GitHub Releases; write the summary for changelog readers.
 
-2. Do not add files under `packages/core`, `packages/react`, `packages/react-layout`, or `packages/devtools` unless they ship to npm; each package's `files` field is `["dist"]`. Put fixtures, demos, and scratch code in `apps/web/app/[lang]/playground/`—organized into `_components/`, `_screens/`, `_router/`, `_data/`, `_hooks/`, `_providers/`, and `_transitions/`—or a new `examples/*` workspace.
+2. Do not add files under `packages/core`, `packages/react`, `packages/react-layout`, or `packages/devtools` unless they ship to npm; each package's `files` field is `["dist"]`. Put fixtures, demos, and scratch code in `apps/web/app/[lang]/playground/` — organized into `_components/`, `_screens/`, `_router/`, `_data/`, `_hooks/`, `_providers/`, and `_transitions/` — or a new `examples/*` workspace.
 
 3. Keep CI green. Run this from the repository root before completion:
 
@@ -58,14 +58,14 @@ CI installs with `pnpm install --frozen-lockfile`. Local development may use `bu
 
 ## Conventions
 
-- Canonical instructions are this file, `packages/react/CLAUDE.md`, `apps/web/CLAUDE.md`, `docs/architecture/motion-engine.md`, `docs/architecture/driver-routing.md`, `docs/diagnostics.md`, and `docs/postmortems/`. There is no `.claude/rules/` directory.
+- Canonical instructions: this file, `packages/react/CLAUDE.md`, `apps/web/CLAUDE.md`, `docs/architecture/motion-engine.md`, `docs/architecture/driver-routing.md`, `docs/diagnostics.md`, and `docs/postmortems/`. There is no `.claude/rules/` directory.
 - Read both architecture documents before changing `packages/core/src/core/engine/`. Check postmortems before designing a motion fix.
 - Follow surrounding style. Every React component, including subcomponents, has its own folder and `index.ts` barrel; see `apps/web/components/*` and `apps/web/app/[lang]/playground/_components/*`.
-- Core aliases are `@core`, `@history`, `@morph`, `@navigate`, `@transition`, and `@utils`. Register new top-level source aliases in both `packages/core/tsconfig.json` and `vite.config.mts`/`vitest.config.ts`.
-- React aliases are `@history`, `@navigate`, `@renderer`, `@screen`, `@transition`, `@utils`, `@Route`, and `@Router`. Import cross-package core APIs as named imports from `@flemo/core`; never use core path aliases.
+- Core aliases: `@core`, `@history`, `@morph`, `@navigate`, `@transition`, `@utils`. Register new top-level source aliases in both `packages/core/tsconfig.json` and `vite.config.mts`/`vitest.config.ts`.
+- React aliases: `@history`, `@navigate`, `@renderer`, `@screen`, `@transition`, `@utils`, `@Route`, `@Router`. Import cross-package core APIs as named imports from `@flemo/core`; never use core path aliases.
 - Do not use default React imports such as `import React from "react"`; use named imports.
 - Use `import type {...}` for type-only imports.
-- A package's public API consists of exports from its `src/index.ts`; export new public modules there.
+- A package's public API is the exports of its `src/index.ts`; export new public modules there.
 
 ## References
 
@@ -97,4 +97,11 @@ CI installs with `pnpm install --frozen-lockfile`. Local development may use `bu
 - Translate explicit natural-language requests to hire, assign, inspect, resolve, hand off, or retire repository agents into `lervo agent`, `lervo assignment`, and workstream operations yourself; when authority or scope is ambiguous, record one bounded pending decision instead of guessing or asking for a bookkeeping command.
 - Resolve roles with `lervo role list|show|validate`; treat the six built-ins as templates, author a lazy `.lervo/roles/<role-id>.json` source when a requested repository role does not exist, and never bypass version, hash, capability, verification, or ancestry validation.
 - Register every subagent with its parent and apply the same durable identity, scoped lease, path-conflict, evidence, verification, and finalization contracts used for root agents.
+- For all repository work, read [coverage](docs/instructions/coverage.md).
 <!-- lervo:end block=repository_instruction_routes -->
+
+<!-- lervo:begin block=development_pattern_routes schema=1 -->
+## Promoted development patterns
+
+- [Read the Codecov report, not the Codecov checks](docs/instructions/coverage.md)
+<!-- lervo:end block=development_pattern_routes -->
