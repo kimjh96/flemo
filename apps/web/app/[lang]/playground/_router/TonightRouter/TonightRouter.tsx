@@ -7,6 +7,8 @@ import sharedAxisForward from "@/app/[lang]/_transitions/sharedAxisForward";
 
 import aperture from "../../_transitions/aperture";
 import cardBody from "../../_transitions/cardBody";
+import plate from "../../_transitions/plate";
+import surface from "../../_transitions/surface";
 import drift from "../../_transitions/drift";
 import fadeThrough from "../../_transitions/fadeThrough";
 import recess from "../../_transitions/recess";
@@ -57,6 +59,9 @@ function TonightRouter({ bench }: TonightRouterProps) {
         // `card-body` keeps the container transform's unpaired contents out of
         // the frame while the card is still a travelling box.
         partTransitions={[cardBody]}
+        // The artwork flies ghost-free; the card carries both the copy that
+        // covers the hand-over and the camera.
+        morphTransitions={[plate, surface]}
         defaultTransitionName="cupertino"
         className="h-full w-full bg-[var(--color-bg)]"
       >

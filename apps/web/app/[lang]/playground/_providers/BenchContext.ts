@@ -23,10 +23,14 @@ export interface BenchCase {
   // What the control shows, and what the case is called in the comments.
   id: string;
   transition: TransitionName;
-  // Which morph the artwork flies as. `shared` moves the element and leaves the
-  // screens to their own transition; `zoom` adds a camera that carries the
-  // screen the element is small on.
+  // Which morph the ARTWORK flies as. It carries no ghost, because the artwork
+  // is the same gradient at both ends and a dissolving copy of it beats against
+  // the original while it grows.
   morph: MorphTransitionName;
+  // Which morph the CARD flies as, where there is a card. Null everywhere but
+  // the container transform: a container and an element are different claims.
+  // It is also what carries the camera, because the artwork inside it cannot.
+  cardMorph: MorphTransitionName | null;
 }
 
 // The four the library ships, then the four this page authors. Presets first so
@@ -40,14 +44,14 @@ export interface BenchCase {
 //   fade-through  two fades in sequence rather than overlapped
 //   zoom          the container transform, and the still transition it needs
 export const CASES: BenchCase[] = [
-  { id: "cupertino", transition: "cupertino", morph: "shared" },
-  { id: "material", transition: "material", morph: "shared" },
-  { id: "layout", transition: "layout", morph: "shared" },
-  { id: "none", transition: "none", morph: "shared" },
-  { id: "reveal", transition: "reveal", morph: "shared" },
-  { id: "drift", transition: "drift", morph: "shared" },
-  { id: "fade-through", transition: "fade-through", morph: "shared" },
-  { id: "zoom", transition: "aperture", morph: "zoom" }
+  { id: "cupertino", transition: "cupertino", morph: "plate", cardMorph: null },
+  { id: "material", transition: "material", morph: "plate", cardMorph: null },
+  { id: "layout", transition: "layout", morph: "plate", cardMorph: null },
+  { id: "none", transition: "none", morph: "plate", cardMorph: null },
+  { id: "reveal", transition: "reveal", morph: "plate", cardMorph: null },
+  { id: "drift", transition: "drift", morph: "plate", cardMorph: null },
+  { id: "fade-through", transition: "fade-through", morph: "plate", cardMorph: null },
+  { id: "zoom", transition: "aperture", morph: "plate", cardMorph: "surface" }
 ];
 
 export const DEFAULT_BENCH: BenchCase = CASES[0];

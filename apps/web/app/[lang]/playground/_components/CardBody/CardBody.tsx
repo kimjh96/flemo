@@ -18,9 +18,9 @@ export interface CardBodyProps {
 // this is an ordinary div: a part transition there would run on a clock the
 // flight is not running, which is the desync this page was rebuilt to avoid.
 function CardBody({ className, children }: PropsWithChildren<CardBodyProps>) {
-  const { morph } = useBench();
+  const { cardMorph } = useBench();
 
-  if (morph !== "zoom") return <div className={className}>{children}</div>;
+  if (cardMorph === null) return <div className={className}>{children}</div>;
 
   return (
     <Part name="card-body" className={className}>

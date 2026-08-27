@@ -7,7 +7,6 @@ import { getDict } from "@/lib/i18n";
 
 import CardBody from "../../_components/CardBody";
 import CardShell from "../../_components/CardShell";
-import CardTitle from "../../_components/CardTitle";
 
 import { actById, artworkFor } from "../../_data/acts";
 import { useBench } from "../../_providers/BenchContext";
@@ -73,32 +72,33 @@ function ActScreen() {
         layoutId={params?.from === "cell" ? `card-${act.id}` : null}
         className="flex h-full flex-col bg-[var(--color-bg)]"
       >
-        {/* Not paired with anything in the cell, so it does not ride the box
-            down to cell size. */}
-        <CardBody className="shrink-0">
-          <header className="flex items-center justify-between px-4 pt-4">
-            <button
-              type="button"
-              onClick={() => navigate.pop()}
-              aria-label={t.app.back}
-              className="grid size-9 cursor-pointer place-items-center rounded-full text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-layer)]"
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path
-                  d="M15 6l-6 6 6 6"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-            <span className="text-xs font-bold tracking-[0.12em] text-[var(--color-text-disabled)] uppercase">
-              {t.app.detail}
-            </span>
-            <span className="size-9" aria-hidden="true" />
-          </header>
-        </CardBody>
+        {/* NOT a part. It was one, and on a pop it blinked out in 120ms while
+            the card was still shrinking under it, which reads as the screen
+            losing its header rather than the card leaving. Chrome this small is
+            clipped by the growing card rather than squeezed by it, so it can
+            simply ride. */}
+        <header className="flex shrink-0 items-center justify-between px-4 pt-4">
+          <button
+            type="button"
+            onClick={() => navigate.pop()}
+            aria-label={t.app.back}
+            className="grid size-9 cursor-pointer place-items-center rounded-full text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-layer)]"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M15 6l-6 6 6 6"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+          <span className="text-xs font-bold tracking-[0.12em] text-[var(--color-text-disabled)] uppercase">
+            {t.app.detail}
+          </span>
+          <span className="size-9" aria-hidden="true" />
+        </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <Morph
@@ -115,15 +115,15 @@ function ActScreen() {
           />
 
           <div className="px-5 pt-4 pb-4">
-            <h2>
-              <CardTitle
-                layoutId={params?.from === "cell" ? `cardname-${act.id}` : null}
-                className="block text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]"
-              >
-                {act.artist}
-              </CardTitle>
-            </h2>
+            {/* The name is NOT paired. Pairing it as a `text` morph did stop
+                it being drawn twice inside the card's ghost, but it left the
+                line under it standing on a box that grows: the date moved every
+                frame the type did. It arrives with the rest of the copy
+                instead, which is what the card being a surface already means. */}
             <CardBody>
+              <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
+                {act.artist}
+              </h2>
               <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
                 {act.venue} · {act.day} {act.time}
               </p>

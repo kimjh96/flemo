@@ -34,9 +34,9 @@ export interface CardShellProps {
 // container transform is. Under everything else this is a plain box and only
 // the artwork inside it travels.
 function CardShell({ layoutId, className, children }: PropsWithChildren<CardShellProps>) {
-  const { morph } = useBench();
+  const { cardMorph } = useBench();
 
-  if (morph !== "zoom" || layoutId === null) return <div className={className}>{children}</div>;
+  if (cardMorph === null || layoutId === null) return <div className={className}>{children}</div>;
 
   // The artwork inside pairs as well, and that is required rather than extra:
   // a nested morph RIDES its container, and letting the two fly on their own
@@ -49,7 +49,7 @@ function CardShell({ layoutId, className, children }: PropsWithChildren<CardShel
   // across the grid; clipped, the card reveals its contents as it makes room
   // for them.
   return (
-    <Morph name="zoom" layoutId={layoutId} className={`overflow-hidden ${className ?? ""}`}>
+    <Morph name={cardMorph} layoutId={layoutId} className={`overflow-hidden ${className ?? ""}`}>
       {children}
     </Morph>
   );
