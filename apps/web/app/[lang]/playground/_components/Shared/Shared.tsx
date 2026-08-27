@@ -58,6 +58,12 @@ export interface SharedProps extends ComponentPropsWithoutRef<"div"> {
 // generated clock precisely because they do not get that.
 function Shared({ layoutId, name, as = "div", pairFor, ...props }: SharedProps) {
   const { morph } = useMotionChoice();
+  // An audit marker, not a runtime input. flemo keeps the pairing key in JS
+  // rather than on the element, and the flight audit needs to tell DIFFERENT
+  // pairs apart from the two sides of ONE pair -- which are superimposed on
+  // purpose, since that is how the cross-fade trades them over. A ghost is a
+  // clone, so it carries this and is excluded for free.
+  const marked = { ...props, "data-morph-pair": layoutId };
 
   // The bench's switch decides whether anything is shared at all; a per-element
   // `name` only chooses WHICH preset once it is. Reading the override first
@@ -65,7 +71,7 @@ function Shared({ layoutId, name, as = "div", pairFor, ...props }: SharedProps) 
   if (!morph.name) return createElement(as, props);
   if (pairFor && !pairFor.includes(morph.id)) return createElement(as, props);
 
-  return <Morph layoutId={layoutId} name={name ?? morph.name} as={as} {...props} />;
+  return <Morph layoutId={layoutId} name={name ?? morph.name} as={as} {...marked} />;
 }
 
 export default Shared;

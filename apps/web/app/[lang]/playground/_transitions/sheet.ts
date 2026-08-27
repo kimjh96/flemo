@@ -23,16 +23,25 @@ import "./sheet.types";
 // Symmetric, so one beat serves both directions.
 const { duration, ease } = CLOCKS.sheet!.push;
 
+// THE ARRIVAL IS OPAQUE, and this is the correction a device recording forced.
+//
+// It used to fade in from `opacity: 0`, described as "the arriving screen is
+// transparent and holds nothing but its chrome". That description was wrong
+// about its own app: the arriving screen holds a whole detail page. Fading it
+// in over a list that is still legible is a double exposure -- measured at
+// ~110ms into the flight, the list's tiles read straight through the detail's
+// text and buttons.
+//
+// It still has to ANIMATE something, or the engine has no clock to end the
+// flight on and the screen lands in one late commit. So it settles a little
+// scale instead: a motion of its own, at full opacity, with nothing showing
+// through at any point.
 const sheet = createTransition({
   name: "sheet",
-  initial: { opacity: 0 },
+  initial: { opacity: 1, scale: 1.03 },
   idle: { value: { scale: 1, filter: "blur(0px)" }, options: { duration: 0 } },
-  // The arriving screen is transparent and holds nothing but its chrome. It
-  // still has to ANIMATE something: a variant with no motion at all gives the
-  // engine no clock to end the flight on, and the whole screen then lands in
-  // one late commit, which is a flicker of its own making.
-  enter: { value: { opacity: 1 }, options: { duration, ease } },
-  enterBack: { value: { opacity: 0 }, options: { duration, ease } },
+  enter: { value: { opacity: 1, scale: 1 }, options: { duration, ease } },
+  enterBack: { value: { opacity: 1, scale: 1.03 }, options: { duration, ease } },
   // The background follows the MORPH'S direction: the element is opening out to
   // fill the screen, so what is behind it pushes out too — scaling up and
   // blurring, the way a lens racks focus past it. (Scaling it down instead

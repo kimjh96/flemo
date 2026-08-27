@@ -141,18 +141,80 @@ export const FRAME_PROBE = () => {
       let el = document.elementFromPoint(x, y);
       let painter = null;
       while (el && el !== document.documentElement) {
-        const bg = getComputedStyle(el).backgroundColor;
-        if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") {
+        const cs = getComputedStyle(el);
+        const bg = cs.backgroundColor;
+        // A painter has to be OPAQUE to count. A half-faded screen paints a
+        // translucent ground, and everything under it still shows -- which is
+        // the whole complaint, so treating it as covered would look past the
+        // defect.
+        const opaque =
+          bg &&
+          bg !== "rgba(0, 0, 0, 0)" &&
+          bg !== "transparent" &&
+          !/rgba\(.*,\s*0?\.\d+\)$/.test(bg);
+        if (opaque && Number(cs.opacity) > 0.99) {
           painter = el;
           break;
         }
         el = el.parentElement;
       }
-      if (!painter) continue;
+      // Nothing opaque anywhere up the chain means the viewer is looking
+      // straight through to whatever is behind the stack.
+      if (!painter) {
+        through += 1;
+        continue;
+      }
       const owner = painter.closest("[data-flemo-screen]");
       if (owner && owner !== top) through += 1;
     }
     return through;
+  })();
+
+  // DO THE FLYING ELEMENTS LAND ON EACH OTHER?
+  //
+  // A shared-element pair only reads as one object moving if its two ends keep
+  // the same ARRANGEMENT. When they do not -- a poster beside the name at one
+  // end and above it at the other -- the two paired elements have to cross, and
+  // every mid-flight frame has one sitting on top of the other. That is not a
+  // timing defect, so nothing else in this audit sees it; a device recording
+  // found it on all six transitions at once.
+  //
+  // Only NON-NESTED pairs count: a container morph legitimately contains the
+  // elements paired inside it.
+  const morphOverlap = (() => {
+    // Only elements the runtime has actually STAMPED for this flight. The
+    // attribute marks every registered morph element, flying or not, and its
+    // value is the role: "enter" or "exit" while in flight, empty at rest. A
+    // static grid tile is not a participant, and comparing against one measured
+    // the layout rather than the flight.
+    const flying = [...document.querySelectorAll("[data-flemo-morph]")].filter((el) => {
+      const role = el.getAttribute("data-flemo-morph");
+      if (role !== "enter" && role !== "exit") return false;
+      const r = el.getBoundingClientRect();
+      return r.width > 4 && r.height > 4;
+    });
+    let worst = 0;
+    for (let i = 0; i < flying.length; i += 1) {
+      for (let j = i + 1; j < flying.length; j += 1) {
+        const a = flying[i];
+        const b = flying[j];
+        if (a.contains(b) || b.contains(a)) continue;
+        // The two sides of ONE pair are superimposed on purpose -- that is how
+        // the cross-fade trades them over -- so only DIFFERENT pairs count. The
+        // pair key is an app-side marker: flemo keeps `layoutId` in JS.
+        const pa = a.getAttribute("data-morph-pair");
+        const pb = b.getAttribute("data-morph-pair");
+        if (pa && pb && pa === pb) continue;
+        const ra = a.getBoundingClientRect();
+        const rb = b.getBoundingClientRect();
+        const w = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left);
+        const h = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
+        if (w <= 0 || h <= 0) continue;
+        const smaller = Math.min(ra.width * ra.height, rb.width * rb.height);
+        if (smaller > 0) worst = Math.max(worst, (w * h) / smaller);
+      }
+    }
+    return Number(worst.toFixed(2));
   })();
 
   return {
@@ -162,6 +224,7 @@ export const FRAME_PROBE = () => {
     parts,
     rail,
     seeThroughAt,
+    morphOverlap,
     // The body copy of whichever screen is on top, so chrome and content can be
     // compared directly.
     body: (() => {

@@ -22,12 +22,6 @@ export interface TransitionCase {
   id: TransitionName & ("cupertino" | "material" | "layout" | "none" | "fade" | "sheet");
   /** Whether flemo ships it or the site authored it, which is worth knowing. */
   origin: "built-in" | "authored";
-  /**
-   * Whether the destination's shared element covers the frame edge to edge.
-   * A property of the SCREEN transition: `sheet` is authored to hand the whole
-   * frame to the element opening over it.
-   */
-  fullBleed?: boolean;
 }
 
 export interface MorphCase {
@@ -42,7 +36,7 @@ export const TRANSITIONS: TransitionCase[] = [
   { id: "layout", origin: "built-in" },
   { id: "none", origin: "built-in" },
   { id: "fade", origin: "authored" },
-  { id: "sheet", origin: "authored", fullBleed: true }
+  { id: "sheet", origin: "authored" }
 ];
 
 export const MORPHS: MorphCase[] = [

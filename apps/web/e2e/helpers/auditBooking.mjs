@@ -125,6 +125,22 @@ function verdict(label, frames) {
     }
   }
 
+  // NOT CHECKED HERE: whether paired elements travel through one another.
+  //
+  // It was the defect a device recording found -- a poster beside the name at
+  // one end and above it at the other, so the two crossed and every mid-flight
+  // frame had one dumped on the other. Three formulations were tried (peak
+  // overlap, sustained overlap, overlap excluding same-pair and non-flying
+  // elements) and each one flagged healthy flights: a container and its
+  // children legitimately fly together under `zoom`, and a poster growing to a
+  // hero legitimately sweeps past the name below it.
+  //
+  // Tuning a check until it agrees with the current build is how a regression
+  // becomes a specification. So it is left out, and the arrangement rule it
+  // tried to encode is enforced where it can be judged honestly: the two ends
+  // of a pair keep the same stacking order (see Poster.tsx), and the frame
+  // comparison in the visual pass is what catches a violation.
+
   return { label, findings: dedupe(findings), frames: frames.length };
 }
 
@@ -158,11 +174,35 @@ async function sample(page, action, ms = 1500) {
 }
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 700, height: 1200 } });
+// Viewport is a parameter, not a constant: the first audits ran at one size
+// while the recording that found the next defect was another, and a harness
+// that only ever looks at one size has a blind spot.
+//
+// KNOWN LIMIT: this driver cannot reliably operate the page below ~700px wide.
+// At 678px the case rail reports a box that `elementFromPoint` finds nothing
+// at, so clicks land on the shell instead of the control, and no amount of
+// scrolling fixes it. The cause is unresolved. Narrow widths are covered by the
+// visual frame pass instead -- which is what found the last defect anyway.
+const [W, H] = (process.env.AUDIT_VIEWPORT || "700x1200").split("x").map(Number);
+const page = await browser.newPage({ viewport: { width: W, height: H } });
 await page.addInitScript(`window.__probe = ${FRAME_PROBE.toString()}`);
 await page.goto(`${BASE}/playground`, { waitUntil: "networkidle" });
 await page.waitForTimeout(2000);
-await page.getByRole("tab", { name: /A stack|스택/ }).click();
+
+// Put a control in the middle of the viewport before clicking it. The site
+// header is fixed and translucent, so content scrolls UNDER it by design --
+// and Playwright's auto-scroll parks an element right there, where the header
+// swallows the click. Centring is about driving the page, not about the page
+// being wrong.
+// Reveal, then click by COORDINATE. Playwright's own auto-scroll re-parks the
+// element under the header after the reveal, so the click has to happen at a
+// position we chose rather than one it picks.
+// Plain clicks: Playwright's own auto-scroll handles this at the supported
+// width. A coordinate-clicking helper was tried for narrow viewports and broke
+// the supported one too, which is why the limit above is documented rather
+// than worked around.
+const tap = (locator) => locator.click();
+await tap(page.getByRole("tab", { name: /A stack|스택/ }));
 await page.waitForTimeout(1200);
 
 const report = [];

@@ -71,7 +71,14 @@ function ActsScreen() {
             </p>
           </Part>
 
-          <ul className="mt-3 flex flex-col gap-2">
+          {/* A GRID, not a row list, and the reason is the morph rather than
+              taste. A shared element pair has to keep its ARRANGEMENT across
+              the flight: poster above the name here, poster above the name on
+              the detail, so the flight is a move and a scale. The row version
+              put the poster beside the name and the title had to cross over
+              the poster to reach the other end -- which is what a device
+              recording showed, on every transition. */}
+          <ul className="mt-3 grid grid-cols-2 gap-3">
             {ACTS.map((act) => (
               <li key={act.id}>
                 <button
@@ -81,31 +88,29 @@ function ActsScreen() {
                   }
                   className="w-full cursor-pointer text-left"
                 >
-                  {/* The CONTAINER pairs on `zoom` only: a container
-                      transform is what zoom means, and carrying a horizontal
-                      row into a vertical page is not a shared element. See
-                      Shared.tsx. */}
+                  {/* The CONTAINER pairs on `zoom` only: a container transform
+                      is what zoom means. See Shared.tsx. */}
                   <Shared
                     layoutId={`card-${act.id}`}
                     pairFor={["zoom"]}
-                    className="flex items-center gap-3 rounded-2xl bg-[var(--color-layer)] p-2.5"
+                    className="block overflow-hidden rounded-2xl bg-[var(--color-layer)] p-2"
                   >
-                    <Poster act={act} place="thumb" />
-                    <span className="min-w-0 flex-1">
-                      <Shared
-                        layoutId={`title-${act.id}`}
-                        name="text"
-                        as="span"
-                        className="block truncate text-sm font-bold text-[var(--color-text-primary)]"
-                      >
-                        {act.artist}
-                      </Shared>
-                      <span className="mt-0.5 block truncate text-xs text-[var(--color-text-secondary)]">
-                        {act.venue} · {act.day} {act.time}
+                    <Poster act={act} place="tile" />
+                    <Shared
+                      layoutId={`title-${act.id}`}
+                      name="text"
+                      as="span"
+                      className="mt-2 block truncate text-sm font-bold text-[var(--color-text-primary)]"
+                    >
+                      {act.artist}
+                    </Shared>
+                    <span className="mt-0.5 flex items-baseline justify-between gap-2">
+                      <span className="min-w-0 truncate text-[11px] text-[var(--color-text-secondary)]">
+                        {act.day} {act.time}
                       </span>
-                    </span>
-                    <span className="shrink-0 font-mono text-xs font-semibold text-[var(--color-text-secondary)] tabular-nums">
-                      ₩{act.price}
+                      <span className="shrink-0 font-mono text-[11px] font-semibold text-[var(--color-text-secondary)] tabular-nums">
+                        ₩{act.price}
+                      </span>
                     </span>
                   </Shared>
                 </button>

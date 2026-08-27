@@ -32,40 +32,31 @@ function ActScreen() {
   // The bench sets one transition for the whole app, but the parts are asked
   // of flemo all the same: `useScreen().transitionName` is the FLIGHT's, so a
   // screen can never be authored against a clock the flight is not running.
-  const { transition } = useMotionChoice();
+  useMotionChoice();
   const { barPart, bodyPart } = useFlightParts();
   const t = getDict(useShellLang()).playground;
-  const fullBleed = transition.fullBleed ?? false;
 
   if (!act) return null;
 
   return (
     <StageScreen
-      backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}
-      // The full-bleed case hands the whole frame to the element, so it
-      // declares no bar and the bar leaves with its own motion.
-      sharedTopBarId={fullBleed ? undefined : "app"}
+      // ALWAYS opaque, ALWAYS a bar. An earlier version gave the `sheet` case a
+      // transparent screen and no bar, on the theory that the shared element
+      // covers the frame. It does not -- the detail is a hero plus a page of
+      // text -- so the list showed straight through it, and the bar had nothing
+      // to hand over to on the way in or out. The same wrong idea, copied from
+      // here into the booking flow, produced the same two defects there.
+      backgroundColor="var(--color-bg)"
+      sharedTopBarId="app"
       sharedTopBar={
-        fullBleed ? undefined : (
-          <AppBar
-            part={barPart}
-            title={act.artist}
-            lead={<BackButton onClick={() => navigate.pop()} />}
-          />
-        )
+        <AppBar
+          part={barPart}
+          title={act.artist}
+          lead={<BackButton onClick={() => navigate.pop()} />}
+        />
       }
     >
       <div className="relative flex h-full flex-col">
-        {/* The full-bleed case has no bar to hold a back control, so the
-            control rides the body's own part instead. Same clock either way. */}
-        <Part
-          name={bodyPart}
-          hidden={!fullBleed}
-          className={fullBleed ? "absolute inset-x-0 top-0 z-10 px-3 pt-3" : "hidden"}
-        >
-          <BackButton onClick={() => navigate.pop()} />
-        </Part>
-
         <div className="min-h-0 flex-1 overflow-y-auto">
           <Shared
             layoutId={`card-${act.id}`}
