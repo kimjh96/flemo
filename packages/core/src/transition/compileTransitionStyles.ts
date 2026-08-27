@@ -26,6 +26,7 @@ import {
   DESK_HEAD_ATTR,
   GOVERNED_ATTR,
   HELD_ARRIVAL_ATTR,
+  LAYER_SLOT_ATTR,
   MORPH_ATTR,
   MORPH_GHOST_ATTR,
   PART_NAME_ATTR,
@@ -349,6 +350,27 @@ const barAttrSelector = (transitionName: string, variant: TransitionVariant): st
   );
 };
 
+// <Layer> slot ride-along selector, and the reason an escaped overlay is not
+// an orphan. A slot is a SIBLING of the scope — it has to be, or the screen's
+// transform would trap it exactly like the content it left — so nothing moves
+// it when the screen moves. Pairing it with the screen rule does, off the same
+// `@keyframes`, on the compositor, with no code on either side.
+//
+// This is the shared bar's trick (see barAttrSelector) applied to the one
+// other thing that lives beside a scope and belongs to it. It differs in when
+// it applies: a bar rides only when its partner screen does not own it, while
+// a slot rides always, because an overlay has exactly one screen and always
+// leaves with it.
+const layerSlotSelector = (transitionName: string, variant: TransitionVariant): string => {
+  const [status, active] = variant.split("-");
+  return (
+    attrSelector(LAYER_SLOT_ATTR) +
+    attrValueSelector(TRANSITION_ATTR, transitionName) +
+    attrValueSelector(STATUS_ATTR, status!) +
+    attrValueSelector(ACTIVE_ATTR, active!)
+  );
+};
+
 // A <PartTransition name="..."> child element. Referenced by name (not bound to a
 // screen transition like a decorator), driven by the SAME status / active the
 // screen scope exposes — so a programmatic transition runs the element's
@@ -420,12 +442,16 @@ const compileVariantBlock = (
   const delay = variantDelay(toVariant.options);
   const easing = easingToCss(toVariant.options?.ease);
 
-  // For the screen scope, also target a riding shared bar with the same
-  // rule so the compositor drives both elements off one `@keyframes`.
-  // Decorators don't have a bar counterpart. They stay screen-only.
+  // For the screen scope, also target a riding shared bar and any <Layer>
+  // slot with the same rule so the compositor drives every one of them off one
+  // `@keyframes`. Both live BESIDE the scope rather than inside it, which is
+  // why neither moves without being named here.
+  // Decorators have no counterpart of either kind. They stay screen-only.
   const screenSelector = selectorBuilder(name, variant);
   const selector =
-    scope === "screen" ? `${screenSelector},\n${barAttrSelector(name, variant)}` : screenSelector;
+    scope === "screen"
+      ? `${screenSelector},\n${barAttrSelector(name, variant)},\n${layerSlotSelector(name, variant)}`
+      : screenSelector;
 
   // Variants with no animatable target: emit a rest rule so the element
   // simply holds the target value with no animation.

@@ -1,6 +1,6 @@
 import { type ComponentPropsWithRef, useImperativeHandle, useRef } from "react";
 
-import { decoratorMap, resolveTransition } from "@flemo/core";
+import { DECORATOR_LEVEL, decoratorMap, resolveTransition } from "@flemo/core";
 
 import useScreen from "@screen/useScreen";
 
@@ -40,12 +40,13 @@ function ScreenDecorator({ ref, style, ...props }: ComponentPropsWithRef<"div">)
         width: "100%",
         height: "100%",
         pointerEvents: "none",
-        // No z-index: the decorator is positioned and rendered after the
-        // scope, so tree order already paints it over the screen's content.
-        // A number here would only matter for beating consumer content that
-        // carries one of its own — and that is what put the covered screen's
-        // dim over the INCOMING screen once the container stopped being a
-        // stacking context.
+        // The top of the screen's own stack (see SCREEN_STACKING_ORDER). Tree
+        // order alone used to say this, and it stopped being enough once a
+        // <Layer> host joined the container: the dim has to reach a screen's
+        // OVERLAY too, or a covered screen darkens while its own sheet stays
+        // bright. The number cannot leak past the container either way —
+        // ScreenMotion's `isolation: isolate` bounds it.
+        zIndex: DECORATOR_LEVEL,
         ...style
       }}
       {...props}

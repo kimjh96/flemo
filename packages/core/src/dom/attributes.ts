@@ -99,6 +99,47 @@ export const DECORATOR_ATTR = "data-flemo-decorator";
 /** The decorator definition's name, for its own compiled rules. */
 export const DECORATOR_NAME_ATTR = "data-flemo-decorator-name";
 
+// ── Layers (consumer overlays that had to leave the screen) ─────────────────
+// A moving screen is a containing block for `position: fixed` descendants AND
+// a stacking context around all of them, while the shared bars are siblings
+// outside it. So an overlay that must cover the bars cannot be written inside
+// the screen: content and overlay have to sit in different stacking contexts,
+// and there is no z-index arrangement inside one that interleaves them.
+//
+// <Layer> is that separation, and these two attributes are its whole surface.
+
+/**
+ * The HOST: one childless box per screen chain, rendered by the OUTERMOST
+ * screen's container and inherited by every screen nested inside it. Outermost
+ * because an overlay has to clear the chrome of every screen above its own,
+ * and chrome declared by an ancestor sits outside that ancestor's scope.
+ *
+ * It is `position: absolute` and full-size so a consumer's absolutely
+ * positioned overlay has the region to anchor to, and it never takes a pointer
+ * itself — a host with nothing in it must not swallow taps meant for the
+ * screen underneath.
+ */
+export const LAYER_HOST_ATTR = "data-flemo-layer-host";
+
+/**
+ * A SLOT: one per `<Layer>`, portaled into the host, carrying its owning
+ * screen's identity. This is what keeps the escape from becoming an orphan —
+ * the slot leaves the screen's box for PAINT ORDER only, and takes the rest of
+ * being that screen with it:
+ *
+ * - it stacks by its owner's position, so two screens' overlays order the way
+ *   their screens do rather than by portal mount order
+ * - it carries its owner's status/active/transition, so the compiled screen
+ *   rule animates it in lockstep and it leaves WITH its screen (the same
+ *   pairing a riding shared bar uses)
+ * - it mirrors its owner's paint-hidden state, which `visibility: hidden` on
+ *   the screen container cannot reach across a portal
+ *
+ * Unmounting is React's: the slot is rendered from inside its screen's
+ * subtree, so it dies with the screen without anything having to notice.
+ */
+export const LAYER_SLOT_ATTR = "data-flemo-layer-slot";
+
 // ── Parts ───────────────────────────────────────────────────────────────────
 
 /**
@@ -318,6 +359,8 @@ export const FLEMO_ATTRIBUTES = [
   BAR_SPACER_ATTR,
   DECORATOR_ATTR,
   DECORATOR_NAME_ATTR,
+  LAYER_HOST_ATTR,
+  LAYER_SLOT_ATTR,
   PART_NAME_ATTR,
   MORPH_ATTR,
   MORPH_CAMERA_ATTR,

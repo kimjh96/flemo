@@ -270,9 +270,10 @@ is not a consumer value; the landed scope belongs to the compiled rest rules.**
 
 `packages/core/src/dom/` — the contract between the packages:
 
-| Module          | One line                                                                                                                                                                 |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `attributes.ts` | Every `data-flemo-*` name and the animation hold's value vocabulary. Enforced from both ends: core fails on a raw literal, the binding fails on an undeclared attribute. |
+| Module          | One line                                                                                                                                                                                                                                                                    |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `attributes.ts` | Every `data-flemo-*` name and the animation hold's value vocabulary. Enforced from both ends: core fails on a raw literal, the binding fails on an undeclared attribute.                                                                                                    |
+| `stacking.ts`   | The paint order one screen keeps inside its own box: content under its chrome, chrome under a `<Layer>` overlay that exists to cover it, and the dim over all three. Was tree order alone, which could not be stated or asserted and made paint a function of JSX position. |
 
 Campaign modules outside those directories:
 

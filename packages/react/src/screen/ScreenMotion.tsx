@@ -15,11 +15,14 @@ import {
   ANIM_HOLD,
   ANIM_HOLD_ATTR,
   beginMorphSwipe,
+  CHROME_LEVEL,
   computeBarRiding,
   computeScreenFreeze,
   eagerlyDecodeImages,
   isOpaqueColor,
   createSwipeController,
+  LAYER_HOST_ATTR,
+  OVERLAY_LEVEL,
   createTransitionEngine,
   decoratorMap,
   enteringInitialStyle,
@@ -32,6 +35,12 @@ import {
   type MorphSwipe
 } from "@flemo/core";
 
+import {
+  LayerHostContext,
+  LayerOwnerContext,
+  useLayerHost,
+  type LayerOwner
+} from "@screen/LayerContext";
 import getScopeAnimHoldCoordinator from "@screen/scopeAnimHoldCoordinator";
 
 import type { ScreenProps } from "@screen/Screen";
@@ -164,6 +173,19 @@ function ScreenMotion({
   const { viewportScrollHeight } = useViewportScrollHeight();
 
   const isKeyboardVisible = viewportScrollHeight > 0;
+
+  // The <Layer> host. State rather than a ref because a portal can only render
+  // once its target exists, and a ref would hold the element without ever
+  // telling the children it arrived.
+  const [layerHost, setLayerHost] = useState<HTMLDivElement | null>(null);
+  // Only the OUTERMOST screen renders one; every screen nested inside it
+  // inherits this. An overlay has to clear the chrome of every screen above
+  // its own, and chrome an ancestor declared sits outside that ancestor's
+  // scope — so a host in a nested container is already one box too deep. What
+  // nesting must NOT cost is ownership, and that is the owner context below,
+  // which every screen overwrites for its own children.
+  const inheritedLayerHost = useLayerHost();
+  const layerHostTarget = inheritedLayerHost ?? layerHost;
 
   const hasSharedTopBar = !!sharedTopBar;
   const hasSharedBottomBar = !!sharedBottomBar;
@@ -669,6 +691,20 @@ function ScreenMotion({
           : ANIM_HOLD.PARK_UNDER
         : ANIM_HOLD.HELD;
 
+  // What a <Layer> slot needs to keep being this screen while sitting outside
+  // it. Every value here is one the slot cannot get by being where it is: it
+  // is a sibling of no scope it belongs to, in a container that may not even
+  // be this screen's, so its stack position, its paint state and the flight it
+  // is part of all have to be handed over. See LayerContext.
+  const layerOwner: LayerOwner = {
+    zIndex,
+    paintHidden,
+    transitionName,
+    status,
+    isActive,
+    animHold: holdAttr
+  };
+
   // The scope's REST promotion (`flemo:preraster=on`). Browser-only state that
   // reaches the DOM as an INLINE STYLE, so it is read through the hydration
   // gate: evaluated directly, a server-rendered screen emits no `will-change`
@@ -1090,7 +1126,9 @@ function ScreenMotion({
             overflowY: contentScrollable ? "auto" : undefined
           }}
         >
-          {children}
+          <LayerHostContext.Provider value={layerHostTarget}>
+            <LayerOwnerContext.Provider value={layerOwner}>{children}</LayerOwnerContext.Provider>
+          </LayerHostContext.Provider>
         </div>
         {bottomBar}
         {sharedBottomBar && (
@@ -1139,7 +1177,13 @@ function ScreenMotion({
             position: screenPosition,
             top: !hideStatusBar ? statusBarHeight : 0,
             left: 0,
-            width: "100%"
+            width: "100%",
+            // Chrome, stated rather than inferred from JSX order. See
+            // SCREEN_STACKING_ORDER: this used to be `auto` and paint above
+            // the scope only because it comes after it in the tree, which put
+            // a screen's paint order at the mercy of where an element sits in
+            // this file.
+            zIndex: CHROME_LEVEL
           }}
         >
           {sharedTopBar}
@@ -1164,13 +1208,42 @@ function ScreenMotion({
             position: screenPosition,
             bottom: !hideSystemNavigationBar ? systemNavigationBarHeight : 0,
             left: 0,
-            width: "100%"
+            width: "100%",
+            zIndex: CHROME_LEVEL
           }}
         >
           {sharedBottomBar}
         </div>
       )}
       {decorator && <ScreenDecorator ref={decoratorRef} data-flemo-anim-hold={holdAttr} />}
+      {/*
+        The <Layer> host, rendered only by the OUTERMOST screen in a chain. It
+        is a sibling of the scope, and that is the entire mechanism: a
+        transform binds descendants, so the screen's motion cannot reach what
+        is portaled here.
+
+        Full-size and absolute so a consumer's absolutely positioned overlay
+        has the region to resolve against, and `pointer-events: none` because
+        an empty host that spans the screen would otherwise swallow every tap
+        meant for the screen underneath. Slots hand the pointers back to their
+        own children.
+
+        No transform, no containment and no promotion of its own — anything of
+        the kind here would re-create the containing block the overlay left the
+        screen to escape.
+      */}
+      {!inheritedLayerHost && (
+        <div
+          ref={setLayerHost}
+          {...{ [LAYER_HOST_ATTR]: "" }}
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            zIndex: OVERLAY_LEVEL
+          }}
+        />
+      )}
     </div>
   );
 }

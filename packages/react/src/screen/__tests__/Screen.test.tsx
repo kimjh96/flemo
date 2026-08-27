@@ -3,6 +3,7 @@ import { createElement, type PropsWithChildren, type ReactNode } from "react";
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { CHROME_LEVEL, DECORATOR_LEVEL, OVERLAY_LEVEL } from "@flemo/core";
 import type { History, SharedBarPresence, TransitionName } from "@flemo/core";
 
 import Screen from "@screen/Screen";
@@ -215,24 +216,40 @@ describe("Screen", () => {
     expect(screenContainer!.style.zIndex).toBe("1");
   });
 
-  // flemo's own chrome must not carry a number: it is positioned and rendered
-  // after the scope, so tree order already paints it over the screen content.
-  // A number would escape the screen the moment the container stopped being a
-  // stacking context, which is how the covered screen's dim reached the
-  // incoming one.
-  it("leaves the decorator's stacking to tree order", () => {
+  // flemo's own chrome carries stated levels rather than leaning on where it
+  // happens to sit in this file. Tree order said the same thing right up until
+  // a <Layer> host joined the container — and then the dim, which has to reach
+  // a screen's overlay as well as its content, had nothing to say so with. The
+  // numbers cannot escape the screen either way: the container's `isolation:
+  // isolate` bounds them, which is what the covered screen's dim reaching the
+  // incoming one taught.
+  it("orders its own chrome under its overlay under its dim", () => {
     stores.history.setState({ index: 0, histories: [] });
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
 
     const { container } = render(
-      <Screen>
+      <Screen sharedBottomBar={<nav data-testid="bar" />} sharedBottomBarId="bar">
         <div data-testid="content">hello</div>
       </Screen>,
       { wrapper: buildHarness({ isActive: false }) }
     );
 
+    const bar = container.querySelector<HTMLElement>('[data-flemo-bar="nav"]');
+    const host = container.querySelector<HTMLElement>("[data-flemo-layer-host]");
     const decorator = container.querySelector<HTMLElement>("[data-flemo-decorator]");
-    if (decorator) expect(decorator.style.zIndex).toBe("");
+
+    expect(bar).not.toBeNull();
+    expect(host).not.toBeNull();
+    expect(Number(bar!.style.zIndex)).toBe(CHROME_LEVEL);
+    expect(Number(host!.style.zIndex)).toBe(OVERLAY_LEVEL);
+    // Guarded because the decorator only renders when the resolved transition
+    // declares one; the assertion below is the point, so it is stated as the
+    // relation rather than as the number it currently is.
+    if (decorator) {
+      expect(Number(decorator.style.zIndex)).toBe(DECORATOR_LEVEL);
+      expect(Number(decorator.style.zIndex)).toBeGreaterThan(Number(host!.style.zIndex));
+    }
+    expect(Number(host!.style.zIndex)).toBeGreaterThan(Number(bar!.style.zIndex));
   });
 
   it("keeps a deeper prev screen frozen once the top has moved more than one entry past it", () => {
