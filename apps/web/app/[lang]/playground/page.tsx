@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import ChainStage from "./_components/ChainStage";
+import LayerStage from "./_components/LayerStage";
 import PlaygroundStage from "./_components/PlaygroundStage";
 
 // The library's fixture surface, not a marketing page: it exists so a change to
@@ -16,6 +17,7 @@ export default function PlaygroundPage() {
     <>
       <PlaygroundStage />
       <ChainStage />
+      <LayerStage />
     </>
   );
 }
