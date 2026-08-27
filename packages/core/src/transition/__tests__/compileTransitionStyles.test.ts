@@ -1390,3 +1390,85 @@ describe("easingToCss", () => {
     });
   });
 });
+
+describe("compileTransitionStyles: <Layer> slot ride-along selector", () => {
+  // A slot is a SIBLING of the scope — it has to be, or the screen's transform
+  // would trap it exactly like the content it left — so nothing moves it when
+  // the screen moves. Pairing it into the screen rule does, off the same
+  // @keyframes on the same compositor pass.
+  //
+  // The failure this pins is the one #344 shipped: an overlay that stayed
+  // exactly where it was while its screen slid out from under it, and then
+  // vanished at unmount instead of leaving with it.
+
+  const ruleFor = (css: string, selectorSubstring: string): string | undefined => {
+    const lines = css.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      if (line.startsWith("@keyframes")) continue;
+      if (!line.includes(selectorSubstring)) continue;
+      let startIdx = i;
+      while (startIdx > 0 && lines[startIdx - 1]!.trimEnd().endsWith(",")) startIdx -= 1;
+      const collected: string[] = [];
+      for (let j = startIdx; j < lines.length; j++) {
+        collected.push(lines[j]!);
+        if (lines[j]!.trim() === "}") return collected.join("\n");
+      }
+      return collected.join("\n");
+    }
+    return undefined;
+  };
+
+  it("pairs the screen rule with its slot under one animation block", () => {
+    const css = compileTransitionStyles([cupertino], []);
+    const pushActive = ruleFor(
+      css,
+      '[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
+    );
+
+    expect(pushActive).toBeDefined();
+    expect(pushActive).toContain(
+      '[data-flemo-layer-slot][data-flemo-transition="cupertino"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
+    );
+    // One declaration for the whole set — screen, riding bar and slot — which
+    // is what makes them a single compositor pass rather than three clocks.
+    expect((pushActive!.match(/animation:/g) ?? []).length).toBe(1);
+    expect((pushActive!.match(/will-change:/g) ?? []).length).toBe(1);
+  });
+
+  it("rides on every transitioning variant, unlike a bar", () => {
+    const css = compileTransitionStyles([cupertino], []);
+    const variants: Array<[string, string]> = [
+      ["PUSHING", "true"],
+      ["PUSHING", "false"],
+      ["POPPING", "true"],
+      ["POPPING", "false"]
+    ];
+
+    for (const [status, active] of variants) {
+      const rule = ruleFor(
+        css,
+        `[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-status="${status}"][data-flemo-active="${active}"]`
+      );
+      expect(rule).toBeDefined();
+      // No riding flag in the selector, and that is the difference from a bar:
+      // a bar rides only when its partner screen does not own it, while an
+      // overlay has exactly one screen and always leaves with it.
+      expect(rule).toContain(
+        `[data-flemo-layer-slot][data-flemo-transition="cupertino"][data-flemo-status="${status}"][data-flemo-active="${active}"]`
+      );
+    }
+  });
+
+  it("leaves the decorator alone", () => {
+    const css = compileTransitionStyles([cupertino], [overlay]);
+    const decoBlock = ruleFor(
+      css,
+      '[data-flemo-decorator-name="overlay"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
+    );
+
+    // The dim belongs to the screen and is rendered inside its container, so
+    // it needs no pairing. Adding one would animate it twice.
+    expect(decoBlock).not.toContain("data-flemo-layer-slot");
+  });
+});

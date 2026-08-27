@@ -6,13 +6,16 @@ coverage
 pnpm-lock.yaml
 *.md.snap
 
-# Lervo owns the exact bytes of these documents: AGENTS.md is the canonical
-# instruction source and CLAUDE.md carries the provider bridge block, whose
-# begin/end markers must wrap the import with no blank line between them.
-# Prettier inserts one, which invalidates the bridge on every commit.
+# Everything under .lervo is generated with a recorded content hash, so
+# reformatting it invalidates the record it belongs to. Kept OUTSIDE the block
+# below because that block is Lervo's own bytes: it lists the documents Lervo
+# rewrites, and .lervo is not one of them — it is where the records live.
+.lervo
+
+# lervo:begin document-rewrite-ownership schema=1
 AGENTS.md
 CLAUDE.md
-
-# Same reason, for the same owner: everything under .lervo is generated with a
-# recorded content hash, so reformatting it invalidates the record it belongs to.
-.lervo
+docs/architecture/motion-engine.md
+docs/instructions/coverage.md
+packages/devtools/README.md
+# lervo:end document-rewrite-ownership
