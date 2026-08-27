@@ -31,11 +31,11 @@ export interface TonightRouterProps {
 //                         declares no bar, so the bar RIDES out and back.
 //
 // The bench switches which transition carries that push. Nothing in these
-// screens knows which one it is — no screen branches on it, no part transition
+// screens knows which one it is: no screen branches on it, no part transition
 // is generated for it, and no flag is set to accommodate a shared element.
 //
 // `<Slot>` is required rather than decorative: the Router has a non-Route child
-// (the bench provider's subtree would be one too), and the docs are explicit —
+// (the bench provider's subtree would be one too), and the docs are explicit:
 // "If a Router has children that are not Routes ... wrap the routes in a Slot
 // so flemo can tell screens from the surrounding layout."
 function TonightRouter({ bench }: TonightRouterProps) {

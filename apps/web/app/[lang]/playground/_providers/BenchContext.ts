@@ -4,25 +4,19 @@ import { createContext, useContext } from "react";
 
 import type { TransitionName } from "@flemo/react";
 
-// What the bench is set to.
+// What the bench is set to. Deliberately ONE axis.
 //
-// TWO controls, and they behave differently on purpose:
-//
-//   `transition`  remounts the app, so a change starts from a clean stack
-//                 rather than landing mid-flight.
-//   `hosted`      does NOT remount. It is the single variable of the overlay
-//                 comparison, and the arrangement it exists to show is a sheet
-//                 that is ALREADY OPEN while a screen moves. A toggle that
-//                 closed the sheet could never reach it.
+// The previous playground offered a transition axis crossed with a morph axis
+// and a per-step clock table, and got the basics wrong underneath all of it.
+// The library author's own demos pair one element and change nothing else; this
+// starts there. A second axis goes in only once the first one is judged good.
 export interface Bench {
   transition: TransitionName;
-  /** `true` renders the sheet through `<Layer>`; `false` writes it in the screen. */
-  hosted: boolean;
 }
 
 export const TRANSITIONS: TransitionName[] = ["cupertino", "material", "layout", "none", "reveal"];
 
-export const DEFAULT_BENCH: Bench = { transition: "cupertino", hosted: true };
+export const DEFAULT_BENCH: Bench = { transition: "cupertino" };
 
 const BenchContext = createContext<Bench>(DEFAULT_BENCH);
 

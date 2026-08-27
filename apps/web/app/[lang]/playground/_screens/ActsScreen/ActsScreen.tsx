@@ -1,11 +1,10 @@
 "use client";
 
-import { Morph, Screen, useNavigate, useParams, useStep } from "@flemo/react";
+import { Morph, Screen, useNavigate } from "@flemo/react";
 
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
-import BookingSheet from "../../_components/BookingSheet";
 import TabBar from "../../_components/TabBar";
 
 import { ACTS, artworkFor } from "../../_data/acts";
@@ -29,17 +28,11 @@ import { useBench } from "../../_providers/BenchContext";
 // It declares the tab bar; the detail screen declares none, so the bar rides
 // out with this screen and back on the pop. That is the wallet demo's
 // "shared-bar present/absent transition", used on purpose rather than by
-// accident — see `computeBarRiding`.
+// accident. see `computeBarRiding`.
 function ActsScreen() {
   const { push } = useNavigate();
   const { transition } = useBench();
   const t = getDict(useShellLang()).playground;
-  // The sheet is a STEP: a sub-state of this screen rather than a screen of its
-  // own, so it stacks nothing and Back closes it before it leaves the screen.
-  // `useStep` pushes and pops it; `useParams` reads it back.
-  const { pushStep, popStep } = useStep<"/tonight">();
-  const params = useParams<"/tonight">();
-  const sheetOpen = Boolean(params?.sheet);
 
   return (
     <Screen
@@ -57,18 +50,6 @@ function ActsScreen() {
           </h2>
           <p className="mt-0.5 text-sm text-[var(--color-text-disabled)]">{t.app.subtitle}</p>
         </header>
-
-        <div className="px-5 pb-3">
-          <button
-            type="button"
-            data-open-sheet=""
-            onClick={() => pushStep({ sheet: true })}
-            aria-expanded={sheetOpen}
-            className="cursor-pointer rounded-full bg-[var(--color-layer)] px-4 py-2 text-[13px] font-semibold text-[var(--color-primary)]"
-          >
-            {t.app.sheetOpen}
-          </button>
-        </div>
 
         <ul className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
           {ACTS.map((act) => (
@@ -103,8 +84,6 @@ function ActsScreen() {
           ))}
         </ul>
       </div>
-
-      {sheetOpen ? <BookingSheet onClose={() => popStep()} /> : null}
     </Screen>
   );
 }

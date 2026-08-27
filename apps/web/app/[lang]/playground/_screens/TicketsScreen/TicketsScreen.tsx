@@ -10,7 +10,7 @@ import TabBar from "../../_components/TabBar";
 import { ACTS, artworkFor } from "../../_data/acts";
 
 // The peer tab. It declares the SAME shared bar as the list, so the bar holds
-// still while the two tabs move laterally under it — the other half of the
+// still while the two tabs move laterally under it: the other half of the
 // ride-or-hold rule the detail screen exercises.
 //
 // Nothing is paired here: no flight starts from this list, so its artwork is a

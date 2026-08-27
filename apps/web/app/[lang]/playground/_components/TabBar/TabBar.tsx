@@ -22,7 +22,7 @@ const ICONS: Record<TabPath, string> = {
 //    seamless hand-over); it stays put when the partner owns it."
 //
 // So across the two tabs it HOLDS (both declare it), and on a push into the
-// detail — which declares none — it RIDES out with the list and comes back on
+// detail, which declares none. It RIDES out with the list and comes back on
 // the pop. Both are on show here, and neither is opted into.
 //
 // Tabs are peers, so switching is a `replace` on the site's own shared-axis

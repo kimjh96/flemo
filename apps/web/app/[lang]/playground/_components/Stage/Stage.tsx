@@ -1,6 +1,6 @@
 import type { PropsWithChildren } from "react";
 
-// The glass bezel the mini-app runs in — the same one the landing hero uses, so
+// The glass bezel the mini-app runs in: the same one the landing hero uses, so
 // the judging page belongs to the site it is part of.
 //
 // Nothing inside the bezel moves on its own. A page that animates while a

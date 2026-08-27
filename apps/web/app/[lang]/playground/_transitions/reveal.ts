@@ -5,7 +5,7 @@ import { createTransition } from "@flemo/react";
 import "./reveal.types";
 
 // A CONSUMER-AUTHORED transition, here so the bench is not four presets and
-// nothing else — the point of the page is that a consumer's transition is not a
+// nothing else: the point of the page is that a consumer's transition is not a
 // second class of thing.
 //
 // It is modelled on the shape the library author uses for the site's own

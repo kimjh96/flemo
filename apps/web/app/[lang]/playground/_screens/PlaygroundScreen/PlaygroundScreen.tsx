@@ -16,7 +16,7 @@ import { DEFAULT_BENCH, TRANSITIONS, type Bench } from "../../_providers/BenchCo
 
 // The playground as a PEER of Home, Showcase and Docs: a screen of the site's
 // own Router, so the mini-app runs as a nested Router inside a screen of
-// another Router — the shape a consumer's app actually has.
+// another Router: the shape a consumer's app actually has.
 //
 // ONE AXIS. The previous version of this page crossed six transitions with
 // three morph presets, generated a part transition per direction per preset,
@@ -67,45 +67,13 @@ function PlaygroundScreen() {
                       type="button"
                       role="radio"
                       aria-checked={name === bench.transition}
-                      onClick={() => setBench((current) => ({ ...current, transition: name }))}
+                      onClick={() => setBench({ transition: name })}
                       className={`${PILL} ${name === bench.transition ? PILL_ON : PILL_OFF}`}
                     >
                       {name}
                     </button>
                   ))}
                 </div>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[11px] font-semibold tracking-[0.1em] text-[var(--color-text-disabled)] uppercase">
-                  {t.bench.overlayLabel}
-                </span>
-                {/* This one does NOT remount the app. The arrangement it exists
-                    to show is a sheet that is ALREADY OPEN while a screen
-                    moves, and a toggle that closed the sheet could never reach
-                    it. */}
-                <div
-                  role="radiogroup"
-                  aria-label={t.bench.overlayLabel}
-                  className="flex w-fit flex-wrap gap-1 rounded-xl bg-[var(--color-layer)] p-1"
-                >
-                  {([true, false] as const).map((hosted) => (
-                    <button
-                      key={String(hosted)}
-                      type="button"
-                      role="radio"
-                      aria-checked={hosted === bench.hosted}
-                      data-overlay-mode={hosted ? "hosted" : "inline"}
-                      onClick={() => setBench((current) => ({ ...current, hosted }))}
-                      className={`${PILL} ${hosted === bench.hosted ? PILL_ON : PILL_OFF}`}
-                    >
-                      {hosted ? t.bench.overlayHosted : t.bench.overlayInline}
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-1 max-w-[46ch] text-[13px] leading-relaxed text-[var(--color-text-disabled)]">
-                  {t.bench.overlayNote}
-                </p>
               </div>
 
               <p className="max-w-[46ch] text-sm leading-relaxed text-[var(--color-text-secondary)]">

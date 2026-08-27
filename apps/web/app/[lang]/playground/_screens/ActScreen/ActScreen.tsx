@@ -10,7 +10,7 @@ import { actById, artworkFor } from "../../_data/acts";
 // The detail. The other half of the list row's <Morph>: the same `layoutId`, so
 // the little square in the list and this one are one thing to flemo.
 //
-// SAME SHAPE at both ends — a square there, a square here. The docs name the
+// SAME SHAPE at both ends: a square there, a square here. The docs name the
 // alternative and the symptom it produces:
 //
 //   attachMorph.ts

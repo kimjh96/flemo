@@ -75,12 +75,7 @@ export const dict = {
         "A small ticket app running the real library. One shared element, one tab bar, and whichever transition you pick carrying the push. Nothing in the app is told which one it is.",
       bench: {
         label: "screen transition",
-        note: "Tap a row to open it, then come back. The artwork is the same square on both sides, so it grows into place. The tab bar holds still between the two tabs and rides away on the push, because the detail declares none.",
-        overlayLabel: "sheet placement",
-        overlayHosted: "leaves the screen",
-        overlayInline: "stays in the screen",
-        overlayNote:
-          "Open the sheet, then tap a row. At rest both placements look the same — a screen at rest carries no transform, so a fixed sheet already clears the tab bar. A screen that MOVES carries one, and a transform is a containing block: the sheet written in the screen stops resolving against the viewport and lands a tab bar short of the floor."
+        note: "Tap a row to open it, then come back. The artwork is the same square on both sides, so it grows into place. The tab bar holds still between the two tabs and rides away on the push, because the detail declares none."
       },
       app: {
         title: "Tonight",
@@ -90,13 +85,8 @@ export const dict = {
         ticketsNote: "Held for you",
         held: "Held",
         detail: "Event",
-        sheetOpen: "Quick book",
-        sheetTitle: "Quick book",
-        sheetBody:
-          "A sheet is a step, not a screen: it stacks nothing, and Back closes it before it leaves the list. It has to cover the tab bar, which is the one thing an overlay cannot do from inside a moving screen.",
-        sheetClose: "Done",
         back: "Back",
-        body: "Doors an hour before. The artwork above is the same element that was in the list a moment ago — flemo measured where it sat when you tapped, and moved it here."
+        body: "Doors an hour before. The artwork above is the same element that was in the list a moment ago. flemo measured where it sat when you tapped, and moved it here."
       }
     },
     showcase: {
@@ -177,12 +167,7 @@ export const dict = {
         "실제 라이브러리로 도는 작은 티켓 앱이에요. 공유 요소 하나, 탭바 하나, 그리고 고른 전환이 push를 나릅니다. 앱 안의 어떤 화면도 지금 무엇이 도는지 모릅니다.",
       bench: {
         label: "화면 전환",
-        note: "줄을 눌러 열고 다시 돌아와 보세요. 이미지는 양쪽 다 같은 정사각형이라 그대로 자라납니다. 탭바는 두 탭 사이에선 가만히 있다가, 상세로 밀 때는 함께 빠집니다 — 상세가 바를 선언하지 않기 때문입니다.",
-        overlayLabel: "시트 위치",
-        overlayHosted: "화면 밖으로",
-        overlayInline: "화면 안에",
-        overlayNote:
-          "시트를 연 다음 줄을 눌러보세요. 정지 상태에선 둘이 똑같아 보입니다 — 멈춘 화면엔 transform이 없어서 fixed 시트가 이미 탭바를 넘습니다. 움직이는 화면은 transform을 지니고, transform은 containing block이라 화면 안에 쓴 시트는 뷰포트 대신 화면 박스를 기준으로 잡혀 탭바 하나만큼 바닥에 못 닿습니다."
+        note: "줄을 눌러 열고 다시 돌아와 보세요. 이미지는 양쪽 다 같은 정사각형이라 그대로 자라납니다. 탭바는 두 탭 사이에선 가만히 있다가, 상세로 밀 때는 함께 빠집니다. 상세가 바를 선언하지 않기 때문입니다."
       },
       app: {
         title: "투나잇",
@@ -192,11 +177,6 @@ export const dict = {
         ticketsNote: "예매해 둔 공연",
         held: "예매됨",
         detail: "공연",
-        sheetOpen: "바로 예매",
-        sheetTitle: "바로 예매",
-        sheetBody:
-          "시트는 화면이 아니라 스텝입니다. 아무것도 쌓지 않고, 뒤로가기가 목록을 떠나기 전에 시트부터 닫습니다. 그리고 탭바를 덮어야 하는데, 그건 움직이는 화면 안에서는 할 수 없는 일입니다.",
-        sheetClose: "완료",
         back: "뒤로",
         body: "공연 한 시간 전 입장이에요. 위 이미지는 조금 전 목록에 있던 바로 그 요소입니다. 누른 순간 어디에 있었는지 flemo가 재서 여기로 옮겨온 거예요."
       }
