@@ -12,6 +12,7 @@ import Shared from "../../_components/Shared";
 import StageScreen from "../../_components/StageScreen";
 
 import { useMotionChoice } from "../../_providers/MotionChoiceContext";
+import { useFlightParts } from "../../_hooks/useFlightParts";
 
 import { actById } from "../../_data/tonight";
 
@@ -28,7 +29,11 @@ function ActScreen() {
   const parent = useNavigate({ router: "parent" });
   const params = useParams<"/browse/act/:id">();
   const act = actById(params?.id);
-  const { transition, barPart, bodyPart } = useMotionChoice();
+  // The bench sets one transition for the whole app, but the parts are asked
+  // of flemo all the same: `useScreen().transitionName` is the FLIGHT's, so a
+  // screen can never be authored against a clock the flight is not running.
+  const { transition } = useMotionChoice();
+  const { barPart, bodyPart } = useFlightParts();
   const t = getDict(useShellLang()).playground;
   const fullBleed = transition.fullBleed ?? false;
 
@@ -62,7 +67,11 @@ function ActScreen() {
         </Part>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <Shared layoutId={`card-${act.id}`} className="block min-h-full bg-[var(--color-bg)]">
+          <Shared
+            layoutId={`card-${act.id}`}
+            pairFor={["zoom"]}
+            className="block min-h-full bg-[var(--color-bg)]"
+          >
             <Poster act={act} place="hero" />
 
             <div className="px-4 pb-8">

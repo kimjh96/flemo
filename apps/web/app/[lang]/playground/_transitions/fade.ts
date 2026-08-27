@@ -34,7 +34,8 @@ import "./fade.types";
 //    gives the dismissal a motion of its own and the arrival the same one
 //    reversed: 1.02 to 1 going in, back to 1.02 coming out. It never opens a
 //    gap at the edges, because it only ever scales UP from rest.
-const { duration, ease } = CLOCKS.fade!;
+// Symmetric, so one beat serves both directions.
+const { duration, ease } = CLOCKS.fade!.push;
 const REST = { opacity: 1, scale: 1 };
 const STILL = { value: REST, options: { duration: 0 } };
 

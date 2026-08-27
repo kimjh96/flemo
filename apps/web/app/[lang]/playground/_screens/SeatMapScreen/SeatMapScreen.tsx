@@ -9,7 +9,7 @@ import AppBar from "../../_components/AppBar";
 import BackButton from "../../_components/BackButton";
 import StageScreen from "../../_components/StageScreen";
 
-import { useMotionChoice } from "../../_providers/MotionChoiceContext";
+import { useFlightParts } from "../../_hooks/useFlightParts";
 
 import { actById } from "../../_data/tonight";
 
@@ -29,7 +29,7 @@ function SeatMapScreen() {
   const navigate = useNavigate();
   const params = useParams<"/tonight/seatmap/:id">();
   const act = actById(params?.id);
-  const { barPart, bodyPart } = useMotionChoice();
+  const { barPart, bodyPart } = useFlightParts();
   const t = getDict(useShellLang()).playground;
 
   if (!act) return null;

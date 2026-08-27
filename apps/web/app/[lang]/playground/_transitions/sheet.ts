@@ -20,7 +20,8 @@ import "./sheet.types";
 // both are released by the same hold on the same frame. A <Part> gets no such
 // inheritance, which is why its clock is generated from the same table this
 // transition reads.
-const { duration, ease } = CLOCKS.sheet!;
+// Symmetric, so one beat serves both directions.
+const { duration, ease } = CLOCKS.sheet!.push;
 
 const sheet = createTransition({
   name: "sheet",

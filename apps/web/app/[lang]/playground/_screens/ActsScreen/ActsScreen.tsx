@@ -11,6 +11,7 @@ import Shared from "../../_components/Shared";
 import StageScreen from "../../_components/StageScreen";
 
 import { useMotionChoice } from "../../_providers/MotionChoiceContext";
+import { useFlightParts } from "../../_hooks/useFlightParts";
 
 import { ACTS } from "../../_data/tonight";
 
@@ -32,7 +33,8 @@ import { ACTS } from "../../_data/tonight";
 // under the frame does not move.
 function ActsScreen() {
   const { push } = useNavigate();
-  const { transition, morph, barPart, bodyPart } = useMotionChoice();
+  const { transition, morph } = useMotionChoice();
+  const { barPart, bodyPart } = useFlightParts();
   const t = getDict(useShellLang()).playground;
   // The step's state is the SCREEN's params: `useStep` pushes and pops it,
   // `useParams` reads it back.
@@ -79,8 +81,13 @@ function ActsScreen() {
                   }
                   className="w-full cursor-pointer text-left"
                 >
+                  {/* The CONTAINER pairs on `zoom` only: a container
+                      transform is what zoom means, and carrying a horizontal
+                      row into a vertical page is not a shared element. See
+                      Shared.tsx. */}
                   <Shared
                     layoutId={`card-${act.id}`}
+                    pairFor={["zoom"]}
                     className="flex items-center gap-3 rounded-2xl bg-[var(--color-layer)] p-2.5"
                   >
                     <Poster act={act} place="thumb" />

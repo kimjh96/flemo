@@ -25,9 +25,27 @@ export interface BookingStep {
   transitionName: TransitionName;
   /** Set when this step arrives by morph: the preset the shared element runs. */
   morphName?: MorphTransitionName;
-  /** Whether the shared element covers this screen edge to edge. */
-  fullBleed?: boolean;
 }
+
+// NO STEP IS FULL-BLEED, and that is a correction rather than an omission.
+//
+// The first pass gave `seats` a `fullBleed` flag copied from the transitions
+// bench, where it means "the shared element covers the frame, so the screen
+// declares no bar and paints no background". `seats` has no shared element. The
+// flag therefore produced a transparent screen with nothing covering it and no
+// bar, and two visible defects fell out of that one line:
+//
+//   the screen behind showed through, still holding the blur and scale its
+//   `sheet` exit parked it in — correct behaviour for a COVERED screen, and
+//   plainly wrong once the screen on top stopped painting its own ground;
+//
+//   and the shared bar unmounted for that step, so on the way in and the way
+//   out it had no counterpart to hand over to. flemo hands a bar over in place
+//   only when both ids match; against nothing it can only pop in, which is
+//   exactly how it read on a device.
+//
+// A checkout keeps its header. Every step declares the same `sharedTopBarId`
+// now, so the box holds still and only the label crosses, at every step.
 
 export const BOOKING: BookingStep[] = [
   // The bottom of the stack. Nothing pushes TO it, so its transition name is
@@ -36,7 +54,7 @@ export const BOOKING: BookingStep[] = [
   // not the thing being tested.
   { id: "tonight", transitionName: "none" },
   { id: "event", transitionName: "cupertino", morphName: "shared" },
-  { id: "seats", transitionName: "sheet", fullBleed: true },
+  { id: "seats", transitionName: "sheet" },
   { id: "extras", transitionName: "material" },
   { id: "review", transitionName: "fade" },
   { id: "done", transitionName: "layout", morphName: "zoom" }

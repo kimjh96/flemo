@@ -9,18 +9,20 @@ import AppBar from "../../_components/AppBar";
 import BackButton from "../../_components/BackButton";
 import StageScreen from "../../_components/StageScreen";
 
-import { barPartFor, bodyPartFor } from "../../_transitions/clocks";
+import { useFlightParts } from "../../_hooks/useFlightParts";
 
 import { BOOKING, stepAt } from "../../_data/booking";
 import { ACTS, posterFor } from "../../_data/tonight";
 
 // ONE component for every step of the booking flow.
 //
-// Nothing here knows which transition is flying — it looks its own step up in
-// the table and asks for the parts belonging to THAT step's transition. Which
-// is the same rule as the bench, arrived at from the other direction: there the
-// flight is chosen by a switch, here it is chosen by where you are in the flow,
-// and in both cases the parts are selected with it rather than fixed.
+// Nothing here knows which transition is flying — it ASKS. `useFlightParts`
+// reads `useScreen().transitionName`, which flemo sets to the active top's for
+// every mounted screen, so the two screens in one flight cannot end up on two
+// different clocks. The first version looked each step's own transition up in
+// the table instead, which is correct for the screen and wrong for the flight:
+// the root step is `none` at zero seconds, so its title vanished instantly
+// while the arriving one faded in over cupertino's 0.7s.
 //
 // The act is fixed for the flow, because the flow is about the STACK: five
 // pushes, five different transitions, and whether five pops unwind them in the
@@ -31,45 +33,31 @@ function BookingScreen() {
   const { push, pop } = useNavigate();
   const params = useParams<"/booking/:step">();
   const t = getDict(useShellLang()).playground.booking;
+  const { barPart, bodyPart } = useFlightParts();
   const found = stepAt(params?.step);
 
   if (!found) return null;
 
   const { step, index } = found;
   const next = BOOKING[index + 1];
-  const fullBleed = Boolean(step.fullBleed);
   const copy = t.body[step.id as keyof typeof t.body];
-
-  // The step's OWN transition names its parts. A step reached by `material`
-  // (0.35s) and a step reached by `cupertino` (0.7s) cannot share one clock,
-  // which is the whole finding this rebuild is built on.
-  const barPart = barPartFor(step.transitionName);
-  const bodyPart = bodyPartFor(step.transitionName);
 
   return (
     <StageScreen
-      backgroundColor={fullBleed ? "transparent" : "var(--color-bg)"}
-      // The same bar under one id across every step: its box holds still while
-      // the label hands over with the flight. The full-bleed step declares
-      // none, so the bar leaves with its own motion.
-      sharedTopBarId={fullBleed ? undefined : "booking"}
+      backgroundColor="var(--color-bg)"
+      // The SAME id on every step, so the box holds still and only the label
+      // crosses. A step that dropped the bar would leave the next one nothing
+      // to hand over from, and a bar with no counterpart can only pop in.
+      sharedTopBarId="booking"
       sharedTopBar={
-        fullBleed ? undefined : (
-          <AppBar
-            part={barPart}
-            title={t.steps[step.id as keyof typeof t.steps]}
-            lead={index === 0 ? undefined : <BackButton onClick={() => pop()} />}
-          />
-        )
+        <AppBar
+          part={barPart}
+          title={t.steps[step.id as keyof typeof t.steps]}
+          lead={index === 0 ? undefined : <BackButton onClick={() => pop()} />}
+        />
       }
     >
       <div className="flex h-full flex-col">
-        {fullBleed ? (
-          <Part name={bodyPart} className="absolute inset-x-0 top-0 z-10 px-3 pt-3">
-            <BackButton onClick={() => pop()} />
-          </Part>
-        ) : null}
-
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-8">
           {/* The step that ARRIVED by morph carries the big side of the pair
               that brought it here. */}

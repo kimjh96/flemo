@@ -10,7 +10,7 @@ import Poster from "../../_components/Poster";
 import StageScreen from "../../_components/StageScreen";
 import TabBar from "../../_components/TabBar";
 
-import { useMotionChoice } from "../../_providers/MotionChoiceContext";
+import { useFlightParts } from "../../_hooks/useFlightParts";
 
 import { ACTS } from "../../_data/tonight";
 
@@ -23,7 +23,7 @@ import { ACTS } from "../../_data/tonight";
 // the same hand-over a push does, and worth being able to see beside it.
 function TicketsScreen() {
   const t = getDict(useShellLang()).playground;
-  const { barPart, bodyPart } = useMotionChoice();
+  const { barPart, bodyPart } = useFlightParts();
   const held = ACTS.slice(0, 2);
 
   return (

@@ -4,8 +4,6 @@ import { createContext, useContext } from "react";
 
 import type { MorphTransitionName, TransitionName } from "@flemo/react";
 
-import { barPartFor, bodyPartFor } from "../_transitions/clocks";
-
 // WHAT THE BENCH IS SET TO, and everything that follows from it.
 //
 // Two independent axes, because that is what the library claims and what the
@@ -68,25 +66,16 @@ export const DEFAULT_CHOICE: MotionChoice = {
 
 const MotionChoiceContext = createContext<MotionChoice>(DEFAULT_CHOICE);
 
-export interface ResolvedMotion extends MotionChoice {
-  /** The part transition for the shared bar's contents, on this flight's clock. */
-  barPart: string;
-  /** The part transition for the screen's own content, on this flight's clock. */
-  bodyPart: string;
-}
-
-// A screen asks for a part by role and gets one already matched to the flight.
-// Whether that flight translates its screens is settled inside the part factory
-// from the same clock row, so no screen has to know and none of them branch
-// on it.
-export function useMotionChoice(): ResolvedMotion {
-  const choice = useContext(MotionChoiceContext);
-
-  return {
-    ...choice,
-    barPart: barPartFor(choice.transition.id),
-    bodyPart: bodyPartFor(choice.transition.id)
-  };
+// WHAT THE BENCH IS SET TO — and nothing more.
+//
+// This deliberately no longer derives part names. It used to, and that was the
+// seam the booking flow fell through: two places computing "which transition is
+// flying" from two different sources, one of them right by luck. There is now a
+// single answer to that question and it comes from flemo — see
+// `_hooks/useFlightParts`, which reads `useScreen().transitionName`. This
+// context is left with the one thing it actually owns: what the visitor picked.
+export function useMotionChoice(): MotionChoice {
+  return useContext(MotionChoiceContext);
 }
 
 export default MotionChoiceContext;
