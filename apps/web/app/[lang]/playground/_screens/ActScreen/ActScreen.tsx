@@ -100,7 +100,7 @@ function ActScreen() {
           </header>
         </CardBody>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-3 pb-4">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           <Morph
             // The BIG side. It names the same morph AND the same id as the
             // surface that opened it, because a pair whose two halves disagree
@@ -109,37 +109,39 @@ function ActScreen() {
             // the route rather than being guessed.
             name={morph}
             layoutId={`${params?.from ?? "row"}-${act.id}`}
-            className="block aspect-square w-full rounded-2xl shadow-lg"
+            className="block aspect-square w-full"
             style={{ background: artworkFor(act.hue) }}
             aria-hidden="true"
           />
 
-          <h2 className="mt-4">
-            <CardTitle
-              layoutId={params?.from === "cell" ? `cardname-${act.id}` : null}
-              className="block text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]"
-            >
-              {act.artist}
-            </CardTitle>
-          </h2>
-          <CardBody>
-            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-              {act.venue} · {act.day} {act.time}
-            </p>
+          <div className="px-5 pt-4 pb-4">
+            <h2>
+              <CardTitle
+                layoutId={params?.from === "cell" ? `cardname-${act.id}` : null}
+                className="block text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]"
+              >
+                {act.artist}
+              </CardTitle>
+            </h2>
+            <CardBody>
+              <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+                {act.venue} · {act.day} {act.time}
+              </p>
 
-            <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
-              {t.app.body}
-            </p>
+              <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
+                {t.app.body}
+              </p>
 
-            <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px]">
-              {facts.map(([label, value]) => (
-                <div key={label} className="flex items-baseline justify-between gap-3">
-                  <dt className="text-[var(--color-text-disabled)]">{label}</dt>
-                  <dd className="m-0 font-semibold text-[var(--color-text-primary)]">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </CardBody>
+              <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px]">
+                {facts.map(([label, value]) => (
+                  <div key={label} className="flex items-baseline justify-between gap-3">
+                    <dt className="text-[var(--color-text-disabled)]">{label}</dt>
+                    <dd className="m-0 font-semibold text-[var(--color-text-primary)]">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </CardBody>
+          </div>
         </div>
 
         {/* The footer is a sibling of the scroller, not the last thing inside

@@ -71,7 +71,7 @@ function PostersScreen() {
                     it. Under every other case this is a plain box. */}
                 <CardShell
                   layoutId={`card-${act.id}`}
-                  className="block overflow-hidden rounded-2xl bg-[var(--color-layer)] p-2"
+                  className="block overflow-hidden rounded-2xl bg-[var(--color-layer)]"
                 >
                   <Morph
                     as="span"
@@ -82,17 +82,17 @@ function PostersScreen() {
                     // one opened it through the route.
                     name={morph}
                     layoutId={`cell-${act.id}`}
-                    className="block aspect-square w-full rounded-xl"
+                    className="block aspect-square w-full"
                     style={{ background: artworkFor(act.hue) }}
                     aria-hidden="true"
                   />
                   <CardTitle
                     layoutId={`cardname-${act.id}`}
-                    className="mt-2 block truncate px-0.5 text-[13px] font-semibold text-[var(--color-text-primary)]"
+                    className="mt-2 block truncate px-2.5 text-[13px] font-semibold text-[var(--color-text-primary)]"
                   >
                     {act.artist}
                   </CardTitle>
-                  <span className="mt-0.5 block truncate px-0.5 pb-0.5 text-[11px] text-[var(--color-text-disabled)]">
+                  <span className="mt-0.5 block truncate px-2.5 pb-2.5 text-[11px] text-[var(--color-text-disabled)]">
                     {act.day} {act.time} · ₩{act.price}
                   </span>
                 </CardShell>

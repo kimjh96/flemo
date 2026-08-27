@@ -4,8 +4,9 @@ import { createTransition } from "@flemo/react";
 
 import "./aperture.types";
 
-// Written for the container transform, because the container transform will not
-// take just any partner:
+// Written for the container transform, and mostly it gets out of the way.
+//
+// The camera will not take just any partner:
 //
 //   zoom.ts
 //     "PAIR IT WITH A STILL SCREEN TRANSITION. The camera supersedes that
@@ -13,32 +14,39 @@ import "./aperture.types";
 //      opacity-only transition composes; a slide is replaced rather than
 //      combined."
 //
-// So this animates NO transform on either side. Every other authored entry on
-// this bench moves a screen (`reveal` settles the covered one back, `drift`
-// and `fade-through` scale), and every one of those would have its move thrown
+// So it animates NO transform on either side. Every other authored entry on
+// this bench moves a screen, and every one of those would have its move thrown
 // away by the camera rather than added to it.
 //
-// THE DURATION IS THE POINT of authoring it rather than reaching for `layout`.
-// A morph writes no duration of its own:
+// IT DOES FADE THE ARRIVAL IN, and an attempt to stop it is recorded here so it
+// is not tried again. The reasoning was that this screen is made of one card,
+// the card is a morph, and a morph is staged in the FLIGHT LAYER, so holding the
+// screen clear for the flight would keep the grid visible under a card that is
+// drawn regardless. It does not: with `enter` held at zero until the last
+// frame, the stage renders EMPTY for the whole flight. Measured on the running
+// build, the card sits in the layer at opacity 1 and paints nothing, so the
+// layer is subject to its screen after all. The fade stays.
+//
+// THE DURATION IS WHY THIS IS A TRANSITION AT ALL rather than `none`. A morph
+// writes no duration of its own:
 //
 //   shared.ts
 //     "a morph is not a transition of its own, it happens INSIDE one, so the
 //      runtime falls back to the length of whichever screen transition is
 //      flying"
 //
-// `zoom` authors none either, so the camera runs for exactly as long as this
-// does. `layout`'s 0.4s is sized for one element crossing a still screen; a
-// camera pushing a whole screen past the edges is a much larger move over the
-// same distance in time, and it needs longer to read as travel instead of as a
-// jump. 0.5s is the top of Material's own container-transform band.
-//
-// The fade is front-loaded harder than `layout`'s so the destination is solid
-// early and the rest of the flight belongs to the camera.
+// `zoom` authors none either, so the camera, the card and the type inside it
+// all run for exactly as long as this does. `none` would give them zero.
+// `layout`'s 0.4s is sized for one element crossing a still screen; a camera
+// pushing a whole screen past the edges is a much larger move over the same
+// distance in time. 0.5s is the top of Material's own container-transform band.
 //
 // NO SWIPE, deliberately. A swipe drags a screen directly, and during this
 // flight the screen is not the consumer's to drag: the camera owns its
 // transform.
 const DURATION = 0.5;
+// Front-loaded, so the arrival is solid early and the rest of the flight
+// belongs to the camera and the card.
 const FADE: [number, number, number, number] = [0.15, 0.95, 0.25, 1];
 
 const aperture = createTransition({
