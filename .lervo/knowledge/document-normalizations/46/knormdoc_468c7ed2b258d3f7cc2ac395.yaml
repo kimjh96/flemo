@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c6adeade9266f71abe4af278
+compiler:
+  compilerBuildId: sha256:d3168aef47bc469fe67f518fce675a821b2e6bbe5b97aeec64dc8fb5a7a088b9
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 1+codex-cli 0.149.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_f0e6911659878774b859afe2
+outputLanguage: en
+outputs:
+  - byteCount: 34
+    contentHash: sha256:db72195b77c551ecea357ebec91123c12d4ae06d8c9131d824ca8e70fd05816d
+    path: apps/web/CLAUDE.md
+    userRegionHash: sha256:db72195b77c551ecea357ebec91123c12d4ae06d8c9131d824ca8e70fd05816d
+profile: provider_bridge
+recordId: knormdoc_468c7ed2b258d3f7cc2ac395
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49
+sourcePath: apps/web/CLAUDE.md
+sourceUnitVersionIds:
+  - uv_ea42bd699d61966b9610df74
