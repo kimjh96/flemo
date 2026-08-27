@@ -44,14 +44,18 @@ function ActsScreen() {
       sharedBottomBar={<TabBar />}
     >
       <div className="flex h-full flex-col">
-        <header className="px-5 pt-6 pb-3">
+        <header className="shrink-0 px-5 pt-6 pb-3">
           <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
             {t.app.title}
           </h2>
           <p className="mt-0.5 text-sm text-[var(--color-text-disabled)]">{t.app.subtitle}</p>
         </header>
 
-        <ul className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+        {/* The shared bar STACKS below this list rather than covering it: the
+            list's bottom edge and the bar's top edge measure to the same y on
+            the running build. So the padding here is breathing room, not
+            clearance, and a row clipped at the edge is the scroller working. */}
+        <ul className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
           {ACTS.map((act) => (
             <li key={act.id}>
               <button

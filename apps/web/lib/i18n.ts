@@ -72,10 +72,10 @@ export const dict = {
     playground: {
       title: "Press it yourself",
       subtitle:
-        "A small ticket app running the real library. One shared element, one tab bar, and whichever transition you pick carrying the push. Nothing in the app is told which one it is.",
+        "A small ticket app running the real library. Tap a row to open it, then come back, and switch what carries the push while you do.",
       bench: {
         label: "screen transition",
-        note: "Tap a row to open it, then come back. The artwork is one element on both screens: flemo measures where it sits the instant you tap and carries it across, and it stays a square at both ends so the travel is a move rather than a reshape. The tab bar holds still between the two tabs because both declare it, and rides away on the push because the detail declares none. Buying reaches past the top in one transition, collapsing the list and the detail together."
+        note: "The artwork is one element on both screens, so it travels rather than being redrawn, and it is a square at both ends so the travel is a move rather than a reshape. The tab bar holds between the two tabs and rides away on the push, because whether a bar holds is decided by the pair of screens rather than by either one. Buying reaches past the top of the stack in a single transition. No screen here is told which transition you picked."
       },
       app: {
         title: "Tonight",
@@ -172,10 +172,10 @@ export const dict = {
     playground: {
       title: "직접 눌러보세요",
       subtitle:
-        "실제 라이브러리로 도는 작은 티켓 앱이에요. 공유 요소 하나, 탭바 하나, 그리고 고른 전환이 push를 나릅니다. 앱 안의 어떤 화면도 지금 무엇이 도는지 모릅니다.",
+        "실제 라이브러리로 도는 작은 티켓 앱이에요. 줄을 눌러 열고 다시 돌아와 보세요. 그동안 push를 나르는 전환을 바꿔 볼 수 있습니다.",
       bench: {
         label: "화면 전환",
-        note: "줄을 눌러 열고 다시 돌아와 보세요. 이미지는 양쪽 다 같은 정사각형이라 그대로 자라납니다. 탭바는 두 탭 사이에선 가만히 있다가, 상세로 밀 때는 함께 빠집니다. 상세가 바를 선언하지 않기 때문입니다. 예매 버튼은 한 번의 전환으로 목록 위를 건너뛰어, 목록과 상세를 함께 걷어냅니다."
+        note: "이미지는 두 화면에서 같은 요소라 다시 그려지지 않고 건너갑니다. 양쪽 다 정사각형이라 모양이 바뀌는 게 아니라 자리를 옮기는 움직임이 됩니다. 탭바는 두 탭 사이에선 멈춰 있다가 상세로 밀 때는 함께 빠지는데, 바가 멈출지 따라갈지는 어느 한 화면이 아니라 두 화면의 조합이 정합니다. 예매 버튼은 한 번의 전환으로 스택 꼭대기 너머까지 갑니다. 여기 어떤 화면도 당신이 고른 트랜지션이 뭔지 모릅니다."
       },
       app: {
         title: "투나잇",
