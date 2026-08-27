@@ -81,19 +81,27 @@ function ActScreen() {
           only the grid draws a card. */}
       <CardShell
         layoutId={params?.from === "cell" ? `card-${act.id}` : null}
-        className="flex h-full flex-col bg-[var(--color-bg)]"
+        className="relative flex h-full flex-col bg-[var(--color-bg)]"
       >
-        {/* NOT a part. It was one, and on a pop it blinked out in 120ms while
-            the card was still shrinking under it, which reads as the screen
-            losing its header rather than the card leaving. Chrome this small is
-            clipped by the growing card rather than squeezed by it, so it can
-            simply ride. */}
-        <header className="flex shrink-0 items-center justify-between px-4 pt-4">
+        {/* OUT OF THE FLOW, floating over the artwork.
+            
+            It used to be the card's first child, and that put the artwork 52px
+            lower here than in a grid cell, whose card starts with the artwork.
+            A container transform draws both ends at the same box, so the two
+            artworks sat 52px apart and cross-faded against each other: one
+            gradient appearing to flicker, the page appearing to shift, and the
+            header appearing to vanish, all from the same misalignment.
+            
+            Taking it out of the flow makes both cards start with the artwork at
+            the same y. It is also not a part, because fading chrome out in the
+            first fifth of a pop reads as the screen losing its header rather
+            than the card leaving. */}
+        <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-between bg-gradient-to-b from-black/45 to-transparent px-4 pt-4 pb-8">
           <button
             type="button"
             onClick={() => navigate.pop()}
             aria-label={t.app.back}
-            className="grid size-9 cursor-pointer place-items-center rounded-full text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-layer)]"
+            className="grid size-9 cursor-pointer place-items-center rounded-full text-white transition-colors hover:bg-white/15"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path
@@ -105,7 +113,7 @@ function ActScreen() {
               />
             </svg>
           </button>
-          <span className="text-xs font-bold tracking-[0.12em] text-[var(--color-text-disabled)] uppercase">
+          <span className="text-xs font-bold tracking-[0.12em] text-white/70 uppercase">
             {t.app.detail}
           </span>
           <span className="size-9" aria-hidden="true" />
