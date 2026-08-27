@@ -5,6 +5,7 @@ import { Morph, Screen, useNavigate, useParams } from "@flemo/react";
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
+import CardBody from "../../_components/CardBody";
 import CardShell from "../../_components/CardShell";
 import CardTitle from "../../_components/CardTitle";
 
@@ -72,28 +73,32 @@ function ActScreen() {
         layoutId={params?.from === "cell" ? `card-${act.id}` : null}
         className="flex h-full flex-col bg-[var(--color-bg)]"
       >
-        <header className="flex shrink-0 items-center justify-between px-4 pt-4">
-          <button
-            type="button"
-            onClick={() => navigate.pop()}
-            aria-label={t.app.back}
-            className="grid size-9 cursor-pointer place-items-center rounded-full text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-layer)]"
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M15 6l-6 6 6 6"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-          <span className="text-xs font-bold tracking-[0.12em] text-[var(--color-text-disabled)] uppercase">
-            {t.app.detail}
-          </span>
-          <span className="size-9" aria-hidden="true" />
-        </header>
+        {/* Not paired with anything in the cell, so it does not ride the box
+            down to cell size. */}
+        <CardBody className="shrink-0">
+          <header className="flex items-center justify-between px-4 pt-4">
+            <button
+              type="button"
+              onClick={() => navigate.pop()}
+              aria-label={t.app.back}
+              className="grid size-9 cursor-pointer place-items-center rounded-full text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-layer)]"
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M15 6l-6 6 6 6"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+            <span className="text-xs font-bold tracking-[0.12em] text-[var(--color-text-disabled)] uppercase">
+              {t.app.detail}
+            </span>
+            <span className="size-9" aria-hidden="true" />
+          </header>
+        </CardBody>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-3 pb-4">
           <Morph
@@ -117,22 +122,24 @@ function ActScreen() {
               {act.artist}
             </CardTitle>
           </h2>
-          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-            {act.venue} · {act.day} {act.time}
-          </p>
+          <CardBody>
+            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+              {act.venue} · {act.day} {act.time}
+            </p>
 
-          <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
-            {t.app.body}
-          </p>
+            <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
+              {t.app.body}
+            </p>
 
-          <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px]">
-            {facts.map(([label, value]) => (
-              <div key={label} className="flex items-baseline justify-between gap-3">
-                <dt className="text-[var(--color-text-disabled)]">{label}</dt>
-                <dd className="m-0 font-semibold text-[var(--color-text-primary)]">{value}</dd>
-              </div>
-            ))}
-          </dl>
+            <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px]">
+              {facts.map(([label, value]) => (
+                <div key={label} className="flex items-baseline justify-between gap-3">
+                  <dt className="text-[var(--color-text-disabled)]">{label}</dt>
+                  <dd className="m-0 font-semibold text-[var(--color-text-primary)]">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </CardBody>
         </div>
 
         {/* The footer is a sibling of the scroller, not the last thing inside
@@ -141,15 +148,17 @@ function ActScreen() {
             the site's own MiniPlayer uses for a bar that sits over content;
             without them, the row clipped at the scroller's edge reads as being
             UNDER the button rather than scrolling behind it. */}
-        <div className="shrink-0 border-t border-[var(--color-border-light)] bg-[var(--color-bg)]/85 px-5 pt-4 pb-6 backdrop-blur-xl">
-          <button
-            type="button"
-            onClick={getTickets}
-            className="w-full cursor-pointer rounded-full bg-[var(--color-primary)] px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
-          >
-            {t.app.getTickets} · ₩{act.price}
-          </button>
-        </div>
+        <CardBody className="shrink-0">
+          <div className="border-t border-[var(--color-border-light)] bg-[var(--color-bg)]/85 px-5 pt-4 pb-6 backdrop-blur-xl">
+            <button
+              type="button"
+              onClick={getTickets}
+              className="w-full cursor-pointer rounded-full bg-[var(--color-primary)] px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
+            >
+              {t.app.getTickets} · ₩{act.price}
+            </button>
+          </div>
+        </CardBody>
       </CardShell>
     </Screen>
   );

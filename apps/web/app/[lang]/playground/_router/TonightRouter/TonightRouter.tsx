@@ -6,6 +6,7 @@ import sharedAxisBackward from "@/app/[lang]/_transitions/sharedAxisBackward";
 import sharedAxisForward from "@/app/[lang]/_transitions/sharedAxisForward";
 
 import aperture from "../../_transitions/aperture";
+import cardBody from "../../_transitions/cardBody";
 import drift from "../../_transitions/drift";
 import fadeThrough from "../../_transitions/fadeThrough";
 import recess from "../../_transitions/recess";
@@ -53,6 +54,9 @@ function TonightRouter({ bench }: TonightRouterProps) {
         // `drift` names this one. A decorator is registered by the Router, not
         // by the transition that asks for it.
         decorators={[recess]}
+        // `card-body` keeps the container transform's unpaired contents out of
+        // the frame while the card is still a travelling box.
+        partTransitions={[cardBody]}
         defaultTransitionName="cupertino"
         className="h-full w-full bg-[var(--color-bg)]"
       >
