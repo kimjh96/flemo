@@ -3,7 +3,7 @@ import { createElement, type PropsWithChildren, type ReactNode } from "react";
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CHROME_LEVEL, DECORATOR_LEVEL, OVERLAY_LEVEL } from "@flemo/core";
+import { OVERLAY_LEVEL } from "@flemo/core";
 import type { History, SharedBarPresence, TransitionName } from "@flemo/core";
 
 import Screen from "@screen/Screen";
@@ -216,14 +216,12 @@ describe("Screen", () => {
     expect(screenContainer!.style.zIndex).toBe("1");
   });
 
-  // flemo's own chrome carries stated levels rather than leaning on where it
-  // happens to sit in this file. Tree order said the same thing right up until
-  // a <Layer> host joined the container — and then the dim, which has to reach
-  // a screen's overlay as well as its content, had nothing to say so with. The
-  // numbers cannot escape the screen either way: the container's `isolation:
-  // isolate` bounds them, which is what the covered screen's dim reaching the
-  // incoming one taught.
-  it("orders its own chrome under its overlay under its dim", () => {
+  // flemo's own chrome stays UNNUMBERED, and that is the assertion. Giving the
+  // bars and the dim explicit levels reads as tidier and demotes whatever
+  // consumer content used to outrank them at `auto` — measured in a consumer
+  // app as a bottom sheet that stopped covering the tab bar. Only the <Layer>
+  // host bids, because it has to clear the screens inside the scope it left.
+  it("numbers its overlay host and nothing else", () => {
     stores.history.setState({ index: 0, histories: [] });
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
 
@@ -240,16 +238,9 @@ describe("Screen", () => {
 
     expect(bar).not.toBeNull();
     expect(host).not.toBeNull();
-    expect(Number(bar!.style.zIndex)).toBe(CHROME_LEVEL);
+    expect(bar!.style.zIndex).toBe("");
+    if (decorator) expect(decorator.style.zIndex).toBe("");
     expect(Number(host!.style.zIndex)).toBe(OVERLAY_LEVEL);
-    // Guarded because the decorator only renders when the resolved transition
-    // declares one; the assertion below is the point, so it is stated as the
-    // relation rather than as the number it currently is.
-    if (decorator) {
-      expect(Number(decorator.style.zIndex)).toBe(DECORATOR_LEVEL);
-      expect(Number(decorator.style.zIndex)).toBeGreaterThan(Number(host!.style.zIndex));
-    }
-    expect(Number(host!.style.zIndex)).toBeGreaterThan(Number(bar!.style.zIndex));
   });
 
   it("keeps a deeper prev screen frozen once the top has moved more than one entry past it", () => {

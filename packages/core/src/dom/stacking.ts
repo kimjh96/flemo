@@ -2,48 +2,44 @@
 //
 // A screen container is a stacking context of its own (`isolation: isolate`),
 // so everything below is ordered against its siblings and against nothing
-// else. Screens themselves are ordered by their stack position on the
-// container; this table is about what a single screen puts INSIDE that box.
+// else. This table is about what a single screen puts INSIDE that box.
 //
-//   content   the scope: the element that moves, and everything the consumer
-//             wrote in the screen
-//   chrome    the shared top/bottom bars, which are rendered beside the scope
-//             so they can be handed between two screens
-//   overlay   a <Layer>'s host slot — content that had to leave the scope
-//             because a moving screen is a containing block and a stacking
-//             context for its descendants, and an overlay that must cover the
-//             chrome cannot be one of them
-//   decorator the dim, which is the last thing a screen paints over itself
+// Almost none of it carries a number, and that is deliberate. The scope is in
+// flow; the shared bars and the dim are positioned siblings that come after it
+// in the tree, so paint order already puts them over the screen's content
+// without anyone bidding. Numbering them looks tidier and is a regression: a
+// consumer's own positioned content, and flemo's own nested screen containers,
+// live INSIDE the scope and leak their z-indexes into this same context, so
+// raising the bars to 1 silently demotes everything that used to outrank them
+// at `auto`. Measured in a consumer app: a bottom sheet that covered the tab
+// bar on the previous release stopped covering it, because the nested screen
+// container holding the sheet also sits at 1 and lost the tie on tree order.
 //
-// Every one of these was previously `z-index: auto` and ordered by document
-// position alone. That worked, and it was unwritable: it could not be stated,
-// asserted, or read by a consumer deciding what number their own content
-// needs. Worse, it made the ordering an accident of JSX order — moving one
-// element in the tree silently reordered paint. The numbers below say the same
-// thing the tree used to say, out loud.
-//
-// The decorator sits ABOVE the overlay deliberately. A screen going behind
-// another one dims; if the dim stopped below the overlay, a covered screen
-// would darken while its own sheet stayed bright.
+// The one thing that does carry a number is the <Layer> host, because it has a
+// real bid to win: it must outrank everything inside the scope it escaped —
+// the nested screens included, whose containers number themselves by stack
+// position and climb as the stack grows.
 
-/** The scope, and the consumer content inside it. Left implicit at `auto`. */
-export const CONTENT_LEVEL = "auto";
-
-/** Shared top and bottom bars, over the screen's content. */
-export const CHROME_LEVEL = 1;
-
-/** A `<Layer>` host slot, over the chrome it exists to cover. */
-export const OVERLAY_LEVEL = 2;
-
-/** The dim, over everything the screen owns — its overlay included. */
-export const DECORATOR_LEVEL = 3;
+/** The scope, the bars and the dim: ordered by paint order, not by number. */
+export const UNNUMBERED_LEVEL = "auto";
 
 /**
- * The order as one readable list, so a test can assert the relation rather
- * than restate the numbers and drift from them.
+ * The `<Layer>` host.
+ *
+ * Above any screen container this context can contain. A screen container is
+ * its stack position plus one, so the ceiling is a stack depth — this clears a
+ * depth no navigation stack reaches, and cannot leak past the container that
+ * isolates it.
+ */
+export const OVERLAY_LEVEL = 100000;
+
+/**
+ * The order as one readable list, so a test asserts the relation rather than
+ * restating the numbers and drifting from them.
  */
 export const SCREEN_STACKING_ORDER = [
-  { role: "chrome", level: CHROME_LEVEL },
-  { role: "overlay", level: OVERLAY_LEVEL },
-  { role: "decorator", level: DECORATOR_LEVEL }
+  { role: "content", level: UNNUMBERED_LEVEL },
+  { role: "chrome", level: UNNUMBERED_LEVEL },
+  { role: "decorator", level: UNNUMBERED_LEVEL },
+  { role: "overlay", level: OVERLAY_LEVEL }
 ] as const;

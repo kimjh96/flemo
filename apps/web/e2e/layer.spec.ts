@@ -122,23 +122,33 @@ test.describe("overlay layering", () => {
     expect(result.viewportBottom - result.sheetBottom).toBeLessThanOrEqual(1);
   });
 
-  test("the same sheet written in the screen never reaches the bar at all", async ({ page }) => {
+  test("the same sheet written in the screen is fine at rest and collapses in flight", async ({
+    page
+  }) => {
     await openSheet(page, false);
 
-    // At rest the sheet DOES reach the viewport floor — `position: fixed`
-    // walks past an `overflow: hidden` ancestor that is not a containing block
-    // — and still loses, because the ancestor's bar is a positioned sibling
-    // above the whole region and a z-index written inside the region has
-    // nothing to bid against it with.
+    // At REST the two placements are indistinguishable, and saying so is the
+    // honest half of the story. A screen at rest carries no transform, so a
+    // `position: fixed` sheet resolves against the viewport and outranks the
+    // bar with a z-index of its own — which is exactly what
+    // .changeset/slot-fixed-overlays-escape.md promises, and what a consumer
+    // who never moves a screen with an overlay open still gets for free.
+    //
+    // This assertion was briefly inverted, against a build where the bars had
+    // been given an explicit z-index that broke that promise. Measuring the
+    // library and then rewriting the test to agree with it is how a regression
+    // becomes a specification.
     const atRest = await atTheBar(page);
-    expect(atRest.verdict).toBe("bar");
+    expect(atRest.verdict).toBe("sheet");
     expect(atRest.viewportBottom - atRest.sheetBottom).toBeLessThanOrEqual(1);
 
     await page.locator(STEP).click();
     await waitForDeparture(page);
 
-    // And the flight adds the third wall: the screen's transform becomes a
-    // containing block, so `bottom: 0` stops meaning the viewport entirely.
+    // And in flight it collapses. The screen's transform becomes a containing
+    // block, so `bottom: 0` stops meaning the viewport and starts meaning the
+    // screen box — which ends above the bar. It does not lose a stacking
+    // fight; it never reaches the fight.
     const inFlight = await atTheBar(page);
     expect(inFlight.viewportBottom - inFlight.sheetBottom).toBeGreaterThanOrEqual(60);
 

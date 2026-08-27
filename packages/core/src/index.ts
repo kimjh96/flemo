@@ -235,13 +235,7 @@ export {
 // The STACKING CONTRACT a screen keeps inside its own box: content under its
 // chrome, chrome under an overlay that exists to cover it, and the dim over
 // all three. See @dom/stacking.
-export {
-  CHROME_LEVEL,
-  CONTENT_LEVEL,
-  DECORATOR_LEVEL,
-  OVERLAY_LEVEL,
-  SCREEN_STACKING_ORDER
-} from "@dom/stacking";
+export { OVERLAY_LEVEL, SCREEN_STACKING_ORDER, UNNUMBERED_LEVEL } from "@dom/stacking";
 // The `flemo:*` DIAGNOSTIC-FLAG REGISTRY: what each storage key is, what it
 // defaults to, and which keys are retired residue. Exported so a report or a
 // panel enumerates the flags the library actually reads instead of a copy that

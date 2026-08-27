@@ -16,7 +16,6 @@ import {
   ACTIVE_ATTR,
   ANIM_HOLD_ATTR,
   beginMorphSwipe,
-  CHROME_LEVEL,
   computeBarRiding,
   computeScreenFreeze,
   eagerlyDecodeImages,
@@ -1186,13 +1185,7 @@ function ScreenMotion({
             position: screenPosition,
             top: !hideStatusBar ? statusBarHeight : 0,
             left: 0,
-            width: "100%",
-            // Chrome, stated rather than inferred from JSX order. See
-            // SCREEN_STACKING_ORDER: this used to be `auto` and paint above
-            // the scope only because it comes after it in the tree, which put
-            // a screen's paint order at the mercy of where an element sits in
-            // this file.
-            zIndex: CHROME_LEVEL
+            width: "100%"
           }}
         >
           {sharedTopBar}
@@ -1217,8 +1210,7 @@ function ScreenMotion({
             position: screenPosition,
             bottom: !hideSystemNavigationBar ? systemNavigationBarHeight : 0,
             left: 0,
-            width: "100%",
-            zIndex: CHROME_LEVEL
+            width: "100%"
           }}
         >
           {sharedBottomBar}
