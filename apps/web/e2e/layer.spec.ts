@@ -387,6 +387,76 @@ test.describe("overlay layering", () => {
     expect(await verdictFor(true)).toBe("dim over sheet");
   });
 
+  test("an overlay opened while the screen is still settling still clears the bar", async ({
+    page
+  }) => {
+    // Reported from a device: swipe back, then press quickly, and the tab bar
+    // is briefly on top.
+    //
+    // The cause is not a leftover of any kind. The release animation is still
+    // RUNNING for roughly 150ms after the finger lifts, so the screen genuinely
+    // carries a transform — measured at -18.9px one frame after mouse-up, gone
+    // by +150ms — and a transform is a containing block, so a `position: fixed`
+    // overlay opened in that window anchors to the screen box and stops above
+    // the bar. It is the same fact this whole component exists for, showing up
+    // in a window a fast finger can reach rather than during an obvious push.
+    // Reproduced identically against a build of main, so it is not this
+    // branch's; and there is no fix for it that leaves the overlay inside the
+    // screen.
+    await page.goto("/playground/layer");
+    await waitForNavIdle(page);
+    await page.locator(STEP).click();
+    await waitForNavIdle(page);
+
+    const viewport = page.viewportSize()!;
+    await page.mouse.move(2, viewport.height / 2);
+    await page.mouse.down();
+    for (const x of [40, 140, 260, 370]) {
+      await page.mouse.move(x, viewport.height / 2, { steps: 2 });
+      await page.waitForTimeout(25);
+    }
+    await page.mouse.up();
+
+    // Wait for THE WINDOW ITSELF — the returning screen still transformed —
+    // rather than for a clock or for some other property that happens to
+    // coincide with it. If it never appears there is nothing here to test and
+    // this fails rather than passing vacuously.
+    await page.waitForFunction(
+      () => {
+        const owner = document
+          .querySelector('[data-layer-step="A"]')
+          ?.closest("[data-flemo-screen]");
+        return owner !== null && getComputedStyle(owner!).transform !== "none";
+      },
+      undefined,
+      { polling: "raf" }
+    );
+
+    // Dispatched rather than clicked: the outgoing screen is still on its way
+    // out and may sit over the button, and the question is paint order.
+    const trapped = await page.evaluate(() => {
+      const owner = document
+        .querySelector('[data-layer-step="A"]')
+        ?.closest("[data-flemo-screen]") as HTMLElement;
+      const before = getComputedStyle(owner).transform;
+      owner
+        .querySelector<HTMLElement>("[data-layer-open]")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      return before;
+    });
+
+    // The window was real when the sheet opened, so the assertion below is
+    // about something.
+    expect(trapped).not.toBe("none");
+
+    await expect(page.locator(SHEET)).toBeVisible();
+    const inWindow = await atTheBar(page);
+    expect(inWindow.verdict).toBe("sheet");
+    expect(inWindow.viewportBottom - inWindow.sheetBottom).toBeLessThanOrEqual(1);
+
+    await waitForNavIdle(page);
+  });
+
   test("the bar is reachable when the host is empty", async ({ page }) => {
     // The host spans the region. If it took pointers, the fixture's own bar
     // would stop hit-testing the moment a screen mounted, with nothing on
