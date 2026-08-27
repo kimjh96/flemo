@@ -770,8 +770,11 @@ function ScreenMotion({
           }
           // park-under sank the whole screen container beneath its cover;
           // the released flight must surface in the same frame its clock
-          // starts, not a React commit later.
-          if (screenRef.current) screenRef.current.style.zIndex = "";
+          // starts, not a React commit later. Restore the screen's own stack
+          // position rather than clearing the property: the containers are
+          // isolated, so `auto` would drop this screen behind every sibling
+          // that still carries a number.
+          if (screenRef.current) screenRef.current.style.zIndex = String(zIndex + 1);
           // From here on this screen renders as released, whoever renders it.
           releasedKeyRef.current = key;
         }
@@ -881,7 +884,7 @@ function ScreenMotion({
             : undefined
       }
     );
-  }, [animHold, holdKey, holdAttr, isActive, status, stores.navigate]);
+  }, [animHold, holdKey, holdAttr, isActive, status, stores.navigate, zIndex]);
 
   const initialStyle =
     holdAttr === ANIM_HOLD.PARK_UNDER || holdAttr === ANIM_HOLD.PARK_OVER
@@ -912,18 +915,33 @@ function ScreenMotion({
         // the cheap half: no boxes are removed and nothing is unmounted, so
         // waking is a repaint rather than a re-layout.
         visibility: paintHidden ? "hidden" : undefined,
-        // Sibling screens stack by DOM order (no z-index) — the newest screen
-        // naturally paints on top. During park-under the ENTERING screen must
-        // sink BENEATH the previous screen while its destination tiles
-        // pre-rasterize, and that stacking decision lives HERE on the outer
-        // container: a z-index on the inner scope only reorders within this
-        // box and leaks the park (a full-screen flash of the next screen).
-        zIndex: holdAttr === ANIM_HOLD.PARK_UNDER ? -1 : undefined,
-        // `contain: layout style` keeps layout/style scoped without `paint`,
-        // which would make this element the containing block for `position:
-        // fixed` descendants and trap consumer overlays (e.g. bottom sheets)
-        // inside the screen.
-        contain: "layout style",
+        // Sibling screens carry their own stack position rather than leaning
+        // on DOM order, because `isolation` below hands the ordering of
+        // anything that escapes a screen to THIS number. Without it a
+        // consumer's `z-index: 1` beat every sibling container at `auto` and
+        // painted over the screen that covered it. Offset by one so the
+        // bottom screen still sits above an unpositioned ancestor background.
+        //
+        // During park-under the ENTERING screen must sink BENEATH the previous
+        // screen while its destination tiles pre-rasterize, and that stacking
+        // decision lives HERE on the outer container: a z-index on the inner
+        // scope only reorders within this box and leaks the park (a
+        // full-screen flash of the next screen). One below the previous
+        // screen's own number does it, and never goes negative — park-under
+        // only arms on a push, so there is always a screen beneath.
+        zIndex: holdAttr === ANIM_HOLD.PARK_UNDER ? zIndex - 1 : zIndex + 1,
+        // A stacking context WITHOUT a containing block, which is the whole
+        // point: layout/paint containment and transforms would give both, and
+        // the containing block is what trapped consumer bottom sheets inside a
+        // nested Slot (#341). `isolation` confines what a screen stacks —
+        // flemo's own dim and bars, and the consumer's own z-index — while a
+        // `position: fixed` overlay still resolves against the viewport. It
+        // reaches over the surrounding shared bars because this container
+        // outranks them, not because it escaped the screen.
+        isolation: "isolate",
+        // Style containment scopes counters and quotes. It is not what keeps
+        // the screen's stacking to itself; `isolation` above is.
+        contain: "style",
         flexDirection: "column",
         boxSizing: "border-box",
         overscrollBehavior: "contain"
@@ -1121,8 +1139,7 @@ function ScreenMotion({
             position: screenPosition,
             top: !hideStatusBar ? statusBarHeight : 0,
             left: 0,
-            width: "100%",
-            zIndex: 1
+            width: "100%"
           }}
         >
           {sharedTopBar}
@@ -1147,8 +1164,7 @@ function ScreenMotion({
             position: screenPosition,
             bottom: !hideSystemNavigationBar ? systemNavigationBarHeight : 0,
             left: 0,
-            width: "100%",
-            zIndex: 1
+            width: "100%"
           }}
         >
           {sharedBottomBar}
