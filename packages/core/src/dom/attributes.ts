@@ -99,6 +99,17 @@ export const DECORATOR_ATTR = "data-flemo-decorator";
 /** The decorator definition's name, for its own compiled rules. */
 export const DECORATOR_NAME_ATTR = "data-flemo-decorator-name";
 
+// ── Layer ───────────────────────────────────────────────────────────────────
+
+/**
+ * The `<Layer>` host: a childless element rendered as the LAST child of the
+ * screen container, beside the scope rather than inside it. A moving screen is
+ * a containing block and a stacking context for its DESCENDANTS, so an overlay
+ * that has to outrank the shared bars is portaled here, where the screen's
+ * transform cannot reach it, and where it still belongs to this screen.
+ */
+export const LAYER_HOST_ATTR = "data-flemo-layer-host";
+
 // ── Parts ───────────────────────────────────────────────────────────────────
 
 /**
@@ -318,6 +329,7 @@ export const FLEMO_ATTRIBUTES = [
   BAR_SPACER_ATTR,
   DECORATOR_ATTR,
   DECORATOR_NAME_ATTR,
+  LAYER_HOST_ATTR,
   PART_NAME_ATTR,
   MORPH_ATTR,
   MORPH_CAMERA_ATTR,

@@ -32,6 +32,7 @@ import {
   type MorphSwipe
 } from "@flemo/core";
 
+import LayerHostContext, { useLayerHost } from "@screen/LayerHostContext";
 import getScopeAnimHoldCoordinator from "@screen/scopeAnimHoldCoordinator";
 
 import type { ScreenProps } from "@screen/Screen";
@@ -171,6 +172,22 @@ function ScreenMotion({
   const bottomBarKey = hasSharedBottomBar
     ? `${typeof sharedBottomBarId}:${String(sharedBottomBarId)}`
     : null;
+
+  // State rather than a ref: `<Layer>` portals into this element, and a portal
+  // can only render once its target exists. A ref would hold the host without
+  // ever telling the children it arrived.
+  const [layerHost, setLayerHost] = useState<HTMLDivElement | null>(null);
+  // A nested <Router>'s screens do NOT take the host over: the outermost one
+  // wins, and an inner screen never renders one at all.
+  //
+  // Because shared bars belong to whichever screen declares them, and that is
+  // usually the OUTER screen holding the <Slot>. Measured on a nested chain: a
+  // sheet hosted in the nested container still lost to the tab bar, because the
+  // nested container is itself just one z-index inside the outer screen and the
+  // consumer's bar wrapper outranked it there. Hoisting to the outermost
+  // container puts the overlay past every bar in its way.
+  const parentLayerHost = useLayerHost();
+  const hostedLayerTarget = parentLayerHost ?? layerHost;
 
   const [topBarMeasurement, setTopBarMeasurement] = useState({
     key: topBarKey,
@@ -968,6 +985,20 @@ function ScreenMotion({
           backgroundColor,
           overflowY: contentScrollable ? undefined : "auto",
           touchAction: swipeDirection === "x" ? "pan-y" : swipeDirection === "y" ? "pan-x" : "auto",
+          // Layout containment lives HERE, on the element that moves, not on
+          // the container it sits in (#341 took it off the container because
+          // there it also caught the container's other children — including
+          // the <Layer> host, whose whole job is to escape). On the scope it
+          // confines what the screen owns and leaves the host, its sibling,
+          // alone: measured in a nested Slot, a hosted sheet still reaches the
+          // viewport floor with this set and with the scope transformed.
+          //
+          // `layout` and not `strict`: `size` collapses a screen whose height
+          // is ever content-derived, and `paint` clips a consumer's dropdown
+          // or shadow at the screen edge. Neither buys anything measurable —
+          // #341 timed containment on 3,000 nodes and the values overlapped
+          // inside their own error.
+          contain: "layout style",
           // preraster: promote the CONTENT layer from the hold onward so the
           // tiles the outer near-zero-opacity forces WebKit to paint during
           // park-under rasterize into a composited backing store that SURVIVES
@@ -1086,11 +1117,16 @@ function ScreenMotion({
             // iOS simulator, and Chrome frame telemetry. Dropping the transform
             // also stops this box from being a containing block, so a consumer
             // `position: fixed` overlay works inside the content without any
-            // escape hatch (the former <Layer>).
+            // escape hatch — at REST. A moving screen carries a transform, and
+            // that is a containing block and a stacking context no matter what
+            // this box does, so an overlay that has to outrank the shared bars
+            // during a flight goes through <Layer> to the host below.
             overflowY: contentScrollable ? "auto" : undefined
           }}
         >
-          {children}
+          <LayerHostContext.Provider value={hostedLayerTarget}>
+            {children}
+          </LayerHostContext.Provider>
         </div>
         {bottomBar}
         {sharedBottomBar && (
@@ -1171,6 +1207,23 @@ function ScreenMotion({
         </div>
       )}
       {decorator && <ScreenDecorator ref={decoratorRef} data-flemo-anim-hold={holdAttr} />}
+      {/*
+        The <Layer> host. Last child of the container and BESIDE the scope, so
+        the transform that moves the screen cannot reach what is portaled here
+        — a transform binds descendants, and this is a sibling. It therefore
+        carries nothing of its own: no transform, no containment, no promotion.
+        A `position: fixed` child of it resolves against the viewport, which is
+        what a consumer writing `bottom: 0` meant.
+
+        `z-index: 2` is the one thing it does carry: the shared bars are
+        positioned siblings at 1, and an overlay exists to cover them. It stays
+        INSIDE this container, so a covered screen's overlay is still covered
+        by the screen above — the ordering that portaling to `document.body`
+        gives up.
+      */}
+      {!parentLayerHost && (
+        <div ref={setLayerHost} data-flemo-layer-host="" style={{ zIndex: 2 }} />
+      )}
     </div>
   );
 }
