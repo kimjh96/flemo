@@ -6,6 +6,7 @@ import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
 import CardShell from "../../_components/CardShell";
+import CardTitle from "../../_components/CardTitle";
 
 import { actById, artworkFor } from "../../_data/acts";
 import { useBench } from "../../_providers/BenchContext";
@@ -57,7 +58,20 @@ function ActScreen() {
 
   return (
     <Screen statusBarHeight="0px" systemNavigationBarHeight="0px" backgroundColor="var(--color-bg)">
-      <div className="flex h-full flex-col">
+      {/* THE WHOLE SCREEN IS THE CARD under the container transform: the cell
+          becomes this page, chrome included, rather than releasing a square
+          into a page that was already drawn at full size around it. An earlier
+          shape wrapped only the scrolling body, and the header and the buy
+          control then sat at full width from the first frame while the card was
+          still cell-sized.
+
+          It pairs only when a grid cell opened this screen, because a morph
+          with no partner on the other side is a promise flemo cannot keep, and
+          only the grid draws a card. */}
+      <CardShell
+        layoutId={params?.from === "cell" ? `card-${act.id}` : null}
+        className="flex h-full flex-col bg-[var(--color-bg)]"
+      >
         <header className="flex shrink-0 items-center justify-between px-4 pt-4">
           <button
             type="button"
@@ -82,54 +96,43 @@ function ActScreen() {
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-3 pb-4">
-          {/* THE PAGE IS THE CARD under the container transform, which is what
-              makes the cell become this screen rather than release a square
-              into it. It pairs only when a grid cell opened this, because a
-              morph with no partner on the other side is a promise flemo cannot
-              keep, and only the grid draws a card.
+          <Morph
+            // The BIG side. It names the same morph AND the same id as the
+            // surface that opened it, because a pair whose two halves disagree
+            // is not a pair. The list scopes its ids to rows and the posters
+            // grid scopes its to cells, so which one to answer to arrives on
+            // the route rather than being guessed.
+            name={morph}
+            layoutId={`${params?.from ?? "row"}-${act.id}`}
+            className="block aspect-square w-full rounded-2xl shadow-lg"
+            style={{ background: artworkFor(act.hue) }}
+            aria-hidden="true"
+          />
 
-              The ARRANGEMENT matches the cell on purpose: artwork across the
-              content width, then the name, then the line of meta, all reading
-              down and all aligned the same way. The deleted playground recorded
-              what happens otherwise, with a row list against this page: "every
-              intermediate frame is a stretched hybrid". */}
-          <CardShell
-            layoutId={params?.from === "cell" ? `card-${act.id}` : null}
-            className="block min-h-full bg-[var(--color-bg)]"
-          >
-            <Morph
-              // The BIG side. It names the same morph AND the same id as the
-              // surface that opened it, because a pair whose two halves disagree
-              // is not a pair. The list scopes its ids to rows and the posters
-              // grid scopes its to cells, so which one to answer to arrives on
-              // the route rather than being guessed.
-              name={morph}
-              layoutId={`${params?.from ?? "row"}-${act.id}`}
-              className="block aspect-square w-full rounded-2xl shadow-lg"
-              style={{ background: artworkFor(act.hue) }}
-              aria-hidden="true"
-            />
-
-            <h2 className="mt-4 text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
+          <h2 className="mt-4">
+            <CardTitle
+              layoutId={params?.from === "cell" ? `cardname-${act.id}` : null}
+              className="block text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]"
+            >
               {act.artist}
-            </h2>
-            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-              {act.venue} · {act.day} {act.time}
-            </p>
+            </CardTitle>
+          </h2>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+            {act.venue} · {act.day} {act.time}
+          </p>
 
-            <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
-              {t.app.body}
-            </p>
+          <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
+            {t.app.body}
+          </p>
 
-            <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px]">
-              {facts.map(([label, value]) => (
-                <div key={label} className="flex items-baseline justify-between gap-3">
-                  <dt className="text-[var(--color-text-disabled)]">{label}</dt>
-                  <dd className="m-0 font-semibold text-[var(--color-text-primary)]">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </CardShell>
+          <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px]">
+            {facts.map(([label, value]) => (
+              <div key={label} className="flex items-baseline justify-between gap-3">
+                <dt className="text-[var(--color-text-disabled)]">{label}</dt>
+                <dd className="m-0 font-semibold text-[var(--color-text-primary)]">{value}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
 
         {/* The footer is a sibling of the scroller, not the last thing inside
@@ -147,7 +150,7 @@ function ActScreen() {
             {t.app.getTickets} · ₩{act.price}
           </button>
         </div>
-      </div>
+      </CardShell>
     </Screen>
   );
 }

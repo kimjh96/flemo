@@ -6,6 +6,7 @@ import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
 import CardShell from "../../_components/CardShell";
+import CardTitle from "../../_components/CardTitle";
 import TabBar from "../../_components/TabBar";
 
 import { ACTS, artworkFor } from "../../_data/acts";
@@ -85,9 +86,12 @@ function PostersScreen() {
                     style={{ background: artworkFor(act.hue) }}
                     aria-hidden="true"
                   />
-                  <span className="mt-2 block truncate px-0.5 text-[13px] font-semibold text-[var(--color-text-primary)]">
+                  <CardTitle
+                    layoutId={`cardname-${act.id}`}
+                    className="mt-2 block truncate px-0.5 text-[13px] font-semibold text-[var(--color-text-primary)]"
+                  >
                     {act.artist}
-                  </span>
+                  </CardTitle>
                   <span className="mt-0.5 block truncate px-0.5 pb-0.5 text-[11px] text-[var(--color-text-disabled)]">
                     {act.day} {act.time} · ₩{act.price}
                   </span>

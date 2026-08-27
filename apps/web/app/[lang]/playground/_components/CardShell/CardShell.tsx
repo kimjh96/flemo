@@ -41,8 +41,15 @@ function CardShell({ layoutId, className, children }: PropsWithChildren<CardShel
   // The artwork inside pairs as well, and that is required rather than extra:
   // a nested morph RIDES its container, and letting the two fly on their own
   // curves is what tears a card apart mid-flight (see `attachMorph`).
+  // `overflow: hidden` is what makes the growth READ as growth. flemo animates
+  // the layout BOX and lets the subtree lay itself out at every size on the way
+  // ("A box, not a scale ... text becomes a blown-up bitmap and the contents
+  // cannot find their own places"), so the page's own type is at page size from
+  // the first frame, inside a box still the size of a cell. Unclipped it spills
+  // across the grid; clipped, the card reveals its contents as it makes room
+  // for them.
   return (
-    <Morph name="zoom" layoutId={layoutId} className={className}>
+    <Morph name="zoom" layoutId={layoutId} className={`overflow-hidden ${className ?? ""}`}>
       {children}
     </Morph>
   );
