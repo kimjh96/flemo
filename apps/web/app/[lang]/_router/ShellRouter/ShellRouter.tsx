@@ -7,7 +7,6 @@ import createLocaleHistoryDriver from "@/lib/localeHistoryDriver";
 
 import SiteHeader from "@/app/[lang]/_components/SiteHeader";
 import HomeScreen from "@/app/[lang]/_screens/HomeScreen";
-import PlaygroundScreen from "@/app/[lang]/playground/_screens/PlaygroundScreen";
 import DocsScreen from "@/app/[lang]/docs/_screens/DocsScreen";
 import ShowcaseScreen from "@/app/[lang]/showcase/_screens/ShowcaseScreen";
 import docsEnter from "@/app/[lang]/_transitions/docsEnter";
@@ -50,7 +49,6 @@ function ShellRouter({ initPath }: ShellRouterProps) {
         <Slot className="h-full w-full">
           <Route path="/" element={<HomeScreen />} />
           <Route path="/showcase" element={<ShowcaseScreen />} />
-          <Route path="/playground" element={<PlaygroundScreen />} />
           <Route path={["/docs", "/docs/:slug"]} element={<DocsScreen />} />
         </Slot>
       </div>
