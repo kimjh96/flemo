@@ -5,3 +5,9 @@ node_modules
 coverage
 pnpm-lock.yaml
 *.md.snap
+# lervo:begin document-rewrite-ownership schema=1
+AGENTS.md
+CLAUDE.md
+docs/architecture/motion-engine.md
+packages/devtools/README.md
+# lervo:end document-rewrite-ownership
