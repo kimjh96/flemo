@@ -736,7 +736,11 @@ function ScreenMotion({
         getElements: () => ({
           scope: scopeRef.current,
           decorator: decoratorRef.current,
-          bars: [sharedTopBarRef.current, sharedBottomBarRef.current]
+          bars: [sharedTopBarRef.current, sharedBottomBarRef.current],
+          // Not the overlays themselves: a nested screen's <Layer> lives in an
+          // ancestor's host, so which elements ride is a rule over the DOM
+          // rather than a ref the binding holds (see core layerRiders.ts).
+          screenContainer: screenRef.current
         }),
         transitionName,
         prevTransitionName,

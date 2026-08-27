@@ -6,8 +6,9 @@ import { resolveVariantMotion, type VariantMotion } from "@transition/variantMot
 
 import { collectScreenParts, collectVariantParts } from "@core/engine/flightParticipants";
 import { governedEasingForMotion } from "@core/engine/landingGovernor";
+import { isRider } from "@core/engine/layerRiders";
 import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
-import { BAR_RIDING_ATTR, PART_NAME_ATTR } from "@dom/attributes";
+import { PART_NAME_ATTR } from "@dom/attributes";
 import { learnedFrameIntervalMs } from "@platform/displayCadence";
 import { COMPILED_TIER_MAX_INTERVAL_MS } from "@platform/displayProbe";
 import { detectBlinkEngine } from "@platform/engineProbes";
@@ -72,7 +73,7 @@ export const holdParticipantLayers = (
       scope.style.animationTimingFunction = easing;
     }
     for (const bar of bars ?? []) {
-      if (bar?.getAttribute(BAR_RIDING_ATTR) === "true") {
+      if (isRider(bar)) {
         holdScopeLayer(bar, transition, containment, owner);
         if (easing) {
           trackInlineWrite(bar, "animation-timing-function", owner);

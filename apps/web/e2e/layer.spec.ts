@@ -284,6 +284,39 @@ test.describe("overlay layering", () => {
     );
   });
 
+  test("an overlay is promoted for the flight like a riding bar is", async ({ page }) => {
+    // The engine pins each participant's compositor layer inline for the whole
+    // flight, because the compiled rule's own `will-change` UN-matches at the
+    // COMPLETED flip and would demote and repaint on exactly the frames the
+    // eye watches settle. Riding bars have been in that set for a long time.
+    // An overlay rides the same keyframes, so it belongs in it too — and this
+    // is the half no coordinate check can see: the sheet lands in the right
+    // place either way, and only the frames differ.
+    await openSheet(page, true);
+    await page.locator(STEP).click();
+    await waitForDeparture(page);
+
+    const promoted = await page.evaluate(() => {
+      // Riders IN this flight only. A host whose own screen is idle carries a
+      // status too, and it is correctly left alone — asserting on every rider
+      // would fail on the one element that is behaving.
+      const flying = [
+        ...document.querySelectorAll<HTMLElement>(
+          "[data-flemo-layer-host], [data-flemo-layer-slot]"
+        )
+      ].filter((element) => {
+        const status = element.getAttribute("data-flemo-status") ?? "";
+        return status === "PUSHING" || status === "POPPING" || status === "REPLACING";
+      });
+      return flying.map((element) => element.style.willChange);
+    });
+
+    expect(promoted.length).toBeGreaterThan(0);
+    for (const willChange of promoted) expect(willChange).not.toBe("");
+
+    await waitForNavIdle(page);
+  });
+
   test("the bar is reachable when the host is empty", async ({ page }) => {
     // The host spans the region. If it took pointers, the fixture's own bar
     // would stop hit-testing the moment a screen mounted, with nothing on

@@ -23,6 +23,7 @@ import {
 import { resolveFlightRouting } from "@core/engine/flightRouting";
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
 
+import { collectLayerRiders, isRider } from "@core/engine/layerRiders";
 import {
   armFlightStartAnchorAtRelease,
   holdNativeClocksToFirstFrame,
@@ -43,7 +44,6 @@ import {
 import {
   ACTIVE_ATTR,
   ANIM_HOLD_ATTR,
-  BAR_RIDING_ATTR,
   CREEP_ATTR,
   DESK_HEAD_ATTR,
   GOVERNED_ATTR,
@@ -205,7 +205,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // imageDecodeHygiene.ts; device-attributed via the noR tracer gaps). The
     // returning screen of a pop is the passive-fork case exactly.
     if (isTransitional) {
-      const { scope: early, bars: earlyBars } = getElements();
+      const { scope: early, bars: earlyBars, screenContainer: earlyContainer } = getElements();
+      const earlyRiders = [...(earlyBars ?? []), ...collectLayerRiders(earlyContainer ?? null)];
       if (early) {
         stampAsyncImageDecode(early);
         // Release a PREVIOUS flight's landing-snap easing stake (this engine
@@ -227,7 +228,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
             layerOwner
           );
         }
-        for (const bar of earlyBars ?? []) {
+        for (const bar of earlyRiders) {
           if (bar)
             clearInlineAnimation(
               bar,
@@ -278,7 +279,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       variant: TransitionVariant
     ): (() => void)[] => {
       const detachers: (() => void)[] = [];
-      const { decorator, bars } = getElements();
+      const { decorator, bars, screenContainer } = getElements();
+      const riders = [...(bars ?? []), ...collectLayerRiders(screenContainer ?? null)];
       const transition = resolveTransition(transitionName);
 
       const wirePure = (element: HTMLElement, expectedName: string, motion: VariantMotion) => {
@@ -305,8 +307,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       const screenName = animationName("screen", transitionName, variant);
       const screenMotion = resolveVariantMotion(transition, variant);
       if (screenMotion) {
-        for (const bar of bars ?? []) {
-          if (!bar || bar.getAttribute(BAR_RIDING_ATTR) !== "true") continue;
+        for (const bar of riders) {
+          if (!isRider(bar)) continue;
           wirePure(bar, screenName, screenMotion);
         }
       }
@@ -345,13 +347,14 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // under the new top (visible through any transparency, and a stale
       // baseline for the next transition).
       if (status === "COMPLETED") {
-        const { scope, decorator, bars } = getElements();
+        const { scope, decorator, bars, screenContainer } = getElements();
+        const riders = [...(bars ?? []), ...collectLayerRiders(screenContainer ?? null)];
         if (scope) {
           clearInlineAnimation(scope);
           for (const part of collectScreenParts(scope)) clearInlineAnimation(part);
         }
         if (decorator) clearInlineAnimation(decorator);
-        for (const bar of bars ?? []) {
+        for (const bar of riders) {
           // Bars are the one participant class SHARABLE across drivers (an
           // engine flight and a swipe both promote riding bars), so their
           // COMPLETED cleanup releases only THIS engine's stakes — the
@@ -364,7 +367,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // commits (see layerSettleHold.ts). clearInlineAnimation never
         // touches the stamps (will-change/contain are not tracked writes),
         // so the order is free.
-        releaseParticipantLayers({ scope, decorator, bars: bars ?? [] }, layerOwner);
+        releaseParticipantLayers({ scope, decorator, bars: riders }, layerOwner);
         return noop;
       }
       // A prev screen entering a differently-transitioned replace flips the
@@ -379,10 +382,11 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // frames. Stamped from the FIRST transitional effect — the rules
       // promote from the same commit.
       if (isTransitional) {
-        const { scope, decorator, bars } = getElements();
+        const { scope, decorator, bars, screenContainer } = getElements();
+        const riders = [...(bars ?? []), ...collectLayerRiders(screenContainer ?? null)];
         if (scope) {
           holdParticipantLayers(
-            { scope, decorator, bars: bars ?? [] },
+            { scope, decorator, bars: riders },
             resolveTransition(transitionName),
             `${status}-false` as TransitionVariant,
             layerOwner
@@ -441,7 +445,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // navigation may have left on this screen and its related elements, so
       // the next push/pop runs against the compiled CSS rest rule on a clean
       // slate.
-      const { scope, decorator, bars } = getElements();
+      const { scope, decorator, bars, screenContainer } = getElements();
+      const riders = [...(bars ?? []), ...collectLayerRiders(screenContainer ?? null)];
       if (scope) {
         clearInlineAnimation(scope);
         // The force clear above releases LEASED properties, but a pose channel
@@ -467,7 +472,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         clearInlineAnimation(decorator);
         decorator.removeAttribute(SKIP_ANIMATION_ATTR);
       }
-      for (const bar of bars ?? []) {
+      for (const bar of riders) {
         // Owner-scoped for the same reason as the passive side: bars are the
         // one participant class sharable across drivers.
         if (bar) clearInlineAnimation(bar, undefined, layerOwner);
@@ -478,7 +483,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // were the full-viewport paint flash landing exactly on the frames the
       // eye watches settle. Swipe-promoted bar layers ride the same clock
       // (their inline promotion previously dropped IN this commit).
-      releaseParticipantLayers({ scope, decorator, bars: bars ?? [] }, layerOwner);
+      releaseParticipantLayers({ scope, decorator, bars: riders }, layerOwner);
       return noop;
     }
 
@@ -537,9 +542,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // on its OWN definition's animation, so a REVEAL-shaped active screen
     // still pins its animating decorator and parts.
     if (!skipAnimation) {
-      const { decorator, bars } = getElements();
+      const { decorator, bars, screenContainer } = getElements();
+      const riders = [...(bars ?? []), ...collectLayerRiders(screenContainer ?? null)];
       holdParticipantLayers(
-        { scope, decorator, bars: bars ?? [] },
+        { scope, decorator, bars: riders },
         currentTransition,
         variantKey,
         layerOwner
