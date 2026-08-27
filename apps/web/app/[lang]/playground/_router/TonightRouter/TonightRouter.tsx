@@ -5,6 +5,9 @@ import { Route, Router, Slot } from "@flemo/react";
 import sharedAxisBackward from "@/app/[lang]/_transitions/sharedAxisBackward";
 import sharedAxisForward from "@/app/[lang]/_transitions/sharedAxisForward";
 
+import drift from "../../_transitions/drift";
+import fadeThrough from "../../_transitions/fadeThrough";
+import recess from "../../_transitions/recess";
 import reveal from "../../_transitions/reveal";
 
 import ActScreen from "../../_screens/ActScreen";
@@ -44,7 +47,10 @@ function TonightRouter({ bench }: TonightRouterProps) {
       <Router
         initPath="/tonight"
         history="memory"
-        transitions={[reveal, sharedAxisForward, sharedAxisBackward]}
+        transitions={[reveal, drift, fadeThrough, sharedAxisForward, sharedAxisBackward]}
+        // `drift` names this one. A decorator is registered by the Router, not
+        // by the transition that asks for it.
+        decorators={[recess]}
         defaultTransitionName="cupertino"
         className="h-full w-full bg-[var(--color-bg)]"
       >

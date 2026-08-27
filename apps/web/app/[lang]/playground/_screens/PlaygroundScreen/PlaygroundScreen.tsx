@@ -47,7 +47,10 @@ function PlaygroundScreen() {
               it. The stage is as tall as the viewport allows, so top alignment
               left the whole lower half of a desktop window empty. */}
           <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-            <div className="order-2 flex max-w-[52ch] flex-col gap-5 lg:order-1">
+            {/* No measure on the column itself. Both paragraphs carry their
+                own, and capping the column made the seven-option selector wrap
+                with one pill stranded on a second row. */}
+            <div className="order-2 flex flex-col gap-5 lg:order-1">
               <h1 className="text-[clamp(1.75rem,3vw,2.25rem)] leading-[1.1] font-extrabold tracking-[-0.03em] text-[var(--color-text-primary)]">
                 {t.title}
               </h1>

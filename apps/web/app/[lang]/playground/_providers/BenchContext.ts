@@ -14,7 +14,24 @@ export interface Bench {
   transition: TransitionName;
 }
 
-export const TRANSITIONS: TransitionName[] = ["cupertino", "material", "layout", "none", "reveal"];
+// The four the library ships, then the three this page authors. Presets first
+// so the familiar ones are where a reader looks for them, and the authored ones
+// after, because the point of having them here is that a consumer's transition
+// is not a second class of thing.
+//
+// Each authored entry exists for something the presets do not cover:
+//   reveal        a clip-path wipe, on a property no preset animates
+//   drift         depth, with a decorator sized to its own clock
+//   fade-through  two fades in sequence rather than overlapped
+export const TRANSITIONS: TransitionName[] = [
+  "cupertino",
+  "material",
+  "layout",
+  "none",
+  "reveal",
+  "drift",
+  "fade-through"
+];
 
 export const DEFAULT_BENCH: Bench = { transition: "cupertino" };
 
