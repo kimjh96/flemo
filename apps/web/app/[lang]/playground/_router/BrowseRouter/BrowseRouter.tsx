@@ -2,55 +2,48 @@
 
 import { Route, Router, Slot } from "@flemo/react";
 
-import StackReadout from "../../_components/StackReadout";
+import StackReporter from "../../_components/StackReporter";
 
-import { barFade, barSlide } from "../../_transitions/barContent";
-import detailContent from "../../_transitions/detailContent";
+import BAR_PARTS from "../../_transitions/barContent";
+import BODY_PARTS from "../../_transitions/bodyContent";
 import fade from "../../_transitions/fade";
 import sheet from "../../_transitions/sheet";
-import stepContent from "../../_transitions/stepContent";
 
-import ListScreen from "../../_screens/ListScreen";
-import PieceScreen from "../../_screens/PieceScreen";
+import ActScreen from "../../_screens/ActScreen";
+import ActsScreen from "../../_screens/ActsScreen";
 
-import "../AppRouter/AppRouter.types";
+import "../TonightRouter/TonightRouter.types";
 
-const TRANSITIONS = [sheet, fade];
-const PART_TRANSITIONS = [barSlide, barFade, detailContent, stepContent];
+const TRANSITIONS = [fade, sheet];
+// Every generated part, registered together. They are generated per screen
+// transition (see `clocks.ts`), so registering the whole set is what guarantees
+// the bench cannot select a transition whose parts are missing.
+const PART_TRANSITIONS = [...BAR_PARTS, ...BODY_PARTS];
 
 // THE NESTED ROUTER: a stack of its own, inside one screen of the app's stack.
 //
-// Two kinds of chrome, and the difference between them is which side of the
-// <Slot> they are on.
-//
-// The app bar is a SHARED bar: the screens hand the same one up under one id,
-// so its box is kept out of the transition while its contents move with the
-// flight (see AppBar). The readout below is chrome of this Router, outside the
-// Slot entirely, so a navigation cannot touch it at all.
-//
-// And a screen that must escape both is not a screen with different bars: it is
-// a screen at a different LEVEL, pushed on the parent with `router: "parent"`,
-// where this Slot is not. That is why `name` is set here and on the app.
-//
 // `history="memory"` because the browser's URL belongs to the site around it.
+//
+// `name` is set so a screen in here can aim a push one level UP with
+// `router: "parent"` — the seat map does exactly that, and it is the difference
+// between a screen that hides the tab bar and a screen at a level where the tab
+// bar does not exist.
 function BrowseRouter() {
   return (
     <Router
       name="browse"
-      initPath="/browse/list"
+      initPath="/browse/acts"
       history="memory"
       transitions={TRANSITIONS}
       partTransitions={PART_TRANSITIONS}
-      defaultTransitionName="fade"
+      defaultTransitionName="cupertino"
       className="h-full w-full"
     >
-      <div className="flex h-full w-full flex-col">
-        <Slot className="min-h-0 flex-1">
-          <Route path="/browse/list" element={<ListScreen />} />
-          <Route path="/browse/piece/:id" element={<PieceScreen />} />
-        </Slot>
-        <StackReadout label="browse" />
-      </div>
+      <Slot className="h-full w-full">
+        <Route path="/browse/acts" element={<ActsScreen />} />
+        <Route path="/browse/act/:id" element={<ActScreen />} />
+      </Slot>
+      <StackReporter scope="browse" />
     </Router>
   );
 }

@@ -1,61 +1,77 @@
 import { createRawPartTransition } from "@flemo/react";
 
+import { CLOCKS, barPartFor, type Clock } from "./clocks";
+
+// The factory's return type rather than a named import: `PartTransition` is
+// internal to the packages, and a playground is not the place to widen a
+// package's public surface for its own convenience.
+type AuthoredPart = ReturnType<typeof createRawPartTransition>;
+
 import "./barContent.types";
 
-// THE APP BAR'S CONTENTS, in two flavours, because one is not enough.
+// THE SHARED BAR'S CONTENTS, one part transition per screen transition.
 //
-// The bar's BOX is shared: flemo keeps it out of the screen transition and it
-// holds its place. What moves inside it has to match what the screens are
-// doing, and the screens are not all doing the same thing:
+// The bar's BOX is shared: flemo keeps it out of the flight and it holds its
+// place while the screens travel underneath. What moves INSIDE it is the
+// screen's, and it has to move on the screen's clock — see `clocks.ts` for why
+// that cannot be a constant.
 //
-//   a screen that SLIDES (cupertino, material)   the label has to travel with
-//                                                it, or the content moves a
-//                                                screen-width while the title
-//                                                twitches 12px and the two
-//                                                read as unrelated
-//   a screen that FADES  (layout, fade)          nothing translates, so a
-//                                                label that slides is inventing
-//                                                a direction the flight has not
+// So this is a factory, not a definition. `bar-cupertino` runs 0.7s on
+// cupertino's own bezier; `bar-material` runs 0.35s on material's; `bar-none`
+// runs zero and cuts. The <AppBar> asks for the one belonging to the
+// transition it is sitting above, and the two can no longer disagree.
 //
-// Traced on a cupertino pop with only the small cross-fade: the screens carried
-// a full width while the titles moved twelve pixels. That is the "따로 논다".
-//
-// So two named transitions, and the bar picks the one that belongs to the
-// screen transition it is sitting above. Both are the same shape otherwise: out
-// the way the screen is going, in from the other side, and the dismissing side
-// gets its own pose because a shared bar's contents hand over while the box
-// stays (see the POPPING-true note below).
-const EASE: [number, number, number, number] = [0.32, 0.72, 0, 1];
-const DURATION = 0.34;
+// The RAW factory, not `createPartTransition`, for the reason the old file
+// already knew and got right: the collapsed idle/enter/exit model hands
+// `POPPING-true` — the screen being dismissed — the same REST variant as an
+// arrival, which is correct for a bar that leaves with its screen and wrong for
+// one that stays while its contents hand over. The dismissing side needs its
+// own pose, going back out the way it came in.
 const REST = { opacity: 1, x: 0 };
-const HELD = { value: REST, options: { duration: 0 } };
 
-const build = (name: "bar-slide" | "bar-fade", travel: number) =>
-  createRawPartTransition({
-    name,
+// How far a label travels, at a bar's own scale rather than the screen's. A
+// label that carried a full screen-width would be a second screen transition
+// stacked on the first; 56px reads as "with the screen" without competing with
+// it. What matters for the desync is the CLOCK, not the distance — the two are
+// authored separately for that reason.
+//
+// A transition that does not translate its screens gets zero, because a label
+// sliding over a screen that only fades is inventing a direction the flight
+// does not have.
+const TRAVEL = 56;
+
+const build = (name: string, clock: Clock): AuthoredPart => {
+  const travel = clock.slides ? TRAVEL : 0;
+  const { duration, ease } = clock;
+  // A rest state is not a motion. A zero clock costs the navigation nothing,
+  // which matters because the engine spans a screen's choreography even when
+  // the screen transition itself has none.
+  const held = { value: REST, options: { duration: 0 } };
+  const move = (value: Record<string, number>) => ({ value, options: { duration, ease } });
+
+  return createRawPartTransition({
+    name: barPartFor(name),
     initial: { opacity: 0, x: travel },
-    idle: HELD,
-    pushOnEnter: { value: REST, options: { duration: DURATION, ease: EASE } },
+    idle: held,
+    // Arriving: in from the side the screen is coming from.
+    pushOnEnter: move(REST),
     // Going behind: out the way the screen is going.
-    pushOnExit: { value: { opacity: 0, x: -travel }, options: { duration: DURATION, ease: EASE } },
-    replaceOnEnter: { value: REST, options: { duration: DURATION, ease: EASE } },
-    replaceOnExit: {
-      value: { opacity: 0, x: -travel },
-      options: { duration: DURATION, ease: EASE }
-    },
-    // The screen on top, being dismissed: out the other way. `createPartTransition`
-    // hands this status the REST variant, which is right for a bar that leaves
-    // with its screen and wrong for one that stays while its contents hand over.
-    popOnEnter: { value: { opacity: 0, x: travel }, options: { duration: DURATION, ease: EASE } },
+    pushOnExit: move({ opacity: 0, x: -travel }),
+    replaceOnEnter: move(REST),
+    replaceOnExit: move({ opacity: 0, x: -travel }),
+    // The screen on top, being dismissed: back out the way it came in.
+    popOnEnter: move({ opacity: 0, x: travel }),
     // The screen underneath, returning: from `pushOnExit`'s pose back to rest.
-    popOnExit: { value: REST, options: { duration: DURATION, ease: EASE } },
-    completedOnEnter: HELD,
+    popOnExit: move(REST),
+    completedOnEnter: held,
     completedOnExit: { value: { opacity: 0, x: -travel }, options: { duration: 0 } }
   });
+};
 
-// A slide's worth of travel, and a fade's worth: 56px reads as "with the
-// screen" at a bar's scale without becoming a second animation of its own.
-export const barSlide = build("bar-slide", 56);
-export const barFade = build("bar-fade", 0);
+// One per row of the clock table, so a transition can never be selected in the
+// bench without its bar part existing.
+export const BAR_PARTS: AuthoredPart[] = Object.entries(CLOCKS).map(([name, clock]) =>
+  build(name, clock)
+);
 
-export default barSlide;
+export default BAR_PARTS;

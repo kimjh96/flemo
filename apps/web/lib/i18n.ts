@@ -70,88 +70,123 @@ export const dict = {
       home: "Back to home"
     },
     playground: {
-      kicker: "Playground",
-      title: "Every transition, on glass",
-      subtitle:
-        "The built-in presets, two more written the way a consumer writes them, and a shared element you can switch on over any of them. Nothing in the fixtures is told which transition is running.",
-      bench: {
-        title: "Every transition, one pair of screens",
-        question:
-          "The four built-in presets and two written the way a consumer writes them, with the shared element on its own switch. A morph and a screen transition are separate systems that compose, so either one can be looked at with the other turned off.",
-        builtIn: "built-in",
-        authored: "authored here",
-        element: "shared element",
-        screenLabel: "screen",
-        elementLabel: "element",
-        caption: "Tap a card, then swipe or tap back."
+      layer: {
+        title: "Overlays",
+        intro:
+          "A sheet opened from a screen has to reach the floor and cover the tab bar, and it has to travel with its own screen when that screen moves.",
+        open: "Open sheet",
+        shut: "Close sheet",
+        hosted: "Leaves the screen",
+        inline: "Stays in the screen",
+        hostedHint:
+          "The sheet is hosted outside its screen. Toggle this to write it inline instead — the only difference between the two runs.",
+        step: "Next section",
+        out: "Open full screen",
+        solo: "Without nesting",
+        back: "Back",
+        close: "Close",
+        away: "Full screen",
+        sectionA: "Floor seats",
+        sectionB: "Balcony",
+        soloTitle: "One screen",
+        seats: "Seats",
+        confirm: "Confirm seats"
       },
-      chain: {
-        title: "Five transitions, one stack",
-        question:
-          "Whether a flight leaves anything behind for the next transition to trip on, and whether five pops unwind five different transitions in the right order.",
-        caption:
-          "Walk it down, then pop it back. The rail is chrome of this Router and never travels; the bar under it is shared by every step, so its box holds still while its label hands over with the flight.",
-        root: "root"
+      title: "Press it yourself",
+      subtitle:
+        "A small ticket app, running the real library. Pick a transition and a shared element, then drive it — tap through, swipe back, switch tabs. Nothing in the app is told which transition is running.",
+      cases: {
+        transitions: "Transitions",
+        transitionsBody:
+          "Six transitions on the same pair of screens, with the shared element on its own switch. A transition and a shared element are separate systems that compose, so either one can be watched with the other turned off.",
+        stack: "A stack",
+        stackBody:
+          "Buying a ticket, five screens deep, with a different transition on every step. One flight should leave nothing behind for the next one to trip on, and five taps back should unwind five transitions in the order they ran.",
+        overlays: "Overlays"
+      },
+      bench: {
+        screen: "screen",
+        element: "shared element",
+        builtIn: "built in",
+        authored: "written here"
+      },
+      scopes: {
+        app: "app",
+        tab: "tab",
+        flow: "flow"
       },
       transitions: {
-        cupertino: "Slides in from the right, over a screen that recedes under a dim.",
+        cupertino:
+          "Slides in from the right while the screen behind it recedes under a dim. The one with the swipe-back gesture.",
         material: "Rises from below and fades in.",
-        layout: "One screen fades at a time. Nothing moves, so a shared element is the whole show.",
-        none: "An instant cut, so whatever still moves is not the screen transition.",
-        fade: "The arrival fades in over a screen that holds perfectly still.",
-        sheet: "The screen behind scales up and blurs while the element opens over it."
+        layout:
+          "One screen fades at a time. Nothing travels, so a shared element is the whole show.",
+        none: "An instant cut. Whatever still moves is not the screen transition.",
+        fade: "Written here, not shipped. The arrival settles in over a screen that holds perfectly still.",
+        sheet:
+          "Written here too. The screen behind pulls back and blurs while the poster opens over it."
       },
       morphs: {
         off: "No shared element, so the screen transition is the only thing running.",
-        shared: "The card, its artwork and its title each cross on their own.",
-        zoom: "Container transform: the grid itself zooms into the tapped card."
+        shared: "The card, its poster and the artist's name each cross on their own.",
+        zoom: "The list itself zooms into the row you tapped."
       },
       app: {
-        browse: "Browse",
-        saved: "Saved",
-        savedHint:
-          "The other tab. It holds no Router of its own, and the bar does not care: same shared id, so it stays where it is while the content behind it changes."
-      },
-      demo: {
+        home: "Tonight",
+        tickets: "Tickets",
+        tonight: "Tonight",
         filter: "Filter",
         filterTitle: "Filter",
         filterBody:
-          "This panel is a STEP, not a screen. It is a sub-state of the screen you are on, so it goes back the way everything else does and the stack count under the frame never moves. Push stacks a screen, replace swaps the one you are on, a step stacks nothing.",
-        filterClose: "Close",
-        replace: "Swap in another piece",
-        path: "path",
-        status: "status",
-        depth: "stack",
-        swipeHint: "Drag the artwork down to take it back.",
-        info: "Open at the app level",
-        infoBody:
-          "This screen was pushed one Router up. The header and the tab bar are not hidden for it: they belong to the level below, and that whole region left with its own transition while this one arrived with its own.",
-        open: "Open the artwork",
-        close: "Close"
+          "This panel is a step, not a screen. It belongs to the screen you are on, so back closes it and the stack count under the frame never moves.",
+        close: "Close",
+        stage: "Stage",
+        ticketHeld: "Held",
+        ticketsNote:
+          "The other tab. It holds no stack of its own, and the tab bar does not care: same shared bar, so it stays exactly where it is while the content behind it changes."
       },
-      gallery: {
-        title: "Gallery",
-        hintShared: "Tap a card. The card, its artwork and its title each cross on their own.",
-        hintPlain:
-          "Tap a card. No shared element this time, so the screen transition is on its own."
+      acts: {
+        hintShared:
+          "Tap a row. The card, its poster and the artist's name each cross on their own.",
+        hintPlain: "Tap a row. No shared element this time, so the screen transition is on its own."
       },
-      piece: {
-        body: "The card you tapped, its artwork and its title are the same three elements as the ones on the list. flemo measured where each was the instant the navigation started and moved them here, above both screens."
+      act: {
+        body: "Doors an hour before. The poster and the name above it are the same two elements that were in the list a moment ago — flemo measured where each one sat when you tapped, and moved them here.",
+        seatmap: "Choose seats",
+        seatmapNote: "Opens over the tab bar, one level up.",
+        seatmapBody:
+          "This screen was pushed onto the app's own stack rather than this tab's. The tab bar is not hidden for it — it belongs to the level below, and that whole region left with its own transition while this one arrived with its own. The readout under the frame shows it from the other side."
       },
-      chainSteps: {
-        start: "the bottom of the stack",
-        a: "cupertino, straight from the presets",
-        b: "a zoom morph: the card opens into the screen and the grid zooms with it",
-        c: "material, rising from below",
-        d: "fade, written here rather than shipped",
-        e: "layout plus a shared morph, so the element arrives in place"
-      },
-      chainScreen: {
-        step: "step",
-        next: "Screen",
-        rootTitle: "Start screen",
-        end: "End of the chain. Pop back out and every transition runs in reverse, in order.",
-        bottom: "the bottom of the stack"
+      booking: {
+        steps: {
+          tonight: "Tonight",
+          event: "Event",
+          seats: "Seats",
+          extras: "Extras",
+          review: "Review",
+          done: "Done"
+        },
+        next: {
+          event: "See the event",
+          seats: "Pick seats",
+          extras: "Add extras",
+          review: "Review order",
+          done: "Confirm"
+        },
+        body: {
+          tonight:
+            "The bottom of the stack. Every step above this one arrives with a different transition, so this is where the flow starts and where five taps back should return you.",
+          event:
+            "Arrived by cupertino, carrying the poster with it. Try the swipe-back gesture from the left edge here.",
+          seats:
+            "Arrived by sheet: the screen behind pulled back and blurred while this one opened over it.",
+          extras:
+            "Arrived by material, rising from below. The step before it ran a shared element and this one does not — if a flight left anything behind, this is the step it shows up on.",
+          review:
+            "Arrived by fade. Nothing travelled, so anything you saw move was the content settling, not the screen.",
+          done: "Arrived by layout with the poster zooming into place. End of the flow."
+        },
+        end: "Now tap back five times and watch them unwind in order."
       }
     },
     showcase: {
@@ -227,87 +262,119 @@ export const dict = {
       home: "홈으로 돌아가기"
     },
     playground: {
-      kicker: "플레이그라운드",
-      title: "모든 전환을 화면에서",
-      subtitle:
-        "내장 프리셋과, 소비자가 쓰는 방식 그대로 작성한 전환 두 개, 그리고 그 위에 켜고 끌 수 있는 공유 요소입니다. 픽스처의 화면들은 지금 어떤 전환이 도는지 모릅니다.",
-      bench: {
-        title: "전환 전부, 같은 화면 한 쌍",
-        question:
-          "내장 프리셋 네 개와 소비자가 쓰는 방식으로 작성한 두 개, 그리고 따로 켜고 끄는 공유 요소입니다. 모프와 화면 전환은 서로 독립된 시스템이라, 한쪽을 끈 채로 다른 쪽만 볼 수 있어야 합니다.",
-        builtIn: "내장",
-        authored: "직접 작성",
-        element: "공유 요소",
-        screenLabel: "화면",
-        elementLabel: "요소",
-        caption: "카드를 누른 뒤 스와이프하거나 뒤로 눌러보세요."
+      layer: {
+        title: "오버레이",
+        intro:
+          "화면에서 연 시트는 바닥까지 닿아 탭바를 덮어야 하고, 그 화면이 움직이면 함께 따라가야 합니다.",
+        open: "시트 열기",
+        shut: "시트 닫기",
+        hosted: "화면 밖으로",
+        inline: "화면 안에",
+        hostedHint:
+          "지금은 시트가 자기 화면 바깥에 놓여 있어요. 이걸 바꾸면 화면 안에 그대로 쓰는 방식이 되고, 두 실행의 차이는 그것 하나뿐입니다.",
+        step: "다음 구역",
+        out: "전체 화면으로 열기",
+        solo: "중첩 없이",
+        back: "뒤로",
+        close: "닫기",
+        away: "전체 화면",
+        sectionA: "플로어석",
+        sectionB: "발코니석",
+        soloTitle: "단일 화면",
+        seats: "좌석",
+        confirm: "좌석 확정"
       },
-      chain: {
-        title: "전환 다섯 개, 한 스택",
-        question:
-          "비행이 다음 전환이 걸려 넘어질 무언가를 남기는지, 그리고 다섯 번의 pop이 서로 다른 다섯 전환을 순서대로 풀어내는지 봅니다.",
-        caption:
-          "끝까지 내려갔다가 되돌아 나와보세요. 위 레일은 이 라우터의 크롬이라 따라 움직이지 않고, 아래 앱바는 모든 단계가 공유해서 틀은 그대로 둔 채 라벨만 비행과 함께 넘어갑니다.",
-        root: "루트"
+      title: "직접 눌러보세요",
+      subtitle:
+        "실제 라이브러리로 돌아가는 작은 티켓 앱이에요. 전환과 공유 요소를 고르고 직접 만져보세요. 눌러서 들어가고, 스와이프로 돌아 나오고, 탭을 바꿔보세요. 앱 안의 화면들은 지금 어떤 전환이 도는지 모릅니다.",
+      cases: {
+        transitions: "전환",
+        transitionsBody:
+          "같은 화면 한 쌍 위에서 전환 여섯 개를, 공유 요소는 따로 켜고 끄면서 봅니다. 전환과 공유 요소는 서로 독립된 시스템이라, 한쪽을 끈 채로 다른 쪽만 볼 수 있어야 해요.",
+        stack: "스택",
+        stackBody:
+          "티켓 한 장을 사는 다섯 화면이고, 단계마다 전환이 다릅니다. 앞선 전환이 다음 전환에 걸릴 무언가를 남기지 않아야 하고, 뒤로 다섯 번이면 다섯 전환이 돌아간 순서대로 풀려야 해요.",
+        overlays: "오버레이"
+      },
+      bench: {
+        screen: "화면",
+        element: "공유 요소",
+        builtIn: "내장",
+        authored: "직접 작성"
+      },
+      scopes: {
+        app: "앱",
+        tab: "탭",
+        flow: "흐름"
       },
       transitions: {
-        cupertino: "오른쪽에서 밀려 들어오고, 덮이는 화면은 딤 아래로 물러납니다.",
+        cupertino:
+          "오른쪽에서 밀려 들어오고, 덮이는 화면은 딤 아래로 물러납니다. 스와이프로 뒤로 가는 그 전환이에요.",
         material: "아래에서 올라오면서 나타납니다.",
-        layout: "한 번에 한 화면만 페이드합니다. 움직이는 게 없으니 공유 요소가 전부입니다.",
-        none: "즉시 전환이라, 그래도 움직이는 게 있다면 그건 화면 전환이 아닙니다.",
-        fade: "도착 화면이 가만히 있는 화면 위로 나타납니다.",
-        sheet: "요소가 화면을 덮는 동안 뒤 화면이 커지면서 흐려집니다."
+        layout: "한 번에 한 화면만 페이드해요. 움직이는 게 없으니 공유 요소가 전부입니다.",
+        none: "즉시 전환이에요. 그런데도 움직이는 게 있다면 그건 화면 전환이 아닙니다.",
+        fade: "직접 작성한 전환이에요. 가만히 있는 화면 위로 도착 화면이 자리를 잡습니다.",
+        sheet: "이것도 직접 작성했어요. 포스터가 화면을 덮는 동안 뒤 화면이 물러나며 흐려집니다."
       },
       morphs: {
         off: "공유 요소 없이 화면 전환만 돕니다.",
-        shared: "카드와 그 안의 이미지, 제목이 각각 건너갑니다.",
-        zoom: "컨테이너 트랜스폼입니다. 누른 카드를 향해 그리드 전체가 확대됩니다."
+        shared: "카드와 포스터, 아티스트 이름이 각각 건너갑니다.",
+        zoom: "누른 줄을 향해 목록 전체가 확대됩니다."
       },
       app: {
-        browse: "둘러보기",
-        saved: "저장함",
-        savedHint:
-          "다른 탭입니다. 여기엔 자체 라우터가 없지만 바는 상관하지 않습니다. 같은 공유 id라서 뒤 내용만 바뀌고 바는 그 자리에 있습니다."
-      },
-      demo: {
+        home: "투나잇",
+        tickets: "내 티켓",
+        tonight: "투나잇",
         filter: "필터",
         filterTitle: "필터",
         filterBody:
-          "이 패널은 화면이 아니라 스텝입니다. 지금 화면의 하위 상태라 뒤로가기로 그대로 닫히고, 프레임 아래 스택 숫자는 변하지 않습니다. push는 화면을 쌓고, replace는 지금 화면을 바꾸고, 스텝은 아무것도 쌓지 않습니다.",
-        filterClose: "닫기",
-        replace: "다른 작품으로 교체",
-        path: "경로",
-        status: "상태",
-        depth: "스택",
-        swipeHint: "이미지를 아래로 끌면 그대로 되돌아갑니다.",
-        info: "앱 레벨에서 열기",
-        infoBody:
-          "이 화면은 라우터 한 단계 위로 push된 것입니다. 헤더와 탭바를 숨긴 게 아니라, 그것들은 아래 레벨에 속해 있고 그 영역 전체가 자기 전환으로 물러난 것입니다.",
-        open: "이미지 크게 보기",
-        close: "닫기"
+          "이 패널은 화면이 아니라 스텝이에요. 지금 화면에 딸린 상태라 뒤로가기로 그대로 닫히고, 프레임 아래 스택 숫자는 변하지 않습니다.",
+        close: "닫기",
+        stage: "무대",
+        ticketHeld: "예매됨",
+        ticketsNote:
+          "다른 탭이에요. 여기엔 자체 스택이 없지만 탭바는 상관하지 않습니다. 같은 공유 바라서, 뒤 내용만 바뀌고 탭바는 그 자리에 그대로 있어요."
       },
-      gallery: {
-        title: "갤러리",
-        hintShared: "카드를 눌러보세요. 카드와 이미지, 제목이 각각 건너갑니다.",
-        hintPlain: "카드를 눌러보세요. 이번엔 공유 요소 없이 화면 전환만 돕니다."
+      acts: {
+        hintShared: "줄을 하나 눌러보세요. 카드와 포스터, 아티스트 이름이 각각 건너갑니다.",
+        hintPlain: "줄을 하나 눌러보세요. 이번엔 공유 요소 없이 화면 전환만 돕니다."
       },
-      piece: {
-        body: "지금 누른 카드와 그 이미지, 제목은 목록에 있던 바로 그 세 요소입니다. flemo가 내비게이션이 시작된 순간 각각의 위치를 재서, 두 화면 위로 옮겨온 것입니다."
+      act: {
+        body: "공연 한 시간 전 입장이에요. 포스터와 그 위의 이름은 조금 전 목록에 있던 바로 그 두 요소입니다. 누른 순간 각각이 어디에 있었는지 flemo가 재서 여기로 옮겨온 거예요.",
+        seatmap: "좌석 고르기",
+        seatmapNote: "탭바 위로, 한 단계 위에서 열립니다.",
+        seatmapBody:
+          "이 화면은 이 탭이 아니라 앱 자체의 스택으로 push된 거예요. 탭바를 숨긴 게 아니라, 탭바는 아래 단계에 속해 있고 그 영역 전체가 자기 전환으로 물러난 겁니다. 프레임 아래 readout이 같은 사실을 반대편에서 보여줘요."
       },
-      chainSteps: {
-        start: "스택의 바닥",
-        a: "프리셋 그대로의 cupertino",
-        b: "zoom 모프입니다. 카드가 화면으로 열리면서 그리드도 같이 확대됩니다",
-        c: "아래에서 올라오는 material",
-        d: "flemo가 아니라 여기서 직접 작성한 fade",
-        e: "layout에 shared 모프를 얹어, 요소가 제자리로 도착합니다"
-      },
-      chainScreen: {
-        step: "단계",
-        next: "화면",
-        rootTitle: "시작 화면",
-        end: "체인의 끝입니다. 되돌아 나오면 모든 전환이 순서대로 역재생됩니다.",
-        bottom: "스택의 바닥"
+      booking: {
+        steps: {
+          tonight: "투나잇",
+          event: "공연",
+          seats: "좌석",
+          extras: "추가",
+          review: "확인",
+          done: "완료"
+        },
+        next: {
+          event: "공연 보기",
+          seats: "좌석 고르기",
+          extras: "추가 선택",
+          review: "주문 확인",
+          done: "결제하기"
+        },
+        body: {
+          tonight:
+            "스택의 바닥이에요. 이 위의 모든 단계는 서로 다른 전환으로 도착합니다. 여기서 흐름이 시작되고, 뒤로 다섯 번이면 여기로 돌아와야 해요.",
+          event:
+            "cupertino로 도착했고, 포스터를 함께 데려왔어요. 여기서 왼쪽 가장자리 스와이프도 해보세요.",
+          seats: "sheet로 도착했어요. 이 화면이 위로 열리는 동안 뒤 화면이 물러나며 흐려졌습니다.",
+          extras:
+            "아래에서 올라오는 material로 도착했어요. 바로 앞 단계는 공유 요소가 돌았고 이 단계는 아니라서, 앞선 전환이 뭔가를 남겼다면 여기서 드러납니다.",
+          review:
+            "fade로 도착했어요. 움직인 화면이 없으니, 움직이는 게 보였다면 그건 화면이 아니라 내용이 자리를 잡는 것이었어요.",
+          done: "layout으로 도착하면서 포스터가 제자리로 확대됐어요. 흐름의 끝입니다."
+        },
+        end: "이제 뒤로 다섯 번 눌러서 순서대로 풀리는지 보세요."
       }
     },
     showcase: {

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Route, Router, Screen, Slot } from "@flemo/react";
 
 import LayerTabBar from "../../_components/LayerTabBar";
-import LayerCaseContext from "../../_providers/LayerCaseContext";
+import LayerCaseContext, { useLayerCase, type LayerCopy } from "../../_providers/LayerCaseContext";
 
 import LayerSoloScreen from "../../_screens/LayerSoloScreen";
 import LayerStepScreen from "../../_screens/LayerStepScreen";
@@ -42,25 +42,32 @@ function LayerRegion() {
 // be a new region arriving over the old one, so the question it answers —
 // does an open sheet end up under it — needs nothing else on it.
 function LayerAwayScreen() {
+  const { copy } = useLayerCase();
+
   return (
-    <Screen backgroundColor="#3a3a3a" hideStatusBar>
+    <Screen backgroundColor="#2b2f38" hideStatusBar>
       <div
         data-layer-away=""
-        className="flex h-full w-full items-center justify-center text-[96px] leading-none font-black text-white"
+        className="flex h-full w-full items-center justify-center text-[15px] font-bold tracking-[0.2em] text-white/70 uppercase"
       >
-        OUT
+        {copy.away}
       </div>
     </Screen>
   );
 }
 
-function LayerRouter() {
+export interface LayerRouterProps {
+  /** Resolved by the route, since this page renders outside the site shell. */
+  copy: LayerCopy;
+}
+
+function LayerRouter({ copy }: LayerRouterProps) {
   const [openOn, setOpenOn] = useState<"A" | "B" | "SOLO" | null>(null);
   const [hosted, setHosted] = useState(true);
 
   return (
     // Above BOTH Routers, so neither a step nor an outer push resets the case.
-    <LayerCaseContext.Provider value={{ openOn, setOpenOn, hosted, setHosted }}>
+    <LayerCaseContext.Provider value={{ openOn, setOpenOn, hosted, setHosted, copy }}>
       <Router
         name="layer-shell"
         initPath="/playground/layer"
