@@ -5,6 +5,8 @@ import { Morph, Screen, useNavigate, useParams } from "@flemo/react";
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
+import CardShell from "../../_components/CardShell";
+
 import { actById, artworkFor } from "../../_data/acts";
 import { useBench } from "../../_providers/BenchContext";
 
@@ -80,38 +82,54 @@ function ActScreen() {
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-3 pb-4">
-          <Morph
-            // The BIG side. It names the same morph AND the same id as the
-            // surface that opened it, because a pair whose two halves disagree
-            // is not a pair. The list scopes its ids to rows and the posters
-            // grid scopes its to cells, so which one to answer to arrives on
-            // the route rather than being guessed.
-            name={morph}
-            layoutId={`${params?.from ?? "row"}-${act.id}`}
-            className="mx-auto aspect-square w-[72%] rounded-3xl shadow-lg"
-            style={{ background: artworkFor(act.hue) }}
-            aria-hidden="true"
-          />
+          {/* THE PAGE IS THE CARD under the container transform, which is what
+              makes the cell become this screen rather than release a square
+              into it. It pairs only when a grid cell opened this, because a
+              morph with no partner on the other side is a promise flemo cannot
+              keep, and only the grid draws a card.
 
-          <h2 className="mt-6 text-center text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
-            {act.artist}
-          </h2>
-          <p className="mt-1 text-center text-sm text-[var(--color-text-secondary)]">
-            {act.venue} · {act.day} {act.time}
-          </p>
+              The ARRANGEMENT matches the cell on purpose: artwork across the
+              content width, then the name, then the line of meta, all reading
+              down and all aligned the same way. The deleted playground recorded
+              what happens otherwise, with a row list against this page: "every
+              intermediate frame is a stretched hybrid". */}
+          <CardShell
+            layoutId={params?.from === "cell" ? `card-${act.id}` : null}
+            className="block min-h-full bg-[var(--color-bg)]"
+          >
+            <Morph
+              // The BIG side. It names the same morph AND the same id as the
+              // surface that opened it, because a pair whose two halves disagree
+              // is not a pair. The list scopes its ids to rows and the posters
+              // grid scopes its to cells, so which one to answer to arrives on
+              // the route rather than being guessed.
+              name={morph}
+              layoutId={`${params?.from ?? "row"}-${act.id}`}
+              className="block aspect-square w-full rounded-2xl shadow-lg"
+              style={{ background: artworkFor(act.hue) }}
+              aria-hidden="true"
+            />
 
-          <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
-            {t.app.body}
-          </p>
+            <h2 className="mt-4 text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
+              {act.artist}
+            </h2>
+            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+              {act.venue} · {act.day} {act.time}
+            </p>
 
-          <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px]">
-            {facts.map(([label, value]) => (
-              <div key={label} className="flex items-baseline justify-between gap-3">
-                <dt className="text-[var(--color-text-disabled)]">{label}</dt>
-                <dd className="m-0 font-semibold text-[var(--color-text-primary)]">{value}</dd>
-              </div>
-            ))}
-          </dl>
+            <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
+              {t.app.body}
+            </p>
+
+            <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px]">
+              {facts.map(([label, value]) => (
+                <div key={label} className="flex items-baseline justify-between gap-3">
+                  <dt className="text-[var(--color-text-disabled)]">{label}</dt>
+                  <dd className="m-0 font-semibold text-[var(--color-text-primary)]">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </CardShell>
         </div>
 
         {/* The footer is a sibling of the scroller, not the last thing inside

@@ -5,6 +5,7 @@ import { Morph, Screen, useNavigate } from "@flemo/react";
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
+import CardShell from "../../_components/CardShell";
 import TabBar from "../../_components/TabBar";
 
 import { ACTS, artworkFor } from "../../_data/acts";
@@ -64,25 +65,33 @@ function PostersScreen() {
                 }
                 className="w-full cursor-pointer text-left"
               >
-                <Morph
-                  as="span"
-                  // Scoped to THIS surface, not shared with the list tab. Both
-                  // tabs show the same acts, so one id across both would pair
-                  // all ten whenever the two tabs are in a flight together.
-                  // The detail is the big side for either, and is told which
-                  // one opened it through the route.
-                  name={morph}
-                  layoutId={`cell-${act.id}`}
-                  className="block aspect-square w-full rounded-2xl"
-                  style={{ background: artworkFor(act.hue) }}
-                  aria-hidden="true"
-                />
-                <span className="mt-2 block truncate text-[13px] font-semibold text-[var(--color-text-primary)]">
-                  {act.artist}
-                </span>
-                <span className="mt-0.5 block truncate text-[11px] text-[var(--color-text-disabled)]">
-                  {act.day} {act.time} · ₩{act.price}
-                </span>
+                {/* THE CARD is what flies under the container transform: the
+                    cell becomes the page rather than a square escaping from
+                    it. Under every other case this is a plain box. */}
+                <CardShell
+                  layoutId={`card-${act.id}`}
+                  className="block overflow-hidden rounded-2xl bg-[var(--color-layer)] p-2"
+                >
+                  <Morph
+                    as="span"
+                    // Scoped to THIS surface, not shared with the list tab. Both
+                    // tabs show the same acts, so one id across both would pair
+                    // all ten whenever the two tabs are in a flight together.
+                    // The detail is the big side for either, and is told which
+                    // one opened it through the route.
+                    name={morph}
+                    layoutId={`cell-${act.id}`}
+                    className="block aspect-square w-full rounded-xl"
+                    style={{ background: artworkFor(act.hue) }}
+                    aria-hidden="true"
+                  />
+                  <span className="mt-2 block truncate px-0.5 text-[13px] font-semibold text-[var(--color-text-primary)]">
+                    {act.artist}
+                  </span>
+                  <span className="mt-0.5 block truncate px-0.5 pb-0.5 text-[11px] text-[var(--color-text-disabled)]">
+                    {act.day} {act.time} · ₩{act.price}
+                  </span>
+                </CardShell>
               </button>
             </li>
           ))}
