@@ -3,6 +3,7 @@
 import { createRawPartTransition, type PartTransitionName } from "@flemo/react";
 
 import { DRIFT_IN } from "./drift.constants";
+import { SHEET_IN } from "./sheet.constants";
 
 import "./detailChrome.types";
 
@@ -41,14 +42,17 @@ import "./detailChrome.types";
 const IN = 0.32;
 const EASE_IN: [number, number, number, number] = [0, 0, 0.2, 1];
 
-const SHOWN = { opacity: 1 };
-const HIDDEN = { opacity: 0 };
+// The entrance is a SLIDE, not just a fade: hidden a step above its resting
+// line, it comes down into place as it clears — a header being lowered onto
+// the page rather than a scrim materialising over it.
+const SHOWN = { opacity: 1, y: 0 };
+const HIDDEN = { opacity: 0, y: -24 };
 const REST = { value: SHOWN, options: { duration: 0 } };
 
 // Push-side flight lengths, copied from each transition's own constants the
 // way the reference copied flemo's: cupertino/material/layout from the
 // presets' documented numbers, the authored three from their source files
-// beside this one (fade-through's flight spans its OUT delay plus its IN).
+// beside this one.
 const COVER: Record<string, number> = {
   cupertino: 0.7,
   material: 0.35,
@@ -56,7 +60,7 @@ const COVER: Record<string, number> = {
   none: 0,
   reveal: 0.34,
   drift: DRIFT_IN,
-  "fade-through": 0.45
+  sheet: SHEET_IN
 };
 
 export const chromePartFor = (transition: string): PartTransitionName =>

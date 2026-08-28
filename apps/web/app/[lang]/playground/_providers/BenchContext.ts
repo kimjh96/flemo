@@ -42,7 +42,7 @@ export interface BenchCase {
 // Each authored entry covers something the presets do not:
 //   reveal        a clip-path wipe, on a property no preset animates
 //   drift         depth, with a decorator sized to its own clock
-//   fade-through  two fades in sequence rather than overlapped
+//   sheet         a modal rising from the bottom edge, asymmetric clocks
 //   zoom          the container transform, and the still transition it needs
 export const CASES: BenchCase[] = [
   { id: "cupertino", transition: "cupertino", morph: "shared", cardMorph: null },
@@ -51,7 +51,7 @@ export const CASES: BenchCase[] = [
   { id: "none", transition: "none", morph: "shared", cardMorph: null },
   { id: "reveal", transition: "reveal", morph: "shared", cardMorph: null },
   { id: "drift", transition: "drift", morph: "shared", cardMorph: null },
-  { id: "fade-through", transition: "fade-through", morph: "shared", cardMorph: null },
+  { id: "sheet", transition: "sheet", morph: "shared", cardMorph: null },
   { id: "zoom", transition: "aperture", morph: "shared", cardMorph: "zoom" }
 ];
 

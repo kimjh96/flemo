@@ -8,7 +8,7 @@ declare module "@flemo/react" {
     "chrome-none": "chrome-none";
     "chrome-reveal": "chrome-reveal";
     "chrome-drift": "chrome-drift";
-    "chrome-fade-through": "chrome-fade-through";
+    "chrome-sheet": "chrome-sheet";
   }
 }
 

@@ -29,8 +29,10 @@ const OUT_DELAY = 0.24;
 const EASE_IN: [number, number, number, number] = [0, 0, 0.2, 1];
 const EASE_OUT: [number, number, number, number] = [0.4, 0, 1, 1];
 
-const SHOWN = { opacity: 1 };
-const HIDDEN = { opacity: 0 };
+// The same slide-down entrance as detailChrome: the header is lowered onto
+// the card as it arrives, and lifts away as it leaves.
+const SHOWN = { opacity: 1, y: 0 };
+const HIDDEN = { opacity: 0, y: -24 };
 const REST = { value: SHOWN, options: { duration: 0 } };
 
 const cardChrome = createRawPartTransition({
