@@ -29,7 +29,12 @@ function buildDom() {
   scope.setAttribute("data-flemo-screen", "");
   const topBar = document.createElement("div");
   topBar.setAttribute("data-flemo-bar", "app");
-  screenContainer.append(scope, topBar);
+  // A <Layer> host rides the same flight down the same code path, and is the
+  // control for the exclusion above: its box is the screen's, so it must keep
+  // the authored percentage.
+  const layerHost = document.createElement("div");
+  layerHost.setAttribute("data-flemo-layer-host", "");
+  screenContainer.append(scope, topBar, layerHost);
 
   root.append(prevScreenContainer, screenContainer);
   document.body.appendChild(root);
@@ -52,7 +57,7 @@ function buildDom() {
       toJSON: () => ({})
     }) as DOMRect;
 
-  return { root, scope, screenContainer, topBar };
+  return { root, scope, screenContainer, topBar, layerHost };
 }
 
 const event = (over: Partial<PointerEvent> & { target?: EventTarget }) =>
@@ -74,7 +79,7 @@ describe("createSwipeController ride offsets", () => {
   let config: SwipeControllerConfig;
   // Read INSIDE the release: a swipe that does not commit clears every inline
   // value it wrote before the gesture returns.
-  let atRelease: { scope: string; bar: string } | null;
+  let atRelease: { scope: string; bar: string; layerHost: string } | null;
   let releaseValue: Record<string, unknown>;
 
   const drag = async () => {
@@ -105,7 +110,11 @@ describe("createSwipeController ride offsets", () => {
         { animate, currentScreen }: { animate: SwipeAnimateLike; currentScreen: HTMLElement }
       ) => {
         await animate(currentScreen, releaseValue, { duration: 0 });
-        atRelease = { scope: currentScreen.style.transform, bar: dom.topBar.style.transform };
+        atRelease = {
+          scope: currentScreen.style.transform,
+          bar: dom.topBar.style.transform,
+          layerHost: dom.layerHost.style.transform
+        };
         return false;
       }
     } as unknown as Transition;
@@ -143,6 +152,17 @@ describe("createSwipeController ride offsets", () => {
     expect(atRelease!.scope).toContain("100%");
     expect(atRelease!.bar).toContain("770px");
     expect(atRelease!.bar).not.toContain("100%");
+  });
+
+  it("leaves a <Layer> rider on the authored percentage", async () => {
+    // The reason the resolution is keyed on a set of bars rather than applied
+    // to every rider: a host and a slot are `inset: 0` on the OUTERMOST screen,
+    // so the percentage they already carry is measured against the right box,
+    // and rewriting it against a nested screen's height would break them.
+    await drag();
+
+    expect(atRelease!.layerHost).toContain("100%");
+    expect(atRelease!.layerHost).not.toContain("770px");
   });
 
   it("passes an absolute offset through untouched", async () => {

@@ -21,6 +21,13 @@ describe("percentRatio", () => {
     expect(percentRatio("calc(100% - 8px)")).toBeNull();
     expect(percentRatio(undefined)).toBeNull();
   });
+
+  it("returns null for a percentage that does not survive being a number", () => {
+    // The pattern accepts any run of digits, and a long enough one parses to
+    // Infinity. That would reach the keyframe as `calc(... * Infinity)` and
+    // invalidate the whole declaration, taking the bar's motion with it.
+    expect(percentRatio(`${"9".repeat(400)}%`)).toBeNull();
+  });
 });
 
 describe("rideLength", () => {

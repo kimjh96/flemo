@@ -21,6 +21,7 @@ import createPartTransition from "@transition/partTransition/createPartTransitio
 
 declare module "@transition/typing" {
   interface RegisterTransition {
+    "custom-snap-percent": "custom-snap-percent";
     "custom-fade-blur": "custom-fade-blur";
     "custom-slide-fade": "custom-slide-fade";
     "custom-rich-css": "custom-rich-css";
@@ -1571,6 +1572,36 @@ describe("a shared bar's ride distance", () => {
         '[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
       )
     ).toContain("data-flemo-bar");
+  });
+
+  it("corrects a zero-duration variant too, which snaps rather than animates", () => {
+    // A snap writes the target straight onto the element with `animation: none`,
+    // so a percentage there is just as wrong on a bar as one inside keyframes.
+    // No shipped preset reaches this (every 0-duration variant they author
+    // settles at `y: 0`), but an author can write one.
+    const snapper = createTransition({
+      name: "custom-snap-percent",
+      initial: { y: 0 },
+      idle: { value: { y: 0 }, options: { duration: 0 } },
+      enter: { value: { y: 0 }, options: { duration: 0.3 } },
+      exit: { value: { y: 0 }, options: { duration: 0.3 } },
+      enterBack: { value: { y: 0 }, options: { duration: 0.3 } },
+      exitBack: { value: { y: "100%" }, options: { duration: 0 } }
+    });
+    const css = compileTransitionStyles([snapper], []);
+    const barRule = ruleFor(
+      css,
+      '[data-flemo-bar][data-flemo-bar-transition="custom-snap-percent"][data-flemo-bar-status="POPPING"][data-flemo-bar-active="false"]'
+    );
+    const screenRule = ruleFor(
+      css,
+      '[data-flemo-screen][data-flemo-transition="custom-snap-percent"][data-flemo-status="POPPING"][data-flemo-active="false"]'
+    );
+
+    expect(barRule).toContain("transform: translate3d(0, var(--flemo-ride-y, 100%), 0);");
+    expect(barRule).toContain("animation: none;");
+    expect(screenRule).toContain("transform: translate3d(0, 100%, 0);");
+    expect(screenRule).not.toContain("data-flemo-bar");
   });
 
   it("emits no copy for a pixel offset", () => {

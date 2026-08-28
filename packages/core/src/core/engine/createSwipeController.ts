@@ -280,7 +280,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     return null;
   };
 
-  const captureRidingBars = (prevScreenContainer: HTMLElement | null) => {
+  const captureRidingBars = (prevScreenContainer: HTMLElement | null, scope: HTMLElement) => {
     const partnerBars = config.getPartnerBars();
     const partnerMetadata = config.getPartnerBarMetadata?.();
     // A previous screen can have committed its DOM before its Activity-
@@ -337,7 +337,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // move: it cannot change while a finger is down, and the drag path exists
     // to avoid exactly this kind of read on a moving frame.
     ridingBarSet = new Set([...current, ...prev]);
-    rideScreenHeight = config.getElements().scope?.getBoundingClientRect().height ?? 0;
+    rideScreenHeight = scope.getBoundingClientRect().height;
 
     current.push(...collectLayerRiders(config.getElements().screenContainer));
     prev.push(...collectLayerRiders(prevScreenContainer));
@@ -496,7 +496,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     swipeVelocity = { x: 0, y: 0 };
     velocityTrail = [{ t: event.timeStamp, x: event.clientX, y: event.clientY }];
     scope.setPointerCapture(event.pointerId);
-    captureRidingBars(prevScreenContainer);
+    captureRidingBars(prevScreenContainer, scope);
     capturePartTransitions(prevScreenContainer);
     holdDragLayers();
 
