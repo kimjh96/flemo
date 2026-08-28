@@ -446,15 +446,19 @@ describe("Screen", () => {
   it("keeps the spacer and metadata current when ResizeObserver reports a dynamic resize", () => {
     stores.history.setState({ index: 0, histories: [historyEntry("top")] });
     const OriginalResizeObserver = globalThis.ResizeObserver;
-    let resize: ResizeObserverCallback | undefined;
+    // A screen with a shared bar runs more than one observer: the bar's height
+    // and the screen's own box (publishRideBox). Route the entry to the one
+    // that actually observed the bar, so this test keeps measuring the spacer
+    // and not whichever observer happened to be constructed last.
+    const callbacks = new Map<string | undefined, ResizeObserverCallback>();
     globalThis.ResizeObserver = class {
-      constructor(callback: ResizeObserverCallback) {
-        resize = callback;
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(element: HTMLElement) {
+        callbacks.set(element.dataset.flemoBar, this.callback);
       }
-      observe() {}
       unobserve() {}
       disconnect() {}
-    } as typeof ResizeObserver;
+    } as unknown as typeof ResizeObserver;
 
     try {
       const { container } = render(
@@ -465,7 +469,7 @@ describe("Screen", () => {
       );
 
       act(() => {
-        resize?.(
+        callbacks.get("nav")?.(
           [{ contentRect: { height: 93 } } as ResizeObserverEntry],
           undefined as unknown as ResizeObserver
         );
@@ -499,7 +503,10 @@ describe("Screen", () => {
     let disconnects = 0;
     globalThis.ResizeObserver = class {
       observe(element: HTMLElement) {
-        observed.push(element.dataset.flemoBar);
+        // Bar observations only. The screen also observes its OWN box to
+        // publish the ride distance, and that one is keyed on bar PRESENCE
+        // too, so counting it here would just restate the same guard twice.
+        if (element.dataset.flemoBar) observed.push(element.dataset.flemoBar);
       }
       unobserve() {}
       disconnect() {
