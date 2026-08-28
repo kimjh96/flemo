@@ -123,11 +123,17 @@ function ActsScreen() {
                         {act.artist}
                       </CardTitle>
                     </span>
-                    <span className="block truncate text-xs text-[var(--color-text-disabled)]">
+                    {/* `act-row-late` matters only while this row is STAGED IN
+                        THE FLIGHT LAYER (a zoom pop): unpaired, these lines
+                        would otherwise print at full strength through the
+                        ghost's empty regions on the flight's first frame. At
+                        rest, and on every other case, the class matches
+                        nothing. See global.css. */}
+                    <span className="act-row-late block truncate text-xs text-[var(--color-text-disabled)]">
                       {act.venue} · {act.day} {act.time}
                     </span>
                   </span>
-                  <span className="shrink-0 font-mono text-xs font-semibold text-[var(--color-text-secondary)] tabular-nums">
+                  <span className="act-row-late shrink-0 font-mono text-xs font-semibold text-[var(--color-text-secondary)] tabular-nums">
                     ₩{act.price}
                   </span>
                 </CardShell>

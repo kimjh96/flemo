@@ -291,10 +291,14 @@ describe("attachMorph", () => {
     thumbnail.textContent = "from the list";
     const inner = makeMorph(thumbnail, [20, 600, 80, 20]);
     // A binding renders the marker from the first commit, so a paired
-    // descendant is recognisable in the copy even before it registers. No
-    // copy is dimmed any more: the ghost sits on top of the arriving card,
-    // so a dimmed copy is a hole the size of the pair, not a window — dimmed
-    // artwork collapsed a hero to a strip, and dimmed type vanished a title.
+    // descendant is recognisable in the copy even before it registers. Its
+    // copy is dimmed: the real pair flies from the captured pose, so the
+    // dimmed copy is a window onto it — while a painting copy rides the
+    // ghost's transform and stretches over the crisp re-typesetting
+    // original, which is the smeared double title reported on a push.
+    // (Dimming was once removed for "holes" — a collapsed hero, a vanished
+    // title — but those were this pair's flight silently declining on a
+    // zero-width destination, and the window had nothing behind it.)
     inner.setAttribute(MORPH_ATTR, "");
     inner.setAttribute("data-flemo-morph-name", "text");
     inner.setAttribute("data-copied-pair", "");
@@ -328,9 +332,12 @@ describe("attachMorph", () => {
     // paired descendant keeps its space in the copy's layout and stops
     // painting, or the two print over each other.
     const copiedPair = ghost.querySelector<HTMLElement>("[data-copied-pair]");
-    expect(copiedPair?.style.opacity).not.toBe("0");
+    expect(copiedPair?.style.opacity).toBe("0");
     const copiedArt = ghost.querySelector<HTMLElement>("[data-copied-pair-art]");
-    expect(copiedArt?.style.opacity).not.toBe("0");
+    expect(copiedArt?.style.opacity).toBe("0");
+    // But only the PAIRED copies: the unpaired remainder is the ghost's whole
+    // cargo, and the copy root itself stays visible to carry it.
+    expect(ghost.style.opacity).not.toBe("0");
 
     hero.dispatchEvent(animationEndEvent(/flemo-morph-\d+i-travel/.exec(hero.style.animation)![0]));
     expect(layer.querySelector("[data-flemo-morph-ghost]")).toBeNull();

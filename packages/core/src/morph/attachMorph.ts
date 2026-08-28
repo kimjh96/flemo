@@ -943,17 +943,26 @@ const startFlight = (
     // label associations, form submissions and every query a consumer's own
     // tests make. It is inert and hidden from assistive technology on top.
     for (const node of [ghost, ...ghost.querySelectorAll<HTMLElement>("*")]) {
-      // PAIRED descendants keep painting in the copy — all of them. The ghost
-      // sits ON TOP of the arriving card, so the real element underneath does
-      // not show through it: a dimmed copy is a HOLE the size of the pair,
-      // not a window. Dimmed artwork read as a hero collapsing to a strip on
-      // a pop's first frame, and dimmed type read as the title vanishing at
-      // the tap and reappearing mid-flight. The copies fade with the ghost
-      // itself, and they ride its travel toward the destination box, so they
-      // track the real elements closely. The cost is the one the old dimming
-      // existed for: while the ghost is semi-transparent, a re-typesetting
-      // run can briefly double against its copy. That is a soft cross-fade
-      // between the same words; a vanishing title is a missing element.
+      // PAIRED descendants stop painting in the copy. The real pair is staged
+      // in the flight at the captured pose — the exact spot the copy would
+      // have painted — so the dimmed copy is a WINDOW onto the real element,
+      // not a hole. Printing the copy as well puts two nearly identical
+      // things in one place: the copy rides the ghost's TRANSFORM, so type
+      // in it stretches toward the destination box as a smeared bitmap over
+      // the crisp re-typesetting original — reported as the title "bleeding"
+      // on a push. The copy keeps its space (its job is holding the
+      // departure's layout together for the unpaired content around it).
+      //
+      // This dimming was removed once, on the diagnosis that the copy was a
+      // hole: artwork read as a hero collapsing to a strip, type read as the
+      // title vanishing at the tap. Both were real, and both were THIS pair's
+      // flight having silently DECLINED (a zero-width destination, measured
+      // while a sibling's staged size squeezed it — see zero-destination in
+      // the trace), so nothing was underneath the window. With no real
+      // flight, a hidden copy IS a hole; the fix belonged to the declined
+      // flight, not to the ghost. When a pair goes missing mid-flight, read
+      // `flemoMorphTrace` before touching this line.
+      if (node !== ghost && node.hasAttribute(MORPH_ATTR)) node.style.opacity = "0";
       node.removeAttribute(MORPH_ATTR);
       node.removeAttribute(MORPH_NAME_ATTR);
       // A part carries its own status, so the copy would run the departing
