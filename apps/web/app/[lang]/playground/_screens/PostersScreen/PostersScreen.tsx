@@ -127,8 +127,19 @@ function PostersScreen() {
                       {act.artist}
                     </CardTitle>
                   </span>
-                  <span className="mt-0.5 block truncate px-2.5 pb-2.5 text-[11px] text-[var(--color-text-disabled)]">
-                    {act.day} {act.time} · ₩{act.price}
+                  {/* Paired like the name, and for the same reason: unpaired,
+                      this line exists twice during a flight (once in the card's
+                      ghost, once in the arrival) and two copies of a date line
+                      cross-fading at the same spot is the shift the recordings
+                      kept showing. The detail's meta is the SAME string, so the
+                      pair re-typesets one line instead of trading two. */}
+                  <span className="mt-0.5 block h-4 pb-2.5">
+                    <CardTitle
+                      layoutId={`cardmeta-${act.id}`}
+                      className="block truncate px-2.5 text-[11px] text-[var(--color-text-disabled)]"
+                    >
+                      {act.day} {act.time} · ₩{act.price}
+                    </CardTitle>
                   </span>
                 </CardShell>
               </button>

@@ -134,8 +134,18 @@ function ActScreen() {
                 {act.artist}
               </CardTitle>
             </h2>
-            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-              {act.venue} · {act.day} {act.time}
+            {/* The SAME string as the cell's meta, paired as the same text
+                morph, in a fixed-height holder: one line re-typesetting from
+                11px to 14px instead of two different date lines cross-fading
+                on top of each other. The venue is not lost; it has its own row
+                in the facts below. */}
+            <p className="mt-1 h-5">
+              <CardTitle
+                layoutId={params?.from === "cell" ? `cardmeta-${act.id}` : null}
+                className="block text-sm text-[var(--color-text-secondary)]"
+              >
+                {act.day} {act.time} · ₩{act.price}
+              </CardTitle>
             </p>
 
             <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
