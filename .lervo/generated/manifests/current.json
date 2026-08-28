@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "generationId": "gen_fb13368dddc012c5185930d6",
+  "generationId": "gen_6044d2a9e93b1d8f8ef505cf",
   "projectId": "prj_55ba572fea3e42b6",
-  "sourceSnapshotId": "ksnap_370d4c7f4e412178d188f8c9",
+  "sourceSnapshotId": "ksnap_38a3cc38016784676545620f",
   "compiler": {
     "id": "lervo.structural",
     "version": "1",
@@ -11,7 +11,7 @@
   "outputs": [
     {
       "path": "docs/knowledge/index.md",
-      "contentHash": "sha256:a5efc8d79ae8c0b0ba25efaa948bc75d46c8560cac4cce7bb4acf2aa6e600a3f"
+      "contentHash": "sha256:a4c9f0cd2882f422c39c1dd665a95ca0aaf1e9e520e55614f66e41fab3b2edc0"
     },
     {
       "path": "docs/knowledge/instructions.md",
@@ -27,11 +27,11 @@
     },
     {
       "path": ".lervo/knowledge/bundles/f3/bundle_f30402500333f4447ba5d2b8.yaml",
-      "contentHash": "sha256:7ee11767065d3d00bb147730e49d64ff16f88dfcd4336b537c80341037d61942"
+      "contentHash": "sha256:7c1ba75c0d935783cc8a4681c333668cc4fb67d5124cc144bdab88523fa1e5a7"
     },
     {
       "path": ".lervo/knowledge/concepts/5c/concept_5c59b56d8b315c375d9a47fc.yaml",
-      "contentHash": "sha256:e76ad0bfe664e547dc4489bd9ee15c81e03e699895d904eedb870a26106bb4af"
+      "contentHash": "sha256:176fd406239696ba052977e8eb3d17c057427201779aea33d0f46d38c2ab8b9c"
     },
     {
       "path": ".lervo/knowledge/concepts/89/concept_893def074f1dd043146dd1ae.yaml",
