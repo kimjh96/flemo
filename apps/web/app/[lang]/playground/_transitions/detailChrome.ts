@@ -32,15 +32,19 @@ import "./detailChrome.types";
 // reference's table states as a rule: "a cut is not a degenerate case to
 // special-case away."
 //
-// The pop direction needs no delay anywhere: the artwork leaves the detail at
-// the tap, nothing covers the header, and the header's job is to ride the
-// dismissing screen out — REST, in every row.
+// The pop REVERSES the entrance: the header lifts back above its line in the
+// flight's first beat, the same "leaves early" the card-body part keeps, so
+// the page reads as disassembling before it goes rather than dragging its
+// chrome down with it. (`none` keeps REST both ways — everything riding an
+// instant screen change has to cut with it.)
 // 0.18s read as a blink: the page settles at the flight's end and a dark
 // scrim then materialised in under a fifth of a second — reported as
 // "flicker right after arriving" on fade-through. A third of a second reads
 // as the header settling into place instead.
 const IN = 0.32;
+const OUT = 0.16;
 const EASE_IN: [number, number, number, number] = [0, 0, 0.2, 1];
+const EASE_OUT: [number, number, number, number] = [0.4, 0, 1, 1];
 
 // The entrance is a SLIDE, not just a fade: hidden a step above its resting
 // line, it comes down into place as it clears — a header being lowered onto
@@ -78,7 +82,7 @@ const detailChromes = Object.entries(COVER).map(([name, cover]) =>
     pushOnExit: REST,
     replaceOnEnter: arrival(cover),
     replaceOnExit: REST,
-    popOnEnter: REST,
+    popOnEnter: cover === 0 ? REST : { value: HIDDEN, options: { duration: OUT, ease: EASE_OUT } },
     popOnExit: REST,
     completedOnEnter: REST,
     completedOnExit: REST
