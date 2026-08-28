@@ -844,17 +844,32 @@ const startFlight = (
         id: `${id}g`,
         travel: {
           // The copy FOLLOWS, it does not re-lay out. It keeps the layout it
-          // was captured with and is carried onto the arrival's box by a
-          // transform — because a copy that re-wraps its own text while the
+          // was captured with — a copy that re-wraps its own text while the
           // real element re-wraps differently prints the two over each other,
           // which is exactly the doubled title on any card with a long one.
+          //
+          // Its POSITION rides `slide` (left/top), not the transform: layout
+          // position is not compositable in any engine, so the corner resolves
+          // on exactly the ticks the element's box animation does. Wholly
+          // transform-carried, WebKit ran the copy on the compositor's clock
+          // and the pair visibly beat (see morphKeyframes.slide). Only the
+          // SIZE stays on the transform, as a scale about the corner the
+          // slide is steering.
           from: IDENTITY_POSE,
-          to: followPose(destination, origin),
+          to: {
+            ...IDENTITY_POSE,
+            scaleX: followPose(destination, origin).scaleX,
+            scaleY: followPose(destination, origin).scaleY
+          },
           authoredFrom: IDENTITY_POSE,
           authoredTo: IDENTITY_POSE,
           duration: flightDuration,
           start,
           ease
+        },
+        slide: {
+          from: { x: origin.x, y: origin.y },
+          to: { x: destination.x, y: destination.y }
         },
         // The copy is clipped exactly as the departure was, releasing (or
         // gathering) with the flight, so it too emerges from under the chrome
@@ -1056,6 +1071,9 @@ const startFlight = (
     ghost.style.maxHeight = "none";
     ghost.style.pointerEvents = "none";
     ghost.style.willChange = "left, top, width, height";
+    // The slide steers the top-left corner, so the scale must grow from it —
+    // centred, the scaled copy would swing around the corner the slide holds.
+    ghost.style.transformOrigin = "0 0";
     ghost.style.contain = "layout";
     ghost.style.zIndex = `${morphDepth(home) + 2}`;
     ghost.style.animation = ghostSet.animation;

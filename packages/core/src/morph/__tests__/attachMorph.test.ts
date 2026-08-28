@@ -322,7 +322,16 @@ describe("attachMorph", () => {
     // prints the two over each other.
     expect(ghost.style.width).toBe("80px");
     const ghostRule = inserted.find((rule) => rule.includes("g-travel"))!;
-    expect(ghostRule).toContain("transform:");
+    // The copy's POSITION slides by left/top — layout position is not
+    // compositable in any engine, so the corner resolves on exactly the ticks
+    // the element's box animation does. Wholly transform-carried, WebKit ran
+    // the copy on the compositor's clock and the pair visibly beat, measured
+    // swinging up to 5.3px where Chromium held 0.02. Only the size stays on
+    // the transform, as a scale about the corner the slide steers.
+    expect(ghostRule).toContain("left:");
+    expect(ghostRule).toContain("top:");
+    expect(ghostRule).toContain("scale(");
+    expect(ghostRule).not.toContain("translate3d");
     expect(ghostRule).not.toContain("width:");
     expect(ghost.style.animation).toContain("-travel");
     expect(ghost.style.animation).toContain("-fade");
