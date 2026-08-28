@@ -78,7 +78,7 @@ function PostersScreen() {
                     it. Under every other case this is a plain box. */}
                 <CardShell
                   layoutId={`card-${act.id}`}
-                  className="block overflow-hidden rounded-2xl bg-[var(--color-layer)]"
+                  className="block overflow-hidden rounded-2xl bg-[var(--color-layer)] pb-3"
                 >
                   {/* THE BOX IS THE WRAPPER'S, not the morph's.
                       
@@ -140,7 +140,7 @@ function PostersScreen() {
                       cross-fading at the same spot is the shift the recordings
                       kept showing. The detail's meta is the SAME string, so the
                       pair re-typesets one line instead of trading two. */}
-                  <span className="mt-1 block h-4 px-4 pb-3">
+                  <span className="mt-1 block h-4 px-4">
                     <CardTitle
                       layoutId={`cardmeta-${act.id}`}
                       className="block truncate text-[11px] leading-4 text-[var(--color-text-disabled)]"
