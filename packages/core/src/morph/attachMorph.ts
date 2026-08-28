@@ -937,20 +937,17 @@ const startFlight = (
     // label associations, form submissions and every query a consumer's own
     // tests make. It is inert and hidden from assistive technology on top.
     for (const node of [ghost, ...ghost.querySelectorAll<HTMLElement>("*")]) {
-      // A paired TEXT descendant is re-typesetting on the real element
-      // underneath; printing the copy's version as well puts two nearly
-      // identical runs in the same place with different weights, which reads
-      // as a shadow trailing the text. So type stops painting and keeps its
-      // space. Every OTHER paired descendant keeps painting: the ghost sits
-      // ON TOP of the arriving card, so the real element does not show
-      // through it, and a dimmed copy left a hole the size of the pair on the
-      // flight's first frame — measured as a full hero collapsing to a strip
-      // the instant a pop began. The copy rides the ghost's own travel toward
-      // the destination box, so it tracks the real element's path closely
-      // enough for the cross-fade to read as one thing.
-      if (node !== ghost && node.hasAttribute(MORPH_ATTR)) {
-        if (node.getAttribute(MORPH_NAME_ATTR) === "text") node.style.opacity = "0";
-      }
+      // PAIRED descendants keep painting in the copy — all of them. The ghost
+      // sits ON TOP of the arriving card, so the real element underneath does
+      // not show through it: a dimmed copy is a HOLE the size of the pair,
+      // not a window. Dimmed artwork read as a hero collapsing to a strip on
+      // a pop's first frame, and dimmed type read as the title vanishing at
+      // the tap and reappearing mid-flight. The copies fade with the ghost
+      // itself, and they ride its travel toward the destination box, so they
+      // track the real elements closely. The cost is the one the old dimming
+      // existed for: while the ghost is semi-transparent, a re-typesetting
+      // run can briefly double against its copy. That is a soft cross-fade
+      // between the same words; a vanishing title is a missing element.
       node.removeAttribute(MORPH_ATTR);
       node.removeAttribute(MORPH_NAME_ATTR);
       // A part carries its own status, so the copy would run the departing

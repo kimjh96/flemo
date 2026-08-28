@@ -291,10 +291,10 @@ describe("attachMorph", () => {
     thumbnail.textContent = "from the list";
     const inner = makeMorph(thumbnail, [20, 600, 80, 20]);
     // A binding renders the marker from the first commit, so a paired
-    // descendant is recognisable in the copy even before it registers. Only a
-    // TEXT pair is dimmed in the copy: the ghost sits on top of the arriving
-    // card, so a dimmed non-text copy left a hole the size of the pair on the
-    // flight's first frame.
+    // descendant is recognisable in the copy even before it registers. No
+    // copy is dimmed any more: the ghost sits on top of the arriving card,
+    // so a dimmed copy is a hole the size of the pair, not a window — dimmed
+    // artwork collapsed a hero to a strip, and dimmed type vanished a title.
     inner.setAttribute(MORPH_ATTR, "");
     inner.setAttribute("data-flemo-morph-name", "text");
     inner.setAttribute("data-copied-pair", "");
@@ -328,8 +328,7 @@ describe("attachMorph", () => {
     // paired descendant keeps its space in the copy's layout and stops
     // painting, or the two print over each other.
     const copiedPair = ghost.querySelector<HTMLElement>("[data-copied-pair]");
-    expect(copiedPair?.style.opacity).toBe("0");
-    // And a paired NON-TEXT descendant keeps painting in the copy.
+    expect(copiedPair?.style.opacity).not.toBe("0");
     const copiedArt = ghost.querySelector<HTMLElement>("[data-copied-pair-art]");
     expect(copiedArt?.style.opacity).not.toBe("0");
 
