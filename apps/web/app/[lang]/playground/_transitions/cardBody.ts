@@ -43,8 +43,6 @@ import "./cardBody.types";
 // stopped.
 const IN = 0.24;
 const IN_DELAY = 0.26;
-const LAND_DELAY = 0.42;
-const LAND_IN = 0.08;
 // Short on purpose. The detail's own buy control sits where the grid's tab bar
 // is about to reappear, so every frame the two are both drawn is two bars
 // stacked. Four frames is enough to read as leaving rather than cutting.
@@ -66,14 +64,13 @@ const cardBody = createRawPartTransition({
     value: SHOWN,
     options: { duration: IN, delay: IN_DELAY, ease: EASE_IN }
   },
-  // The grid going behind. Its captions ARE parts, and they have to leave for
-  // the same reason the detail's copy does: while the card is a travelling box,
-  // a caption on one end and none on the other is a line of type appearing out
-  // of nothing partway through. Both ends carry text only at rest.
-  pushOnExit: {
-    value: HIDDEN,
-    options: { duration: OUT, ease: EASE_OUT }
-  },
+  // The grid going behind. Its caption is NOT hidden any more, and the deleted
+  // playground is the reason: its cell caption stays visible for the whole
+  // flight and dissolves inside the card's ghost. Hiding it here emptied the
+  // bottom third of the card on the FIRST FRAME, so a 207px card collapsed to
+  // its 151px artwork and then grew, which is the "shrinks before it grows"
+  // three recordings showed.
+  pushOnExit: REST,
   replaceOnEnter: {
     value: SHOWN,
     options: { duration: IN, delay: IN_DELAY, ease: EASE_IN }
@@ -85,11 +82,9 @@ const cardBody = createRawPartTransition({
     value: HIDDEN,
     options: { duration: OUT, ease: EASE_OUT }
   },
-  // The grid coming back. Held out until the card HAS landed.
-  popOnExit: {
-    value: SHOWN,
-    options: { duration: LAND_IN, delay: LAND_DELAY, ease: EASE_IN }
-  },
+  // The grid coming back: same rule, the caption rides visibly inside the
+  // returning card instead of flashing in after the landing.
+  popOnExit: REST,
   completedOnEnter: REST,
   completedOnExit: REST
 });

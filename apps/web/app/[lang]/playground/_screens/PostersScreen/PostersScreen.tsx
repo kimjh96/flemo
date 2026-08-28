@@ -5,8 +5,8 @@ import { Morph, Screen, useNavigate } from "@flemo/react";
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
-import CardBody from "../../_components/CardBody";
 import CardShell from "../../_components/CardShell";
+import CardTitle from "../../_components/CardTitle";
 import TabBar from "../../_components/TabBar";
 
 import { ACTS, artworkFor } from "../../_data/acts";
@@ -110,14 +110,19 @@ function PostersScreen() {
                       out of nothing partway through the flight, which is the
                       shift between the title and the date that a recording
                       kept showing. */}
-                  <CardBody>
-                    <span className="mt-2 block truncate px-2.5 text-[13px] font-semibold text-[var(--color-text-primary)]">
-                      {act.artist}
-                    </span>
-                    <span className="mt-0.5 block truncate px-2.5 pb-2.5 text-[11px] text-[var(--color-text-disabled)]">
-                      {act.day} {act.time} · ₩{act.price}
-                    </span>
-                  </CardBody>
+                  {/* Visible for the whole flight, dissolving inside the
+                      card's ghost, as the deleted playground's caption did.
+                      Only the NAME is paired: it re-typesets into the detail's
+                      heading while its clone holds this exact box. */}
+                  <CardTitle
+                    layoutId={`cardname-${act.id}`}
+                    className="mt-2 block truncate px-2.5 text-[13px] font-semibold text-[var(--color-text-primary)]"
+                  >
+                    {act.artist}
+                  </CardTitle>
+                  <span className="mt-0.5 block truncate px-2.5 pb-2.5 text-[11px] text-[var(--color-text-disabled)]">
+                    {act.day} {act.time} · ₩{act.price}
+                  </span>
                 </CardShell>
               </button>
             </li>

@@ -7,6 +7,7 @@ import { getDict } from "@/lib/i18n";
 
 import CardBody from "../../_components/CardBody";
 import CardShell from "../../_components/CardShell";
+import CardTitle from "../../_components/CardTitle";
 
 import { actById, artworkFor } from "../../_data/acts";
 import { useBench } from "../../_providers/BenchContext";
@@ -142,15 +143,19 @@ function ActScreen() {
           </span>
 
           <div className="px-5 pt-4 pb-4">
-            {/* The name is NOT paired. Pairing it as a `text` morph did stop
-                it being drawn twice inside the card's ghost, but it left the
-                line under it standing on a box that grows: the date moved every
-                frame the type did. It arrives with the rest of the copy
-                instead, which is what the card being a surface already means. */}
-            <CardBody>
-              <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
+            {/* The name IS paired, as the deleted playground paired it: a
+                `text` morph lifted out of both sides, re-typesetting from the
+                cell's 13px label into this heading. The clone left in its place
+                holds its exact box, so nothing under it moves. */}
+            <h2>
+              <CardTitle
+                layoutId={params?.from === "cell" ? `cardname-${act.id}` : null}
+                className="block text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]"
+              >
                 {act.artist}
-              </h2>
+              </CardTitle>
+            </h2>
+            <CardBody>
               <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
                 {act.venue} · {act.day} {act.time}
               </p>
