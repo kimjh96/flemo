@@ -98,6 +98,16 @@ interface MorphEntry {
   element: HTMLElement;
   layoutId: string;
   name: MorphTransitionName;
+  /**
+   * The element's box AT REST, measured at registration — before any container
+   * it is nested in is staged. A binding registers child-first, so this is the
+   * natural arrival layout. It is what a nested size interpolation must END
+   * on: the staged measurement is taken inside a container still at its
+   * from-box, and a container whose width interpolates lays the child out
+   * slightly small there — the flight then froze 40px short and snapped the
+   * difference at the landing.
+   */
+  restSize: { width: number; height: number } | null;
 }
 
 interface MorphFlight {
@@ -624,8 +634,14 @@ const startFlight = (
     // `side.rect` is measured where the staged container put it, so the delta
     // is zero exactly when the container's width carries the child correctly,
     // which keeps this channel silent for a grid cell.
-    const dw = captured.snapshot.rect.width - side.rect.width;
-    const dh = captured.snapshot.rect.height - side.rect.height;
+    // The size interpolation ENDS on the rest measurement from registration,
+    // not on the staged one: staged is measured inside a container still at
+    // its from-box, and when the container's width interpolates the child is
+    // laid out slightly small there. Ending on staged froze the artwork 40px
+    // short of the page and snapped the difference at the landing.
+    const endSize = entry.restSize ?? { width: side.rect.width, height: side.rect.height };
+    const dw = captured.snapshot.rect.width - endSize.width;
+    const dh = captured.snapshot.rect.height - endSize.height;
     const resizes = Math.abs(dw) >= 1 || Math.abs(dh) >= 1;
     const retypes =
       type.fontSize !== null ||
@@ -685,7 +701,7 @@ const startFlight = (
               width: captured.snapshot.rect.width,
               height: captured.snapshot.rect.height
             },
-            to: { width: side.rect.width, height: side.rect.height }
+            to: endSize
           }
         : null,
       fade: null,
@@ -1481,7 +1497,13 @@ export default function attachMorph(element: HTMLElement, options: AttachMorphOp
   const { layoutId, navigateStore } = options;
   const name = options.name ?? DEFAULT_MORPH_TRANSITION_NAME;
   const scope = ensureScope(navigateStore);
-  const entry: MorphEntry = { element, layoutId: String(layoutId), name };
+  const rest = element.getBoundingClientRect();
+  const entry: MorphEntry = {
+    element,
+    layoutId: String(layoutId),
+    name,
+    restSize: rest.width > 0 && rest.height > 0 ? { width: rest.width, height: rest.height } : null
+  };
 
   scope.entries.set(element, entry);
   if (!element.hasAttribute(MORPH_ATTR)) element.setAttribute(MORPH_ATTR, "");
