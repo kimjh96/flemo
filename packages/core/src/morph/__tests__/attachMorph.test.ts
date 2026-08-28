@@ -174,13 +174,17 @@ describe("attachMorph", () => {
     expect(thumbnail.style.animation).toContain("0.000s both");
   });
 
-  it("lets a nested morph RIDE its container instead of flying", async () => {
-    // Tried both alternatives on glass. Flying free tears the container apart
-    // in the air; cancelling the container's transform so the child keeps its
-    // own path holds the box together but opens voids inside it, because the
-    // box is scaled from its own layout while the children are placed by their
-    // own. Riding keeps the container a faithful scaled copy of itself, and the
-    // GHOST covers the difference between the two ends' contents.
+  it("lets a nested morph RIDE its container, starting from the measured from-pose", async () => {
+    // Tried the two hard alternatives on glass. Flying free tears the
+    // container apart in the air; cancelling the container's transform so the
+    // child keeps its own path holds the box together but opens voids inside
+    // it. Riding keeps the container a faithful scaled copy of itself — but
+    // riding ALONE renders the child at the ARRIVAL's own place inside the
+    // travelling box from the first frame, so any difference between the two
+    // ends' local arrangement was a lurch at the tap: measured at 20px
+    // sideways on the playground's caption, and at 16px on the demo it
+    // replaced. So the child rides AND carries a translate from the measured
+    // from-delta to identity, exact at both ends of the flight.
     const gallery = makeScreen("layout", true);
     const card = makeMorph(gallery, [20, 600, 160, 160]);
     const label = makeMorph(card, [28, 730, 140, 20]);
@@ -201,9 +205,62 @@ describe("attachMorph", () => {
 
     expect(bigCard.parentElement).toBe(layer);
     expect(heading.parentElement).toBe(bigCard);
-    // It rides its container's box, and animates only what the container
-    // cannot do for it — its own type size and spacing.
-    expect(heading.style.animation).not.toContain("-travel 0.400s cubic");
+    // It rides its container's box: no box animation of its own, no staging.
+    const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
+    expect(nestedRule).not.toContain("left:");
+    expect(nestedRule).not.toContain("width:");
+    // And it BEGINS where the pair measured it — the from-delta between the
+    // label's box (28, 730) and the heading's (16, 260) — decaying to rest.
+    expect(nestedRule).toContain("translate3d(12px, 470px, 0)");
+    expect(nestedRule).toMatch(/to \{[^}]*transform: none/);
+  });
+
+  it("adds no translate to a nested pair whose two ends already agree", async () => {
+    // The correction exists for DISAGREEING local arrangements. A pair whose
+    // element sits at the same offsets inside both cards needs nothing, and
+    // must get nothing: an all-identity travel channel would still cost a
+    // keyframe and a composited transform for a no-op.
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 160, 160]);
+    const label = makeMorph(card, [36, 620, 128, 20]);
+    attachMorph(card, { layoutId: "card-2", navigateStore: store });
+    attachMorph(label, { layoutId: "title-2", name: "text", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+    // The SAME box as the label's: the pair's two ends agree exactly.
+    const heading = makeMorph(bigCard, [36, 620, 128, 20]);
+    attachMorph(bigCard, { layoutId: "card-2", navigateStore: store });
+    attachMorph(heading, { layoutId: "title-2", name: "text", navigateStore: store });
+    await Promise.resolve();
+
+    const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule));
+    if (nestedRule) expect(nestedRule).not.toContain("translate3d");
+  });
+
+  it("stamps inherited line-height as a FACTOR, not as the used length", () => {
+    // Computed line-height comes back as a used px length, and stamping that
+    // inline on a hoisted container hands every descendant an absolute leading
+    // where the tree they left gave them a factor. Measured on a paired card:
+    // rows that set only a 13px font were 20px tall at rest and 24px tall in
+    // flight, because the card's own used 24px landed on them verbatim.
+    const gallery = makeScreen("layout", true);
+    const cardFrom = makeMorph(gallery, [20, 600, 160, 160]);
+    attachMorph(cardFrom, { layoutId: "card-3", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const cardTo = makeMorph(detail, [0, 0, 400, 340]);
+    cardTo.style.fontSize = "16px";
+    cardTo.style.lineHeight = "24px";
+    attachMorph(cardTo, { layoutId: "card-3", navigateStore: store });
+
+    expect(cardTo.parentElement).toBe(layer);
+    expect(cardTo.style.lineHeight).toBe("1.5");
   });
 
   it("carries a ghost of what it replaces, and drops it on landing", () => {

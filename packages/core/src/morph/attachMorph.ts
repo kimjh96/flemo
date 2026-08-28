@@ -165,6 +165,28 @@ const INHERITED = [
   "direction"
 ] as const;
 
+// What actually gets stamped for an inherited property. One property needs
+// translating rather than copying: computed `line-height` comes back as a USED
+// length, and stamping that length inline hands every descendant an absolute
+// leading where the tree they left gave them a factor. Measured on a paired
+// card: rows that set only a 13px font sat 20px tall at rest and 24px tall in
+// flight, because the card's own used 24px landed on them verbatim (the `font`
+// shorthand carries the same length, which is why `lineHeight` stamps after it
+// and wins). The RATIO reproduces the element's own leading exactly and keeps
+// a descendant's leading proportional to its own font, which is what unitless
+// inheritance — the common case — was doing before the element was hoisted.
+// A descendant that inherited an absolute leading from an ancestor with a
+// DIFFERENT font size trades one distortion for a smaller one.
+const inheritedValue = (computed: CSSStyleDeclaration, property: (typeof INHERITED)[number]) => {
+  if (property !== "lineHeight") return computed[property];
+  const raw = computed.lineHeight ?? "";
+  const lineHeight = Number.parseFloat(raw);
+  const fontSize = Number.parseFloat(computed.fontSize ?? "");
+  if (!raw.endsWith("px") || !Number.isFinite(lineHeight)) return raw;
+  if (!Number.isFinite(fontSize) || fontSize <= 0) return raw;
+  return String(Math.round((lineHeight / fontSize) * 10000) / 10000);
+};
+
 const isTransitional = (status: NavigateStatus): boolean =>
   (TRANSITIONAL_STATUS_VALUES as readonly string[]).includes(status);
 
@@ -579,6 +601,21 @@ const startFlight = (
   // paired with a list label has to grow into it on its own. That is the whole
   // nested job, and it is why nothing here is staged or moved.
   if (carrying) {
+    // WHERE THE FLIGHT BEGINS is part of the pair's contract for a nested
+    // element too. Riding alone renders it at the ARRIVAL's own place inside
+    // the travelling box from the first frame, so any difference between the
+    // two ends' local arrangement — an inset kept on the element at one end
+    // and on an ancestor at the other, a different gap under the artwork —
+    // was a lurch at the tap: measured at 20px sideways on the playground's
+    // caption, and at 16px on the demo it replaced, so it was never a
+    // regression, just never corrected. The correction is a translate from
+    // the measured from-delta to identity on the flight's own curve: exact at
+    // both ends, first-order in between, and the ride itself is untouched.
+    // `side.rect` is this element measured where the staged container put it,
+    // so the delta is against the box actually on glass at frame zero.
+    const dx = captured.snapshot.rect.x - side.rect.x;
+    const dy = captured.snapshot.rect.y - side.rect.y;
+    const travels = Math.abs(dx) >= 0.5 || Math.abs(dy) >= 0.5;
     const retypes =
       type.fontSize !== null ||
       type.fontWeight !== null ||
@@ -598,7 +635,7 @@ const startFlight = (
     // A nested element gets the paint table too. It used to get none of it:
     // its corner, its surface and its border were the destination's from the
     // first frame, which is the same step the container was already fixed for.
-    if (!retypes && !reshapes && !respaces && paint.length === 0) {
+    if (!retypes && !reshapes && !respaces && !travels && paint.length === 0) {
       trace("nested-nothing-to-do", entry, status);
       return;
     }
@@ -606,7 +643,7 @@ const startFlight = (
     const growing = buildMorphKeyframes({
       id: `${id}n`,
       travel: {
-        from: IDENTITY_POSE,
+        from: travels ? { ...IDENTITY_POSE, x: dx, y: dy } : IDENTITY_POSE,
         authoredFrom: IDENTITY_POSE,
         authoredTo: IDENTITY_POSE,
         duration: flightDuration,
@@ -824,7 +861,7 @@ const startFlight = (
   const inline = entry.element.getAttribute("style");
   const computed = computedBefore;
   const inherited = computed
-    ? INHERITED.map((property) => [property, computed[property]] as const)
+    ? INHERITED.map((property) => [property, inheritedValue(computed, property)] as const)
     : [];
 
   preserveDescendantAnimations(entry.element, () => layer.appendChild(entry.element));
