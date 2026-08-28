@@ -34,7 +34,11 @@ import "./detailChrome.types";
 // The pop direction needs no delay anywhere: the artwork leaves the detail at
 // the tap, nothing covers the header, and the header's job is to ride the
 // dismissing screen out — REST, in every row.
-const IN = 0.18;
+// 0.18s read as a blink: the page settles at the flight's end and a dark
+// scrim then materialised in under a fifth of a second — reported as
+// "flicker right after arriving" on fade-through. A third of a second reads
+// as the header settling into place instead.
+const IN = 0.32;
 const EASE_IN: [number, number, number, number] = [0, 0, 0.2, 1];
 
 const SHOWN = { opacity: 1 };

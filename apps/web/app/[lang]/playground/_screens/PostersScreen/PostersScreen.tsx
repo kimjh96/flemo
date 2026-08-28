@@ -99,7 +99,14 @@ function PostersScreen() {
                       // one opened it through the route.
                       name={morph}
                       layoutId={`cell-${act.id}`}
-                      className="block size-full"
+                      // The top rounding is the ARTWORK'S OWN, not only the
+                      // wrapper's clip. At rest the two paint identically, but
+                      // a flight lifts the artwork out of the wrapper: with no
+                      // radius of its own the corners snapped square on a
+                      // push's first frame and stayed square until a pop's
+                      // landing. Owned, the pair carries 16px-top ↔ 0 and the
+                      // runtime eases it as a proportion of the box.
+                      className="block size-full rounded-t-2xl"
                       style={{ background: artworkFor(act.hue) }}
                       aria-hidden="true"
                     />

@@ -520,22 +520,28 @@ const startFlight = (
   // Those keep the px interpolation.
   const corner = paint.find((channel) => channel.property === "border-radius");
   if (corner) {
-    const px = (value: string): number | null => {
-      const match = /^(\d+(?:\.\d+)?)px$/.exec(value);
-      return match ? Number(match[1]) : null;
+    // Per-component: a card whose image rounds only its top corners computes
+    // to "16px 16px 0px 0px", and each corner keeps its own proportion.
+    const pxList = (value: string): number[] | null => {
+      if (value.includes("/")) return null;
+      const parts = value.trim().split(/\s+/);
+      const numbers: number[] = [];
+      for (const part of parts) {
+        const match = /^(\d+(?:\.\d+)?)px$/.exec(part);
+        if (!match) return null;
+        numbers.push(Number(match[1]));
+      }
+      return numbers.length >= 1 && numbers.length <= 4 ? numbers : null;
     };
     const squarish = (rect: { width: number; height: number }): boolean =>
       rect.width > 0 && rect.height > 0 && Math.abs(rect.width / rect.height - 1) <= 0.1;
-    const fromPx = px(corner.from);
-    const toPx = px(corner.to);
-    if (
-      fromPx !== null &&
-      toPx !== null &&
-      squarish(captured.snapshot.rect) &&
-      squarish(side.rect)
-    ) {
-      corner.from = `${((fromPx / captured.snapshot.rect.width) * 100).toFixed(2)}%`;
-      corner.to = `${((toPx / side.rect.width) * 100).toFixed(2)}%`;
+    const fromPx = pxList(corner.from);
+    const toPx = pxList(corner.to);
+    if (fromPx && toPx && squarish(captured.snapshot.rect) && squarish(side.rect)) {
+      const pct = (values: number[], span: number): string =>
+        values.map((value) => `${((value / span) * 100).toFixed(2)}%`).join(" ");
+      corner.from = pct(fromPx, captured.snapshot.rect.width);
+      corner.to = pct(toPx, side.rect.width);
     }
   }
 

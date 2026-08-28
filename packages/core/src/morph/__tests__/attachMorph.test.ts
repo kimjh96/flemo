@@ -962,6 +962,28 @@ describe("attachMorph", () => {
     expect(rule).toContain("border-radius: 0.00%");
   });
 
+  it("keeps each corner's own proportion in a per-corner radius", () => {
+    // A card whose image rounds only its top computes "16px 16px 0px 0px";
+    // every corner converts against its own box so the straight bottom stays
+    // straight while the top eases.
+    const gallery = makeScreen("layout", true);
+    const thumb = makeMorph(gallery, [20, 600, 160, 160]);
+    thumb.style.borderRadius = "16px 16px 0px 0px";
+    attachMorph(thumb, { layoutId: "sq-2", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 400]);
+    hero.style.borderRadius = "0px";
+    attachMorph(hero, { layoutId: "sq-2", navigateStore: store });
+
+    const rule = inserted.find((r) => /flemo-morph-\d+i-paint/.test(r))!;
+    expect(rule).toContain("border-radius: 10.00% 10.00% 0.00% 0.00%");
+    expect(rule).toContain("border-radius: 0.00%");
+  });
+
   it("carries the scrollport's clip into the flight", () => {
     // The cell sits at the list's bottom edge with 30 of its 80px scrolled
     // under the chrome stacked there. Bare, the hidden strip paints on the
