@@ -5,6 +5,8 @@ import { Morph, Screen, useNavigate } from "@flemo/react";
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
+import CardShell from "../../_components/CardShell";
+import CardTitle from "../../_components/CardTitle";
 import TabBar from "../../_components/TabBar";
 
 import { ACTS, artworkFor } from "../../_data/acts";
@@ -67,37 +69,55 @@ function ActsScreen() {
                     { transitionName: transition }
                   )
                 }
-                className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-[var(--color-layer)]"
+                className="block w-full cursor-pointer rounded-2xl text-left transition-colors hover:bg-[var(--color-layer)]"
               >
-                <Morph
-                  as="span"
-                  // The SMALL side. `zoom` puts its camera on whichever screen
-                  // the element is small on, so on a push this list is what
-                  // gets pushed past the edges, and on a pop the same zoom runs
-                  // backwards. Both sides of a pair must name the same morph.
-                  //
-                  // The id is scoped to THIS surface. The posters tab shows the
-                  // same acts, and when the two tabs are in a flight together
-                  // one shared id would pair all ten of them: measured at 50
-                  // morph animations on a single tab switch, which is load this
-                  // stage manufactures for nothing.
-                  name={morph}
-                  layoutId={`row-${act.id}`}
-                  className="size-12 shrink-0 rounded-xl"
-                  style={{ background: artworkFor(act.hue) }}
-                  aria-hidden="true"
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-[var(--color-text-primary)]">
-                    {act.artist}
+                {/* THE ROW IS A CONTAINER TOO. The container transform's pair
+                    and camera live on CardShell, and until the row drew one,
+                    zoom from this tab flew a lone artwork over a plain fade:
+                    no card, no camera. The id is surface-scoped (rowcard-, not
+                    card-) so the two tabs never pair with each other while a
+                    tab switch has both mounted. */}
+                <CardShell
+                  layoutId={`rowcard-${act.id}`}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5"
+                >
+                  <Morph
+                    as="span"
+                    // The SMALL side. `zoom` puts its camera on whichever screen
+                    // the element is small on, so on a push this list is what
+                    // gets pushed past the edges, and on a pop the same zoom runs
+                    // backwards. Both sides of a pair must name the same morph.
+                    //
+                    // The id is scoped to THIS surface. The posters tab shows the
+                    // same acts, and when the two tabs are in a flight together
+                    // one shared id would pair all ten of them: measured at 50
+                    // morph animations on a single tab switch, which is load this
+                    // stage manufactures for nothing.
+                    name={morph}
+                    layoutId={`row-${act.id}`}
+                    className="size-12 shrink-0 rounded-xl"
+                    style={{ background: artworkFor(act.hue) }}
+                    aria-hidden="true"
+                  />
+                  <span className="min-w-0 flex-1">
+                    {/* Paired like the grid's title, under this surface's own
+                      id, in a fixed-height holder. */}
+                    <span className="block h-5">
+                      <CardTitle
+                        layoutId={`rowname-${act.id}`}
+                        className="block truncate text-sm leading-5 font-semibold text-[var(--color-text-primary)]"
+                      >
+                        {act.artist}
+                      </CardTitle>
+                    </span>
+                    <span className="block truncate text-xs text-[var(--color-text-disabled)]">
+                      {act.venue} · {act.day} {act.time}
+                    </span>
                   </span>
-                  <span className="block truncate text-xs text-[var(--color-text-disabled)]">
-                    {act.venue} · {act.day} {act.time}
+                  <span className="shrink-0 font-mono text-xs font-semibold text-[var(--color-text-secondary)] tabular-nums">
+                    ₩{act.price}
                   </span>
-                </span>
-                <span className="shrink-0 font-mono text-xs font-semibold text-[var(--color-text-secondary)] tabular-nums">
-                  ₩{act.price}
-                </span>
+                </CardShell>
               </button>
             </li>
           ))}

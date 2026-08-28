@@ -41,6 +41,13 @@ function ActScreen() {
 
   if (!act) return null;
 
+  // Which surface opened this screen decides which pair family to answer to:
+  // the grid's (card-/cardname-/cardmeta-) or the list's (rowcard-/rowname-).
+  // The two are scoped apart so the tabs never pair with each other.
+  const from = params?.from === "cell" || params?.from === "row" ? params.from : null;
+  const pairId = (cell: string, row: string) =>
+    from === "cell" ? `${cell}-${act.id}` : from === "row" ? `${row}-${act.id}` : null;
+
   // Reaching past the top in one transition. `until` collapses the list as
   // well as this screen, so the stack lands on the tickets tab alone:
   //
@@ -73,7 +80,7 @@ function ActScreen() {
           own internal chrome layout. */}
       <div className="h-full overflow-y-auto">
         <CardShell
-          layoutId={params?.from === "cell" ? `card-${act.id}` : null}
+          layoutId={pairId("card", "rowcard")}
           className="relative flex min-h-full flex-col bg-[var(--color-bg)]"
         >
           {/* Floating, so it adds no height above the artwork: both ends of
@@ -140,25 +147,33 @@ function ActScreen() {
                 line collapses the layout under it until the landing. */}
             <h2 className="h-8">
               <CardTitle
-                layoutId={params?.from === "cell" ? `cardname-${act.id}` : null}
+                layoutId={pairId("cardname", "rowname")}
                 className="block text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]"
               >
                 {act.artist}
               </CardTitle>
             </h2>
-            {/* The SAME string as the cell's meta, paired as the same text
-                morph, in a fixed-height holder: one line re-typesetting from
-                11px to 14px instead of two different date lines cross-fading
-                on top of each other. The venue is not lost; it has its own row
-                in the facts below. */}
-            <p className="mt-1 h-5">
-              <CardTitle
-                layoutId={params?.from === "cell" ? `cardmeta-${act.id}` : null}
-                className="block text-sm text-[var(--color-text-secondary)]"
-              >
-                {act.day} {act.time} · ₩{act.price}
-              </CardTitle>
-            </p>
+            {/* From the GRID this is the cell's own meta line, paired so one
+                line re-typesets instead of two cross-fading. From the LIST the
+                row's meta is a different string (venue-led), so pairing would
+                cut its content at frame one; it arrives with the body copy
+                instead, and the ghost carries the row's line out. */}
+            {from === "row" ? (
+              <CardBody>
+                <p className="mt-1 h-5 text-sm text-[var(--color-text-secondary)]">
+                  {act.day} {act.time} · ₩{act.price}
+                </p>
+              </CardBody>
+            ) : (
+              <p className="mt-1 h-5">
+                <CardTitle
+                  layoutId={pairId("cardmeta", "")}
+                  className="block text-sm text-[var(--color-text-secondary)]"
+                >
+                  {act.day} {act.time} · ₩{act.price}
+                </CardTitle>
+              </p>
+            )}
 
             {/* The body part, as the reference ran its own body copy: absent
                 while the card is a narrow box (squeezed three-word lines read
