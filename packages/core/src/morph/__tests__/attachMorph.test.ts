@@ -828,6 +828,35 @@ describe("attachMorph", () => {
     expect(hero.parentElement).toBe(layer);
   });
 
+  it("keeps a CONTAINER's ghost whole, on one transform", () => {
+    // An element's ghost slides by left/top to hold its element's clock. A
+    // container's ghost is the SCENE — opaque, covering the card it follows —
+    // and its scale is violent (a page squashing 12x into a row in half a
+    // second). Splitting its position onto the main thread while the scale
+    // stayed accelerated tore the copy against itself by the phase error
+    // times the edge velocity: the Safari-only trembling reported on the
+    // zoom pop, and only there. One transform, one clock, whole again.
+    const gallery = makeScreen("none", true);
+    const row = makeMorph(gallery, [8, 498, 330, 68]);
+    row.textContent = "the row";
+    attachMorph(row, { layoutId: "card-9", name: "zoom", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("none", true);
+    const page = makeMorph(detail, [0, 0, 346, 723]);
+    attachMorph(page, { layoutId: "card-9", name: "zoom", navigateStore: store });
+
+    const ghost = layer.querySelector<HTMLElement>("[data-flemo-morph-ghost]")!;
+    expect(ghost).not.toBeNull();
+    expect(ghost.style.transformOrigin).toBe("");
+    const ghostRule = inserted.find((rule) => rule.includes("g-travel"))!;
+    expect(ghostRule).toContain("translate3d");
+    expect(ghostRule).toContain("scale(");
+    expect(ghostRule).not.toContain("left:");
+    expect(ghostRule).not.toContain("top:");
+  });
+
   it("carries its screen as a CAMERA when the transition asks for one", () => {
     // The container transform. A grid cell opening into a full-screen view is
     // not one card leaving a grid that stayed behind — the camera moved to the

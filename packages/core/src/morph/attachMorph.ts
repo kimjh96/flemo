@@ -868,29 +868,49 @@ const startFlight = (
           // real element re-wraps differently prints the two over each other,
           // which is exactly the doubled title on any card with a long one.
           //
-          // Its POSITION rides `slide` (left/top), not the transform: layout
-          // position is not compositable in any engine, so the corner resolves
-          // on exactly the ticks the element's box animation does. Wholly
-          // transform-carried, WebKit ran the copy on the compositor's clock
-          // and the pair visibly beat (see morphKeyframes.slide). Only the
-          // SIZE stays on the transform, as a scale about the corner the
-          // slide is steering.
+          // HOW it follows depends on what the copy is on top of, because
+          // WebKit gives every animation one of two clocks and a copy can
+          // only be phase-locked to one neighbour:
+          //
+          // - An ELEMENT's ghost overlaps the element itself, so its POSITION
+          //   rides `slide` (left/top): layout position is not compositable
+          //   in any engine, and the corner then resolves on exactly the
+          //   ticks the element's box animation does. Wholly
+          //   transform-carried, the pair beat 1.4-5.3px on WebKit. The mild
+          //   scale it keeps on the transform drifts fractions of a pixel.
+          //
+          // - A CONTAINER's ghost IS the scene: opaque, covering the card it
+          //   follows, with nothing of the card visible through it to beat
+          //   against. What matters there is INTERNAL consistency — and its
+          //   scale is violent (a page squashing 12x into a row in half a
+          //   second), so splitting its position onto the main thread while
+          //   the scale stayed accelerated tore the copy against itself by
+          //   the phase error times the edge velocity: the Safari-only
+          //   trembling reported on the zoom pop, and only there, because
+          //   only the container's scale runs that hot. One transform, one
+          //   clock, whole again.
           from: IDENTITY_POSE,
-          to: {
-            ...IDENTITY_POSE,
-            scaleX: followPose(destination, origin).scaleX,
-            scaleY: followPose(destination, origin).scaleY
-          },
+          to:
+            transition.carry === "screen"
+              ? followPose(destination, origin)
+              : {
+                  ...IDENTITY_POSE,
+                  scaleX: followPose(destination, origin).scaleX,
+                  scaleY: followPose(destination, origin).scaleY
+                },
           authoredFrom: IDENTITY_POSE,
           authoredTo: IDENTITY_POSE,
           duration: flightDuration,
           start,
           ease
         },
-        slide: {
-          from: { x: origin.x, y: origin.y },
-          to: { x: destination.x, y: destination.y }
-        },
+        slide:
+          transition.carry === "screen"
+            ? null
+            : {
+                from: { x: origin.x, y: origin.y },
+                to: { x: destination.x, y: destination.y }
+              },
         // The copy is clipped exactly as the departure was, releasing (or
         // gathering) with the flight, so it too emerges from under the chrome
         // rather than popping whole over it.
@@ -1093,7 +1113,9 @@ const startFlight = (
     ghost.style.willChange = "left, top, width, height";
     // The slide steers the top-left corner, so the scale must grow from it —
     // centred, the scaled copy would swing around the corner the slide holds.
-    ghost.style.transformOrigin = "0 0";
+    // A container's ghost travels wholly by transform instead, and its pose
+    // is centre math (followPose), so it keeps the default origin.
+    if (transition.carry !== "screen") ghost.style.transformOrigin = "0 0";
     ghost.style.contain = "layout";
     ghost.style.zIndex = `${morphDepth(home) + 2}`;
     ghost.style.animation = ghostSet.animation;
