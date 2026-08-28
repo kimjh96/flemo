@@ -52,12 +52,6 @@ const zoom = createMorphTransition({
     crossFade: 0.55,
     radius: true,
     carry: "screen"
-    // NOT mode: "transform", and it was tried. One compositor clock does end
-    // WebKit's trembling — but a transform flight cannot re-typeset: the
-    // paired title scales as a bitmap, and on-device judgment rejected that
-    // trade outright ("제목 텍스트 모핑 뭉개지고"). Box mode's re-layout is
-    // the look this preset is FOR; the one-clock carriage remains available
-    // to consumers who want the other side of the trade (see `mode`).
   }
 });
 

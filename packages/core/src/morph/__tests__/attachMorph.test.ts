@@ -205,21 +205,14 @@ describe("attachMorph", () => {
 
     expect(bigCard.parentElement).toBe(layer);
     expect(heading.parentElement).toBe(bigCard);
-    // It rides its container's box: not staged, and its from-pose is a
-    // RELATIVE left/top slide rather than a transform. WebKit splits a mixed
-    // keyframe across its pipelines — translate3d beside width and font-size
-    // put the position on the compositor's clock and everything else on the
-    // main thread's, a Safari-only micro-tremble of the pair against itself.
-    // Relative offsets are layout, so every channel shares one clock; the
-    // offsets decay from the measured from-delta between the label's box
-    // (28, 730) and the heading's (16, 260) to rest.
+    // It rides its container's box: not staged, never absolutely positioned.
     const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
-    expect(heading.style.position).toBe("relative");
-    expect(nestedRule).toContain("left: 12px");
-    expect(nestedRule).toContain("top: 470px");
-    expect(nestedRule).toContain("left: 0px");
-    expect(nestedRule).toContain("top: 0px");
-    expect(nestedRule).not.toContain("translate3d");
+    expect(nestedRule).not.toContain("left:");
+    expect(nestedRule).not.toContain("top:");
+    // And it BEGINS where the pair measured it — the from-delta between the
+    // label's box (28, 730) and the heading's (16, 260) — decaying to rest.
+    expect(nestedRule).toContain("translate3d(12px, 470px, 0)");
+    expect(nestedRule).toMatch(/to \{[^}]*transform: none/);
     // SIZE is the other half of the same correction. Riding sizes the child
     // through the container's width interpolation, and a container that is
     // already at destination width lays the child out full-size on frame one:
@@ -329,16 +322,7 @@ describe("attachMorph", () => {
     // prints the two over each other.
     expect(ghost.style.width).toBe("80px");
     const ghostRule = inserted.find((rule) => rule.includes("g-travel"))!;
-    // The copy's POSITION slides by left/top — layout position is not
-    // compositable in any engine, so the corner resolves on exactly the ticks
-    // the element's box animation does. Wholly transform-carried, WebKit ran
-    // the copy on the compositor's clock and the pair visibly beat, measured
-    // swinging up to 5.3px where Chromium held 0.02. Only the size stays on
-    // the transform, as a scale about the corner the slide steers.
-    expect(ghostRule).toContain("left:");
-    expect(ghostRule).toContain("top:");
-    expect(ghostRule).toContain("scale(");
-    expect(ghostRule).not.toContain("translate3d");
+    expect(ghostRule).toContain("transform:");
     expect(ghostRule).not.toContain("width:");
     expect(ghost.style.animation).toContain("-travel");
     expect(ghost.style.animation).toContain("-fade");
@@ -826,97 +810,6 @@ describe("attachMorph", () => {
     expect(travel).toContain("top: 600px");
     expect(travel).toContain("width: 400px");
     expect(hero.parentElement).toBe(layer);
-  });
-
-  it("keeps a CONTAINER's ghost whole, on one transform", () => {
-    // An element's ghost slides by left/top to hold its element's clock. A
-    // container's ghost is the SCENE — opaque, covering the card it follows —
-    // and its scale is violent (a page squashing 12x into a row in half a
-    // second). Splitting its position onto the main thread while the scale
-    // stayed accelerated tore the copy against itself by the phase error
-    // times the edge velocity: the Safari-only trembling reported on the
-    // zoom pop, and only there. One transform, one clock, whole again.
-    const gallery = makeScreen("none", true);
-    const row = makeMorph(gallery, [8, 498, 330, 68]);
-    row.textContent = "the row";
-    attachMorph(row, { layoutId: "card-9", name: "zoom", navigateStore: store });
-    flipTo("PUSHING");
-    gallery.setAttribute(ACTIVE_ATTR, "false");
-
-    const detail = makeScreen("none", true);
-    const page = makeMorph(detail, [0, 0, 346, 723]);
-    attachMorph(page, { layoutId: "card-9", name: "zoom", navigateStore: store });
-
-    const ghost = layer.querySelector<HTMLElement>("[data-flemo-morph-ghost]")!;
-    expect(ghost).not.toBeNull();
-    expect(ghost.style.transformOrigin).toBe("");
-    const ghostRule = inserted.find((rule) => rule.includes("g-travel"))!;
-    expect(ghostRule).toContain("translate3d");
-    expect(ghostRule).toContain("scale(");
-    expect(ghostRule).not.toContain("left:");
-    expect(ghostRule).not.toContain("top:");
-  });
-
-  it("stages a transform-mode flight in a travelling window, and lands it clean", async () => {
-    // The one-clock carriage (mode: "transform"): a runtime window at the
-    // destination rect travels by sampled transform stops while the element
-    // inside counter-scales, and a nested pair rides as a transform in the
-    // window's resting coordinates. No built-in preset defaults to it — the
-    // on-device verdict kept re-typesetting — but the option is public.
-    morphTransitionMap.set("windowed" as never, {
-      ...morphTransitionMap.get("zoom")!,
-      mode: "transform"
-    });
-    try {
-      const gallery = makeScreen("none", true);
-      const row = makeMorph(gallery, [8, 498, 330, 68]);
-      const label = makeMorph(row, [20, 510, 100, 20]);
-      attachMorph(row, { layoutId: "win-1", name: "windowed" as never, navigateStore: store });
-      attachMorph(label, { layoutId: "win-t", name: "windowed" as never, navigateStore: store });
-      flipTo("PUSHING");
-      gallery.setAttribute(ACTIVE_ATTR, "false");
-
-      const detail = makeScreen("none", true);
-      const page = makeMorph(detail, [0, 0, 346, 723]);
-      const heading = makeMorph(page, [16, 400, 200, 32]);
-      attachMorph(page, { layoutId: "win-1", name: "windowed" as never, navigateStore: store });
-      attachMorph(heading, { layoutId: "win-t", name: "windowed" as never, navigateStore: store });
-      await Promise.resolve();
-
-      // The window: destination box, clipping, marked as runtime furniture so
-      // the hold governs it, carrying the sampled travel.
-      const window_ = layer.querySelector<HTMLElement>("[data-flemo-morph-window]")!;
-      expect(window_).not.toBeNull();
-      expect(window_.style.width).toBe("346px");
-      expect(window_.style.overflow).toBe("hidden");
-      expect(page.parentElement).toBe(window_);
-      // The element counter-scales at destination geometry, its own overflow
-      // lifted — the window is the clip.
-      expect(page.style.width).toBe("346px");
-      expect(page.style.overflow).toBe("visible");
-      const travel = inserted.find((rule) => /w-travel/.test(rule))!;
-      const counter = inserted.find((rule) => /c-counter/.test(rule))!;
-      // Sampled stops with linear segments, not two eased keyframes: the
-      // reciprocal of an eased lerp is not an eased lerp, and only matching
-      // stops keep the two scales multiplying to one.
-      expect(travel).toContain("4%");
-      expect(counter).toContain("4%");
-      expect(window_.style.animation).toContain("linear");
-      // The nested pair rides as a transform in resting coordinates.
-      const ride = inserted.find((rule) => /\dn-travel/.test(rule))!;
-      expect(ride).toContain("translate3d");
-      expect(ride).toContain("scale(");
-      expect(ride).not.toContain("font-size");
-
-      // Landing removes the window and returns the element unmarked.
-      page.dispatchEvent(
-        animationEndEvent(/flemo-morph-\d+c-counter/.exec(page.style.animation)![0])
-      );
-      expect(layer.querySelector("[data-flemo-morph-window]")).toBeNull();
-      expect(page.parentElement).toBe(detail);
-    } finally {
-      morphTransitionMap.delete("windowed" as never);
-    }
   });
 
   it("carries its screen as a CAMERA when the transition asks for one", () => {

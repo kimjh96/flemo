@@ -113,21 +113,6 @@ export const buildMorphKeyframes = (input: {
    * to preserve.
    */
   clip?: { from: MorphClipInset; to: MorphClipInset } | null;
-  /**
-   * POSITION ONLY, for a follower that must hold the element's clock. The
-   * ghost used to travel wholly by transform, and a transform-only keyframe
-   * is eligible for the accelerated pipeline: WebKit ran it on the
-   * compositor's clock while the element under it animated left/top/width on
-   * the main thread's, and the two copies of the same picture beat against
-   * each other — measured swinging 1.4 to 5.3px where Chromium held 0.02px.
-   * (Blink demotes a whole animation over one non-accelerated property;
-   * WebKit SPLITS it, so a smuggled outline-offset pinned nothing.) Layout
-   * position is not compositable in any engine, so a follower that slides by
-   * left/top resolves those on exactly the ticks the element's box does; only
-   * its scale can stay accelerated, and a size beat is a fraction of the
-   * position beat it replaces.
-   */
-  slide?: { from: { x: number; y: number }; to: { x: number; y: number } } | null;
   fade: {
     from: TransitionTarget | null;
     to: TransitionTarget | null;
@@ -156,8 +141,7 @@ export const buildMorphKeyframes = (input: {
     padding,
     margin,
     size,
-    clip,
-    slide
+    clip
   } = input;
   const rules: string[] = [];
   const animations: string[] = [];
@@ -215,10 +199,6 @@ export const buildMorphKeyframes = (input: {
   }
   if (clip)
     pushSize(`    clip-path: ${insetCss(clip.from)};`, `    clip-path: ${insetCss(clip.to)};`);
-  if (slide) {
-    pushSize(`    left: ${px(slide.from.x)};`, `    left: ${px(slide.to.x)};`);
-    pushSize(`    top: ${px(slide.from.y)};`, `    top: ${px(slide.to.y)};`);
-  }
   if (fromParts.length > 0) {
     rules.push(
       `@keyframes ${geometryName} {\n  from {\n${fromParts.join("\n")}\n  }\n  to {\n${toParts.join("\n")}\n  }\n}`

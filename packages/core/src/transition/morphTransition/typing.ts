@@ -78,27 +78,6 @@ export type MorphTransitionOptions = {
    * replaced rather than combined.
    */
   carry?: "screen";
-  /**
-   * What carries the flight's geometry (default `"box"`).
-   *
-   * `"box"` animates the layout box — left, top, width, height — and lets the
-   * subtree lay itself out at every size on the way. Contents re-typeset and
-   * re-wrap mid-flight, which is the richest reading of "it grows", and it is
-   * the right default: layout animation runs on the main thread, and on
-   * Chromium the main thread holds the frame rate.
-   *
-   * `"transform"` stages the flight at its DESTINATION geometry and travels by
-   * a compositor transform, with the element counter-scaled so its contents
-   * hold their natural size inside a window that grows. Nothing re-lays out
-   * mid-flight: paired children cross as compositor scales, and type scales
-   * instead of re-typesetting. What that buys is ONE CLOCK — the flight, its
-   * ghost and the camera all resolve on the compositor, which is the only
-   * arrangement WebKit renders without the pieces trembling against each
-   * other: Safari splits mixed animations across its two pipelines and
-   * commits main-thread layout on a looser cadence than its compositor, so a
-   * box-mode container visibly shivers there against its own camera.
-   */
-  mode?: "box" | "transform";
 };
 
 // A morph-transition is shaped exactly like a part-transition — `initial` plus

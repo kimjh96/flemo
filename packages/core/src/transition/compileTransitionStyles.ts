@@ -30,7 +30,6 @@ import {
   LAYER_SLOT_ATTR,
   MORPH_ATTR,
   MORPH_GHOST_ATTR,
-  MORPH_WINDOW_ATTR,
   PART_NAME_ATTR,
   SCREEN_ATTR,
   STATUS_ATTR,
@@ -943,12 +942,7 @@ const ANIM_HOLD_RULE = [
       // nothing mistakes the copy for the real element — which also took it
       // out of the rule above, and a copy that dissolves while the flight is
       // still held is an afterimage of the thing that has not moved yet.
-      `${attrValueSelector(ANIM_HOLD_ATTR, value)} ${attrSelector(MORPH_GHOST_ATTR)}`,
-      // And the transform-mode WINDOW, which is runtime furniture like the
-      // ghost. Unheld it starts on an earlier tick than the counter-scale
-      // inside it — measured at 107ms ahead on WebKit, which bowed the net
-      // scale away from one and rendered the square hero as a band.
-      `${attrValueSelector(ANIM_HOLD_ATTR, value)} ${attrSelector(MORPH_WINDOW_ATTR)}`
+      `${attrValueSelector(ANIM_HOLD_ATTR, value)} ${attrSelector(MORPH_GHOST_ATTR)}`
     ])
   ].join(",\n") + " {",
   `  animation-play-state: paused !important;`,
