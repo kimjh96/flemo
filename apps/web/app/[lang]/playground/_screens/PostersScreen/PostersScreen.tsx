@@ -140,7 +140,7 @@ function PostersScreen() {
                       cross-fading at the same spot is the shift the recordings
                       kept showing. The detail's meta is the SAME string, so the
                       pair re-typesets one line instead of trading two. */}
-                  <span className="mt-3 block h-4 px-4 pb-3">
+                  <span className="mt-1 block h-4 px-4 pb-3">
                     <CardTitle
                       layoutId={`cardmeta-${act.id}`}
                       className="block truncate text-[11px] leading-4 text-[var(--color-text-disabled)]"

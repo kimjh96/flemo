@@ -124,12 +124,11 @@ function ActScreen() {
             />
           </span>
 
-          {/* THE CAPTION GEOMETRY MATCHES THE CELL'S EXACTLY: 16px inset,
-              12px under the artwork, and equal title-plus-gap sums (20+12 in
-              the cell, 32+0 here). A flying text morph starts at its own local
-              offsets inside the card, so any difference between the two ends'
-              local geometry is a jump on the flight's first frame: measured
-              10px sideways and 8px down before the two were equalized. */}
+          {/* The caption geometry stays close to the cell's (16px inset, 12px
+              under the artwork) as design. It no longer has to match exactly:
+              since the core fix, a nested morph carries a translate from the
+              measured from-delta, so a few pixels of difference are travel
+              rather than a first-frame jump. */}
           <div className="px-4 pt-3 pb-8">
             {/* Paired as a `text` morph, as the deleted playground paired it:
                 lifted out of both sides, re-typesetting from the cell's 13px
@@ -152,7 +151,7 @@ function ActScreen() {
                 11px to 14px instead of two different date lines cross-fading
                 on top of each other. The venue is not lost; it has its own row
                 in the facts below. */}
-            <p className="h-5">
+            <p className="mt-1 h-5">
               <CardTitle
                 layoutId={params?.from === "cell" ? `cardmeta-${act.id}` : null}
                 className="block text-sm text-[var(--color-text-secondary)]"
