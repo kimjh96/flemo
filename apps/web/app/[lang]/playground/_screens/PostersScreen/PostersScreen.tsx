@@ -114,12 +114,19 @@ function PostersScreen() {
                       card's ghost, as the deleted playground's caption did.
                       Only the NAME is paired: it re-typesets into the detail's
                       heading while its clone holds this exact box. */}
-                  <CardTitle
-                    layoutId={`cardname-${act.id}`}
-                    className="mt-2 block truncate px-2.5 text-[13px] font-semibold text-[var(--color-text-primary)]"
-                  >
-                    {act.artist}
-                  </CardTitle>
+                  {/* The fixed-height holder does for the name what the fixed
+                      square does for the artwork. A morph's slot measures 0x0
+                      while the element is away, so without a box of its own the
+                      line collapses in the flying card and everything below it
+                      sits a line too high, then drops at the landing. */}
+                  <span className="mt-2 block h-5">
+                    <CardTitle
+                      layoutId={`cardname-${act.id}`}
+                      className="block truncate px-2.5 text-[13px] font-semibold text-[var(--color-text-primary)]"
+                    >
+                      {act.artist}
+                    </CardTitle>
+                  </span>
                   <span className="mt-0.5 block truncate px-2.5 pb-2.5 text-[11px] text-[var(--color-text-disabled)]">
                     {act.day} {act.time} · ₩{act.price}
                   </span>

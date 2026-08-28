@@ -122,7 +122,11 @@ function ActScreen() {
                 lifted out of both sides, re-typesetting from the cell's 13px
                 label into this heading, while its clone holds the label's
                 exact box. */}
-            <h2>
+            {/* h-8 holds the heading's line box while the name is away in the
+                flight layer, for the same reason the artwork sits in a fixed
+                square: the morph slot measures 0x0 mid-flight, and an unheld
+                line collapses the layout under it until the landing. */}
+            <h2 className="h-8">
               <CardTitle
                 layoutId={params?.from === "cell" ? `cardname-${act.id}` : null}
                 className="block text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]"
