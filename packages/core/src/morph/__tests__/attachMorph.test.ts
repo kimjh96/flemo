@@ -174,13 +174,17 @@ describe("attachMorph", () => {
     expect(thumbnail.style.animation).toContain("0.000s both");
   });
 
-  it("lets a nested morph RIDE its container instead of flying", async () => {
-    // Tried both alternatives on glass. Flying free tears the container apart
-    // in the air; cancelling the container's transform so the child keeps its
-    // own path holds the box together but opens voids inside it, because the
-    // box is scaled from its own layout while the children are placed by their
-    // own. Riding keeps the container a faithful scaled copy of itself, and the
-    // GHOST covers the difference between the two ends' contents.
+  it("lets a nested morph RIDE its container, starting from the measured from-pose", async () => {
+    // Tried the two hard alternatives on glass. Flying free tears the
+    // container apart in the air; cancelling the container's transform so the
+    // child keeps its own path holds the box together but opens voids inside
+    // it. Riding keeps the container a faithful scaled copy of itself — but
+    // riding ALONE renders the child at the ARRIVAL's own place inside the
+    // travelling box from the first frame, so any difference between the two
+    // ends' local arrangement was a lurch at the tap: measured at 20px
+    // sideways on the playground's caption, and at 16px on the demo it
+    // replaced. So the child rides AND carries a translate from the measured
+    // from-delta to identity, exact at both ends of the flight.
     const gallery = makeScreen("layout", true);
     const card = makeMorph(gallery, [20, 600, 160, 160]);
     const label = makeMorph(card, [28, 730, 140, 20]);
@@ -201,9 +205,160 @@ describe("attachMorph", () => {
 
     expect(bigCard.parentElement).toBe(layer);
     expect(heading.parentElement).toBe(bigCard);
-    // It rides its container's box, and animates only what the container
-    // cannot do for it — its own type size and spacing.
-    expect(heading.style.animation).not.toContain("-travel 0.400s cubic");
+    // It rides its container's box: not staged, never absolutely positioned.
+    const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
+    expect(nestedRule).not.toContain("left:");
+    expect(nestedRule).not.toContain("top:");
+    // And it BEGINS where the pair measured it — the from-delta between the
+    // label's box (28, 730) and the heading's (16, 260) — decaying to rest.
+    expect(nestedRule).toContain("translate3d(12px, 470px, 0)");
+    expect(nestedRule).toMatch(/to \{[^}]*transform: none/);
+    // SIZE is the other half of the same correction. Riding sizes the child
+    // through the container's width interpolation, and a container that is
+    // already at destination width lays the child out full-size on frame one:
+    // a 48px thumbnail in a full-width row spread into a strip at the tap. So
+    // the child's own box interpolates from the measured from-size (140x20)
+    // to its size in the staged container (360x32).
+    expect(nestedRule).toContain("width: 140px");
+    expect(nestedRule).toContain("height: 20px");
+    expect(nestedRule).toContain("width: 360px");
+    expect(nestedRule).toContain("height: 32px");
+    // Each declaration on its own clean line. An escaped newline once rode
+    // into this rule as a literal backslash-n, which silently voided the
+    // height declaration: width animated alone and the pop shrank as a
+    // squashed rectangle. Substring assertions above cannot catch that.
+    expect(nestedRule).not.toContain("\\");
+  });
+
+  it("adds no translate to a nested pair whose two ends already agree", async () => {
+    // The correction exists for DISAGREEING local arrangements. A pair whose
+    // element sits at the same offsets inside both cards needs nothing, and
+    // must get nothing: an all-identity travel channel would still cost a
+    // keyframe and a composited transform for a no-op.
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 160, 160]);
+    const label = makeMorph(card, [36, 620, 128, 20]);
+    attachMorph(card, { layoutId: "card-2", navigateStore: store });
+    attachMorph(label, { layoutId: "title-2", name: "text", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+    // The SAME box as the label's: the pair's two ends agree exactly.
+    const heading = makeMorph(bigCard, [36, 620, 128, 20]);
+    attachMorph(bigCard, { layoutId: "card-2", navigateStore: store });
+    attachMorph(heading, { layoutId: "title-2", name: "text", navigateStore: store });
+    await Promise.resolve();
+
+    const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule));
+    if (nestedRule) {
+      expect(nestedRule).not.toContain("translate3d");
+      expect(nestedRule).not.toContain("width:");
+    }
+  });
+
+  it("stamps inherited line-height as a FACTOR, not as the used length", () => {
+    // Computed line-height comes back as a used px length, and stamping that
+    // inline on a hoisted container hands every descendant an absolute leading
+    // where the tree they left gave them a factor. Measured on a paired card:
+    // rows that set only a 13px font were 20px tall at rest and 24px tall in
+    // flight, because the card's own used 24px landed on them verbatim.
+    const gallery = makeScreen("layout", true);
+    const cardFrom = makeMorph(gallery, [20, 600, 160, 160]);
+    attachMorph(cardFrom, { layoutId: "card-3", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const cardTo = makeMorph(detail, [0, 0, 400, 340]);
+    cardTo.style.fontSize = "16px";
+    cardTo.style.lineHeight = "24px";
+    attachMorph(cardTo, { layoutId: "card-3", navigateStore: store });
+
+    expect(cardTo.parentElement).toBe(layer);
+    expect(cardTo.style.lineHeight).toBe("1.5");
+  });
+
+  it("keeps the used line-height when the font size cannot be read", () => {
+    // The factor needs a divisor. A zero or unparsable computed font-size
+    // leaves the used length in place rather than stamping NaN.
+    const gallery = makeScreen("layout", true);
+    const cardFrom = makeMorph(gallery, [20, 600, 160, 160]);
+    attachMorph(cardFrom, { layoutId: "card-lh", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const cardTo = makeMorph(detail, [0, 0, 400, 340]);
+    cardTo.style.fontSize = "0px";
+    cardTo.style.lineHeight = "24px";
+    attachMorph(cardTo, { layoutId: "card-lh", navigateStore: store });
+
+    expect(cardTo.parentElement).toBe(layer);
+    expect(cardTo.style.lineHeight).toBe("24px");
+  });
+
+  it("falls back to the staged size when registration measured nothing", async () => {
+    // A pair can register before its box has laid out (display: contents
+    // parents, a first commit mid-suspension). With no rest size on record
+    // the interpolation ends on the staged measurement instead.
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 160, 160]);
+    const art = makeMorph(card, [36, 620, 64, 64]);
+    attachMorph(card, { layoutId: "card-9r", navigateStore: store });
+    attachMorph(art, { layoutId: "art-9r", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+    const hero = makeMorph(bigCard, [16, 16, 128, 128]);
+    // Registration sees an unlaid box; the flight's own measurement sees the
+    // real one.
+    let reads = 0;
+    const laid = hero.getBoundingClientRect.bind(hero);
+    hero.getBoundingClientRect = () => {
+      reads += 1;
+      return reads === 1 ? ({ ...laid(), width: 0, height: 0 } as DOMRect) : laid();
+    };
+    attachMorph(bigCard, { layoutId: "card-9r", navigateStore: store });
+    attachMorph(hero, { layoutId: "art-9r", navigateStore: store });
+    await Promise.resolve();
+
+    const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
+    // From the captured 64px box to the STAGED 128px one, since no rest size
+    // was recorded.
+    expect(nestedRule).toContain("width: 64px");
+    expect(nestedRule).toContain("width: 128px");
+  });
+
+  it("rides with size alone when the two ends' positions agree", async () => {
+    // The travel channel stays identity when only the box differs: a size
+    // change is not a reason to invent a translate.
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 160, 160]);
+    const art = makeMorph(card, [36, 620, 64, 64]);
+    attachMorph(card, { layoutId: "card-8", navigateStore: store });
+    attachMorph(art, { layoutId: "art-8", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+    // Same corner as the art's, bigger box: position agrees, size does not.
+    const hero = makeMorph(bigCard, [36, 620, 128, 128]);
+    attachMorph(bigCard, { layoutId: "card-8", navigateStore: store });
+    attachMorph(hero, { layoutId: "art-8", navigateStore: store });
+    await Promise.resolve();
+
+    const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
+    expect(nestedRule).not.toContain("translate3d");
+    expect(nestedRule).toContain("width: 64px");
+    expect(nestedRule).toContain("width: 128px");
   });
 
   it("carries a ghost of what it replaces, and drops it on landing", () => {
@@ -216,9 +371,20 @@ describe("attachMorph", () => {
     thumbnail.textContent = "from the list";
     const inner = makeMorph(thumbnail, [20, 600, 80, 20]);
     // A binding renders the marker from the first commit, so a paired
-    // descendant is recognisable in the copy even before it registers.
+    // descendant is recognisable in the copy even before it registers. Its
+    // copy is dimmed: the real pair flies from the captured pose, so the
+    // dimmed copy is a window onto it — while a painting copy rides the
+    // ghost's transform and stretches over the crisp re-typesetting
+    // original, which is the smeared double title reported on a push.
+    // (Dimming was once removed for "holes" — a collapsed hero, a vanished
+    // title — but those were this pair's flight silently declining on a
+    // zero-width destination, and the window had nothing behind it.)
     inner.setAttribute(MORPH_ATTR, "");
+    inner.setAttribute("data-flemo-morph-name", "text");
     inner.setAttribute("data-copied-pair", "");
+    const art = makeMorph(thumbnail, [20, 620, 80, 60]);
+    art.setAttribute(MORPH_ATTR, "");
+    art.setAttribute("data-copied-pair-art", "");
     attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
     flipTo("PUSHING");
     gallery.setAttribute(ACTIVE_ATTR, "false");
@@ -247,6 +413,11 @@ describe("attachMorph", () => {
     // painting, or the two print over each other.
     const copiedPair = ghost.querySelector<HTMLElement>("[data-copied-pair]");
     expect(copiedPair?.style.opacity).toBe("0");
+    const copiedArt = ghost.querySelector<HTMLElement>("[data-copied-pair-art]");
+    expect(copiedArt?.style.opacity).toBe("0");
+    // But only the PAIRED copies: the unpaired remainder is the ghost's whole
+    // cargo, and the copy root itself stays visible to carry it.
+    expect(ghost.style.opacity).not.toBe("0");
 
     hero.dispatchEvent(animationEndEvent(/flemo-morph-\d+i-travel/.exec(hero.style.animation)![0]));
     expect(layer.querySelector("[data-flemo-morph-ghost]")).toBeNull();
@@ -845,6 +1016,124 @@ describe("attachMorph", () => {
       expect(nested[0]).toContain("border-radius: 16px");
       expect(hero.style.animation).toContain("n-paint");
     });
+  });
+
+  it("carries a square pair's corner as a proportion of its box", () => {
+    // 12px on a 48px thumb is a quarter-round corner; 12px on the 346px hero
+    // it becomes is barely a bevel. Interpolated in px the ROUNDNESS the eye
+    // reads collapses in the flight's first tenth — reported as "the radius
+    // snaps to 0 and then the morph starts". A percentage resolves against
+    // the animated box every frame, so the proportion is what interpolates.
+    const gallery = makeScreen("layout", true);
+    const thumb = makeMorph(gallery, [20, 600, 48, 48]);
+    thumb.style.borderRadius = "12px";
+    attachMorph(thumb, { layoutId: "sq-1", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 346, 346]);
+    hero.style.borderRadius = "0px";
+    attachMorph(hero, { layoutId: "sq-1", navigateStore: store });
+
+    const rule = inserted.find((r) => /flemo-morph-\d+i-paint/.test(r))!;
+    expect(rule).toContain("border-radius: 25.00%");
+    expect(rule).toContain("border-radius: 0.00%");
+  });
+
+  it("leaves an elliptical or keyword radius on the px channel", () => {
+    // A slash radius is per-axis and a keyword is not a length; neither can
+    // convert to one percentage per corner, so both stay exactly as captured.
+    const gallery = makeScreen("layout", true);
+    const thumb = makeMorph(gallery, [20, 600, 48, 48]);
+    thumb.style.borderRadius = "12px / 6px";
+    attachMorph(thumb, { layoutId: "sq-3", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 346, 346]);
+    hero.style.borderRadius = "0px";
+    attachMorph(hero, { layoutId: "sq-3", navigateStore: store });
+
+    const rule = inserted.find((r) => /flemo-morph-\d+i-paint/.test(r))!;
+    expect(rule).toContain("border-radius: 12px / 6px");
+    expect(rule).not.toContain("%");
+  });
+
+  it("leaves a non-length radius component alone as well", () => {
+    // One end already a percentage (or any non-px token): there is no px pair
+    // to convert, so the channel carries the captured values verbatim.
+    const gallery = makeScreen("layout", true);
+    const thumb = makeMorph(gallery, [20, 600, 48, 48]);
+    thumb.style.borderRadius = "10%";
+    attachMorph(thumb, { layoutId: "sq-4", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 346, 346]);
+    hero.style.borderRadius = "0px";
+    attachMorph(hero, { layoutId: "sq-4", navigateStore: store });
+
+    const rule = inserted.find((r) => /flemo-morph-\d+i-paint/.test(r))!;
+    expect(rule).toContain("border-radius: 10%");
+    expect(rule).toContain("border-radius: 0px");
+  });
+
+  it("keeps each corner's own proportion in a per-corner radius", () => {
+    // A card whose image rounds only its top computes "16px 16px 0px 0px";
+    // every corner converts against its own box so the straight bottom stays
+    // straight while the top eases.
+    const gallery = makeScreen("layout", true);
+    const thumb = makeMorph(gallery, [20, 600, 160, 160]);
+    thumb.style.borderRadius = "16px 16px 0px 0px";
+    attachMorph(thumb, { layoutId: "sq-2", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 400]);
+    hero.style.borderRadius = "0px";
+    attachMorph(hero, { layoutId: "sq-2", navigateStore: store });
+
+    const rule = inserted.find((r) => /flemo-morph-\d+i-paint/.test(r))!;
+    expect(rule).toContain("border-radius: 10.00% 10.00% 0.00% 0.00%");
+    expect(rule).toContain("border-radius: 0.00%");
+  });
+
+  it("carries the scrollport's clip into the flight", () => {
+    // The cell sits at the list's bottom edge with 30 of its 80px scrolled
+    // under the chrome stacked there. Bare, the hidden strip paints on the
+    // flight's first frame and the element crosses the tab bar whole; carried
+    // as an inset it slides out from under the edge instead.
+    const gallery = makeScreen("layout", true);
+    const scroller = document.createElement("div");
+    scroller.style.overflowY = "auto";
+    setRect(scroller, 0, 600, 400, 100);
+    gallery.appendChild(scroller);
+    const cell = document.createElement("div");
+    scroller.appendChild(cell);
+    setRect(cell, 20, 650, 80, 80);
+    attachMorph(cell, { layoutId: "clip-1", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "clip-1", navigateStore: store });
+
+    const rule = inserted.find((r) => /flemo-morph-\d+i-travel/.test(r))!;
+    expect(rule).toContain("clip-path: inset(0.00% 0.00% 37.50% 0.00%)");
+    expect(rule).toContain("clip-path: inset(0.00% 0.00% 0.00% 0.00%)");
+    // The ghost is a copy of the same departure, clipped the same way.
+    const ghostRule = inserted.find((r) => /flemo-morph-\d+g-travel/.test(r))!;
+    expect(ghostRule).toContain("inset(0.00% 0.00% 37.50% 0.00%)");
   });
 
   it("does not pair with an element on a screen that is not in this flight", () => {

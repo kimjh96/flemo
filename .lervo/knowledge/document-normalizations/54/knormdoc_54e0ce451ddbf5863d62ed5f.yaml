@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_a23326c7892ee7a2fe07eeac
+compiler:
+  compilerBuildId: sha256:d04ee6378c95d03e201ff9632b566a934f01bfc343f96544f450d5fd5e2a3d3d
+  compilerId: lervo.claude.document-normalizer
+  compilerVersion: 1+2.1.224 (Claude Code)
+  isolation: external_no_capabilities
+  provider: claude
+formatVersion: lervo.document.v1
+operationId: knormop_75b974340729196755f6e9ea
+outputLanguage: en
+outputs:
+  - byteCount: 585
+    contentHash: sha256:f1199c62a1719eceaf668ee1e6550618a839cc5f1d6f1869b489b4bbf87a3f9b
+    path: docs/instructions/coverage.md
+    userRegionHash: sha256:f1199c62a1719eceaf668ee1e6550618a839cc5f1d6f1869b489b4bbf87a3f9b
+profile: instruction_document
+recordId: knormdoc_54e0ce451ddbf5863d62ed5f
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:f1199c62a1719eceaf668ee1e6550618a839cc5f1d6f1869b489b4bbf87a3f9b
+sourcePath: docs/instructions/coverage.md
+sourceUnitVersionIds:
+  - uv_b4a07b3ffaf6dd0ee2f44bc8

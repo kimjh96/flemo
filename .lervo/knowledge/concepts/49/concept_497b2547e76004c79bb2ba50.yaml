@@ -1,0 +1,14 @@
+assurance: unreviewed
+bundleId: bundle_f30402500333f4447ba5d2b8
+conceptId: concept_497b2547e76004c79bb2ba50
+freshness: current
+ownership: user
+path: packages/devtools/README.md
+publicationLanguage: en
+publicationProfile: explanation
+publicationStatus: stable
+schemaVersion: 1
+sourceUnitVersionIds:
+  - uv_da134db770b8d76e27152560
+title: "@flemo/devtools"
+type: concept

@@ -1,0 +1,26 @@
+schemaVersion: 1
+suiteId: gate
+stopOnFailure: true
+commands:
+  - commandId: turbo-gate
+    executable: bunx
+    arguments:
+      - turbo
+      - run
+      - typecheck
+      - lint
+      - test
+      - build
+    cwd: .
+    timeoutMs: 1500000
+    maxOutputBytes: 8388608
+    environmentVariableNames:
+      - PATH
+      - HOME
+      - SHELL
+      - TMPDIR
+      - LANG
+      - LC_ALL
+      - USER
+      - NODE_OPTIONS
+      - TURBO_TELEMETRY_DISABLED

@@ -1,54 +1,53 @@
+"use client";
+
 import { createTransition } from "@flemo/react";
+
+import { SHEET_EASE, SHEET_IN, SHEET_OUT } from "./sheet.constants";
 
 import "./sheet.types";
 
-// A CONSUMER-authored transition, here to answer one question: what happens
-// when the shared element becomes the whole screen?
+// A modal sheet: the detail rises from the bottom edge over the list, and the
+// list recedes a step behind it. It replaces `fade-through` on this bench —
+// the sequenced fades read as the stage blinking dark between screens, and
+// every complaint filed against the case was about that gap. A sheet covers
+// the same ground (an authored transition that is neither a lateral slide nor
+// a zoom) with a gesture every phone user already knows.
 //
-// Nothing special, is the answer. The two systems are separate and compose:
-// the morph carries the element, and the SCREEN transition carries everything
-// behind it. So this one animates only the screen being covered — it recedes
-// and blurs — while the arriving screen animates nothing at all, because the
-// element expanding over it is the entire event.
+// The shared element still flies: a morph composes with a screen slide the
+// same way it does under cupertino, since the flight runs in the layer and
+// only borrows this transition's clock. (`zoom` is the one that must not pair
+// with a slide, and it carries its own still partner.)
 //
-// They stay in step for free: a morph with no duration of its own inherits the
-// flying screen's, and both are paused by the same hold until the same frame
-// releases them.
-const DURATION = 0.4;
-const EASE: [number, number, number, number] = [0.4, 0, 0.2, 1];
-
+// Asymmetric on purpose, like material: presenting a sheet is an entrance
+// worth 0.42s; dismissing one is a confirmation and gets 0.34s. The receding
+// list scales rather than fading — two opaque screens at partial opacity
+// double-expose, which is the lesson `layout` already recorded.
 const sheet = createTransition({
   name: "sheet",
-  initial: { opacity: 0 },
+  initial: { y: "100%" },
   idle: {
-    value: { scale: 1, filter: "blur(0px)" },
+    value: { y: 0, scale: 1 },
     options: { duration: 0 }
   },
-  // The arriving screen is transparent and holds nothing but its chrome — the
-  // element opening over it is the event — so all it does is bring that chrome
-  // in. It still has to ANIMATE something: a variant with no motion at all
-  // gives the engine no clock to end the flight on, and the whole screen then
-  // lands in one late commit, which is a flicker of its own making.
+  // The sheet rising.
   enter: {
-    value: { opacity: 1 },
-    options: { duration: DURATION, ease: EASE }
+    value: { y: 0 },
+    options: { duration: SHEET_IN, ease: SHEET_EASE }
   },
+  // The sheet leaving, back down the way it came.
   enterBack: {
-    value: { opacity: 0 },
-    options: { duration: DURATION, ease: EASE }
+    value: { y: "100%" },
+    options: { duration: SHEET_OUT, ease: SHEET_EASE }
   },
-  // The background follows the MORPH'S direction: the element is opening out
-  // to fill the screen, so what is behind it pushes out too — scaling up and
-  // blurring, the way a lens racks focus past it. (Scaling it down instead
-  // reads as the background retreating, which is a different gesture and the
-  // opposite of what the element is doing.)
+  // The list stepping back while the sheet covers it, and stepping forward
+  // again as the sheet leaves.
   exit: {
-    value: { scale: 1.08, filter: "blur(10px)" },
-    options: { duration: DURATION, ease: EASE }
+    value: { scale: 0.94 },
+    options: { duration: SHEET_IN, ease: SHEET_EASE }
   },
   exitBack: {
-    value: { scale: 1, filter: "blur(0px)" },
-    options: { duration: DURATION, ease: EASE }
+    value: { scale: 1 },
+    options: { duration: SHEET_OUT, ease: SHEET_EASE }
   }
 });
 

@@ -280,3 +280,32 @@
     filter: brightness(1);
   }
 }
+
+/* THE RETURNING ROW'S UNPAIRED LINES, on the zoom case's pop.
+
+   The ghost paints no surface of its own — it carries only the content that
+   has no counterpart — so wherever it is empty, the arriving row shows
+   through from the flight's FIRST frame: the venue line and the price
+   appeared at full strength the instant a pop began. The detail solves the
+   same problem with its card-body part, but a part runs per SCREEN status
+   and would blank the nine rows that are not flying. This selector is the
+   scope a part cannot express: only the row staged in the flight layer,
+   and never the ghost's own copies (on a push those are the departing row's
+   lines, which must stay visible and leave with the ghost).
+
+   The clock is authored against aperture's 0.5s, the only transition that
+   carries this case — the same reasoning, and the same numbers, as the
+   card-body part's "arrive in the last half of the flight". */
+@keyframes act-row-late-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+[data-flemo-morph-layer] .act-row-late:not([data-flemo-morph-ghost] *) {
+  opacity: 0;
+  animation: act-row-late-in 0.24s cubic-bezier(0, 0, 0.2, 1) 0.26s forwards;
+}

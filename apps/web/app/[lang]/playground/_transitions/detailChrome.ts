@@ -1,0 +1,92 @@
+"use client";
+
+import { createRawPartTransition, type PartTransitionName } from "@flemo/react";
+
+import { DRIFT_IN } from "./drift.constants";
+import { SHEET_IN } from "./sheet.constants";
+
+import "./detailChrome.types";
+
+// The detail's floating header, on every case where the CARD IS NOT FLYING.
+//
+// Under those cases the artwork still flies alone, and the flight layer paints
+// above the whole screen — including the z-10 header that overlays the
+// artwork's top edge. So for the length of the flight the header is COVERED by
+// the flying artwork, and the instant the flight lands it is revealed whole:
+// scrim, back control and title in one frame. That is the "flash after
+// arriving" reported on fade-through, and it is latent in every case whose
+// flight ends on the screen's own last frame.
+//
+// The remedy is the deleted playground's, recorded in its clocks.ts: chrome
+// that cannot ride a flight carries the flight's clock itself, and THE CLOCK
+// IS PER TRANSITION AND PER DIRECTION — its table kept one row per name and
+// split push from pop after measuring material's 0.35s parts running over a
+// 0.25s pop. A part authors literal durations, so one part cannot fit flights
+// from 0s (`none`) to 0.7s (cupertino); this factory writes one per case
+// instead, and `CardBody` picks by the bench's transition.
+//
+// Each one holds the header back for exactly the flight's length, then fades
+// it in just after the landing: the reveal happens while the header is still
+// transparent, so what was a slam is an entrance. `none` has a zero flight —
+// nothing ever covers the header — so its chrome is immediate, which the
+// reference's table states as a rule: "a cut is not a degenerate case to
+// special-case away."
+//
+// The pop REVERSES the entrance: the header lifts back above its line in the
+// flight's first beat, the same "leaves early" the card-body part keeps, so
+// the page reads as disassembling before it goes rather than dragging its
+// chrome down with it. (`none` keeps REST both ways — everything riding an
+// instant screen change has to cut with it.)
+// 0.18s read as a blink: the page settles at the flight's end and a dark
+// scrim then materialised in under a fifth of a second — reported as
+// "flicker right after arriving" on fade-through. A third of a second reads
+// as the header settling into place instead.
+const IN = 0.32;
+const OUT = 0.16;
+const EASE_IN: [number, number, number, number] = [0, 0, 0.2, 1];
+const EASE_OUT: [number, number, number, number] = [0.4, 0, 1, 1];
+
+// The entrance is a SLIDE, not just a fade: hidden a step above its resting
+// line, it comes down into place as it clears — a header being lowered onto
+// the page rather than a scrim materialising over it.
+const SHOWN = { opacity: 1, y: 0 };
+const HIDDEN = { opacity: 0, y: -24 };
+const REST = { value: SHOWN, options: { duration: 0 } };
+
+// Push-side flight lengths, copied from each transition's own constants the
+// way the reference copied flemo's: cupertino/material/layout from the
+// presets' documented numbers, the authored three from their source files
+// beside this one.
+const COVER: Record<string, number> = {
+  cupertino: 0.7,
+  material: 0.35,
+  layout: 0.4,
+  none: 0,
+  reveal: 0.34,
+  drift: DRIFT_IN,
+  sheet: SHEET_IN
+};
+
+export const chromePartFor = (transition: string): PartTransitionName =>
+  `chrome-${transition}` as PartTransitionName;
+
+const arrival = (cover: number) =>
+  cover === 0 ? REST : { value: SHOWN, options: { duration: IN, delay: cover, ease: EASE_IN } };
+
+const detailChromes = Object.entries(COVER).map(([name, cover]) =>
+  createRawPartTransition({
+    name: chromePartFor(name),
+    initial: cover === 0 ? SHOWN : HIDDEN,
+    idle: REST,
+    pushOnEnter: arrival(cover),
+    pushOnExit: REST,
+    replaceOnEnter: arrival(cover),
+    replaceOnExit: REST,
+    popOnEnter: cover === 0 ? REST : { value: HIDDEN, options: { duration: OUT, ease: EASE_OUT } },
+    popOnExit: REST,
+    completedOnEnter: REST,
+    completedOnExit: REST
+  })
+);
+
+export default detailChromes;

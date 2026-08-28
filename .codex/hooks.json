@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.lervo/generated/terminal-hooks/runtime-v2.mjs\" --provider codex --contract 2",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -Command \"$root = git rev-parse --show-toplevel; if ($LASTEXITCODE -ne 0) { exit 2 }; & node (Join-Path $root '.lervo/generated/terminal-hooks/runtime-v2.mjs') --provider codex --contract 2\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.lervo/generated/terminal-hooks/runtime-v2.mjs\" --provider codex --contract 2",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -Command \"$root = git rev-parse --show-toplevel; if ($LASTEXITCODE -ne 0) { exit 2 }; & node (Join-Path $root '.lervo/generated/terminal-hooks/runtime-v2.mjs') --provider codex --contract 2\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

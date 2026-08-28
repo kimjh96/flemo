@@ -1,21 +1,19 @@
 import type { Metadata } from "next";
 
-import ChainStage from "./_components/ChainStage";
-import PlaygroundStage from "./_components/PlaygroundStage";
+import ShellApp from "@/app/[lang]/_components/ShellApp";
+import { getDict } from "@/lib/i18n";
 
-// The library's fixture surface, not a marketing page: it exists so a change to
-// flemo's motion can be looked at full size, on a production build, instead of
-// being judged through a half-covered card in the landing hero.
-export const metadata: Metadata = {
-  title: "Morph playground",
-  robots: { index: false, follow: false }
-};
+export async function generateMetadata({
+  params
+}: PageProps<"/[lang]/playground">): Promise<Metadata> {
+  const { lang } = await params;
+  const t = getDict(lang);
 
-export default function PlaygroundPage() {
-  return (
-    <>
-      <PlaygroundStage />
-      <ChainStage />
-    </>
-  );
+  return { title: t.app.nav.playground, description: t.playground.subtitle };
+}
+
+export default async function PlaygroundPage({ params }: PageProps<"/[lang]/playground">) {
+  const { lang } = await params;
+
+  return <ShellApp lang={lang} initPath="/playground" />;
 }

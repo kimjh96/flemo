@@ -1,0 +1,45 @@
+schemaVersion: 1
+policyId: knowledge.default
+publicationRoot: docs/knowledge
+publication:
+  language: en
+  maxNavigationEntries: 24
+  maxNavigationBytes: 8192
+exclude:
+  - .git/**
+  - .lervo/**
+  - .changeset/**
+  - CHANGELOG.md
+  - '**/CHANGELOG.md'
+  - packages/react/README.md
+  - packages/core/docs/motion-engine.md
+  - node_modules/**
+  - '**/node_modules/**'
+  - dist/**
+  - '**/dist/**'
+  - build/**
+  - '**/build/**'
+  - coverage/**
+  - '**/coverage/**'
+  - .next/**
+  - '**/.next/**'
+  - .turbo/**
+  - '**/.turbo/**'
+  - .expo/**
+  - '**/.expo/**'
+  - .gradle/**
+  - '**/.gradle/**'
+  - .cxx/**
+  - '**/.cxx/**'
+  - Pods/**
+  - '**/Pods/**'
+  - build-device/**
+  - '**/build-device/**'
+  - vendor/**
+  - '**/vendor/**'
+  - apps/node-runtime-dependencies/**
+  - apps/hub-runtime-dependencies/**
+limits:
+  maxFiles: 20000
+  maxFileBytes: 1048576
+  maxTotalBytes: 33554432

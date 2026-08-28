@@ -317,7 +317,7 @@ const EN: DocSection[] = [
           { type: "h", text: "Content and the transition" },
           {
             type: "note",
-            text: "A newly mounting screen commits its `children` together with its frame, and the transition anchors its start to that painted first frame — so what slides in is your real content, never an empty shell. If a first render is genuinely heavy, the start is delayed by that work but the motion always plays in full; it is never cut short or skipped."
+            text: "A newly mounting screen commits its `children` together with its frame, and the transition anchors its start to that painted first frame, so what slides in is your real content, never an empty shell. If a first render is genuinely heavy, the start is delayed by that work but the motion always plays in full; it is never cut short or skipped."
           },
           { type: "h", text: "All props" },
           {
@@ -732,6 +732,39 @@ const EN: DocSection[] = [
             text: "For finer control over each operation, `createRawPartTransition` exposes every status the way `createRawTransition` does: `idle`, `pushOnEnter` / `pushOnExit`, `replaceOnEnter` / `replaceOnExit`, `popOnEnter` / `popOnExit`, and `completedOnEnter` / `completedOnExit`."
           }
         ]
+      },
+      {
+        slug: "layer",
+        title: "Layer",
+        blocks: [
+          {
+            type: "p",
+            text: "`Layer` renders an overlay beside its screen instead of inside it, so the overlay can cover the shared bars and survive the screen moving underneath it. A bottom sheet that has to dim the tab bar is the classic use."
+          },
+          { type: "h", text: "Why an overlay cannot do this from inside" },
+          {
+            type: "p",
+            text: 'A screen that is moving carries a transform, and a transform is both a containing block for `position: fixed` descendants and a stacking context around everything inside it. The shared bars live outside the screen, as siblings. So an overlay written inside the screen is one atom with the screen\'s content as far as the bars are concerned, and "content under the bar, sheet over the bar" is not expressible from in there at any z-index. `Layer` portals the overlay to a host beside the screens, and that is the whole trick: only the paint order leaves the screen.'
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: 'import { Layer, Screen } from "@flemo/react";\n\nfunction Inbox() {\n  const [open, setOpen] = useState(false);\n\n  return (\n    <Screen sharedBottomBar={<TabBar />}>\n      <MailList onCompose={() => setOpen(true)} />\n      <Layer>\n        <ComposeSheet open={open} onClose={() => setOpen(false)} />\n      </Layer>\n    </Screen>\n  );\n}'
+          },
+          {
+            type: "p",
+            text: "The overlay still belongs to its screen. It keeps the screen's stack position, status, and transition, so it moves with the screen during a navigation and leaves with it on a pop; React freezes it with the screen and unmounts it with the screen. Children keep whatever positioning they had, so a sheet written with `position: fixed; bottom: 0` works unchanged."
+          },
+          { type: "h", text: "When you do not need it" },
+          {
+            type: "p",
+            text: "A screen at rest carries no transform, so a plain `position: fixed` overlay already resolves against the viewport and can outrank the bars with a z-index of its own. Reach for `Layer` when the overlay has to survive the screen moving under it, or has to clear chrome an ancestor screen declared."
+          },
+          {
+            type: "note",
+            text: "`Layer` renders nothing on the server and on the first client render, before its host mounts. The host belongs to the outermost screen, which is the root `Router`'s viewport-sized region: inside a nested `Router`, an overlay's `bottom: 0` resolves against that outer region, not against the nested box."
+          }
+        ]
       }
     ]
   },
@@ -844,12 +877,12 @@ const EN: DocSection[] = [
           },
           {
             type: "note",
-            text: "A morph needs no special screen and no particular transition. Keep the one you chose: for the length of the flight the element is staged ABOVE both screens, so whatever they are doing — fading, sliding, cutting — cannot clip it, cover it or carry it along."
+            text: "A morph needs no special screen and no particular transition. Keep the one you chose: for the length of the flight the element is staged ABOVE both screens, so whatever they are doing (fading, sliding, cutting) cannot clip it, cover it or carry it along."
           },
           { type: "h", text: "The source" },
           {
             type: "p",
-            text: "Wrap the element you want to travel. The `layoutId` is the whole pairing — there is no push option to remember and no `Screen` to swap out."
+            text: "Wrap the element you want to travel. The `layoutId` is the whole pairing: there is no push option to remember and no `Screen` to swap out."
           },
           {
             type: "code",
@@ -878,26 +911,26 @@ const EN: DocSection[] = [
           },
           {
             type: "note",
-            text: "Both sides must be mounted when the navigation starts — a morph pairs elements, not routes. The element itself is moved out of your tree for the length of the flight and put back exactly as it was, so avoid measuring or mutating it from outside during a navigation."
+            text: "Both sides must be mounted when the navigation starts, because a morph pairs elements, not routes. The element itself is moved out of your tree for the length of the flight and put back exactly as it was, so avoid measuring or mutating it from outside during a navigation."
           },
           { type: "h", text: "Nesting" },
           {
             type: "p",
-            text: "Morphs nest, and a nested one RIDES its container. Make the card a `<Morph>` and the artwork inside it another, and the card is what travels — the artwork goes with it, staying exactly where it belongs on the card the whole way. That is deliberate: letting both fly on their own curves is what tears a card apart mid-flight, with the artwork drifting out of the box it is supposed to be inside. The container is the unit the eye follows."
+            text: "Morphs nest, and a nested one RIDES its container. Make the card a `<Morph>` and the artwork inside it another, and the card is what travels. The artwork goes with it, staying exactly where it belongs on the card the whole way. That is deliberate: letting both fly on their own curves is what tears a card apart mid-flight, with the artwork drifting out of the box it is supposed to be inside. The container is the unit the eye follows."
           },
           {
             type: "note",
-            text: 'A morph is a transform, so a heading that grows from 14px to 24px scales its glyphs rather than re-typesetting them. Use the built-in `text` preset (`<Morph name="text">`) for type: it scales by the LINE BOX and pins the start edge. Anchoring text to its WIDTH is the trap — a text block is as wide as whatever contains it, so the width ratio says nothing about the type size and the text bulges past its target before shrinking back into it.'
+            text: 'A morph is a transform, so a heading that grows from 14px to 24px scales its glyphs rather than re-typesetting them. Use the built-in `text` preset (`<Morph name="text">`) for type: it scales by the LINE BOX and pins the start edge. Anchoring text to its WIDTH is the trap: a text block is as wide as whatever contains it, so the width ratio says nothing about the type size and the text bulges past its target before shrinking back into it.'
           },
           { type: "h", text: "When the element IS the screen" },
           {
             type: "p",
-            text: "A container that grows to fill the viewport is the same feature with a bigger box — and what happens behind it is the SCREEN transition's business, not the morph's. Author the screen to follow the element on its way out (`exit: { scale: 1.08, filter: \"blur(10px)\" }` — the element is opening OUT, so what is behind it pushes out too), leave the arriving screen transparent so it shows through, and the element opens over a background that moves with it. The two stay in step for free: a morph with no duration of its own inherits the flying screen's, and one hold releases both on the same frame."
+            text: "A container that grows to fill the viewport is the same feature with a bigger box, and what happens behind it is the SCREEN transition's business, not the morph's. Author the screen to follow the element on its way out (`exit: { scale: 1.08, filter: \"blur(10px)\" }`: the element is opening OUT, so what is behind it pushes out too), leave the arriving screen transparent so it shows through, and the element opens over a background that moves with it. The two stay in step for free: a morph with no duration of its own inherits the flying screen's, and one hold releases both on the same frame."
           },
           { type: "h", text: "Authoring the morph" },
           {
             type: "p",
-            text: "A morph is a transition like every other one in flemo. `createMorphTransition` takes the same shape as `createTransition` — an `initial` plus the enter / exit sides — register it on the `Router`, and reference it by name."
+            text: "A morph is a transition like every other one in flemo. `createMorphTransition` takes the same shape as `createTransition`, an `initial` plus the enter and exit sides. Register it on the `Router` and reference it by name."
           },
           {
             type: "code",
@@ -906,7 +939,7 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "The travel itself is not authored: it is measured per flight. What you write is everything else — the timing, the fade, an optional transform flourish that composes on top of the travel."
+            text: "The travel itself is not authored: it is measured per flight. What you write is everything else: the timing, the fade, an optional transform flourish that composes on top of the travel."
           },
           {
             type: "table",
@@ -922,7 +955,7 @@ const EN: DocSection[] = [
               ],
               [
                 "`anchor`",
-                "Which point the two boxes share — `centre`, or `start` for left-aligned content"
+                "Which point the two boxes share: `centre`, or `start` for left-aligned content"
               ],
               [
                 "`radius`",
@@ -1669,6 +1702,39 @@ const KO: DocSection[] = [
             text: "작업별로 더 세밀히 제어하려면 `createRawPartTransition`이 `createRawTransition`처럼 모든 status를 열어줘요: `idle`, `pushOnEnter`·`pushOnExit`, `replaceOnEnter`·`replaceOnExit`, `popOnEnter`·`popOnExit`, `completedOnEnter`·`completedOnExit`요."
           }
         ]
+      },
+      {
+        slug: "layer",
+        title: "Layer",
+        blocks: [
+          {
+            type: "p",
+            text: "`Layer`는 오버레이를 화면 안이 아니라 화면 옆에 그려요. 그래서 오버레이가 공유 바를 덮을 수 있고, 화면이 아래에서 움직여도 살아남아요. 탭바까지 어둡게 덮어야 하는 바텀시트가 대표적인 쓰임새예요."
+          },
+          { type: "h", text: "왜 화면 안에서는 안 될까요" },
+          {
+            type: "p",
+            text: '움직이는 화면은 transform을 갖고, transform은 `position: fixed` 자손의 기준 상자이자 내부 전체를 감싸는 쌓임 맥락이 돼요. 공유 바는 화면 바깥의 형제라서, 화면 안에서 쓴 오버레이는 바 입장에서 화면 콘텐츠와 한 덩어리예요. "콘텐츠는 바 아래, 시트는 바 위"는 그 안에서는 어떤 z-index로도 표현할 수 없어요. `Layer`는 오버레이를 화면 옆의 호스트로 포털해요. 트릭의 전부는 그리는 순서만 화면을 떠난다는 것이에요.'
+          },
+          {
+            type: "code",
+            lang: "tsx",
+            code: 'import { Layer, Screen } from "@flemo/react";\n\nfunction Inbox() {\n  const [open, setOpen] = useState(false);\n\n  return (\n    <Screen sharedBottomBar={<TabBar />}>\n      <MailList onCompose={() => setOpen(true)} />\n      <Layer>\n        <ComposeSheet open={open} onClose={() => setOpen(false)} />\n      </Layer>\n    </Screen>\n  );\n}'
+          },
+          {
+            type: "p",
+            text: "오버레이는 여전히 자기 화면 소속이에요. 화면의 스택 위치와 status, 전환을 그대로 따라가니까 내비게이션 중에는 화면과 함께 움직이고 pop에서는 함께 떠나요. React도 화면과 함께 얼리고 화면과 함께 언마운트해요. 자식의 포지셔닝은 그대로 유지되니 `position: fixed; bottom: 0`으로 쓴 시트가 그대로 동작해요."
+          },
+          { type: "h", text: "필요 없는 경우" },
+          {
+            type: "p",
+            text: "멈춰 있는 화면에는 transform이 없어요. 그래서 평범한 `position: fixed` 오버레이는 이미 뷰포트를 기준으로 놓이고, z-index만으로 바 위에 올라갈 수 있어요. `Layer`는 화면이 움직이는 동안 살아남아야 하는 오버레이, 그리고 조상 화면이 선언한 크롬을 넘어야 하는 오버레이를 위한 것이에요."
+          },
+          {
+            type: "note",
+            text: "`Layer`는 서버에서, 그리고 호스트가 마운트되기 전 첫 클라이언트 렌더에서는 아무것도 그리지 않아요. 호스트는 가장 바깥 화면의 것이라 루트 `Router`의 뷰포트 크기 영역을 기준으로 놓여요. 중첩 `Router` 안에서 쓰면 오버레이의 `bottom: 0`은 중첩된 상자가 아니라 그 바깥 영역에 맞춰져요."
+          }
+        ]
       }
     ]
   },
@@ -1821,7 +1887,7 @@ const KO: DocSection[] = [
                 "`scale`",
                 "`box`는 축별로 짝에 맞추고, `width`/`height`는 한 비율로만 키워 왜곡이 없으며, `none`은 이동만"
               ],
-              ["`anchor`", "두 상자가 겹칠 기준점 — `centre`, 좌측 정렬 콘텐츠라면 `start`"],
+              ["`anchor`", "두 상자가 겹칠 기준점. `centre`, 좌측 정렬 콘텐츠라면 `start`"],
               ["`radius`", "스케일 보정된 양 끝값으로 `border-radius` 보간(기본 true)"],
               ["`enter` / `exit`", "도착 요소와 그것이 대체하는 요소, 동시에 움직여요"],
               ["`options.duration`", "비우면 비행 중인 화면의 길이를 물려받아 화면과 함께 착지해요"]

@@ -1,0 +1,18 @@
+assurance: unreviewed
+bundleId: bundle_f30402500333f4447ba5d2b8
+conceptId: concept_893def074f1dd043146dd1ae
+freshness: current
+ownership: lervo_generated
+path: docs/knowledge/instructions.md
+publicationLanguage: en
+publicationProfile: reference
+publicationStatus: draft
+schemaVersion: 1
+sourceUnitVersionIds:
+  - uv_87ecaeb328d948ee2706c67e
+  - uv_a849e18b484222ee1126ae05
+  - uv_50e4084fb04be39abd2cbc4d
+  - uv_690367849ab418b4a2d747a8
+  - uv_0edd09736fdf48f53e323d50
+title: Agent instructions
+type: concept

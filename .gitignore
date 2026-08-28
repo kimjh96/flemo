@@ -26,23 +26,12 @@ node_modules
 .vscode
 .cursor
 .claude
-# EVERY CLAUDE.md is a local, per-checkout file — the root one and the
-# package-level ones (packages/react, apps/web) alike. They are the
-# maintainer's agent-facing notes: they churn on every round and the churn
-# dominated review, which is the same reason `/docs/` below is local.
-#
-# Deliberately NOT anchored, unlike `/docs/`: this pattern matches a FILE of
-# that exact name, so it can never swallow a directory the way an unanchored
-# `docs/` swallowed the docs site. The one thing to keep in mind is the mirror
-# of that hazard — a new package's CLAUDE.md is ignored without anyone saying
-# so, which is the intent here.
-CLAUDE.md
 
 # Agent-facing engine documentation (architecture notes, the diagnostics flag
-# reference, the device-campaign postmortems). Local per-checkout, same as the
-# root CLAUDE.md above: it churns on every motion round and the churn dominated
-# review. Source comments still cite these paths — they are the maintainer's
-# working notes, and the code comments they cite remain the primary source.
+# reference, the device-campaign postmortems). Local per-checkout: it churns on
+# every motion round and the churn dominated review. Source comments still cite
+# these paths — they are the maintainer's working notes, and the code comments
+# they cite remain the primary source.
 #
 # ROOT-ANCHORED, and it must stay that way. An unanchored `docs/` matches a
 # directory of that name at ANY depth, which swallowed the docs SITE

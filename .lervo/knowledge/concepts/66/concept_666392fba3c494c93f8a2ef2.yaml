@@ -1,0 +1,14 @@
+assurance: unreviewed
+bundleId: bundle_f30402500333f4447ba5d2b8
+conceptId: concept_666392fba3c494c93f8a2ef2
+freshness: current
+ownership: user
+path: docs/architecture/motion-engine.md
+publicationLanguage: en
+publicationProfile: architecture_context
+publicationStatus: stable
+schemaVersion: 1
+sourceUnitVersionIds:
+  - uv_196b00ed409588f199a3b84b
+title: The flemo motion engine
+type: concept

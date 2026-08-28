@@ -5,9 +5,18 @@ node_modules
 coverage
 pnpm-lock.yaml
 *.md.snap
+
+# Everything under .lervo is generated with a recorded content hash, so
+# reformatting it invalidates the record it belongs to. Kept OUTSIDE the block
+# below because that block is Lervo's own bytes: it lists the documents Lervo
+# rewrites, and .lervo is not one of them — it is where the records live.
+.lervo
+
 # lervo:begin document-rewrite-ownership schema=1
 AGENTS.md
 CLAUDE.md
+apps/web/AGENTS.md
+apps/web/CLAUDE.md
 docs/architecture/motion-engine.md
 docs/instructions/coverage.md
 packages/devtools/README.md

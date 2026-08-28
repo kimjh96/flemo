@@ -28,6 +28,7 @@ import {
 
 import { preserveDescendantAnimations } from "@morph/morphAnimations";
 
+import { clipTravel, visibleInset } from "@morph/morphClip";
 import {
   captureMorphSnapshot,
   followPose,
@@ -98,6 +99,16 @@ interface MorphEntry {
   element: HTMLElement;
   layoutId: string;
   name: MorphTransitionName;
+  /**
+   * The element's box AT REST, measured at registration — before any container
+   * it is nested in is staged. A binding registers child-first, so this is the
+   * natural arrival layout. It is what a nested size interpolation must END
+   * on: the staged measurement is taken inside a container still at its
+   * from-box, and a container whose width interpolates lays the child out
+   * slightly small there — the flight then froze 40px short and snapped the
+   * difference at the landing.
+   */
+  restSize: { width: number; height: number } | null;
 }
 
 interface MorphFlight {
@@ -164,6 +175,28 @@ const INHERITED = [
   "whiteSpace",
   "direction"
 ] as const;
+
+// What actually gets stamped for an inherited property. One property needs
+// translating rather than copying: computed `line-height` comes back as a USED
+// length, and stamping that length inline hands every descendant an absolute
+// leading where the tree they left gave them a factor. Measured on a paired
+// card: rows that set only a 13px font sat 20px tall at rest and 24px tall in
+// flight, because the card's own used 24px landed on them verbatim (the `font`
+// shorthand carries the same length, which is why `lineHeight` stamps after it
+// and wins). The RATIO reproduces the element's own leading exactly and keeps
+// a descendant's leading proportional to its own font, which is what unitless
+// inheritance — the common case — was doing before the element was hoisted.
+// A descendant that inherited an absolute leading from an ancestor with a
+// DIFFERENT font size trades one distortion for a smaller one.
+const inheritedValue = (computed: CSSStyleDeclaration, property: (typeof INHERITED)[number]) => {
+  if (property !== "lineHeight") return computed[property];
+  const raw = computed.lineHeight ?? "";
+  const lineHeight = Number.parseFloat(raw);
+  const fontSize = Number.parseFloat(computed.fontSize ?? "");
+  if (!raw.endsWith("px") || !Number.isFinite(lineHeight)) return raw;
+  if (!Number.isFinite(fontSize) || fontSize <= 0) return raw;
+  return String(Math.round((lineHeight / fontSize) * 10000) / 10000);
+};
 
 const isTransitional = (status: NavigateStatus): boolean =>
   (TRANSITIONAL_STATUS_VALUES as readonly string[]).includes(status);
@@ -469,6 +502,62 @@ const startFlight = (
     side.paint,
     transition.radius === false ? new Set(["border-radius"]) : undefined
   );
+  // THE CORNER TRAVELS AS A PROPORTION when the box changes size enough for
+  // px to lie. Interpolating 12px → 0px is linear in px, but the box under it
+  // grows severalfold at the same time, so the ROUNDNESS the eye reads —
+  // radius over side — collapses in the first tenth of the flight: measured
+  // on a 48px thumb opening to a 346px hero, the ratio fell 25% → 10% inside
+  // 90ms, which is reported as "the radius snaps to 0 and then the morph
+  // starts". As a percentage the browser resolves the radius against the box
+  // every frame, so a quarter-round thumb stays proportionally round and
+  // straightens over the whole flight instead of at its first step.
+  //
+  // Only for a pair that is SQUARE-ish at both ends, because a percentage
+  // radius is per-axis (width horizontally, height vertically): on a box far
+  // from square it bends the corner elliptical, and on one whose aspect is
+  // also morphing (a list row opening into a page) the mid-flight ellipse is
+  // its own artifact — measured as a 16px card corner ballooning to 8×54.
+  // Those keep the px interpolation.
+  const corner = paint.find((channel) => channel.property === "border-radius");
+  if (corner) {
+    // Per-component: a card whose image rounds only its top corners computes
+    // to "16px 16px 0px 0px", and each corner keeps its own proportion.
+    const pxList = (value: string): number[] | null => {
+      if (value.includes("/")) return null;
+      const parts = value.trim().split(/\s+/);
+      const numbers: number[] = [];
+      for (const part of parts) {
+        const match = /^(\d+(?:\.\d+)?)px$/.exec(part);
+        if (!match) return null;
+        numbers.push(Number(match[1]));
+      }
+      // Trimmed input splits to at least one part, and a computed radius
+      // never carries more than four: the browser normalises an invalid
+      // shorthand away before this code can see it.
+      return numbers;
+    };
+    const squarish = (rect: { width: number; height: number }): boolean =>
+      rect.width > 0 && rect.height > 0 && Math.abs(rect.width / rect.height - 1) <= 0.1;
+    const fromPx = pxList(corner.from);
+    const toPx = pxList(corner.to);
+    if (fromPx && toPx && squarish(captured.snapshot.rect) && squarish(side.rect)) {
+      const pct = (values: number[], span: number): string =>
+        values.map((value) => `${((value / span) * 100).toFixed(2)}%`).join(" ");
+      corner.from = pct(fromPx, captured.snapshot.rect.width);
+      corner.to = pct(toPx, side.rect.width);
+    }
+  }
+
+  // WHAT THE SCROLLPORT WAS HIDING at each end rides the flight as a clip.
+  // A cell scrolled to the list's edge is half covered by the chrome stacked
+  // against that edge; staged bare it becomes whole in one frame and crosses
+  // the tab bar it was under — reported from a scrolled grid as the morph
+  // "overlapping the tab bar and the header". Measured from each end's own
+  // clipping ancestors, so the element leaves by sliding out from under the
+  // chrome and lands by sliding back beneath it (see morphClip). Nested pairs
+  // are not given one: their container clips them itself.
+  const edgeClip = clipTravel(visibleInset(captured.element), visibleInset(entry.element));
+  if (edgeClip) trace("edge-clip", entry, status, edgeClip);
 
   const id = `${(flightSequence += 1)}`;
 
@@ -491,6 +580,7 @@ const startFlight = (
       ease
     },
     box: { from: origin, to: destination },
+    clip: edgeClip,
     // The spacing travels too. Without it the arrival wears its OWN padding
     // from the first frame, so the contents it is handing over from flinch in
     // or out by the difference at the exact moment of the tap.
@@ -579,6 +669,44 @@ const startFlight = (
   // paired with a list label has to grow into it on its own. That is the whole
   // nested job, and it is why nothing here is staged or moved.
   if (carrying) {
+    // WHERE THE FLIGHT BEGINS is part of the pair's contract for a nested
+    // element too. Riding alone renders it at the ARRIVAL's own place inside
+    // the travelling box from the first frame, so any difference between the
+    // two ends' local arrangement — an inset kept on the element at one end
+    // and on an ancestor at the other, a different gap under the artwork —
+    // was a lurch at the tap: measured at 20px sideways on the playground's
+    // caption, and at 16px on the demo it replaced, so it was never a
+    // regression, just never corrected. The correction is a translate from
+    // the measured from-delta to identity on the flight's own curve: exact at
+    // both ends, first-order in between, and the ride itself is untouched.
+    // `side.rect` is this element measured where the staged container put it,
+    // so the delta is against the box actually on glass at frame zero.
+    const dx = captured.snapshot.rect.x - side.rect.x;
+    const dy = captured.snapshot.rect.y - side.rect.y;
+    const travels = Math.abs(dx) >= 0.5 || Math.abs(dy) >= 0.5;
+    // The SIZE half of the same correction. Riding sizes the child through the
+    // container's width interpolation, and that works only when the width
+    // actually interpolates: a container that starts at destination width (a
+    // full-width list row becoming a page) lays the child out full-size on
+    // frame one, and a thumbnail spreads into a strip instead of growing.
+    // `side.rect` is measured where the staged container put it, so the delta
+    // is zero exactly when the container's width carries the child correctly,
+    // which keeps this channel silent for a grid cell.
+    // The size interpolation ENDS on the rest measurement from registration,
+    // not on the staged one: staged is measured inside a container still at
+    // its from-box, and when the container's width interpolates the child is
+    // laid out slightly small there. Ending on staged froze the artwork 40px
+    // short of the page and snapped the difference at the landing.
+    const endSize = entry.restSize ?? { width: side.rect.width, height: side.rect.height };
+    const dw = captured.snapshot.rect.width - endSize.width;
+    const dh = captured.snapshot.rect.height - endSize.height;
+    // NOT for type. A re-typesetting pair moves by FONT SIZE and its box is
+    // its layout's business: a block heading measures the full content width,
+    // and forcing that width onto the row's label reflowed the flex row every
+    // frame — the price rode the animated width across the card and the label
+    // read as entering from the right. The size channel exists for elements
+    // whose box IS the thing (the artwork), which never re-typeset.
+    const resizes = type.fontSize === null && (Math.abs(dw) >= 1 || Math.abs(dh) >= 1);
     const retypes =
       type.fontSize !== null ||
       type.fontWeight !== null ||
@@ -598,7 +726,7 @@ const startFlight = (
     // A nested element gets the paint table too. It used to get none of it:
     // its corner, its surface and its border were the destination's from the
     // first frame, which is the same step the container was already fixed for.
-    if (!retypes && !reshapes && !respaces && paint.length === 0) {
+    if (!retypes && !reshapes && !respaces && !travels && !resizes && paint.length === 0) {
       trace("nested-nothing-to-do", entry, status);
       return;
     }
@@ -606,7 +734,7 @@ const startFlight = (
     const growing = buildMorphKeyframes({
       id: `${id}n`,
       travel: {
-        from: IDENTITY_POSE,
+        from: travels ? { ...IDENTITY_POSE, x: dx, y: dy } : IDENTITY_POSE,
         authoredFrom: IDENTITY_POSE,
         authoredTo: IDENTITY_POSE,
         duration: flightDuration,
@@ -631,6 +759,15 @@ const startFlight = (
         captured.snapshot.margin !== side.margin
           ? { from: captured.snapshot.margin, to: side.margin }
           : null,
+      size: resizes
+        ? {
+            from: {
+              width: captured.snapshot.rect.width,
+              height: captured.snapshot.rect.height
+            },
+            to: endSize
+          }
+        : null,
       fade: null,
       paint
     });
@@ -722,6 +859,10 @@ const startFlight = (
           start,
           ease
         },
+        // The copy is clipped exactly as the departure was, releasing (or
+        // gathering) with the flight, so it too emerges from under the chrome
+        // rather than popping whole over it.
+        clip: edgeClip,
         fade: { from: { opacity: 1 }, to: { opacity: 0 }, duration: flightDuration * crossFade },
         // The GHOST is a copy of the departure and never re-lays itself out, so
         // it holds the departure's own paint for its whole (short) life.
@@ -824,7 +965,7 @@ const startFlight = (
   const inline = entry.element.getAttribute("style");
   const computed = computedBefore;
   const inherited = computed
-    ? INHERITED.map((property) => [property, computed[property]] as const)
+    ? INHERITED.map((property) => [property, inheritedValue(computed, property)] as const)
     : [];
 
   preserveDescendantAnimations(entry.element, () => layer.appendChild(entry.element));
@@ -864,13 +1005,25 @@ const startFlight = (
     // label associations, form submissions and every query a consumer's own
     // tests make. It is inert and hidden from assistive technology on top.
     for (const node of [ghost, ...ghost.querySelectorAll<HTMLElement>("*")]) {
-      // A PAIRED descendant is already morphing on the real element underneath
-      // — its own size, its own shape, its own type. Printing the copy's
-      // version of it as well puts two nearly identical things in the same
-      // place with different weights, which reads as a shadow trailing the
-      // text. It keeps its SPACE (the copy's job is to hold the departure's
-      // layout together for the unpaired content around it) and stops
-      // painting.
+      // PAIRED descendants stop painting in the copy. The real pair is staged
+      // in the flight at the captured pose — the exact spot the copy would
+      // have painted — so the dimmed copy is a WINDOW onto the real element,
+      // not a hole. Printing the copy as well puts two nearly identical
+      // things in one place: the copy rides the ghost's TRANSFORM, so type
+      // in it stretches toward the destination box as a smeared bitmap over
+      // the crisp re-typesetting original — reported as the title "bleeding"
+      // on a push. The copy keeps its space (its job is holding the
+      // departure's layout together for the unpaired content around it).
+      //
+      // This dimming was removed once, on the diagnosis that the copy was a
+      // hole: artwork read as a hero collapsing to a strip, type read as the
+      // title vanishing at the tap. Both were real, and both were THIS pair's
+      // flight having silently DECLINED (a zero-width destination, measured
+      // while a sibling's staged size squeezed it — see zero-destination in
+      // the trace), so nothing was underneath the window. With no real
+      // flight, a hidden copy IS a hole; the fix belonged to the declined
+      // flight, not to the ghost. When a pair goes missing mid-flight, read
+      // `flemoMorphTrace` before touching this line.
       if (node !== ghost && node.hasAttribute(MORPH_ATTR)) node.style.opacity = "0";
       node.removeAttribute(MORPH_ATTR);
       node.removeAttribute(MORPH_NAME_ATTR);
@@ -1424,7 +1577,13 @@ export default function attachMorph(element: HTMLElement, options: AttachMorphOp
   const { layoutId, navigateStore } = options;
   const name = options.name ?? DEFAULT_MORPH_TRANSITION_NAME;
   const scope = ensureScope(navigateStore);
-  const entry: MorphEntry = { element, layoutId: String(layoutId), name };
+  const rest = element.getBoundingClientRect();
+  const entry: MorphEntry = {
+    element,
+    layoutId: String(layoutId),
+    name,
+    restSize: rest.width > 0 && rest.height > 0 ? { width: rest.width, height: rest.height } : null
+  };
 
   scope.entries.set(element, entry);
   if (!element.hasAttribute(MORPH_ATTR)) element.setAttribute(MORPH_ATTR, "");

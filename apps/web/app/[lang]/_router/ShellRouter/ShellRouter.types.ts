@@ -5,6 +5,7 @@ declare module "@flemo/react" {
   interface RegisterRoute {
     "/": Record<string, never>;
     "/showcase": Record<string, never>;
+    "/playground": Record<string, never>;
     "/docs": Record<string, never>;
   }
 

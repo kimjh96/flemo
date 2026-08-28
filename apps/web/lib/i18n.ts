@@ -30,6 +30,7 @@ export const dict = {
       nav: {
         home: "Home",
         showcase: "Showcase",
+        playground: "Playground",
         docs: "Docs",
         github: "GitHub"
       },
@@ -68,6 +69,36 @@ export const dict = {
       cta: "Try again",
       home: "Back to home"
     },
+    playground: {
+      title: "Press it yourself",
+      subtitle:
+        "A small ticket app running the real library. Open an act from the list or from the poster grid, come back, and switch what carries the push while you do.",
+      bench: {
+        label: "what carries the push",
+        note: "Same screens, same shared artwork. Only the transition changes."
+      },
+      app: {
+        title: "Tonight",
+        subtitle: "Live near you",
+        tabTonight: "Tonight",
+        tabPosters: "Posters",
+        postersNote: "Everything on sale",
+        tabTickets: "Tickets",
+        ticketsNote: "Held for you",
+        held: "Held",
+        order: "Order",
+        past: "Past",
+        used: "Used",
+        detail: "Event",
+        back: "Back",
+        body: "A short set of new material, played once and not recorded. Standing room only, and the room is small enough that the back row is six metres from the stage.",
+        doors: "Doors",
+        venue: "Venue",
+        age: "Age",
+        ageValue: "18+",
+        getTickets: "Get tickets"
+      }
+    },
     showcase: {
       kicker: "Showcase",
       title: "Built with flemo",
@@ -101,6 +132,7 @@ export const dict = {
       nav: {
         home: "홈",
         showcase: "쇼케이스",
+        playground: "플레이그라운드",
         docs: "문서",
         github: "GitHub"
       },
@@ -138,6 +170,36 @@ export const dict = {
       body: "페이지를 그리는 중에 예상치 못한 오류가 생겼어요.",
       cta: "다시 시도",
       home: "홈으로 돌아가기"
+    },
+    playground: {
+      title: "직접 눌러보세요",
+      subtitle:
+        "실제 라이브러리로 도는 작은 티켓 앱이에요. 목록이나 포스터 그리드에서 공연을 열고 다시 돌아와 보세요. 그동안 push를 나르는 전환을 바꿔 볼 수 있습니다.",
+      bench: {
+        label: "push를 나르는 것",
+        note: "화면도 공유 이미지도 그대로. 전환만 바뀝니다."
+      },
+      app: {
+        title: "투나잇",
+        subtitle: "가까운 곳의 공연",
+        tabTonight: "투나잇",
+        tabPosters: "포스터",
+        postersNote: "판매 중인 공연 전부",
+        tabTickets: "내 티켓",
+        ticketsNote: "예매해 둔 공연",
+        held: "예매됨",
+        order: "예매번호",
+        past: "지난 공연",
+        used: "관람 완료",
+        detail: "공연",
+        back: "뒤로",
+        body: "녹음하지 않고 한 번만 연주하는 짧은 신곡 무대예요. 전석 스탠딩이고, 맨 뒷줄이 무대에서 6미터인 작은 공간입니다.",
+        doors: "입장",
+        venue: "장소",
+        age: "관람등급",
+        ageValue: "18세 이상",
+        getTickets: "예매하기"
+      }
     },
     showcase: {
       kicker: "쇼케이스",
