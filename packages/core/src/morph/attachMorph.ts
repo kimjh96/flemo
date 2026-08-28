@@ -531,7 +531,10 @@ const startFlight = (
         if (!match) return null;
         numbers.push(Number(match[1]));
       }
-      return numbers.length >= 1 && numbers.length <= 4 ? numbers : null;
+      // Trimmed input splits to at least one part, and a computed radius
+      // never carries more than four: the browser normalises an invalid
+      // shorthand away before this code can see it.
+      return numbers;
     };
     const squarish = (rect: { width: number; height: number }): boolean =>
       rect.width > 0 && rect.height > 0 && Math.abs(rect.width / rect.height - 1) <= 0.1;

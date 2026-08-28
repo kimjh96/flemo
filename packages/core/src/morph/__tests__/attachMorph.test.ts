@@ -281,6 +281,86 @@ describe("attachMorph", () => {
     expect(cardTo.style.lineHeight).toBe("1.5");
   });
 
+  it("keeps the used line-height when the font size cannot be read", () => {
+    // The factor needs a divisor. A zero or unparsable computed font-size
+    // leaves the used length in place rather than stamping NaN.
+    const gallery = makeScreen("layout", true);
+    const cardFrom = makeMorph(gallery, [20, 600, 160, 160]);
+    attachMorph(cardFrom, { layoutId: "card-lh", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const cardTo = makeMorph(detail, [0, 0, 400, 340]);
+    cardTo.style.fontSize = "0px";
+    cardTo.style.lineHeight = "24px";
+    attachMorph(cardTo, { layoutId: "card-lh", navigateStore: store });
+
+    expect(cardTo.parentElement).toBe(layer);
+    expect(cardTo.style.lineHeight).toBe("24px");
+  });
+
+  it("falls back to the staged size when registration measured nothing", async () => {
+    // A pair can register before its box has laid out (display: contents
+    // parents, a first commit mid-suspension). With no rest size on record
+    // the interpolation ends on the staged measurement instead.
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 160, 160]);
+    const art = makeMorph(card, [36, 620, 64, 64]);
+    attachMorph(card, { layoutId: "card-9r", navigateStore: store });
+    attachMorph(art, { layoutId: "art-9r", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+    const hero = makeMorph(bigCard, [16, 16, 128, 128]);
+    // Registration sees an unlaid box; the flight's own measurement sees the
+    // real one.
+    let reads = 0;
+    const laid = hero.getBoundingClientRect.bind(hero);
+    hero.getBoundingClientRect = () => {
+      reads += 1;
+      return reads === 1 ? ({ ...laid(), width: 0, height: 0 } as DOMRect) : laid();
+    };
+    attachMorph(bigCard, { layoutId: "card-9r", navigateStore: store });
+    attachMorph(hero, { layoutId: "art-9r", navigateStore: store });
+    await Promise.resolve();
+
+    const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
+    // From the captured 64px box to the STAGED 128px one, since no rest size
+    // was recorded.
+    expect(nestedRule).toContain("width: 64px");
+    expect(nestedRule).toContain("width: 128px");
+  });
+
+  it("rides with size alone when the two ends' positions agree", async () => {
+    // The travel channel stays identity when only the box differs: a size
+    // change is not a reason to invent a translate.
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 160, 160]);
+    const art = makeMorph(card, [36, 620, 64, 64]);
+    attachMorph(card, { layoutId: "card-8", navigateStore: store });
+    attachMorph(art, { layoutId: "art-8", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+    // Same corner as the art's, bigger box: position agrees, size does not.
+    const hero = makeMorph(bigCard, [36, 620, 128, 128]);
+    attachMorph(bigCard, { layoutId: "card-8", navigateStore: store });
+    attachMorph(hero, { layoutId: "art-8", navigateStore: store });
+    await Promise.resolve();
+
+    const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
+    expect(nestedRule).not.toContain("translate3d");
+    expect(nestedRule).toContain("width: 64px");
+    expect(nestedRule).toContain("width: 128px");
+  });
+
   it("carries a ghost of what it replaces, and drops it on landing", () => {
     // Without it the travelling box can only show the ARRIVAL's content at the
     // departure's size: a list card blown up to a panel leaves a void where the
@@ -960,6 +1040,48 @@ describe("attachMorph", () => {
     const rule = inserted.find((r) => /flemo-morph-\d+i-paint/.test(r))!;
     expect(rule).toContain("border-radius: 25.00%");
     expect(rule).toContain("border-radius: 0.00%");
+  });
+
+  it("leaves an elliptical or keyword radius on the px channel", () => {
+    // A slash radius is per-axis and a keyword is not a length; neither can
+    // convert to one percentage per corner, so both stay exactly as captured.
+    const gallery = makeScreen("layout", true);
+    const thumb = makeMorph(gallery, [20, 600, 48, 48]);
+    thumb.style.borderRadius = "12px / 6px";
+    attachMorph(thumb, { layoutId: "sq-3", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 346, 346]);
+    hero.style.borderRadius = "0px";
+    attachMorph(hero, { layoutId: "sq-3", navigateStore: store });
+
+    const rule = inserted.find((r) => /flemo-morph-\d+i-paint/.test(r))!;
+    expect(rule).toContain("border-radius: 12px / 6px");
+    expect(rule).not.toContain("%");
+  });
+
+  it("leaves a non-length radius component alone as well", () => {
+    // One end already a percentage (or any non-px token): there is no px pair
+    // to convert, so the channel carries the captured values verbatim.
+    const gallery = makeScreen("layout", true);
+    const thumb = makeMorph(gallery, [20, 600, 48, 48]);
+    thumb.style.borderRadius = "10%";
+    attachMorph(thumb, { layoutId: "sq-4", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 346, 346]);
+    hero.style.borderRadius = "0px";
+    attachMorph(hero, { layoutId: "sq-4", navigateStore: store });
+
+    const rule = inserted.find((r) => /flemo-morph-\d+i-paint/.test(r))!;
+    expect(rule).toContain("border-radius: 10%");
+    expect(rule).toContain("border-radius: 0px");
   });
 
   it("keeps each corner's own proportion in a per-corner radius", () => {

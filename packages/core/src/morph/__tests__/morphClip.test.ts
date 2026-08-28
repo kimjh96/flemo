@@ -63,9 +63,54 @@ describe("visibleInset", () => {
   });
 });
 
+describe("visibleInset hostile paths", () => {
+  it("cuts horizontally too, when an ancestor clips on the x axis", () => {
+    // A horizontal scroller at the stage's edge hides part of a row the same
+    // way the vertical one does; the inset carries per side.
+    const scroller = box(null, [0, 0, 300, 800], "");
+    scroller.style.overflowX = "scroll";
+    const cell = box(scroller, [260, 100, 80, 80]);
+    expect(visibleInset(cell)).toEqual({ top: 0, right: 50, bottom: 0, left: 0 });
+  });
+
+  it("declines when an ancestor's computed style cannot be read", () => {
+    // A detached-ish or cross-realm node can make getComputedStyle throw; a
+    // clip measurement must never take the flight down with it.
+    const scroller = box(null, [0, 600, 400, 100], "auto");
+    const cell = box(scroller, [20, 650, 80, 80]);
+    const original = globalThis.getComputedStyle;
+    (globalThis as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = () => {
+      throw new Error("no styles here");
+    };
+    try {
+      expect(visibleInset(cell)).toBeNull();
+    } finally {
+      (globalThis as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = original;
+    }
+  });
+});
+
+describe("visibleInset guards", () => {
+  it("declines a missing, detached, or unlaid element", () => {
+    expect(visibleInset(null)).toBeNull();
+    const loose = document.createElement("div");
+    expect(visibleInset(loose)).toBeNull();
+    const flat = box(null, [0, 0, 0, 0]);
+    expect(visibleInset(flat)).toBeNull();
+  });
+});
+
 describe("clipTravel", () => {
   it("is null when neither end was clipped", () => {
     expect(clipTravel(null, null)).toBeNull();
+  });
+
+  it("fills the unclipped FROM end with zeros too", () => {
+    const to = { top: 0, right: 0, bottom: 44.7, left: 0 };
+    expect(clipTravel(null, to)).toEqual({
+      from: { top: 0, right: 0, bottom: 0, left: 0 },
+      to
+    });
   });
 
   it("fills the unclipped end with zeros so the inset can interpolate", () => {
