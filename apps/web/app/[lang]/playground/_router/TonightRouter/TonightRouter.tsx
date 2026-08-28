@@ -9,6 +9,7 @@ import aperture from "../../_transitions/aperture";
 import drift from "../../_transitions/drift";
 import cardBody from "../../_transitions/cardBody";
 import cardChrome from "../../_transitions/cardChrome";
+import detailChromes from "../../_transitions/detailChrome";
 import fadeThrough from "../../_transitions/fadeThrough";
 import recess from "../../_transitions/recess";
 import reveal from "../../_transitions/reveal";
@@ -37,9 +38,12 @@ export interface TonightRouterProps {
 //   Tonight -> Act        a push carrying one shared element. The detail
 //                         declares no bar, so the bar RIDES out and back.
 //
-// The bench switches which transition carries that push. Nothing in these
-// screens knows which one it is: no screen branches on it, no part transition
-// is generated for it, and no flag is set to accommodate a shared element.
+// The bench switches which transition carries that push. The screens do not
+// branch on it — with one exception the deleted playground's clocks.ts already
+// paid for: the detail's floating header is covered by the artwork's flight
+// and revealed at the landing, so its entrance has to carry the flight's own
+// clock, and a part authors literal durations. detailChrome.ts writes one part
+// per case for exactly that element, and nothing else reads the case name.
 //
 // `<Slot>` is required rather than decorative: the Router has a non-Route child
 // (the bench provider's subtree would be one too), and the docs are explicit:
@@ -58,7 +62,7 @@ function TonightRouter({ bench }: TonightRouterProps) {
         // The reference recipe in full: the card's ghost covers the surface
         // hand-over, and the page's own copy rides these two parts, body copy
         // arriving late and leaving early, chrome late in both directions.
-        partTransitions={[cardBody, cardChrome]}
+        partTransitions={[cardBody, cardChrome, ...detailChromes]}
         defaultTransitionName="cupertino"
         className="h-full w-full bg-[var(--color-bg)]"
       >

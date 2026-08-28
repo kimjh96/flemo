@@ -501,6 +501,42 @@ const startFlight = (
     side.paint,
     transition.radius === false ? new Set(["border-radius"]) : undefined
   );
+  // THE CORNER TRAVELS AS A PROPORTION when the box changes size enough for
+  // px to lie. Interpolating 12px → 0px is linear in px, but the box under it
+  // grows severalfold at the same time, so the ROUNDNESS the eye reads —
+  // radius over side — collapses in the first tenth of the flight: measured
+  // on a 48px thumb opening to a 346px hero, the ratio fell 25% → 10% inside
+  // 90ms, which is reported as "the radius snaps to 0 and then the morph
+  // starts". As a percentage the browser resolves the radius against the box
+  // every frame, so a quarter-round thumb stays proportionally round and
+  // straightens over the whole flight instead of at its first step.
+  //
+  // Only for a pair that is SQUARE-ish at both ends, because a percentage
+  // radius is per-axis (width horizontally, height vertically): on a box far
+  // from square it bends the corner elliptical, and on one whose aspect is
+  // also morphing (a list row opening into a page) the mid-flight ellipse is
+  // its own artifact — measured as a 16px card corner ballooning to 8×54.
+  // Those keep the px interpolation.
+  const corner = paint.find((channel) => channel.property === "border-radius");
+  if (corner) {
+    const px = (value: string): number | null => {
+      const match = /^(\d+(?:\.\d+)?)px$/.exec(value);
+      return match ? Number(match[1]) : null;
+    };
+    const squarish = (rect: { width: number; height: number }): boolean =>
+      rect.width > 0 && rect.height > 0 && Math.abs(rect.width / rect.height - 1) <= 0.1;
+    const fromPx = px(corner.from);
+    const toPx = px(corner.to);
+    if (
+      fromPx !== null &&
+      toPx !== null &&
+      squarish(captured.snapshot.rect) &&
+      squarish(side.rect)
+    ) {
+      corner.from = `${((fromPx / captured.snapshot.rect.width) * 100).toFixed(2)}%`;
+      corner.to = `${((toPx / side.rect.width) * 100).toFixed(2)}%`;
+    }
+  }
 
   const id = `${(flightSequence += 1)}`;
 

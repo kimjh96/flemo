@@ -938,6 +938,30 @@ describe("attachMorph", () => {
     });
   });
 
+  it("carries a square pair's corner as a proportion of its box", () => {
+    // 12px on a 48px thumb is a quarter-round corner; 12px on the 346px hero
+    // it becomes is barely a bevel. Interpolated in px the ROUNDNESS the eye
+    // reads collapses in the flight's first tenth — reported as "the radius
+    // snaps to 0 and then the morph starts". A percentage resolves against
+    // the animated box every frame, so the proportion is what interpolates.
+    const gallery = makeScreen("layout", true);
+    const thumb = makeMorph(gallery, [20, 600, 48, 48]);
+    thumb.style.borderRadius = "12px";
+    attachMorph(thumb, { layoutId: "sq-1", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 346, 346]);
+    hero.style.borderRadius = "0px";
+    attachMorph(hero, { layoutId: "sq-1", navigateStore: store });
+
+    const rule = inserted.find((r) => /flemo-morph-\d+i-paint/.test(r))!;
+    expect(rule).toContain("border-radius: 25.00%");
+    expect(rule).toContain("border-radius: 0.00%");
+  });
+
   it("does not pair with an element on a screen that is not in this flight", () => {
     // Caught on glass in the chain fixture. A layoutId is a name, not an
     // address: the same one can sit on a screen DEEP in the stack, and pairing
