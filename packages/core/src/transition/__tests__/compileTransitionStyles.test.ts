@@ -21,6 +21,7 @@ import createPartTransition from "@transition/partTransition/createPartTransitio
 
 declare module "@transition/typing" {
   interface RegisterTransition {
+    "custom-snap-percent": "custom-snap-percent";
     "custom-fade-blur": "custom-fade-blur";
     "custom-slide-fade": "custom-slide-fade";
     "custom-rich-css": "custom-rich-css";
@@ -1470,5 +1471,149 @@ describe("compileTransitionStyles: <Layer> slot ride-along selector", () => {
     // The dim belongs to the screen and is rendered inside its container, so
     // it needs no pairing. Adding one would animate it twice.
     expect(decoBlock).not.toContain("data-flemo-layer-slot");
+  });
+});
+
+describe("a shared bar's ride distance", () => {
+  // THE BUG: a rider runs the screen's keyframes on its OWN box, and
+  // `translate` resolves a percentage against the box it lands on. A shared bar
+  // is as wide as its screen but only as tall as its content, so under
+  // material's `y: "100%"` a 104px bar crossed 104px while its 770px screen
+  // crossed 770px — same clock, one seventh of the distance — and the bar
+  // landed alone at the top of a screen still off the bottom of the viewport.
+  //
+  // Measured on the built package before and after, chromium, 588x770 window,
+  // material push into a screen with a shared top bar: the bar's translate
+  // divided by the screen's was 0.135 (= 104 / 770) on every sampled frame
+  // before, and 1.000 on every sampled frame after.
+
+  const keyframesFor = (css: string, name: string): string | undefined => {
+    const start = css.indexOf(`@keyframes ${name} {`);
+    if (start === -1) return undefined;
+    const end = css.indexOf("\n}", start);
+    return css.slice(start, end + 2);
+  };
+
+  const ruleFor = (css: string, selectorSubstring: string): string | undefined => {
+    const lines = css.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      if (line.startsWith("@keyframes")) continue;
+      if (!line.includes(selectorSubstring)) continue;
+      let startIdx = i;
+      while (startIdx > 0 && lines[startIdx - 1]!.trimEnd().endsWith(",")) startIdx -= 1;
+      const collected: string[] = [];
+      for (let j = startIdx; j < lines.length; j++) {
+        collected.push(lines[j]!);
+        if (lines[j]!.trim() === "}") return collected.join("\n");
+      }
+      return collected.join("\n");
+    }
+    return undefined;
+  };
+
+  it("gives the bar its own keyframes, against the screen box, for a percentage y", () => {
+    const css = compileTransitionStyles([material], []);
+
+    expect(keyframesFor(css, "flemo-screen-material-PUSHING-true-ride")).toContain(
+      "transform: translate3d(0, var(--flemo-ride-y, 100%), 0);"
+    );
+    const rule = ruleFor(
+      css,
+      '[data-flemo-bar][data-flemo-bar-transition="material"][data-flemo-bar-status="PUSHING"][data-flemo-bar-active="true"][data-flemo-bar-riding="true"]'
+    );
+    expect(rule).toContain("animation: flemo-screen-material-PUSHING-true-ride 0.35s");
+  });
+
+  it("keeps the screen's own keyframes literal", () => {
+    // The var() lives on the bar and nowhere else. This repository has already
+    // lost WebKit's accelerated playback once to custom properties inside the
+    // animation machinery, so the flagship path stays free of them.
+    const css = compileTransitionStyles([material], []);
+
+    expect(keyframesFor(css, "flemo-screen-material-PUSHING-true")).toContain(
+      "transform: translate3d(0, 100%, 0);"
+    );
+    expect(keyframesFor(css, "flemo-screen-material-PUSHING-true")).not.toContain("var(");
+  });
+
+  it("takes the bar out of the shared rule when it has a copy, so neither shadows the other", () => {
+    const css = compileTransitionStyles([material], []);
+    const rule = ruleFor(
+      css,
+      '[data-flemo-screen][data-flemo-transition="material"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
+    );
+
+    expect(rule).toContain("data-flemo-layer-slot");
+    expect(rule).not.toContain("data-flemo-bar");
+  });
+
+  it("copies the governed, creep and desktop heads onto the bar too", () => {
+    // A rider that keeps the screen's clock but loses its lead-in would start
+    // moving before the screen it belongs to.
+    const css = compileTransitionStyles([material], []);
+
+    for (const suffix of ["gov", "govcreep", "deskhead"]) {
+      expect(keyframesFor(css, `flemo-screen-material-PUSHING-true-ride-${suffix}`)).toContain(
+        "var(--flemo-ride-y, 100%)"
+      );
+    }
+  });
+
+  it("emits no copy for a horizontal transition: a bar is already the screen's width", () => {
+    const css = compileTransitionStyles([cupertino], []);
+
+    expect(css).not.toContain("-ride");
+    expect(css).not.toContain("--flemo-ride-y");
+    // And the bar keeps its seat in the shared rule.
+    expect(
+      ruleFor(
+        css,
+        '[data-flemo-screen][data-flemo-transition="cupertino"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
+      )
+    ).toContain("data-flemo-bar");
+  });
+
+  it("corrects a zero-duration variant too, which snaps rather than animates", () => {
+    // A snap writes the target straight onto the element with `animation: none`,
+    // so a percentage there is just as wrong on a bar as one inside keyframes.
+    // No shipped preset reaches this (every 0-duration variant they author
+    // settles at `y: 0`), but an author can write one.
+    const snapper = createTransition({
+      name: "custom-snap-percent",
+      initial: { y: 0 },
+      idle: { value: { y: 0 }, options: { duration: 0 } },
+      enter: { value: { y: 0 }, options: { duration: 0.3 } },
+      exit: { value: { y: 0 }, options: { duration: 0.3 } },
+      enterBack: { value: { y: 0 }, options: { duration: 0.3 } },
+      exitBack: { value: { y: "100%" }, options: { duration: 0 } }
+    });
+    const css = compileTransitionStyles([snapper], []);
+    const barRule = ruleFor(
+      css,
+      '[data-flemo-bar][data-flemo-bar-transition="custom-snap-percent"][data-flemo-bar-status="POPPING"][data-flemo-bar-active="false"]'
+    );
+    const screenRule = ruleFor(
+      css,
+      '[data-flemo-screen][data-flemo-transition="custom-snap-percent"][data-flemo-status="POPPING"][data-flemo-active="false"]'
+    );
+
+    expect(barRule).toContain("transform: translate3d(0, var(--flemo-ride-y, 100%), 0);");
+    expect(barRule).toContain("animation: none;");
+    expect(screenRule).toContain("transform: translate3d(0, 100%, 0);");
+    expect(screenRule).not.toContain("data-flemo-bar");
+  });
+
+  it("emits no copy for a pixel offset", () => {
+    // material's exit is `y: -56`, an absolute length that already means the
+    // same thing on either box.
+    const css = compileTransitionStyles([material], []);
+    const rule = ruleFor(
+      css,
+      '[data-flemo-screen][data-flemo-transition="material"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
+    );
+
+    expect(rule).toContain("data-flemo-bar");
+    expect(keyframesFor(css, "flemo-screen-material-PUSHING-false-ride")).toBeUndefined();
   });
 });

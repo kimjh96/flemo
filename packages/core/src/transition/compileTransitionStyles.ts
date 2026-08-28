@@ -1,4 +1,5 @@
 import type { AnimationOptions, InitialTarget } from "@transition/cssTypes";
+import { percentRatio, rideLength } from "@transition/rideOffset";
 import type { Transition, TransitionVariant, TransitionVariantValue } from "@transition/typing";
 
 import {
@@ -153,7 +154,11 @@ const isIdentityTransformValue = (prop: string, raw: unknown): boolean => {
   return false;
 };
 
-const transformPart = (prop: string, value: string): string => {
+const transformPart = (prop: string, value: string, ride: boolean): string => {
+  if (ride && prop === "y") {
+    const ratio = percentRatio(value);
+    if (ratio !== null) return transformPart(prop, rideLength(ratio), false);
+  }
   switch (prop) {
     // 3D translate functions on purpose, NOT translateX/translateY: Chromium
     // pixel-snaps a 2D-transform-animated layer when its content rasters
@@ -238,8 +243,13 @@ export const collectAnimatedProperties = (
   return props;
 };
 
+// `ride` compiles the copy a shared bar runs instead of the screen's own
+// keyframes: identical in every respect except that percentage x / y offsets
+// are restated against the screen box the binding publishes. See rideOffset.ts
+// for why a rider cannot use its own box, and why only the bars need this.
 export const targetToDecls = (
-  target: TransitionVariantValue["value"] | InitialTarget
+  target: TransitionVariantValue["value"] | InitialTarget,
+  ride = false
 ): CssDecl[] => {
   if (!isPlainObject(target)) return [];
 
@@ -253,7 +263,7 @@ export const targetToDecls = (
     if (value === "") continue;
 
     if (TRANSFORM_PROPS.has(prop)) {
-      transformParts.push(transformPart(prop, value));
+      transformParts.push(transformPart(prop, value, ride));
       if (!isIdentityTransformValue(prop, raw)) {
         allTransformIdentity = false;
       }
@@ -416,6 +426,15 @@ export const matchesFlightAnimationName = (eventName: string, expectedName: stri
   eventName === expectedName ||
   HEAD_ANIMATION_SUFFIXES.some((suffix) => eventName === `${expectedName}${suffix}`);
 
+// One element family's share of a compiled variant: which rule it matches,
+// which `@keyframes` it plays and the two endpoints that keyframe holds.
+type RideTarget = {
+  selector: string;
+  keyframe: string;
+  fromDecls: CssDecl[];
+  toDecls: CssDecl[];
+};
+
 const compileVariantBlock = (
   scope: "screen" | "decorator" | "part",
   name: string,
@@ -455,17 +474,41 @@ const compileVariantBlock = (
   const delay = variantDelay(toVariant.options);
   const easing = easingToCss(toVariant.options?.ease);
 
+  // The shared bar's copy of this variant. Identical to the screen's unless the
+  // author wrote a percentage x / y offset, which resolves against the box it
+  // is applied to — and a bar's box is not the screen's (rideOffset.ts). The
+  // copy exists ONLY when it would differ: `declsDiffer` below is what keeps
+  // every percentage-free transition, and every axis a bar already matches, on
+  // the single shared `@keyframes` the ride-along was designed around.
+  const rideAuthoredFromDecls = targetToDecls(fromValue, true);
+  const rideAuthoredToDecls = targetToDecls(toVariant.value, true);
+  const rideFromDecls = rideAuthoredFromDecls.filter(
+    (decl) => !constantProperties.has(decl.property)
+  );
+  const rideToDecls = rideAuthoredToDecls.filter((decl) => !constantProperties.has(decl.property));
+  const declsDiffer = (left: CssDecl[], right: CssDecl[]) =>
+    declsToBlock(left) !== declsToBlock(right);
+  const needsRideCopy =
+    scope === "screen" &&
+    (declsDiffer(rideAuthoredFromDecls, authoredFromDecls) ||
+      declsDiffer(rideAuthoredToDecls, authoredToDecls));
+
   // For the screen scope, also target a riding shared bar and any <Layer>
   // slot with the same rule so the compositor drives every one of them off one
   // `@keyframes`. Both live BESIDE the scope rather than inside it, which is
   // why neither moves without being named here.
   // Decorators have no counterpart of either kind. They stay screen-only.
   const screenSelector = selectorBuilder(name, variant);
+  const barSelector = barAttrSelector(name, variant);
   const selector =
     scope === "screen"
       ? [
           screenSelector,
-          barAttrSelector(name, variant),
+          // A bar that needs the corrected distance leaves this list and takes
+          // its own rule below. It must not stay here as well: two rules naming
+          // the same element would make the winner depend on source order, and
+          // the corrected one has to win outright.
+          ...(needsRideCopy ? [] : [barSelector]),
           layerRiderSelector(LAYER_HOST_ATTR, name, variant),
           layerRiderSelector(LAYER_SLOT_ATTR, name, variant)
         ].join(",\n")
@@ -480,30 +523,42 @@ const compileVariantBlock = (
   // No duration: snap directly to the target (no keyframe, no animationend).
   if (duration <= 0 && delay <= 0) {
     if (authoredToDecls.length === 0) return "";
-    return `${selector} {\n${declsToBlock(authoredToDecls)}\n  animation: none;\n}`;
+    const snap = `${selector} {\n${declsToBlock(authoredToDecls)}\n  animation: none;\n}`;
+    if (!needsRideCopy) return snap;
+    return `${snap}\n${barSelector} {\n${declsToBlock(rideAuthoredToDecls)}\n  animation: none;\n}`;
   }
 
   const keyframe = animationName(scope, name, variant);
-  const keyframeBlock = [
-    `@keyframes ${keyframe} {`,
-    `  from {`,
-    declsToBlock(fromDecls).replace(/^/gm, "  "),
-    `  }`,
-    `  to {`,
-    declsToBlock(toDecls).replace(/^/gm, "  "),
-    `  }`,
-    `}`
-  ].join("\n");
 
-  const animationProp = [
-    `${keyframe}`,
-    `${duration}s`,
-    easing,
-    delay > 0 ? `${delay}s` : null,
-    "both"
-  ]
-    .filter(Boolean)
-    .join(" ");
+  // One emission, run once for the screen and its same-box riders and, when the
+  // distances differ, once more for the shared bar. Everything a variant fixes
+  // — duration, easing, delay, the governed and desktop heads, will-change,
+  // containment — is shared; only the selector, the keyframe name and the two
+  // endpoint declaration lists change between them.
+  const screenTarget: RideTarget = { selector, keyframe, fromDecls, toDecls };
+  const barTarget: RideTarget = {
+    selector: barSelector,
+    keyframe: `${keyframe}-ride`,
+    fromDecls: rideFromDecls,
+    toDecls: rideToDecls
+  };
+  const keyframeBlockFor = (target: RideTarget) =>
+    [
+      `@keyframes ${target.keyframe} {`,
+      `  from {`,
+      declsToBlock(target.fromDecls).replace(/^/gm, "  "),
+      `  }`,
+      `  to {`,
+      declsToBlock(target.toDecls).replace(/^/gm, "  "),
+      `  }`,
+      `}`
+    ].join("\n");
+  const keyframeBlock = keyframeBlockFor(screenTarget);
+
+  const animationPropFor = (kf: string) =>
+    [`${kf}`, `${duration}s`, easing, delay > 0 ? `${delay}s` : null, "both"]
+      .filter(Boolean)
+      .join(" ");
 
   // Governed-tier overrides, consumed as longhand declarations after the shorthand.
   // Both vars are published by the engine before the release and stay unset
@@ -608,15 +663,17 @@ const compileVariantBlock = (
     attribute: string,
     suffix: string,
     headS: number,
-    shiftDelay: boolean
+    shiftDelay: boolean,
+    target: RideTarget = screenTarget
   ): string => {
     if (scope === "part") return "";
     if (headS <= 0 || duration <= 0) return "";
     if (authoredFromDecls.length === 0 && authoredToDecls.length === 0) return "";
     const total = duration + headS;
     const headPct = ((headS / total) * 100).toFixed(3);
-    const kf = `${keyframe}-${suffix}`;
-    const gatedSelector = selector
+    const kf = `${target.keyframe}-${suffix}`;
+    const { fromDecls, toDecls } = target;
+    const gatedSelector = target.selector
       .split(",\n")
       .map((one) => `:root[${attribute}] ${one}`)
       .join(",\n");
@@ -654,7 +711,7 @@ const compileVariantBlock = (
   // changes on every frame of the head, so the compositor is already carrying
   // this animation when the real motion begins. Measured: drops at the boundary
   // fell from 78% of pushes to 33%.
-  const creepHeadBlock = (() => {
+  const creepHeadBlockFor = (target: RideTarget = screenTarget) => {
     // A part variant returns before this block, and every head-carrying variant
     // has a duration — the guards mirror headBlock's so a future caller cannot
     // walk into a malformed keyframe.
@@ -667,10 +724,10 @@ const compileVariantBlock = (
        animate never reaches a head. */
     if (authoredFromDecls.length === 0 && authoredToDecls.length === 0) return "";
     const creepDecls: CssDecl[] = (() => {
-      const transform = fromDecls.find((decl) => decl.property === "transform");
-      if (!transform) return [...fromDecls, { property: "transform", value: CREEP_NUDGE }];
+      const transform = target.fromDecls.find((decl) => decl.property === "transform");
+      if (!transform) return [...target.fromDecls, { property: "transform", value: CREEP_NUDGE }];
       const base = transform.value === "none" ? "" : `${transform.value} `;
-      return fromDecls.map((decl) =>
+      return target.fromDecls.map((decl) =>
         decl.property === "transform"
           ? { property: "transform", value: `${base}${CREEP_NUDGE}` }
           : decl
@@ -678,25 +735,26 @@ const compileVariantBlock = (
     })();
     const total = duration + headS;
     const headPct = ((headS / total) * 100).toFixed(3);
-    const kf = `${keyframe}-govcreep`;
-    const gatedSelector = selector
+    const kf = `${target.keyframe}-govcreep`;
+    const gatedSelector = target.selector
       .split(",\n")
       .map((one) => `:root${attrSelector(GOVERNED_ATTR)}${attrSelector(CREEP_ATTR)} ${one}`)
       .join(",\n");
     return (
-      `\n@keyframes ${kf} {\n  0% {\n${declsToBlock(fromDecls).replace(/^/gm, "  ")}\n  }\n  ${headPct}% {\n${declsToBlock(creepDecls).replace(/^/gm, "  ")}\n  }\n  100% {\n${declsToBlock(toDecls).replace(/^/gm, "  ")}\n  }\n}\n` +
+      `\n@keyframes ${kf} {\n  0% {\n${declsToBlock(target.fromDecls).replace(/^/gm, "  ")}\n  }\n  ${headPct}% {\n${declsToBlock(creepDecls).replace(/^/gm, "  ")}\n  }\n  100% {\n${declsToBlock(target.toDecls).replace(/^/gm, "  ")}\n  }\n}\n` +
       `${gatedSelector} {\n  animation-name: ${kf};\n  animation-duration: ${total.toFixed(3)}s;\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`
     );
-  })();
-  const governedHeadBlock = headBlock(GOVERNED_ATTR, "gov", headForVariant(variant), true);
-  const governedPartDelayBlock = partDelayBlock(GOVERNED_ATTR, headForVariant(variant));
-  const deskHeadBlock = headBlock(
-    DESK_HEAD_ATTR,
-    "deskhead",
-    desktopHeadForVariant(variant),
-    false
-  );
-  const deskPartDelayBlock = partDelayBlock(DESK_HEAD_ATTR, desktopHeadForVariant(variant));
+  };
+  // Part delays are scope === "part" only, so they collapse to "" on the bar
+  // copy and keep this list identical to the order the screen has always
+  // emitted: governed head, governed part delay, creep head, desktop head,
+  // desktop part delay.
+  const headsFor = (target: RideTarget = screenTarget) =>
+    headBlock(GOVERNED_ATTR, "gov", headForVariant(variant), true, target) +
+    partDelayBlock(GOVERNED_ATTR, headForVariant(variant)) +
+    creepHeadBlockFor(target) +
+    headBlock(DESK_HEAD_ATTR, "deskhead", desktopHeadForVariant(variant), false, target) +
+    partDelayBlock(DESK_HEAD_ATTR, desktopHeadForVariant(variant));
 
   // `will-change` is scoped to the variant-active rule (PUSHING/POPPING/...)
   // and lists exactly the properties this variant writes, whatever the
@@ -744,7 +802,8 @@ const compileVariantBlock = (
   // element holds them throughout, and the keyframes stay composable.
   const constantDecl = constantDecls.length > 0 ? `${declsToBlock(constantDecls)}\n` : "";
 
-  const ruleBlock = `${selector} {\n  animation: ${animationProp};\n${delayDecl}${durationDecl}${constantDecl}${willChangeDecl}${containmentDecl}}`;
+  const ruleBlockFor = (target: RideTarget = screenTarget) =>
+    `${target.selector} {\n  animation: ${animationPropFor(target.keyframe)};\n${delayDecl}${durationDecl}${constantDecl}${willChangeDecl}${containmentDecl}}`;
 
   // Destination pre-raster park. While a freshly started transition is held
   // (see the hold rule appended to the sheet), a COVERED screen whose `from`
@@ -807,7 +866,17 @@ const compileVariantBlock = (
         )}\n  opacity: 0.02;\n}`
       : "";
 
-  return `${keyframeBlock}\n${ruleBlock}${governedHeadBlock}${governedPartDelayBlock}${creepHeadBlock}${deskHeadBlock}${deskPartDelayBlock}${parkBlock}${parkUnderBlock}${parkOverBlock}`;
+  // The bar's corrected copy carries the same heads for the same reason the
+  // screen does: a rider that keeps the screen's clock but loses the governed
+  // or desktop lead-in would start moving before the screen it belongs to.
+  // Park blocks stay screen-only, as they always were: they hold a SCREEN at
+  // its destination to pre-rasterize it, and a bar is not what is being
+  // rasterized.
+  const barBlock = needsRideCopy
+    ? `\n${keyframeBlockFor(barTarget)}\n${ruleBlockFor(barTarget)}${headsFor(barTarget)}`
+    : "";
+
+  return `${keyframeBlock}\n${ruleBlockFor()}${headsFor()}${parkBlock}${parkUnderBlock}${parkOverBlock}${barBlock}`;
 };
 
 // Whether a variant's `from` target leaves the screen invisible on its first

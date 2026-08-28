@@ -1,6 +1,7 @@
 import animateInline, { clearInlineAnimation } from "@transition/animateInline";
 
 import { easeControlPoints } from "@transition/cubicBezier";
+import { resolveRideTarget } from "@transition/rideOffset";
 import { reaimReleaseEase, releaseLaunchSlope, swipeSettleSeconds } from "@transition/swipeSettle";
 
 import type { Transition } from "@transition/typing";
@@ -117,6 +118,14 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   let prevScreen: HTMLElement | null = null;
   let prevDecorator: HTMLElement | null = null;
   let ridingBars: { current: HTMLElement[]; prev: HTMLElement[] } = { current: [], prev: [] };
+  // The subset of the ride lists that is a SHARED BAR, and the screen box those
+  // bars must travel. A bar's own box is shorter than its screen's, so a drag
+  // handler that writes `y: "100%"` sends the bar its own height and the screen
+  // a whole viewport (see rideOffset.ts). <Layer> riders are deliberately NOT in
+  // this set: a slot's box is the OUTERMOST screen's, which is the basis its
+  // percentage is already written against.
+  let ridingBarSet: Set<HTMLElement> = new Set();
+  let rideScreenHeight = 0;
   // <Part> elements on the current + previous screens, driven inline by
   // the drag progress (the interactive path; the programmatic path is CSS).
   let partEls: { current: HTMLElement[]; prev: HTMLElement[] } = { current: [], prev: [] };
@@ -236,10 +245,19 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   // both the current and the previous screen per tick.
   const animateSwipe: typeof animateInline = (target, value, options) => {
     const result = animateInline(target, value, options, layerOwner);
+    // A shared bar takes the same values with its percentage y resolved against
+    // the screen box; every other rider takes them verbatim.
+    const mirror = (bar: HTMLElement) =>
+      animateInline(
+        bar,
+        ridingBarSet.has(bar) ? resolveRideTarget(value, rideScreenHeight) : value,
+        options,
+        layerOwner
+      );
     if (target === config.getElements().scope) {
-      for (const bar of ridingBars.current) animateInline(bar, value, options, layerOwner);
+      for (const bar of ridingBars.current) mirror(bar);
     } else if (target === prevScreen) {
-      for (const bar of ridingBars.prev) animateInline(bar, value, options, layerOwner);
+      for (const bar of ridingBars.prev) mirror(bar);
     }
     return result;
   };
@@ -262,7 +280,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     return null;
   };
 
-  const captureRidingBars = (prevScreenContainer: HTMLElement | null) => {
+  const captureRidingBars = (prevScreenContainer: HTMLElement | null, scope: HTMLElement) => {
     const partnerBars = config.getPartnerBars();
     const partnerMetadata = config.getPartnerBarMetadata?.();
     // A previous screen can have committed its DOM before its Activity-
@@ -314,6 +332,13 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // lists stands perfectly still while the screen it belongs to slides under
     // it. Measured before this existed: mid-drag the screen reached -65 and the
     // sheet held at 0.
+    // Recorded before the layer riders join the lists, so the set holds bars
+    // only. The screen box is read once per gesture, here, rather than per
+    // move: it cannot change while a finger is down, and the drag path exists
+    // to avoid exactly this kind of read on a moving frame.
+    ridingBarSet = new Set([...current, ...prev]);
+    rideScreenHeight = scope.getBoundingClientRect().height;
+
     current.push(...collectLayerRiders(config.getElements().screenContainer));
     prev.push(...collectLayerRiders(prevScreenContainer));
 
@@ -471,7 +496,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     swipeVelocity = { x: 0, y: 0 };
     velocityTrail = [{ t: event.timeStamp, x: event.clientX, y: event.clientY }];
     scope.setPointerCapture(event.pointerId);
-    captureRidingBars(prevScreenContainer);
+    captureRidingBars(prevScreenContainer, scope);
     capturePartTransitions(prevScreenContainer);
     holdDragLayers();
 

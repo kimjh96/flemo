@@ -291,6 +291,13 @@ export {
 } from "@transition/swipeSettle";
 
 export { default as observeBarHeight } from "@screen/observeBarHeight";
+export { default as publishRideBox } from "@screen/publishRideBox";
+export {
+  percentRatio,
+  resolveRideTarget,
+  rideLength,
+  RIDE_HEIGHT_VAR
+} from "@transition/rideOffset";
 export { default as observeViewportScrollHeight } from "@screen/observeViewportScrollHeight";
 
 // Compositor warm-up (see the module): also pre-armed by the React binding on

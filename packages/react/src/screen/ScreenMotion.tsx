@@ -29,6 +29,7 @@ import {
   decoratorMap,
   enteringInitialStyle,
   observeBarHeight,
+  publishRideBox,
   resolvePlatformProfile,
   resolveTransition,
   restLayerPromotionEnabled,
@@ -541,6 +542,19 @@ function ScreenMotion({
     if (!element) return undefined;
     return observeBarHeight(element, commitBottomBarHeight);
   }, [commitBottomBarHeight, hasSharedBottomBar]);
+
+  // The other direction of the same measurement: the bars need to know how tall
+  // the SCREEN is, because a ride-along runs the screen's keyframes on the bar's
+  // own box and a percentage offset resolves against whichever box it lands on
+  // (rideOffset.ts). Published on screenRef, which the bars inherit from, and
+  // only while there IS a bar — presence-keyed for the same reason the height
+  // observers above are, so a screen with no shared chrome carries no observer.
+  useLayoutEffect(() => {
+    const element = screenRef.current;
+    if (!element) return undefined;
+    if (!hasSharedTopBar && !hasSharedBottomBar) return undefined;
+    return publishRideBox(element);
+  }, [hasSharedBottomBar, hasSharedTopBar]);
 
   // Register this screen's scope surface (is its background opaque?) so the
   // screen beneath can decide between the destination park and the paused
