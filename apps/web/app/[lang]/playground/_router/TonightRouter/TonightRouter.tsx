@@ -7,6 +7,7 @@ import sharedAxisForward from "@/app/[lang]/_transitions/sharedAxisForward";
 
 import aperture from "../../_transitions/aperture";
 import cardBody from "../../_transitions/cardBody";
+import cardChrome from "../../_transitions/cardChrome";
 import plate from "../../_transitions/plate";
 import surface from "../../_transitions/surface";
 import drift from "../../_transitions/drift";
@@ -58,7 +59,7 @@ function TonightRouter({ bench }: TonightRouterProps) {
         decorators={[recess]}
         // `card-body` keeps the container transform's unpaired contents out of
         // the frame while the card is still a travelling box.
-        partTransitions={[cardBody]}
+        partTransitions={[cardBody, cardChrome]}
         // The artwork flies ghost-free; the card carries both the copy that
         // covers the hand-over and the camera.
         morphTransitions={[plate, surface]}

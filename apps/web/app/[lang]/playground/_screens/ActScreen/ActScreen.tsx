@@ -96,28 +96,30 @@ function ActScreen() {
             the same y. It is also not a part, because fading chrome out in the
             first fifth of a pop reads as the screen losing its header rather
             than the card leaving. */}
-        <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-between bg-gradient-to-b from-black/45 to-transparent px-4 pt-4 pb-8">
-          <button
-            type="button"
-            onClick={() => navigate.pop()}
-            aria-label={t.app.back}
-            className="grid size-9 cursor-pointer place-items-center rounded-full text-white transition-colors hover:bg-white/15"
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M15 6l-6 6 6 6"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-          <span className="text-xs font-bold tracking-[0.12em] text-white/70 uppercase">
-            {t.app.detail}
-          </span>
-          <span className="size-9" aria-hidden="true" />
-        </header>
+        <CardBody as="chrome" className="absolute inset-x-0 top-0 z-10">
+          <header className="flex items-center justify-between bg-gradient-to-b from-black/45 to-transparent px-4 pt-4 pb-8">
+            <button
+              type="button"
+              onClick={() => navigate.pop()}
+              aria-label={t.app.back}
+              className="grid size-9 cursor-pointer place-items-center rounded-full text-white transition-colors hover:bg-white/15"
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M15 6l-6 6 6 6"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+            <span className="text-xs font-bold tracking-[0.12em] text-white/70 uppercase">
+              {t.app.detail}
+            </span>
+            <span className="size-9" aria-hidden="true" />
+          </header>
+        </CardBody>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {/* Same fixed box as the cell's, for the same reason: the stand-in
@@ -175,7 +177,7 @@ function ActScreen() {
             the site's own MiniPlayer uses for a bar that sits over content;
             without them, the row clipped at the scroller's edge reads as being
             UNDER the button rather than scrolling behind it. */}
-        <CardBody className="shrink-0">
+        <CardBody as="chrome" className="shrink-0">
           <div className="border-t border-[var(--color-border-light)] bg-[var(--color-bg)]/85 px-5 pt-4 pb-6 backdrop-blur-xl">
             <button
               type="button"
