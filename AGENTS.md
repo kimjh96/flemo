@@ -14,10 +14,6 @@ packages/react            @flemo/react (Router/Route/Screen/hooks + the React-si
 packages/devtools         @flemo/devtools (zero-dependency flight recorder +
                           visual panel — a pure CONSUMER of the DOM surfaces the
                           engine already exposes; imports nothing from core/react)
-packages/react-layout     @flemo/react-layout (DEPRECATED, removal pending — the
-                          old motion-based LayoutScreen/LayoutConfig. Shared
-                          elements are now <Morph> in @flemo/react over the
-                          framework-neutral morph runtime in @flemo/core/src/morph)
 packages/eslint-config    @flemo/eslint-config (internal, base/react/nextjs presets)
 packages/tsconfig         @flemo/tsconfig (internal, base/react-library/nextjs)
 apps/web                  @flemo/web — Next.js 16 landing + docs (ko/en); the site
@@ -26,11 +22,11 @@ apps/web                  @flemo/web — Next.js 16 landing + docs (ko/en); the 
                           /playground
 ```
 
-Published packages: `@flemo/core`, `@flemo/react`, `@flemo/react-layout`, `@flemo/devtools`. Devtools is published and changeset-versioned despite being development tooling. `@flemo/web` is private but changeset-versioned so its `CHANGELOG.md` records deployable changes. Ignore internal `@flemo/eslint-config` and `@flemo/tsconfig`. No `flemo` meta package exists; consumers install `@flemo/react`. Shared-element morphs live in that package; `@flemo/react-layout` is a deprecated stub awaiting removal.
+Published packages: `@flemo/core`, `@flemo/react`, `@flemo/devtools`. Devtools is published and changeset-versioned despite being development tooling. `@flemo/web` is private but changeset-versioned so its `CHANGELOG.md` records deployable changes. Ignore internal `@flemo/eslint-config` and `@flemo/tsconfig`. No `flemo` meta package exists; consumers install `@flemo/react`. Shared-element morphs live in that package as `<Morph>`, over the framework-neutral morph runtime in `@flemo/core/src/morph`. The motion-based `@flemo/react-layout` was removed; its last published version is `0.1.52` and nothing in this repository builds or references it.
 
 ## Non-negotiable rules
 
-1. Never manually edit `package.json#version` in `packages/core`, `packages/react`, `packages/react-layout`, `packages/devtools`, or `apps/web`. For every user-visible change, create `.changeset/<short-kebab-slug>.md` without using the interactive `pnpm changeset` prompt or delegating it to the user:
+1. Never manually edit `package.json#version` in `packages/core`, `packages/react`, `packages/devtools`, or `apps/web`. For every user-visible change, create `.changeset/<short-kebab-slug>.md` without using the interactive `pnpm changeset` prompt or delegating it to the user:
 
 ```md
    ---
@@ -40,9 +36,9 @@ Published packages: `@flemo/core`, `@flemo/react`, `@flemo/react-layout`, `@flem
    1–2 sentence user-facing summary. Imperative voice.
    ```
 
-List each affected package (`@flemo/core`, `@flemo/react`, `@flemo/react-layout`, `@flemo/devtools`, or `@flemo/web`) on its own frontmatter line. Use `patch` for fixes/internal changes, `minor` for features, `major` only for actual API breaks. Skip changesets only for typos, behavior-neutral internal refactors, or documentation-only edits outside `docs/*`. Release automation creates the Version PR, versions, changelogs, npm publications, and GitHub Releases; write the summary for changelog readers.
+List each affected package (`@flemo/core`, `@flemo/react`, `@flemo/devtools`, or `@flemo/web`) on its own frontmatter line. Use `patch` for fixes/internal changes, `minor` for features, `major` only for actual API breaks. Skip changesets only for typos, behavior-neutral internal refactors, or documentation-only edits outside `docs/*`. Release automation creates the Version PR, versions, changelogs, npm publications, and GitHub Releases; write the summary for changelog readers.
 
-2. Do not add files under `packages/core`, `packages/react`, `packages/react-layout`, or `packages/devtools` unless they ship to npm; each package's `files` field is `["dist"]`. Put fixtures, demos, and scratch code in `apps/web/app/[lang]/playground/` — organized into `_components/`, `_screens/`, `_router/`, `_data/`, `_hooks/`, `_providers/`, and `_transitions/` — or a new `examples/*` workspace.
+2. Do not add files under `packages/core`, `packages/react`, or `packages/devtools` unless they ship to npm; each package's `files` field is `["dist"]`. Put fixtures, demos, and scratch code in `apps/web/app/[lang]/playground/` — organized into `_components/`, `_screens/`, `_router/`, `_data/`, `_hooks/`, `_providers/`, and `_transitions/` — or a new `examples/*` workspace.
 
 3. Keep CI green. Run this from the repository root before completion:
 
@@ -84,7 +80,7 @@ CI installs with `pnpm install --frozen-lockfile`. Local development may use `bu
 ## Change workflow
 
 1. Put framework-agnostic work in `@flemo/core` and React-coupled work in `@flemo/react`. Shared-element geometry, keyframes, and pairing belong in core's `src/morph`; the React binding is `<Morph>`, not a separate package.
-2. For changes under `packages/core/src/**`, `packages/react/src/**`, or `packages/react-layout/src/**`, add a colocated test under `__tests__/`.
+2. For changes under `packages/core/src/**`, `packages/react/src/**`, or `packages/devtools/src/**`, add a colocated test under `__tests__/`.
 3. Run the full CI command from the repository root.
 4. For user-visible changes, create the required changeset with affected packages and a one- or two-sentence release-ready summary.
 5. Stage source and changeset in the same commit.

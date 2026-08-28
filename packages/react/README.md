@@ -13,9 +13,12 @@
 ---
 
 flemo is a router whose unit of routing is a **screen**, not a page. Push, pop, and the
-animations and gestures between screens are handled by flemo, so you don't need to wire a
-router and a motion library together yourself. `@flemo/react` is the React binding (the
-framework-agnostic core lives in `@flemo/core`).
+animations and gestures between them belong to the router, so an app does not have to wire a
+routing library and an animation library together and then keep their timing in agreement.
+
+Transitions compile to CSS `@keyframes` and run on the compositor. Shared-element morphs,
+swipe back, and the screen lifecycle are parts of that one engine rather than separate
+integrations.
 
 ## Install
 
@@ -23,15 +26,80 @@ framework-agnostic core lives in `@flemo/core`).
 pnpm add @flemo/react
 ```
 
-`@flemo/react` pulls in `@flemo/core` (the framework-agnostic primitives) as a regular
-dependency. Apps that only need transition compilers or the navigation queue can install
-`@flemo/core` directly.
+`@flemo/react` needs `react ^19` and `react-dom ^19`, and nothing else. Shared-element
+morphs are included, so no animation library sits beside it. `@flemo/core` comes along as a
+regular dependency.
+
+## Example
+
+```tsx
+import { Route, Router, Screen, useNavigate } from "@flemo/react";
+
+function Home() {
+  const navigate = useNavigate();
+
+  return (
+    <Screen>
+      <h1>Home</h1>
+      <button onClick={() => navigate.push("/posts/:slug", { slug: "hello" })}>Open hello</button>
+    </Screen>
+  );
+}
+
+export default function App() {
+  return (
+    <Router>
+      <Route path="/" element={<Home />} />
+      <Route path="/posts/:slug" element={<Post />} />
+    </Router>
+  );
+}
+```
+
+Augment `RegisterRoute` once and TypeScript checks every path and params object:
+
+```ts
+declare module "@flemo/react" {
+  interface RegisterRoute {
+    "/": undefined;
+    "/posts/:slug": { slug: string };
+  }
+}
+```
+
+Browser Back, `navigate.pop()`, and a drag from the left edge each pop the pushed screen.
+
+## What ships in this package
+
+`Router` and `Route` own the stack. `Screen` is the unit that moves, and it takes the shared
+top and bottom bars that hand over between screens. `Morph` pairs one element across two
+screens by `layoutId` so it travels instead of appearing. `Part` runs a named transition on a
+single element inside a screen. `Layer` renders an overlay beside the screen so a sheet can
+cover the shared bars while the screen moves. The `useNavigate`, `useScreen`, `useParams`,
+`usePathname`, and `useStep` hooks read and drive all of it.
+
+## Packages
+
+| Package           | Published | What it is                                                                                                                                                                                                  |
+| ----------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@flemo/react`    | yes       | The React binding. Install this one.                                                                                                                                                                        |
+| `@flemo/core`     | yes       | Framework-agnostic primitives: the navigation task queue, the stores, transition factories and presets, the keyframes compiler, and the morph runtime. Install it directly only to use those without React. |
+| `@flemo/devtools` | yes       | Zero-dependency flight recorder and visual panel. It observes the `data-flemo-*` surfaces the engine already exposes and imports neither package above, so attaching it does not change measured motion.    |
+
+Svelte and SolidJS bindings are planned. There is no `flemo` meta package.
 
 ## Documentation
 
-See [flemo.dev](https://flemo.dev) for the full guide: getting started,
-transitions, shared-element morphs, gestures, and the complete API reference. A live playground is
-at [flemo.dev/playground](https://flemo.dev/playground).
+[flemo.dev](https://flemo.dev) carries the full guide in English and Korean: getting started,
+transitions, shared-element morphs, gestures, and the API reference. The live playground is at
+[flemo.dev/playground](https://flemo.dev/playground).
+
+## Contributing
+
+The source lives at [github.com/kimjh96/flemo](https://github.com/kimjh96/flemo), a pnpm and
+Turborepo monorepo. `pnpm turbo run typecheck lint test build` from the repository root is the
+gate every change passes before it lands, and `AGENTS.md` holds the working rules: the layout,
+where each kind of change belongs, and how releases are cut with Changesets.
 
 ## License
 

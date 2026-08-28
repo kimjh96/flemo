@@ -74,7 +74,7 @@ jobs:
       #
       # This only works while npmjs.com lists this repo as a trusted publisher
       # for every published package (@flemo/core, @flemo/react,
-      # @flemo/react-layout, @flemo/devtools). The registered workflow
+      # @flemo/devtools). The registered workflow
       # filename is `release.yml` — bare, not the `.github/workflows/` path —
       # so renaming or moving this file silently breaks releases with a 404
       # on PUT. npm masks auth failures as 404, so that is the symptom to
