@@ -941,16 +941,11 @@ describe("attachMorph", () => {
 
     const camera = inserted.find((rule) => rule.includes("-camera {"))!;
     expect(camera).toBeDefined();
-    // 80px wide becoming 400px is a 5x zoom. The camera rides the `zoom`
-    // property — layout, so it resolves on the same main-thread ticks as the
-    // box flight it frames — and the pan is whatever lands the thumbnail's
-    // centre (60, 640) on the hero's (200, 150) about the screen's corner
-    // (0, 0): left 200 - 5*60 = -100, top 150 - 5*640 = -3050.
-    expect(camera).toContain("zoom: 5");
-    expect(camera).toContain("zoom: 1");
-    expect(camera).toContain("left: -100px");
-    expect(camera).toContain("top: -3050px");
-    expect(camera).not.toContain("transform");
+    // 80px wide becoming 400px is a 5x zoom, and the translate is whatever
+    // lands the thumbnail's centre (60, 640) on the hero's (200, 150) about
+    // the screen's own transform-origin (200, 400).
+    expect(camera).toContain("transform: none");
+    expect(camera).toContain("translate(700px, -1450px) scale(5)");
     // Emitted as LONGHANDS: animation-play-state belongs to the compiled hold,
     // and the shorthand would take it.
     const applied = inserted.find((rule) => rule.includes("data-flemo-morph-camera"))!;
@@ -978,7 +973,7 @@ describe("attachMorph", () => {
     expect(detail.hasAttribute("data-flemo-morph-camera")).toBe(false);
     const camera = inserted.filter((rule) => rule.includes("-camera {")).at(-1)!;
     // Reversed: zoomed at the start, resting at the end.
-    expect(camera.indexOf("zoom: 5")).toBeLessThan(camera.indexOf("zoom: 1"));
+    expect(camera.indexOf("scale(5)")).toBeLessThan(camera.indexOf("transform: none"));
   });
 
   it("gives no camera to a morph that did not ask for one", () => {
@@ -1750,6 +1745,37 @@ describe("attachMorph", () => {
     expect(hero.parentElement).toBe(layer);
   });
 
+  it("points the camera at whatever origin the screen actually scales about", () => {
+    // Read rather than assumed: a consumer who moved the origin must not get a
+    // background that zooms toward the wrong corner. A percentage read as a
+    // length would put the anchor 50px from the corner of an 800px screen.
+    for (const [origin, expected] of [
+      ["left top", "translate(0px, 0px)"],
+      ["10px 20px", "translate("],
+      ["nonsense", "translate("]
+    ] as const) {
+      const gallery = makeScreen("layout", true);
+      gallery.style.transformOrigin = origin;
+      const thumbnail = makeMorph(gallery, [0, 0, 100, 100]);
+      attachMorph(thumbnail, { layoutId: `zoomed-${origin}`, name: "zoom", navigateStore: store });
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("layout", true);
+      const hero = makeMorph(detail, [0, 0, 400, 400]);
+      attachMorph(hero, { layoutId: `zoomed-${origin}`, name: "zoom", navigateStore: store });
+
+      const cameraRule = inserted.find((rule) => rule.includes("-camera {"))!;
+      expect(cameraRule).toContain(expected);
+      hero.dispatchEvent(
+        animationEndEvent(/flemo-morph-\d+i-travel/.exec(hero.style.animation)![0])
+      );
+      flipTo("COMPLETED");
+      document.body.querySelectorAll(`[${SCREEN_ATTR}]`).forEach((node) => node.remove());
+      inserted.length = 0;
+    }
+  });
+
   it("stages a flight in a layer that has not been laid out", () => {
     // A layer inside a transformed ancestor is measured against its own laid
     // out size to find the ratio. Before layout there is no ratio to find, and
@@ -1937,6 +1963,57 @@ describe("attachMorph", () => {
     } finally {
       sessionStorage.clear();
       delete (globalThis as { flemoMorphTrace?: unknown }).flemoMorphTrace;
+    }
+  });
+
+  it("reads a screen's transform-origin however it is written", async () => {
+    // A percentage read as a length would put the camera's anchor 50px from the
+    // corner of an 800px screen — a zoom toward the wrong place. jsdom hands
+    // back the specified value rather than resolving it, which is exactly the
+    // environment the keyword and single-token forms have to survive.
+    for (const [origin, expected] of [
+      ["left top", "translate(0px, 0px)"],
+      ["left", "translate(0px, "],
+      ["nonsense nonsense", "translate("]
+    ] as const) {
+      vi.stubGlobal("getComputedStyle", () => ({ transformOrigin: origin }));
+      try {
+        const gallery = makeScreen("layout", true);
+        const thumbnail = makeMorph(gallery, [0, 0, 100, 100]);
+        attachMorph(thumbnail, { layoutId: "cam-1", name: "zoom", navigateStore: store });
+        flipTo("PUSHING");
+        gallery.setAttribute(ACTIVE_ATTR, "false");
+
+        const detail = makeScreen("layout", true);
+        const hero = makeMorph(detail, [0, 0, 400, 400]);
+        attachMorph(hero, { layoutId: "cam-1", name: "zoom", navigateStore: store });
+
+        expect(inserted.find((rule) => rule.includes("-camera {"))).toContain(expected);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+      document.body.querySelectorAll(`[${SCREEN_ATTR}]`).forEach((node) => node.remove());
+      inserted.length = 0;
+      flipTo("COMPLETED");
+    }
+  });
+
+  it("aims a camera where there are no computed styles to read", () => {
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [0, 0, 100, 100]);
+    attachMorph(thumbnail, { layoutId: "cam-2", name: "zoom", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 400]);
+    vi.stubGlobal("getComputedStyle", undefined);
+    try {
+      attachMorph(hero, { layoutId: "cam-2", name: "zoom", navigateStore: store });
+      // No origin to read is the same as the default one: the screen's centre.
+      expect(inserted.find((rule) => rule.includes("-camera {"))).toContain("scale(4)");
+    } finally {
+      vi.unstubAllGlobals();
     }
   });
 

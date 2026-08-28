@@ -185,31 +185,20 @@ describe("buildCameraKeyframes", () => {
       selector: "[data-flemo-screen]"
     });
 
-  it("scales from the width alone, rides `zoom`, and writes longhands", () => {
-    // `zoom`, not a transform: a transform camera runs on the compositor's
-    // clock while the card it frames animates layout on the main thread's,
-    // and WebKit renders the two trembling against each other. Longhands
-    // rather than the `animation` shorthand, which would also write
-    // `animation-play-state` — that longhand belongs to the compiled hold.
+  it("scales from the width alone, and writes longhands rather than the shorthand", () => {
+    // The shorthand would also write `animation-play-state`, and that longhand
+    // belongs to the compiled hold: the camera has to pause and release with
+    // its screen like everything else in the flight.
     const { rules, name } = camera({ x: 100, y: 200, width: 100, height: 100 });
 
     expect(name).toBe("flemo-morph-9i-camera");
-    expect(rules[0]).toContain("zoom: 4");
-    expect(rules[0]).not.toContain("transform");
-    // The pan solves against the screen's corner: centre of the small box
-    // (150, 250) must land on the big one's (200, 400) under zoom 4 about
-    // (200, 400): L = 200 - 200 - 4*(150 - 200) = 200; T = 400 - 400 -
-    // 4*(250 - 400) = 600.
-    expect(rules[0]).toContain("left: 200px");
-    expect(rules[0]).toContain("top: 600px");
-    // The pan needs offsets to mean something on a statically laid screen.
-    expect(rules[1]).toContain("position: relative;");
+    expect(rules[0]).toContain("scale(4)");
     expect(rules[1]).toContain("animation-name: flemo-morph-9i-camera !important");
     expect(rules[1]).not.toContain("animation:");
   });
 
   it("holds the camera still for a box with no width to scale from", () => {
-    expect(camera({ x: 0, y: 0, width: 0, height: 100 }).rules[0]).toContain("zoom: 1");
+    expect(camera({ x: 0, y: 0, width: 0, height: 100 }).rules[0]).toContain("scale(1)");
   });
 
   it("starts zoomed and settles when the screen it rides is the one arriving", () => {
@@ -225,7 +214,7 @@ describe("buildCameraKeyframes", () => {
       selector: "[data-flemo-screen]"
     });
 
-    expect(settling.rules[0]).toMatch(/from \{\n {4}zoom: 2;/);
-    expect(settling.rules[0]).toContain("to {\n    zoom: 1;");
+    expect(settling.rules[0]).toMatch(/from \{\n {4}transform: translate/);
+    expect(settling.rules[0]).toContain("to {\n    transform: none;");
   });
 });

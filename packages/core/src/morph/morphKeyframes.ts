@@ -278,7 +278,7 @@ export const buildMorphKeyframes = (input: {
  */
 export const buildCameraKeyframes = (input: {
   id: string;
-  /** The carried screen's resting top-left corner, in the rects' space. */
+  /** The screen's transform-origin, in the same space as the rects. */
   origin: { x: number; y: number };
   /** The element's box on the screen being carried, and at the other end. */
   small: MorphRect;
@@ -298,30 +298,15 @@ export const buildCameraKeyframes = (input: {
   });
   const from = centre(small);
   const to = centre(big);
-  // The camera rides the CSS `zoom` property, NOT a transform. A transform
-  // camera runs on the compositor's clock while the card it frames animates
-  // layout on the main thread's, and WebKit commits the two on different
-  // cadences — the pair visibly trembles there, and no lever demotes a
-  // transform (WebKit splits mixed animations; Blink's demotion rule is its
-  // own). `zoom` IS layout: a uniform scale the main thread resolves on
-  // exactly the ticks the card does — and a camera's scale is uniform by
-  // construction. The pan rides relative left/top beside it, in the same
-  // animation, so the whole camera is one main-thread clock.
-  //
-  // `zoom` scales about the box's own corner, so the pan solves
-  // p -> c + (L, T) + scale * (p - c) for the offset that lands the small
-  // box's centre on the big one's, with c the screen's resting corner.
+  // With `transform-origin: o`, a point p maps to o + scale * (p - o) + t.
+  // Solve for the t that lands the small box's centre on the big one's.
   const tx = to.x - origin.x - scale * (from.x - origin.x);
   const ty = to.y - origin.y - scale * (from.y - origin.y);
-  const zoomed = `zoom: ${Math.round(scale * 10000) / 10000};\n    left: ${px(tx)};\n    top: ${px(ty)};`;
-  const rest = `zoom: 1;\n    left: 0px;\n    top: 0px;`;
+  const zoomed = `translate(${px(tx)}, ${px(ty)}) scale(${Math.round(scale * 10000) / 10000})`;
   const name = `flemo-morph-${id}-camera`;
   const rules = [
-    `@keyframes ${name} {\n  from {\n    ${settling ? zoomed : rest}\n  }\n  to {\n    ${settling ? rest : zoomed}\n  }\n}`,
-    // `position: relative`, so the pan's offsets move a screen the router
-    // laid out statically — visual-only, no sibling feels it. It rides the
-    // rule rather than the keyframes because position is not animatable.
-    `${selector} {\n  position: relative;\n  animation-name: ${name} !important;\n  animation-duration: ${duration.toFixed(3)}s !important;\n  animation-timing-function: ${easingToCss(ease)} !important;\n  animation-delay: ${start.toFixed(3)}s !important;\n  animation-fill-mode: both !important;\n}`
+    `@keyframes ${name} {\n  from {\n    transform: ${settling ? zoomed : "none"};\n  }\n  to {\n    transform: ${settling ? "none" : zoomed};\n  }\n}`,
+    `${selector} {\n  animation-name: ${name} !important;\n  animation-duration: ${duration.toFixed(3)}s !important;\n  animation-timing-function: ${easingToCss(ease)} !important;\n  animation-delay: ${start.toFixed(3)}s !important;\n  animation-fill-mode: both !important;\n}`
   ];
   return { rules, name };
 };
