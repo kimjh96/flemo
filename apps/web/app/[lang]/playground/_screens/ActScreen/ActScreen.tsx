@@ -41,12 +41,12 @@ function ActScreen() {
 
   if (!act) return null;
 
-  // Only the GRID pairs the card family. A row's arrangement does not match
-  // this page's, and pairing across that mismatch was device-recorded as
-  // broken (see ActsScreen); from the list the artwork alone is shared, and
-  // this page's copy arrives on its parts over the case's own fade.
+  // Which surface opened this screen decides which pair family to answer to:
+  // the grid's (card-/cardname-/cardmeta-) or the list's (rowcard-/rowname-).
+  // The two are scoped apart so the tabs never pair with each other.
   const from = params?.from === "cell" || params?.from === "row" ? params.from : null;
-  const pairId = (family: string) => (from === "cell" ? `${family}-${act.id}` : null);
+  const pairId = (cell: string, row: string) =>
+    from === "cell" ? `${cell}-${act.id}` : from === "row" ? `${row}-${act.id}` : null;
 
   // Reaching past the top in one transition. `until` collapses the list as
   // well as this screen, so the stack lands on the tickets tab alone:
@@ -80,7 +80,7 @@ function ActScreen() {
           own internal chrome layout. */}
       <div className="h-full overflow-y-auto">
         <CardShell
-          layoutId={pairId("card")}
+          layoutId={pairId("card", "rowcard")}
           className="relative flex min-h-full flex-col bg-[var(--color-bg)]"
         >
           {/* Floating, so it adds no height above the artwork: both ends of
@@ -147,7 +147,7 @@ function ActScreen() {
                 line collapses the layout under it until the landing. */}
             <h2 className="h-8">
               <CardTitle
-                layoutId={pairId("cardname")}
+                layoutId={pairId("cardname", "rowname")}
                 className="block text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]"
               >
                 {act.artist}
@@ -167,7 +167,7 @@ function ActScreen() {
             ) : (
               <p className="mt-1 h-5">
                 <CardTitle
-                  layoutId={pairId("cardmeta")}
+                  layoutId={pairId("cardmeta", "")}
                   className="block text-sm text-[var(--color-text-secondary)]"
                 >
                   {act.day} {act.time} · ₩{act.price}
