@@ -16,6 +16,7 @@ import {
   MORPH_ATTR,
   MORPH_CAMERA_ATTR,
   MORPH_GHOST_ATTR,
+  MORPH_WINDOW_ATTR,
   MORPH_NAME_ATTR,
   MORPH_ROLE,
   MORPH_SLOT_ATTR,
@@ -48,6 +49,7 @@ import { IDENTITY_POSE, resolvePose } from "@morph/morphPose";
 
 import { insertMorphRules } from "@morph/morphSheet";
 import { headSeconds, resolveMorphSide } from "@morph/morphSide";
+import { buildTransformFlight, windowCorner } from "@morph/morphTransformFlight";
 
 import { morphTransitionMap } from "@transition/morphTransition/morphTransition";
 import {
@@ -109,6 +111,14 @@ interface MorphEntry {
    * difference at the landing.
    */
   restSize: { width: number; height: number } | null;
+  /**
+   * Where the element RESTS inside its enclosing morph container, measured at
+   * the same registration instant as `restSize`. A transform-mode container
+   * does not re-lay its subtree, so a nested pair's flight is authored in the
+   * container's own resting coordinates — and those are only readable before
+   * anything is staged.
+   */
+  restOffset: { x: number; y: number } | null;
 }
 
 interface MorphFlight {
@@ -132,6 +142,14 @@ interface MorphFlight {
    */
   suspendBackstop: () => void;
   armBackstop: (seconds: number) => void;
+  /**
+   * Set when the container flies in transform mode. Its subtree is the
+   * DESTINATION layout at natural scale inside the travelling window, so a
+   * nested pair authors its flight in that resting coordinate space — and it
+   * needs the container's from-corner (viewport) to place its first frame.
+   */
+  mode?: "transform";
+  capturedCorner?: { x: number; y: number };
 }
 
 interface MorphScope {
@@ -558,6 +576,42 @@ const startFlight = (
 
   const id = `${(flightSequence += 1)}`;
 
+  // WHICH CARRIAGE this flight rides. Box mode re-lays the subtree at every
+  // size on the main thread; transform mode stages the flight at destination
+  // geometry inside a runtime window and travels wholly on the compositor,
+  // which is the only arrangement WebKit renders without the flight, its
+  // ghost and its camera trembling against each other (see `mode` in the
+  // morph transition typing). A zero-length flight has nothing to composite.
+  const transformMode = transition.mode === "transform" && flightDuration > 0;
+  const windowFlight = transformMode
+    ? buildTransformFlight({
+        id,
+        origin,
+        destination,
+        duration: flightDuration,
+        start,
+        ease,
+        // The corner travels on the window, as per-axis percentages so a px
+        // radius renders circular at both ends of a non-uniform scale;
+        // percentage corners from the squarish conversion already resolve
+        // correctly against the scaled box and pass through unchanged.
+        paint: paint.map((channel) => {
+          if (channel.property !== "border-radius") return channel;
+          const fromMatch = /^(\d+(?:\.\d+)?)px$/.exec(channel.from);
+          const toMatch = /^(\d+(?:\.\d+)?)px$/.exec(channel.to);
+          if (!fromMatch || !toMatch) return channel;
+          const corner = windowCorner(
+            Number(fromMatch[1]),
+            Number(toMatch[1]),
+            origin,
+            destination
+          );
+          return corner ? { ...channel, ...corner } : channel;
+        }),
+        clip: edgeClip
+      })
+    : null;
+
   // THE BOX travels, not a scale.
   //
   // Scaling an element stretches everything inside it: type becomes a blown-up
@@ -666,6 +720,110 @@ const startFlight = (
   // paired with a list label has to grow into it on its own. That is the whole
   // nested job, and it is why nothing here is staged or moved.
   if (carrying) {
+    // UNDER A TRANSFORM-MODE CONTAINER the subtree is the DESTINATION layout
+    // at natural scale inside a travelling window: nothing re-lays out, so
+    // the box-mode channels (slide, size, type) have nothing true to measure
+    // — `side.rect` here is read under the window's from-scale and would bake
+    // that scale into the correction. The nested pair flies in the
+    // container's own resting coordinates instead: a compositor transform
+    // from its captured geometry (relative to the container's from-corner) to
+    // identity, so the hero's square shrink survives as a scale and the whole
+    // flight shares the window's clock. Type is not re-typeset — a scale has
+    // no main-thread channel to desync — and the ghost's crossfade carries
+    // the face change.
+    if (carrying.mode === "transform") {
+      const corner = carrying.capturedCorner!;
+      const restLocal = entry.restOffset;
+      const restSize = entry.restSize;
+      if (!restLocal || !restSize) {
+        trace("nested-transform-unmeasured", entry, status);
+        return;
+      }
+      const dxT = captured.snapshot.rect.x - corner.x - restLocal.x;
+      const dyT = captured.snapshot.rect.y - corner.y - restLocal.y;
+      const sxT = captured.snapshot.rect.width / restSize.width;
+      const syT = captured.snapshot.rect.height / restSize.height;
+      const moves =
+        Math.abs(dxT) >= 0.5 ||
+        Math.abs(dyT) >= 0.5 ||
+        Math.abs(sxT - 1) >= 0.01 ||
+        Math.abs(syT - 1) >= 0.01;
+      if (!moves && paint.length === 0) {
+        trace("nested-nothing-to-do", entry, status);
+        return;
+      }
+      const riding = buildMorphKeyframes({
+        id: `${id}n`,
+        travel: {
+          from: moves
+            ? { ...IDENTITY_POSE, x: dxT, y: dyT, scaleX: sxT, scaleY: syT }
+            : IDENTITY_POSE,
+          authoredFrom: IDENTITY_POSE,
+          authoredTo: IDENTITY_POSE,
+          duration: flightDuration,
+          start,
+          ease
+        },
+        // Percentage corners resolve against the child's resting box and ride
+        // its scale, so they render the captured fraction at the start and the
+        // resting one at the landing.
+        fade: null,
+        paint
+      });
+      const disposeRiding = insertMorphRules(riding.rules);
+      const inlineRiding = entry.element.getAttribute("style");
+      entry.element.style.transformOrigin = "0 0";
+      entry.element.style.animation = riding.animation;
+      entry.element.setAttribute(MORPH_ATTR, MORPH_ROLE.ENTER);
+
+      let ridden = false;
+      let ridingByBackstop = false;
+      const finishRiding = () => {
+        /* v8 ignore next -- the listener is removed and the net cleared on the
+           first landing; the guard is for a second caller racing the first. */
+        if (ridden) return;
+        ridden = true;
+        trace("land-nested", entry, status, { backstop: ridingByBackstop, mode: "transform" });
+        entry.element.removeEventListener("animationend", onRidden);
+        clearTimeout(ridingBackstop);
+        if (inlineRiding === null) entry.element.removeAttribute("style");
+        else entry.element.setAttribute("style", inlineRiding);
+        entry.element.setAttribute(MORPH_ATTR, "");
+        disposeRiding();
+        scope.flights.delete(entry.layoutId);
+      };
+      function onRidden(event: AnimationEvent) {
+        if (event.animationName !== riding.geometryName) return;
+        if (flightDuration > 0 && event.elapsedTime === 0) {
+          trace("false-end-nested", entry, status, { name: event.animationName });
+          return;
+        }
+        finishRiding();
+      }
+      const ridingNet = (seconds: number) =>
+        setTimeout(
+          () => {
+            ridingByBackstop = true;
+            finishRiding();
+          },
+          seconds * 1000 + 250
+        );
+      let ridingBackstop = ridingNet(start + flightDuration);
+      entry.element.addEventListener("animationend", onRidden);
+      scope.flights.set(entry.layoutId, {
+        finish: finishRiding,
+        element: entry.element,
+        duration: flightDuration,
+        start,
+        ease,
+        suspendBackstop: () => clearTimeout(ridingBackstop),
+        armBackstop: (seconds: number) => {
+          clearTimeout(ridingBackstop);
+          ridingBackstop = ridingNet(seconds);
+        }
+      });
+      return;
+    }
     // WHERE THE FLIGHT BEGINS is part of the pair's contract for a nested
     // element too. Riding alone renders it at the ARRIVAL's own place inside
     // the travelling box from the first frame, so any difference between the
@@ -957,7 +1115,7 @@ const startFlight = (
       : null;
 
   const disposeRules = insertMorphRules([
-    ...arriving.rules,
+    ...(windowFlight ? windowFlight.rules : arriving.rules),
     /* v8 ignore start -- see the guard on `departing` above: every flight the
        pairing produces has one. */
     ...(departing?.rules ?? []),
@@ -1020,34 +1178,87 @@ const startFlight = (
     ? INHERITED.map((property) => [property, inheritedValue(computed, property)] as const)
     : [];
 
-  preserveDescendantAnimations(entry.element, () => layer.appendChild(entry.element));
-  for (const [property, value] of inherited) entry.element.style[property] = value;
-  entry.element.style.position = "absolute";
-  entry.element.style.left = `${origin.x}px`;
-  entry.element.style.top = `${origin.y}px`;
-  entry.element.style.width = `${origin.width}px`;
-  entry.element.style.height = `${origin.height}px`;
-  entry.element.style.margin = "0";
-  // A CLAMP outranks the animation. `min-height: 100%` on the destination —
-  // the ordinary way to write an element that fills its screen — pins the
-  // flyer at full height from the first frame, and the growth the morph is
-  // there to show never happens. The clamps describe where the element RESTS;
-  // they are restored with the rest of the inline style at the landing.
-  entry.element.style.minWidth = "0";
-  entry.element.style.minHeight = "0";
-  entry.element.style.maxWidth = "none";
-  entry.element.style.maxHeight = "none";
-  // Layout is what is being animated, so keep it inside this subtree.
-  entry.element.style.contain = "layout";
-  entry.element.style.willChange = "left, top, width, height";
-  // NESTED morphs stack by depth. A card and the title inside it are two
-  // flights on one layer, and DOM order alone would put whichever registered
-  // last on top — which is the parent, because a binding's mount effects run
-  // child-first. Depth is measured before the parent leaves, so the child is
-  // still inside it.
-  entry.element.style.zIndex = `${morphDepth(home) + 1}`;
-  entry.element.style.animation = arriving.animation;
-  entry.element.setAttribute(MORPH_ATTR, MORPH_ROLE.ENTER);
+  // The transform-mode WINDOW: a runtime wrapper at the destination box whose
+  // overflow clip, carried by its own transform, IS the interpolating window.
+  // The element sits inside at destination geometry, counter-scaled so its
+  // contents hold natural size while the window grows over them.
+  const window_ =
+    transformMode && typeof document !== "undefined" ? document.createElement("div") : null;
+  if (window_ && windowFlight) {
+    window_.style.position = "absolute";
+    window_.style.left = `${destination.x}px`;
+    window_.style.top = `${destination.y}px`;
+    window_.style.width = `${destination.width}px`;
+    window_.style.height = `${destination.height}px`;
+    window_.style.margin = "0";
+    window_.style.overflow = "hidden";
+    window_.style.transformOrigin = "0 0";
+    window_.style.willChange = "transform";
+    window_.style.contain = "layout";
+    window_.style.zIndex = `${morphDepth(home) + 1}`;
+    window_.setAttribute(MORPH_WINDOW_ATTR, "");
+    layer.appendChild(window_);
+    preserveDescendantAnimations(entry.element, () => window_.appendChild(entry.element));
+    for (const [property, value] of inherited) entry.element.style[property] = value;
+    entry.element.style.position = "absolute";
+    entry.element.style.left = "0px";
+    entry.element.style.top = "0px";
+    entry.element.style.width = `${destination.width}px`;
+    entry.element.style.height = `${destination.height}px`;
+    entry.element.style.margin = "0";
+    entry.element.style.minWidth = "0";
+    entry.element.style.minHeight = "0";
+    entry.element.style.maxWidth = "none";
+    entry.element.style.maxHeight = "none";
+    entry.element.style.contain = "layout";
+    entry.element.style.transformOrigin = "0 0";
+    // The WINDOW is the clip. The element's own overflow clips at the
+    // DESTINATION box in local coordinates — mid-flight that is the wrong
+    // box: on a pop the origin is the larger end, and a nested pair riding
+    // at origin scale was sliced to a row-box strip and blown up by the
+    // window's scale. Lifted for the flight, restored with the inline style
+    // at the landing.
+    entry.element.style.overflow = "visible";
+    entry.element.style.willChange = "transform";
+    // BOTH animations in the same style batch, and both AFTER the move:
+    // `preserveDescendantAnimations` calls getAnimations(), which forces a
+    // style flush mid-turn, and an animation applied before that flush starts
+    // on an earlier tick than everything applied after it. Measured on WebKit
+    // as the window running 107ms ahead of its own counter-scale — the net
+    // scale bowed away from one and the square hero rendered as a band.
+    window_.style.animation = windowFlight.wrapperAnimation;
+    entry.element.style.animation = windowFlight.counterAnimation;
+    entry.element.setAttribute(MORPH_ATTR, MORPH_ROLE.ENTER);
+  } else {
+    preserveDescendantAnimations(entry.element, () => layer.appendChild(entry.element));
+    for (const [property, value] of inherited) entry.element.style[property] = value;
+    entry.element.style.position = "absolute";
+    entry.element.style.left = `${origin.x}px`;
+    entry.element.style.top = `${origin.y}px`;
+    entry.element.style.width = `${origin.width}px`;
+    entry.element.style.height = `${origin.height}px`;
+    entry.element.style.margin = "0";
+    // A CLAMP outranks the animation. `min-height: 100%` on the destination —
+    // the ordinary way to write an element that fills its screen — pins the
+    // flyer at full height from the first frame, and the growth the morph is
+    // there to show never happens. The clamps describe where the element RESTS;
+    // they are restored with the rest of the inline style at the landing.
+    entry.element.style.minWidth = "0";
+    entry.element.style.minHeight = "0";
+    entry.element.style.maxWidth = "none";
+    entry.element.style.maxHeight = "none";
+    // Layout is what is being animated, so keep it inside this subtree.
+    entry.element.style.contain = "layout";
+    entry.element.style.willChange = "left, top, width, height";
+    // NESTED morphs stack by depth. A card and the title inside it are two
+    // flights on one layer, and DOM order alone would put whichever registered
+    // last on top — which is the parent, because a binding's mount effects run
+    // child-first. Depth is measured before the parent leaves, so the child is
+    // still inside it.
+    entry.element.style.zIndex = `${morphDepth(home) + 1}`;
+    entry.element.style.animation = arriving.animation;
+    entry.element.setAttribute(MORPH_ATTR, MORPH_ROLE.ENTER);
+  }
 
   if (ghost && ghostSet) {
     // A copy must not be able to pass for the original. It is stripped of every
@@ -1238,6 +1449,7 @@ const startFlight = (
       preserveDescendantAnimations(entry.element, () => standIn.replaceWith(entry.element));
     else entry.element.remove();
     standIn.remove();
+    window_?.remove();
     entry.element.setAttribute(MORPH_ATTR, "");
 
     ghost?.remove();
@@ -1250,7 +1462,7 @@ const startFlight = (
     scope.flights.delete(entry.layoutId);
   };
   function onEnd(event: AnimationEvent) {
-    if (event.animationName !== arriving.geometryName) return;
+    if (event.animationName !== (windowFlight?.counterName ?? arriving.geometryName)) return;
     // AN END THAT RAN FOR NO TIME IS NOT A LANDING.
     //
     // `elapsedTime` is how long the animation actually ran, and a real landing
@@ -1302,7 +1514,13 @@ const startFlight = (
     armBackstop: (seconds: number) => {
       clearTimeout(backstop);
       backstop = net(seconds);
-    }
+    },
+    ...(transformMode
+      ? {
+          mode: "transform" as const,
+          capturedCorner: { x: captured.snapshot.rect.x, y: captured.snapshot.rect.y }
+        }
+      : {})
   });
 };
 
@@ -1635,11 +1853,17 @@ export default function attachMorph(element: HTMLElement, options: AttachMorphOp
   const name = options.name ?? DEFAULT_MORPH_TRANSITION_NAME;
   const scope = ensureScope(navigateStore);
   const rest = element.getBoundingClientRect();
+  const enclosing = element.parentElement?.closest?.(attrSelector(MORPH_ATTR)) ?? null;
+  const enclosingRect = enclosing?.getBoundingClientRect() ?? null;
   const entry: MorphEntry = {
     element,
     layoutId: String(layoutId),
     name,
-    restSize: rest.width > 0 && rest.height > 0 ? { width: rest.width, height: rest.height } : null
+    restSize: rest.width > 0 && rest.height > 0 ? { width: rest.width, height: rest.height } : null,
+    restOffset:
+      enclosingRect && enclosingRect.width > 0
+        ? { x: rest.x - enclosingRect.x, y: rest.y - enclosingRect.y }
+        : null
   };
 
   scope.entries.set(element, entry);

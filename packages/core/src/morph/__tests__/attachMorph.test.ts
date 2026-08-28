@@ -943,7 +943,10 @@ describe("attachMorph", () => {
     const hero = makeMorph(detail, [0, 0, 400, 300]);
     attachMorph(hero, { layoutId: "photo-1", name: "zoom", navigateStore: store });
 
-    hero.dispatchEvent(animationEndEvent(/flemo-morph-\d+i-travel/.exec(hero.style.animation)![0]));
+    // Transform mode: the element rides the counter-scale; its end is the clock.
+    hero.dispatchEvent(
+      animationEndEvent(/flemo-morph-\d+c-counter/.exec(hero.style.animation)![0])
+    );
     expect(gallery.hasAttribute("data-flemo-morph-camera")).toBe(true);
 
     flipTo("COMPLETED");
@@ -1706,7 +1709,7 @@ describe("attachMorph", () => {
       const cameraRule = inserted.find((rule) => rule.includes("-camera {"))!;
       expect(cameraRule).toContain(expected);
       hero.dispatchEvent(
-        animationEndEvent(/flemo-morph-\d+i-travel/.exec(hero.style.animation)![0])
+        animationEndEvent(/flemo-morph-\d+c-counter/.exec(hero.style.animation)![0])
       );
       flipTo("COMPLETED");
       document.body.querySelectorAll(`[${SCREEN_ATTR}]`).forEach((node) => node.remove());

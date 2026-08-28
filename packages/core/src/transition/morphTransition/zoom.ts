@@ -51,7 +51,11 @@ const zoom = createMorphTransition({
   options: {
     crossFade: 0.55,
     radius: true,
-    carry: "screen"
+    carry: "screen",
+    // The camera is a compositor transform and cannot be anything else, so
+    // the card must ride the compositor with it — one clock — or WebKit
+    // renders the two trembling against each other (see `mode` in typing.ts).
+    mode: "transform"
   }
 });
 

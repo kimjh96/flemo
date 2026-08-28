@@ -235,6 +235,15 @@ export const MORPH_STAND_IN_ATTR = "data-flemo-morph-stand-in";
 export const MORPH_GHOST_ATTR = "data-flemo-morph-ghost";
 
 /**
+ * `data-flemo-morph-window` — the runtime wrapper a transform-mode flight is
+ * staged in: an overflow box at the destination rect whose own transform is
+ * the travelling window. Like the ghost it is runtime furniture, not a morph
+ * — but its animation obeys the same hold as every other flight participant,
+ * which is what this marker is for.
+ */
+export const MORPH_WINDOW_ATTR = "data-flemo-morph-window";
+
+/**
  * The SCREEN a flight is driving as a camera, stamped with the flight's id.
  *
  * A morph with `carry: "screen"` does not just move its element: it moves the
@@ -385,6 +394,7 @@ export const FLEMO_ATTRIBUTES = [
   MORPH_ATTR,
   MORPH_CAMERA_ATTR,
   MORPH_GHOST_ATTR,
+  MORPH_WINDOW_ATTR,
   MORPH_LAYER_ATTR,
   MORPH_NAME_ATTR,
   MORPH_SLOT_ATTR,
