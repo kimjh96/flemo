@@ -5,34 +5,32 @@ import { Morph, Screen, useNavigate, useParams } from "@flemo/react";
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
-import CardBody from "../../_components/CardBody";
 import CardShell from "../../_components/CardShell";
 import CardTitle from "../../_components/CardTitle";
 
 import { actById, artworkFor } from "../../_data/acts";
 import { useBench } from "../../_providers/BenchContext";
 
-// The detail. The other half of the list row's <Morph>: the same `layoutId`, so
-// the little square in the list and this one are one thing to flemo.
+// The detail: the big side of the grid cell's pair.
 //
-// SAME SHAPE at both ends: a square there, a square here. The docs name the
-// alternative and the symptom it produces:
+// ITS LAYOUT IS THE CELL'S LAYOUT CONTINUED, and that constraint decided
+// everything here. A container transform lays this page out at the flying
+// card's CURRENT width on every frame, so whatever this page does at 150px
+// wide is what shows through as the card's ghost dissolves. One column,
+// artwork first and full-width, everything else in flow below it: at cell
+// size that renders exactly what the cell renders (a full square with text
+// clipped below), so the gradient is never smaller than the square it left.
 //
-//   attachMorph.ts
-//     "SHAPE, not just size. A square thumbnail becoming a 4:3 hero has to pass
-//      through the ratios between, or it snaps to its destination's proportions
-//      on the first frame and only the box around it grows, which is the 'it
-//      does not scale proportionally' everyone sees and nobody can name."
+// An earlier shape had a fixed buy-bar as a flex sibling stealing ~90px from
+// the scroller. At cell size the scroller was 117px tall and CLIPPED the
+// arriving artwork to 151x117: the gradient showed up SMALLER than the square
+// it left and then grew, across three recordings. Chrome that must not steal
+// height floats absolutely (the header); everything else scrolls in flow,
+// which is the deleted playground's structure.
 //
-// It declares NO shared bar, so the list's tab bar rides out with the list and
-// returns on the pop. Nothing here is transition-aware: no full-bleed flag, no
-// transparent background, no part transitions. Whatever the bench has selected
-// is carrying this screen, and this screen does not know which.
-//
-// THE COPY HERE IS THE APP'S, not the library's. An earlier version explained
-// the morph inside the very screen it was demonstrating, which reads as
-// documentation wearing app clothes. What flemo is doing belongs beside the
-// stage, where a reader can look at the sentence and the motion at once.
+// No part transitions in the card. The card's ghost (crossFade 0.55) covers
+// the narrow-width phase of this layout by itself, which is how the deleted
+// playground shipped it.
 function ActScreen() {
   const navigate = useNavigate();
   const params = useParams<"/tonight/act/:id">();
@@ -42,9 +40,8 @@ function ActScreen() {
 
   if (!act) return null;
 
-  // Reaching past the top in one transition. `until` collapses the list as well
-  // as this screen, so the stack lands on the tickets tab alone instead of
-  // leaving a stale detail underneath it:
+  // Reaching past the top in one transition. `until` collapses the list as
+  // well as this screen, so the stack lands on the tickets tab alone:
   //
   //   createNavigationController.ts
   //     "replace: replaces it; the target and everything above become the new
@@ -61,44 +58,28 @@ function ActScreen() {
     <Screen
       statusBarHeight="0px"
       systemNavigationBarHeight="0px"
-      // WHOEVER OWNS THE SURFACE PAINTS IT. Under every case but one this
-      // screen is the surface and must be opaque, or the screen it slides over
-      // shows through it. Under the container transform the CARD is the
-      // surface: it is opaque, it fills this screen at rest, and it is the
+      // WHOEVER OWNS THE SURFACE PAINTS IT. Under the container transform the
+      // CARD is the surface: opaque, filling this screen at rest, and the
       // thing that grows. A background here as well would paint a full-size
-      // opaque rectangle over the grid from the first frame, which is the
-      // camera's own work covered up.
+      // opaque rectangle over the grid from the first frame, covering the
+      // camera's own work. Under every other case this screen is the surface
+      // and must be opaque itself.
       backgroundColor={cardMorph ? "transparent" : "var(--color-bg)"}
     >
-      {/* THE WHOLE SCREEN IS THE CARD under the container transform: the cell
-          becomes this page, chrome included, rather than releasing a square
-          into a page that was already drawn at full size around it. An earlier
-          shape wrapped only the scrolling body, and the header and the buy
-          control then sat at full width from the first frame while the card was
-          still cell-sized.
-
-          It pairs only when a grid cell opened this screen, because a morph
-          with no partner on the other side is a promise flemo cannot keep, and
-          only the grid draws a card. */}
-      <CardShell
-        layoutId={params?.from === "cell" ? `card-${act.id}` : null}
-        className="relative flex h-full flex-col bg-[var(--color-bg)]"
-      >
-        {/* OUT OF THE FLOW, floating over the artwork.
-            
-            It used to be the card's first child, and that put the artwork 52px
-            lower here than in a grid cell, whose card starts with the artwork.
-            A container transform draws both ends at the same box, so the two
-            artworks sat 52px apart and cross-faded against each other: one
-            gradient appearing to flicker, the page appearing to shift, and the
-            header appearing to vanish, all from the same misalignment.
-            
-            Taking it out of the flow makes both cards start with the artwork at
-            the same y. It is also not a part, because fading chrome out in the
-            first fifth of a pop reads as the screen losing its header rather
-            than the card leaving. */}
-        <CardBody as="chrome" className="absolute inset-x-0 top-0 z-10">
-          <header className="flex items-center justify-between bg-gradient-to-b from-black/45 to-transparent px-4 pt-4 pb-8">
+      {/* The scroller sits OUTSIDE the card, and the card is min-h-full inside
+          it, exactly as the deleted playground arranged it: the card is a
+          single column of content that clips at its box, not a box with its
+          own internal chrome layout. */}
+      <div className="h-full overflow-y-auto">
+        <CardShell
+          layoutId={params?.from === "cell" ? `card-${act.id}` : null}
+          className="relative flex min-h-full flex-col bg-[var(--color-bg)]"
+        >
+          {/* Floating, so it adds no height above the artwork: both ends of
+              the pair start with the artwork at y0, and a 52px offset here
+              was once every symptom at once (flicker, shift, vanishing
+              header). The scrim keeps it legible on the gradient. */}
+          <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-between bg-gradient-to-b from-black/45 to-transparent px-4 pt-4 pb-8">
             <button
               type="button"
               onClick={() => navigate.pop()}
@@ -120,20 +101,14 @@ function ActScreen() {
             </span>
             <span className="size-9" aria-hidden="true" />
           </header>
-        </CardBody>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {/* Same fixed box as the cell's, for the same reason: the stand-in
-              left behind during a flight is sized to the element in flight, and
-              without a wrapper to hold the square it moves everything under
-              it. */}
-          <span className="block aspect-square w-full overflow-hidden">
+          {/* The fixed square holds the artwork's box while the artwork
+              itself is away in the flight layer, so nothing below it moves. */}
+          <span className="block aspect-square w-full shrink-0 overflow-hidden">
             <Morph
-              // The BIG side. It names the same morph AND the same id as the
-              // surface that opened it, because a pair whose two halves disagree
-              // is not a pair. The list scopes its ids to rows and the posters
-              // grid scopes its to cells, so which one to answer to arrives on
-              // the route rather than being guessed.
+              // The BIG side: same morph, same id as the surface that opened
+              // this screen. The list scopes its ids to rows and the grid to
+              // cells, and which one to answer to arrives on the route.
               name={morph}
               layoutId={`${params?.from ?? "row"}-${act.id}`}
               className="block size-full"
@@ -142,11 +117,11 @@ function ActScreen() {
             />
           </span>
 
-          <div className="px-5 pt-4 pb-4">
-            {/* The name IS paired, as the deleted playground paired it: a
-                `text` morph lifted out of both sides, re-typesetting from the
-                cell's 13px label into this heading. The clone left in its place
-                holds its exact box, so nothing under it moves. */}
+          <div className="px-5 pt-4 pb-8">
+            {/* Paired as a `text` morph, as the deleted playground paired it:
+                lifted out of both sides, re-typesetting from the cell's 13px
+                label into this heading, while its clone holds the label's
+                exact box. */}
             <h2>
               <CardTitle
                 layoutId={params?.from === "cell" ? `cardname-${act.id}` : null}
@@ -155,45 +130,37 @@ function ActScreen() {
                 {act.artist}
               </CardTitle>
             </h2>
-            <CardBody>
-              <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-                {act.venue} · {act.day} {act.time}
-              </p>
+            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+              {act.venue} · {act.day} {act.time}
+            </p>
 
-              <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
-                {t.app.body}
-              </p>
+            <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
+              {t.app.body}
+            </p>
 
-              <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px]">
-                {facts.map(([label, value]) => (
-                  <div key={label} className="flex items-baseline justify-between gap-3">
-                    <dt className="text-[var(--color-text-disabled)]">{label}</dt>
-                    <dd className="m-0 font-semibold text-[var(--color-text-primary)]">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </CardBody>
-          </div>
-        </div>
+            <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px]">
+              {facts.map(([label, value]) => (
+                <div key={label} className="flex items-baseline justify-between gap-3">
+                  <dt className="text-[var(--color-text-disabled)]">{label}</dt>
+                  <dd className="m-0 font-semibold text-[var(--color-text-primary)]">{value}</dd>
+                </div>
+              ))}
+            </dl>
 
-        {/* The footer is a sibling of the scroller, not the last thing inside
-            it, so the buy control stays reachable however far the page is
-            scrolled. The border and the translucent blur are the same treatment
-            the site's own MiniPlayer uses for a bar that sits over content;
-            without them, the row clipped at the scroller's edge reads as being
-            UNDER the button rather than scrolling behind it. */}
-        <CardBody as="chrome" className="shrink-0">
-          <div className="border-t border-[var(--color-border-light)] bg-[var(--color-bg)]/85 px-5 pt-4 pb-6 backdrop-blur-xl">
+            {/* In flow at the end of the content, as the deleted playground
+                placed its buy control. A fixed footer stole its height from
+                the scroller, and at cell width that clipped the arriving
+                artwork below its own square. */}
             <button
               type="button"
               onClick={getTickets}
-              className="w-full cursor-pointer rounded-full bg-[var(--color-primary)] px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
+              className="mt-6 w-full cursor-pointer rounded-full bg-[var(--color-primary)] px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
             >
               {t.app.getTickets} · ₩{act.price}
             </button>
           </div>
-        </CardBody>
-      </CardShell>
+        </CardShell>
+      </div>
     </Screen>
   );
 }
