@@ -5,6 +5,7 @@ import { Morph, Screen, useNavigate, useParams } from "@flemo/react";
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
+import CardBody from "../../_components/CardBody";
 import CardShell from "../../_components/CardShell";
 import CardTitle from "../../_components/CardTitle";
 
@@ -79,28 +80,34 @@ function ActScreen() {
               the pair start with the artwork at y0, and a 52px offset here
               was once every symptom at once (flicker, shift, vanishing
               header). The scrim keeps it legible on the gradient. */}
-          <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-between bg-gradient-to-b from-black/45 to-transparent px-4 pt-4 pb-8">
-            <button
-              type="button"
-              onClick={() => navigate.pop()}
-              aria-label={t.app.back}
-              className="grid size-9 cursor-pointer place-items-center rounded-full text-white transition-colors hover:bg-white/15"
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path
-                  d="M15 6l-6 6 6 6"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-            <span className="text-xs font-bold tracking-[0.12em] text-white/70 uppercase">
-              {t.app.detail}
-            </span>
-            <span className="size-9" aria-hidden="true" />
-          </header>
+          {/* The chrome part: in once the card has most of its size, out only
+              once it has lost most of it. Without it the scrim stamps itself
+              onto the cell on the flight's first frame, which in a light theme
+              is a dark cap appearing out of nowhere. */}
+          <CardBody as="chrome" className="absolute inset-x-0 top-0 z-10">
+            <header className="flex items-center justify-between bg-gradient-to-b from-black/45 to-transparent px-4 pt-4 pb-8">
+              <button
+                type="button"
+                onClick={() => navigate.pop()}
+                aria-label={t.app.back}
+                className="grid size-9 cursor-pointer place-items-center rounded-full text-white transition-colors hover:bg-white/15"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M15 6l-6 6 6 6"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              <span className="text-xs font-bold tracking-[0.12em] text-white/70 uppercase">
+                {t.app.detail}
+              </span>
+              <span className="size-9" aria-hidden="true" />
+            </header>
+          </CardBody>
 
           {/* The fixed square holds the artwork's box while the artwork
               itself is away in the flight layer, so nothing below it moves. */}
@@ -148,30 +155,36 @@ function ActScreen() {
               </CardTitle>
             </p>
 
-            <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
-              {t.app.body}
-            </p>
+            {/* The body part, as the reference ran its own body copy: absent
+                while the card is a narrow box (squeezed three-word lines read
+                straight through a translucent ghost), arriving once there is
+                width for it, leaving in the first frames of a pop. */}
+            <CardBody>
+              <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
+                {t.app.body}
+              </p>
 
-            <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px]">
-              {facts.map(([label, value]) => (
-                <div key={label} className="flex items-baseline justify-between gap-3">
-                  <dt className="text-[var(--color-text-disabled)]">{label}</dt>
-                  <dd className="m-0 font-semibold text-[var(--color-text-primary)]">{value}</dd>
-                </div>
-              ))}
-            </dl>
+              <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px]">
+                {facts.map(([label, value]) => (
+                  <div key={label} className="flex items-baseline justify-between gap-3">
+                    <dt className="text-[var(--color-text-disabled)]">{label}</dt>
+                    <dd className="m-0 font-semibold text-[var(--color-text-primary)]">{value}</dd>
+                  </div>
+                ))}
+              </dl>
 
-            {/* In flow at the end of the content, as the deleted playground
+              {/* In flow at the end of the content, as the deleted playground
                 placed its buy control. A fixed footer stole its height from
                 the scroller, and at cell width that clipped the arriving
                 artwork below its own square. */}
-            <button
-              type="button"
-              onClick={getTickets}
-              className="mt-6 w-full cursor-pointer rounded-full bg-[var(--color-primary)] px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
-            >
-              {t.app.getTickets} · ₩{act.price}
-            </button>
+              <button
+                type="button"
+                onClick={getTickets}
+                className="mt-6 w-full cursor-pointer rounded-full bg-[var(--color-primary)] px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
+              >
+                {t.app.getTickets} · ₩{act.price}
+              </button>
+            </CardBody>
           </div>
         </CardShell>
       </div>
