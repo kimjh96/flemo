@@ -25,7 +25,6 @@ node_modules
 .idea
 .vscode
 .cursor
-.claude
 
 # Agent-facing engine documentation (architecture notes, the diagnostics flag
 # reference, the device-campaign postmortems). Local per-checkout: it churns on
