@@ -349,40 +349,12 @@ const intoLayerSpace = (rect: MorphRect, layer: HTMLElement): MorphRect => {
   };
 };
 
-// One component of a computed `transform-origin`. A browser resolves it to px,
-// but not every environment does (jsdom hands back the specified `50% 50%`),
-// and a percentage read as a length puts the camera's anchor 50px from the
-// corner of an 800px screen — a zoom toward the wrong place, and one that a
-// test would have to know to look for.
-const ORIGIN_KEYWORDS: Record<string, number> = {
-  left: 0,
-  top: 0,
-  center: 0.5,
-  right: 1,
-  bottom: 1
-};
-
-const originOffset = (token: string | undefined, extent: number): number => {
-  if (!token) return extent / 2;
-  const keyword = ORIGIN_KEYWORDS[token];
-  if (keyword !== undefined) return keyword * extent;
-  const value = Number.parseFloat(token);
-  if (!Number.isFinite(value)) return extent / 2;
-  return token.endsWith("%") ? (value / 100) * extent : value;
-};
-
 /**
- * A screen's `transform-origin` in the flight layer's coordinates.
- *
- * Read rather than assumed: the camera's translate is solved against whatever
- * point the screen actually scales about, so a consumer who moved it does not
- * get a background that zooms toward the wrong corner. The screen's own box is
- * un-posed first — it may already be carrying its transition's from-pose.
+ * A carried screen's RESTING top-left corner in the flight layer's
+ * coordinates. The screen's own box is un-posed first — it may already be
+ * carrying its transition's from-pose.
  */
-const screenTransformOrigin = (
-  screen: HTMLElement,
-  layer: HTMLElement
-): { x: number; y: number } => {
+const screenRestCorner = (screen: HTMLElement, layer: HTMLElement): { x: number; y: number } => {
   const painted = screen.getBoundingClientRect();
   const paintedRect = {
     x: painted.left,
@@ -393,12 +365,10 @@ const screenTransformOrigin = (
   const pose = readElementPose(screen);
   const rest = untransformRect(paintedRect, pose, untransformedCentre(paintedRect, pose));
   const box = intoLayerSpace(rest, layer);
-  const styles = typeof getComputedStyle === "function" ? getComputedStyle(screen) : null;
-  const parts = (styles?.transformOrigin ?? "").trim().split(/\s+/);
-  return {
-    x: box.x + originOffset(parts[0], box.width),
-    y: box.y + originOffset(parts[1], box.height)
-  };
+  // The `zoom` camera scales about the box's own corner, always — the
+  // transform-origin the old transform camera had to honour no longer
+  // exists in the equation.
+  return { x: box.x, y: box.y };
 };
 
 const startFlight = (
@@ -1103,7 +1073,7 @@ const startFlight = (
     cameraScreen && origin.width > 0 && destination.width > 0
       ? buildCameraKeyframes({
           id: `${id}c`,
-          origin: screenTransformOrigin(cameraScreen, layer),
+          origin: screenRestCorner(cameraScreen, layer),
           small: settling ? destination : origin,
           big: settling ? origin : destination,
           settling,
