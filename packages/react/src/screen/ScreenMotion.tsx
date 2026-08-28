@@ -518,17 +518,29 @@ function ScreenMotion({
   // Bar-height tracking (incl. the ignore-0-while-frozen WebKit gotcha) lives
   // in @flemo/core's observeBarHeight. The commit callbacks also update the
   // spacer directly so the reservation and real bar cannot paint out of sync.
+  //
+  // Keyed on WHETHER there is a bar, never on the bar node. What gets observed
+  // is flemo's own `[data-flemo-bar]` wrapper below, and the consumer's node
+  // only ever renders INSIDE it — so that wrapper's identity changes exactly
+  // when `hasSharedTopBar` flips, and nothing else can change it. The node,
+  // meanwhile, is a fresh element on every consumer render (that is what
+  // `sharedTopBar={<TabBar />}` is), and keying on it re-ran this effect once
+  // per consumer render: disconnect the observer, read `offsetHeight` (a
+  // forced layout, in a layout effect, so pre-paint), observe again, and take
+  // the new observer's initial callback. A screen that re-renders during a
+  // flight — a data refetch storm on arrival is measured at dozens of commits
+  // — paid all of that on the frames the motion is watched.
   useLayoutEffect(() => {
     const element = sharedTopBarRef.current;
     if (!element) return undefined;
     return observeBarHeight(element, commitTopBarHeight);
-  }, [commitTopBarHeight, sharedTopBar]);
+  }, [commitTopBarHeight, hasSharedTopBar]);
 
   useLayoutEffect(() => {
     const element = sharedBottomBarRef.current;
     if (!element) return undefined;
     return observeBarHeight(element, commitBottomBarHeight);
-  }, [commitBottomBarHeight, sharedBottomBar]);
+  }, [commitBottomBarHeight, hasSharedBottomBar]);
 
   // Register this screen's scope surface (is its background opaque?) so the
   // screen beneath can decide between the destination park and the paused

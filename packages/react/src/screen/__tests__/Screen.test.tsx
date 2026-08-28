@@ -1,4 +1,4 @@
-import { createElement, type PropsWithChildren, type ReactNode } from "react";
+import { createElement, useState, type PropsWithChildren, type ReactNode } from "react";
 
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -478,6 +478,54 @@ describe("Screen", () => {
         id: "pattern-builder-actions",
         height: 93
       });
+    } finally {
+      globalThis.ResizeObserver = OriginalResizeObserver;
+    }
+  });
+
+  it("keeps a bar's resize observation across consumer re-renders", () => {
+    // The observed element is flemo's OWN wrapper, not the node the consumer
+    // handed over, and that wrapper survives for as long as the screen has a
+    // bar at all. So the observation must be keyed on whether a bar EXISTS,
+    // never on the node's identity: `sharedBottomBar={<TabBar />}` is a fresh
+    // element on every consumer render, and keying on it re-ran a layout
+    // effect that disconnects the observer, reads offsetHeight (a forced
+    // layout) and re-observes, all in the pre-paint window, once per consumer
+    // render. A screen that re-renders during a flight paid that on the frames
+    // the motion is watched.
+    stores.history.setState({ index: 0, histories: [historyEntry("top")] });
+    const OriginalResizeObserver = globalThis.ResizeObserver;
+    const observed: (string | undefined)[] = [];
+    let disconnects = 0;
+    globalThis.ResizeObserver = class {
+      observe(element: HTMLElement) {
+        observed.push(element.dataset.flemoBar);
+      }
+      unobserve() {}
+      disconnect() {
+        disconnects += 1;
+      }
+    } as unknown as typeof ResizeObserver;
+
+    try {
+      let rerenderConsumer!: () => void;
+      function Consumer() {
+        const [, setTick] = useState(0);
+        rerenderConsumer = () => setTick((tick) => tick + 1);
+        return (
+          <Screen sharedBottomBar={<div>next</div>} sharedBottomBarId="pattern-builder-actions">
+            <div>hello</div>
+          </Screen>
+        );
+      }
+
+      render(<Consumer />, { wrapper: buildHarness({ isActive: true, id: "top" }) });
+      expect(observed).toEqual(["nav"]);
+
+      act(() => rerenderConsumer());
+
+      expect(observed).toEqual(["nav"]);
+      expect(disconnects).toBe(0);
     } finally {
       globalThis.ResizeObserver = OriginalResizeObserver;
     }
