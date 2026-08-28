@@ -29,7 +29,22 @@ export interface PaintChannel {
    * empty when the sides disagree, which is exactly the case worth carrying.
    */
   sides?: readonly [string, string, string, string];
+  /**
+   * Rewrite a captured value into an interpolable one. A keyword end turns the
+   * whole channel into a discrete swap at the eased midpoint — worse than not
+   * carrying it, because it fires mid-flight where nothing else steps.
+   */
+  normalize?: (value: string) => string;
 }
+
+// `normal` is what an unset flex/grid gap computes to, and it means zero
+// spacing there. Left as the keyword, `gap: normal → 12px` cannot interpolate,
+// so CSS swaps it discretely at the eased 50% — measured on the playground's
+// list pop as the row's two gaps arriving at once, +12px into the label's left
+// edge and −24px off its width in a single frame at ~38% of the flight.
+// (A CSS multicol's `column-gap: normal` computes to 1em, not zero, so this
+// trades exactness there for the flex/grid case morphs actually hit.)
+const zeroNormal = (value: string): string => (value === "normal" ? "0px" : value);
 
 export const PAINT_CHANNELS: readonly PaintChannel[] = [
   // The corner. It used to be parsed to a single number because the old
@@ -73,8 +88,8 @@ export const PAINT_CHANNELS: readonly PaintChannel[] = [
 
   // Inner spacing that padding does not cover: a flex or grid card whose two
   // ends space their children differently.
-  { property: "row-gap" },
-  { property: "column-gap" },
+  { property: "row-gap", normalize: zeroNormal },
+  { property: "column-gap", normalize: zeroNormal },
 
   // Replaced content — an <img> morph reframes rather than jumping.
   { property: "object-position" },
@@ -117,7 +132,8 @@ export const capturePaint = (styles: Styles): Record<string, string> => {
     const value = channel.sides
       ? channel.sides.map((side) => styles[side] ?? "").join(" ")
       : (styles[camel(channel.property)] ?? "");
-    if (value.trim().length > 0) paint[channel.property] = value;
+    if (value.trim().length > 0)
+      paint[channel.property] = channel.normalize ? channel.normalize(value) : value;
   }
   return paint;
 };

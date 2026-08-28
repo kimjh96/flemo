@@ -42,6 +42,23 @@ describe("capturePaint", () => {
     expect(capturePaint(null)).toEqual({});
     expect(capturePaint(undefined)).toEqual({});
   });
+
+  it("captures an unset gap as 0px so the channel interpolates", () => {
+    // An unset flex/grid gap computes to the keyword `normal`, and
+    // `normal → 12px` has no midpoint: CSS swaps it discretely at the eased
+    // 50%, which landed the playground row's two gaps in a single mid-flight
+    // frame — +12px into the label's left edge, −24px off its width. As 0px
+    // the channel is numeric and rides the paint animation like everything
+    // else. A declared length is left exactly as captured.
+    expect(capturePaint({ rowGap: "normal", columnGap: "normal" })).toMatchObject({
+      "row-gap": "0px",
+      "column-gap": "0px"
+    });
+    expect(capturePaint({ rowGap: "8px", columnGap: "12px" })).toMatchObject({
+      "row-gap": "8px",
+      "column-gap": "12px"
+    });
+  });
 });
 
 describe("paintTravel", () => {

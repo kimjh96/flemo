@@ -81,24 +81,37 @@ function ActsScreen() {
                   layoutId={`rowcard-${act.id}`}
                   className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5"
                 >
-                  <Morph
-                    as="span"
-                    // The SMALL side. `zoom` puts its camera on whichever screen
-                    // the element is small on, so on a push this list is what
-                    // gets pushed past the edges, and on a pop the same zoom runs
-                    // backwards. Both sides of a pair must name the same morph.
-                    //
-                    // The id is scoped to THIS surface. The posters tab shows the
-                    // same acts, and when the two tabs are in a flight together
-                    // one shared id would pair all ten of them: measured at 50
-                    // morph animations on a single tab switch, which is load this
-                    // stage manufactures for nothing.
-                    name={morph}
-                    layoutId={`row-${act.id}`}
-                    className="size-12 shrink-0 rounded-xl"
-                    style={{ background: artworkFor(act.hue) }}
-                    aria-hidden="true"
-                  />
+                  {/* The fixed square holds the thumb's box in the row for the
+                      same reason the detail's aspect-square span holds the
+                      hero's: a nested morph animates its BOX, and laid bare in
+                      this flex row that animated box IS layout. Measured on a
+                      pop: the arriving thumb staged at detail size (390px wide)
+                      squeezed the label's flex-1 slot to width 0, the label's
+                      own flight DECLINED on that measurement (zero-destination
+                      in the morph trace), and the title just grew back in from
+                      the right with the reflow instead of re-typesetting home
+                      along the push's path. Held, the row never feels the
+                      thumb's flight. */}
+                  <span className="block size-12 shrink-0">
+                    <Morph
+                      as="span"
+                      // The SMALL side. `zoom` puts its camera on whichever screen
+                      // the element is small on, so on a push this list is what
+                      // gets pushed past the edges, and on a pop the same zoom runs
+                      // backwards. Both sides of a pair must name the same morph.
+                      //
+                      // The id is scoped to THIS surface. The posters tab shows the
+                      // same acts, and when the two tabs are in a flight together
+                      // one shared id would pair all ten of them: measured at 50
+                      // morph animations on a single tab switch, which is load this
+                      // stage manufactures for nothing.
+                      name={morph}
+                      layoutId={`row-${act.id}`}
+                      className="block size-full rounded-xl"
+                      style={{ background: artworkFor(act.hue) }}
+                      aria-hidden="true"
+                    />
+                  </span>
                   <span className="min-w-0 flex-1">
                     {/* Paired like the grid's title, under this surface's own
                       id, in a fixed-height holder. */}

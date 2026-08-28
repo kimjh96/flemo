@@ -642,7 +642,13 @@ const startFlight = (
     const endSize = entry.restSize ?? { width: side.rect.width, height: side.rect.height };
     const dw = captured.snapshot.rect.width - endSize.width;
     const dh = captured.snapshot.rect.height - endSize.height;
-    const resizes = Math.abs(dw) >= 1 || Math.abs(dh) >= 1;
+    // NOT for type. A re-typesetting pair moves by FONT SIZE and its box is
+    // its layout's business: a block heading measures the full content width,
+    // and forcing that width onto the row's label reflowed the flex row every
+    // frame — the price rode the animated width across the card and the label
+    // read as entering from the right. The size channel exists for elements
+    // whose box IS the thing (the artwork), which never re-typeset.
+    const resizes = type.fontSize === null && (Math.abs(dw) >= 1 || Math.abs(dh) >= 1);
     const retypes =
       type.fontSize !== null ||
       type.fontWeight !== null ||
