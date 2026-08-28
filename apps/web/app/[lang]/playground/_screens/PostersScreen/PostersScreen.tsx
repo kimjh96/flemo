@@ -119,10 +119,17 @@ function PostersScreen() {
                       while the element is away, so without a box of its own the
                       line collapses in the flying card and everything below it
                       sits a line too high, then drops at the landing. */}
-                  <span className="mt-2 block h-5">
+                  {/* The INSET LIVES ON THE HOLDER, never on the morph
+                      element. A text morph pins the start edge, and the detail
+                      keeps its inset on the parent, so an inset here on the
+                      element itself offset the flying line by exactly that
+                      padding: measured +20px right on push, -20px left on pop.
+                      The explicit leading pins the line box against the
+                      inherited line-height the flight stamps on the card. */}
+                  <span className="mt-3 block h-5 px-4">
                     <CardTitle
                       layoutId={`cardname-${act.id}`}
-                      className="block truncate px-2.5 text-[13px] font-semibold text-[var(--color-text-primary)]"
+                      className="block truncate text-[13px] leading-5 font-semibold text-[var(--color-text-primary)]"
                     >
                       {act.artist}
                     </CardTitle>
@@ -133,10 +140,10 @@ function PostersScreen() {
                       cross-fading at the same spot is the shift the recordings
                       kept showing. The detail's meta is the SAME string, so the
                       pair re-typesets one line instead of trading two. */}
-                  <span className="mt-0.5 block h-4 pb-2.5">
+                  <span className="mt-3 block h-4 px-4 pb-3">
                     <CardTitle
                       layoutId={`cardmeta-${act.id}`}
-                      className="block truncate px-2.5 text-[11px] text-[var(--color-text-disabled)]"
+                      className="block truncate text-[11px] leading-4 text-[var(--color-text-disabled)]"
                     >
                       {act.day} {act.time} · ₩{act.price}
                     </CardTitle>

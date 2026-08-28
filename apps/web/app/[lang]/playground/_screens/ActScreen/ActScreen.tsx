@@ -124,7 +124,13 @@ function ActScreen() {
             />
           </span>
 
-          <div className="px-5 pt-4 pb-8">
+          {/* THE CAPTION GEOMETRY MATCHES THE CELL'S EXACTLY: 16px inset,
+              12px under the artwork, and equal title-plus-gap sums (20+12 in
+              the cell, 32+0 here). A flying text morph starts at its own local
+              offsets inside the card, so any difference between the two ends'
+              local geometry is a jump on the flight's first frame: measured
+              10px sideways and 8px down before the two were equalized. */}
+          <div className="px-4 pt-3 pb-8">
             {/* Paired as a `text` morph, as the deleted playground paired it:
                 lifted out of both sides, re-typesetting from the cell's 13px
                 label into this heading, while its clone holds the label's
@@ -146,7 +152,7 @@ function ActScreen() {
                 11px to 14px instead of two different date lines cross-fading
                 on top of each other. The venue is not lost; it has its own row
                 in the facts below. */}
-            <p className="mt-1 h-5">
+            <p className="h-5">
               <CardTitle
                 layoutId={params?.from === "cell" ? `cardmeta-${act.id}` : null}
                 className="block text-sm text-[var(--color-text-secondary)]"
@@ -164,7 +170,12 @@ function ActScreen() {
                 {t.app.body}
               </p>
 
-              <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px]">
+              {/* The explicit leading matters in flight: the runtime stamps the
+                card's computed line-height on the flying card as an inline
+                style, and rows that only set a font size inherit it. Measured:
+                20px rows at rest became 24px rows mid-flight, which is the
+                facts spreading apart on a pop's first frame. */}
+              <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px] leading-[1.5]">
                 {facts.map(([label, value]) => (
                   <div key={label} className="flex items-baseline justify-between gap-3">
                     <dt className="text-[var(--color-text-disabled)]">{label}</dt>
