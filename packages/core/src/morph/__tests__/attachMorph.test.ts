@@ -962,6 +962,36 @@ describe("attachMorph", () => {
     expect(rule).toContain("border-radius: 0.00%");
   });
 
+  it("carries the scrollport's clip into the flight", () => {
+    // The cell sits at the list's bottom edge with 30 of its 80px scrolled
+    // under the chrome stacked there. Bare, the hidden strip paints on the
+    // flight's first frame and the element crosses the tab bar whole; carried
+    // as an inset it slides out from under the edge instead.
+    const gallery = makeScreen("layout", true);
+    const scroller = document.createElement("div");
+    scroller.style.overflowY = "auto";
+    setRect(scroller, 0, 600, 400, 100);
+    gallery.appendChild(scroller);
+    const cell = document.createElement("div");
+    scroller.appendChild(cell);
+    setRect(cell, 20, 650, 80, 80);
+    attachMorph(cell, { layoutId: "clip-1", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "clip-1", navigateStore: store });
+
+    const rule = inserted.find((r) => /flemo-morph-\d+i-travel/.test(r))!;
+    expect(rule).toContain("clip-path: inset(0.00% 0.00% 37.50% 0.00%)");
+    expect(rule).toContain("clip-path: inset(0.00% 0.00% 0.00% 0.00%)");
+    // The ghost is a copy of the same departure, clipped the same way.
+    const ghostRule = inserted.find((r) => /flemo-morph-\d+g-travel/.test(r))!;
+    expect(ghostRule).toContain("inset(0.00% 0.00% 37.50% 0.00%)");
+  });
+
   it("does not pair with an element on a screen that is not in this flight", () => {
     // Caught on glass in the chain fixture. A layoutId is a name, not an
     // address: the same one can sit on a screen DEEP in the stack, and pairing

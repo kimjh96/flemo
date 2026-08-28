@@ -28,6 +28,7 @@ import {
 
 import { preserveDescendantAnimations } from "@morph/morphAnimations";
 
+import { clipTravel, visibleInset } from "@morph/morphClip";
 import {
   captureMorphSnapshot,
   followPose,
@@ -538,6 +539,17 @@ const startFlight = (
     }
   }
 
+  // WHAT THE SCROLLPORT WAS HIDING at each end rides the flight as a clip.
+  // A cell scrolled to the list's edge is half covered by the chrome stacked
+  // against that edge; staged bare it becomes whole in one frame and crosses
+  // the tab bar it was under — reported from a scrolled grid as the morph
+  // "overlapping the tab bar and the header". Measured from each end's own
+  // clipping ancestors, so the element leaves by sliding out from under the
+  // chrome and lands by sliding back beneath it (see morphClip). Nested pairs
+  // are not given one: their container clips them itself.
+  const edgeClip = clipTravel(visibleInset(captured.element), visibleInset(entry.element));
+  if (edgeClip) trace("edge-clip", entry, status, edgeClip);
+
   const id = `${(flightSequence += 1)}`;
 
   // THE BOX travels, not a scale.
@@ -559,6 +571,7 @@ const startFlight = (
       ease
     },
     box: { from: origin, to: destination },
+    clip: edgeClip,
     // The spacing travels too. Without it the arrival wears its OWN padding
     // from the first frame, so the contents it is handing over from flinch in
     // or out by the difference at the exact moment of the tap.
@@ -837,6 +850,10 @@ const startFlight = (
           start,
           ease
         },
+        // The copy is clipped exactly as the departure was, releasing (or
+        // gathering) with the flight, so it too emerges from under the chrome
+        // rather than popping whole over it.
+        clip: edgeClip,
         fade: { from: { opacity: 1 }, to: { opacity: 0 }, duration: flightDuration * crossFade },
         // The GHOST is a copy of the departure and never re-lays itself out, so
         // it holds the departure's own paint for its whole (short) life.
