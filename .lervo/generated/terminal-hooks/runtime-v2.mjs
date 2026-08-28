@@ -168,10 +168,10 @@ var require_code = __commonJS({
     function interpolate(x) {
       return typeof x == "number" || typeof x == "boolean" || x === null ? x : safeStringify(Array.isArray(x) ? x.join(",") : x);
     }
-    function stringify15(x) {
+    function stringify16(x) {
       return new _Code(safeStringify(x));
     }
-    exports.stringify = stringify15;
+    exports.stringify = stringify16;
     function safeStringify(x) {
       return JSON.stringify(x).replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
     }
@@ -3645,7 +3645,7 @@ var require_fast_uri = __commonJS({
         normalizeString(uri, options);
       } else if (typeof uri === "object") {
         uri = /** @type {T} */
-        parse26(serialize(uri, options), options);
+        parse27(serialize(uri, options), options);
       }
       return uri;
     }
@@ -3663,8 +3663,8 @@ var require_fast_uri = __commonJS({
     function resolveComponent(base, relative15, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
-        base = parse26(serialize(base, options), options);
-        relative15 = parse26(serialize(relative15, options), options);
+        base = parse27(serialize(base, options), options);
+        relative15 = parse27(serialize(relative15, options), options);
       }
       options = options || {};
       if (!options.tolerant && relative15.scheme) {
@@ -3908,7 +3908,7 @@ var require_fast_uri = __commonJS({
       }
       return { parsed, malformedAuthorityOrPort };
     }
-    function parse26(uri, opts) {
+    function parse27(uri, opts) {
       return parseWithStatus(uri, opts).parsed;
     }
     function normalizeString(uri, opts) {
@@ -3937,7 +3937,7 @@ var require_fast_uri = __commonJS({
       resolveComponent,
       equal,
       serialize,
-      parse: parse26
+      parse: parse27
     };
     module.exports = fastUri;
     module.exports.default = fastUri;
@@ -8648,7 +8648,7 @@ var require_stringify = __commonJS({
         props.push(doc.directives.tagString(tag));
       return props.join(" ");
     }
-    function stringify15(item, ctx, onComment, onChompKeep) {
+    function stringify16(item, ctx, onComment, onChompKeep) {
       if (identity2.isPair(item))
         return item.toString(ctx, onComment, onChompKeep);
       if (identity2.isAlias(item)) {
@@ -8677,7 +8677,7 @@ var require_stringify = __commonJS({
 ${ctx.indent}${str}`;
     }
     exports.createStringifyContext = createStringifyContext;
-    exports.stringify = stringify15;
+    exports.stringify = stringify16;
   }
 });
 
@@ -8687,7 +8687,7 @@ var require_stringifyPair = __commonJS({
     "use strict";
     var identity2 = require_identity();
     var Scalar = require_Scalar();
-    var stringify15 = require_stringify();
+    var stringify16 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyPair({ key: key2, value }, ctx, onComment, onChompKeep) {
       const { allNullValues, doc, indent, indentStep, options: { commentString, indentSeq, simpleKeys } } = ctx;
@@ -8709,7 +8709,7 @@ var require_stringifyPair = __commonJS({
       });
       let keyCommentDone = false;
       let chompKeep = false;
-      let str = stringify15.stringify(key2, ctx, () => keyCommentDone = true, () => chompKeep = true);
+      let str = stringify16.stringify(key2, ctx, () => keyCommentDone = true, () => chompKeep = true);
       if (!explicitKey && !ctx.inFlow && str.length > 1024) {
         if (simpleKeys)
           throw new Error("With simple keys, single line scalar must not span more than 1024 characters");
@@ -8761,7 +8761,7 @@ ${indent}:`;
         ctx.indent = ctx.indent.substring(2);
       }
       let valueCommentDone = false;
-      const valueStr = stringify15.stringify(value, ctx, () => valueCommentDone = true, () => chompKeep = true);
+      const valueStr = stringify16.stringify(value, ctx, () => valueCommentDone = true, () => chompKeep = true);
       let ws = " ";
       if (keyComment || vsb || vcb) {
         ws = vsb ? "\n" : "";
@@ -8902,7 +8902,7 @@ var require_addPairToJSMap = __commonJS({
     "use strict";
     var log = require_log();
     var merge = require_merge();
-    var stringify15 = require_stringify();
+    var stringify16 = require_stringify();
     var identity2 = require_identity();
     var toJS = require_toJS();
     function addPairToJSMap(ctx, map, { key: key2, value }) {
@@ -8938,7 +8938,7 @@ var require_addPairToJSMap = __commonJS({
       if (typeof jsKey !== "object")
         return String(jsKey);
       if (identity2.isNode(key2) && ctx?.doc) {
-        const strCtx = stringify15.createStringifyContext(ctx.doc, {});
+        const strCtx = stringify16.createStringifyContext(ctx.doc, {});
         strCtx.anchors = /* @__PURE__ */ new Set();
         for (const node2 of ctx.anchors.keys())
           strCtx.anchors.add(node2.anchor);
@@ -9005,12 +9005,12 @@ var require_stringifyCollection = __commonJS({
   "node_modules/.pnpm/yaml@2.9.0/node_modules/yaml/dist/stringify/stringifyCollection.js"(exports) {
     "use strict";
     var identity2 = require_identity();
-    var stringify15 = require_stringify();
+    var stringify16 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyCollection(collection, ctx, options) {
       const flow3 = ctx.inFlow ?? collection.flow;
-      const stringify16 = flow3 ? stringifyFlowCollection : stringifyBlockCollection;
-      return stringify16(collection, ctx, options);
+      const stringify17 = flow3 ? stringifyFlowCollection : stringifyBlockCollection;
+      return stringify17(collection, ctx, options);
     }
     function stringifyBlockCollection({ comment: comment2, items }, ctx, { blockItemPrefix, flowChars, itemIndent, onChompKeep, onComment }) {
       const { indent, options: { commentString } } = ctx;
@@ -9035,7 +9035,7 @@ var require_stringifyCollection = __commonJS({
           }
         }
         chompKeep = false;
-        let str2 = stringify15.stringify(item, itemCtx, () => comment3 = null, () => chompKeep = true);
+        let str2 = stringify16.stringify(item, itemCtx, () => comment3 = null, () => chompKeep = true);
         if (comment3)
           str2 += stringifyComment.lineComment(str2, itemIndent, commentString(comment3));
         if (chompKeep && comment3)
@@ -9102,7 +9102,7 @@ ${indent}${line}` : "\n";
         }
         if (comment2)
           reqNewline = true;
-        let str = stringify15.stringify(item, itemCtx, () => comment2 = null);
+        let str = stringify16.stringify(item, itemCtx, () => comment2 = null);
         reqNewline || (reqNewline = lines.length > linesAtValue || str.includes("\n"));
         if (i < items.length - 1) {
           str += ",";
@@ -10463,7 +10463,7 @@ var require_stringifyDocument = __commonJS({
   "node_modules/.pnpm/yaml@2.9.0/node_modules/yaml/dist/stringify/stringifyDocument.js"(exports) {
     "use strict";
     var identity2 = require_identity();
-    var stringify15 = require_stringify();
+    var stringify16 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyDocument(doc, options) {
       const lines = [];
@@ -10478,7 +10478,7 @@ var require_stringifyDocument = __commonJS({
       }
       if (hasDirectives)
         lines.push("---");
-      const ctx = stringify15.createStringifyContext(doc, options);
+      const ctx = stringify16.createStringifyContext(doc, options);
       const { commentString } = ctx.options;
       if (doc.commentBefore) {
         if (lines.length !== 1)
@@ -10500,7 +10500,7 @@ var require_stringifyDocument = __commonJS({
           contentComment = doc.contents.comment;
         }
         const onChompKeep = contentComment ? void 0 : () => chompKeep = true;
-        let body2 = stringify15.stringify(doc.contents, ctx, () => contentComment = null, onChompKeep);
+        let body2 = stringify16.stringify(doc.contents, ctx, () => contentComment = null, onChompKeep);
         if (contentComment)
           body2 += stringifyComment.lineComment(body2, "", commentString(contentComment));
         if ((body2[0] === "|" || body2[0] === ">") && lines[lines.length - 1] === "---") {
@@ -10508,7 +10508,7 @@ var require_stringifyDocument = __commonJS({
         } else
           lines.push(body2);
       } else {
-        lines.push(stringify15.stringify(doc.contents, ctx));
+        lines.push(stringify16.stringify(doc.contents, ctx));
       }
       if (doc.directives?.docEnd) {
         if (doc.comment) {
@@ -12643,7 +12643,7 @@ var require_cst_scalar = __commonJS({
 var require_cst_stringify = __commonJS({
   "node_modules/.pnpm/yaml@2.9.0/node_modules/yaml/dist/parse/cst-stringify.js"(exports) {
     "use strict";
-    var stringify15 = (cst) => "type" in cst ? stringifyToken(cst) : stringifyItem(cst);
+    var stringify16 = (cst) => "type" in cst ? stringifyToken(cst) : stringifyItem(cst);
     function stringifyToken(token) {
       switch (token.type) {
         case "block-scalar": {
@@ -12696,7 +12696,7 @@ var require_cst_stringify = __commonJS({
         res += stringifyToken(value);
       return res;
     }
-    exports.stringify = stringify15;
+    exports.stringify = stringify16;
   }
 });
 
@@ -14407,7 +14407,7 @@ var require_public_api = __commonJS({
       }
       return doc;
     }
-    function parse26(src, reviver, options) {
+    function parse27(src, reviver, options) {
       let _reviver = void 0;
       if (typeof reviver === "function") {
         _reviver = reviver;
@@ -14426,7 +14426,7 @@ var require_public_api = __commonJS({
       }
       return doc.toJS(Object.assign({ reviver: _reviver }, options));
     }
-    function stringify15(value, replacer, options) {
+    function stringify16(value, replacer, options) {
       let _replacer = null;
       if (typeof replacer === "function" || Array.isArray(replacer)) {
         _replacer = replacer;
@@ -14448,10 +14448,10 @@ var require_public_api = __commonJS({
         return value.toString(options);
       return new Document2.Document(value, _replacer, options).toString(options);
     }
-    exports.parse = parse26;
+    exports.parse = parse27;
     exports.parseAllDocuments = parseAllDocuments2;
     exports.parseDocument = parseDocument;
-    exports.stringify = stringify15;
+    exports.stringify = stringify16;
   }
 });
 
@@ -17586,14 +17586,14 @@ var require_lib = __commonJS({
         super.checkParams(node2, false, true);
         this.scope.exit();
       }
-      forwardNoArrowParamsConversionAt(node2, parse27) {
+      forwardNoArrowParamsConversionAt(node2, parse28) {
         let result;
         if (this.state.noArrowParamsConversionAt.includes(this.offsetToSourcePos(node2.start))) {
           this.state.noArrowParamsConversionAt.push(this.state.start);
-          result = parse27();
+          result = parse28();
           this.state.noArrowParamsConversionAt.pop();
         } else {
-          result = parse27();
+          result = parse28();
         }
         return result;
       }
@@ -29001,7 +29001,7 @@ var require_lib = __commonJS({
         return result;
       }
     };
-    function parse26(input, options) {
+    function parse27(input, options) {
       var _options;
       if (((_options = options) == null ? void 0 : _options.sourceType) === "unambiguous") {
         options = Object.assign({}, options);
@@ -29088,7 +29088,7 @@ var require_lib = __commonJS({
       }
       return cls;
     }
-    exports.parse = parse26;
+    exports.parse = parse27;
     exports.parseExpression = parseExpression;
     exports.tokTypes = tokTypes;
   }
@@ -29928,12 +29928,12 @@ var require_stringify2 = __commonJS({
   "node_modules/.pnpm/postcss@8.5.26/node_modules/postcss/lib/stringify.js"(exports, module) {
     "use strict";
     var Stringifier = require_stringifier();
-    function stringify15(node2, builder) {
+    function stringify16(node2, builder) {
       let str = new Stringifier(builder);
       str.stringify(node2);
     }
-    module.exports = stringify15;
-    stringify15.default = stringify15;
+    module.exports = stringify16;
+    stringify16.default = stringify16;
   }
 });
 
@@ -29952,7 +29952,7 @@ var require_node = __commonJS({
     "use strict";
     var CssSyntaxError2 = require_css_syntax_error();
     var Stringifier = require_stringifier();
-    var stringify15 = require_stringify2();
+    var stringify16 = require_stringify2();
     var { isClean, my } = require_symbols();
     function cloneNode(obj, parent) {
       let cloned = new obj.constructor();
@@ -30342,7 +30342,7 @@ var require_node = __commonJS({
         }
         return this.proxyCache;
       }
-      toString(stringifier = stringify15) {
+      toString(stringifier = stringify16) {
         if (stringifier.stringify) stringifier = stringifier.stringify;
         let result = "";
         stringifier(this, (i) => {
@@ -30408,7 +30408,7 @@ var require_container = __commonJS({
     var Node2 = require_node();
     var { isClean, my } = require_symbols();
     var AtRule2;
-    var parse26;
+    var parse27;
     var Root2;
     var Rule2;
     function cleanSource(nodes) {
@@ -30575,7 +30575,7 @@ var require_container = __commonJS({
       }
       normalize(nodes, sample) {
         if (typeof nodes === "string") {
-          nodes = cleanSource(parse26(nodes).nodes);
+          nodes = cleanSource(parse27(nodes).nodes);
         } else if (typeof nodes === "undefined") {
           nodes = [];
         } else if (Array.isArray(nodes)) {
@@ -30784,7 +30784,7 @@ var require_container = __commonJS({
       }
     };
     Container2.registerParse = (dependant) => {
-      parse26 = dependant;
+      parse27 = dependant;
     };
     Container2.registerRule = (dependant) => {
       Rule2 = dependant;
@@ -33435,8 +33435,8 @@ var require_map_generator = __commonJS({
     var sourceMapAvailable = Boolean(SourceMapConsumer && SourceMapGenerator);
     var pathAvailable = Boolean(dirname13 && resolve48 && relative15 && sep15);
     var MapGenerator = class {
-      constructor(stringify15, root2, opts, cssString) {
-        this.stringify = stringify15;
+      constructor(stringify16, root2, opts, cssString) {
+        this.stringify = stringify16;
         this.mapOpts = opts.map || {};
         this.root = root2;
         this.opts = opts;
@@ -34296,7 +34296,7 @@ var require_parse = __commonJS({
     var Container2 = require_container();
     var Input2 = require_input();
     var Parser = require_parser2();
-    function parse26(css, opts) {
+    function parse27(css, opts) {
       let input = new Input2(css, opts);
       let parser = new Parser(input);
       try {
@@ -34317,9 +34317,9 @@ var require_parse = __commonJS({
       }
       return parser.root;
     }
-    module.exports = parse26;
-    parse26.default = parse26;
-    Container2.registerParse(parse26);
+    module.exports = parse27;
+    parse27.default = parse27;
+    Container2.registerParse(parse27);
   }
 });
 
@@ -34425,10 +34425,10 @@ var require_lazy_result = __commonJS({
     var Container2 = require_container();
     var Document2 = require_document();
     var MapGenerator = require_map_generator();
-    var parse26 = require_parse();
+    var parse27 = require_parse();
     var Result2 = require_result();
     var Root2 = require_root();
-    var stringify15 = require_stringify2();
+    var stringify16 = require_stringify2();
     var { isClean, my } = require_symbols();
     var warnOnce = require_warn_once();
     var TYPE_TO_CLASS_NAME = {
@@ -34559,7 +34559,7 @@ var require_lazy_result = __commonJS({
             opts.map.prev = css.map;
           }
         } else {
-          let parser = parse26;
+          let parser = parse27;
           if (opts.syntax) parser = opts.syntax.parse;
           if (opts.parser) parser = opts.parser;
           if (parser.parse) parser = parser.parse;
@@ -34742,7 +34742,7 @@ var require_lazy_result = __commonJS({
         this.stringified = true;
         this.sync();
         let opts = this.result.opts;
-        let str = stringify15;
+        let str = stringify16;
         if (opts.syntax) str = opts.syntax.stringify;
         if (opts.stringifier) str = opts.stringifier;
         if (str.stringify) str = str.stringify;
@@ -34950,9 +34950,9 @@ var require_no_work_result = __commonJS({
   "node_modules/.pnpm/postcss@8.5.26/node_modules/postcss/lib/no-work-result.js"(exports, module) {
     "use strict";
     var MapGenerator = require_map_generator();
-    var parse26 = require_parse();
+    var parse27 = require_parse();
     var Result2 = require_result();
-    var stringify15 = require_stringify2();
+    var stringify16 = require_stringify2();
     var warnOnce = require_warn_once();
     var NoWorkResult = class {
       get content() {
@@ -34978,7 +34978,7 @@ var require_no_work_result = __commonJS({
           return this._root;
         }
         let root2;
-        let parser = parse26;
+        let parser = parse27;
         try {
           root2 = parser(this._css, this._opts);
         } catch (error) {
@@ -35001,7 +35001,7 @@ var require_no_work_result = __commonJS({
         this._css = css;
         this._opts = opts;
         this._map = void 0;
-        let str = stringify15;
+        let str = stringify16;
         this.result = new Result2(this._processor, void 0, this._opts);
         this.result.css = css;
         let self = this;
@@ -35133,12 +35133,12 @@ var require_postcss = __commonJS({
     var LazyResult = require_lazy_result();
     var list3 = require_list();
     var Node2 = require_node();
-    var parse26 = require_parse();
+    var parse27 = require_parse();
     var Processor2 = require_processor();
     var Result2 = require_result();
     var Root2 = require_root();
     var Rule2 = require_rule();
-    var stringify15 = require_stringify2();
+    var stringify16 = require_stringify2();
     var Warning2 = require_warning();
     function postcss2(...plugins) {
       if (plugins.length === 1 && Array.isArray(plugins[0])) {
@@ -35177,8 +35177,8 @@ var require_postcss = __commonJS({
       };
       return creator;
     };
-    postcss2.stringify = stringify15;
-    postcss2.parse = parse26;
+    postcss2.stringify = stringify16;
+    postcss2.parse = parse27;
     postcss2.fromJSON = fromJSON2;
     postcss2.list = list3;
     postcss2.comment = (defaults) => new Comment2(defaults);
@@ -46942,13 +46942,13 @@ function compare2(left, right) {
   return left === right ? 0 : left < right ? -1 : 1;
 }
 function compareCapabilityVersions(left, right) {
-  const parse26 = (value) => {
+  const parse27 = (value) => {
     const withoutBuild = value.split("+", 1)[0];
     const [core, prerelease] = withoutBuild.split("-", 2);
     return { core: core.split(".").map(Number), prerelease: prerelease?.split(".") };
   };
-  const a = parse26(left);
-  const b = parse26(right);
+  const a = parse27(left);
+  const b = parse27(right);
   for (let index2 = 0; index2 < 3; index2 += 1) {
     const difference = a.core[index2] - b.core[index2];
     if (difference !== 0)
@@ -51404,10 +51404,15 @@ var defaultRepositoryKnowledgePolicy = {
     maxNavigationEntries: 24,
     maxNavigationBytes: 8192
   },
+  normalization: { exclude: [] },
   exclude: [
     ".git/**",
     ".lervo/**",
     ".changes/**",
+    ".venv/**",
+    "**/.venv/**",
+    "venv/**",
+    "**/venv/**",
     "node_modules/**",
     "**/node_modules/**",
     "dist/**",
@@ -51447,10 +51452,15 @@ function isStringArray(value) {
 function validateRepositoryKnowledgePolicy(value) {
   const item = value;
   const publication = item?.publication ?? defaultRepositoryKnowledgePolicy.publication;
-  if (item === null || typeof item !== "object" || item.schemaVersion !== 1 || typeof item.policyId !== "string" || !/^[a-z][a-z0-9._-]{2,63}$/.test(item.policyId) || typeof item.publicationRoot !== "string" || item.publicationRoot.length === 0 || item.publicationRoot.startsWith("/") || item.publicationRoot.split("/").includes("..") || typeof publication !== "object" || publication === null || typeof publication.language !== "string" || !supportedRepositoryPublicationLanguages.includes(publication.language) || !Number.isSafeInteger(publication.maxNavigationEntries) || publication.maxNavigationEntries < 4 || publication.maxNavigationEntries > 128 || !Number.isSafeInteger(publication.maxNavigationBytes) || publication.maxNavigationBytes < 1024 || publication.maxNavigationBytes > 65536 || !isStringArray(item.exclude) || item.limits === void 0 || !Number.isSafeInteger(item.limits.maxFiles) || item.limits.maxFiles < 1 || !Number.isSafeInteger(item.limits.maxFileBytes) || item.limits.maxFileBytes < 1 || !Number.isSafeInteger(item.limits.maxTotalBytes) || item.limits.maxTotalBytes < 1) {
+  const normalization = item?.normalization ?? defaultRepositoryKnowledgePolicy.normalization;
+  if (item === null || typeof item !== "object" || item.schemaVersion !== 1 || typeof item.policyId !== "string" || !/^[a-z][a-z0-9._-]{2,63}$/.test(item.policyId) || typeof item.publicationRoot !== "string" || item.publicationRoot.length === 0 || item.publicationRoot.startsWith("/") || item.publicationRoot.split("/").includes("..") || typeof publication !== "object" || publication === null || typeof publication.language !== "string" || !supportedRepositoryPublicationLanguages.includes(publication.language) || !Number.isSafeInteger(publication.maxNavigationEntries) || publication.maxNavigationEntries < 4 || publication.maxNavigationEntries > 128 || !Number.isSafeInteger(publication.maxNavigationBytes) || publication.maxNavigationBytes < 1024 || publication.maxNavigationBytes > 65536 || typeof normalization !== "object" || normalization === null || !isStringArray(normalization.exclude) || !isStringArray(item.exclude) || item.limits === void 0 || !Number.isSafeInteger(item.limits.maxFiles) || item.limits.maxFiles < 1 || !Number.isSafeInteger(item.limits.maxFileBytes) || item.limits.maxFileBytes < 1 || !Number.isSafeInteger(item.limits.maxTotalBytes) || item.limits.maxTotalBytes < 1) {
     throw new RepositoryKnowledgeError("knowledge_source_unsafe", ".lervo/knowledge/policy.yaml does not satisfy the repository knowledge policy contract.");
   }
-  return { ...item, publication: { ...publication } };
+  return {
+    ...item,
+    publication: { ...publication },
+    normalization: { exclude: [...normalization.exclude] }
+  };
 }
 async function loadRepositoryKnowledgePolicy(root2) {
   const path = resolve22(root2, ".lervo/knowledge/policy.yaml");
@@ -54149,6 +54159,9 @@ function excluded(path, patterns) {
       return true;
     return pattern.endsWith("/**") && globExpression(pattern.slice(0, -3)).test(path);
   });
+}
+function repositoryPathMatchesPatterns(path, patterns) {
+  return excluded(path, patterns);
 }
 function repositoryPathCanRemainIncluded(path, policy) {
   return !excluded(path, policy.exclude) && !secretCandidatePath(path);
@@ -62804,8 +62817,10 @@ var CONVENTIONAL_ENTRYPOINTS = /* @__PURE__ */ new Set([
 ]);
 var RESERVED_DOCUMENT_TREES = [
   "architecture",
+  "archive",
   "decisions",
   "evidence",
+  "inherited",
   "instructions",
   "knowledge",
   "product",
@@ -62814,6 +62829,7 @@ var RESERVED_DOCUMENT_TREES = [
   "specifications",
   "specs"
 ];
+var BYTE_PRESERVED_DOCUMENT_TREES = /* @__PURE__ */ new Set(["archive", "inherited"]);
 function normalizedWords(value) {
   return value.normalize("NFKC").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/gu, " ");
 }
@@ -62825,8 +62841,17 @@ function containsTerm(value, term) {
 function documentRoot(taxonomy) {
   return posix7.dirname(taxonomy.decisionRoot);
 }
+function preservedRolePath(path, taxonomy) {
+  return taxonomy.documentPolicy.roles.some((role) => role.relocation === "preserve" && role.path === path);
+}
+function bytePreservedDocumentCollection(path, taxonomy) {
+  const root2 = documentRoot(taxonomy);
+  return [...BYTE_PRESERVED_DOCUMENT_TREES].some((tree) => path.startsWith(`${root2}/${tree}/`));
+}
 function alreadyCanonical(path, taxonomy) {
   const root2 = documentRoot(taxonomy);
+  if (preservedRolePath(path, taxonomy))
+    return true;
   if (taxonomy.routes.some((route) => path.startsWith(`${root2}/${route.path}/`)))
     return true;
   return RESERVED_DOCUMENT_TREES.some((tree) => path.startsWith(`${root2}/${tree}/`));
@@ -63815,16 +63840,19 @@ var import_yaml14 = __toESM(require_dist(), 1);
 var import_yaml13 = __toESM(require_dist(), 1);
 
 // packages/repository-knowledge/dist/document-structure-move.js
+var import_yaml16 = __toESM(require_dist(), 1);
+
+// packages/repository-knowledge/dist/document-normalization-record-move.js
 var import_yaml15 = __toESM(require_dist(), 1);
 
 // packages/repository-knowledge/dist/document-structure-merge.js
-var import_yaml16 = __toESM(require_dist(), 1);
-
-// packages/repository-knowledge/dist/document-structure-split.js
 var import_yaml17 = __toESM(require_dist(), 1);
 
-// packages/repository-knowledge/dist/document-normalization.js
+// packages/repository-knowledge/dist/document-structure-split.js
 var import_yaml18 = __toESM(require_dist(), 1);
+
+// packages/repository-knowledge/dist/document-normalization.js
+var import_yaml19 = __toESM(require_dist(), 1);
 import { lstat as lstat22, mkdir as mkdir9, open as open13, readFile as readFile13 } from "node:fs/promises";
 import { basename as basename11, dirname as dirname8, posix as posix8, resolve as resolve32 } from "node:path";
 
@@ -63942,10 +63970,10 @@ function unitsForSource(scan, source) {
   const specific = units.filter((unit2) => unit2.unitKind !== "file");
   return (specific.length > 0 ? specific : units).sort((left, right) => left.range.startByte - right.range.startByte);
 }
-function eligibleDocuments(scan, publicationRoot) {
+function eligibleDocuments(scan, publicationRoot, taxonomy, normalizationExclude = []) {
   const generatedPrefix = `${publicationRoot.replace(/\/$/u, "")}/`;
   return scan.sources.flatMap((source) => {
-    if (source.status !== "included" || source.classification !== "ordinary" || source.content === void 0 || source.contentHash === null || source.path === "README.md" || source.path === publicationRoot || source.path.startsWith(generatedPrefix))
+    if (source.status !== "included" || source.classification !== "ordinary" || source.content === void 0 || source.contentHash === null || source.path === "README.md" || source.path === publicationRoot || source.path.startsWith(generatedPrefix) || taxonomy !== void 0 && bytePreservedDocumentCollection(source.path, taxonomy) || repositoryPathMatchesPatterns(source.path, normalizationExclude))
       return [];
     const profile8 = normalizationProfile(source);
     if (profile8 === null)
@@ -63991,10 +64019,13 @@ async function userRegionHashAt(path) {
 }
 async function inspectConfiguredDocumentNormalization(input) {
   const root2 = resolve32(input.repositoryRoot);
-  const { policy, scan } = await scanConfiguredRepositoryKnowledge(root2, {
-    ...input.supplementalSources === void 0 ? {} : { supplementalSources: input.supplementalSources },
-    ...input.allowTransactionPlanId === void 0 ? {} : { allowTransactionPlanId: input.allowTransactionPlanId }
-  });
+  const [{ policy, scan }, taxonomy] = await Promise.all([
+    scanConfiguredRepositoryKnowledge(root2, {
+      ...input.supplementalSources === void 0 ? {} : { supplementalSources: input.supplementalSources },
+      ...input.allowTransactionPlanId === void 0 ? {} : { allowTransactionPlanId: input.allowTransactionPlanId }
+    }),
+    loadDecisionTaxonomy(root2)
+  ]);
   const records = [];
   const current = /* @__PURE__ */ new Set();
   const paths = await listKnowledgeArtifactPaths({
@@ -64006,7 +64037,7 @@ async function inspectConfiguredDocumentNormalization(input) {
   for (const path of paths) {
     let record3 = null;
     try {
-      record3 = (0, import_yaml18.parse)(await readFile13(resolve32(root2, path), "utf8"));
+      record3 = (0, import_yaml19.parse)(await readFile13(resolve32(root2, path), "utf8"));
     } catch {
     }
     if (record3 === null || ![1, 2].includes(record3.schemaVersion) || record3.schemaVersion === 2 && (record3.byteOwnership?.owner !== "reviewer" || record3.byteOwnership.rewritePolicy !== "reviewed_exact") || !/^knormdoc_[a-f0-9]{24}$/u.test(record3.recordId) || path !== shardedKnowledgeArtifactPath(".lervo/knowledge/document-normalizations", record3.recordId, "yaml") || record3.outputLanguage !== policy.publication.language || record3.formatVersion !== "lervo.document.v1" || !Array.isArray(record3.outputs) || record3.outputs.length < 1 || record3.outputs.some((output) => !HASH5.test(output.contentHash) || output.userRegionHash !== void 0 && !HASH5.test(output.userRegionHash)) || !Array.isArray(record3.resourceBindings) || record3.resourceBindings.some((resource) => typeof resource.path !== "string" || !HASH5.test(resource.contentHash))) {
@@ -64032,7 +64063,7 @@ async function inspectConfiguredDocumentNormalization(input) {
       outputPaths: record3.outputs.map((output) => output.path)
     });
   }
-  const eligible = eligibleDocuments(scan, policy.publicationRoot);
+  const eligible = eligibleDocuments(scan, policy.publicationRoot, taxonomy, policy.normalization?.exclude);
   const pendingDocuments = eligible.map((item) => item.source.path).filter((path) => !current.has(path));
   return {
     schemaVersion: 1,
@@ -64046,7 +64077,7 @@ async function inspectConfiguredDocumentNormalization(input) {
 }
 
 // packages/repository-knowledge/dist/decision-layout.js
-var import_yaml19 = __toESM(require_dist(), 1);
+var import_yaml20 = __toESM(require_dist(), 1);
 function normalizedWords2(value) {
   return value.normalize("NFKC").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/gu, " ");
 }
@@ -64075,7 +64106,7 @@ function explicitRoute2(content3) {
     return { state: "absent" };
   let value;
   try {
-    value = (0, import_yaml19.parse)(content3.slice(content3.indexOf("\n") + 1, match.index));
+    value = (0, import_yaml20.parse)(content3.slice(content3.indexOf("\n") + 1, match.index));
   } catch {
     return { state: "invalid" };
   }
@@ -64411,7 +64442,7 @@ function collectExecutionEventSources(input) {
 }
 
 // packages/repository-knowledge/dist/instruction-bridge.js
-var import_yaml20 = __toESM(require_dist(), 1);
+var import_yaml21 = __toESM(require_dist(), 1);
 import { constants as constants10 } from "node:fs";
 import { lstat as lstat23, open as open14 } from "node:fs/promises";
 import { resolve as resolve34 } from "node:path";
@@ -64523,7 +64554,7 @@ function instructionBridgeProfile(provider) {
 }
 function validExistingBridgeRecord(bytes, profile8, bridgeId) {
   try {
-    const value = (0, import_yaml20.parse)(bytes.toString("utf8"));
+    const value = (0, import_yaml21.parse)(bytes.toString("utf8"));
     return value !== null && typeof value === "object" && value.schemaVersion === 1 && value.bridgeId === bridgeId && value.profile?.id === profile8.profileId && value.profile.version === profile8.profileVersion && value.profile.provider === profile8.provider && value.profile.discoveryContract === profile8.discoveryContract && value.canonical?.path === profile8.canonicalPath && typeof value.canonical.contentHash === "string" && HASH6.test(value.canonical.contentHash) && value.target?.path === profile8.targetPath && value.target.blockId === profile8.blockId && typeof value.target.contentHash === "string" && HASH6.test(value.target.contentHash) && typeof value.target.managedContentHash === "string" && HASH6.test(value.target.managedContentHash);
   } catch {
     return false;
@@ -64646,7 +64677,7 @@ async function createKnowledgeInstructionBridgePlan(input) {
     targetPath: profile8.targetPath
   });
   const bridgeRecordPath = shardedKnowledgeArtifactPath(".lervo/knowledge/instruction-bridges", bridgeId, "yaml");
-  const bridgeRecordContent = (0, import_yaml20.stringify)({
+  const bridgeRecordContent = (0, import_yaml21.stringify)({
     schemaVersion: 1,
     bridgeId,
     profile: {
@@ -64938,7 +64969,7 @@ async function createKnowledgeInstructionBootstrapPlan(input) {
 // packages/repository-knowledge/dist/lint-query.js
 import { lstat as lstat26, readFile as readFile15, readdir as readdir14 } from "node:fs/promises";
 import { relative as relative12, resolve as resolve37, sep as sep12 } from "node:path";
-var import_yaml21 = __toESM(require_dist(), 1);
+var import_yaml22 = __toESM(require_dist(), 1);
 
 // packages/repository-knowledge/dist/repository-publication-files.js
 import { constants as constants11 } from "node:fs";
@@ -65089,7 +65120,7 @@ async function lintInstructionBridgeRecords(root2, projectId, issues) {
     }
     let value;
     try {
-      value = (0, import_yaml21.parse)(new TextDecoder("utf-8", { fatal: true }).decode(recordBytes));
+      value = (0, import_yaml22.parse)(new TextDecoder("utf-8", { fatal: true }).decode(recordBytes));
       const expectedId = stableId("kbridge", {
         projectId,
         provider: "claude",
@@ -65705,13 +65736,13 @@ ${linkedClaims.map((claim) => claim.statement).join("\n")}`);
 }
 
 // packages/repository-knowledge/dist/reconciliation-review.js
-var import_yaml22 = __toESM(require_dist(), 1);
+var import_yaml23 = __toESM(require_dist(), 1);
 
 // packages/repository-knowledge/dist/repository-layout-migration.js
 import { constants as constants12 } from "node:fs";
 import { lstat as lstat27, open as open16, readFile as readFile16 } from "node:fs/promises";
 import { basename as basename12, posix as posix9, resolve as resolve39 } from "node:path";
-var import_yaml23 = __toESM(require_dist(), 1);
+var import_yaml24 = __toESM(require_dist(), 1);
 var ECOSYSTEM_ROOT_ENTRYPOINTS = /* @__PURE__ */ new Set([
   "CONTRIBUTING.md",
   "SECURITY.md",
@@ -65879,10 +65910,10 @@ async function normalizationOwnershipUpgradeOperations(root2) {
   });
   for (const path of paths) {
     const source = await readFile16(resolve39(root2, path), "utf8");
-    const value = (0, import_yaml23.parse)(source);
+    const value = (0, import_yaml24.parse)(source);
     if (value.schemaVersion !== 1)
       continue;
-    const content3 = (0, import_yaml23.stringify)({
+    const content3 = (0, import_yaml24.stringify)({
       ...value,
       schemaVersion: 2,
       byteOwnership: { owner: "reviewer", rewritePolicy: "reviewed_exact" }
@@ -66134,7 +66165,7 @@ async function createRepositoryLayoutMigrationPlan(input) {
   const referenceChanges = /* @__PURE__ */ new Map();
   const movedContentChanges = /* @__PURE__ */ new Map();
   for (const source of scan.sources) {
-    if (source.status !== "included" || source.content === void 0 || source.contentHash === null || generatedPaths.has(source.path) || source.path.startsWith(".lervo/") || source.path.startsWith("knowledge/"))
+    if (source.status !== "included" || source.content === void 0 || source.contentHash === null || generatedPaths.has(source.path) || bytePreservedDocumentCollection(source.path, taxonomy) || source.path.startsWith(".lervo/") || source.path.startsWith("knowledge/"))
       continue;
     const move = movePaths.find((item) => item.fromPath === source.path);
     const rebased = move === void 0 ? { content: source.content, count: 0 } : rebaseMarkdownLinks(source.content, source.path, move.toPath);
@@ -66370,7 +66401,7 @@ async function createRepositoryLayoutMigrationPlan(input) {
     }
   }
   const normalizationOwnershipOperations = await normalizationOwnershipUpgradeOperations(root2);
-  const taxonomyUpgradeOperation = decisionTaxonomyRequiresUpgrade((0, import_yaml23.parse)(taxonomySource)) ? [
+  const taxonomyUpgradeOperation = decisionTaxonomyRequiresUpgrade((0, import_yaml24.parse)(taxonomySource)) ? [
     {
       path: ".lervo/knowledge/document-layout.yaml",
       action: "update",
@@ -66408,7 +66439,7 @@ async function createRepositoryLayoutMigrationPlan(input) {
     const currentRecord = bridge.operations.find((operation) => operation.path === bridge.bridgeRecordPath && operation.ownership !== "user");
     if (currentRecord === void 0 || currentRecord.action === "conflict")
       throw new RepositoryKnowledgeError("knowledge_reconciliation_conflict", "The instruction bridge record cannot be bound to the layout migration.");
-    const content3 = (0, import_yaml23.stringify)({
+    const content3 = (0, import_yaml24.stringify)({
       schemaVersion: 1,
       bridgeId: bridge.bridgeId,
       profile: {
@@ -66523,7 +66554,7 @@ async function createRepositoryLayoutMigrationPlan(input) {
 }
 
 // packages/repository-knowledge/dist/semantic-materialization.js
-var import_yaml24 = __toESM(require_dist(), 1);
+var import_yaml25 = __toESM(require_dist(), 1);
 
 // packages/repository-knowledge/dist/terminal-integration.js
 import { constants as constants13 } from "node:fs";
@@ -67042,7 +67073,7 @@ function pendingCoordinatesValid(snapshot) {
 }
 
 // packages/verification/dist/suite-loader.js
-var import_yaml25 = __toESM(require_dist(), 1);
+var import_yaml26 = __toESM(require_dist(), 1);
 import { constants as constants15 } from "node:fs";
 import { lstat as lstat30, open as open19, realpath as realpath3 } from "node:fs/promises";
 import { resolve as resolve42 } from "node:path";
@@ -67078,7 +67109,7 @@ async function loadVerificationSuite(repositoryRoot, suiteId) {
     }
     let value;
     try {
-      value = (0, import_yaml25.parse)(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+      value = (0, import_yaml26.parse)(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
     } catch (error) {
       throw new VerificationError("invalid_verification_suite", "The verification suite YAML could not be read.", { cause: error });
     }

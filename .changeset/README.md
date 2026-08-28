@@ -6,7 +6,7 @@ find the full documentation for it [in our repository](https://github.com/change
 
 ## How to add a changeset
 
-When you make a user-visible change to `@flemo/core`, `@flemo/react`, or `@flemo/react-layout`, add a changeset:
+When you make a user-visible change to `@flemo/core`, `@flemo/react`, or `@flemo/devtools`, add a changeset:
 
 ```bash
 pnpm changeset
@@ -14,7 +14,7 @@ pnpm changeset
 
 This walks you through:
 
-1. picking which packages changed (`@flemo/core`, `@flemo/react`, `@flemo/react-layout`, and `@flemo/web` are versioned — `@flemo/eslint-config` and `@flemo/tsconfig` are ignored)
+1. picking which packages changed (`@flemo/core`, `@flemo/react`, `@flemo/devtools`, and `@flemo/web` are versioned — `@flemo/eslint-config` and `@flemo/tsconfig` are ignored)
 2. picking the bump type (patch / minor / major)
 3. writing a short summary that ends up in the CHANGELOG
 
@@ -27,4 +27,7 @@ Releases are automated via `.github/workflows/release.yml`:
 - Pushing to `main` with pending changesets opens a "Version Packages" PR.
 - Merging that PR runs `pnpm release`, which builds the packages and publishes to npm.
 
-The only secret needed is `NPM_TOKEN` in repo settings.
+No npm secret is stored. Publishing uses npm trusted publishing over GitHub OIDC, so
+npmjs.com must list this repo as a trusted publisher for every published package, against
+the bare workflow filename `release.yml`. npm reports an auth failure as a 404 on PUT, so
+that is the symptom to expect when the registration or the filename drifts.

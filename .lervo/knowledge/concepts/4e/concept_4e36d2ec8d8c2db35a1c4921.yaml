@@ -9,6 +9,6 @@ publicationProfile: reference
 publicationStatus: stable
 schemaVersion: 1
 sourceUnitVersionIds:
-  - uv_87ecaeb328d948ee2706c67e
+  - uv_1dc331910e46970ea9c20aec
 title: flemo workspace rules
 type: invariant

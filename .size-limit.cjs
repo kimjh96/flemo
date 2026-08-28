@@ -63,13 +63,6 @@ module.exports = [
     // when introspecting.
     ignore: ["react", "react-dom", "@flemo/core"]
   },
-  {
-    name: "@flemo/react-layout",
-    path: "packages/react-layout/dist/index.mjs",
-    limit: "1 KB",
-    gzip: true,
-    ignore: ["react", "react-dom", "motion", "@flemo/core", "@flemo/react"]
-  },
   // @flemo/devtools ships two independent entry points out of one bundle, so
   // it is budgeted per named export (`import` makes size-limit tree-shake the
   // entry down to that export's reachable graph) rather than per file. The

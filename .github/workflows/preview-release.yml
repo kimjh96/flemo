@@ -34,7 +34,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build packages
-        run: pnpm turbo run build --filter=@flemo/core --filter=@flemo/react --filter=@flemo/react-layout
+        run: pnpm turbo run build --filter=@flemo/core --filter=@flemo/react
 
       - name: Publish to pkg.pr.new
-        run: pnpm dlx pkg-pr-new publish --compact --pnpm './packages/core' './packages/react' './packages/react-layout'
+        run: pnpm dlx pkg-pr-new publish --compact --pnpm './packages/core' './packages/react'

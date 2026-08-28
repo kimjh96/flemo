@@ -858,7 +858,7 @@ const EN: DocSection[] = [
           { type: "h", text: "Peer dependencies" },
           {
             type: "p",
-            text: "`@flemo/react` requires only `react ^19` and `react-dom ^19`. Nothing else, shared-element morphs included: they used to need `@flemo/react-layout` and `motion`, and now they are `<Morph>` in the same package."
+            text: "`@flemo/react` requires only `react ^19` and `react-dom ^19`. Nothing else, shared-element morphs included: `<Morph>` ships in the same package and needs no animation library beside it."
           }
         ]
       }
@@ -974,11 +974,6 @@ const EN: DocSection[] = [
           {
             type: "note",
             text: "The built-in `shared` preset authors no duration on purpose. That is what lets one morph look right under any transition you pair it with."
-          },
-          { type: "h", text: "Coming from @flemo/react-layout" },
-          {
-            type: "p",
-            text: '`@flemo/react-layout` and its `motion` peer dependency are gone. `LayoutScreen` is now plain `Screen` (flemo keeps a screen carrying a travelling element from painting over its partner on its own), `LayoutConfig` has no job left because the timing is flemo\'s already, and each `motion.div layoutId="x"` becomes `<Morph layoutId="x">`.'
           }
         ]
       }
@@ -1809,7 +1804,7 @@ const KO: DocSection[] = [
           { type: "h", text: "Peer 의존성" },
           {
             type: "p",
-            text: "`@flemo/react`는 `react ^19`, `react-dom ^19`만 필요해요. 공유 요소 모핑까지 포함해서 그게 전부예요. 예전에는 `@flemo/react-layout`과 `motion`이 필요했지만, 이제 같은 패키지의 `<Morph>`예요."
+            text: "`@flemo/react`는 `react ^19`, `react-dom ^19`만 필요해요. 공유 요소 모핑까지 포함해서 그게 전부예요. `<Morph>`가 같은 패키지에 들어 있어서 애니메이션 라이브러리를 따로 두지 않아도 돼요."
           }
         ]
       }
@@ -1896,11 +1891,6 @@ const KO: DocSection[] = [
           {
             type: "note",
             text: "빌트인 `shared` 프리셋은 일부러 길이를 안 정해요. 그래서 어떤 트랜지션과 짝지어도 하나의 모핑이 알맞게 보여요."
-          },
-          { type: "h", text: "@flemo/react-layout에서 옮겨오기" },
-          {
-            type: "p",
-            text: '`@flemo/react-layout`과 `motion` peer 의존성은 사라졌어요. `LayoutScreen`은 그냥 `Screen`이고(이동 중인 요소를 실은 화면이 짝을 덮지 않도록 flemo가 알아서 처리해요), `LayoutConfig`는 타이밍이 이미 flemo 것이라 할 일이 없어요. `motion.div layoutId="x"`는 각각 `<Morph layoutId="x">`가 돼요.'
           }
         ]
       }
