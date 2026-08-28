@@ -937,14 +937,20 @@ const startFlight = (
     // label associations, form submissions and every query a consumer's own
     // tests make. It is inert and hidden from assistive technology on top.
     for (const node of [ghost, ...ghost.querySelectorAll<HTMLElement>("*")]) {
-      // A PAIRED descendant is already morphing on the real element underneath
-      // — its own size, its own shape, its own type. Printing the copy's
-      // version of it as well puts two nearly identical things in the same
-      // place with different weights, which reads as a shadow trailing the
-      // text. It keeps its SPACE (the copy's job is to hold the departure's
-      // layout together for the unpaired content around it) and stops
-      // painting.
-      if (node !== ghost && node.hasAttribute(MORPH_ATTR)) node.style.opacity = "0";
+      // A paired TEXT descendant is re-typesetting on the real element
+      // underneath; printing the copy's version as well puts two nearly
+      // identical runs in the same place with different weights, which reads
+      // as a shadow trailing the text. So type stops painting and keeps its
+      // space. Every OTHER paired descendant keeps painting: the ghost sits
+      // ON TOP of the arriving card, so the real element does not show
+      // through it, and a dimmed copy left a hole the size of the pair on the
+      // flight's first frame — measured as a full hero collapsing to a strip
+      // the instant a pop began. The copy rides the ghost's own travel toward
+      // the destination box, so it tracks the real element's path closely
+      // enough for the cross-fade to read as one thing.
+      if (node !== ghost && node.hasAttribute(MORPH_ATTR)) {
+        if (node.getAttribute(MORPH_NAME_ATTR) === "text") node.style.opacity = "0";
+      }
       node.removeAttribute(MORPH_ATTR);
       node.removeAttribute(MORPH_NAME_ATTR);
       // A part carries its own status, so the copy would run the departing
