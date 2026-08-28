@@ -616,6 +616,17 @@ const startFlight = (
     const dx = captured.snapshot.rect.x - side.rect.x;
     const dy = captured.snapshot.rect.y - side.rect.y;
     const travels = Math.abs(dx) >= 0.5 || Math.abs(dy) >= 0.5;
+    // The SIZE half of the same correction. Riding sizes the child through the
+    // container's width interpolation, and that works only when the width
+    // actually interpolates: a container that starts at destination width (a
+    // full-width list row becoming a page) lays the child out full-size on
+    // frame one, and a thumbnail spreads into a strip instead of growing.
+    // `side.rect` is measured where the staged container put it, so the delta
+    // is zero exactly when the container's width carries the child correctly,
+    // which keeps this channel silent for a grid cell.
+    const dw = captured.snapshot.rect.width - side.rect.width;
+    const dh = captured.snapshot.rect.height - side.rect.height;
+    const resizes = Math.abs(dw) >= 1 || Math.abs(dh) >= 1;
     const retypes =
       type.fontSize !== null ||
       type.fontWeight !== null ||
@@ -635,7 +646,7 @@ const startFlight = (
     // A nested element gets the paint table too. It used to get none of it:
     // its corner, its surface and its border were the destination's from the
     // first frame, which is the same step the container was already fixed for.
-    if (!retypes && !reshapes && !respaces && !travels && paint.length === 0) {
+    if (!retypes && !reshapes && !respaces && !travels && !resizes && paint.length === 0) {
       trace("nested-nothing-to-do", entry, status);
       return;
     }
@@ -668,6 +679,15 @@ const startFlight = (
         captured.snapshot.margin !== side.margin
           ? { from: captured.snapshot.margin, to: side.margin }
           : null,
+      size: resizes
+        ? {
+            from: {
+              width: captured.snapshot.rect.width,
+              height: captured.snapshot.rect.height
+            },
+            to: { width: side.rect.width, height: side.rect.height }
+          }
+        : null,
       fade: null,
       paint
     });

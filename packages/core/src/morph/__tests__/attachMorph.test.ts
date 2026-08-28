@@ -205,14 +205,24 @@ describe("attachMorph", () => {
 
     expect(bigCard.parentElement).toBe(layer);
     expect(heading.parentElement).toBe(bigCard);
-    // It rides its container's box: no box animation of its own, no staging.
+    // It rides its container's box: not staged, never absolutely positioned.
     const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
     expect(nestedRule).not.toContain("left:");
-    expect(nestedRule).not.toContain("width:");
+    expect(nestedRule).not.toContain("top:");
     // And it BEGINS where the pair measured it — the from-delta between the
     // label's box (28, 730) and the heading's (16, 260) — decaying to rest.
     expect(nestedRule).toContain("translate3d(12px, 470px, 0)");
     expect(nestedRule).toMatch(/to \{[^}]*transform: none/);
+    // SIZE is the other half of the same correction. Riding sizes the child
+    // through the container's width interpolation, and a container that is
+    // already at destination width lays the child out full-size on frame one:
+    // a 48px thumbnail in a full-width row spread into a strip at the tap. So
+    // the child's own box interpolates from the measured from-size (140x20)
+    // to its size in the staged container (360x32).
+    expect(nestedRule).toContain("width: 140px");
+    expect(nestedRule).toContain("height: 20px");
+    expect(nestedRule).toContain("width: 360px");
+    expect(nestedRule).toContain("height: 32px");
   });
 
   it("adds no translate to a nested pair whose two ends already agree", async () => {
@@ -238,7 +248,10 @@ describe("attachMorph", () => {
     await Promise.resolve();
 
     const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule));
-    if (nestedRule) expect(nestedRule).not.toContain("translate3d");
+    if (nestedRule) {
+      expect(nestedRule).not.toContain("translate3d");
+      expect(nestedRule).not.toContain("width:");
+    }
   });
 
   it("stamps inherited line-height as a FACTOR, not as the used length", () => {

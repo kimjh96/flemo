@@ -89,6 +89,17 @@ export const buildMorphKeyframes = (input: {
   /** The spacing the two ends hold their contents at, and stand apart by. */
   padding?: { from: string; to: string } | null;
   margin?: { from: string; to: string } | null;
+  /**
+   * A nested element's OWN box, width and height only, for the one geometry
+   * the container cannot carry for it. Riding assumes the container's width
+   * interpolation sizes the child, and it does when the container GROWS in
+   * width; a container that starts at full width (a list row becoming a page)
+   * lays the arrival out at destination width from the first frame, and a
+   * thumbnail inside it lands full-size instantly instead of growing. Measured
+   * on the playground's list: a 48px thumb rendered as a full-width strip on
+   * frame one. From-size to staged-size, exact at both ends.
+   */
+  size?: { from: { width: number; height: number }; to: { width: number; height: number } } | null;
   fade: {
     from: TransitionTarget | null;
     to: TransitionTarget | null;
@@ -115,7 +126,8 @@ export const buildMorphKeyframes = (input: {
     lineHeight,
     aspectRatio,
     padding,
-    margin
+    margin,
+    size
   } = input;
   const rules: string[] = [];
   const animations: string[] = [];
@@ -167,6 +179,11 @@ export const buildMorphKeyframes = (input: {
     pushSize(`    aspect-ratio: ${aspectRatio.from};`, `    aspect-ratio: ${aspectRatio.to};`);
   if (padding) pushSize(`    padding: ${padding.from};`, `    padding: ${padding.to};`);
   if (margin) pushSize(`    margin: ${margin.from};`, `    margin: ${margin.to};`);
+  if (size)
+    pushSize(
+      `    width: ${px(size.from.width)};\n    height: ${px(size.from.height)};`,
+      `    width: ${px(size.to.width)};\n    height: ${px(size.to.height)};`
+    );
   if (fromParts.length > 0) {
     rules.push(
       `@keyframes ${geometryName} {\n  from {\n${fromParts.join("\n")}\n  }\n  to {\n${toParts.join("\n")}\n  }\n}`
