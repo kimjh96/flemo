@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "generationId": "gen_a77b7ed980832a3bd32fd375",
+  "generationId": "gen_df99e16b93c3ac065b21d3f9",
   "projectId": "prj_55ba572fea3e42b6",
-  "sourceSnapshotId": "ksnap_53bae2e641e7cb4c3b3b0d86",
+  "sourceSnapshotId": "ksnap_a11c832d881b4b735a2d030b",
   "compiler": {
     "id": "lervo.structural",
     "version": "1",
@@ -11,7 +11,7 @@
   "outputs": [
     {
       "path": "docs/knowledge/index.md",
-      "contentHash": "sha256:2e97e43c5f7846436f974523a7689fd586d94acda0b674f2a9a1f114e896d825"
+      "contentHash": "sha256:4dcfea63efeb587ed4753dbe661d157a287e1d8b103af7da16152e65b921a192"
     },
     {
       "path": "docs/knowledge/instructions.md",
@@ -27,15 +27,15 @@
     },
     {
       "path": ".lervo/knowledge/bundles/f3/bundle_f30402500333f4447ba5d2b8.yaml",
-      "contentHash": "sha256:2f6f84bac63079600635157bd9535b9d857595de18e4debef53619e16f52b7d6"
+      "contentHash": "sha256:93e442d2cac21f5ba001c2b4f17bc9690e71106c02c2dc75d4f14b5ad786d12c"
     },
     {
       "path": ".lervo/knowledge/concepts/5c/concept_5c59b56d8b315c375d9a47fc.yaml",
-      "contentHash": "sha256:f62587276cab0c0cc3b3e10e46cfe5230324fff78e50dd693ea30cc087e7e1c4"
+      "contentHash": "sha256:7604799e2afae006afdd3f438c6f7146ca9f3e4aa45491ef37a87fbb43d48628"
     },
     {
       "path": ".lervo/knowledge/concepts/89/concept_893def074f1dd043146dd1ae.yaml",
-      "contentHash": "sha256:5b137c3d633cdb3cebfaa5cd4abe89198f42eaf62e4249d8754f343f7075c125"
+      "contentHash": "sha256:26f725918d5ef3b28f5a4fd94514d2fe4bff98d1dff67f73658daaf05062c3f9"
     },
     {
       "path": ".lervo/knowledge/concepts/eb/concept_eb2ddad7add35914f2fb41cf.yaml",
@@ -47,7 +47,7 @@
     },
     {
       "path": ".lervo/knowledge/concepts/4e/concept_4e36d2ec8d8c2db35a1c4921.yaml",
-      "contentHash": "sha256:77f683007305ad37011aabad44dff94d205936115b36c3f9a8e8ae1026a53174"
+      "contentHash": "sha256:6c928831b921f11ce8c913d0d085bd328458a30de0eb76ebe6eb6f47b4bdddb1"
     },
     {
       "path": ".lervo/knowledge/concepts/53/concept_53593c75470da59e0205f4e7.yaml",
