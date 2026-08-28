@@ -223,6 +223,11 @@ describe("attachMorph", () => {
     expect(nestedRule).toContain("height: 20px");
     expect(nestedRule).toContain("width: 360px");
     expect(nestedRule).toContain("height: 32px");
+    // Each declaration on its own clean line. An escaped newline once rode
+    // into this rule as a literal backslash-n, which silently voided the
+    // height declaration: width animated alone and the pop shrank as a
+    // squashed rectangle. Substring assertions above cannot catch that.
+    expect(nestedRule).not.toContain("\\");
   });
 
   it("adds no translate to a nested pair whose two ends already agree", async () => {

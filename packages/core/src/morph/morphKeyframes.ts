@@ -179,11 +179,10 @@ export const buildMorphKeyframes = (input: {
     pushSize(`    aspect-ratio: ${aspectRatio.from};`, `    aspect-ratio: ${aspectRatio.to};`);
   if (padding) pushSize(`    padding: ${padding.from};`, `    padding: ${padding.to};`);
   if (margin) pushSize(`    margin: ${margin.from};`, `    margin: ${margin.to};`);
-  if (size)
-    pushSize(
-      `    width: ${px(size.from.width)};\n    height: ${px(size.from.height)};`,
-      `    width: ${px(size.to.width)};\n    height: ${px(size.to.height)};`
-    );
+  if (size) {
+    pushSize(`    width: ${px(size.from.width)};`, `    width: ${px(size.to.width)};`);
+    pushSize(`    height: ${px(size.from.height)};`, `    height: ${px(size.to.height)};`);
+  }
   if (fromParts.length > 0) {
     rules.push(
       `@keyframes ${geometryName} {\n  from {\n${fromParts.join("\n")}\n  }\n  to {\n${toParts.join("\n")}\n  }\n}`
