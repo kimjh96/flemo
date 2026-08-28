@@ -4,84 +4,64 @@ import { createTransition } from "@flemo/react";
 
 import "./aperture.types";
 
-// Written for the container transform, and mostly it gets out of the way.
+// The screen transition the container-transform case runs on, and it is the
+// deleted playground's `sheet` brought forward: the pairing the user judged
+// good there was exactly zoom-plus-sheet.
 //
-// The camera will not take just any partner:
+// THE ARRIVAL IS OPAQUE and settles a little scale instead of fading. The
+// sheet's own note records why a fade was wrong ("the list's tiles read
+// straight through the detail's text"), and this page re-learned it twice
+// more: a front-loaded fade covers the grid the camera is still pushing out,
+// and holding the screen clear instead renders nothing at all, because a
+// morph staged in the flight layer is still subject to its screen. Neither is
+// tried again.
 //
-//   zoom.ts
-//     "PAIR IT WITH A STILL SCREEN TRANSITION. The camera supersedes that
-//      screen's own transform for the flight (see `carry`), so `none` or an
-//      opacity-only transition composes; a slide is replaced rather than
-//      combined."
+// THE COVERED SCREEN pushes out and blurs, the way a lens racks focus past
+// it. From the GRID the camera supersedes this screen's transform (that is
+// what `carry` means), so what survives there is the blur riding the camera's
+// own push, which is the reference combination. From the LIST there is no
+// camera, and the recede-and-blur is the whole background story: the artwork
+// opens over a list that falls away, instead of over a white sheet.
 //
-// So it animates NO transform on either side. Every other authored entry on
-// this bench moves a screen, and every one of those would have its move thrown
-// away by the camera rather than added to it.
-//
-// IT DOES NOT FADE THE ARRIVAL AT ALL, and getting here took two wrong turns
-// that are recorded so they are not taken again.
-//
-// A front-loaded fade was the first. It covered the grid in about 50ms, so the
-// camera pushed a screen nobody could see any more and the stage read as going
-// black around a small card. That is the whole case defeated by its own
-// partner.
-//
-// Holding the screen at zero for the flight was the second, on the reasoning
-// that the card is a morph staged in the FLIGHT LAYER and therefore drawn
-// regardless. It is not: measured, the card sits in the layer at opacity 1 and
-// paints nothing while its screen is transparent, so the layer is subject to
-// its screen.
-//
-// What works is neither. The screen does not fade, and it does not paint: the
-// detail hands its background to the CARD when a card is carrying it, so this
-// screen contributes nothing of its own and the grid stays visible around a
-// card that is opaque from its first frame.
-//
-// THE DURATION IS WHY THIS IS A TRANSITION AT ALL rather than `none`. A morph
-// writes no duration of its own:
-//
-//   shared.ts
-//     "a morph is not a transition of its own, it happens INSIDE one, so the
-//      runtime falls back to the length of whichever screen transition is
-//      flying"
-//
-// `zoom` authors none either, so the camera, the card and the type inside it
-// all run for exactly as long as this does. `none` would give them zero.
-// `layout`'s 0.4s is sized for one element crossing a still screen; a camera
-// pushing a whole screen past the edges is a much larger move over the same
-// distance in time. 0.5s is the top of Material's own container-transform band.
-//
-// NO SWIPE, deliberately. A swipe drags a screen directly, and during this
-// flight the screen is not the consumer's to drag: the camera owns its
-// transform.
+// The DURATION is why this exists rather than reusing `layout`: a morph
+// authors no duration, so the camera, the card and the type inside it all run
+// for exactly this long, and 0.5s is the top of Material's container-transform
+// band.
 const DURATION = 0.5;
+const EASE: [number, number, number, number] = [0.4, 0, 0.2, 1];
 
 const aperture = createTransition({
   name: "aperture",
-  initial: { opacity: 1 },
+  initial: { opacity: 1, scale: 1.03 },
   idle: {
-    value: { opacity: 1 },
+    value: { scale: 1, filter: "blur(0px)" },
     options: { duration: 0 }
   },
-  // Nothing changes. The duration is here so the morph, the camera and the part
-  // inside the card all resolve to it.
   enter: {
-    value: { opacity: 1 },
-    options: { duration: DURATION }
+    value: { scale: 1 },
+    options: { duration: DURATION, ease: EASE }
   },
+  // THE POP LEAVES EARLY. Held opaque, the dismissing page covers the list
+  // for the whole flight and then blinks away at the unmount, so the return
+  // read as a held white sheet with a swap at the end. The page instead drops
+  // out on a hard front-loaded curve: mostly gone within the first tenth of
+  // the flight, which uncovers the list while the artwork still has the whole
+  // glide home ahead of it. The scale keeps the sheet's outward gesture and,
+  // running the full duration, is also the clock the flight lands on.
   enterBack: {
-    value: { opacity: 1 },
-    options: { duration: DURATION }
+    value: { scale: 1.03, opacity: 0 },
+    options: { duration: DURATION, ease: [0.1, 1, 0.2, 1] }
   },
-  // The covered screen holds. It is the one carrying the camera, and touching
-  // its opacity would fade the very thing the zoom is pushing past the edges.
+  // The background follows the MORPH'S direction: the element is opening out
+  // to fill the screen, so what is behind it pushes out too. Scaling it down
+  // instead reads as the background retreating, the opposite gesture.
   exit: {
-    value: { opacity: 1 },
-    options: { duration: DURATION }
+    value: { scale: 1.08, filter: "blur(10px)" },
+    options: { duration: DURATION, ease: EASE }
   },
   exitBack: {
-    value: { opacity: 1 },
-    options: { duration: DURATION }
+    value: { scale: 1, filter: "blur(0px)" },
+    options: { duration: DURATION, ease: EASE }
   }
 });
 
