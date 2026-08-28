@@ -728,16 +728,34 @@ const startFlight = (
       return;
     }
 
+    // The from-pose correction rides left/top on a RELATIVE element, not a
+    // transform. WebKit splits a mixed keyframe across its two pipelines —
+    // a translate3d beside width and font-size puts this element's position
+    // on the compositor's clock and its size and typesetting on the main
+    // thread's, which is the Safari-only micro-tremble of the pair against
+    // itself. Relative offsets are layout, so every channel of this
+    // animation resolves on the same tick, and a relative offset moves no
+    // sibling. An element the author already positioned keeps the transform
+    // path: its own left/top are load-bearing.
+    const nestedStatic = (() => {
+      try {
+        return getComputedStyle(entry.element).position === "static";
+      } catch {
+        return false;
+      }
+    })();
+    const slides = travels && nestedStatic;
     const growing = buildMorphKeyframes({
       id: `${id}n`,
       travel: {
-        from: travels ? { ...IDENTITY_POSE, x: dx, y: dy } : IDENTITY_POSE,
+        from: travels && !slides ? { ...IDENTITY_POSE, x: dx, y: dy } : IDENTITY_POSE,
         authoredFrom: IDENTITY_POSE,
         authoredTo: IDENTITY_POSE,
         duration: flightDuration,
         start,
         ease
       },
+      slide: slides ? { from: { x: dx, y: dy }, to: { x: 0, y: 0 } } : null,
       fontSize: type.fontSize,
       fontWeight: type.fontWeight,
       letterSpacing: type.letterSpacing,
@@ -770,6 +788,8 @@ const startFlight = (
     });
     const disposeNested = insertMorphRules(growing.rules);
     const inlineNested = entry.element.getAttribute("style");
+    // After the snapshot, so the landing's restore clears it with the rest.
+    if (slides) entry.element.style.position = "relative";
     entry.element.style.animation = growing.animation;
     entry.element.setAttribute(MORPH_ATTR, MORPH_ROLE.ENTER);
 

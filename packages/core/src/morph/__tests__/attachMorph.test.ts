@@ -205,14 +205,21 @@ describe("attachMorph", () => {
 
     expect(bigCard.parentElement).toBe(layer);
     expect(heading.parentElement).toBe(bigCard);
-    // It rides its container's box: not staged, never absolutely positioned.
+    // It rides its container's box: not staged, and its from-pose is a
+    // RELATIVE left/top slide rather than a transform. WebKit splits a mixed
+    // keyframe across its pipelines — translate3d beside width and font-size
+    // put the position on the compositor's clock and everything else on the
+    // main thread's, a Safari-only micro-tremble of the pair against itself.
+    // Relative offsets are layout, so every channel shares one clock; the
+    // offsets decay from the measured from-delta between the label's box
+    // (28, 730) and the heading's (16, 260) to rest.
     const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
-    expect(nestedRule).not.toContain("left:");
-    expect(nestedRule).not.toContain("top:");
-    // And it BEGINS where the pair measured it — the from-delta between the
-    // label's box (28, 730) and the heading's (16, 260) — decaying to rest.
-    expect(nestedRule).toContain("translate3d(12px, 470px, 0)");
-    expect(nestedRule).toMatch(/to \{[^}]*transform: none/);
+    expect(heading.style.position).toBe("relative");
+    expect(nestedRule).toContain("left: 12px");
+    expect(nestedRule).toContain("top: 470px");
+    expect(nestedRule).toContain("left: 0px");
+    expect(nestedRule).toContain("top: 0px");
+    expect(nestedRule).not.toContain("translate3d");
     // SIZE is the other half of the same correction. Riding sizes the child
     // through the container's width interpolation, and a container that is
     // already at destination width lays the child out full-size on frame one:
