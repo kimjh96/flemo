@@ -51,11 +51,13 @@ const zoom = createMorphTransition({
   options: {
     crossFade: 0.55,
     radius: true,
-    carry: "screen",
-    // The camera is a compositor transform and cannot be anything else, so
-    // the card must ride the compositor with it — one clock — or WebKit
-    // renders the two trembling against each other (see `mode` in typing.ts).
-    mode: "transform"
+    carry: "screen"
+    // NOT mode: "transform", and it was tried. One compositor clock does end
+    // WebKit's trembling — but a transform flight cannot re-typeset: the
+    // paired title scales as a bitmap, and on-device judgment rejected that
+    // trade outright ("제목 텍스트 모핑 뭉개지고"). Box mode's re-layout is
+    // the look this preset is FOR; the one-clock carriage remains available
+    // to consumers who want the other side of the trade (see `mode`).
   }
 });
 

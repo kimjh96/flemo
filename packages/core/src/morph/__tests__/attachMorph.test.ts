@@ -857,6 +857,68 @@ describe("attachMorph", () => {
     expect(ghostRule).not.toContain("top:");
   });
 
+  it("stages a transform-mode flight in a travelling window, and lands it clean", async () => {
+    // The one-clock carriage (mode: "transform"): a runtime window at the
+    // destination rect travels by sampled transform stops while the element
+    // inside counter-scales, and a nested pair rides as a transform in the
+    // window's resting coordinates. No built-in preset defaults to it — the
+    // on-device verdict kept re-typesetting — but the option is public.
+    morphTransitionMap.set("windowed" as never, {
+      ...morphTransitionMap.get("zoom")!,
+      mode: "transform"
+    });
+    try {
+      const gallery = makeScreen("none", true);
+      const row = makeMorph(gallery, [8, 498, 330, 68]);
+      const label = makeMorph(row, [20, 510, 100, 20]);
+      attachMorph(row, { layoutId: "win-1", name: "windowed" as never, navigateStore: store });
+      attachMorph(label, { layoutId: "win-t", name: "windowed" as never, navigateStore: store });
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("none", true);
+      const page = makeMorph(detail, [0, 0, 346, 723]);
+      const heading = makeMorph(page, [16, 400, 200, 32]);
+      attachMorph(page, { layoutId: "win-1", name: "windowed" as never, navigateStore: store });
+      attachMorph(heading, { layoutId: "win-t", name: "windowed" as never, navigateStore: store });
+      await Promise.resolve();
+
+      // The window: destination box, clipping, marked as runtime furniture so
+      // the hold governs it, carrying the sampled travel.
+      const window_ = layer.querySelector<HTMLElement>("[data-flemo-morph-window]")!;
+      expect(window_).not.toBeNull();
+      expect(window_.style.width).toBe("346px");
+      expect(window_.style.overflow).toBe("hidden");
+      expect(page.parentElement).toBe(window_);
+      // The element counter-scales at destination geometry, its own overflow
+      // lifted — the window is the clip.
+      expect(page.style.width).toBe("346px");
+      expect(page.style.overflow).toBe("visible");
+      const travel = inserted.find((rule) => /w-travel/.test(rule))!;
+      const counter = inserted.find((rule) => /c-counter/.test(rule))!;
+      // Sampled stops with linear segments, not two eased keyframes: the
+      // reciprocal of an eased lerp is not an eased lerp, and only matching
+      // stops keep the two scales multiplying to one.
+      expect(travel).toContain("4%");
+      expect(counter).toContain("4%");
+      expect(window_.style.animation).toContain("linear");
+      // The nested pair rides as a transform in resting coordinates.
+      const ride = inserted.find((rule) => /\dn-travel/.test(rule))!;
+      expect(ride).toContain("translate3d");
+      expect(ride).toContain("scale(");
+      expect(ride).not.toContain("font-size");
+
+      // Landing removes the window and returns the element unmarked.
+      page.dispatchEvent(
+        animationEndEvent(/flemo-morph-\d+c-counter/.exec(page.style.animation)![0])
+      );
+      expect(layer.querySelector("[data-flemo-morph-window]")).toBeNull();
+      expect(page.parentElement).toBe(detail);
+    } finally {
+      morphTransitionMap.delete("windowed" as never);
+    }
+  });
+
   it("carries its screen as a CAMERA when the transition asks for one", () => {
     // The container transform. A grid cell opening into a full-screen view is
     // not one card leaving a grid that stayed behind — the camera moved to the
@@ -943,10 +1005,7 @@ describe("attachMorph", () => {
     const hero = makeMorph(detail, [0, 0, 400, 300]);
     attachMorph(hero, { layoutId: "photo-1", name: "zoom", navigateStore: store });
 
-    // Transform mode: the element rides the counter-scale; its end is the clock.
-    hero.dispatchEvent(
-      animationEndEvent(/flemo-morph-\d+c-counter/.exec(hero.style.animation)![0])
-    );
+    hero.dispatchEvent(animationEndEvent(/flemo-morph-\d+i-travel/.exec(hero.style.animation)![0]));
     expect(gallery.hasAttribute("data-flemo-morph-camera")).toBe(true);
 
     flipTo("COMPLETED");
@@ -1709,7 +1768,7 @@ describe("attachMorph", () => {
       const cameraRule = inserted.find((rule) => rule.includes("-camera {"))!;
       expect(cameraRule).toContain(expected);
       hero.dispatchEvent(
-        animationEndEvent(/flemo-morph-\d+c-counter/.exec(hero.style.animation)![0])
+        animationEndEvent(/flemo-morph-\d+i-travel/.exec(hero.style.animation)![0])
       );
       flipTo("COMPLETED");
       document.body.querySelectorAll(`[${SCREEN_ATTR}]`).forEach((node) => node.remove());
