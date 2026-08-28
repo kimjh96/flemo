@@ -55,7 +55,9 @@ export const CASES: BenchCase[] = [
   { id: "zoom", transition: "aperture", morph: "shared", cardMorph: "zoom" }
 ];
 
-export const DEFAULT_BENCH: BenchCase = CASES[0];
+// The container transform opens the bench: it is the case this stage was
+// rebuilt around, and the one that shows the most of the library at a glance.
+export const DEFAULT_BENCH: BenchCase = CASES.find((entry) => entry.id === "zoom")!;
 
 const BenchContext = createContext<BenchCase>(DEFAULT_BENCH);
 

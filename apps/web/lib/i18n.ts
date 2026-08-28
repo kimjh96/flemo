@@ -75,7 +75,7 @@ export const dict = {
         "A small ticket app running the real library. Open an act from the list or from the poster grid, come back, and switch what carries the push while you do.",
       bench: {
         label: "what carries the push",
-        note: "The artwork is one element on both screens, so it travels rather than being redrawn, and it is a square at both ends so the travel is a move rather than a reshape. The tab bar holds across the three tabs and rides away on the push, because whether a bar holds is decided by the pair of screens rather than by either one. Buying reaches past the top of the stack in a single transition. No screen here is told which transition you picked. The last option is a container transform, and the poster grid is where it belongs: the artwork opens into the page and takes the grid with it, so the camera moves to the card rather than the card escaping its neighbours."
+        note: "Same screens, same shared artwork. Only the transition changes."
       },
       app: {
         title: "Tonight",
@@ -177,7 +177,7 @@ export const dict = {
         "실제 라이브러리로 도는 작은 티켓 앱이에요. 목록이나 포스터 그리드에서 공연을 열고 다시 돌아와 보세요. 그동안 push를 나르는 전환을 바꿔 볼 수 있습니다.",
       bench: {
         label: "push를 나르는 것",
-        note: "이미지는 두 화면에서 같은 요소라 다시 그려지지 않고 건너갑니다. 양쪽 다 정사각형이라 모양이 바뀌는 게 아니라 자리를 옮기는 움직임이 됩니다. 탭바는 세 탭 사이에선 멈춰 있다가 상세로 밀 때는 함께 빠지는데, 바가 멈출지 따라갈지는 어느 한 화면이 아니라 두 화면의 조합이 정합니다. 예매 버튼은 한 번의 전환으로 스택 꼭대기 너머까지 갑니다. 여기 어떤 화면도 당신이 고른 전환이 뭔지 모릅니다. 마지막 항목은 컨테이너 트랜스폼이고, 포스터 그리드가 그 자리입니다. 이미지가 페이지로 열리면서 그리드까지 함께 데려가기 때문에, 카드가 이웃들 사이에서 빠져나오는 게 아니라 카메라가 카드로 옮겨간 것처럼 보입니다."
+        note: "화면도 공유 이미지도 그대로. 전환만 바뀝니다."
       },
       app: {
         title: "투나잇",
