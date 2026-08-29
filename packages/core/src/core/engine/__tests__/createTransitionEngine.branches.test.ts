@@ -1523,8 +1523,13 @@ describe("perceptual cut with participating parts", () => {
         name: "scaling-part" as never,
         initial: { scale: 0.8 },
         idle: { value: { scale: 1 }, options: { duration: 0 } },
-        enter: { value: { scale: 1 }, options: { duration: 0.3 } },
-        exit: { value: { scale: 0.8 }, options: { duration: 0.3 } }
+        // The scale has to live on `enter`, which is the variant mountPart
+        // exercises (PUSHING-false, animating from `idle`). It used to sit on
+        // `initial`, which only the -true side ever reads, so the part under
+        // test held a constant 1 and the veto it is named for was coming from
+        // a variant that carried a duration and no motion.
+        enter: { value: { scale: 0.8 }, options: { duration: 0.3 } },
+        exit: { value: { scale: 1 }, options: { duration: 0.3 } }
       })
     );
     try {

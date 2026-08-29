@@ -285,6 +285,20 @@ export const targetToDecls = (
 const declsToBlock = (decls: CssDecl[]): string =>
   decls.map((d) => `  ${d.property}: ${d.value};`).join("\n");
 
+// Whether two endpoint declaration lists actually interpolate: some property
+// sits on one side only, or sits on both with different values. A property
+// holding the SAME value on both ends never moves — the element's own rule
+// carries it instead (see constantProperties in compileVariantBlock) — so a
+// pair of endpoints that agree on everything is a rest state wearing a clock.
+const declsInterpolate = (fromDecls: CssDecl[], toDecls: CssDecl[]): boolean => {
+  const from = new Map(fromDecls.map((decl) => [decl.property, decl.value]));
+  const to = new Map(toDecls.map((decl) => [decl.property, decl.value]));
+  for (const property of new Set([...from.keys(), ...to.keys()])) {
+    if (from.get(property) !== to.get(property)) return true;
+  }
+  return false;
+};
+
 export const easingToCss = (ease: AnimationOptions["ease"] | undefined): string => {
   if (Array.isArray(ease)) {
     if (ease.length === 4 && ease.every((n) => typeof n === "number")) {
@@ -520,8 +534,27 @@ const compileVariantBlock = (
     return "";
   }
 
-  // No duration: snap directly to the target (no keyframe, no animationend).
-  if (duration <= 0 && delay <= 0) {
+  // NOTHING INTERPOLATES, whatever the clock says. `fromDecls` / `toDecls` are
+  // the authored endpoints minus every property that holds the same value on
+  // both (constantProperties above), so both being empty means the two ends
+  // agree on all of them: there is no motion to compile at any duration.
+  //
+  // The check used to be the duration alone, which was enough while every such
+  // variant was also authored at zero — a decorator's `idle` sits at
+  // PUSHING-true with `initial` as its `from` and the same values as its `to`,
+  // and its author wrote `duration: 0` there because there was nothing to run.
+  // Once a clock can be INHERITED rather than authored (see
+  // resolveDecoratorClock) that coincidence breaks: the screen's 0.7s arrives
+  // on a variant whose endpoints are identical, and the compiler would emit
+  // `@keyframes { from {} to {} }` plus a 0.7s rule to play it. An empty
+  // animation still fires `animationend`, so variantHasAnimation would report
+  // the element as a participant and the engine would wait out a flight for a
+  // thing that never moves.
+  const interpolates = declsInterpolate(authoredFromDecls, authoredToDecls);
+
+  // No duration, or no motion: snap directly to the target (no keyframe, no
+  // animationend).
+  if (!interpolates || (duration <= 0 && delay <= 0)) {
     if (authoredToDecls.length === 0) return "";
     const snap = `${selector} {\n${declsToBlock(authoredToDecls)}\n  animation: none;\n}`;
     if (!needsRideCopy) return snap;
@@ -1052,10 +1085,10 @@ export const variantHasAnimation = (
   const fromValue =
     fromKey === "initial" ? transitionLike.initial : transitionLike.variants[fromKey].value;
 
-  const fromDecls = targetToDecls(fromValue);
-  const toDecls = targetToDecls(variantValue.value);
-
-  return fromDecls.length > 0 || toDecls.length > 0;
+  // The same test the compiler applies: a variant whose endpoints agree on
+  // every property emits a rest rule, not an animation, so nothing on it will
+  // ever fire `animationend` and it must not be counted as a participant.
+  return declsInterpolate(targetToDecls(fromValue), targetToDecls(variantValue.value));
 };
 
 // Engine-shared head lengths (ms) for the DESKTOP flat-head keyframes above —

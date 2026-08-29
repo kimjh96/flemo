@@ -36,6 +36,7 @@ declare module "@transition/decorator/typing" {
   interface RegisterDecorator {
     "rich-deco": "rich-deco";
     "held-deco": "held-deco";
+    "moving-deco": "moving-deco";
     "authored-deco": "authored-deco";
   }
 }
@@ -1003,6 +1004,30 @@ describe("variantHasAnimation", () => {
     expect(variantHasAnimation(none, "PUSHING-true")).toBe(false);
     expect(variantHasAnimation(none, "POPPING-false")).toBe(false);
   });
+
+  it("returns false for layout's covered screen, which holds still by design", () => {
+    // `layout` moves ONE screen at a time: the arriving screen fades in OVER a
+    // stationary one, so its whole passive side is authored at `opacity: 1`
+    // both ends. It still carries the 0.4s the rest of the preset runs on,
+    // which used to be read as motion — the compiler emitted an empty
+    // `@keyframes` with a full set of governed and desktop head copies, and
+    // the engine counted the screen underneath as a participant it had to wait
+    // out on every push, replace and pop.
+    expect(variantHasAnimation(layout, "PUSHING-false")).toBe(false);
+    expect(variantHasAnimation(layout, "REPLACING-false")).toBe(false);
+    expect(variantHasAnimation(layout, "POPPING-false")).toBe(false);
+    // The sides that DO move are untouched.
+    expect(variantHasAnimation(layout, "PUSHING-true")).toBe(true);
+    expect(variantHasAnimation(layout, "POPPING-true")).toBe(true);
+  });
+
+  it("emits no keyframes for those variants either", () => {
+    const css = compileTransitionStyles([layout], []);
+    for (const variant of ["PUSHING-false", "REPLACING-false", "POPPING-false"] as const) {
+      expect(css).not.toContain(`@keyframes ${animationName("screen", "layout", variant)}`);
+    }
+    expect(css).toContain(`@keyframes ${animationName("screen", "layout", "PUSHING-true")}`);
+  });
 });
 
 declare module "@transition/partTransition/typing" {
@@ -1257,8 +1282,11 @@ describe("easingToCss", () => {
         name: "constant-part",
         initial: { opacity: 0, filter: "blur(2px)" },
         idle: { value: { opacity: 1, filter: "blur(2px)" }, options: { duration: 0 } },
-        enter: { value: { opacity: 1, filter: "blur(2px)" }, options: { duration: 0.3 } },
-        exit: { value: { opacity: 0, filter: "blur(2px)" }, options: { duration: 0.3 } }
+        // `opacity` has to differ on the variant under test (PUSHING-false,
+        // which animates from `idle`), or there is no interpolating channel
+        // for the constant `filter` to be separated from.
+        enter: { value: { opacity: 0, filter: "blur(2px)" }, options: { duration: 0.3 } },
+        exit: { value: { opacity: 1, filter: "blur(2px)" }, options: { duration: 0.3 } }
       });
       const css = compileTransitionStyles([shadowed], [], [part]);
 
@@ -1357,10 +1385,20 @@ describe("easingToCss", () => {
       }
     });
 
-    it("still emits the animation when EVERY channel is constant", () => {
-      // Nothing interpolates here, but the flight resolves on `animationend`:
-      // dropping the animation with the constants would strand every such
-      // variant until the recovery watchdog replayed it.
+    it("emits a rest rule, not an animation, when EVERY channel is constant", () => {
+      // Nothing interpolates here, so there is no motion to compile at any
+      // duration and the variant becomes a rest rule holding the constants.
+      //
+      // The rule this test used to pin was the opposite one: emit the
+      // animation anyway, because "the flight resolves on `animationend`" and
+      // dropping it would strand the variant until the recovery watchdog
+      // replayed it. That reasoning only held while the compiler was the ONE
+      // side being changed. `variantHasAnimation` is the single gate every
+      // participant decision routes through (the engine's own `hasAnimation`,
+      // the passive motion, parts, the decorator, participantLayers), and it
+      // now applies the same test — so a variant the compiler declines to
+      // animate is never counted as a participant, and there is nothing left
+      // to strand. The two sides must be changed together or not at all.
       const stillDeco = createDecorator({
         name: "held-deco",
         initial: { opacity: 0.5, backdropFilter: "saturate(1.4)" },
@@ -1383,11 +1421,40 @@ describe("easingToCss", () => {
         '[data-flemo-decorator-name="held-deco"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
       );
 
-      expect(rule).toContain(
-        `animation: ${animationName("decorator", "held-deco", "PUSHING-false")} 0.4s`
-      );
+      expect(rule).toContain("animation: none");
+      expect(rule).not.toContain(animationName("decorator", "held-deco", "PUSHING-false"));
+      // The rendered result is unchanged: the rule still holds both channels
+      // for exactly the window the variant selector matches.
       expect(rule).toContain("backdrop-filter: saturate(1.4)");
       expect(rule).toContain("opacity: 0.5");
+      // ...and the engine agrees, so nothing waits for an animationend that
+      // this variant will never fire.
+      expect(variantHasAnimation(stillDeco, "PUSHING-false")).toBe(false);
+    });
+
+    it("keeps a variant whose endpoints differ on a single channel", () => {
+      // The guard against over-reading the rule above: one channel moving is
+      // enough, however many others are pinned.
+      const movingDeco = createDecorator({
+        name: "moving-deco",
+        initial: { opacity: 0, backdropFilter: "saturate(1.4)" },
+        idle: { value: { opacity: 0, backdropFilter: "saturate(1.4)" }, options: { duration: 0 } },
+        enter: {
+          value: { opacity: 0.5, backdropFilter: "saturate(1.4)" },
+          options: { duration: 0.4 }
+        },
+        exit: { value: { opacity: 0, backdropFilter: "saturate(1.4)" }, options: { duration: 0.4 } }
+      });
+      const css = compileTransitionStyles([], [movingDeco]);
+      const rule = ruleBlockOf(
+        css,
+        '[data-flemo-decorator-name="moving-deco"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
+      );
+
+      expect(rule).toContain(
+        `animation: ${animationName("decorator", "moving-deco", "PUSHING-false")} 0.4s`
+      );
+      expect(variantHasAnimation(movingDeco, "PUSHING-false")).toBe(true);
     });
   });
 });

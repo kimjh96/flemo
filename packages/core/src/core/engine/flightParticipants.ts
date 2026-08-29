@@ -155,9 +155,10 @@ export const statusChoreographySpanMs = (
   let spanMs = 0;
   for (const variant of [`${status}-true`, `${status}-false`] as TransitionVariant[]) {
     if (!variantHasAnimation(transition, variant)) continue;
-    // variantHasAnimation and resolveVariantMotion share one gate (a non-rest
-    // variant with duration or delay > 0 — see variantMotion.ts), so past the
-    // check the motion always resolves.
+    // variantHasAnimation SUBSUMES resolveVariantMotion's gate: both require a
+    // non-rest variant with duration or delay > 0 (variantMotion.ts), and
+    // variantHasAnimation additionally requires that something interpolates.
+    // So past the check the motion always resolves.
     const motion = resolveVariantMotion(transition, variant)!;
     spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
   }
