@@ -1,0 +1,31 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_77ab9d37862c3c7c83110512
+compiler:
+  compilerBuildId: sha256:d04ee6378c95d03e201ff9632b566a934f01bfc343f96544f450d5fd5e2a3d3d
+  compilerId: lervo.claude.document-normalizer
+  compilerVersion: 1+2.1.224 (Claude Code)
+  isolation: external_no_capabilities
+  provider: claude
+formatVersion: lervo.document.v1
+operationId: knormop_6fe64a6bbedeaf5db0141598
+outputLanguage: en
+outputs:
+  - byteCount: 6378
+    contentHash: sha256:54788e1ce145d2426e5f34db6feb5e8e41d0d958d4c145b73a335343483480a9
+    path: docs/instructions/motion-jank-postmortem/glass-campaign-2026-08-18.md
+    userRegionHash: sha256:54788e1ce145d2426e5f34db6feb5e8e41d0d958d4c145b73a335343483480a9
+profile: instruction_document
+recordId: knormdoc_766ec18f250d4134f917d3ac
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:06b32157709dafd8d371c5732cd1b7a4e8d69f8c049717a25deb09cd21acfa5e
+sourcePath: docs/instructions/motion-jank-postmortem/glass-campaign-2026-08-18.md
+sourceUnitVersionIds:
+  - uv_634896b2f4cc37a7e46f691d
+  - uv_7021763cc92181617cfa41fa
+  - uv_81a3d9a32163b96886b3ff95
+  - uv_ada4b579809fbbe786edbe26
+  - uv_de4684fead7ead736743f338
+  - uv_fbbd9f99346ef0367d75e26d

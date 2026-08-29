@@ -26,19 +26,11 @@ node_modules
 .vscode
 .cursor
 
-# Agent-facing engine documentation (architecture notes, the diagnostics flag
-# reference, the device-campaign postmortems). Local per-checkout: it churns on
-# every motion round and the churn dominated review. Source comments still cite
-# these paths — they are the maintainer's working notes, and the code comments
-# they cite remain the primary source.
-#
-# ROOT-ANCHORED, and it must stay that way. An unanchored `docs/` matches a
-# directory of that name at ANY depth, which swallowed the docs SITE
-# (apps/web/app/[lang]/docs) — and because Tailwind's source scanner honors
-# .gitignore, its classes stopped being generated: the sidebar's `md:block`
-# vanished from the bundle and the aside stayed `display: none`, failing the
-# docs e2e specs with a build that compiled cleanly.
-/docs/
+# Lervo's generated knowledge publications. The concepts they are rendered from
+# are tracked under .lervo/knowledge; these are the human-readable projection and
+# are rewritten by every refresh. Tracking them also puts them under the staged-file
+# prettier hook, which reformats them and breaks the byte binding lint checks.
+/docs/knowledge/
 
 # OS
 .DS_Store
