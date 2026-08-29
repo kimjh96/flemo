@@ -16,10 +16,6 @@ flemo is a router whose unit of routing is a **screen**, not a page. Push, pop, 
 animations and gestures between them belong to the router, so an app does not have to wire a
 routing library and an animation library together and then keep their timing in agreement.
 
-Transitions compile to CSS `@keyframes` and run on the compositor. Shared-element morphs,
-swipe back, and the screen lifecycle are parts of that one engine rather than separate
-integrations.
-
 ## Install
 
 ```bash

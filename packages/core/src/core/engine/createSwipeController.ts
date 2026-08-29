@@ -812,7 +812,15 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // Sub-slop release = a tap, not a swipe: clamp the handler's settle
     // durations to zero so the restore is instantaneous and no settle
     // animation exists to fight a navigation the same tap triggered.
-    const tapLike = forceCancel || swipeMaxDragPx < SWIPE_TAP_SLOP_PX;
+    //
+    // A FORCED CANCEL IS NOT A TAP, and it used to be treated as one. That is
+    // how a gesture that had already carried a screen a third of the way
+    // across teleported it back to rest in a single frame: measured off a
+    // screen recording at 60fps, 176px to rest between two consecutive frames,
+    // with no pop. `abandon` states the intended rule in so many words — "a
+    // recovery that teleported the screen would trade one visible defect for
+    // another" — and the code disagreed with it. Only the slop rule stands.
+    const tapLike = swipeMaxDragPx < SWIPE_TAP_SLOP_PX;
 
     // `pointercancel` means the browser/OS took ownership (usually a native
     // scroll). It can arrive with a noisy offset and velocity; feeding those
@@ -826,6 +834,15 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
           velocity: { x: 0, y: 0 }
         }
       : buildSwipeInfo(event);
+
+    // ...but the SETTLE still has to know how far there is to walk back. The
+    // neutral sample exists so the HANDLER cannot read a cancel as a commit;
+    // handing it to the release clock as well says the screen has nowhere to
+    // travel, and `swipeSettleSeconds` answers a zero distance with zero
+    // seconds, which is the teleport again by a second route. So the offset it
+    // scales by is the real one, while the velocity stays neutral: a cancel
+    // borrows no momentum from a gesture the browser took away.
+    const settleOffset = forceCancel ? buildSwipeInfo(event).offset : swipeInfo.offset;
 
     // THE RELEASE CLOCK, for every transition — the shipped presets, and every
     // one a consumer will ever write.
@@ -850,7 +867,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const span =
       (axis === "y" ? box?.height : box?.width) ||
       (typeof window === "undefined" ? 0 : axis === "y" ? window.innerHeight : window.innerWidth);
-    const offsetOnAxis = axis === "y" ? swipeInfo.offset.y : swipeInfo.offset.x;
+    const offsetOnAxis = axis === "y" ? settleOffset.y : settleOffset.x;
     const velocityOnAxis = axis === "y" ? swipeInfo.velocity.y : swipeInfo.velocity.x;
     const travelled = Math.abs(offsetOnAxis);
     const speed = Math.abs(velocityOnAxis);
