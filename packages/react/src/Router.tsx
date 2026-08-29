@@ -441,7 +441,16 @@ function Router({
       <RouterDepthContext.Provider value={depth + 1}>
         <RouterScopeContext.Provider value={scope}>
           <StoreContext.Provider value={stores}>
-            {!useMemory && <HistoryListener />}
+            {/* EVERY Router mounts the sync, memory included. It is what turns a
+                `driver.back()` into the store pop, and the swipe controller
+                commits with exactly that call — synchronously, because the
+                landing flight has to pick the screens up where the gesture left
+                them. Route a memory commit through the navigation queue instead
+                and it lands a third of a second later, after the settle has
+                already put everything back, and the whole transition replays.
+                The sync is driver-agnostic; `FlemoStores.memory` keeps this
+                scope out of the two places it reads the BROWSER's live entry. */}
+            <HistoryListener />
             {isNested ? (
               <ScreenViewportContext.Provider value={CONTAINED_VIEWPORT}>
                 {stack}

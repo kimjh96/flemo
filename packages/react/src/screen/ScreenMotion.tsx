@@ -18,7 +18,6 @@ import {
   beginMorphSwipe,
   computeBarRiding,
   computeScreenFreeze,
-  commitScopeBack,
   eagerlyDecodeImages,
   isOpaqueColor,
   createSwipeController,
@@ -38,8 +37,6 @@ import {
   type AnimHoldCoordinator,
   type MorphSwipe
 } from "@flemo/core";
-
-import useNavigate from "@navigate/useNavigate";
 
 import {
   LayerHostContext,
@@ -340,15 +337,6 @@ function ScreenMotion({
     index
   };
 
-  // The Router's own pop, for the gesture to commit with when the driver has no
-  // listener to commit through (see commitScopeBack). Held in a ref because the
-  // swipe config is built once and `useNavigate` returns a fresh object each
-  // render; `pop` targets the nearest Router, which is the one that owns this
-  // screen.
-  const navigate = useNavigate();
-  const navigateRef = useRef(navigate);
-  navigateRef.current = navigate;
-
   const swipeControllerRef = useRef<ReturnType<typeof createSwipeController> | null>(null);
   // The gesture's own morph flights, alive only between a drag's start and its
   // release.
@@ -393,12 +381,13 @@ function ScreenMotion({
         return partnerId ? stores.screen.getState().sharedBarMetadata[partnerId] : undefined;
       },
       setDragStatus,
-      // The ROUTER's own back, not the browser's. `window.history` under a
-      // memory Router belongs to the page AROUND it, so a swipe-back committed
-      // there used to navigate the whole document away instead of popping the
-      // stack the gesture was dragging. Routing it to the scope also settles
-      // who applies the pop, which differs by backend — see commitScopeBack.
-      back: () => commitScopeBack(stores, () => navigateRef.current.pop()),
+      // The ROUTER's own back, not the browser's — `window.history` under a
+      // memory Router belongs to the page AROUND it, so committing there used
+      // to navigate the whole document away instead of popping the stack the
+      // gesture was dragging. Every scope mounts the history sync, so this one
+      // call is the commit on both backends, and it lands SYNCHRONOUSLY: the
+      // code below depends on the landing flight already existing.
+      back: () => stores.driver.back(),
       // THE SHARED ELEMENT FOLLOWS THE FINGER.
       //
       // A morph cannot be driven from a transition's swipe hooks the way a

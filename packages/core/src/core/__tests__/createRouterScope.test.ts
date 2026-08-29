@@ -58,15 +58,20 @@ describe("createRouterScope", () => {
     expect(first.consume()).toBe(true);
   });
 
-  it("builds a memory scope with a seeded in-memory driver and a no-op guard", () => {
+  it("builds a memory scope with a seeded in-memory driver and a real guard", () => {
     const scope = createRouterScope({ ...baseInput, memory: true, browserDriver: null });
 
     expect(scope.driver.readPathname()).toBe("/posts/42");
     const frame = scope.driver.readState() as { params?: object } | null;
     expect(frame?.params).toEqual({ id: "42" });
+    expect(scope.memory).toBe(true);
 
-    // No-op guard: marking never makes consume report true.
+    // A memory scope mounts the history sync too, so its own traversals have to
+    // be balanced exactly as a browser scope's are — a no-op guard here would
+    // let the navigation queue's `back()` come back around and pop twice.
+    expect(scope.consume()).toBe(false);
     scope.markSelfInduced();
+    expect(scope.consume()).toBe(true);
     expect(scope.consume()).toBe(false);
   });
 
