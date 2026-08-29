@@ -1,5 +1,4 @@
 <!-- lervo:generated repository-knowledge-v1 -->
-
 # Architecture and vision
 
 > Generated navigation over user-owned publications. Linked source bytes remain at their original paths.

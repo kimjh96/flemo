@@ -1,5 +1,4 @@
 <!-- lervo:generated repository-knowledge-v1 -->
-
 # Repository knowledge
 
 > Lervo generated this structural index from bounded, read-only repository sources. It is a draft navigation aid, not a claim that an agent read or used every linked document.
