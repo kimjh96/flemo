@@ -81,8 +81,35 @@ export const beginMorphSwipe = (
   store: NavigateStoreApi,
   status: NavigateStatus = "POPPING"
 ): MorphSwipe => {
+  let released = false;
+
   stageHeldFlights(store, status);
   traceSwipe("swipe-begin", { flights: heldFlights(store).length });
+
+  // THE PARTNER CAN BE ONE FRAME YOUNGER THAN THE GESTURE.
+  //
+  // Staging pairs the element under the finger with its twin on the screen
+  // underneath, and only the ARRIVING side starts a flight — on a back-swipe
+  // that is the covered screen's. But the drag's first move is also what wakes
+  // that screen: the binding flips its drag status, React re-renders it, and
+  // its <Morph> children re-register in the commit that follows. Stage before
+  // that commit and the map holds only the dismissing screen's elements, every
+  // one of them `not-arriving`, and the gesture carries nothing: the shared
+  // element sits still through the whole drag and then makes the trip on its
+  // own once the navigation lands, long after the screens have stopped.
+  //
+  // So an empty first pass is retried on the next FRAME. A microtask is too
+  // early — it runs before React commits, which is the thing being waited for.
+  // A pass that staged anything is left alone; re-running it would be a no-op
+  // (`already-flying`) but the frame of delay is not worth spending.
+  if (heldFlights(store).length === 0) {
+    requestAnimationFrame(() => {
+      if (released || heldFlights(store).length > 0) return;
+      stageHeldFlights(store, status);
+      traceSwipe("swipe-restage", { flights: heldFlights(store).length });
+      holdAt(0);
+    });
+  }
 
   // The container's own clock. Nested flights ride it by construction (same
   // duration, same start), so one flight's timing drives the whole set.
@@ -118,7 +145,6 @@ export const beginMorphSwipe = (
   holdAt(0);
   queueMicrotask(() => holdAt(0));
 
-  let released = false;
   // The last thing the gesture asked for, so a settle can say whether the drag
   // was reaching the scrub at all.
   let lastAsked: number | null = null;
