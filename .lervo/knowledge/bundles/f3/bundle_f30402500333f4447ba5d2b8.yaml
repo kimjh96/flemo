@@ -9,12 +9,20 @@ conceptIds:
   - concept_53593c75470da59e0205f4e7
   - concept_5e766f7effe7e1a9da0daef3
   - concept_d4c7fcdd6f2eb26457cf3007
+  - concept_fbe8a88bcdc6aa6712ff2775
   - concept_666392fba3c494c93f8a2ef2
+  - concept_9a9274cd164d13e4fe284af4
   - concept_f793178e1ace8950afe74716
+  - concept_fb7a275df467971d4a346d88
+  - concept_987a0c8728fba7492cedb52d
+  - concept_923d69a1010bc639a2b8ffeb
+  - concept_6350c41e03bd98c2af6ec5af
+  - concept_43da97d662375b49a5533b06
+  - concept_522a42d2fddfcbc9a932793f
   - concept_497b2547e76004c79bb2ba50
 entryPath: docs/knowledge/index.md
 publicationLanguage: en
 publicationRoot: docs/knowledge
 schemaVersion: 1
-sourceSnapshotId: ksnap_b3a1a7a6e71186f15cb66f58
+sourceSnapshotId: ksnap_dd148238056d3d29b5df9f06
 title: Repository knowledge
