@@ -163,13 +163,13 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   const suppressNativeDrag = (event: Event) => event.preventDefault();
   let nativeDragSuppressed = false;
   const holdNativeDrag = () => {
-    if (nativeDragSuppressed || typeof document === "undefined") return;
+    if (nativeDragSuppressed) return;
     nativeDragSuppressed = true;
     document.addEventListener("selectstart", suppressNativeDrag);
     document.addEventListener("dragstart", suppressNativeDrag);
   };
   const releaseNativeDrag = () => {
-    if (!nativeDragSuppressed || typeof document === "undefined") return;
+    if (!nativeDragSuppressed) return;
     nativeDragSuppressed = false;
     document.removeEventListener("selectstart", suppressNativeDrag);
     document.removeEventListener("dragstart", suppressNativeDrag);
