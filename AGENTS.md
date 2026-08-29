@@ -104,6 +104,7 @@ CI installs with `pnpm install --frozen-lockfile`. Local development may use `bu
 - For all repository work, read [desktop-player-blank](docs/instructions/motion-jank-postmortem/desktop-player-blank.md).
 - For all repository work, read [do-not-retry](docs/instructions/motion-jank-postmortem/do-not-retry.md).
 - For all repository work, read [glass-campaign-2026-08-18](docs/instructions/motion-jank-postmortem/glass-campaign-2026-08-18.md).
+- For all repository work, read [long-content-reveal-block-2026-08-30](docs/instructions/motion-jank-postmortem/long-content-reveal-block-2026-08-30.md).
 <!-- lervo:end block=repository_instruction_routes -->
 
 <!-- lervo:begin block=development_pattern_routes schema=1 -->

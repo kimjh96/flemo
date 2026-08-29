@@ -31,6 +31,7 @@ import {
   LAYER_SLOT_ATTR,
   MORPH_ATTR,
   MORPH_GHOST_ATTR,
+  PARK_HEAD_ATTR,
   PART_NAME_ATTR,
   SCREEN_ATTR,
   STATUS_ATTR,
@@ -45,6 +46,12 @@ import type { PartTransition } from "@transition/partTransition/typing";
 const DECORATOR_VARIANTS = TRANSITION_VARIANTS;
 
 const CREEP_NUDGE = "translateZ(0.02px)";
+
+// The opacity a parked screen waits at: low enough that nothing reads as a
+// ghost over its cover, above zero so the browser still paints and composites
+// it (which is the entire point of parking). Shared by the park-over hold rule
+// and the head that carries the same pose past the release.
+const PARK_OPACITY = "0.02";
 
 const cssIdentifier = (raw: string) => raw.replace(/[^a-zA-Z0-9_-]/g, "_");
 
@@ -918,8 +925,81 @@ const compileVariantBlock = (
     authoredToDecls.length > 0
       ? `\n${screenSelector}${attrValueSelector(ANIM_HOLD_ATTR, ANIM_HOLD.PARK_OVER)} {\n  animation: none;\n${declsToBlock(
           authoredToDecls
-        )}\n  opacity: 0.02;\n}`
+        )}\n  opacity: ${PARK_OPACITY};\n}`
       : "";
+
+  // PARK THROUGH THE HEAD — the governed head's own copy of the park pose.
+  //
+  // The park above rasterizes the entering screen during the HOLD, and the
+  // release then throws that raster away: the plain governed head holds the
+  // authored from-pose, which for an entering screen is fully off-screen, for
+  // `animation-delay` PLUS the head — 200ms on PUSHING, since the governed tier
+  // shifts the delay by the head as well. WebKit drops the backing store of a
+  // layer that sits outside the coverage rect that long, so the slide reveals
+  // content nobody has rastered yet.
+  //
+  // Device-recorded (iOS Safari, 2026-08-30, 60fps frame analysis of a long
+  // document pushed over a short list): the park painted the WHOLE entering
+  // screen (full viewport height, at 0.02) for four frames, the screen then sat
+  // invisible for nine, and the slide came up carrying only the first ~512px
+  // tile row — its background painted, its text absent — until a re-raster
+  // landed 183ms in, at 86% of the travel. Short screens fit inside the
+  // surviving tile row, which is why this only ever reads as a bug on a long
+  // one: the page appears to un-hide its overflow when the transition ends.
+  //
+  // So the head holds the PARK pose instead of the from-pose: same place the
+  // hold already had it, on-screen, tiles inside the coverage rect for the whole
+  // wait. The jump to the from-pose happens in two slivers that are each
+  // invisible for their own reason — the first moves the screen off-screen while
+  // it is still at the park's opacity, the second restores opacity while it is
+  // already off-screen — so no frame can land on a half-parked pose.
+  //
+  // Gated on the binding's own attribute, not the tier: the park is only granted
+  // where the covering screen's surface is verifiably opaque, and a translucent
+  // cover must keep the off-screen head rather than show a 2% ghost.
+  //
+  // The declared `opacity` is why this is skipped for a variant that animates
+  // opacity itself (a fade's from-pose is already invisible, and it has no
+  // raster to lose in the first place — it never moves).
+  const parkHeadS = headForVariant(variant);
+  const parkHeadBlock = (() => {
+    if (scope !== "screen") return "";
+    if (!variant.endsWith("-true")) return "";
+    if (!variant.startsWith("PUSHING") && !variant.startsWith("REPLACING")) return "";
+    if (!targetHidesScreen(fromValue)) return "";
+    if ([...fromDecls, ...toDecls].some((decl) => decl.property === "opacity")) return "";
+    // PUSHING and REPLACING both carry a head, so `parkHeadS` is positive by the
+    // status check above; `duration` can still be zero on a variant that reaches
+    // here on delay alone, and a zero-duration total has no head to park in.
+    /* v8 ignore next */
+    if (duration <= 0) return "";
+
+    const total = duration + parkHeadS;
+    const headPct = (parkHeadS / total) * 100;
+    // Each sliver is 0.05% of the total — a quarter of a millisecond at the
+    // shipped lengths, well inside one frame at any refresh rate this runs on.
+    // Proportional below that, so an unusually long authored duration shrinks
+    // them rather than pushing the first stop past 0%.
+    const sliver = Math.min(0.05, headPct / 4);
+    const kf = `${keyframe}-govpark`;
+    const at = (pct: number, decls: CssDecl[], opacity: string) =>
+      `  ${pct.toFixed(3)}% {\n${declsToBlock(decls).replace(/^/gm, "  ")}\n    opacity: ${opacity};\n  }`;
+    return (
+      `\n@keyframes ${kf} {\n` +
+      `${at(0, toDecls, PARK_OPACITY)}\n` +
+      `${at(headPct - sliver, toDecls, PARK_OPACITY)}\n` +
+      `${at(headPct, fromDecls, PARK_OPACITY)}\n` +
+      `${at(headPct + sliver, fromDecls, "1")}\n` +
+      `${at(100, toDecls, "1")}\n` +
+      `}\n` +
+      `:root${attrSelector(GOVERNED_ATTR)} ${screenSelector}${attrValueSelector(PARK_HEAD_ATTR, "true")} {\n` +
+      `  animation-name: ${kf};\n` +
+      `  animation-duration: ${total.toFixed(3)}s;\n` +
+      `  animation-delay: ${(delay + parkHeadS).toFixed(3)}s;\n` +
+      `  will-change: ${[...animatedProperties, "opacity"].join(", ")};\n` +
+      `}`
+    );
+  })();
 
   // The bar's corrected copy carries the same heads for the same reason the
   // screen does: a rider that keeps the screen's clock but loses the governed
@@ -931,7 +1011,7 @@ const compileVariantBlock = (
     ? `\n${keyframeBlockFor(barTarget)}\n${ruleBlockFor(barTarget)}${headsFor(barTarget)}`
     : "";
 
-  return `${keyframeBlock}\n${ruleBlockFor()}${headsFor()}${parkBlock}${parkUnderBlock}${parkOverBlock}${barBlock}`;
+  return `${keyframeBlock}\n${ruleBlockFor()}${headsFor()}${parkHeadBlock}${parkBlock}${parkUnderBlock}${parkOverBlock}${barBlock}`;
 };
 
 // Whether a variant's `from` target leaves the screen invisible on its first

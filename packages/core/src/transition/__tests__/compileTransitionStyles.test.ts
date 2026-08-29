@@ -1172,6 +1172,66 @@ describe("compileTransitionStyles bar transitions", () => {
       );
     });
 
+    it("carries the park pose through the governed head, gated on the binding's mark", () => {
+      const css = compileTransitionStyles([shove], []);
+      const selector =
+        `:root[data-flemo-governed] [data-flemo-screen][data-flemo-transition="custom-slide-fade"]` +
+        `[data-flemo-status="PUSHING"][data-flemo-active="true"][data-flemo-park-head="true"]`;
+      const index = css.indexOf(selector);
+      expect(index).toBeGreaterThan(-1);
+      const rule = css.slice(index, css.indexOf("}", index));
+      // Out-specifies the plain governed head (one attribute more) and keeps its
+      // total and delay, so the visible curve is the same one, started at the
+      // same wall-clock moment.
+      expect(rule).toContain("animation-name: flemo-screen-custom-slide-fade-PUSHING-true-govpark");
+      expect(rule).toContain("animation-duration: 0.500s");
+      expect(rule).toContain("animation-delay: 0.100s");
+
+      const kfIndex = css.indexOf("@keyframes flemo-screen-custom-slide-fade-PUSHING-true-govpark");
+      const kf = css.slice(kfIndex, css.indexOf("\n}", kfIndex));
+      // The head waits at the DESTINATION (x: 0 → identity) at the park's
+      // opacity — on-screen, so WebKit keeps its tiles — not at the off-screen
+      // from-pose the plain head holds.
+      expect(kf).toContain("0.000% {\n    transform: none;\n    opacity: 0.02;");
+      // The jump to the from-pose is split so neither sliver can be seen: the
+      // move happens at the park's opacity, the opacity is restored off-screen.
+      expect(kf).toContain("19.950% {\n    transform: none;\n    opacity: 0.02;");
+      expect(kf).toContain(
+        "20.000% {\n    transform: translate3d(100%, 0, 0);\n    opacity: 0.02;"
+      );
+      expect(kf).toContain("20.050% {\n    transform: translate3d(100%, 0, 0);\n    opacity: 1;");
+      expect(kf).toContain("100.000% {\n    transform: none;\n    opacity: 1;");
+    });
+
+    it("leaves the leaving and covered sides on the plain head", () => {
+      const css = compileTransitionStyles([shove], []);
+      // The mark only ever lands on an entering screen that parked OVER its
+      // cover, so no other variant may carry a parked head to match it with.
+      expect(css).not.toContain(
+        `[data-flemo-status="PUSHING"][data-flemo-active="false"][data-flemo-park-head="true"]`
+      );
+      expect(css).not.toContain(
+        `[data-flemo-status="POPPING"][data-flemo-active="true"][data-flemo-park-head="true"]`
+      );
+    });
+
+    it("skips the parked head where the variant animates opacity itself", () => {
+      // Its from-pose is already invisible, so it has no raster to lose — and the
+      // park pose's own opacity would fight the authored fade.
+      const fade = createTransition({
+        name: "custom-fade-blur",
+        initial: { opacity: 0 },
+        idle: { value: { opacity: 1 }, options: { duration: 0 } },
+        enter: { value: { opacity: 1 }, options: { duration: 0.4 } },
+        enterBack: { value: { opacity: 0 }, options: { duration: 0.4 } },
+        exit: { value: { opacity: 0 }, options: { duration: 0.4 } },
+        exitBack: { value: { opacity: 1 }, options: { duration: 0.4 } }
+      });
+      const css = compileTransitionStyles([fade], []);
+      expect(css).toContain(`[data-flemo-transition="custom-fade-blur"]`);
+      expect(css).not.toContain("govpark");
+    });
+
     it("pauses the park attribute too in the global hold rule (safe fallback)", () => {
       const css = compileTransitionStyles([cupertino], []);
       const holdIndex = css.indexOf('[data-flemo-anim-hold="park"],');

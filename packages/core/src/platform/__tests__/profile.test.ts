@@ -200,6 +200,7 @@ describe("the profile as a whole", () => {
         deferReleaseCommit: false,
         renderSettleGate: false,
         parkOver: false,
+        parkHead: false,
         restLayerPromotion: false,
         imageDecodeOffload: false
       });

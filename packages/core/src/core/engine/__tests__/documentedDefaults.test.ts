@@ -9,6 +9,7 @@ import {
   readDesktopReleaseFlipFlag,
   readImageHoldFlag,
   readImageOffloadOverride,
+  readParkHeadFlag,
   morphTraceArmed,
   readRestLayerPromotionFlag,
   readPrerasterFlag,
@@ -304,6 +305,29 @@ describe("documented default: flemo:preraster", () => {
     expect(readPrerasterFlag()).toBe(false);
     sessionStorage.setItem("flemo:preraster", "on");
     expect(readPrerasterFlag()).toBe(true);
+  });
+});
+
+describe("documented default: flemo:parkhead", () => {
+  // Table: on wherever the park-over hold is granted. The reader itself is
+  // environment-blind — the park's own gate decides where it is consulted — so
+  // the only thing this key can say is whether the A/B has been armed against
+  // it, in every environment.
+  it("is on until an explicit off, on every tier", () => {
+    for (const env of [
+      { blink: true, touch: false, dpr: 2 },
+      { blink: false, touch: false, mac: true },
+      { blink: false, touch: true }
+    ]) {
+      setEnv(env);
+      expect(readParkHeadFlag()).toBe(true);
+    }
+    sessionStorage.setItem("flemo:parkhead", "off");
+    expect(readParkHeadFlag()).toBe(false);
+    // Anything that is not the word `off` leaves it armed, so a stale or
+    // mistyped value cannot silently take the fix away.
+    sessionStorage.setItem("flemo:parkhead", "on");
+    expect(readParkHeadFlag()).toBe(true);
   });
 });
 

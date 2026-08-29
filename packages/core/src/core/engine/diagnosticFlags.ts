@@ -231,6 +231,17 @@ export const readDesktopHeadFlag = (): boolean => {
 // probed is solved by the scrub tier's freeze-on-block opening.
 export const readPrerasterFlag = (): boolean => readStorageValue("flemo:preraster") === "on";
 
+// `flemo:parkhead` — whether the governed head carries the PARK pose (see
+// PARK_HEAD_ATTR) or the authored off-screen from-pose. Default ON, and only
+// ever consulted where the park-over hold was granted in the first place, so
+// this key decides one thing: whether the raster that hold paid for survives
+// the delay-plus-head wait between the release and the first moving frame.
+//
+// `off` is the A/B, and it is the whole reason the key exists — the difference
+// is invisible on a screen shorter than one tile row and unmistakable on a long
+// one, which makes it a judgement a device has to make, in both directions.
+export const readParkHeadFlag = (): boolean => readStorageValue("flemo:parkhead") !== "off";
+
 // The screen scope's compositor-layer promotion at REST — the `will-change:
 // transform` the react binding puts on `[data-flemo-screen]` when it is the
 // top screen of a root Router and nothing is animating. OPT-IN, armed by

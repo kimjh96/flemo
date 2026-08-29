@@ -2,6 +2,7 @@ import {
   readDeferReleaseCommitFlag,
   readDesktopReleaseFlipFlag,
   readImageOffloadOverride,
+  readParkHeadFlag,
   readPrerasterFlag,
   readRestLayerPromotionFlag,
   readSettleGateFlag
@@ -75,6 +76,15 @@ export interface PlatformProfile {
   readonly parkOver: boolean;
 
   /**
+   * Keep that park in place through the governed head, instead of letting the
+   * release drop the screen back to its off-screen from-pose for the head and
+   * the delay in front of it — where WebKit discards everything it just
+   * rasterized past the first tile row. Only read where a park-over was
+   * actually granted; `flemo:parkhead=off` is the A/B.
+   */
+  readonly parkHead: boolean;
+
+  /**
    * Keep the screen scope's layer promoted at REST. Off everywhere by default:
    * a promotion is also a stacking context, and at rest it outranks any
    * consumer overlay inside the screen.
@@ -103,6 +113,7 @@ export const resolvePlatformProfile = (input: PlatformProfileInput = {}): Platfo
   const blink = detectBlinkEngine();
   const mainThreadPresented = !blink;
   const touchWebKit = governedCompiledActive();
+  const parkOver = readPrerasterFlag() || touchWebKit;
 
   return {
     mainThreadPresented,
@@ -113,7 +124,10 @@ export const resolvePlatformProfile = (input: PlatformProfileInput = {}): Platfo
       (input.authoredNativeDriver === true || touchWebKit || readDesktopReleaseFlipFlag()),
     deferReleaseCommit: readDeferReleaseCommitFlag(),
     renderSettleGate: readSettleGateFlag(),
-    parkOver: readPrerasterFlag() || touchWebKit,
+    parkOver,
+    // Carried by the park, never on its own: an unverified environment arms
+    // nothing, and there is nothing to carry where no screen ever parks.
+    parkHead: parkOver && readParkHeadFlag(),
     restLayerPromotion: readRestLayerPromotionFlag(),
     // THE IMAGE DECIDES, NOT THE DEVICE.
     //

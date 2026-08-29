@@ -1,14 +1,14 @@
 assurance: unreviewed
 bundleId: bundle_f30402500333f4447ba5d2b8
-conceptId: concept_4e36d2ec8d8c2db35a1c4921
+conceptId: concept_09de8ed872b5fcc6a3562e6f
 freshness: current
 ownership: user
-path: AGENTS.md
+path: docs/instructions/motion-jank-postmortem/long-content-reveal-block-2026-08-30.md
 publicationLanguage: en
 publicationProfile: reference
 publicationStatus: stable
 schemaVersion: 1
 sourceUnitVersionIds:
-  - uv_19b7178a7cb7d843d5e0aa6c
-title: flemo workspace rules
+  - uv_aeb7c86296a944a27fe759a4
+title: "2026-08-30: the long-content reveal block (iOS Safari)"
 type: invariant

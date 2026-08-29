@@ -2,7 +2,7 @@
 
 The regression-prevention document. Months of device rounds (desktop Chrome/Safari,
 iPhone Safari incl. Low Power Mode, Galaxy Note 9, Pixel 9) produced today's engine
-(PR #240, #251, #252, #256, #258) — and an equally valuable *falsification map*. If you
+(PR #240, #251, #252, #256, #258) — and an equally valuable _falsification map_. If you
 are investigating a motion-jank report, read (a) and (e) first; before designing any
 fix, check the DO-NOT-RETRY list. History is recorded as history — for what the code
 does TODAY, the code and `docs/architecture/*` win.
@@ -13,19 +13,20 @@ does TODAY, the code and `docs/architecture/*` win.
 - [(d) Worked example: the desktop player blank (#256 → #259)](2026-08-motion-jank/desktop-player-blank.md)
 - [Addendum — 2026-08-17 evening: the attribution re-verified live](2026-08-motion-jank/addendum-2026-08-17.md)
 - [Addendum 2 / 2026-08-18 live glass campaign, instrument traps, final attribution](2026-08-motion-jank/glass-campaign-2026-08-18.md)
+- [2026-08-30: the long-content reveal block on iOS Safari](motion-jank-postmortem/long-content-reveal-block-2026-08-30.md)
 
 ## (a) Symptom taxonomy
 
 User reports arrive in these Korean words; distinguishing them is half the diagnosis.
 
-| Term | English | What it actually is | First checks |
-| --- | --- | --- | --- |
-| 수렴 떨림 / 지글거림 / 시머 | convergence tremor / sizzle / shimmer | A **spatial** artifact of the slow tail: sub-pixel bilinear resampling (fractional layer offsets washing texture/glyph AA per frame), dither grain sliding, or display-pipeline effects. Frame timing is typically PERFECT while it happens — invisible to rAF/trace metrics; only pixel probes (screenshot energy) or the eye see it. | Viewing config (emulation? HiDPI scaling?), dpr, snap policy, pure-CSS control page |
-| 버벅(임) | stutter / jank (frame time) | A **temporal** artifact: missed/uneven presented frames. Sources split by layer: main-thread famine (player), compositor raster stalls, GPU pipeline compiles, or the browser's own present pacing. | `__flemoPlayerGaps`, trace with non-forcing categories, which driver routed |
-| 씹힘 | swallowed opening | The flight's first 0–70% never presented: the animation clock aged past the opening while nothing new reached the glass (mount/release commit block on a wall-clocked animation), or the content painted late into an already-moving container (Note 9 mode). | Which tier drove; hold/park state; was the settle gate engaged |
-| 휙휙 | whoosh / rushed opening | Related but distinct from 씹힘 (user-defined 2026-08-12): the 0→60% IS shown but as sparse, rushed frames — wall-clock playback through early load drops = coarse sampling of the fast segment. The player's capped clock is structurally immune (load-adaptive time dilation); a wall-clocked compiled animation cannot have that property by spec. | Driver; a pure-CSS mount+start-in-one-commit repro shows it with zero flemo code |
-| 드르륵 / 계단 | stepping / quantization | Integer-snap stepping on slow tracked motion (≤1 device px/frame presented as stall-then-step). The physical trade opposite shimmer: at the slow tail you get EITHER fractional-blur sizzle OR integer stepping — both were device-judged; the velocity gate default is the reachable floor. | `flemo:snap` override state, dpr |
-| 멈췄다 휙 | freeze-then-leap | Mid-flight freeze with a catch-up jump at resume — a wall-clocked animation surviving a main-thread block, or (historically) a mid-flight-born animation desyncing WebKit's accelerated re-sync. | Chain state, driver, suspense commits mid-flight |
+| Term                        | English                               | What it actually is                                                                                                                                                                                                                                                                                                                                  | First checks                                                                        |
+| --------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 수렴 떨림 / 지글거림 / 시머 | convergence tremor / sizzle / shimmer | A **spatial** artifact of the slow tail: sub-pixel bilinear resampling (fractional layer offsets washing texture/glyph AA per frame), dither grain sliding, or display-pipeline effects. Frame timing is typically PERFECT while it happens — invisible to rAF/trace metrics; only pixel probes (screenshot energy) or the eye see it.               | Viewing config (emulation? HiDPI scaling?), dpr, snap policy, pure-CSS control page |
+| 버벅(임)                    | stutter / jank (frame time)           | A **temporal** artifact: missed/uneven presented frames. Sources split by layer: main-thread famine (player), compositor raster stalls, GPU pipeline compiles, or the browser's own present pacing.                                                                                                                                                  | `__flemoPlayerGaps`, trace with non-forcing categories, which driver routed         |
+| 씹힘                        | swallowed opening                     | The flight's first 0–70% never presented: the animation clock aged past the opening while nothing new reached the glass (mount/release commit block on a wall-clocked animation), or the content painted late into an already-moving container (Note 9 mode).                                                                                        | Which tier drove; hold/park state; was the settle gate engaged                      |
+| 휙휙                        | whoosh / rushed opening               | Related but distinct from 씹힘 (user-defined 2026-08-12): the 0→60% IS shown but as sparse, rushed frames — wall-clock playback through early load drops = coarse sampling of the fast segment. The player's capped clock is structurally immune (load-adaptive time dilation); a wall-clocked compiled animation cannot have that property by spec. | Driver; a pure-CSS mount+start-in-one-commit repro shows it with zero flemo code    |
+| 드르륵 / 계단               | stepping / quantization               | Integer-snap stepping on slow tracked motion (≤1 device px/frame presented as stall-then-step). The physical trade opposite shimmer: at the slow tail you get EITHER fractional-blur sizzle OR integer stepping — both were device-judged; the velocity gate default is the reachable floor.                                                         | `flemo:snap` override state, dpr                                                    |
+| 멈췄다 휙                   | freeze-then-leap                      | Mid-flight freeze with a catch-up jump at resume — a wall-clocked animation surviving a main-thread block, or (historically) a mid-flight-born animation desyncing WebKit's accelerated re-sync.                                                                                                                                                     | Chain state, driver, suspense commits mid-flight                                    |
 
 ## (b) The layered final attributions
 
@@ -36,12 +37,12 @@ layers, each proven separately:
    convergence trembling on the user's machines (M-series Mac, 120Hz ProMotion AND
    60Hz 4K HiDPI externals) reproduced on a **no-`<script>` pure-CSS control page**
    containing only flemo's own compiled cupertino keyframes — zero web code running,
-   still trembles. Passive HUD showed exactly-120Hz rAF with low jitter *while the eye
-   saw trembling* → the fault is below rAF, in scanout/present pacing. Chrome itself
+   still trembles. Passive HUD showed exactly-120Hz rAF with low jitter _while the eye
+   saw trembling_ → the fault is below rAF, in scanout/present pacing. Chrome itself
    tracks the defect (CVDisplayLink→CADisplayLink migration: Chromium issues
    **40062488**, **345275139**; flag `kCADisplayLink`, macOS 14+, default-off as of the
    campaign). The "sticky smooth" state = the GPU process flipping to continuous even
-   present, triggered only by *browser-process* per-vsync drawing (DevTools FPS meter,
+   present, triggered only by _browser-process_ per-vsync drawing (DevTools FPS meter,
    `--show-fps-counter`) — pages cannot trigger it by submitting frames.
    **Machine workaround** (dev/demo/recording only):
    `killall "Google Chrome"; open -na "Google Chrome" --args --show-fps-counter`.
@@ -53,7 +54,7 @@ layers, each proven separately:
    static fractional-offset energy tests (energy 0.251 at phase 0 vs 0.030 at 0.5) and
    shift-compensated captures (integer-stepped layers diff to exactly zero). Addressed
    by: translate3d-only compilation, the player's snap gate + landing governor, and the
-   compiled tier's governed landing easing. The *full-flight* snap was device-judged
+   compiled tier's governed landing easing. The _full-flight_ snap was device-judged
    worse than fractional glide (twice, by the same physics as the author's historical
    2D-vs-3D transformPart verdict) → opt-in `flemo:landing-snap`. A separate
    contributor at the app layer: Skia renders CSS gradients WITH dither grain — a
@@ -64,8 +65,8 @@ layers, each proven separately:
    render+commit is a multi-hundred-ms main task NO driver can hide; the only choice is
    whether it runs BEFORE the flight (settle gate: full-duration flight carrying real
    content, at the cost of start latency) or INSIDE it (swallowed opening). The gate was
-   device-rejected as a *data* wait ("게이트 접근 최종 기각") but shipped as a
-   *render-settle-only* wait (`renderSettleOnly: true` — waits for commit quiescence,
+   device-rejected as a _data_ wait ("게이트 접근 최종 기각") but shipped as a
+   _render-settle-only_ wait (`renderSettleOnly: true` — waits for commit quiescence,
    never for data), default-on for touch WebKit and validated even on a demoted Note 9
    (its 290ms mount task stalls even the compositor's initial layerization).
 4. **Image decode (offloader + auto-gate).** 37-megapixel originals painted into 44px
@@ -83,7 +84,7 @@ layers, each proven separately:
 6. **Display hardware.** One residue tracked to the MacBook Pro 14 XDR mini-LED local
    dimming following a bright sliding panel — backlight-level, invisible to every
    capture, browser-independent. (Environment attribution itself flip-flopped until the
-   *docked, external-display* setup was established — another checklist-#1 case.)
+   _docked, external-display_ setup was established — another checklist-#1 case.)
 
 Other standalone real bugs found en route: cold-profile GPU pipeline compile stalls
 (→ gpuPipelinePrewarm), COMPLETED-flip layer demotion repaint (→ layerSettleHold),
@@ -116,7 +117,7 @@ cancel), transition-time `pointer-events: none` stranding a touch on the covered
 6. **Know which layers are instrument-invisible.** rAF/longtask/trace metrics see the
    main thread only; present-pipeline judder, swallowed compositor frames, bilinear
    shimmer, backlight effects need pixel probes, camera video, or frame-extracted
-   recordings. "All metrics clean + user still sees it" is a *layer* signal, not a
+   recordings. "All metrics clean + user still sees it" is a _layer_ signal, not a
    contradiction.
 7. **Identify the routed tier before theorizing** — driver-routing.md decision tree;
    confirm on-device (suppressed `animation` + inline writes = player; `data-flemo-lpm`
@@ -125,7 +126,7 @@ cancel), transition-time `pointer-events: none` stranding a touch on the covered
    bundle** (diagnostics.md pitfall #7) before accepting any verdict — several rounds
    were judged against stale code.
 9. **Check the falsification list (c)** before building. If a proposed fix is on it,
-   the burden is a *new mechanism*, not a re-run.
+   the burden is a _new mechanism_, not a re-run.
 10. **Respect the authoring-fidelity principle** (user-stated, standing): the library
     must not silently change the authored motion's meaning (no fade removal, no
     entry-suppression flips, no demands on consumer code like prefetch). Prescriptions

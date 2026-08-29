@@ -19,10 +19,11 @@ conceptIds:
   - concept_6350c41e03bd98c2af6ec5af
   - concept_43da97d662375b49a5533b06
   - concept_522a42d2fddfcbc9a932793f
+  - concept_09de8ed872b5fcc6a3562e6f
   - concept_497b2547e76004c79bb2ba50
 entryPath: docs/knowledge/index.md
 publicationLanguage: en
 publicationRoot: docs/knowledge
 schemaVersion: 1
-sourceSnapshotId: ksnap_8c062b4b55ff473ec0b9062b
+sourceSnapshotId: ksnap_1f5f8400b11d6f168d776a6b
 title: Repository knowledge
