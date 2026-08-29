@@ -4,6 +4,7 @@ import { clearInlineAnimation } from "@transition/animateInline";
 import {
   matchesFlightAnimationName,
   animationName,
+  decoratorAnimationName,
   variantHasAnimation
 } from "@transition/compileTransitionStyles";
 import resolveTransition from "@transition/resolveTransition";
@@ -57,6 +58,7 @@ import {
 } from "@platform/displayProbe";
 import { detectBlinkEngine } from "@platform/engineProbes";
 import { decoratorMap } from "@transition/decorator/decorator";
+import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 const noop = () => {};
@@ -315,13 +317,16 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
 
       if (decorator && transition.decoratorName) {
         const decoratorDefinition = decoratorMap.get(transition.decoratorName);
+        // The decorator's clock comes from this transition, so the motion the
+        // cancel/resume controller reproduces has to be read the same way the
+        // compiler wrote it.
         const decoratorMotion = decoratorDefinition
-          ? resolveVariantMotion(decoratorDefinition, variant)
+          ? resolveVariantMotion(resolveDecoratorClock(transition, decoratorDefinition), variant)
           : null;
         if (decoratorMotion) {
           wirePure(
             decorator,
-            animationName("decorator", transition.decoratorName, variant),
+            decoratorAnimationName(transition.name, transition.decoratorName, variant),
             decoratorMotion
           );
         }
@@ -408,9 +413,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           const transition = resolveTransition(transitionName);
           const detachers: (() => void)[] = [];
           if (variantHasAnimation(transition, variant)) {
-            // variantHasAnimation and resolveVariantMotion share the same gate
-            // (a non-rest variant with duration or delay > 0 — see
-            // variantMotion.ts), so the assertion can never fire.
+            // variantHasAnimation SUBSUMES resolveVariantMotion's gate (a
+            // non-rest variant with duration or delay > 0 — see
+            // variantMotion.ts — plus something that actually interpolates),
+            // so the assertion can never fire.
             const motion = resolveVariantMotion(transition, variant)!;
             let used = 0;
             const controller = wireCancelResume({
@@ -588,12 +594,16 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         ? decoratorMap.get(currentTransition.decoratorName)
         : undefined;
       if (decoratorDefinition) {
+        // On this transition's clock (resolveDecoratorClock), which is what
+        // makes the span it contributes below the SCREEN's span unless the
+        // decorator's author asked for a longer one outright.
+        const decoratorClock = resolveDecoratorClock(currentTransition, decoratorDefinition);
         for (const decoratorVariant of [
           `${status}-true`,
           `${status}-false`
         ] as TransitionVariant[]) {
-          if (!variantHasAnimation(decoratorDefinition, decoratorVariant)) continue;
-          const motion = resolveVariantMotion(decoratorDefinition, decoratorVariant);
+          if (!variantHasAnimation(decoratorClock, decoratorVariant)) continue;
+          const motion = resolveVariantMotion(decoratorClock, decoratorVariant);
           if (motion) {
             statusDecoratorMotions.push(motion);
             participantSpanMs = Math.max(
@@ -658,8 +668,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // authored motions at the backstop (measured: a 3s cupertino snapped
         // to rest at ~1.2s). The margin mirrors the liveness floor's.
         // Past the `hasAnimation` early return the motion always resolves
-        // (variantHasAnimation and resolveVariantMotion share the same gate
-        // — see the liveness floor below).
+        // (variantHasAnimation subsumes resolveVariantMotion's gate — see the
+        // liveness floor below).
         const motionMs = (activeMotion!.delay + activeMotion!.duration) * 1000;
         TaskManger.anchorGate(
           flooredTaskId,
@@ -970,10 +980,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // a genuinely stranded one hits the floor. `resolveTask` is a no-op on an
     // already-resolved id.
     // Past the `hasAnimation` early return the motion ALWAYS resolves:
-    // variantHasAnimation and resolveVariantMotion share the same gate (a
-    // non-rest variant with duration or delay > 0 — see variantMotion.ts), so
-    // the assertion can never fire. One span, shared by the liveness floor and
-    // the recovery watchdog below.
+    // variantHasAnimation SUBSUMES resolveVariantMotion's gate (a non-rest
+    // variant with duration or delay > 0 — see variantMotion.ts — plus
+    // something that actually interpolates), so the assertion can never fire.
+    // One span, shared by the liveness floor and the recovery watchdog below.
     const motionSpanMs = (activeMotion!.delay + activeMotion!.duration) * 1000;
     // The floor outlives the WHOLE choreography (a part may be authored
     // longer than its screen), plus the recovery margin.

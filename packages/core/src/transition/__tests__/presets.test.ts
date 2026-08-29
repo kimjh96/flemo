@@ -7,8 +7,11 @@ import material from "@transition/material";
 import none from "@transition/none";
 import { transitionMap } from "@transition/transition";
 
+import type { TransitionVariant } from "@transition/typing";
+
 import { decoratorMap } from "@transition/decorator/decorator";
 import overlay from "@transition/decorator/overlay";
+import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
 
 describe("transition presets", () => {
   it("cupertino has the expected name + transform-based shape", () => {
@@ -30,18 +33,44 @@ describe("transition presets", () => {
     expect(layout.initial).not.toHaveProperty("y");
   });
 
-  it("no preset wears a dim whose clock is not its own", () => {
-    // A decorator is compiled once per NAME, with the durations its author
-    // wrote — not once per transition that names it. `overlay` runs 0.7s,
-    // which is cupertino's own flight, so the two resolve together there.
-    // `layout` runs 0.4s: naming the same dim left it washing the screen
-    // underneath for 300ms after the dismissing screen had already gone.
-    const durationOf = (transition: typeof cupertino) =>
-      transition.variants["PUSHING-true"].options?.duration;
+  it("overlay authors no clock of its own", () => {
+    // It used to restate cupertino's 0.7s on every variant, which is the
+    // duplication that made the same dim unusable on any other preset.
+    for (const variant of Object.keys(overlay.variants) as TransitionVariant[]) {
+      expect(overlay.variants[variant].options?.duration).toBeUndefined();
+      expect(overlay.variants[variant].options?.delay).toBeUndefined();
+    }
+  });
 
+  it("resolves overlay onto whichever transition names it", () => {
     expect(cupertino.decoratorName).toBe("overlay");
-    expect(durationOf(cupertino)).toBe(overlay.variants["PUSHING-false"].options?.duration);
 
+    // Against cupertino the dim gets cupertino's own span, on the matching
+    // variant key — the number that used to be written into the decorator.
+    const onCupertino = resolveDecoratorClock(cupertino, overlay);
+    expect(onCupertino.variants["PUSHING-false"].options.duration).toBe(
+      cupertino.variants["PUSHING-false"].options?.duration
+    );
+    expect(onCupertino.variants["POPPING-false"].options.duration).toBe(
+      cupertino.variants["POPPING-false"].options?.duration
+    );
+
+    // Against a shorter preset it is a shorter dim, with nothing authored
+    // twice. This is what `layout` could not get before: `overlay`'s 0.7s over
+    // a 0.4s flight left a wash on the screen underneath for 300ms after the
+    // dismissing screen had gone.
+    const onLayout = resolveDecoratorClock(layout, overlay);
+    expect(onLayout.variants["PUSHING-false"].options.duration).toBe(
+      layout.variants["PUSHING-false"].options?.duration
+    );
+    expect(onLayout.variants["PUSHING-false"].options.duration).not.toBe(
+      onCupertino.variants["PUSHING-false"].options.duration
+    );
+  });
+
+  it("only cupertino wears a dim, and the rest abstain on taste", () => {
+    // Timing is no longer the reason any of them abstains: `layout` declines a
+    // dim because nothing in it slides, not because it could not afford one.
     for (const preset of [layout, material, none]) {
       expect(preset.decoratorName).toBeUndefined();
     }

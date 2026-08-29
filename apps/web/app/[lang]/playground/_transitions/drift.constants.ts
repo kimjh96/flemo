@@ -1,8 +1,9 @@
-// Shared by `drift` and by the `recess` decorator it names, so the transition
-// and its dim cannot drift apart when either is retuned. The pair is the whole
-// point of the case: a decorator is compiled once per NAME with the durations
-// its author wrote, so an author who borrows someone else's dim inherits
-// someone else's clock.
+// `drift`'s own two spans. They were shared with the `recess` decorator too,
+// because a decorator used to be compiled once per NAME with the durations its
+// author wrote and the pair had no other way to stay matched. A decorator now
+// takes the clock of the transition that names it, so `recess` authors no
+// duration at all and this file is read by `drift` and by `detailChrome`, which
+// still needs the push length for its own table (a PART does not inherit).
 export const DRIFT_IN = 0.42;
 export const DRIFT_BACK = 0.32;
 

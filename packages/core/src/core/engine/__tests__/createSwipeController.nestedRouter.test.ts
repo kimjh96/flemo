@@ -1,10 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AnimationOptions, TransitionTarget } from "@transition/cssTypes";
 import type { Transition } from "@transition/typing";
+import { TRANSITION_VARIANTS } from "@transition/variantMotion";
 
 import createSwipeController, {
   type SwipeControllerConfig
 } from "@core/engine/createSwipeController";
+
+// All ten status x active keys, so a stub handed to the runtime has the shape
+// its type claims. Both tables here used to be `{}` behind an `as unknown as`.
+const fullVariants = (value: TransitionTarget, options?: AnimationOptions) =>
+  Object.fromEntries(
+    TRANSITION_VARIANTS.map((variant) => [variant, { value, options }])
+  ) as Transition["variants"];
 
 // A screen that hosts a NESTED <Router> keeps that router's screens INSIDE its
 // own scope. Their decorator and shared bars are therefore DEEPER but EARLIER
@@ -102,7 +111,11 @@ describe("swipe-back on a screen that hosts a nested Router", () => {
     const transition = {
       name: "swipe-nested",
       initial: { x: "100%" },
-      variants: {} as Transition["variants"],
+      // A REAL variant table, not `{}`. The controller folds this transition's
+      // clock into its decorator's (resolveDecoratorClock) before promoting a
+      // layer for the drag, so an empty stub is a shape the runtime cannot be
+      // handed — the cast used to hide that.
+      variants: fullVariants({ x: 0 }, { duration: 0.3 }),
       swipeDirection: "x",
       onSwipeStart: async (
         _event: PointerEvent,
@@ -128,7 +141,9 @@ describe("swipe-back on a screen that hosts a nested Router", () => {
           // A real decorator carries initial/variants; the controller now
           // promotes it for the drag, which reads them.
           initial: { opacity: 0 },
-          variants: {},
+          // No clock of its own: it takes the transition's, like every
+          // decorator now does.
+          variants: fullVariants({ opacity: 1 }),
           onSwipeStart: (_triggered: boolean, api: { prevDecorator: HTMLElement }) => {
             seen.prevDecorator = api.prevDecorator;
           }

@@ -37,6 +37,8 @@ import {
   TRANSITION_ATTR
 } from "@dom/attributes";
 
+import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
+
 import type { Decorator } from "@transition/decorator/typing";
 import type { PartTransition } from "@transition/partTransition/typing";
 
@@ -285,6 +287,20 @@ export const targetToDecls = (
 const declsToBlock = (decls: CssDecl[]): string =>
   decls.map((d) => `  ${d.property}: ${d.value};`).join("\n");
 
+// Whether two endpoint declaration lists actually interpolate: some property
+// sits on one side only, or sits on both with different values. A property
+// holding the SAME value on both ends never moves — the element's own rule
+// carries it instead (see constantProperties in compileVariantBlock) — so a
+// pair of endpoints that agree on everything is a rest state wearing a clock.
+const declsInterpolate = (fromDecls: CssDecl[], toDecls: CssDecl[]): boolean => {
+  const from = new Map(fromDecls.map((decl) => [decl.property, decl.value]));
+  const to = new Map(toDecls.map((decl) => [decl.property, decl.value]));
+  for (const property of new Set([...from.keys(), ...to.keys()])) {
+    if (from.get(property) !== to.get(property)) return true;
+  }
+  return false;
+};
+
 export const easingToCss = (ease: AnimationOptions["ease"] | undefined): string => {
   if (Array.isArray(ease)) {
     if (ease.length === 4 && ease.every((n) => typeof n === "number")) {
@@ -335,11 +351,21 @@ const restAttrSelector = (transitionName: string, variant: TransitionVariant): s
   );
 };
 
-const restDecoratorSelector = (decoratorName: string, variant: TransitionVariant): string => {
+// A decorator is matched by the transition that names it as well as by its own
+// name, because its clock comes from that transition (resolveDecoratorClock).
+// The same decorator on two transitions of different lengths is two rule sets,
+// and without the transition in the selector they would be one, with the
+// winner decided by source order.
+const restDecoratorSelector = (
+  transitionName: string,
+  decoratorName: string,
+  variant: TransitionVariant
+): string => {
   const [status, active] = variant.split("-");
   return (
     attrSelector(DECORATOR_ATTR) +
     attrValueSelector(DECORATOR_NAME_ATTR, decoratorName) +
+    attrValueSelector(TRANSITION_ATTR, transitionName) +
     attrValueSelector(STATUS_ATTR, status!) +
     attrValueSelector(ACTIVE_ATTR, active!)
   );
@@ -412,6 +438,16 @@ export const animationName = (
   name: string,
   variant: TransitionVariant
 ) => `flemo-${scope}-${cssIdentifier(name)}-${variant}`;
+
+// A decorator's keyframes belong to the PAIR, for the same reason its selector
+// does: two transitions naming one decorator run it on two clocks, so they
+// cannot share a keyframe name. Both the compiler and the engine's
+// cancel/resume wiring resolve the name here so they can never disagree.
+export const decoratorAnimationName = (
+  transitionName: string,
+  decoratorName: string,
+  variant: TransitionVariant
+) => animationName("decorator", `${transitionName}--${decoratorName}`, variant);
 
 // A head tier plays the SAME flight under a copied keyframe set, so its
 // `animationend` / `animationcancel` events carry a suffixed name. Every
@@ -520,8 +556,27 @@ const compileVariantBlock = (
     return "";
   }
 
-  // No duration: snap directly to the target (no keyframe, no animationend).
-  if (duration <= 0 && delay <= 0) {
+  // NOTHING INTERPOLATES, whatever the clock says. `fromDecls` / `toDecls` are
+  // the authored endpoints minus every property that holds the same value on
+  // both (constantProperties above), so both being empty means the two ends
+  // agree on all of them: there is no motion to compile at any duration.
+  //
+  // The check used to be the duration alone, which was enough while every such
+  // variant was also authored at zero — a decorator's `idle` sits at
+  // PUSHING-true with `initial` as its `from` and the same values as its `to`,
+  // and its author wrote `duration: 0` there because there was nothing to run.
+  // Once a clock can be INHERITED rather than authored (see
+  // resolveDecoratorClock) that coincidence breaks: the screen's 0.7s arrives
+  // on a variant whose endpoints are identical, and the compiler would emit
+  // `@keyframes { from {} to {} }` plus a 0.7s rule to play it. An empty
+  // animation still fires `animationend`, so variantHasAnimation would report
+  // the element as a participant and the engine would wait out a flight for a
+  // thing that never moves.
+  const interpolates = declsInterpolate(authoredFromDecls, authoredToDecls);
+
+  // No duration, or no motion: snap directly to the target (no keyframe, no
+  // animationend).
+  if (!interpolates || (duration <= 0 && delay <= 0)) {
     if (authoredToDecls.length === 0) return "";
     const snap = `${selector} {\n${declsToBlock(authoredToDecls)}\n  animation: none;\n}`;
     if (!needsRideCopy) return snap;
@@ -910,8 +965,13 @@ export const compileTransitionStyles = (
   partTransitions: Iterable<PartTransition> = []
 ): string => {
   const blocks: string[] = [];
+  // Materialized because the decorator pass walks the transitions a second
+  // time, and the callers hand this in as a Map's `.values()` iterator.
+  const transitionList = [...transitions];
+  const decoratorByName = new Map<string, Decorator>();
+  for (const decorator of decorators) decoratorByName.set(decorator.name, decorator);
 
-  for (const transition of transitions) {
+  for (const transition of transitionList) {
     const name = transition.name;
 
     for (const variant of TRANSITION_VARIANTS) {
@@ -932,29 +992,46 @@ export const compileTransitionStyles = (
     }
   }
 
-  for (const decorator of decorators) {
-    const name = decorator.name;
+  // ONE PASS PER (TRANSITION x DECORATOR) PAIR, not one per decorator name.
+  //
+  // A decorator's clock is the clock of the transition that names it, so the
+  // same decorator reached from two transitions is two different compiled
+  // results. Driving the loop from the transitions is also what makes the pair
+  // reachable at all: `decoratorName` points one way only.
+  //
+  // A registered decorator that no transition names emits nothing now, where
+  // it used to emit a full rule set. Nothing is lost: a decorator element is
+  // only ever rendered for a screen whose transition names it, so those rules
+  // could never match anything.
+  for (const transition of transitionList) {
+    if (!transition.decoratorName) continue;
+    const decorator = decoratorByName.get(transition.decoratorName);
+    if (!decorator) continue;
+
+    const resolved = resolveDecoratorClock(transition, decorator);
+    const pairName = `${transition.name}--${decorator.name}`;
+    const selectorBuilder = (_: string, pairVariant: TransitionVariant) =>
+      restDecoratorSelector(transition.name, decorator.name, pairVariant);
 
     for (const variant of DECORATOR_VARIANTS) {
-      const variantValue = decorator.variants[variant];
+      const variantValue = resolved.variants[variant];
       const fromKey = FROM_VARIANT[variant];
 
       if (fromKey === "self") {
-        blocks.push(compileRestBlock(restDecoratorSelector, name, variant, variantValue));
+        blocks.push(compileRestBlock(selectorBuilder, pairName, variant, variantValue));
         continue;
       }
 
-      const fromValue =
-        fromKey === "initial" ? decorator.initial : decorator.variants[fromKey].value;
+      const fromValue = fromKey === "initial" ? resolved.initial : resolved.variants[fromKey].value;
 
       blocks.push(
         compileVariantBlock(
           "decorator",
-          name,
+          pairName,
           variant,
           fromValue,
           variantValue,
-          restDecoratorSelector
+          selectorBuilder
         )
       );
     }
@@ -1052,10 +1129,10 @@ export const variantHasAnimation = (
   const fromValue =
     fromKey === "initial" ? transitionLike.initial : transitionLike.variants[fromKey].value;
 
-  const fromDecls = targetToDecls(fromValue);
-  const toDecls = targetToDecls(variantValue.value);
-
-  return fromDecls.length > 0 || toDecls.length > 0;
+  // The same test the compiler applies: a variant whose endpoints agree on
+  // every property emits a rest rule, not an animation, so nothing on it will
+  // ever fire `animationend` and it must not be counted as a participant.
+  return declsInterpolate(targetToDecls(fromValue), targetToDecls(variantValue.value));
 };
 
 // Engine-shared head lengths (ms) for the DESKTOP flat-head keyframes above —

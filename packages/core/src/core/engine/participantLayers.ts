@@ -13,6 +13,7 @@ import { learnedFrameIntervalMs } from "@platform/displayCadence";
 import { COMPILED_TIER_MAX_INTERVAL_MS } from "@platform/displayProbe";
 import { detectBlinkEngine } from "@platform/engineProbes";
 import { decoratorMap } from "@transition/decorator/decorator";
+import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 // COMPOSITOR LAYERS, held for the length of a flight and released after it.
@@ -84,8 +85,11 @@ export const holdParticipantLayers = (
   }
   if (decorator && transition.decoratorName) {
     const definition = decoratorMap.get(transition.decoratorName);
-    if (definition && variantHasAnimation(definition, variant)) {
-      holdScopeLayer(decorator, definition, containment, owner);
+    // On this transition's clock, so the layer is promoted for exactly the
+    // window the compiled decorator rule animates for.
+    const clock = definition ? resolveDecoratorClock(transition, definition) : null;
+    if (clock && variantHasAnimation(clock, variant)) {
+      holdScopeLayer(decorator, clock, containment, owner);
     }
   }
   for (const part of collectVariantParts(scope, variant)) {

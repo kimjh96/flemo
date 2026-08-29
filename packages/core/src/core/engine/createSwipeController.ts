@@ -24,6 +24,7 @@ import {
 
 import { sharedBarsMatch, type SharedBarPresenceLike } from "@screen/computeBarRiding";
 
+import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 import type { SharedBarId, SharedBarsMetadata } from "@screen/store";
@@ -367,8 +368,12 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     if (prevScreen) holdScopeLayer(prevScreen, transition, false, layerOwner);
     const decoratorDef = config.getDecorator();
     if (decoratorDef) {
-      if (decorator) holdScopeLayer(decorator, decoratorDef, false, layerOwner);
-      if (prevDecorator) holdScopeLayer(prevDecorator, decoratorDef, false, layerOwner);
+      // The decorator's variant table only carries a clock once this
+      // transition's is folded in (resolveDecoratorClock); the layer hold reads
+      // that table to size what it promotes.
+      const decoratorClock = resolveDecoratorClock(transition, decoratorDef);
+      if (decorator) holdScopeLayer(decorator, decoratorClock, false, layerOwner);
+      if (prevDecorator) holdScopeLayer(prevDecorator, decoratorClock, false, layerOwner);
     }
   };
 

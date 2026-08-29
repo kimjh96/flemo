@@ -31,6 +31,12 @@ function ScreenDecorator({ ref, style, ...props }: ComponentPropsWithRef<"div">)
       ref={scopeRef}
       data-flemo-decorator
       data-flemo-decorator-name={decorator.name}
+      // The transition too, because a decorator's compiled rules belong to the
+      // PAIR: its clock is this transition's, so the same decorator named by a
+      // second transition of a different length compiles to a second rule set
+      // that this element must not match. `currentTransition.name` rather than
+      // the raw `transitionName` is the key the compiler used.
+      data-flemo-transition={currentTransition.name}
       data-flemo-status={status}
       data-flemo-active={isActive ? "true" : "false"}
       style={{
