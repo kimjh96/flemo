@@ -722,4 +722,83 @@ describe("ensureScopeHistorySync / releaseScopeHistorySync", () => {
     releaseScopeHistorySync(plain.scope);
     expect(plain.counts().disposals).toBe(1);
   });
+
+  // A MEMORY SCOPE MOUNTS THE SYNC TOO, and that is what makes `driver.back()`
+  // the commit on both backends — the swipe controller commits with exactly
+  // that call. What it must NOT join is the pair of places the sync reads the
+  // BROWSER's live entry: the module-level traversal recorder, whose entries
+  // are keyed on `window.history.state` and shared by every browser Router on
+  // the page, and the zone replay built on those records. A memory Router's
+  // pathnames belong to a stack the document knows nothing about.
+  describe("a memory scope", () => {
+    const memoryDriver = (emit: {
+      fire?: (event: { state: unknown; pathname: string }) => void;
+    }) => ({
+      readState: () => null,
+      readPathname: () => "/local",
+      pushState: () => {},
+      replaceState: () => {},
+      go: () => {},
+      back: () => {},
+      subscribe: (listener: (event: { state: unknown; pathname: string }) => void) => {
+        emit.fire = listener;
+        return () => {
+          emit.fire = undefined;
+        };
+      }
+    });
+
+    it("pops its own stores from a driver traversal", async () => {
+      const localRoot: History = { ...root, id: "m-root", pathname: "/local" };
+      const stores = {
+        history: createHistoryStore(
+          [localRoot, { ...root, id: "m-top", pathname: "/local/top" }],
+          1
+        ),
+        navigate: createNavigateStore()
+      };
+      const emit: { fire?: (event: { state: unknown; pathname: string }) => void } = {};
+      const dispose = createHistorySync({
+        stores,
+        driver: memoryDriver(emit),
+        consume: () => false,
+        memory: true
+      });
+      activeDisposers.push(dispose);
+
+      emit.fire?.({
+        state: { id: "m-root", index: 0, status: "IDLE", params: {}, transitionName: "cupertino" },
+        pathname: "/local"
+      });
+      await settle();
+
+      expect(stores.history.getState().index).toBe(0);
+    });
+
+    it("keeps its traversals out of the browser-entry recorder", async () => {
+      window.history.replaceState({ someKey: { id: "browser-entry", index: 0 } }, "", "/local");
+      const localRoot: History = { ...root, id: "m2-root", pathname: "/local" };
+      const stores = {
+        history: createHistoryStore([localRoot], 0),
+        navigate: createNavigateStore()
+      };
+      const emit: { fire?: (event: { state: unknown; pathname: string }) => void } = {};
+      const dispose = createHistorySync({
+        stores,
+        driver: memoryDriver(emit),
+        consume: () => false,
+        memory: true
+      });
+      activeDisposers.push(dispose);
+
+      emit.fire?.({ state: null, pathname: "/local" });
+      await settle();
+
+      // Recording it would have filed the BROWSER's live state under a pathname
+      // only the memory stack knows, where a browser Router's zone replay would
+      // later read it back.
+      expect(readRecordedFrame("someKey", "/local")).toBeNull();
+      window.history.replaceState(null, "", "/");
+    });
+  });
 });
