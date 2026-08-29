@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_77ab9d37862c3c7c83110512
+compiler:
+  compilerBuildId: sha256:d04ee6378c95d03e201ff9632b566a934f01bfc343f96544f450d5fd5e2a3d3d
+  compilerId: lervo.claude.document-normalizer
+  compilerVersion: 1+2.1.224 (Claude Code)
+  isolation: external_no_capabilities
+  provider: claude
+formatVersion: lervo.document.v1
+operationId: knormop_7a10c7727b427dcb5cbaaf74
+outputLanguage: en
+outputs:
+  - byteCount: 1687
+    contentHash: sha256:16916a71a9549b55fab6ef0b9a6d236f96a530a7faff5c7eda30840178847f05
+    path: docs/instructions/motion-jank-postmortem/desktop-player-blank.md
+    userRegionHash: sha256:16916a71a9549b55fab6ef0b9a6d236f96a530a7faff5c7eda30840178847f05
+profile: instruction_document
+recordId: knormdoc_6dd563f7480d48ba7fa7b8c7
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:0bb1e332745fe729b2328f0e368f18cae71fbde5e62dc614f6097d509a06cb25
+sourcePath: docs/instructions/motion-jank-postmortem/desktop-player-blank.md
+sourceUnitVersionIds:
+  - uv_6c9995ca8ee9d7939d6c575c

@@ -54,7 +54,7 @@ CI installs with `pnpm install --frozen-lockfile`. Local development may use `bu
 
 ## Conventions
 
-- Canonical instructions: this file, `packages/react/CLAUDE.md`, `apps/web/CLAUDE.md`, `docs/architecture/motion-engine.md`, `docs/architecture/driver-routing.md`, `docs/diagnostics.md`, and `docs/postmortems/`. There is no `.claude/rules/` directory.
+- Canonical instructions: this file, `apps/web/CLAUDE.md`, `docs/architecture/motion-engine.md`, `docs/architecture/driver-routing.md`, `docs/architecture/react-binding.md`, `docs/instructions/diagnostics.md`, and `docs/instructions/motion-jank-postmortem/`. There is no `.claude/rules/` directory.
 - Read both architecture documents before changing `packages/core/src/core/engine/`. Check postmortems before designing a motion fix.
 - Follow surrounding style. Every React component, including subcomponents, has its own folder and `index.ts` barrel; see `apps/web/components/*` and `apps/web/app/[lang]/playground/_components/*`.
 - Core aliases: `@core`, `@history`, `@morph`, `@navigate`, `@transition`, `@utils`. Register new top-level source aliases in both `packages/core/tsconfig.json` and `vite.config.mts`/`vitest.config.ts`.
@@ -67,9 +67,9 @@ CI installs with `pnpm install --frozen-lockfile`. Local development may use `bu
 
 - Engine tiers, flight lifecycle, leases, and resolution invariants: `docs/architecture/motion-engine.md`
 - Driver decisions, pins, and demotion: `docs/architecture/driver-routing.md`
-- `flemo:*` flags, URL arming, e2e helpers, and observation pitfalls: `docs/diagnostics.md`
-- Device history and do-not-retry list: `docs/postmortems/2026-08-motion-jank.md`
-- React architecture: `packages/react/CLAUDE.md`
+- `flemo:*` flags, URL arming, e2e helpers, and observation pitfalls: `docs/instructions/diagnostics.md`
+- Device history and do-not-retry list: `docs/instructions/motion-jank-postmortem.md`
+- React architecture: `docs/architecture/react-binding.md`
 - Core primitives: `packages/core/src/index.ts`
 - Web, playground, and e2e: `apps/web/CLAUDE.md`
 - Aliases: `packages/core/tsconfig.json`, `packages/react/tsconfig.json`
@@ -94,6 +94,12 @@ CI installs with `pnpm install --frozen-lockfile`. Local development may use `bu
 - Resolve roles with `lervo role list|show|validate`; treat the six built-ins as templates, author a lazy `.lervo/roles/<role-id>.json` source when a requested repository role does not exist, and never bypass version, hash, capability, verification, or ancestry validation.
 - Register every subagent with its parent and apply the same durable identity, scoped lease, path-conflict, evidence, verification, and finalization contracts used for root agents.
 - For all repository work, read [coverage](docs/instructions/coverage.md).
+- For all repository work, read [diagnostics](docs/instructions/diagnostics.md).
+- For all repository work, read [motion-jank-postmortem](docs/instructions/motion-jank-postmortem.md).
+- For all repository work, read [addendum-2026-08-17](docs/instructions/motion-jank-postmortem/addendum-2026-08-17.md).
+- For all repository work, read [desktop-player-blank](docs/instructions/motion-jank-postmortem/desktop-player-blank.md).
+- For all repository work, read [do-not-retry](docs/instructions/motion-jank-postmortem/do-not-retry.md).
+- For all repository work, read [glass-campaign-2026-08-18](docs/instructions/motion-jank-postmortem/glass-campaign-2026-08-18.md).
 <!-- lervo:end block=repository_instruction_routes -->
 
 <!-- lervo:begin block=development_pattern_routes schema=1 -->
