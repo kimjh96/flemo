@@ -62,7 +62,9 @@ describe("cupertino swipe", () => {
     );
 
     expect(progress).toBeCloseTo(50);
-    expect(onProgress).toHaveBeenCalledWith(true, expect.closeTo(50, 1));
+    // The VERDICT only: the controller supplies the progress a decorator and
+    // a part receive, against the box the screen is dragged over.
+    expect(onProgress).toHaveBeenCalledWith(true);
     expect(ctx.calls).toHaveBeenCalledWith(
       ctx.currentScreen,
       expect.objectContaining({ x: window.innerWidth / 2 }),
@@ -86,7 +88,7 @@ describe("cupertino swipe", () => {
     });
     expect(ctx.calls).toHaveBeenCalledWith(ctx.currentScreen, { x: 0 }, { duration: 0 });
     expect(ctx.calls).toHaveBeenCalledWith(ctx.prevScreen, { x: "-30%" }, { duration: 0 });
-    expect(onProgress).toHaveBeenCalledWith(true, 0);
+    expect(onProgress).toHaveBeenCalledWith(true);
 
     ctx.calls.mockClear();
 
@@ -163,6 +165,36 @@ describe("cupertino swipe", () => {
     );
   });
 
+  it("commits at the same fraction of the screen whatever its width", async () => {
+    // The threshold shares the progress mapping's reference. 50px was chosen
+    // on a 390px phone, so that is what it still means THERE, and a screen of
+    // another width asks for the same fraction rather than the same 50px. A
+    // gesture that measures its travel one way and decides on it another has
+    // two ideas of how far along it is.
+    const commitAt = async (screenWidth: number, dragX: number) => {
+      const ctx = context();
+      ctx.currentScreen.getBoundingClientRect = () =>
+        ({ width: screenWidth, height: 700, top: 0, left: 0 }) as DOMRect;
+      return cupertino.onSwipeEnd!(pointerEvent, swipeInfo({ offset: { x: dragX, y: 0 } }), {
+        ...ctx,
+        onStart: vi.fn()
+      });
+    };
+
+    // A 390px phone still commits either side of 50px, exactly as before.
+    await expect(commitAt(390, 51)).resolves.toBe(true);
+    await expect(commitAt(390, 49)).resolves.toBe(false);
+
+    // A screen at half that width asks for half the travel...
+    await expect(commitAt(195, 26)).resolves.toBe(true);
+    await expect(commitAt(195, 24)).resolves.toBe(false);
+
+    // ...and a wide one asks for proportionally more, where a flat 50px was
+    // under 4% of the screen and committed almost on contact.
+    await expect(commitAt(1275, 100)).resolves.toBe(false);
+    await expect(commitAt(1275, 200)).resolves.toBe(true);
+  });
+
   it("cancels back to rest under the threshold", async () => {
     const ctx = context();
     const onStart = vi.fn();
@@ -220,7 +252,7 @@ describe("material swipe", () => {
     });
 
     expect(progress).toBe(56);
-    expect(onProgress).toHaveBeenCalledWith(true, 56);
+    expect(onProgress).toHaveBeenCalledWith(true);
     expect(ctx.calls).toHaveBeenCalledWith(ctx.currentScreen, { y: 68 }, { duration: 0 });
     expect(ctx.calls).toHaveBeenCalledWith(ctx.prevScreen, { y: 0, opacity: 1 }, { duration: 0 });
   });
@@ -286,7 +318,7 @@ describe("layout swipe", () => {
     });
 
     expect(progress).toBe(40);
-    expect(onProgress).toHaveBeenCalledWith(true, 100);
+    expect(onProgress).toHaveBeenCalledWith(true);
     expect(ctx.calls).toHaveBeenCalledWith(
       ctx.currentScreen,
       expect.objectContaining({ y: 40, opacity: expect.any(Number) }),

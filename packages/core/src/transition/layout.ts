@@ -110,7 +110,7 @@ const layout = createTransition({
       const finalY = Math.max(0, clamped + resistedExtra);
       const progress = Math.min(56, finalY);
 
-      onProgress?.(true, 100);
+      onProgress?.(true);
 
       animate(
         currentScreen,

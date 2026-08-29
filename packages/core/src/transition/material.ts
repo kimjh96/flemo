@@ -67,7 +67,7 @@ const material = createTransition({
       const finalY = Math.max(0, clamped + resistedExtra);
       const progress = Math.min(56, finalY);
 
-      onProgress?.(true, progress);
+      onProgress?.(true);
 
       animate(
         currentScreen,

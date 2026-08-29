@@ -457,11 +457,19 @@ describe("createSwipeController", () => {
 
       c.pointerMove(event({ clientX: 140, clientY: 0, timeStamp: 16 }));
       await flush();
+      // The GESTURE's progress, not the 42 the handler passed. A transition's
+      // own number is in its own unit, so a part that reads it cannot honour
+      // the 0-100 its hook documents; the controller measures the drag against
+      // the box the screen travels and hands that over instead.
+      // The gesture's origin is the move that STARTED it (clientX 40), not the
+      // pointerdown, so this drag is 100px of the screen's span.
+      const span = dom.scope.getBoundingClientRect().width || window.innerWidth;
       expect(btSwipe).toHaveBeenCalledWith(
         true,
-        42,
+        expect.closeTo(((140 - 40) / span) * 100, 5),
         expect.objectContaining({ element: curBar, active: true })
       );
+      expect(btSwipe).not.toHaveBeenCalledWith(true, 42, expect.anything());
     });
 
     it("runs onSwipeEnd and releases inline writes on a cancelled swipe", async () => {

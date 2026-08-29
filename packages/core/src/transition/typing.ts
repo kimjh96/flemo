@@ -62,7 +62,18 @@ export type TransitionOptions =
           animate: SwipeAnimate;
           currentScreen: HTMLDivElement;
           prevScreen: HTMLDivElement;
-          onProgress?: (triggered: boolean, progress: number) => void;
+          /**
+           * Report the gesture's VERDICT so the decorator and the parts can
+           * follow it. The controller supplies their progress itself, against
+           * the box the screen is actually dragged over, so a second argument
+           * is accepted for source compatibility and is not read.
+           *
+           * It used to be. A transition's own progress is in the transition's
+           * own unit — material's is a pull in pixels, layout's is a constant
+           * — so what reached a decorator depended on which preset it was
+           * paired with, and could not honour the 0-100 those hooks document.
+           */
+          onProgress?: (triggered: boolean, progress?: number) => void;
         }
       ) => number;
       onSwipeEnd: (

@@ -23,6 +23,24 @@ const linear = (value: number, from: [number, number], to: [number, number]) => 
 // native leading-edge shadow is deliberately NOT replicated.
 const PARALLAX = 30;
 const DURATION = 0.7;
+
+// How far a drag has to travel, as a fraction of the screen it is dragging,
+// before the release commits. 0.128 is the 50px this named for years measured
+// against the 390px phone it was dialed on, so the felt threshold is unchanged
+// where it was chosen and scales with the screen everywhere else.
+const COMMIT_FRACTION = 50 / 390;
+
+// The distance THIS SCREEN travels, which is the basis for both the drag's
+// progress and its commit threshold. A screen fills its Router, and a Router
+// does not always fill the window: a nested one lives in whatever box its host
+// gives it. `window.innerWidth` is the fallback for a screen with no layout
+// yet, not the reference.
+// No SSR guard on `window` here, and it is not an omission: this is reached
+// only from the swipe handlers, which run from a pointer event, so a window
+// exists by definition. The controller's own span keeps one because it is
+// computed on a path a server render can reach.
+const screenSpan = (screen: HTMLElement): number =>
+  screen.getBoundingClientRect().width || window.innerWidth;
 const EASE: [number, number, number, number] = [0.32, 0.72, 0, 1];
 
 const cupertino = createTransition({
@@ -83,9 +101,15 @@ const cupertino = createTransition({
     onSwipe: (_, info, { animate, currentScreen, prevScreen, onProgress }) => {
       const { offset } = info;
       const dragX = offset.x;
-      const progress = linear(dragX, [0, window.innerWidth], [0, 100]);
+      // Against the SCREEN's box, not the window's. This screen travels its own
+      // width, so that is the distance a drag is a fraction of; the two are the
+      // same question only for a Router that fills the viewport. Measured in a
+      // 348px stage inside a 1275px window: a 158px drag read as 12% travelled
+      // while the screen had covered 45%, so the covered screen barely
+      // parallaxed for the whole gesture and the dim barely lifted.
+      const progress = linear(dragX, [0, screenSpan(currentScreen)], [0, 100]);
 
-      onProgress?.(true, progress);
+      onProgress?.(true);
 
       animate(
         currentScreen,
@@ -111,7 +135,13 @@ const cupertino = createTransition({
     onSwipeEnd: async (_, info, { animate, currentScreen, prevScreen, onStart }) => {
       const { offset, velocity } = info;
       const dragX = offset.x;
-      const isTriggered = dragX > 50 || velocity.x > 20;
+      // The commit threshold shares the progress mapping's reference, because
+      // a gesture that measures its travel one way and decides on it another
+      // has two ideas of how far along it is. COMMIT_FRACTION is the 50px this
+      // used to name, expressed against the 390px screen it was chosen on, so
+      // a phone commits exactly where it always did and a wider screen asks
+      // for proportionally more rather than the same 50px.
+      const isTriggered = dragX > screenSpan(currentScreen) * COMMIT_FRACTION || velocity.x > 20;
 
       onStart?.(isTriggered);
 
