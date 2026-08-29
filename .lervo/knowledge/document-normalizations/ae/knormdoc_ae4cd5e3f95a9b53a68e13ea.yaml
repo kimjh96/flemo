@@ -1,7 +1,7 @@
 byteOwnership:
   owner: reviewer
   rewritePolicy: reviewed_exact
-candidateId: knorm_0e970f36b682d22cfea5deff
+candidateId: knorm_77ab9d37862c3c7c83110512
 compiler:
   compilerBuildId: sha256:d04ee6378c95d03e201ff9632b566a934f01bfc343f96544f450d5fd5e2a3d3d
   compilerId: lervo.claude.document-normalizer
@@ -9,26 +9,26 @@ compiler:
   isolation: external_no_capabilities
   provider: claude
 formatVersion: lervo.document.v1
-operationId: knormop_c44260155baca82a68f501ae
+operationId: knormop_b66bb92f3212070beb4e85d7
 outputLanguage: en
 outputs:
   - byteCount: 12811
     contentHash: sha256:691a1421143ce3a26458f361a6fced77beb905824328d2b8e47d2c238c2ddea8
-    path: docs/diagnostics.md
+    path: docs/instructions/diagnostics.md
     userRegionHash: sha256:691a1421143ce3a26458f361a6fced77beb905824328d2b8e47d2c238c2ddea8
-profile: repository_document
-recordId: knormdoc_e2f19b89aaea688ec0e32ec4
+profile: instruction_document
+recordId: knormdoc_ae4cd5e3f95a9b53a68e13ea
 resourceBindings: []
 schemaVersion: 2
-sourceContentHash: sha256:4f7cf4da3350733a5f77f95ddb4f4282886deecd2a12b5d7d286f6e2de5d7596
-sourcePath: docs/diagnostics.md
+sourceContentHash: sha256:691a1421143ce3a26458f361a6fced77beb905824328d2b8e47d2c238c2ddea8
+sourcePath: docs/instructions/diagnostics.md
 sourceUnitVersionIds:
-  - uv_0232bdbfca688badf2e967ee
-  - uv_12544f9cce892ac6935e83cb
-  - uv_2a6883d82724d039a8e4b5ce
-  - uv_5ccf2a8329df27a6dc8ea8bd
-  - uv_63525f6769bb2750b53b7926
-  - uv_9667cf053c4ac575bc16a497
-  - uv_e126a0a106726391ee0ed11d
-  - uv_f0fb92655995a69117d7cb86
-  - uv_f69b4d7199477191959f629f
+  - uv_075856ae327597ca55d02d8d
+  - uv_0ca37bb96889e1ab7e6e6886
+  - uv_1dd55769f6e7ad7472aff6ca
+  - uv_94b4fb7846ebed2f3765c996
+  - uv_96109ec167a584a026309a81
+  - uv_b34a94946dc139eb65ecd728
+  - uv_ed4450332ec4078622964da7
+  - uv_fad8d9f927b821dc50b691dc
+  - uv_fd61dcaf6d981f1bd3e292ee

@@ -1,14 +1,14 @@
 assurance: unreviewed
 bundleId: bundle_f30402500333f4447ba5d2b8
-conceptId: concept_e464841552d2ce8b328f707f
+conceptId: concept_923d69a1010bc639a2b8ffeb
 freshness: current
 ownership: user
-path: docs/postmortems/2026-08-motion-jank/addendum-2026-08-17.md
+path: docs/instructions/motion-jank-postmortem/addendum-2026-08-17.md
 publicationLanguage: en
-publicationProfile: explanation
+publicationProfile: reference
 publicationStatus: stable
 schemaVersion: 1
 sourceUnitVersionIds:
-  - uv_869a91aee0dfb8d9c77674c2
+  - uv_c8c3447160335f04c65575ad
 title: "Addendum — 2026-08-17 evening: the attribution re-verified live, twice refuted defaults"
-type: concept
+type: invariant
