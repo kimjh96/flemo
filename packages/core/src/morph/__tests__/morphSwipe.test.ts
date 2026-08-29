@@ -160,6 +160,51 @@ describe("beginMorphSwipe", () => {
     expect(thumbnail.getAttribute(MORPH_ATTR)).toBe("enter");
   });
 
+  it("re-stages on the next frame when the arriving partner is a frame late", () => {
+    // THE ORDER THE BINDING PRODUCES. A back-swipe's first move is also what
+    // wakes the covered screen, so its <Morph> children re-register in the
+    // commit that follows — after the gesture has already asked to stage. Only
+    // the dismissing side exists at that moment, and it is never the one that
+    // flies, so the first pass legitimately stages nothing.
+    const detail = makeScreen(true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
+
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi
+      .spyOn(globalThis, "requestAnimationFrame")
+      .mockImplementation((callback: FrameRequestCallback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+
+    const swipe = beginMorphSwipe(store, "POPPING");
+    expect(swipe.active).toBe(false);
+
+    // The covered screen commits: its thumbnail registers.
+    const gallery = makeScreen(false);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+
+    for (const frame of frames.splice(0)) frame(0);
+    raf.mockRestore();
+
+    expect(swipe.active).toBe(true);
+    expect(layer.contains(thumbnail)).toBe(true);
+    expect(thumbnail.getAttribute(MORPH_ATTR)).toBe("enter");
+  });
+
+  it("does not spend a frame re-staging when the first pass already flew", () => {
+    stage();
+    const raf = vi.spyOn(globalThis, "requestAnimationFrame");
+
+    const swipe = beginMorphSwipe(store, "POPPING");
+
+    expect(swipe.active).toBe(true);
+    expect(raf).not.toHaveBeenCalled();
+    raf.mockRestore();
+  });
+
   it("holds the flight at zero instead of letting it run", () => {
     const { thumbnail } = stage();
     captureFlyerAnimation(thumbnail);
