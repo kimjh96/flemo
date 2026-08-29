@@ -47,7 +47,6 @@ export {
   type NavigateOptions,
   type PopOptions
 } from "@navigate/createNavigationController";
-export { default as commitScopeBack } from "@navigate/commitScopeBack";
 export {
   default as createStepController,
   readStepParams,

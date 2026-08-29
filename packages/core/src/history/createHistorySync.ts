@@ -42,6 +42,12 @@ export interface HistorySyncDeps {
   // matches, which the renderer cannot mount. Events outside the route space
   // are not ours to handle at all.
   ownsPathname?: (pathname: string) => boolean;
+  // Whether this scope's backend is the in-memory one. A memory Router's
+  // traversals belong to a stack the document knows nothing about, so they must
+  // stay out of the module-level recorder below — its entries are keyed on
+  // `window.history.state` and shared by every browser Router on the page — and
+  // out of the zone replay that reads the live browser entry.
+  memory?: boolean;
 }
 
 // The flemo frame a back/forward event carries (stored by a prior push/replace).
@@ -335,7 +341,7 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
     if (disposed) return;
     lastEventAt = clock();
     scheduleHeal();
-    recordTraversal(event.pathname);
+    if (!deps.memory) recordTraversal(event.pathname);
     // A traversal flemo triggered itself. The navigation queue already owns it.
     if (consume()) return;
     return processTraversal(event);
@@ -351,7 +357,12 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
   // everything after this scope's seed entry through the normal classifier — in
   // order, each with its full transition, exactly as if the Router had been
   // alive when they fired.
-  if (deps.routerKey && deps.zoneEntryId && liveEntryBelongsToZone(driver, deps.zoneEntryId)) {
+  if (
+    !deps.memory &&
+    deps.routerKey &&
+    deps.zoneEntryId &&
+    liveEntryBelongsToZone(driver, deps.zoneEntryId)
+  ) {
     const seedPathname =
       stores.history.getState().histories[stores.history.getState().index]?.pathname;
     const tail = recordedTraversalsAfter(seedPathname);
@@ -460,6 +471,7 @@ interface SyncScope {
   routerKey?: string;
   zoneEntryId?: string;
   ownsPathname?: (pathname: string) => boolean;
+  memory?: boolean;
 }
 
 const scopeSyncs = new WeakMap<SyncScope, () => void>();
@@ -474,7 +486,8 @@ export function ensureScopeHistorySync(scope: SyncScope): void {
       consume: scope.consume,
       routerKey: scope.routerKey,
       zoneEntryId: scope.zoneEntryId,
-      ownsPathname: scope.ownsPathname
+      ownsPathname: scope.ownsPathname,
+      memory: scope.memory
     })
   );
 }
