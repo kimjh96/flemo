@@ -58,24 +58,33 @@ afterEach(async () => {
   stopSweeper = null;
 });
 
-const pushDetail = async (stores: FlemoStores) => {
-  await createNavigationController({
+// The binding's pop, which a memory scope's commit delegates to.
+const scopePop = (stores: FlemoStores) => () => {
+  void controllerFor(stores).pop();
+};
+
+const controllerFor = (stores: FlemoStores) =>
+  createNavigationController({
     stores,
     buildPathname: (path) => ({ pathname: path, toPathname: path }),
     driver: stores.driver,
     markSelfInduced: stores.markSelfInduced
-  }).push("/detail");
-};
+  });
+
+const pushDetail = (stores: FlemoStores) => controllerFor(stores).push("/detail");
 
 describe("commitScopeBack", () => {
   it("a browser scope commits through the driver and leaves the stores to the sync", () => {
     const stores = browserScope();
+    const pop = vi.fn();
 
-    commitScopeBack(stores);
+    commitScopeBack(stores, pop);
 
     expect(stores.driver.back).toHaveBeenCalledTimes(1);
-    // The traversal has not come back yet: nothing may move the store ahead of
-    // the browser, and no guard may be marked (the sync would eat the event).
+    // Committing through the binding's pop as well would move the store ahead
+    // of the browser AND mark a guard the sync then eats, so the traversal it
+    // is about to hear would be dropped.
+    expect(pop).not.toHaveBeenCalled();
     expect(stores.history.getState().index).toBe(0);
     expect(stores.consume()).toBe(false);
   });
@@ -85,7 +94,7 @@ describe("commitScopeBack", () => {
     await pushDetail(stores);
     expect(stores.history.getState().index).toBe(1);
 
-    commitScopeBack(stores);
+    commitScopeBack(stores, scopePop(stores));
     // The commit is fire-and-forget (the swipe hands off and returns), so wait
     // on the stack itself — the status is already COMPLETED from the push.
     await vi.waitFor(() => expect(stores.history.getState().index).toBe(0));
@@ -99,7 +108,7 @@ describe("commitScopeBack", () => {
     await pushDetail(stores);
     expect(stores.driver.readPathname()).toBe("/detail");
 
-    commitScopeBack(stores);
+    commitScopeBack(stores, scopePop(stores));
     await vi.waitFor(() => expect(stores.history.getState().index).toBe(0));
 
     expect(stores.driver.readPathname()).toBe("/");

@@ -39,6 +39,8 @@ import {
   type MorphSwipe
 } from "@flemo/core";
 
+import useNavigate from "@navigate/useNavigate";
+
 import {
   LayerHostContext,
   LayerOwnerContext,
@@ -338,6 +340,15 @@ function ScreenMotion({
     index
   };
 
+  // The Router's own pop, for the gesture to commit with when the driver has no
+  // listener to commit through (see commitScopeBack). Held in a ref because the
+  // swipe config is built once and `useNavigate` returns a fresh object each
+  // render; `pop` targets the nearest Router, which is the one that owns this
+  // screen.
+  const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+
   const swipeControllerRef = useRef<ReturnType<typeof createSwipeController> | null>(null);
   // The gesture's own morph flights, alive only between a drag's start and its
   // release.
@@ -387,7 +398,7 @@ function ScreenMotion({
       // there used to navigate the whole document away instead of popping the
       // stack the gesture was dragging. Routing it to the scope also settles
       // who applies the pop, which differs by backend — see commitScopeBack.
-      back: () => commitScopeBack(stores),
+      back: () => commitScopeBack(stores, () => navigateRef.current.pop()),
       // THE SHARED ELEMENT FOLLOWS THE FINGER.
       //
       // A morph cannot be driven from a transition's swipe hooks the way a
