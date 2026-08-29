@@ -1,0 +1,31 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_af5ad650bd6636a4ec301d87
+compiler:
+  compilerBuildId: sha256:d04ee6378c95d03e201ff9632b566a934f01bfc343f96544f450d5fd5e2a3d3d
+  compilerId: lervo.claude.document-normalizer
+  compilerVersion: 1+2.1.224 (Claude Code)
+  isolation: external_no_capabilities
+  provider: claude
+formatVersion: lervo.document.v1
+operationId: knormop_935793b3a8bc19422aa767af
+outputLanguage: en
+outputs:
+  - byteCount: 17658
+    contentHash: sha256:1ff3bb7a94a5d230accbf9349ce1145c9f3f1cb55952aa4b0343b7f22f8e06cb
+    path: docs/architecture/react-binding.md
+    userRegionHash: sha256:1ff3bb7a94a5d230accbf9349ce1145c9f3f1cb55952aa4b0343b7f22f8e06cb
+profile: architecture_document
+recordId: knormdoc_967aeb3449868a04bdd26429
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:056956298914bee8a3aa742b05d5375e15d175041b7080cc3fbff99bf6a44dce
+sourcePath: docs/architecture/react-binding.md
+sourceUnitVersionIds:
+  - uv_3219865aace1ee1776ba621e
+  - uv_3e65dc8436caa380922e477c
+  - uv_8bdec8b757a672e47cedd6aa
+  - uv_c713623699fd01ae3b01e10c
+  - uv_ef4f8b0843e0cd4a6cbe7429
+  - uv_f61e2d259e965d76c2d50930

@@ -17,8 +17,7 @@ AGENTS.md
 CLAUDE.md
 apps/web/AGENTS.md
 apps/web/CLAUDE.md
-docs/architecture/driver-routing.md
-docs/architecture/motion-engine.md
+docs/architecture/
 docs/instructions/
 packages/devtools/README.md
 # lervo:end document-rewrite-ownership

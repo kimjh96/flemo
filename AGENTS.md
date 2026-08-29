@@ -54,7 +54,7 @@ CI installs with `pnpm install --frozen-lockfile`. Local development may use `bu
 
 ## Conventions
 
-- Canonical instructions: this file, `packages/react/CLAUDE.md`, `apps/web/CLAUDE.md`, `docs/architecture/motion-engine.md`, `docs/architecture/driver-routing.md`, `docs/instructions/diagnostics.md`, and `docs/instructions/motion-jank-postmortem/`. There is no `.claude/rules/` directory.
+- Canonical instructions: this file, `apps/web/CLAUDE.md`, `docs/architecture/motion-engine.md`, `docs/architecture/driver-routing.md`, `docs/architecture/react-binding.md`, `docs/instructions/diagnostics.md`, and `docs/instructions/motion-jank-postmortem/`. There is no `.claude/rules/` directory.
 - Read both architecture documents before changing `packages/core/src/core/engine/`. Check postmortems before designing a motion fix.
 - Follow surrounding style. Every React component, including subcomponents, has its own folder and `index.ts` barrel; see `apps/web/components/*` and `apps/web/app/[lang]/playground/_components/*`.
 - Core aliases: `@core`, `@history`, `@morph`, `@navigate`, `@transition`, `@utils`. Register new top-level source aliases in both `packages/core/tsconfig.json` and `vite.config.mts`/`vitest.config.ts`.
@@ -69,7 +69,7 @@ CI installs with `pnpm install --frozen-lockfile`. Local development may use `bu
 - Driver decisions, pins, and demotion: `docs/architecture/driver-routing.md`
 - `flemo:*` flags, URL arming, e2e helpers, and observation pitfalls: `docs/instructions/diagnostics.md`
 - Device history and do-not-retry list: `docs/instructions/motion-jank-postmortem.md`
-- React architecture: `packages/react/CLAUDE.md`
+- React architecture: `docs/architecture/react-binding.md`
 - Core primitives: `packages/core/src/index.ts`
 - Web, playground, and e2e: `apps/web/CLAUDE.md`
 - Aliases: `packages/core/tsconfig.json`, `packages/react/tsconfig.json`
