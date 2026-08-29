@@ -98,35 +98,18 @@ export const beginMorphSwipe = (
   // element sits still through the whole drag and then makes the trip on its
   // own once the navigation lands, long after the screens have stopped.
   //
-  // So an empty first pass is retried — and NOT ONCE. How many frames that
-  // commit takes is the renderer's business, not a constant this can assume: a
-  // single next-frame retry is enough on a fast machine and misses on a slower
-  // one, which reads to the user as the defect never having been fixed. The
-  // retry rides the SCRUB instead, so every pointer move is another chance and
-  // the gesture times itself.
-  //
-  // A microtask would not do for the same reason a frame alone does not: it
-  // runs before React commits, which is the thing being waited for.
-  //
-  // The attempts are bounded because staging is not free — it captures the
-  // scope and walks every registered entry — and a screen pair with no shared
-  // element at all would otherwise pay that on every move for the length of the
-  // drag. A dozen covers a commit many frames late; past that there is nothing
-  // to pair.
-  const MAX_STAGE_ATTEMPTS = 12;
-  let stageAttempts = 0;
-
-  // Try to stage, returning whether anything is flying afterwards. Cheap and
-  // idempotent once it succeeds: the caller checks the flight first, so a
-  // staged gesture never re-enters this.
-  const stageLate = (): boolean => {
-    if (released || stageAttempts >= MAX_STAGE_ATTEMPTS) return false;
-    stageAttempts += 1;
-    stageHeldFlights(store, status);
-    const flights = heldFlights(store).length;
-    if (flights > 0) traceSwipe("swipe-restage", { flights, attempts: stageAttempts });
-    return flights > 0;
-  };
+  // So an empty first pass is retried on the next FRAME. A microtask is too
+  // early — it runs before React commits, which is the thing being waited for.
+  // A pass that staged anything is left alone; re-running it would be a no-op
+  // (`already-flying`) but the frame of delay is not worth spending.
+  if (heldFlights(store).length === 0) {
+    requestAnimationFrame(() => {
+      if (released || heldFlights(store).length > 0) return;
+      stageHeldFlights(store, status);
+      traceSwipe("swipe-restage", { flights: heldFlights(store).length });
+      holdAt(0);
+    });
+  }
 
   // The container's own clock. Nested flights ride it by construction (same
   // duration, same start), so one flight's timing drives the whole set.
@@ -173,16 +156,8 @@ export const beginMorphSwipe = (
     },
     scrub: (progress: number) => {
       if (released) return;
-      // The partner may only just have registered (see stageLate). Staging here
-      // rather than on a timer means the element joins the gesture on the very
-      // move after it exists, at the progress the finger is already at.
-      let flight = clockOf();
-      if (!flight) {
-        if (!stageLate()) return;
-        holdAt(0);
-        flight = clockOf();
-        if (!flight) return;
-      }
+      const flight = clockOf();
+      if (!flight) return;
       const clamped = progress < 0 ? 0 : progress > 1 ? 1 : progress;
       lastAsked = clamped;
       scrubs += 1;

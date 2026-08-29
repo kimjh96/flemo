@@ -160,7 +160,7 @@ describe("beginMorphSwipe", () => {
     expect(thumbnail.getAttribute(MORPH_ATTR)).toBe("enter");
   });
 
-  it("stages on the move after a late arriving partner registers", () => {
+  it("re-stages on the next frame when the arriving partner is a frame late", () => {
     // THE ORDER THE BINDING PRODUCES. A back-swipe's first move is also what
     // wakes the covered screen, so its <Morph> children re-register in the
     // commit that follows — after the gesture has already asked to stage. Only
@@ -170,11 +170,15 @@ describe("beginMorphSwipe", () => {
     const hero = makeMorph(detail, [0, 0, 400, 300]);
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
 
-    const swipe = beginMorphSwipe(store, "POPPING");
-    expect(swipe.active).toBe(false);
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi
+      .spyOn(globalThis, "requestAnimationFrame")
+      .mockImplementation((callback: FrameRequestCallback) => {
+        frames.push(callback);
+        return frames.length;
+      });
 
-    // A move before the commit lands still finds nothing, and must not throw.
-    swipe.scrub(0.1);
+    const swipe = beginMorphSwipe(store, "POPPING");
     expect(swipe.active).toBe(false);
 
     // The covered screen commits: its thumbnail registers.
@@ -182,30 +186,23 @@ describe("beginMorphSwipe", () => {
     const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
     attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
 
-    swipe.scrub(0.2);
+    for (const frame of frames.splice(0)) frame(0);
+    raf.mockRestore();
 
     expect(swipe.active).toBe(true);
     expect(layer.contains(thumbnail)).toBe(true);
     expect(thumbnail.getAttribute(MORPH_ATTR)).toBe("enter");
   });
 
-  it("stops trying rather than re-staging for the whole drag", () => {
-    // Staging captures the scope and walks every registered entry, so a screen
-    // pair with no shared element must not pay for it on every pointer move.
-    const detail = makeScreen(true);
-    const hero = makeMorph(detail, [0, 0, 400, 300]);
-    attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
+  it("does not spend a frame re-staging when the first pass already flew", () => {
+    stage();
+    const raf = vi.spyOn(globalThis, "requestAnimationFrame");
 
     const swipe = beginMorphSwipe(store, "POPPING");
-    for (let move = 0; move < 20; move += 1) swipe.scrub(move / 20);
 
-    // A partner arriving this late is past the budget: the gesture has given up.
-    const gallery = makeScreen(false);
-    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
-    attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
-    swipe.scrub(0.9);
-
-    expect(swipe.active).toBe(false);
+    expect(swipe.active).toBe(true);
+    expect(raf).not.toHaveBeenCalled();
+    raf.mockRestore();
   });
 
   it("holds the flight at zero instead of letting it run", () => {
