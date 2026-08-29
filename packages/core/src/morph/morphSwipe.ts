@@ -4,7 +4,13 @@ import { invertEasing } from "@transition/cubicBezier";
 
 import { morphTraceArmed } from "@core/engine/diagnosticFlags";
 
-import { heldFlights, stageHeldFlights, type MorphFlight } from "@morph/attachMorph";
+import {
+  clearGestureDeliveries,
+  heldFlights,
+  markGestureDelivered,
+  stageHeldFlights,
+  type MorphFlight
+} from "@morph/attachMorph";
 
 // A MORPH THE FINGER DRIVES.
 //
@@ -83,6 +89,8 @@ export const beginMorphSwipe = (
 ): MorphSwipe => {
   let released = false;
 
+  // A new gesture supersedes whatever the last one left behind.
+  clearGestureDeliveries(store);
   stageHeldFlights(store, status);
   traceSwipe("swipe-begin", { flights: heldFlights(store).length });
 
@@ -188,6 +196,12 @@ export const beginMorphSwipe = (
         duration: flight.duration,
         start: flight.start
       });
+      // A COMMIT delivers these elements itself: the release plays them out to
+      // the arrival, and the navigation this commits will stage a moment later.
+      // Whether its staging finds them still flying is a race the release speed
+      // decides — a flick lands them first — so tell it they are already
+      // delivered rather than leave it to timing.
+      if (commit) markGestureDelivered(store);
       // Handed back to the browser, so the net goes back up — sized to the
       // release, not to the flight the gesture never ran.
       for (const held of heldFlights(store)) held.armBackstop(span);

@@ -10,7 +10,7 @@ import {
   TRANSITION_ATTR
 } from "@dom/attributes";
 
-import attachMorph from "@morph/attachMorph";
+import attachMorph, { heldFlights, stageHeldFlights } from "@morph/attachMorph";
 import { registerMorphLayer } from "@morph/morphLayer";
 import { beginMorphSwipe } from "@morph/morphSwipe";
 
@@ -297,6 +297,46 @@ describe("beginMorphSwipe", () => {
     swipe.settle(true, 0.2);
 
     expect(short.currentTime).toBe(17);
+  });
+
+  it("does not let the navigation re-fly what the gesture already delivered", () => {
+    // THE RACE A FLICK LOSES. The release settle is scaled to what is left, so
+    // a gesture carried to the far edge lands its morph in about 120ms while
+    // the navigation it committed stages at about 150ms — and by then nothing
+    // is flying, so the same element is staged again from its ORIGINAL rest
+    // pose and makes the whole trip a second time. Measured on the built
+    // package: land at 149ms, a fresh start at 150ms, landing again 723ms later.
+    const { thumbnail } = stage();
+    captureFlyerAnimation(thumbnail);
+    const swipe = beginMorphSwipe(store, "POPPING");
+    swipe.scrub(0.9);
+    swipe.settle(true, 0.05);
+
+    // The flight lands before the navigation gets there.
+    for (const flight of heldFlights(store)) flight.finish();
+    expect(heldFlights(store)).toHaveLength(0);
+
+    // The navigation catches up and stages exactly as it always does.
+    store.getState().setStatus("POPPING");
+    stageHeldFlights(store, "POPPING");
+
+    expect(heldFlights(store)).toHaveLength(0);
+    expect(layer.contains(thumbnail)).toBe(false);
+  });
+
+  it("still flies for the NEXT gesture after a delivery", () => {
+    const { thumbnail } = stage();
+    captureFlyerAnimation(thumbnail);
+    const first = beginMorphSwipe(store, "POPPING");
+    first.scrub(0.9);
+    first.settle(true, 0.05);
+    for (const flight of heldFlights(store)) flight.finish();
+
+    // A delivery the navigation never came to collect must not suppress the
+    // gesture after it.
+    const second = beginMorphSwipe(store, "POPPING");
+
+    expect(second.active).toBe(true);
   });
 
   it("brings the element home when the gesture is abandoned", () => {
