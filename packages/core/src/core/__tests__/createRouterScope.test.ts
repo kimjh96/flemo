@@ -77,6 +77,7 @@ describe("createRouterScope", () => {
       transition: createTransitionStore(),
       screen: createScreenStore(),
       driver: fakeBrowserDriver(),
+      memory: false,
       markSelfInduced: () => {},
       consume: () => false,
       life: { alive: true }

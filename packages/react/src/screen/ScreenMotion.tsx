@@ -18,6 +18,7 @@ import {
   beginMorphSwipe,
   computeBarRiding,
   computeScreenFreeze,
+  commitScopeBack,
   eagerlyDecodeImages,
   isOpaqueColor,
   createSwipeController,
@@ -381,12 +382,12 @@ function ScreenMotion({
         return partnerId ? stores.screen.getState().sharedBarMetadata[partnerId] : undefined;
       },
       setDragStatus,
-      // The ROUTER's own back, not the browser's. They are the same call for a
-      // browser Router and nothing alike for a memory one: `window.history`
-      // there belongs to the page around the Router, so a swipe-back committed
-      // inside a memory-history stack navigated the whole document away instead
-      // of popping the stack the gesture was dragging.
-      back: () => stores.driver.back(),
+      // The ROUTER's own back, not the browser's. `window.history` under a
+      // memory Router belongs to the page AROUND it, so a swipe-back committed
+      // there used to navigate the whole document away instead of popping the
+      // stack the gesture was dragging. Routing it to the scope also settles
+      // who applies the pop, which differs by backend — see commitScopeBack.
+      back: () => commitScopeBack(stores),
       // THE SHARED ELEMENT FOLLOWS THE FINGER.
       //
       // A morph cannot be driven from a transition's swipe hooks the way a

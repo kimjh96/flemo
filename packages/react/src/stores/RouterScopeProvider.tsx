@@ -25,6 +25,9 @@ function RouterScopeProvider({ children }: PropsWithChildren) {
     transition: createTransitionStore(),
     screen: createScreenStore(),
     driver: createBrowserHistoryDriver(),
+    // A hosted bundle exists to be driven from OUTSIDE the Router, which only a
+    // browser history can address; `history="memory"` opts out of hosting.
+    memory: false,
     markSelfInduced: markSelfInducedPop,
     consume: consumeSelfInducedPop,
     life: { alive: true }

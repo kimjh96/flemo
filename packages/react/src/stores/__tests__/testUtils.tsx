@@ -22,6 +22,7 @@ export function createTestStores(): FlemoStores {
     transition: createTransitionStore(),
     screen: createScreenStore(),
     driver: createBrowserHistoryDriver(),
+    memory: false,
     markSelfInduced: markSelfInducedPop,
     consume: consumeSelfInducedPop,
     life: { alive: true }

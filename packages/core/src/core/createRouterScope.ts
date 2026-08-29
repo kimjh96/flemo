@@ -32,6 +32,14 @@ export interface FlemoStores {
   // root <Router>, an in-memory stack for a memory one. Shared by the
   // navigation controller and the history sync so both drive the same history.
   driver: HistoryDriver;
+  // Whether that backend is the in-memory one. It decides who OWNS a traversal:
+  // a browser Router mounts the history sync, so a bare `driver.back()` comes
+  // back as an event the sync turns into a store pop; a memory Router mounts no
+  // sync (its traversals must never enter the sync's window-history replay
+  // records), so its driver has no listener at all and a bare `back()` moves
+  // the in-memory index and nothing else. Anything committing a back on a
+  // memory scope has to drive the stores itself — see `commitScopeBack`.
+  memory: boolean;
   // Self-pop guard for this scope. A browser <Router> creates its own guard
   // instance: `markSelfInduced` (injected into the navigation controller) marks
   // a flemo-induced traversal, and `consume` (injected into the history sync)
@@ -218,6 +226,7 @@ export default function createRouterScope(input: CreateRouterScopeInput): FlemoS
     transition: createTransitionStore(defaultTransitionName),
     screen: createScreenStore(),
     driver,
+    memory,
     markSelfInduced: guard.mark,
     consume: guard.consume,
     routerKey: input.routerKey,
