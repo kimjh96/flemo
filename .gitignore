@@ -26,6 +26,12 @@ node_modules
 .vscode
 .cursor
 
+# Lervo's generated knowledge publications. The concepts they are rendered from
+# are tracked under .lervo/knowledge; these are the human-readable projection and
+# are rewritten by every refresh. Tracking them also puts them under the staged-file
+# prettier hook, which reformats them and breaks the byte binding lint checks.
+/docs/knowledge/
+
 # OS
 .DS_Store
 Thumbs.db
