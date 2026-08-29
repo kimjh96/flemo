@@ -1,0 +1,31 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_0e970f36b682d22cfea5deff
+compiler:
+  compilerBuildId: sha256:d04ee6378c95d03e201ff9632b566a934f01bfc343f96544f450d5fd5e2a3d3d
+  compilerId: lervo.claude.document-normalizer
+  compilerVersion: 1+2.1.224 (Claude Code)
+  isolation: external_no_capabilities
+  provider: claude
+formatVersion: lervo.document.v1
+operationId: knormop_8481e32ea1e093f9f357bcf4
+outputLanguage: en
+outputs:
+  - byteCount: 13128
+    contentHash: sha256:739d99e7ec427336302f54f484e0db94cdae3628b6d868a6190c0883dc54cc67
+    path: docs/architecture/driver-routing.md
+    userRegionHash: sha256:739d99e7ec427336302f54f484e0db94cdae3628b6d868a6190c0883dc54cc67
+profile: architecture_document
+recordId: knormdoc_d36fcf2b7866fe7c755732c9
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:ff3479ebd6b72c74413119386e64aedc2bf1deff245fa7fca38835db2fb360d1
+sourcePath: docs/architecture/driver-routing.md
+sourceUnitVersionIds:
+  - uv_04d1119da639e5a31ab228d7
+  - uv_1fe7d06b19b43fda8902a500
+  - uv_29beb91c5c6cdaaf3831c059
+  - uv_46886ae5a1cae57be2f7b919
+  - uv_6c20b01ef2adcf876d16ae12
+  - uv_9814ef824141a31e8f8f5c5c

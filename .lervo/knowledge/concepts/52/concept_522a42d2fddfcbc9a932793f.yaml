@@ -1,14 +1,14 @@
 assurance: unreviewed
 bundleId: bundle_f30402500333f4447ba5d2b8
-conceptId: concept_4e36d2ec8d8c2db35a1c4921
+conceptId: concept_522a42d2fddfcbc9a932793f
 freshness: current
 ownership: user
-path: AGENTS.md
+path: docs/instructions/motion-jank-postmortem/glass-campaign-2026-08-18.md
 publicationLanguage: en
 publicationProfile: reference
 publicationStatus: stable
 schemaVersion: 1
 sourceUnitVersionIds:
-  - uv_fbce46b8523ce90633e30410
-title: flemo workspace rules
+  - uv_758b93e4999f106a6db21e1d
+title: "2026-08-18: the glass-measurement campaign and the recorder artifact"
 type: invariant
