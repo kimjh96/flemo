@@ -134,8 +134,12 @@ export interface SwipeSettleInput {
    * time that curve itself spends on the stretch that is left; without them it
    * falls back to reading the motion as linear, which is what this used to do
    * for every transition.
+   *
+   * `null` is accepted as well as omission, because the callers that build
+   * this read their curve from `easeControlPoints`, which reports "no curve"
+   * as null. Converting at every call site bought nothing but a branch.
    */
-  authoredEase?: readonly [number, number, number, number];
+  authoredEase?: readonly [number, number, number, number] | null;
   minSeconds?: number;
 }
 

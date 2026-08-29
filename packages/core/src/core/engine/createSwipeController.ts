@@ -37,7 +37,7 @@ import type { Decorator } from "@transition/decorator/typing";
 // takes one, and it takes the screens'.
 type CeilingOverride = {
   seconds: number;
-  ease?: readonly [number, number, number, number];
+  ease: readonly [number, number, number, number] | null;
 };
 
 // Presence of a partner screen's shared bars — owned by the pure decision
@@ -887,16 +887,20 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         const remainingPx = releaseTriggered ? span - travelled : travelled;
         const reversing = !releaseTriggered && !fingerHeadingBack;
         const authoredEase = easeControlPoints(options?.ease);
+        // The curve the DISTANCE term reads. A borrowed ceiling brings its own,
+        // and brings it whole: falling back to this write's curve when the
+        // ceiling has none would pair the ceiling's span with a different
+        // curve, which is the mismatch this is here to prevent. Without a
+        // ceiling it is the write's own.
+        const distanceEase = ceiling ? ceiling.ease : authoredEase;
         const seconds = swipeSettleSeconds({
           remainingPx,
           spanPx: span,
           velocityPxPerSecond: speed,
           authoredSeconds: authored,
           // The distance term is the time the authored curve spends on the
-          // stretch that is left, so it needs the curve — the CEILING's curve
-          // when the ceiling is borrowed, or the two would compute different
-          // tails of different curves and land apart despite sharing a span.
-          authoredEase: ceiling?.ease ?? authoredEase ?? undefined,
+          // stretch that is left, so it needs the curve.
+          authoredEase: distanceEase,
           reversing
         });
         // ...and the curve, on the same gesture. The length alone decides the
@@ -950,7 +954,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const releaseCeiling: CeilingOverride | undefined = screenReleaseMotion
       ? {
           seconds: screenReleaseMotion.duration,
-          ease: easeControlPoints(screenReleaseMotion.ease) ?? undefined
+          ease: easeControlPoints(screenReleaseMotion.ease)
         }
       : undefined;
 
