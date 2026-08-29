@@ -755,23 +755,47 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
           : window.innerWidth);
     /* v8 ignore stop */
     const dragged = Math.abs(dragAxis === "y" ? info.offset.y : info.offset.x);
+    // THE GESTURE'S PROGRESS, 0-100, which is what a decorator's and a part's
+    // hooks are documented to receive ("the drag `progress` (0-100)").
+    //
+    // They used to receive whatever the TRANSITION passed to `onProgress`, and
+    // that is the author's own number in the author's own unit: cupertino sent
+    // 0-100 against `window.innerWidth`, material sends its 0-56 pull in
+    // PIXELS, and layout sends the literal 100 on every frame. So a decorator
+    // written to the documented contract behaved differently under each of
+    // them — `1 - progress / 100` only ever reaches 0.44 on material and snaps
+    // to 0 on the first frame under layout — and under cupertino it was
+    // measured against the wrong box: a dim over a 348px screen in a 1275px
+    // window moved 12% while the screen moved 45%.
+    //
+    // The controller is the only party that knows the box being dragged, so it
+    // is the only one that can answer this question for every transition at
+    // once. The handler's own number stays the handler's own business.
+    /* v8 ignore next 2 -- the zero arm needs both an unlaid-out screen and no
+       window to fall back to, which is the same guard `dragSpan` above keeps
+       and the same reason it cannot run under a pointer event. */
+    const gestureProgress =
+      dragSpan > 0 ? Math.max(0, Math.min(100, (dragged / dragSpan) * 100)) : 0;
 
     transition.onSwipe(event, info, {
       animate: animateSwipe,
       currentScreen: scope as HTMLDivElement,
       prevScreen: prevScreen as HTMLDivElement,
-      onProgress: (triggered, progress) => {
-        decoratorDef?.onSwipe?.(triggered, progress, {
+      // `triggered` is the handler's to report; the progress is not. See
+      // gestureProgress above.
+      onProgress: (triggered) => {
+        decoratorDef?.onSwipe?.(triggered, gestureProgress, {
           animate: animateInline,
           currentDecorator: decorator as HTMLDivElement,
           prevDecorator: prevDecorator as HTMLDivElement
         });
-        drivePartTransitions("swipe", triggered, progress);
+        drivePartTransitions("swipe", triggered, gestureProgress);
       }
     });
-    /* v8 ignore next -- a zero span needs both an unlaid-out screen and no
-       window to fall back to. */
-    config.onDragProgress?.(dragSpan > 0 ? dragged / dragSpan : 0);
+    // The morph runtime already took this number, in its own 0-1 form, and has
+    // done since the contained-Router case was found. Everything the gesture
+    // drives now reads the same span.
+    config.onDragProgress?.(gestureProgress / 100);
   };
 
   const endSwipe = async (event: PointerEvent, forceCancel = false) => {
