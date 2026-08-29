@@ -160,17 +160,16 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   // consumer's business and stays untouched. This suppresses the BROWSER's
   // default action; it writes nothing to consumer content and leaves no style
   // behind.
+  // No `armed` flag guards these: the listener is one stable reference, so
+  // `addEventListener` refuses the duplicate itself and `removeEventListener`
+  // is a no-op for a listener that was never added. A flag would only be a
+  // second, less reliable copy of what the DOM already tracks.
   const suppressNativeDrag = (event: Event) => event.preventDefault();
-  let nativeDragSuppressed = false;
   const holdNativeDrag = () => {
-    if (nativeDragSuppressed) return;
-    nativeDragSuppressed = true;
     document.addEventListener("selectstart", suppressNativeDrag);
     document.addEventListener("dragstart", suppressNativeDrag);
   };
   const releaseNativeDrag = () => {
-    if (!nativeDragSuppressed) return;
-    nativeDragSuppressed = false;
     document.removeEventListener("selectstart", suppressNativeDrag);
     document.removeEventListener("dragstart", suppressNativeDrag);
   };
