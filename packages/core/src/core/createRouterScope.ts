@@ -5,7 +5,7 @@ import seedInitialHistory from "@history/seedInitialHistory";
 
 import createHistoryStore, { type HistoryStoreApi } from "@history/store";
 
-import { createSelfPopGuard, type SelfPopGuard } from "@navigate/selfPopGuard";
+import { createSelfPopGuard } from "@navigate/selfPopGuard";
 import createNavigateStore, { type NavigateStoreApi } from "@navigate/store";
 
 import createTransitionStore, { type TransitionStoreApi } from "@transition/store";
@@ -32,10 +32,15 @@ export interface FlemoStores {
   // root <Router>, an in-memory stack for a memory one. Shared by the
   // navigation controller and the history sync so both drive the same history.
   driver: HistoryDriver;
-  // Self-pop guard for this scope. A browser <Router> creates its own guard
-  // instance: `markSelfInduced` (injected into the navigation controller) marks
-  // a flemo-induced traversal, and `consume` (injected into the history sync)
-  // skips it. A memory <Router> uses a no-op mark and a never-true consume.
+  // Whether that backend is the in-memory one. Both backends mount the history
+  // sync, so `driver.back()` is the commit either way; this only tells the sync
+  // to keep this scope out of the parts of itself that read the BROWSER's live
+  // entry — the shared traversal recorder and the zone replay built on it.
+  memory: boolean;
+  // Self-pop guard for this scope. Each <Router> creates its OWN instance:
+  // `markSelfInduced` (injected into the navigation controller) marks a
+  // flemo-induced traversal, and `consume` (injected into the history sync)
+  // skips it, so a sibling Router's `go(-n)` is never mis-attributed.
   markSelfInduced: () => void;
   consume: () => boolean;
   // The key this Router's frames live under in `history.state`; the sync uses
@@ -62,10 +67,6 @@ export interface FlemoStores {
   // navigation and traversal tasks abort on arrival when their Router is gone.
   life: { alive: boolean };
 }
-
-// A no-op self-pop guard for a memory Router: it has no browser history sync
-// to coordinate with, so it never marks and never reports a self-induced pop.
-const NOOP_GUARD: SelfPopGuard = { mark: () => {}, consume: () => false };
 
 // Scopes of DESTROYED nested Routers, keyed by their stable router key. When
 // its enclosing screen is popped away (leaving a zone with browser Back), a
@@ -210,7 +211,12 @@ export default function createRouterScope(input: CreateRouterScopeInput): FlemoS
       })
     : browserDriver!;
 
-  const guard = memory ? NOOP_GUARD : createSelfPopGuard();
+  // EVERY scope gets a real guard, memory included. Its sync is mounted too —
+  // that is what makes `driver.back()` the commit on both backends, which the
+  // swipe controller depends on — so a flemo-induced traversal has to be
+  // balanced here exactly as a browser Router's is, or the navigation queue's
+  // own `back()` would come back around and pop a second time.
+  const guard = createSelfPopGuard();
 
   const scope: FlemoStores = {
     history: createHistoryStore([rootHistory], 0),
@@ -218,6 +224,7 @@ export default function createRouterScope(input: CreateRouterScopeInput): FlemoS
     transition: createTransitionStore(defaultTransitionName),
     screen: createScreenStore(),
     driver,
+    memory,
     markSelfInduced: guard.mark,
     consume: guard.consume,
     routerKey: input.routerKey,

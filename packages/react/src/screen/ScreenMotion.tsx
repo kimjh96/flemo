@@ -381,11 +381,12 @@ function ScreenMotion({
         return partnerId ? stores.screen.getState().sharedBarMetadata[partnerId] : undefined;
       },
       setDragStatus,
-      // The ROUTER's own back, not the browser's. They are the same call for a
-      // browser Router and nothing alike for a memory one: `window.history`
-      // there belongs to the page around the Router, so a swipe-back committed
-      // inside a memory-history stack navigated the whole document away instead
-      // of popping the stack the gesture was dragging.
+      // The ROUTER's own back, not the browser's — `window.history` under a
+      // memory Router belongs to the page AROUND it, so committing there used
+      // to navigate the whole document away instead of popping the stack the
+      // gesture was dragging. Every scope mounts the history sync, so this one
+      // call is the commit on both backends, and it lands SYNCHRONOUSLY: the
+      // code below depends on the landing flight already existing.
       back: () => stores.driver.back(),
       // THE SHARED ELEMENT FOLLOWS THE FINGER.
       //
