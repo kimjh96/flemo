@@ -1,5 +1,29 @@
 # @flemo/core
 
+## 2.1.0
+
+### Minor Changes
+
+- [`18ac23f`](https://github.com/kimjh96/flemo/commit/18ac23ffd88196f13097a7729832b4e7b9076793) Run a decorator on the clock of the transition that names it. Timing on a decorator variant is now optional and inherits the screen's duration and delay for the same variant key, so one dim is longer on a slow transition and shorter on a fast one without being authored twice; write a `duration` only to override it, including `0` to snap, and note that a variant that previously omitted one snapped where it now inherits. `ease` is never inherited.
+
+- [`17219e6`](https://github.com/kimjh96/flemo/commit/17219e621d7932564299e28358abf47327d53079) Measure a drag's progress against the screen it drags, not the window. A decorator's and a part's swipe hooks now receive the gesture's own progress as the 0 to 100 they are documented to take, supplied by the controller rather than by whichever transition happens to be running, so a dim inside a nested Router follows the finger instead of crawling. `cupertino` maps its own progress and its commit threshold against the same box; a transition that passes a second argument to `onProgress` still compiles, but that argument is no longer read.
+
+### Patch Changes
+
+- [`c5f5e21`](https://github.com/kimjh96/flemo/commit/c5f5e2186d88ee679f5a26caa96c3457da51c41d) Settle a swipe the browser cancels instead of teleporting it. A `pointercancel` or a lost pointer capture used to snap the screen from wherever the finger left it back to rest in a single frame, because a forced cancel was treated as a tap and the neutral sample that stops it committing was also handed to the release clock, leaving it no distance to travel. The screen now walks home over a real reversal, while a genuine sub-slop tap stays instantaneous and a cancel still cannot commit a navigation.
+
+- [`0c6f4ab`](https://github.com/kimjh96/flemo/commit/0c6f4ab5f6ff247acd863b09c2c81348cfe4efe4) Land a decorator's swipe release with the screens rather than ahead of them. A decorator's release now borrows the screens' authored span for the gesture scaling, so a swipe-completed pop holds the dim to the screen exactly as a button-driven one does; a handler's explicit `duration: 0` is still a snap, and a `<Part>` keeps its own span because it has no screen clock to take.
+
+- [`9f95915`](https://github.com/kimjh96/flemo/commit/9f959156e5bcce52b540a665275ba94639662c7c) Fix a shared element making its trip twice after a swipe-back. A fast flick lands the gesture's morph before the navigation it commits stages, so the same element was flown again from its original position; the release now tells the navigation what it already delivered instead of leaving it to timing.
+
+- [`1ca911b`](https://github.com/kimjh96/flemo/commit/1ca911b7be274785801e44e75ff650c124366a6b) Fix a swipe-back inside a `history="memory"` Router leaving the stack unpopped. A memory Router now mounts the history sync like a browser one, so the gesture's commit reaches its stores; without it the dismissed screen stayed active off-stage and swallowed every tap that followed.
+
+- [`ce12ca5`](https://github.com/kimjh96/flemo/commit/ce12ca53e6cea863cc415868571a084d8fd0bf03) Fix a shared bar travelling the wrong distance under a vertical transition. A riding bar runs the screen's keyframes on its own box, so a percentage offset resolved against the bar's height instead of the screen's: a material push moved a 104px bar 104px while its 770px screen moved 770px, landing the bar alone at the top of a screen still off the bottom of the viewport. The bar now runs a copy of the keyframes measured against the screen box, and a swipe release resolves the same offset the same way. Horizontal transitions are unchanged, because a shared bar is already exactly as wide as its screen.
+
+- [`0e54a0d`](https://github.com/kimjh96/flemo/commit/0e54a0d6a4eb345964654256426b1fec7783603d) Fix a shared element sitting still through a back-swipe and then making the trip on its own after the screens have landed. The gesture staged its morph flights before the covered screen had re-registered its `<Morph>` children, so it found no arriving partner and carried nothing.
+
+- [`eaebb08`](https://github.com/kimjh96/flemo/commit/eaebb08ec576dc158af32e3a986451f575d4fdb6) Stop a mouse drag from losing the swipe to the browser's own gestures. Dragging across a screen's text started a native selection, which took the pointer away with `pointercancel` and force-cancelled the gesture; selection and image-drag are now suppressed for exactly as long as a gesture holds the pointer.
+
 ## 2.0.0
 
 ### Major Changes

@@ -1,5 +1,15 @@
 # @flemo/web
 
+## 0.11.1
+
+### Patch Changes
+
+- [`18ac23f`](https://github.com/kimjh96/flemo/commit/18ac23ffd88196f13097a7729832b4e7b9076793) Run a decorator on the clock of the transition that names it. Timing on a decorator variant is now optional and inherits the screen's duration and delay for the same variant key, so one dim is longer on a slow transition and shorter on a fast one without being authored twice; write a `duration` only to override it, including `0` to snap, and note that a variant that previously omitted one snapped where it now inherits. `ease` is never inherited.
+- Updated dependencies ([`c5f5e21`](https://github.com/kimjh96/flemo/commit/c5f5e2186d88ee679f5a26caa96c3457da51c41d), [`18ac23f`](https://github.com/kimjh96/flemo/commit/18ac23ffd88196f13097a7729832b4e7b9076793), [`0c6f4ab`](https://github.com/kimjh96/flemo/commit/0c6f4ab5f6ff247acd863b09c2c81348cfe4efe4), [`9f95915`](https://github.com/kimjh96/flemo/commit/9f959156e5bcce52b540a665275ba94639662c7c), [`17219e6`](https://github.com/kimjh96/flemo/commit/17219e621d7932564299e28358abf47327d53079), [`1ca911b`](https://github.com/kimjh96/flemo/commit/1ca911b7be274785801e44e75ff650c124366a6b), [`ce12ca5`](https://github.com/kimjh96/flemo/commit/ce12ca53e6cea863cc415868571a084d8fd0bf03), [`0e54a0d`](https://github.com/kimjh96/flemo/commit/0e54a0d6a4eb345964654256426b1fec7783603d), [`eaebb08`](https://github.com/kimjh96/flemo/commit/eaebb08ec576dc158af32e3a986451f575d4fdb6)):
+  - @flemo/core@2.1.0
+  - @flemo/react@2.1.0
+  - @flemo/devtools@0.3.0
+
 ## 0.11.0
 
 ### Minor Changes
