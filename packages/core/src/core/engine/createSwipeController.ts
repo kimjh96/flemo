@@ -143,6 +143,37 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   let shouldStartDrag = false;
   let isTouchPrevented = false;
   let swipeActive = false;
+
+  // NOTHING ELSE DEFENDS A DRAG FROM THE BROWSER'S OWN GESTURES.
+  //
+  // Touch is covered — the binding preventDefaults `touchmove`. A MOUSE drag
+  // had nothing: dragging left-to-right across a screen's text starts a native
+  // selection (or an image drag), the browser takes the pointer away with
+  // `pointercancel`, and the swipe force-cancels. Measured off a screen
+  // recording: the selection highlight is on screen in the same frames the
+  // dragged screen turns around and settles home from 43% of its travel, well
+  // past the commit threshold. From the user's side the gesture simply does not
+  // work, at random.
+  //
+  // So the two events are suppressed for exactly as long as a gesture holds the
+  // pointer, and never otherwise: selecting text on a resting screen is the
+  // consumer's business and stays untouched. This suppresses the BROWSER's
+  // default action; it writes nothing to consumer content and leaves no style
+  // behind.
+  // No `armed` flag guards these: the listener is one stable reference, so
+  // `addEventListener` refuses the duplicate itself and `removeEventListener`
+  // is a no-op for a listener that was never added. A flag would only be a
+  // second, less reliable copy of what the DOM already tracks.
+  const suppressNativeDrag = (event: Event) => event.preventDefault();
+  const holdNativeDrag = () => {
+    document.addEventListener("selectstart", suppressNativeDrag);
+    document.addEventListener("dragstart", suppressNativeDrag);
+  };
+  const releaseNativeDrag = () => {
+    document.removeEventListener("selectstart", suppressNativeDrag);
+    document.removeEventListener("dragstart", suppressNativeDrag);
+  };
+
   let activePointerId: number | null = null;
   let swipeStartPromise: Promise<void> | null = null;
   let forceCancelRequested = false;
@@ -495,6 +526,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     }
 
     swipeActive = true;
+    holdNativeDrag();
     // The wake this gesture is about to trigger lands on the next commits;
     // hold the motion until it has been painted (see the reveal hold). A
     // screen that was never frozen is already displayed here, and then there
@@ -540,6 +572,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       config.setDragStatus("IDLE");
       swipeActive = false;
       isTouchPrevented = false;
+      releaseNativeDrag();
       releasePointerCapture(event);
       releaseRidingBars();
       releaseDragLayers();
@@ -805,6 +838,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
 
     flushPendingFollow();
     swipeActive = false;
+    releaseNativeDrag();
     const { scope, decorator } = config.getElements();
     releasePointerCapture(event);
 
@@ -1188,6 +1222,10 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     if (event.pointerId !== activePointerId) return;
     shouldStartDrag = false;
     isTouchPrevented = false;
+    // The pointer is gone, so the suppression goes with it — here rather than
+    // in `endSwipe`, which awaits the start promise before it runs and would
+    // leave selection disabled across that gap.
+    releaseNativeDrag();
     activePointerId = null;
     if (swipeActive) {
       void endSwipe(event);
@@ -1198,6 +1236,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     if (event.pointerId !== activePointerId) return;
     shouldStartDrag = false;
     isTouchPrevented = false;
+    releaseNativeDrag();
     activePointerId = null;
     forceCancelRequested = true;
     if (swipeActive) {
@@ -1240,6 +1279,10 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const pointerId = activePointerId;
     shouldStartDrag = false;
     isTouchPrevented = false;
+    // Unconditionally: an abandoned gesture that left the suppression armed
+    // would take the consumer's text selection away for the rest of the
+    // session, which is worse than the defect it is here to cure.
+    releaseNativeDrag();
     if (pointerId === null) {
       // Nothing captured, nothing to settle: just make sure nothing is armed.
       return;
