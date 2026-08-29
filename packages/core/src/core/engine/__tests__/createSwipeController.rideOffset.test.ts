@@ -6,6 +6,8 @@ import createSwipeController, {
   type SwipeControllerConfig
 } from "@core/engine/createSwipeController";
 
+import { fullVariants } from "./variantStub";
+
 // The drag half of the ride-along percentage problem. The compiled path hands a
 // shared bar its own `@keyframes`; a drag hands it inline styles, written by the
 // controller in the same tick it writes the screen's. Both roads carried the
@@ -100,7 +102,7 @@ describe("createSwipeController ride offsets", () => {
     const transition = {
       name: "ride-test",
       initial: { y: "100%" },
-      variants: {} as Transition["variants"],
+      variants: fullVariants({ x: 0 }, { duration: 0.3 }),
       swipeDirection: "y",
       onSwipeStart: async () => true,
       onSwipe: () => 0,

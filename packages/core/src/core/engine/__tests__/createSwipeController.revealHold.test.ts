@@ -6,6 +6,8 @@ import createSwipeController, {
   type SwipeControllerConfig
 } from "@core/engine/createSwipeController";
 
+import { fullVariants } from "./variantStub";
+
 // The screen a back-swipe reveals is normally frozen (React's <Activity> hid
 // it and unmounted its effects when it was covered), and starting the gesture
 // is what wakes it — a commit over the whole subtree that lands on the drag's
@@ -65,7 +67,7 @@ describe("the reveal hold", () => {
     const transition = {
       name: "reveal-hold",
       initial: { x: "100%" },
-      variants: {} as Transition["variants"],
+      variants: fullVariants({ x: 0 }, { duration: 0.3 }),
       swipeDirection: "x",
       onSwipeStart: async () => true,
       onSwipe,

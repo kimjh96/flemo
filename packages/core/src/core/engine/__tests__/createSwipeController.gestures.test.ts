@@ -6,6 +6,8 @@ import createSwipeController, {
   type SwipeControllerConfig
 } from "@core/engine/createSwipeController";
 
+import { fullVariants } from "./variantStub";
+
 // Gesture-path branches: scrollable-aware drag starts (edge detection), the
 // y-direction begin, the keyboard guard, and pointer-up resets.
 
@@ -79,7 +81,7 @@ describe("createSwipeController gesture paths", () => {
         ({
           name: "swipe-gesture-test",
           initial: { x: "100%" },
-          variants: {} as Transition["variants"],
+          variants: fullVariants({ x: 0 }, { duration: 0.3 }),
           swipeDirection: direction,
           onSwipeStart,
           onSwipe: vi.fn(() => 0),

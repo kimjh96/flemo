@@ -199,6 +199,160 @@ describe("the release clock", () => {
     expect(secondsOn(dom.part)).toBe(screen);
   });
 
+  describe("when the decorator and the part name a SHORTER ceiling than the screens", () => {
+    // The case above passes on any rule at all, because every handler in it
+    // names the same 0.7s. These fixtures disagree with the screens on purpose,
+    // which is the state `overlay` shipped in: its handler named 0.3s against
+    // cupertino's 0.7s, so a swipe-completed pop cleared the dim while the
+    // screen was still sliding.
+    const DECORATOR_CEILING = 0.3;
+    const PART_CEILING = 0.2;
+
+    beforeEach(() => {
+      partTransitionMap.set("clock-part", {
+        name: "clock-part",
+        onSwipeEnd: (
+          _triggered: boolean,
+          {
+            animate,
+            element
+          }: {
+            animate: (t: HTMLElement, v: unknown, o: { duration: number }) => void;
+            element: HTMLElement;
+          }
+        ) => {
+          animate(element, { opacity: 1 }, { duration: PART_CEILING });
+        }
+      } as never);
+
+      config = {
+        ...config,
+        getDecorator: () =>
+          ({
+            name: "clock-dim",
+            initial: { opacity: 0 },
+            variants: fullVariants({ opacity: 1 }),
+            onSwipeEnd: (
+              _triggered: boolean,
+              api: {
+                animate: (t: unknown, v: unknown, o: { duration: number }) => void;
+                prevDecorator: HTMLElement;
+              }
+            ) => {
+              api.animate(api.prevDecorator, { opacity: 0 }, { duration: DECORATOR_CEILING });
+            }
+          }) as unknown as ReturnType<SwipeControllerConfig["getDecorator"]>
+      };
+    });
+
+    it("lands the decorator with the screens anyway", async () => {
+      await release(Math.round(window.innerWidth / 2), 4000);
+
+      // Not its own 0.3s scaled down, which is what it used to get and which
+      // would be well under the screen's.
+      expect(secondsOn(dom.prevDecorator)).toBe(secondsOn(dom.scope));
+    });
+
+    it("leaves the part on its own, because a part has no screen clock to take", async () => {
+      await release(Math.round(window.innerWidth / 2), 4000);
+
+      const screen = secondsOn(dom.scope)!;
+      const part = secondsOn(dom.part)!;
+      expect(part).toBeLessThan(screen);
+      expect(part).toBeLessThanOrEqual(PART_CEILING);
+    });
+
+    it("leaves a write that names no duration at all alone", async () => {
+      // A handler is not obliged to pass options. Nothing to scale means
+      // nothing to borrow a ceiling for either: the write goes through as it
+      // was made.
+      config = {
+        ...config,
+        getDecorator: () =>
+          ({
+            name: "clock-dim",
+            initial: { opacity: 0 },
+            variants: fullVariants({ opacity: 1 }),
+            onSwipeEnd: (
+              _triggered: boolean,
+              api: {
+                animate: (t: unknown, v: unknown, o?: { duration?: number }) => void;
+                prevDecorator: HTMLElement;
+              }
+            ) => {
+              api.animate(api.prevDecorator, { opacity: 0 });
+            }
+          }) as unknown as ReturnType<SwipeControllerConfig["getDecorator"]>
+      };
+      await release(Math.round(window.innerWidth / 2), 4000);
+
+      expect(secondsOn(dom.prevDecorator)).toBeNull();
+    });
+
+    it("falls back to the decorator's own ceiling when the screens have no pop motion", async () => {
+      // A transition whose POPPING-true animates nothing (`none` is the
+      // shipped one) offers no span to borrow, so the decorator keeps the one
+      // its handler named rather than being handed a zero.
+      config = {
+        ...config,
+        getTransition: () =>
+          ({
+            name: "release-clock-still",
+            initial: { x: 0 },
+            variants: fullVariants({ x: 0 }, { duration: 0 }),
+            swipeDirection: "x",
+            onSwipeStart: async () => true,
+            onSwipe: () => 0,
+            onSwipeEnd: async (
+              _event: PointerEvent,
+              info: { offset: { x: number } },
+              api: {
+                animate: (t: unknown, v: unknown, o: { duration: number }) => void;
+                currentScreen: HTMLElement;
+                onStart?: (triggered: boolean) => void;
+              }
+            ) => {
+              const triggered = info.offset.x > 50;
+              api.onStart?.(triggered);
+              api.animate(api.currentScreen, { x: 0 }, { duration: AUTHORED });
+              return triggered;
+            }
+          }) as unknown as Transition
+      };
+      await release(Math.round(window.innerWidth / 2), 4000);
+
+      const seconds = secondsOn(dom.prevDecorator);
+      expect(seconds).not.toBeNull();
+      expect(seconds!).toBeLessThanOrEqual(DECORATOR_CEILING);
+    });
+
+    it("still honours an explicit zero as a snap", async () => {
+      config = {
+        ...config,
+        getDecorator: () =>
+          ({
+            name: "clock-dim",
+            initial: { opacity: 0 },
+            variants: fullVariants({ opacity: 1 }),
+            onSwipeEnd: (
+              _triggered: boolean,
+              api: {
+                animate: (t: unknown, v: unknown, o: { duration: number }) => void;
+                prevDecorator: HTMLElement;
+              }
+            ) => {
+              api.animate(api.prevDecorator, { opacity: 0 }, { duration: 0 });
+            }
+          }) as unknown as ReturnType<SwipeControllerConfig["getDecorator"]>
+      };
+      await release(Math.round(window.innerWidth / 2), 4000);
+
+      // A ceiling is a ceiling, not a floor: `duration: 0` is a handler saying
+      // "put it there now" and must not be inflated to the screen's span.
+      expect(secondsOn(dom.prevDecorator)).not.toBe(secondsOn(dom.scope));
+    });
+  });
+
   it("keeps a flick short instead of stretching it to the authored span", async () => {
     // Same distance, covered fast: the finger's own speed decides.
     await release(Math.round(window.innerWidth / 2), 40);
