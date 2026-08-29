@@ -7,6 +7,8 @@ import createSwipeController, {
 } from "@core/engine/createSwipeController";
 import { LAYER_SETTLE_MS } from "@core/engine/layerSettleHold";
 
+import { fullVariants } from "./variantStub";
+
 // A gesture promotes the screens it drags (layerSettleHold) so the per-frame
 // inline writes do not repaint two full-screen boxes from scratch. That
 // promotion is owned by the SWIPE — the engine's own COMPLETED release runs
@@ -62,10 +64,8 @@ describe("the drag layer holds", () => {
       // Two distinct transform targets: `collectAnimatedProperties` only
       // reports a property that actually interpolates, so a definition with a
       // single target promotes nothing and this file would assert on a layer
-      // that was never taken.
-      variants: {
-        "POPPING-active": { value: { x: "0%" } }
-      } as unknown as Transition["variants"],
+      // that was never taken. `initial` above is the second one.
+      variants: fullVariants({ x: "0%" }, { duration: 0.3 }),
       swipeDirection: "x",
       onSwipeStart: async () => true,
       onSwipe: () => 0,
@@ -128,6 +128,56 @@ describe("the drag layer holds", () => {
 
     expect(dom.scope.style.willChange).toContain("transform");
     expect(dom.prevScope.style.willChange).toContain("transform");
+  });
+
+  it("promotes both dims when the transition carries a decorator", async () => {
+    const controller = createSwipeController(config);
+    config.getDecorator = () =>
+      ({
+        name: "layer-dim",
+        initial: { opacity: 0 },
+        variants: fullVariants({ opacity: 1 })
+      }) as unknown as ReturnType<SwipeControllerConfig["getDecorator"]>;
+
+    controller.pointerDown(event({ target: dom.scope }));
+    controller.pointerMove(event({ clientX: 40, timeStamp: 0 }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(dom.decorator.style.willChange).toContain("opacity");
+    expect(dom.prevDecorator.style.willChange).toContain("opacity");
+  });
+
+  it("skips whichever dim is absent, and neither is guaranteed", async () => {
+    // The screen's own dim is null while the drag is set up (the binding
+    // renders it only for a transition that names one, and the element arrives
+    // a commit later), and the PREVIOUS screen's is missing whenever that
+    // container has no decorator child at all. Both are ordinary states, not
+    // defensive padding, so both are driven rather than asserted away.
+    dom.prevDecorator.remove();
+    config.getDecorator = () =>
+      ({
+        name: "layer-dim",
+        initial: { opacity: 0 },
+        variants: fullVariants({ opacity: 1 })
+      }) as unknown as ReturnType<SwipeControllerConfig["getDecorator"]>;
+    config.getElements = () => ({
+      scope: dom.scope,
+      screenContainer: dom.screenContainer,
+      decorator: null,
+      sharedTopBar: null,
+      sharedBottomBar: null
+    });
+
+    const controller = createSwipeController(config);
+    controller.pointerDown(event({ target: dom.scope }));
+    controller.pointerMove(event({ clientX: 40, timeStamp: 0 }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // The gesture still runs: the screens are promoted and nothing threw on
+    // the way past the two missing dims.
+    expect(dom.scope.style.willChange).toContain("transform");
+    expect(dom.prevScope.style.willChange).toContain("transform");
+    expect(dom.decorator.style.willChange).toBe("");
   });
 
   // The branch this file exists for. A committed swipe hands the navigation to
