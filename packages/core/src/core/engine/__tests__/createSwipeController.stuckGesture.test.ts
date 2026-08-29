@@ -6,6 +6,8 @@ import createSwipeController, {
   type SwipeControllerConfig
 } from "@core/engine/createSwipeController";
 
+import { fullVariants } from "./variantStub";
+
 // A GESTURE MUST NOT BE ABLE TO OUTLIVE ITS POINTER.
 //
 // While a swipe is armed the controller asks the binding to preventDefault
@@ -73,7 +75,7 @@ describe("a gesture whose pointer never comes back", () => {
       ({
         name: "stuck-gesture-test",
         initial: { x: "100%" },
-        variants: {} as Transition["variants"],
+        variants: fullVariants({ x: 0 }, { duration: 0.3 }),
         swipeDirection: "x",
         onSwipeStart: vi.fn(async () => true),
         onSwipe: vi.fn(() => 0),

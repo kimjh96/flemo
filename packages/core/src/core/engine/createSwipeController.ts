@@ -5,6 +5,7 @@ import { resolveRideTarget } from "@transition/rideOffset";
 import { reaimReleaseEase, releaseLaunchSlope, swipeSettleSeconds } from "@transition/swipeSettle";
 
 import type { Transition } from "@transition/typing";
+import { resolveVariantMotion } from "@transition/variantMotion";
 
 import findScrollable from "@utils/findScrollable";
 
@@ -30,6 +31,14 @@ import { partTransitionMap } from "@transition/partTransition/partTransition";
 import type { SharedBarId, SharedBarsMetadata } from "@screen/store";
 
 import type { Decorator } from "@transition/decorator/typing";
+
+// A release ceiling borrowed from another participant: the span to scale
+// against, and the curve to read the remaining distance off. Only the DECORATOR
+// takes one, and it takes the screens'.
+type CeilingOverride = {
+  seconds: number;
+  ease?: readonly [number, number, number, number];
+};
 
 // Presence of a partner screen's shared bars — owned by the pure decision
 // module (computeBarRiding); re-exported here for the controller's config
@@ -857,18 +866,24 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       config.onDragSettle?.(committed, seconds);
     };
 
-    const gestureScaled = <T extends typeof animateInline>(write: T): T =>
+    const gestureScaled = <T extends typeof animateInline>(
+      write: T,
+      ceiling?: CeilingOverride
+    ): T =>
       ((target, value, options) => {
         // Whether THIS write is one of the screens'. The release scales every
         // participant's clock — screens, bars, the decorator, parts — and each
-        // gets its own number because each names its own ceiling. What rides
-        // the gesture from outside has to be given the SCREENS' number, or it
-        // lands early: the decorator settles first and settles faster, and a
-        // shared element handed that clock finished 21px before the screen
+        // names its own ceiling, EXCEPT the decorator, which is handed the
+        // screens' (see releaseCeiling below). What rides the gesture from
+        // outside is given the screens' number too, or it lands early: a shared
+        // element handed the decorator's clock finished 21px before the screen
         // carrying its slot did, then jumped the difference on landing.
         const isScreenWrite = target === scope || target === prevScreen;
-        const authored = typeof options?.duration === "number" ? options.duration : 0;
-        if (authored <= 0) return write(target, value, options);
+        // An explicit zero is a snap the author asked for and survives any
+        // ceiling: it is how a handler says "put this there now".
+        const authoredOwn = typeof options?.duration === "number" ? options.duration : 0;
+        if (authoredOwn <= 0) return write(target, value, options);
+        const authored = ceiling?.seconds ?? authoredOwn;
         const remainingPx = releaseTriggered ? span - travelled : travelled;
         const reversing = !releaseTriggered && !fingerHeadingBack;
         const authoredEase = easeControlPoints(options?.ease);
@@ -878,8 +893,10 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
           velocityPxPerSecond: speed,
           authoredSeconds: authored,
           // The distance term is the time the authored curve spends on the
-          // stretch that is left, so it needs the curve.
-          authoredEase: authoredEase ?? undefined,
+          // stretch that is left, so it needs the curve — the CEILING's curve
+          // when the ceiling is borrowed, or the two would compute different
+          // tails of different curves and land apart despite sharing a span.
+          authoredEase: ceiling?.ease ?? authoredEase ?? undefined,
           reversing
         });
         // ...and the curve, on the same gesture. The length alone decides the
@@ -909,12 +926,45 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         });
       }) as T;
 
+    // THE SCREENS' CEILING, for the decorator to borrow.
+    //
+    // A decorator has no clock of its own on the programmatic path any more
+    // (resolveDecoratorClock): it runs for exactly as long as the screen it
+    // dresses. A release must not undo that, and `overlay` is what it looked
+    // like when it did — its handler named 0.3s against cupertino's 0.7s, a
+    // number left over from before the settle existed, so a swipe-completed pop
+    // cleared the dim while the screen was still sliding, while the same pop
+    // from a button held the two together.
+    //
+    // It cannot be taken from `settleSeconds` after the fact: a decorator's
+    // hook fires from `onStart`, which every handler calls BEFORE it animates
+    // its screens, so at that moment no screen has been written. So it is read
+    // from the transition's own variant table instead, which is where the
+    // handler's own ceiling comes from. A swipe is always a swipe-BACK, so the
+    // variant is the pop, and the active side is the screen under the finger.
+    //
+    // The CURVE is not borrowed, only the span: the decorator keeps writing
+    // whatever curve its author drew, exactly as it does on the compiled path,
+    // where a dim deliberately declines the screen's positional easing.
+    const screenReleaseMotion = resolveVariantMotion(transition, "POPPING-true");
+    const releaseCeiling: CeilingOverride | undefined = screenReleaseMotion
+      ? {
+          seconds: screenReleaseMotion.duration,
+          ease: easeControlPoints(screenReleaseMotion.ease) ?? undefined
+        }
+      : undefined;
+
     const animateForEnd: typeof animateSwipe = tapLike
       ? (target, value, options) => animateSwipe(target, value, { ...options, duration: 0 })
       : gestureScaled(animateSwipe);
     const animateDecoratorForEnd: typeof animateInline = tapLike
       ? (target, value, options) => animateInline(target, value, { ...options, duration: 0 })
-      : gestureScaled(animateInline);
+      : gestureScaled(animateInline, releaseCeiling);
+    // A PART keeps its own ceiling, and that is not an oversight. A part is
+    // referenced by name and is not bound to any transition, so it has no
+    // screen clock to inherit in the first place; authoring its own span is
+    // how a part says "leave in the first fifth of the flight". Borrowing the
+    // screen's here would stretch every such part to the full release.
     const animatePartForEnd: typeof animateInline = tapLike
       ? (target, value, options) =>
           animateInline(target, value, { ...options, duration: 0 }, layerOwner)

@@ -6,6 +6,8 @@ import createSwipeController, {
   type SwipeControllerConfig
 } from "@core/engine/createSwipeController";
 
+import { fullVariants } from "./variantStub";
+
 // THE GESTURE, REPORTED TO WHOEVER ELSE RIDES IT.
 //
 // A shared element cannot be driven from a transition's swipe handlers — it is
@@ -68,7 +70,7 @@ describe("createSwipeController drag hooks", () => {
       ({
         name: "drag-hooks-test",
         initial: { x: "100%" },
-        variants: {} as Transition["variants"],
+        variants: fullVariants({ x: 0 }, { duration: 0.3 }),
         swipeDirection: "x",
         ...handlers
       }) as unknown as Transition,

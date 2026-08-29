@@ -6,6 +6,8 @@ import createSwipeController, {
   type SwipeControllerConfig
 } from "@core/engine/createSwipeController";
 
+import { fullVariants } from "./variantStub";
+
 // THE RELEASE DIVIDES BY THIS NUMBER.
 //
 // A release's length comes from how fast the finger was going, so a single
@@ -65,7 +67,7 @@ describe("the release velocity", () => {
         ({
           name: "velocity-test",
           initial: { x: "100%" },
-          variants: {} as Transition["variants"],
+          variants: fullVariants({ x: 0 }, { duration: 0.3 }),
           swipeDirection: "x",
           onSwipeStart: vi.fn(async () => true),
           onSwipe: vi.fn(() => 0),
