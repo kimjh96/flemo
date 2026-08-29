@@ -22,7 +22,10 @@ apps/web                  @flemo/web — Next.js 16 landing + docs (ko/en); the 
                           /playground
 ```
 
-Published packages: `@flemo/core`, `@flemo/react`, `@flemo/devtools`. Devtools is published and changeset-versioned despite being development tooling. `@flemo/web` is private but changeset-versioned so its `CHANGELOG.md` records deployable changes. Ignore internal `@flemo/eslint-config` and `@flemo/tsconfig`. No `flemo` meta package exists; consumers install `@flemo/react`. Shared-element morphs live in that package as `<Morph>`, over the framework-neutral morph runtime in `@flemo/core/src/morph`. The motion-based `@flemo/react-layout` was removed; its last published version is `0.1.52` and nothing in this repository builds or references it.
+- Published packages: `@flemo/core`, `@flemo/react`, `@flemo/devtools`. Devtools is published and changeset-versioned despite being development tooling.
+- `@flemo/web` is private but changeset-versioned so its `CHANGELOG.md` records deployable changes. Ignore internal `@flemo/eslint-config` and `@flemo/tsconfig`.
+- No `flemo` meta package exists; consumers install `@flemo/react`. Shared-element morphs live there as `<Morph>`, over the framework-neutral morph runtime in `@flemo/core/src/morph`.
+- The motion-based `@flemo/react-layout` was removed; its last published version is `0.1.52` and nothing in this repository builds or references it.
 
 ## Non-negotiable rules
 
@@ -62,6 +65,7 @@ CI installs with `pnpm install --frozen-lockfile`. Local development may use `bu
 - Do not use default React imports such as `import React from "react"`; use named imports.
 - Use `import type {...}` for type-only imports.
 - A package's public API is the exports of its `src/index.ts`; export new public modules there.
+- Write commit bodies as three to six hyphen bullets, one point each. Compress a measurement or a disproof to a single line and leave the narrative to the pull request body. No prose paragraphs, and no footer other than `Co-Authored-By`; a session URL belongs in neither.
 
 ## References
 
