@@ -1,0 +1,14 @@
+assurance: unreviewed
+bundleId: bundle_f30402500333f4447ba5d2b8
+conceptId: concept_153d6f3a2332456e8a51b0b9
+freshness: current
+ownership: user
+path: docs/postmortems/2026-08-motion-jank/do-not-retry.md
+publicationLanguage: en
+publicationProfile: explanation
+publicationStatus: stable
+schemaVersion: 1
+sourceUnitVersionIds:
+  - uv_9971321b25614ecd034dbc6b
+title: (c) DO-NOT-RETRY list
+type: concept

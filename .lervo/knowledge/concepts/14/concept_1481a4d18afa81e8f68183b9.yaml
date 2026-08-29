@@ -1,0 +1,14 @@
+assurance: unreviewed
+bundleId: bundle_f30402500333f4447ba5d2b8
+conceptId: concept_1481a4d18afa81e8f68183b9
+freshness: current
+ownership: user
+path: docs/diagnostics.md
+publicationLanguage: en
+publicationProfile: explanation
+publicationStatus: stable
+schemaVersion: 1
+sourceUnitVersionIds:
+  - uv_64f4a4063f0d62e7975a6065
+title: flemo diagnostics reference
+type: concept

@@ -1,15 +1,14 @@
 assurance: unreviewed
 bundleId: bundle_f30402500333f4447ba5d2b8
-conceptId: concept_eb2ddad7add35914f2fb41cf
+conceptId: concept_fbe8a88bcdc6aa6712ff2775
 freshness: current
-ownership: lervo_generated
-path: docs/knowledge/architecture.md
+ownership: user
+path: docs/architecture/driver-routing.md
 publicationLanguage: en
 publicationProfile: architecture_context
-publicationStatus: draft
+publicationStatus: stable
 schemaVersion: 1
 sourceUnitVersionIds:
   - uv_660c99e3330a0816f75432cd
-  - uv_196b00ed409588f199a3b84b
-title: Architecture and vision
+title: Driver routing — the decision tree
 type: concept

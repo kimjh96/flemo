@@ -1,0 +1,34 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_0e970f36b682d22cfea5deff
+compiler:
+  compilerBuildId: sha256:d04ee6378c95d03e201ff9632b566a934f01bfc343f96544f450d5fd5e2a3d3d
+  compilerId: lervo.claude.document-normalizer
+  compilerVersion: 1+2.1.224 (Claude Code)
+  isolation: external_no_capabilities
+  provider: claude
+formatVersion: lervo.document.v1
+operationId: knormop_c44260155baca82a68f501ae
+outputLanguage: en
+outputs:
+  - byteCount: 12811
+    contentHash: sha256:691a1421143ce3a26458f361a6fced77beb905824328d2b8e47d2c238c2ddea8
+    path: docs/diagnostics.md
+    userRegionHash: sha256:691a1421143ce3a26458f361a6fced77beb905824328d2b8e47d2c238c2ddea8
+profile: repository_document
+recordId: knormdoc_e2f19b89aaea688ec0e32ec4
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:4f7cf4da3350733a5f77f95ddb4f4282886deecd2a12b5d7d286f6e2de5d7596
+sourcePath: docs/diagnostics.md
+sourceUnitVersionIds:
+  - uv_0232bdbfca688badf2e967ee
+  - uv_12544f9cce892ac6935e83cb
+  - uv_2a6883d82724d039a8e4b5ce
+  - uv_5ccf2a8329df27a6dc8ea8bd
+  - uv_63525f6769bb2750b53b7926
+  - uv_9667cf053c4ac575bc16a497
+  - uv_e126a0a106726391ee0ed11d
+  - uv_f0fb92655995a69117d7cb86
+  - uv_f69b4d7199477191959f629f

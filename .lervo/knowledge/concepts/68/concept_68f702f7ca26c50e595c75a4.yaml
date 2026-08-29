@@ -1,0 +1,14 @@
+assurance: unreviewed
+bundleId: bundle_f30402500333f4447ba5d2b8
+conceptId: concept_68f702f7ca26c50e595c75a4
+freshness: current
+ownership: user
+path: docs/postmortems/2026-08-motion-jank.md
+publicationLanguage: en
+publicationProfile: explanation
+publicationStatus: stable
+schemaVersion: 1
+sourceUnitVersionIds:
+  - uv_a2c5664c84ed9e9a9ba1cb6d
+title: "Postmortem: the 2026-07/08 motion-jank campaigns"
+type: concept

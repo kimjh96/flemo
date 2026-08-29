@@ -1,0 +1,14 @@
+assurance: unreviewed
+bundleId: bundle_f30402500333f4447ba5d2b8
+conceptId: concept_5891c1ccf8cef8fac8821cce
+freshness: current
+ownership: user
+path: docs/postmortems/2026-08-motion-jank/glass-campaign-2026-08-18.md
+publicationLanguage: en
+publicationProfile: explanation
+publicationStatus: stable
+schemaVersion: 1
+sourceUnitVersionIds:
+  - uv_8a2174db840675e4a0495f76
+title: "2026-08-18: the glass-measurement campaign and the recorder artifact"
+type: concept

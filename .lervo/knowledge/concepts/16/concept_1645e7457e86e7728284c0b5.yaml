@@ -1,0 +1,14 @@
+assurance: unreviewed
+bundleId: bundle_f30402500333f4447ba5d2b8
+conceptId: concept_1645e7457e86e7728284c0b5
+freshness: current
+ownership: user
+path: docs/postmortems/2026-08-motion-jank/desktop-player-blank.md
+publicationLanguage: en
+publicationProfile: explanation
+publicationStatus: stable
+schemaVersion: 1
+sourceUnitVersionIds:
+  - uv_211272d30161cb23b6763cd0
+title: "(d) Worked example: the desktop player blank (#256 → #259) — instrument before you revert"
+type: concept

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "generationId": "gen_068cd7da91d5e37ffdba4e03",
+  "generationId": "gen_073a123eed70c2a61e624ad3",
   "projectId": "prj_55ba572fea3e42b6",
-  "sourceSnapshotId": "ksnap_b3a1a7a6e71186f15cb66f58",
+  "sourceSnapshotId": "ksnap_1b97c3e90ea632ac317d300e",
   "compiler": {
     "id": "lervo.structural",
     "version": "1",
@@ -11,7 +11,7 @@
   "outputs": [
     {
       "path": "docs/knowledge/index.md",
-      "contentHash": "sha256:5680bee03d2a37f1de94ce464923d36d05d708d010e8555c76a4b812315ee5e8"
+      "contentHash": "sha256:32c45250b2fcdb00e482c4784edf6a852d4ab23488ec21bb1dc332626184f508"
     },
     {
       "path": "docs/knowledge/instructions.md",
@@ -19,19 +19,19 @@
     },
     {
       "path": "docs/knowledge/architecture.md",
-      "contentHash": "sha256:e103edecff9501ac6324efe263ee67e32529a405e6697f55e365a7c3bf8eee4d"
+      "contentHash": "sha256:7e8f7de7a38296c392d8d5d145dc73958c1c81035a4a2a1e08f8aa835d6e28dc"
     },
     {
       "path": "docs/knowledge/documentation.md",
-      "contentHash": "sha256:730d477a7f2c38897dff1449c1db346172952b1be00f03b1cbb5f104eb5edd85"
+      "contentHash": "sha256:e76ce1fe54fc5b7231ac3569e7cf50c4ce07f31b92b10fcebfd9afabe03d1b3b"
     },
     {
       "path": ".lervo/knowledge/bundles/f3/bundle_f30402500333f4447ba5d2b8.yaml",
-      "contentHash": "sha256:0c4d5ac5711995e1fa5dfcd6f5357da8e7dc428929d7575e739999f040fa2634"
+      "contentHash": "sha256:abbf512b7ed975585f515d307f05af7ef2556d392a923f148154104bb5a40812"
     },
     {
       "path": ".lervo/knowledge/concepts/5c/concept_5c59b56d8b315c375d9a47fc.yaml",
-      "contentHash": "sha256:412382e65c243d48f09ed8ff6100e473a08e486ac067bf7e4303ae414885457f"
+      "contentHash": "sha256:e63c531fb1115bb648362146167489b066977c519d9aa2cf5f5c1cc91e6f90c4"
     },
     {
       "path": ".lervo/knowledge/concepts/89/concept_893def074f1dd043146dd1ae.yaml",
@@ -39,11 +39,11 @@
     },
     {
       "path": ".lervo/knowledge/concepts/eb/concept_eb2ddad7add35914f2fb41cf.yaml",
-      "contentHash": "sha256:b7959b16b433575d6acc83a38f2bdfd098297d95f5bf032ffdb1966a384f5d43"
+      "contentHash": "sha256:db322043cad4531113aa467ce921e76cbc53ec8d266518ebb6967540525fd18a"
     },
     {
       "path": ".lervo/knowledge/concepts/29/concept_29d8db13185b107c46cbd62c.yaml",
-      "contentHash": "sha256:37996dae8959a18f4c3a63d05631620da2862490a3133e4c2076100fbe47ec83"
+      "contentHash": "sha256:e25d66bc773a0abda4715a5e71720c62c5ec509c5e0609770a16842b4b7c7cf9"
     },
     {
       "path": ".lervo/knowledge/concepts/4e/concept_4e36d2ec8d8c2db35a1c4921.yaml",
@@ -62,12 +62,40 @@
       "contentHash": "sha256:f77e1b5fdb1507f65fae8c374eddcf6a094cac3809a1313a6ebe44a4980cd8b7"
     },
     {
+      "path": ".lervo/knowledge/concepts/fb/concept_fbe8a88bcdc6aa6712ff2775.yaml",
+      "contentHash": "sha256:cb6af8514ea3edfe57cb93a339eb6823beb1a8bff5930096b90f8cd94a26fea1"
+    },
+    {
       "path": ".lervo/knowledge/concepts/66/concept_666392fba3c494c93f8a2ef2.yaml",
       "contentHash": "sha256:f224be529260851db4a4dd53266d184e473b26786e45e22914669dc65d7ca4ed"
     },
     {
+      "path": ".lervo/knowledge/concepts/14/concept_1481a4d18afa81e8f68183b9.yaml",
+      "contentHash": "sha256:9fca32b6c517a55edf1577506c4d42dc81c6eddd25fd630ae55ff8c1c279dc5c"
+    },
+    {
       "path": ".lervo/knowledge/concepts/f7/concept_f793178e1ace8950afe74716.yaml",
       "contentHash": "sha256:5d11ba8d2df08922a11ba32de6dc6e4aa5d89955d24ea1b1886332644edc00c7"
+    },
+    {
+      "path": ".lervo/knowledge/concepts/68/concept_68f702f7ca26c50e595c75a4.yaml",
+      "contentHash": "sha256:0850c478fc48440b6abaf19773a0210748607bc80a6c8e144d474665d412cb2e"
+    },
+    {
+      "path": ".lervo/knowledge/concepts/e4/concept_e464841552d2ce8b328f707f.yaml",
+      "contentHash": "sha256:52b1ab46ff70b041fd67948b96b54fbde6ef1c63190098d30b96cdfab5006039"
+    },
+    {
+      "path": ".lervo/knowledge/concepts/16/concept_1645e7457e86e7728284c0b5.yaml",
+      "contentHash": "sha256:f222f5baf332ebde18fd869473f410975eeaa7fc27121aa1fb9c1d6cff7d11f8"
+    },
+    {
+      "path": ".lervo/knowledge/concepts/15/concept_153d6f3a2332456e8a51b0b9.yaml",
+      "contentHash": "sha256:2cbabdfab4ce9068aa1fe0a1a5d12d5bda0e3a64f45ca55164cc5ef72acdff28"
+    },
+    {
+      "path": ".lervo/knowledge/concepts/58/concept_5891c1ccf8cef8fac8821cce.yaml",
+      "contentHash": "sha256:6061460565f0d6fcee2f9e4528183653aae1867c8bf70e83d751ecfb861a1430"
     },
     {
       "path": ".lervo/knowledge/concepts/49/concept_497b2547e76004c79bb2ba50.yaml",

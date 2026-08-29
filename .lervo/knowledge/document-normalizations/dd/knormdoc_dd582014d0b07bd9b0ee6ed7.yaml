@@ -1,0 +1,54 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_0e970f36b682d22cfea5deff
+compiler:
+  compilerBuildId: sha256:d04ee6378c95d03e201ff9632b566a934f01bfc343f96544f450d5fd5e2a3d3d
+  compilerId: lervo.claude.document-normalizer
+  compilerVersion: 1+2.1.224 (Claude Code)
+  isolation: external_no_capabilities
+  provider: claude
+formatVersion: lervo.document.v1
+operationId: knormop_1207d36086175f42518c20c0
+outputLanguage: en
+outputs:
+  - byteCount: 11155
+    contentHash: sha256:47fd8349ecb7e6981970d9803bbb6c173625d5b541fbc7096b8cef748645a2ff
+    path: docs/postmortems/2026-08-motion-jank.md
+    userRegionHash: sha256:47fd8349ecb7e6981970d9803bbb6c173625d5b541fbc7096b8cef748645a2ff
+  - byteCount: 2532
+    contentHash: sha256:c5b89434403919b6d6228df4c1e69666c9de3a6466dfbce76c8710bfbe415451
+    path: docs/postmortems/2026-08-motion-jank/addendum-2026-08-17.md
+    userRegionHash: sha256:c5b89434403919b6d6228df4c1e69666c9de3a6466dfbce76c8710bfbe415451
+  - byteCount: 1679
+    contentHash: sha256:0bb1e332745fe729b2328f0e368f18cae71fbde5e62dc614f6097d509a06cb25
+    path: docs/postmortems/2026-08-motion-jank/desktop-player-blank.md
+    userRegionHash: sha256:0bb1e332745fe729b2328f0e368f18cae71fbde5e62dc614f6097d509a06cb25
+  - byteCount: 7826
+    contentHash: sha256:f66bca954d8deba2f59b44dd94d216c84a8c0c085cddf84d906b74ce84a60b2e
+    path: docs/postmortems/2026-08-motion-jank/do-not-retry.md
+    userRegionHash: sha256:f66bca954d8deba2f59b44dd94d216c84a8c0c085cddf84d906b74ce84a60b2e
+  - byteCount: 6535
+    contentHash: sha256:06b32157709dafd8d371c5732cd1b7a4e8d69f8c049717a25deb09cd21acfa5e
+    path: docs/postmortems/2026-08-motion-jank/glass-campaign-2026-08-18.md
+    userRegionHash: sha256:06b32157709dafd8d371c5732cd1b7a4e8d69f8c049717a25deb09cd21acfa5e
+profile: repository_document
+recordId: knormdoc_dd582014d0b07bd9b0ee6ed7
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:565d4b97222e21c18afd4ac167b35716c03ff8d9726fcc6e8edb082191eb473c
+sourcePath: docs/postmortems/2026-08-motion-jank.md
+sourceUnitVersionIds:
+  - uv_03e8b7a13fd27fc4d1a5ac69
+  - uv_065b2f336aac9535cecdbb66
+  - uv_15224c4ec5783ce4071a1b5b
+  - uv_4f519e0a9e02c3ce7ca5b7ba
+  - uv_6ca042816b2f896d35b5be07
+  - uv_895f1ea0ef663faf0b185c01
+  - uv_928a3411e358f7d7eb0e3192
+  - uv_9d9aced8f11ee6ccd0c62a7b
+  - uv_aae569963a2b93bcda5acbc4
+  - uv_ab3d9910973e49602fdbebea
+  - uv_b0471ba41ad4105f0bedc5fa
+  - uv_b4e903b8a2e3a2f953e7521c
+  - uv_c3167bcece8593a7445ae37c
