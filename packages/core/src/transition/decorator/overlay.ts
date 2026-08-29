@@ -64,6 +64,11 @@ const overlay = createDecorator({
     }
   },
   options: {
+    // The durations here are CEILINGS the controller scales, and on the release
+    // it replaces this one with the screens' own (see releaseCeiling in
+    // createSwipeController) so the dim lands with the screen rather than
+    // ahead of it. What is left is the shape of the gesture: full dim when the
+    // release would commit, none when it would not.
     onSwipeStart: (triggered, { animate, prevDecorator }) =>
       animate(
         prevDecorator,

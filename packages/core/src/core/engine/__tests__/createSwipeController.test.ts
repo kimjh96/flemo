@@ -7,6 +7,8 @@ import createSwipeController, {
 } from "@core/engine/createSwipeController";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
+import { fullVariants } from "./variantStub";
+
 // Minimal DOM mirroring the renderer: the previous and current screen containers
 // as DIRECT siblings (Activity-based freeze adds no wrapper element), so
 // beginSwipe's previous-sibling walk resolves the prev screen's
@@ -65,7 +67,7 @@ describe("createSwipeController", () => {
     transition = {
       name: "swipe-test",
       initial: { x: "100%" },
-      variants: {} as Transition["variants"],
+      variants: fullVariants({ x: 0 }, { duration: 0.3 }),
       swipeDirection: "x",
       onSwipeStart,
       onSwipe,
