@@ -1,0 +1,31 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_77ab9d37862c3c7c83110512
+compiler:
+  compilerBuildId: sha256:d04ee6378c95d03e201ff9632b566a934f01bfc343f96544f450d5fd5e2a3d3d
+  compilerId: lervo.claude.document-normalizer
+  compilerVersion: 1+2.1.224 (Claude Code)
+  isolation: external_no_capabilities
+  provider: claude
+formatVersion: lervo.document.v1
+operationId: knormop_3073e51805233158e12d1bf2
+outputLanguage: en
+outputs:
+  - byteCount: 7654
+    contentHash: sha256:b3de4bec51c9980a24abfa48b7879a1d87cba19ccdf846a95382dc9dbe22a826
+    path: docs/instructions/motion-jank-postmortem/do-not-retry.md
+    userRegionHash: sha256:b3de4bec51c9980a24abfa48b7879a1d87cba19ccdf846a95382dc9dbe22a826
+profile: instruction_document
+recordId: knormdoc_d3b8ae425161e6c42de5d275
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:f66bca954d8deba2f59b44dd94d216c84a8c0c085cddf84d906b74ce84a60b2e
+sourcePath: docs/instructions/motion-jank-postmortem/do-not-retry.md
+sourceUnitVersionIds:
+  - uv_10d5f56918d3795b8d65aa13
+  - uv_531da1e84bfcc6d4bc62f258
+  - uv_57bb3b220603b333fd97613e
+  - uv_8e99f43bd001c89f9f84d415
+  - uv_ab12e587b941235ee812d32d
+  - uv_b3be1b2389e1bcdcda4d64f8
