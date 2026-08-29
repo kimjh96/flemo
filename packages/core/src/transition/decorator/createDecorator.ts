@@ -1,10 +1,10 @@
 import type { InitialTarget } from "@transition/cssTypes";
-import { type TransitionVariantValue } from "@transition/typing";
 
 import {
   type DecoratorName,
   type Decorator,
-  type DecoratorOptions
+  type DecoratorOptions,
+  type DecoratorVariantValue
 } from "@transition/decorator/typing";
 
 interface CreateDecoratorProps {
@@ -15,16 +15,16 @@ interface CreateDecoratorProps {
   // POPPING-true, and the entering side of PUSH/REPLACE. None of those slots
   // are when this decorator should be visible, so for overlays this is the
   // invisible state.
-  idle: TransitionVariantValue;
+  idle: DecoratorVariantValue;
   // Target state for the screen that's moving INTO the background, the one
   // becoming the "previous" screen. Used on PUSHING-false / REPLACING-false
   // (peak) and COMPLETED-false (settled). For overlays this is the dim state.
-  enter: TransitionVariantValue;
+  enter: DecoratorVariantValue;
   // Target state for the screen moving OUT of the background, the previously-
   // behind screen returning to active on POPPING-false. Animates from `enter`
   // (its prior settled position) to `exit`. Match `exit` to `idle` to land
   // softly on the active rest rule without a snap.
-  exit: TransitionVariantValue;
+  exit: DecoratorVariantValue;
   options?: DecoratorOptions;
 }
 

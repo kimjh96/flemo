@@ -1,20 +1,24 @@
 import type { InitialTarget } from "@transition/cssTypes";
-import { type TransitionVariantValue } from "@transition/typing";
 
-import { type DecoratorName, type Decorator, type DecoratorOptions } from "./typing";
+import {
+  type DecoratorName,
+  type Decorator,
+  type DecoratorOptions,
+  type DecoratorVariantValue
+} from "./typing";
 
 interface CreateRawDecoratorProps {
   name: DecoratorName;
   initial: InitialTarget;
-  idle: TransitionVariantValue;
-  pushOnEnter: TransitionVariantValue;
-  pushOnExit: TransitionVariantValue;
-  replaceOnEnter: TransitionVariantValue;
-  replaceOnExit: TransitionVariantValue;
-  popOnEnter: TransitionVariantValue;
-  popOnExit: TransitionVariantValue;
-  completedOnEnter: TransitionVariantValue;
-  completedOnExit: TransitionVariantValue;
+  idle: DecoratorVariantValue;
+  pushOnEnter: DecoratorVariantValue;
+  pushOnExit: DecoratorVariantValue;
+  replaceOnEnter: DecoratorVariantValue;
+  replaceOnExit: DecoratorVariantValue;
+  popOnEnter: DecoratorVariantValue;
+  popOnExit: DecoratorVariantValue;
+  completedOnEnter: DecoratorVariantValue;
+  completedOnExit: DecoratorVariantValue;
   options?: DecoratorOptions;
 }
 

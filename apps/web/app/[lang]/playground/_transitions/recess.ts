@@ -2,50 +2,39 @@
 
 import { createDecorator } from "@flemo/react";
 
-import { DRIFT_BACK, DRIFT_IN } from "./drift.constants";
-
 import "./recess.types";
 
-// A CONSUMER-AUTHORED decorator, written because `layout` says in so many
-// words that this is the consumer's job and names the trap:
+// A CONSUMER-AUTHORED decorator, and now a short one: it says what the dim
+// LOOKS like and nothing about when it runs.
 //
-//   layout.ts
+// It carried `drift`'s two durations until decorators started inheriting the
+// clock of the transition that names them. Keeping them equal was the entire
+// reason drift.constants.ts was extracted, and this file quoted the trap it
+// was avoiding:
+//
+//   layout.ts, before the change
 //     "A decorator is compiled once per NAME, not once per transition that
-//      names it: one set of keyframes, with the durations its author wrote.
-//      `overlay`'s are 0.7s, sized for cupertino ... A consumer who wants one
-//      authors it: `createDecorator` is public, and the timing to match is the
-//      transition's own."
+//      names it: one set of keyframes, with the durations its author wrote."
 //
-// So it does not reuse `overlay`, whose 0.7s would outlive `drift` by more than
-// twice its flight and leave a wash lifting off a screen that stopped moving
-// long ago. It imports `drift`'s own two durations rather than restating them,
-// which is the only way the two stay matched when either is retuned.
+// Both halves of that are gone. `drift` names this dim, so this dim runs on
+// `drift`'s clock, on both directions, and retuning either one cannot leave the
+// two disagreeing.
 //
-// The dim is lighter than `overlay`'s. `drift` already pushes the covered
-// screen back in scale, so the dim is a second cue for the same depth rather
-// than the only one, and at 0.1 it read as a grey cast over a screen that was
-// visibly receding anyway.
+// The dim is lighter than `overlay`'s, which is a look and therefore still
+// authored here. `drift` already pushes the covered screen back in scale, so
+// the dim is a second cue for the same depth rather than the only one, and at
+// 0.1 it read as a grey cast over a screen that was visibly receding anyway.
 const DIM = "rgba(0, 0, 0, 0.06)";
 
 const recess = createDecorator({
   name: "recess",
   initial: { opacity: 0, backgroundColor: DIM },
-  idle: {
-    value: { opacity: 0, backgroundColor: DIM },
-    options: { duration: 0 }
-  },
-  // The screen going behind. Matches `drift.enter`, so the dim arrives with the
-  // screen that is causing it.
-  enter: {
-    value: { opacity: 1, backgroundColor: DIM },
-    options: { duration: DRIFT_IN }
-  },
-  // The screen coming back to the front. Matches `drift.enterBack`, the span of
-  // the pop that uncovers it.
-  exit: {
-    value: { opacity: 0, backgroundColor: DIM },
-    options: { duration: DRIFT_BACK }
-  }
+  idle: { value: { opacity: 0, backgroundColor: DIM } },
+  // The screen going behind: the dim arrives over the span that puts it there.
+  enter: { value: { opacity: 1, backgroundColor: DIM } },
+  // The screen coming back to the front, over the span of the pop that
+  // uncovers it.
+  exit: { value: { opacity: 0, backgroundColor: DIM } }
 });
 
 export default recess;

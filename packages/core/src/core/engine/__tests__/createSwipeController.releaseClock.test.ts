@@ -1,11 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AnimationOptions, TransitionTarget } from "@transition/cssTypes";
 import type { Transition } from "@transition/typing";
+import { TRANSITION_VARIANTS } from "@transition/variantMotion";
 
 import createSwipeController, {
   type SwipeControllerConfig
 } from "@core/engine/createSwipeController";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
+
+// All ten status x active keys. The controller folds a transition's clock into
+// its decorator's before promoting a drag layer, so a `{}` stub behind a cast
+// is a shape the runtime cannot be handed.
+const fullVariants = (value: TransitionTarget, options?: AnimationOptions) =>
+  Object.fromEntries(
+    TRANSITION_VARIANTS.map((variant) => [variant, { value, options }])
+  ) as Transition["variants"];
 
 // The release clock belongs to the CONTROLLER, not to any preset: a release is
 // the continuation of a gesture, so its length comes from what is left to
@@ -76,7 +86,7 @@ describe("the release clock", () => {
     const transition = {
       name: "release-clock",
       initial: { x: "100%" },
-      variants: {} as Transition["variants"],
+      variants: fullVariants({ x: 0 }, { duration: AUTHORED }),
       swipeDirection: "x",
       onSwipeStart: async () => true,
       onSwipe: () => 0,
@@ -102,7 +112,7 @@ describe("the release clock", () => {
         ({
           name: "clock-dim",
           initial: { opacity: 0 },
-          variants: {},
+          variants: fullVariants({ opacity: 1 }),
           onSwipeEnd: (
             _triggered: boolean,
             api: {
@@ -271,7 +281,7 @@ describe("the release clock", () => {
         ({
           name: "consumer-curve",
           initial: { x: "100%" },
-          variants: {} as Transition["variants"],
+          variants: fullVariants({ x: 0 }, { duration: AUTHORED }),
           swipeDirection: "x",
           onSwipeStart: async () => true,
           onSwipe: () => 0,

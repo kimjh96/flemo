@@ -4,6 +4,7 @@ import {
   animationName,
   collectAnimatedProperties,
   compileTransitionStyles,
+  decoratorAnimationName,
   easingToCss,
   targetToDecls,
   variantHasAnimation
@@ -15,9 +16,14 @@ import layout from "@transition/layout";
 import material from "@transition/material";
 import none from "@transition/none";
 
+import type { TransitionName, TransitionVariant } from "@transition/typing";
+
 import createDecorator from "@transition/decorator/createDecorator";
 import overlay from "@transition/decorator/overlay";
+import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
 import createPartTransition from "@transition/partTransition/createPartTransition";
+
+import type { Decorator, DecoratorName } from "@transition/decorator/typing";
 
 declare module "@transition/typing" {
   interface RegisterTransition {
@@ -40,6 +46,48 @@ declare module "@transition/decorator/typing" {
     "authored-deco": "authored-deco";
   }
 }
+
+// A decorator is compiled through the TRANSITION that names it, and on that
+// transition's clock, so a decorator test needs a carrier. `cupertino` is the
+// real one for `overlay`; a custom decorator gets a carrier of its own so the
+// test picks the span it inherits.
+const carrierFor = (decoratorName: DecoratorName, seconds: number) =>
+  createTransition({
+    name: `carrier-${decoratorName}` as TransitionName,
+    initial: { x: "100%" },
+    idle: { value: { x: 0 }, options: { duration: 0 } },
+    enter: { value: { x: 0 }, options: { duration: seconds } },
+    enterBack: { value: { x: "100%" }, options: { duration: seconds } },
+    exit: { value: { x: "-30%" }, options: { duration: seconds } },
+    exitBack: { value: { x: 0 }, options: { duration: seconds } },
+    options: { decoratorName }
+  });
+
+// Compile a decorator against a carrier and hand back both the CSS and the
+// selector fragment its rules now carry (the pair, not the name alone).
+const compileDecorator = (decorator: Decorator, seconds: number) => {
+  const carrier = carrierFor(decorator.name, seconds);
+  return {
+    css: compileTransitionStyles([carrier], [decorator]),
+    transitionName: carrier.name,
+    // The decorator's variant table with the carrier's clock folded in — the
+    // shape the engine reads, and the only one variantHasAnimation accepts.
+    clock: resolveDecoratorClock(carrier, decorator)
+  };
+};
+
+const decoratorSelectorOf = (
+  transitionName: string,
+  decoratorName: string,
+  variant: TransitionVariant
+) => {
+  const [status, active] = variant.split("-");
+  return (
+    `[data-flemo-decorator][data-flemo-decorator-name="${decoratorName}"]` +
+    `[data-flemo-transition="${transitionName}"]` +
+    `[data-flemo-status="${status}"][data-flemo-active="${active}"]`
+  );
+};
 
 // Every rule body gated on the desktop head's attribute, selector included.
 const deskHeadRules = (css: string): string[] =>
@@ -338,19 +386,21 @@ describe("compileTransitionStyles", () => {
   });
 
   it("compiles decorator rules under the decorator selector", () => {
-    const css = compileTransitionStyles([], [overlay]);
+    const css = compileTransitionStyles([cupertino], [overlay]);
 
     // The visible decorator animation rides on the screen that's moving INTO
     // the background: `PUSHING-false`, not `PUSHING-true`. The entering
     // screen's decorator sits at `idle` and emits only a rest rule.
     expect(css).toContain(
-      '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
+      '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-transition="cupertino"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
     );
-    expect(css).toContain(`@keyframes ${animationName("decorator", "overlay", "PUSHING-false")}`);
+    expect(css).toContain(
+      `@keyframes ${decoratorAnimationName("cupertino", "overlay", "PUSHING-false")}`
+    );
   });
 
   it("emits camelCase CSS props as kebab-case", () => {
-    const css = compileTransitionStyles([], [overlay]);
+    const css = compileTransitionStyles([cupertino], [overlay]);
 
     expect(css).toContain("background-color: rgba(0, 0, 0, 0.1)");
     expect(css).not.toContain("backgroundColor");
@@ -408,12 +458,12 @@ describe("compileTransitionStyles", () => {
       }
     });
 
-    const css = compileTransitionStyles([], [rich]);
+    const { css, transitionName } = compileDecorator(rich, 0.5);
     const keyframe = css
       .split("\n\n")
       .find(
         (block) =>
-          block.includes(animationName("decorator", "rich-deco", "PUSHING-false")) &&
+          block.includes(decoratorAnimationName(transitionName, "rich-deco", "PUSHING-false")) &&
           block.startsWith("@keyframes")
       );
 
@@ -438,9 +488,7 @@ describe("compileTransitionStyles", () => {
     // compiler emits the keyframe block + the selector rule joined by a single
     // newline (one entry in the `\n\n`-split list), so we assert against the
     // same block.
-    expect(keyframe).toContain(
-      '[data-flemo-decorator][data-flemo-decorator-name="rich-deco"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
-    );
+    expect(keyframe).toContain(decoratorSelectorOf(transitionName, "rich-deco", "PUSHING-false"));
     expect(keyframe).toContain("will-change:");
     expect(keyframe).toContain("opacity");
     expect(keyframe).toContain("filter");
@@ -779,13 +827,13 @@ describe("compileTransitionStyles: will-change (compositor promotion)", () => {
   });
 
   it("emits will-change on decorator variant rules too", () => {
-    const css = compileTransitionStyles([], [overlay]);
+    const css = compileTransitionStyles([cupertino], [overlay]);
     // The animating decorator slot is the screen going behind, not the active
     // side. That's where `idle → enter` actually runs and the layer needs
     // promoting.
     const pushInactive = findRule(
       css,
-      '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
+      '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-transition="cupertino"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
     );
 
     expect(pushInactive).toBeDefined();
@@ -867,10 +915,10 @@ describe("compileTransitionStyles: shared-bar ride-along selector", () => {
   });
 
   it("does NOT pair a bar sibling onto decorator rules (decorators stay screen-only)", () => {
-    const css = compileTransitionStyles([], [overlay]);
+    const css = compileTransitionStyles([cupertino], [overlay]);
     const decoBlock = findRule(
       css,
-      '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
+      '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-transition="cupertino"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
     );
 
     expect(decoBlock).toBeDefined();
@@ -924,10 +972,10 @@ describe("compileTransitionStyles: shared-bar ride-along selector", () => {
 
     // The decorator keeps layout containment. ScreenDecorator already owns
     // its non-interactive pointer policy inline.
-    const cssOverlay = compileTransitionStyles([], [overlay]);
+    const cssOverlay = compileTransitionStyles([cupertino], [overlay]);
     const decoRule = findRule(
       cssOverlay,
-      '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
+      '[data-flemo-decorator][data-flemo-decorator-name="overlay"][data-flemo-transition="cupertino"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
     );
     expect(decoRule).toBeDefined();
     expect(decoRule).toMatch(/contain:\s*layout;/);
@@ -1238,10 +1286,10 @@ describe("easingToCss", () => {
         },
         exit: { value: { opacity: 0, backdropFilter: "saturate(1.4)" }, options: { duration: 0.4 } }
       });
-      const css = compileTransitionStyles([], [held]);
+      const { css, transitionName } = compileDecorator(held, 0.5);
       const keyframe = keyframeBlockOf(
         css,
-        animationName("decorator", "held-deco", "PUSHING-false")
+        decoratorAnimationName(transitionName, "held-deco", "PUSHING-false")
       );
 
       expect(keyframe).toBeDefined();
@@ -1249,7 +1297,7 @@ describe("easingToCss", () => {
       expect(keyframe).not.toContain("backdrop-filter");
       // Still applied — by the rule that runs the animation.
       expect(
-        ruleBlockOf(css, '[data-flemo-decorator-name="held-deco"][data-flemo-status="PUSHING"]')
+        ruleBlockOf(css, decoratorSelectorOf(transitionName, "held-deco", "PUSHING-false"))
       ).toContain("backdrop-filter: saturate(1.4)");
     });
 
@@ -1307,8 +1355,11 @@ describe("easingToCss", () => {
     });
 
     it("leaves a channel that actually changes in the keyframes", () => {
-      const css = compileTransitionStyles([], [overlay]);
-      const keyframe = keyframeBlockOf(css, animationName("decorator", "overlay", "PUSHING-false"));
+      const css = compileTransitionStyles([cupertino], [overlay]);
+      const keyframe = keyframeBlockOf(
+        css,
+        decoratorAnimationName("cupertino", "overlay", "PUSHING-false")
+      );
 
       // opacity interpolates: it stays. background-color is held: it does not.
       expect(keyframe).toContain("opacity: 0");
@@ -1361,9 +1412,14 @@ describe("easingToCss", () => {
         }
       });
 
-      const css = compileTransitionStyles([], [authored]);
+      const { css, transitionName } = compileDecorator(authored, 0.5);
       const blocks =
-        css.match(/@keyframes flemo-decorator-authored-deco[^{]*\{[\s\S]*?\n\}/g) ?? [];
+        css.match(
+          new RegExp(
+            `@keyframes flemo-decorator-${transitionName}--authored-deco[^{]*\\{[\\s\\S]*?\\n\\}`,
+            "g"
+          )
+        ) ?? [];
       // base + lpm + lpmcreep + deskhead, for each animating status.
       expect(blocks.length).toBeGreaterThanOrEqual(4);
       for (const block of blocks) {
@@ -1415,21 +1471,23 @@ describe("easingToCss", () => {
           options: { duration: 0.4 }
         }
       });
-      const css = compileTransitionStyles([], [stillDeco]);
+      const { css, transitionName, clock } = compileDecorator(stillDeco, 0.4);
       const rule = ruleBlockOf(
         css,
-        '[data-flemo-decorator-name="held-deco"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
+        decoratorSelectorOf(transitionName, "held-deco", "PUSHING-false")
       );
 
       expect(rule).toContain("animation: none");
-      expect(rule).not.toContain(animationName("decorator", "held-deco", "PUSHING-false"));
+      expect(rule).not.toContain(
+        decoratorAnimationName(transitionName, "held-deco", "PUSHING-false")
+      );
       // The rendered result is unchanged: the rule still holds both channels
       // for exactly the window the variant selector matches.
       expect(rule).toContain("backdrop-filter: saturate(1.4)");
       expect(rule).toContain("opacity: 0.5");
       // ...and the engine agrees, so nothing waits for an animationend that
       // this variant will never fire.
-      expect(variantHasAnimation(stillDeco, "PUSHING-false")).toBe(false);
+      expect(variantHasAnimation(clock, "PUSHING-false")).toBe(false);
     });
 
     it("keeps a variant whose endpoints differ on a single channel", () => {
@@ -1445,16 +1503,16 @@ describe("easingToCss", () => {
         },
         exit: { value: { opacity: 0, backdropFilter: "saturate(1.4)" }, options: { duration: 0.4 } }
       });
-      const css = compileTransitionStyles([], [movingDeco]);
+      const { css, transitionName, clock } = compileDecorator(movingDeco, 0.4);
       const rule = ruleBlockOf(
         css,
-        '[data-flemo-decorator-name="moving-deco"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
+        decoratorSelectorOf(transitionName, "moving-deco", "PUSHING-false")
       );
 
       expect(rule).toContain(
-        `animation: ${animationName("decorator", "moving-deco", "PUSHING-false")} 0.4s`
+        `animation: ${decoratorAnimationName(transitionName, "moving-deco", "PUSHING-false")} 0.4s`
       );
-      expect(variantHasAnimation(movingDeco, "PUSHING-false")).toBe(true);
+      expect(variantHasAnimation(clock, "PUSHING-false")).toBe(true);
     });
   });
 });
@@ -1532,7 +1590,7 @@ describe("compileTransitionStyles: <Layer> slot ride-along selector", () => {
     const css = compileTransitionStyles([cupertino], [overlay]);
     const decoBlock = ruleFor(
       css,
-      '[data-flemo-decorator-name="overlay"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
+      '[data-flemo-decorator-name="overlay"][data-flemo-transition="cupertino"][data-flemo-status="PUSHING"][data-flemo-active="false"]'
     );
 
     // The dim belongs to the screen and is rendered inside its container, so

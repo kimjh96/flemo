@@ -20,8 +20,8 @@ import "./drift.types";
 //
 // So the arriving screen owns the opacity channel and the covered screen never
 // touches it. The covered screen changes scale alone, and its depth cue is
-// finished by the `recess` decorator, which this transition names and which is
-// sized to these same two durations rather than borrowing `overlay`'s 0.7s.
+// finished by the `recess` decorator, which this transition names and which
+// therefore runs on these same two durations without restating either.
 const drift = createTransition({
   name: "drift",
   initial: { opacity: 0, scale: DRIFT_APPROACH },

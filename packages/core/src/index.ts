@@ -99,6 +99,7 @@ export {
 export { default as createDecorator } from "@transition/decorator/createDecorator";
 export { default as createRawDecorator } from "@transition/decorator/createRawDecorator";
 export { decoratorMap } from "@transition/decorator/decorator";
+export { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
 
 // Bar-transition primitives (progress-driven, name-referenced bar-child animations)
 export { default as createPartTransition } from "@transition/partTransition/createPartTransition";

@@ -16,6 +16,7 @@ import {
 } from "@dom/attributes";
 
 import { decoratorMap } from "@transition/decorator/decorator";
+import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 // WHO IS IN THIS FLIGHT.
@@ -176,9 +177,13 @@ export const statusChoreographySpanMs = (
     ? decoratorMap.get(transition.decoratorName)
     : undefined;
   if (decoratorDefinition) {
+    // On the screen's clock unless the decorator authored its own, so a dim
+    // that simply follows its transition can no longer extend the flight past
+    // it — only one deliberately written longer can.
+    const decoratorClock = resolveDecoratorClock(transition, decoratorDefinition);
     for (const variant of [`${status}-true`, `${status}-false`] as TransitionVariant[]) {
-      if (!variantHasAnimation(decoratorDefinition, variant)) continue;
-      const motion = resolveVariantMotion(decoratorDefinition, variant)!;
+      if (!variantHasAnimation(decoratorClock, variant)) continue;
+      const motion = resolveVariantMotion(decoratorClock, variant)!;
       spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
     }
   }

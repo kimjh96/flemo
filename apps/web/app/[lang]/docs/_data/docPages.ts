@@ -615,12 +615,12 @@ const EN: DocSection[] = [
           { type: "h", text: "Decorators" },
           {
             type: "p",
-            text: "A decorator sits between the previous and the current screen. The built-in `overlay` decorator is the dim during a cupertino swipe. Author your own with `createDecorator`, attach it to a transition by `decoratorName`, then register it on the `Router`."
+            text: "A decorator sits between the previous and the current screen. The built-in `overlay` decorator is the dim during a cupertino swipe. Author your own with `createDecorator`, attach it to a transition by `decoratorName`, then register it on the `Router`. Leave the timing out: a decorator runs on the clock of the transition that names it, matched variant by variant, so the same dim is longer on a slow transition and shorter on a fast one without being authored twice. Write a `duration` only to override that, including `0` to snap. `ease` is never inherited, because a curve drawn for position is the wrong one for a fade."
           },
           {
             type: "code",
             lang: "ts",
-            code: 'import { createDecorator } from "@flemo/react";\n\nconst dim = createDecorator({\n  name: "dim",\n  initial: { opacity: 0 },\n  idle: { value: { opacity: 0 }, options: { duration: 0 } },\n  enter: { value: { opacity: 0.4 }, options: { duration: 0.3 } },\n  exit: { value: { opacity: 0 }, options: { duration: 0.3 } }\n});'
+            code: 'import { createDecorator } from "@flemo/react";\n\nconst dim = createDecorator({\n  name: "dim",\n  initial: { opacity: 0 },\n  idle: { value: { opacity: 0 } },\n  enter: { value: { opacity: 0.4 } },\n  exit: { value: { opacity: 0 } }\n});'
           },
           {
             type: "p",
@@ -1583,12 +1583,12 @@ const KO: DocSection[] = [
           { type: "h", text: "데코레이터" },
           {
             type: "p",
-            text: "데코레이터는 이전 화면과 현재 화면 사이에 놓여요. 내장 `overlay`가 cupertino 스와이프 중의 딤이에요. `createDecorator`로 만들고, 트랜지션에 `decoratorName`으로 붙이고, `Router`에 등록해요."
+            text: "데코레이터는 이전 화면과 현재 화면 사이에 놓여요. 내장 `overlay`가 cupertino 스와이프 중의 딤이에요. `createDecorator`로 만들고, 트랜지션에 `decoratorName`으로 붙이고, `Router`에 등록해요. 시간은 적지 마세요. 데코레이터는 자신을 지명한 트랜지션의 시계를 variant별로 그대로 따르기 때문에, 같은 딤이라도 느린 트랜지션에서는 길게 빠른 트랜지션에서는 짧게 돌아요. `duration`은 그 값을 덮어쓸 때만 적고, `0`을 적으면 스냅이에요. `ease`는 상속하지 않아요. 위치를 위해 그린 곡선은 페이드에는 맞지 않으니까요."
           },
           {
             type: "code",
             lang: "ts",
-            code: 'import { createDecorator } from "@flemo/react";\n\nconst dim = createDecorator({\n  name: "dim",\n  initial: { opacity: 0 },\n  idle: { value: { opacity: 0 }, options: { duration: 0 } },\n  enter: { value: { opacity: 0.4 }, options: { duration: 0.3 } },\n  exit: { value: { opacity: 0 }, options: { duration: 0.3 } }\n});'
+            code: 'import { createDecorator } from "@flemo/react";\n\nconst dim = createDecorator({\n  name: "dim",\n  initial: { opacity: 0 },\n  idle: { value: { opacity: 0 } },\n  enter: { value: { opacity: 0.4 } },\n  exit: { value: { opacity: 0 } }\n});'
           },
           {
             type: "p",

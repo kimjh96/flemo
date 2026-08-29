@@ -37,6 +37,8 @@ import {
   TRANSITION_ATTR
 } from "@dom/attributes";
 
+import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
+
 import type { Decorator } from "@transition/decorator/typing";
 import type { PartTransition } from "@transition/partTransition/typing";
 
@@ -349,11 +351,21 @@ const restAttrSelector = (transitionName: string, variant: TransitionVariant): s
   );
 };
 
-const restDecoratorSelector = (decoratorName: string, variant: TransitionVariant): string => {
+// A decorator is matched by the transition that names it as well as by its own
+// name, because its clock comes from that transition (resolveDecoratorClock).
+// The same decorator on two transitions of different lengths is two rule sets,
+// and without the transition in the selector they would be one, with the
+// winner decided by source order.
+const restDecoratorSelector = (
+  transitionName: string,
+  decoratorName: string,
+  variant: TransitionVariant
+): string => {
   const [status, active] = variant.split("-");
   return (
     attrSelector(DECORATOR_ATTR) +
     attrValueSelector(DECORATOR_NAME_ATTR, decoratorName) +
+    attrValueSelector(TRANSITION_ATTR, transitionName) +
     attrValueSelector(STATUS_ATTR, status!) +
     attrValueSelector(ACTIVE_ATTR, active!)
   );
@@ -426,6 +438,16 @@ export const animationName = (
   name: string,
   variant: TransitionVariant
 ) => `flemo-${scope}-${cssIdentifier(name)}-${variant}`;
+
+// A decorator's keyframes belong to the PAIR, for the same reason its selector
+// does: two transitions naming one decorator run it on two clocks, so they
+// cannot share a keyframe name. Both the compiler and the engine's
+// cancel/resume wiring resolve the name here so they can never disagree.
+export const decoratorAnimationName = (
+  transitionName: string,
+  decoratorName: string,
+  variant: TransitionVariant
+) => animationName("decorator", `${transitionName}--${decoratorName}`, variant);
 
 // A head tier plays the SAME flight under a copied keyframe set, so its
 // `animationend` / `animationcancel` events carry a suffixed name. Every
@@ -943,8 +965,13 @@ export const compileTransitionStyles = (
   partTransitions: Iterable<PartTransition> = []
 ): string => {
   const blocks: string[] = [];
+  // Materialized because the decorator pass walks the transitions a second
+  // time, and the callers hand this in as a Map's `.values()` iterator.
+  const transitionList = [...transitions];
+  const decoratorByName = new Map<string, Decorator>();
+  for (const decorator of decorators) decoratorByName.set(decorator.name, decorator);
 
-  for (const transition of transitions) {
+  for (const transition of transitionList) {
     const name = transition.name;
 
     for (const variant of TRANSITION_VARIANTS) {
@@ -965,29 +992,46 @@ export const compileTransitionStyles = (
     }
   }
 
-  for (const decorator of decorators) {
-    const name = decorator.name;
+  // ONE PASS PER (TRANSITION x DECORATOR) PAIR, not one per decorator name.
+  //
+  // A decorator's clock is the clock of the transition that names it, so the
+  // same decorator reached from two transitions is two different compiled
+  // results. Driving the loop from the transitions is also what makes the pair
+  // reachable at all: `decoratorName` points one way only.
+  //
+  // A registered decorator that no transition names emits nothing now, where
+  // it used to emit a full rule set. Nothing is lost: a decorator element is
+  // only ever rendered for a screen whose transition names it, so those rules
+  // could never match anything.
+  for (const transition of transitionList) {
+    if (!transition.decoratorName) continue;
+    const decorator = decoratorByName.get(transition.decoratorName);
+    if (!decorator) continue;
+
+    const resolved = resolveDecoratorClock(transition, decorator);
+    const pairName = `${transition.name}--${decorator.name}`;
+    const selectorBuilder = (_: string, pairVariant: TransitionVariant) =>
+      restDecoratorSelector(transition.name, decorator.name, pairVariant);
 
     for (const variant of DECORATOR_VARIANTS) {
-      const variantValue = decorator.variants[variant];
+      const variantValue = resolved.variants[variant];
       const fromKey = FROM_VARIANT[variant];
 
       if (fromKey === "self") {
-        blocks.push(compileRestBlock(restDecoratorSelector, name, variant, variantValue));
+        blocks.push(compileRestBlock(selectorBuilder, pairName, variant, variantValue));
         continue;
       }
 
-      const fromValue =
-        fromKey === "initial" ? decorator.initial : decorator.variants[fromKey].value;
+      const fromValue = fromKey === "initial" ? resolved.initial : resolved.variants[fromKey].value;
 
       blocks.push(
         compileVariantBlock(
           "decorator",
-          name,
+          pairName,
           variant,
           fromValue,
           variantValue,
-          restDecoratorSelector
+          selectorBuilder
         )
       );
     }

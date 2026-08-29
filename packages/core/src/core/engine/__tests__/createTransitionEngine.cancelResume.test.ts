@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import TaskManger from "@core/TaskManger";
 
-import { animationName } from "@transition/compileTransitionStyles";
+import { animationName, decoratorAnimationName } from "@transition/compileTransitionStyles";
 import createTransition from "@transition/createTransition";
 
 import { transitionMap } from "@transition/transition";
@@ -357,7 +357,9 @@ describe("createTransitionEngine cancel-resume liveness", () => {
     // The bar rides the SCREEN keyframes → same animation name as the scope.
     bar.dispatchEvent(cancelEvent(PASSIVE(WITH_PARTS)));
     staticBar.dispatchEvent(cancelEvent(PASSIVE(WITH_PARTS)));
-    decorator.dispatchEvent(cancelEvent(animationName("decorator", "overlay", "REPLACING-false")));
+    decorator.dispatchEvent(
+      cancelEvent(decoratorAnimationName(WITH_PARTS, "overlay", "REPLACING-false"))
+    );
     part.dispatchEvent(cancelEvent(animationName("part", PART, "REPLACING-false")));
     ghostPart.dispatchEvent(cancelEvent(animationName("part", "cr-ghost", "REPLACING-false")));
 
@@ -437,7 +439,7 @@ describe("createTransitionEngine cancel-resume liveness", () => {
       animHoldReleased: true
     });
     decorator.dispatchEvent(
-      cancelEvent(animationName("decorator", "cr-unregistered", "REPLACING-false"))
+      cancelEvent(decoratorAnimationName(NODECO, "cr-unregistered", "REPLACING-false"))
     );
     expect(decoRemove).not.toHaveBeenCalled(); // decorator never wired
     decoRemove.mockRestore();
@@ -451,7 +453,9 @@ describe("createTransitionEngine cancel-resume liveness", () => {
     const dispose = driveActive(scope);
 
     // A foreign name (e.g. the decorator's) on the scope must be ignored.
-    scope.dispatchEvent(cancelEvent(animationName("decorator", "overlay", "REPLACING-true")));
+    scope.dispatchEvent(
+      cancelEvent(decoratorAnimationName(WITH_PARTS, "overlay", "REPLACING-true"))
+    );
     scope.dispatchEvent(cancelEvent("some-other-animation"));
     expect(removeSpy).not.toHaveBeenCalled();
     expect(resolveSpy).not.toHaveBeenCalled();
