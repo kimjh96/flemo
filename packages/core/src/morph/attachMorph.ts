@@ -152,6 +152,24 @@ interface MorphScope {
   /** The last rest pose of each `layoutId`, taken the instant a flight began. */
   snapshots: Map<string, { snapshot: MorphSnapshot; element: HTMLElement }>;
   flights: Map<string, MorphFlight>;
+  /**
+   * `layoutId`s a GESTURE already delivered, waiting for the navigation it
+   * committed to catch up.
+   *
+   * A swipe stages its own flights and plays them out on release; the
+   * navigation that release commits then stages as usual and normally finds
+   * them still in the air, which `already-flying` declines. A FAST flick
+   * breaks that: the release settle is scaled to what is left, so a gesture
+   * carried to the far edge lands in ~120ms while the navigation arrives at
+   * ~150ms — and by then the flights map is empty, so the same element is
+   * staged again from its ORIGINAL rest pose and makes the whole trip a
+   * second time. Measured: land at 149ms, a fresh `start` at 150ms, landing
+   * again 723ms later.
+   *
+   * A delivery is consumed by the first stage that would have re-flown it, so
+   * one gesture suppresses exactly one navigation's worth of staging.
+   */
+  delivered: Set<string>;
   unsubscribe: () => void;
 }
 
@@ -1398,6 +1416,9 @@ const evaluate = (
     return;
   }
   if (scope.flights.has(entry.layoutId)) {
+    // The gesture's flight is still in the air and this navigation is riding
+    // it, so the delivery mark has done its job and must not outlive it.
+    scope.delivered.delete(entry.layoutId);
     trace("already-flying", entry, status);
     return;
   }
@@ -1455,6 +1476,18 @@ const evaluate = (
       enclosing: !!enclosing,
       deferred
     });
+    return;
+  }
+
+  // AFTER the arriving gate, deliberately: only the side that would actually
+  // start a flight may consume the mark. Consuming it on the dismissing side —
+  // which reaches this function first and always declines — would spend it a
+  // moment before the arriving side asks, and the trip would repeat anyway.
+  if (scope.delivered.delete(entry.layoutId)) {
+    // A gesture already carried this element to the very place this flight
+    // would take it, and landed it a frame or two ago. Flying it again would
+    // put it back where it started and repeat the whole trip.
+    trace("gesture-delivered", entry, status);
     return;
   }
 
@@ -1532,6 +1565,28 @@ export const stageHeldFlights = (
   return [...scope.flights.values()];
 };
 
+/**
+ * Forget any delivery the navigation never came to collect. A NEW gesture
+ * supersedes the last one; only the gesture's own entry point may do this,
+ * because the navigation reaches the scope through `stageHeldFlights` too and
+ * clearing there would erase the mark a moment before reading it.
+ */
+
+/**
+ * Record that a gesture's release has DELIVERED whatever it is carrying — it
+ * plays those flights out to the arrival itself, so the navigation it commits
+ * must not stage them again. Whatever is in the air at the release is exactly
+ * what the gesture delivers. See `MorphScope.delivered`.
+ */
+export const clearGestureDeliveries = (store: NavigateStoreApi): void => {
+  ensureScope(store).delivered.clear();
+};
+
+export const markGestureDelivered = (store: NavigateStoreApi): void => {
+  const scope = ensureScope(store);
+  for (const layoutId of scope.flights.keys()) scope.delivered.add(layoutId);
+};
+
 /** The flights a scope currently holds — the nested ones included. */
 export const heldFlights = (store: NavigateStoreApi): MorphFlight[] => [
   ...ensureScope(store).flights.values()
@@ -1548,6 +1603,7 @@ const ensureScope = (store: NavigateStoreApi): MorphScope => {
     residue: new Map(),
     snapshots: new Map(),
     flights: new Map(),
+    delivered: new Set(),
     /* v8 ignore next -- replaced on the line below; it exists so the field is
        never undefined between construction and subscription. */
     unsubscribe: () => {}
