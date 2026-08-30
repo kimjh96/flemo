@@ -1203,33 +1203,107 @@ describe("compileTransitionStyles bar transitions", () => {
       expect(kf).toContain("100.000% {\n    transform: none;\n    opacity: 1;");
     });
 
-    it("leaves the leaving and covered sides on the plain head", () => {
+    it("carries the COVERED side's park with the author's own values, adding no opacity", () => {
+      // That screen is hidden by the one moving over it, not by an opacity of
+      // its own — and that cover is held on the same clock, so it is still
+      // covering for the whole head. Nothing needs to be injected, so nothing is.
       const css = compileTransitionStyles([shove], []);
-      // The mark only ever lands on an entering screen that parked OVER its
-      // cover, so no other variant may carry a parked head to match it with.
+      const kfIndex = css.indexOf(
+        "@keyframes flemo-screen-custom-slide-fade-POPPING-false-govpark"
+      );
+      expect(kfIndex).toBeGreaterThan(-1);
+      const kf = css.slice(kfIndex, css.indexOf("\n}", kfIndex));
+      expect(kf).not.toContain("opacity");
+      expect(kf).toContain("0.000% {\n    transform: none;");
+      expect(kf).toContain("100.000% {\n    transform: none;");
+    });
+
+    it("releases the concealment back to the AUTHORED opacity, not to 1", () => {
+      // The bug this ends, caught in WebKit before it shipped: forcing `1` at the
+      // end of the concealment landed a fade fully opaque on the frame after the
+      // head (measured 1.00 where the authored curve is at 0.20) — the parked
+      // head had deleted the transition it was supposed to be protecting. Where
+      // the author animates opacity, releasing means STOPPING, and their own
+      // values take over.
+      const css = compileTransitionStyles([layout], []);
+      const kfIndex = css.indexOf("@keyframes flemo-screen-layout-PUSHING-true-govpark");
+      const kf = css.slice(kfIndex, css.indexOf("\n}", kfIndex));
+      // Parked at the park's opacity, then straight onto the authored fade: 0 at
+      // the from-pose, 1 at the destination. No injected value survives the jump.
+      expect(kf).toContain("  0.000% {\n    opacity: 0.02;\n  }");
+      expect(kf).toContain("  20.000% {\n    opacity: 0.02;\n  }");
+      expect(kf).toContain("  20.050% {\n    opacity: 0;\n  }");
+      expect(kf).toContain("  100.000% {\n    opacity: 1;\n  }");
+    });
+
+    it("never marks a side that has no park to carry", () => {
+      const css = compileTransitionStyles([shove], []);
+      // The leaving screen is visible from its first frame: it never parks, so a
+      // parked head would be holding it somewhere it was never put.
       expect(css).not.toContain(
         `[data-flemo-status="PUSHING"][data-flemo-active="false"][data-flemo-park-head="true"]`
       );
+      // The active side of a pop is the LEAVING top. Parking it at its
+      // destination would expose the screen returning underneath.
       expect(css).not.toContain(
         `[data-flemo-status="POPPING"][data-flemo-active="true"][data-flemo-park-head="true"]`
       );
     });
 
-    it("skips the parked head where the variant animates opacity itself", () => {
-      // Its from-pose is already invisible, so it has no raster to lose — and the
-      // park pose's own opacity would fight the authored fade.
-      const fade = createTransition({
-        name: "custom-fade-blur",
-        initial: { opacity: 0 },
-        idle: { value: { opacity: 1 }, options: { duration: 0 } },
-        enter: { value: { opacity: 1 }, options: { duration: 0.4 } },
-        enterBack: { value: { opacity: 0 }, options: { duration: 0.4 } },
-        exit: { value: { opacity: 0 }, options: { duration: 0.4 } },
-        exitBack: { value: { opacity: 1 }, options: { duration: 0.4 } }
-      });
-      const css = compileTransitionStyles([fade], []);
-      expect(css).toContain(`[data-flemo-transition="custom-fade-blur"]`);
-      expect(css).not.toContain("govpark");
+    it("heads a park wherever one is emitted, whatever the author hid the screen with", () => {
+      // THE INVARIANT, and the reason it is a test rather than a comment: the
+      // park decision and the head that has to carry it were written as two
+      // separate condition lists once, and they drifted — the head silently
+      // excluded every opacity-authored transition, so `layout` parked and then
+      // threw the park away while `cupertino` did not. A consumer authors their
+      // own transitions and hides a screen however they like; the two halves
+      // must answer the same for every one of them.
+      type Pose = Parameters<typeof createTransition>[0]["initial"];
+      const hidden = (name: TransitionName, initial: Pose, back: Pose) =>
+        createTransition({
+          name,
+          initial,
+          idle: { value: { opacity: 1, scale: 1 }, options: { duration: 0 } },
+          enter: { value: { opacity: 1, scale: 1 }, options: { duration: 0.4 } },
+          enterBack: { value: back, options: { duration: 0.3 } },
+          // A covered side that leaves the viewport entirely, so the pop-side
+          // park is exercised too.
+          exit: { value: { x: "-100%" }, options: { duration: 0.4 } },
+          exitBack: { value: { opacity: 1, scale: 1 }, options: { duration: 0.3 } }
+        });
+
+      const authored = [
+        cupertino,
+        material,
+        layout,
+        shove,
+        // hidden by a translate, by an opacity, and by both at once
+        hidden("custom-snap-percent" as TransitionName, { y: "100%" }, { y: "100%" }),
+        hidden("custom-fade-blur" as TransitionName, { opacity: 0 }, { opacity: 0 }),
+        hidden(
+          "custom-slide-fade" as TransitionName,
+          { opacity: 0, scale: 0.9 },
+          { opacity: 0, scale: 0.9 }
+        )
+      ];
+
+      for (const transition of authored) {
+        const css = compileTransitionStyles([transition], []);
+        const variantsOf = (pattern: RegExp) =>
+          new Set([...css.matchAll(pattern)].map((match) => `${match[1]}-${match[2]}`));
+        const parks = variantsOf(
+          /data-flemo-status="(\w+)"\]\[data-flemo-active="(\w+)"\]\[data-flemo-anim-hold="park/g
+        );
+        const headed = variantsOf(/@keyframes [\w-]+-(\w+)-(\w+)-govpark/g);
+        expect([...headed].sort(), (transition as { name: string }).name).toEqual(
+          [...parks].sort()
+        );
+        // And the desktop head gets the same copy: it is a shorter wait, not a
+        // different mechanism.
+        expect([...variantsOf(/@keyframes [\w-]+-(\w+)-(\w+)-deskpark/g)].sort()).toEqual(
+          [...parks].sort()
+        );
+      }
     });
 
     it("pauses the park attribute too in the global hold rule (safe fallback)", () => {

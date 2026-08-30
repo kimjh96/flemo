@@ -706,6 +706,46 @@ describe("Screen", () => {
     expect(scope.getAttribute("data-flemo-park-head")).toBe("true");
   });
 
+  it("marks the COVERED park too — its cover is held on the same clock", () => {
+    // No profile gate here, and that is the point: what varies by environment is
+    // which park is granted, not whether a head should carry one. The covered
+    // side is hidden by the screen moving over it, and that screen is in its own
+    // head for the same window, so the concealment outlives the release.
+    stores.navigate.setState({ status: "POPPING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+    stores.screen.setState({ screenSurfaces: { top: { opaqueBackground: true } } });
+
+    const { container } = render(
+      <Screen>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: false, isPrev: true, id: "below", zIndex: 0 }) }
+    );
+
+    const scope = container.querySelector("[data-flemo-screen]")!;
+    expect(scope.getAttribute("data-flemo-anim-hold")).toBe("park");
+    expect(scope.getAttribute("data-flemo-park-head")).toBe("true");
+  });
+
+  it("drops the mark when the A/B flag disarms it", () => {
+    sessionStorage.setItem("flemo:parkhead", "off");
+    stores.navigate.setState({ status: "POPPING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+    stores.screen.setState({ screenSurfaces: { top: { opaqueBackground: true } } });
+
+    const { container } = render(
+      <Screen>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: false, isPrev: true, id: "below", zIndex: 0 }) }
+    );
+
+    const scope = container.querySelector("[data-flemo-screen]")!;
+    // The park itself is untouched; only the head that would carry it.
+    expect(scope.getAttribute("data-flemo-anim-hold")).toBe("park");
+    expect(scope.getAttribute("data-flemo-park-head")).toBe(null);
+  });
+
   it("leaves the mark off a screen that only ever parked under its cover", () => {
     // park-under keeps the layer occluded, which is the reason WebKit never
     // rastered it — there is no raster for a parked head to protect.

@@ -29,6 +29,7 @@ import {
   decoratorMap,
   enteringInitialStyle,
   observeBarHeight,
+  parkHeadEnabled,
   publishRideBox,
   resolvePlatformProfile,
   resolveTransition,
@@ -740,19 +741,26 @@ function ScreenMotion({
         : ANIM_HOLD.HELD;
 
   // Whether the head that follows this hold should carry the park pose instead
-  // of the off-screen from-pose (see PARK_HEAD_ATTR). Sticky across the release
-  // on purpose: the attribute has to still be there for the 200ms the head runs,
-  // and by then `holdAttr` has long since read RELEASED. Keyed on the flight's
-  // own hold key so the next navigation starts from nothing — a stale mark would
-  // park a screen whose cover was never measured opaque.
+  // of the authored from-pose (see PARK_HEAD_ATTR). Sticky across the release on
+  // purpose: the attribute has to still be there for the whole head, and by then
+  // `holdAttr` has long since read RELEASED. Keyed on the flight's own hold key
+  // so the next navigation starts from nothing — a stale mark would park a
+  // screen whose cover was never measured opaque.
   //
-  // Only park-over earns it. park-under leaves the layer occluded, which is what
-  // stopped WebKit rastering it in the first place, so carrying THAT pose
-  // through the head would buy nothing and cost a stacking decision.
+  // THE TEST IS WHETHER THE CONCEALMENT SURVIVES THE RELEASE, and the three
+  // parks answer it differently:
+  //   - PARK_OVER hides the screen with its own near-zero opacity. An opacity is
+  //     part of the animation, so the head can keep applying it.
+  //   - PARK hides the covered screen under the one moving over it, which is
+  //     held on the SAME clock and so is still in its own head. Nothing has to
+  //     be re-applied for it to stay hidden.
+  //   - PARK_UNDER hides the entering screen under a z-index THIS COMPONENT
+  //     drops the moment the hold releases (see the outer container's zIndex).
+  //     Carrying that pose past the release would uncover the screen whole.
   if (
     parkHeadKeyRef.current !== holdKey &&
-    holdAttr === ANIM_HOLD.PARK_OVER &&
-    resolvePlatformProfile().parkHead
+    (holdAttr === ANIM_HOLD.PARK_OVER || holdAttr === ANIM_HOLD.PARK) &&
+    parkHeadEnabled()
   ) {
     parkHeadKeyRef.current = holdKey;
   }

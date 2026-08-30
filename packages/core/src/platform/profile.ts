@@ -76,15 +76,6 @@ export interface PlatformProfile {
   readonly parkOver: boolean;
 
   /**
-   * Keep that park in place through the governed head, instead of letting the
-   * release drop the screen back to its off-screen from-pose for the head and
-   * the delay in front of it — where WebKit discards everything it just
-   * rasterized past the first tile row. Only read where a park-over was
-   * actually granted; `flemo:parkhead=off` is the A/B.
-   */
-  readonly parkHead: boolean;
-
-  /**
    * Keep the screen scope's layer promoted at REST. Off everywhere by default:
    * a promotion is also a stacking context, and at rest it outranks any
    * consumer overlay inside the screen.
@@ -125,9 +116,6 @@ export const resolvePlatformProfile = (input: PlatformProfileInput = {}): Platfo
     deferReleaseCommit: readDeferReleaseCommitFlag(),
     renderSettleGate: readSettleGateFlag(),
     parkOver,
-    // Carried by the park, never on its own: an unverified environment arms
-    // nothing, and there is nothing to carry where no screen ever parks.
-    parkHead: parkOver && readParkHeadFlag(),
     restLayerPromotion: readRestLayerPromotionFlag(),
     // THE IMAGE DECIDES, NOT THE DEVICE.
     //
@@ -161,3 +149,17 @@ export const resolvePlatformProfile = (input: PlatformProfileInput = {}): Platfo
  * `() => resolvePlatformProfile().restLayerPromotion` would not be.
  */
 export const restLayerPromotionEnabled = (): boolean => resolvePlatformProfile().restLayerPromotion;
+
+/**
+ * Whether a head carries the park in front of it (see PARK_HEAD_ATTR).
+ *
+ * Deliberately NOT a profile field. The profile answers per-browser questions,
+ * and this is not one: a head that drops the park loses the raster on every
+ * engine that has both, and how long it holds it only decides how visible that
+ * is. What varies by environment is which park is granted, which the profile
+ * already answers as `parkOver` — and a binding only ever asks this once a park
+ * has been granted, so an unverified environment reaches it with nothing armed.
+ *
+ * `flemo:parkhead=off` is the A/B, and the only reason this is a function at all.
+ */
+export const parkHeadEnabled = (): boolean => readParkHeadFlag();

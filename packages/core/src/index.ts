@@ -181,6 +181,7 @@ export { startFlemoRuntime } from "@runtime/flemoRuntime";
 // A binding asks for the profile and renders the answer; it never re-derives
 // policy from the probes and flag readers itself (see @platform/profile).
 export {
+  parkHeadEnabled,
   resolvePlatformProfile,
   restLayerPromotionEnabled,
   type PlatformProfile,
