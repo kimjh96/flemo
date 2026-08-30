@@ -22,14 +22,14 @@ apps/web                  @flemo/web — Next.js 16 landing + docs (ko/en); the 
                           /playground
 ```
 
-- Published and changeset-versioned: `@flemo/core`, `@flemo/react`, and `@flemo/devtools`.
-- `@flemo/web` is private but changeset-versioned. Ignore internal `@flemo/eslint-config` and `@flemo/tsconfig`.
+- Publish and changeset-version `@flemo/core`, `@flemo/react`, and `@flemo/devtools`.
+- Changeset-version private `@flemo/web`. Ignore internal `@flemo/eslint-config` and `@flemo/tsconfig`.
 - No `flemo` meta package exists. Consumers install `@flemo/react`. Shared-element morphs use `<Morph>` there and the framework-neutral runtime in `@flemo/core/src/morph`.
-- Removed `@flemo/react-layout` remains at its last published version, `0.1.52`; nothing here builds or references it.
+- Removed `@flemo/react-layout` remains at version `0.1.52`; do not build or reference it.
 
 ## Non-negotiable rules
 
-1. Never manually edit `package.json#version` in published packages or `apps/web`. For each user-visible change, create `.changeset/<short-kebab-slug>.md` without the interactive prompt or user delegation:
+1. Never edit `package.json#version` manually in published packages or `apps/web`. For each user-visible change, create `.changeset/<short-kebab-slug>.md` without an interactive prompt or user delegation:
 
 ```md
    ---
@@ -39,30 +39,31 @@ apps/web                  @flemo/web — Next.js 16 landing + docs (ko/en); the 
    1–2 sentence user-facing summary. Imperative voice.
    ```
 
-List every affected versioned package on its own frontmatter line. Use `patch` for fixes or internal changes, `minor` for features, and `major` only for API breaks. Skip changesets only for typos, behavior-neutral internal refactors, or documentation-only edits outside `docs/*`. Release automation owns versions, changelogs, npm publication, and GitHub Releases.
-2. Add files under published packages only when they ship to npm; their `files` field is `["dist"]`. Put fixtures, demos, and scratch code in the playground's `_components/`, `_screens/`, `_router/`, `_data/`, `_hooks/`, `_providers/`, or `_transitions/`, or in a new `examples/*` workspace.
-3. Run this at the repository root before completion:
+List each affected versioned package on its own frontmatter line. Use `patch` for fixes or internal changes, `minor` for features, and `major` only for API breaks. Skip changesets only for typos, behavior-neutral internal refactors, or documentation-only edits outside `docs/*`. Release automation owns versions, changelogs, npm publication, and GitHub Releases.
+2. Add files under published packages only when they ship to npm; each package's `files` field is `["dist"]`. Put fixtures, demos, and scratch code in the playground's `_components/`, `_screens/`, `_router/`, `_data/`, `_hooks/`, `_providers/`, or `_transitions/`, or in a new `examples/*` workspace.
+3. Before completion, run at the repository root:
 
 ```bash
    pnpm turbo run typecheck lint test build
    ```
 
-CI uses `pnpm install --frozen-lockfile`. Local development may use `bun install` and `bunx turbo run typecheck lint test build`; commit `bun.lock` churn only when dependencies change. If validation cannot run, report that and do not claim success.
+CI runs `pnpm install --frozen-lockfile`. Local development may use `bun install` and `bunx turbo run typecheck lint test build`; commit `bun.lock` churn only when dependencies change. If validation cannot run, report it and do not claim success.
 4. Do not disable lint or type rules. Only `@typescript-eslint/no-explicit-any` in MDX glue and `react/no-unescaped-entities` in marketing copy are pre-approved exceptions.
-5. The playground imports the real `@flemo/react` artifact through `workspace:*`, never a mock.
-6. Keep `@flemo/core` framework-agnostic. Define animation target types in `packages/core/src/transition/cssTypes.ts`; do not import React, DOM-only React hooks, or motion types/runtime into core.
+5. The playground must import the real `@flemo/react` artifact through `workspace:*`, never a mock.
+6. Keep `@flemo/core` framework-agnostic. Define animation target types in `packages/core/src/transition/cssTypes.ts`; never import React, DOM-only React hooks, or motion types/runtime into core.
 
 ## Conventions
 
-- Canonical instructions: this file, `apps/web/CLAUDE.md`, `docs/architecture/motion-engine.md`, `docs/architecture/driver-routing.md`, `docs/architecture/react-binding.md`, `docs/instructions/diagnostics.md`, and `docs/instructions/motion-jank-postmortem/`. There is no `.claude/rules/`.
+- Canonical instructions are this file, `apps/web/CLAUDE.md`, `docs/architecture/motion-engine.md`, `docs/architecture/driver-routing.md`, `docs/architecture/react-binding.md`, `docs/instructions/diagnostics.md`, and `docs/instructions/motion-jank-postmortem/`. There is no `.claude/rules/`.
 - Before changing `packages/core/src/core/engine/`, read both engine architecture documents and the motion postmortems.
-- Match surrounding style. Every React component and subcomponent has its own folder and `index.ts` barrel.
-- Core aliases: `@core`, `@history`, `@morph`, `@navigate`, `@transition`, `@utils`. Register new top-level aliases in `packages/core/tsconfig.json`, `vite.config.mts`, and `vitest.config.ts`.
-- React aliases: `@history`, `@navigate`, `@renderer`, `@screen`, `@transition`, `@utils`, `@Route`, `@Router`. Import core APIs as named imports from `@flemo/core`, never through core path aliases.
+- Match surrounding style. Give every React component and subcomponent its own folder and `index.ts` barrel.
+- Core aliases are `@core`, `@history`, `@morph`, `@navigate`, `@transition`, and `@utils`. Register new top-level aliases in `packages/core/tsconfig.json`, `vite.config.mts`, and `vitest.config.ts`.
+- React aliases are `@history`, `@navigate`, `@renderer`, `@screen`, `@transition`, `@utils`, `@Route`, and `@Router`. Import core APIs as named imports from `@flemo/core`, never through core path aliases.
 - Use named React imports and `import type {...}` for type-only imports.
 - A package's public API is its `src/index.ts` exports; export new public modules there.
-- Commit bodies contain three to six hyphen bullets, one point each, with no prose paragraphs or footer except `Co-Authored-By`. Do not include session URLs.
-- Do not use em dashes in commit messages, pull request titles or bodies, changesets, or `docs/`. Preserve existing code comments and match edited files rather than sweeping them.
+- Scope commit subjects and pull request titles to the owning package: `fix(core):`, `fix(react):`, `feat(core):`, or `perf(react):`. For cross-package changes, name the owning package; a compiler change with a binding that renders its attribute is `(core)`. Only `chore:` and `docs:` are unscoped.
+- Commit bodies must contain three to six single-point hyphen bullets, with no prose paragraphs or footer except `Co-Authored-By`. Do not include session URLs.
+- Do not use em dashes in commit messages, pull request titles or bodies, changesets, or `docs/`. Preserve existing code comments and match edited files instead of sweeping them.
 
 ## Change workflow
 
