@@ -9,6 +9,6 @@ publicationProfile: reference
 publicationStatus: stable
 schemaVersion: 1
 sourceUnitVersionIds:
-  - uv_aeb7c86296a944a27fe759a4
-title: "2026-08-30: the long-content reveal block (iOS Safari)"
+  - uv_2738d203fb4f7708a2d0266c
+title: "2026-08-30: the long-content reveal block on iOS Safari"
 type: invariant

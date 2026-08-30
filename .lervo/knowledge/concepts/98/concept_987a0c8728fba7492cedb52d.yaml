@@ -9,6 +9,6 @@ publicationProfile: reference
 publicationStatus: stable
 schemaVersion: 1
 sourceUnitVersionIds:
-  - uv_6c09de5979a2a009e015c6f9
+  - uv_d7c634b5159da892c6d9de00
 title: "Postmortem: the 2026-07/08 motion-jank campaigns"
 type: invariant

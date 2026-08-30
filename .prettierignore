@@ -18,11 +18,6 @@ CLAUDE.md
 apps/web/AGENTS.md
 apps/web/CLAUDE.md
 docs/architecture/
-docs/instructions/coverage.md
-docs/instructions/diagnostics.md
-docs/instructions/motion-jank-postmortem/addendum-2026-08-17.md
-docs/instructions/motion-jank-postmortem/desktop-player-blank.md
-docs/instructions/motion-jank-postmortem/do-not-retry.md
-docs/instructions/motion-jank-postmortem/glass-campaign-2026-08-18.md
+docs/instructions/
 packages/devtools/README.md
 # lervo:end document-rewrite-ownership
