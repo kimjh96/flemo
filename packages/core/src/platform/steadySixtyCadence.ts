@@ -148,7 +148,10 @@ export const steadySixtyDesktopProfile = (): boolean =>
   typeof navigator !== "undefined" &&
   navigator.maxTouchPoints === 0 &&
   typeof window !== "undefined" &&
-  (window.devicePixelRatio || 1) >= STEADY_SIXTY_MIN_DPR;
+  // No `|| 1` fallback: the threshold is above 1, so a falsy devicePixelRatio
+  // fails this comparison whether it is defaulted or not. The fallback only
+  // ever produced an untestable branch with no outcome of its own.
+  window.devicePixelRatio >= STEADY_SIXTY_MIN_DPR;
 
 /* v8 ignore next 4 -- test hook: the verdict is document-scoped module state. */
 export const resetSteadySixtyForTests = (): void => {
