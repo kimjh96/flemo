@@ -159,8 +159,11 @@ export const steadySixtyVerified = (): boolean =>
 // The desktop-PROFILE predicate: a desktop (non-touch) Blink session on a
 // HiDPI display whose in-flight cadence has verified steady-60.
 //
-// It gates DEFAULTS, never a driver: the render-settle gate, the
-// unpainted-only image hold, and the compositor warm-up's cadence video. It
+// It gates DEFAULTS, never a driver: the render-settle gate and the
+// unpainted-only image hold. It also gated the compositor warm-up's 60fps
+// cadence video until that was deleted on 2026-08-31 — the video chased the
+// browser-process present state the campaign had already concluded a page
+// cannot reach, and paid a session-permanent decode for it. It
 // once carried the name `steadySixtyPlayerEligible`, from the 2026-08-17 round
 // that routed these sessions to the rAF player for its device-pixel snap; the
 // 2026-08-18 live ladder settled desktop on the compiled tier unconditionally

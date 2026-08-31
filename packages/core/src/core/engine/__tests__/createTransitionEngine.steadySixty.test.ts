@@ -20,8 +20,8 @@ import type { TransitionEngineDeps } from "@core/engine/types";
 //
 // The probe is the only source of a cadence reading taken while a compositor
 // animation is running, and two live consumers depend on it: the steady-60
-// desktop verdict (steadySixtyCadence -> the settle-gate default and the
-// warm-up's cadence lock) and the compiled tier's landing governor
+// desktop verdict (steadySixtyCadence -> the settle-gate default) and the
+// compiled tier's landing governor
 // (displayCadence.learnedFrameIntervalMs). It used to be armed from inside the
 // driver-routing gate; the driver is gone and the arming had to survive it, so
 // these suites pin that it still runs on exactly a Blink flight.

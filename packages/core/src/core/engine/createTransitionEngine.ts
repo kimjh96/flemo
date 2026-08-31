@@ -34,8 +34,8 @@ import { holdParticipantLayers, releaseParticipantLayers } from "@core/engine/pa
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
 // The engine no longer consults the steady-60 verdict at all: the landing
 // placement is uniform and the image hold is opt-in. It still FEEDS it — the
-// display probe below reports the in-flight cadence the desktop cadence lock
-// and the settle-gate default read.
+// display probe below reports the in-flight cadence the settle-gate default
+// reads.
 import {
   SKIP_ANIMATION_ATTR,
   type ScreenLifecycleInput,
@@ -252,8 +252,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // The display-interval probe. Its samples feed two live consumers — the
     // compiled tier's landing governor (learnedFrameIntervalMs, see
     // landingGovernor.ts) and the steady-60 desktop profile
-    // (reportInFlightCadence -> the settle-gate default and the warm-up's
-    // cadence lock) — and both need a reading taken IN FLIGHT, while the
+    // (reportInFlightCadence -> the settle-gate default) — and both need a
+    // reading taken IN FLIGHT, while the
     // compositor animation is running: an adaptive panel idles at 60Hz and only
     // shows its true rate once something is animating.
     //

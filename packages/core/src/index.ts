@@ -232,8 +232,7 @@ export {
   SCREEN_ATTR,
   STATUS_ATTR,
   TRANSITION_ATTR,
-  WARM_ATTR,
-  WARM_VIDEO_ATTR
+  WARM_ATTR
 } from "@dom/attributes";
 // The STACKING CONTRACT a screen keeps inside its own box: content under its
 // chrome, chrome under an overlay that exists to cover it, and the dim over
@@ -283,9 +282,9 @@ export {
 // the compiled (untouched) animation is the driver (non-Blink).
 export { detectBlinkEngine, isDesktopBlink, isLegacyAndroidBlink } from "@platform/engineProbes";
 // Steady-60 desktop session predicate (see steadySixtyCadence.ts). What still
-// keys on it is the compositor warm-up's cadence lock, which is a claim about
-// the panel's rate; the desktop defaults that are about Blink's layer handling
-// or a desktop's memory read `isDesktopBlink` instead.
+// keys on it is the render-settle gate's default, which is a claim about the
+// panel's rate; the desktop defaults that are about Blink's layer handling or
+// a desktop's memory read `isDesktopBlink` instead.
 export { steadySixtyDesktopProfile } from "@platform/steadySixtyCadence";
 export {
   swipeSettleSeconds,

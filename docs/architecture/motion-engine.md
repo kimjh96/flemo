@@ -113,9 +113,9 @@ PR #259, merged 2026-08-17, fixed this by explicitly clearing `transform` and `o
 | `imageDecodeOffloader.ts` | Off-main decode-to-scale for oversized images; auto-gated to legacy Android Blink and overridable by `flemo:imgoffload`. |
 | `flightWindow.ts` | Global nestable flight-in-progress latch. |
 | `layerSettleHold.ts` | Pins promotions and defers demotion; supports `flemo:layers=resident`. |
-| `compositorWarmUp.ts` | Refcounted invisible 48×48 background-position animation that repaints through flight and settle. On steady-60 desktop it also mounts a session-persistent 8×8 60 fps video cadence lock. |
+| `compositorWarmUp.ts` | Refcounted invisible 48×48 background-position animation that repaints through flight and settle. The element is session-resident and its attribute value (`on`/`idle`) says whether it is forcing frames. |
 | `gpuPipelinePrewarm.ts` | One-shot boot-idle probes that compile Chrome Graphite GPU pipelines before the first flight. |
-| `steadySixtyCadence.ts` | Desktop-profile cadence verdict for settle gating, unpainted image hold, warm-up video, and rest promotion. It does not route drivers; desktop uses compiled motion. |
+| `steadySixtyCadence.ts` | Desktop-profile cadence verdict for settle gating, unpainted image hold, and rest promotion. It does not route drivers; desktop uses compiled motion. |
 | `landingPixelSnap.ts` | Blink compiled-tier governed easing, default on desktop and high refresh, plus opt-in full snap through `flemo:landing-snap`. Governed easing closes the subpixel tail at one device pixel per frame. |
 | `perceptualSpan.ts` | `perceptualCutMs` and `channelValue` imperceptibility math shared by cut, early landing, and player. |
 | `nativeStallAnchor.ts` | Main-thread-presenting native-clock correction: birth-window `startTime` rewind, authored-native first-frame pause/play, and authored-pin continuous stall watching. |

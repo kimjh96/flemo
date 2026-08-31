@@ -344,11 +344,12 @@ export const PARK_HEAD_ATTR = "data-flemo-park-head";
 // in the page, and a consumer or a devtools build must be able to recognise
 // flemo's own scratch elements rather than mistake them for app content.
 
-/** The compositor warm-up element. */
+/**
+ * The compositor warm-up element. Its VALUE says whether the warm-up is
+ * currently forcing frames (`"on"`) or resident but idle (`"idle"`) — the
+ * element outlives every hold, so its presence alone no longer answers that.
+ */
 export const WARM_ATTR = "data-flemo-warm";
-
-/** The warm-up's cadence video, when the desktop profile uses one. */
-export const WARM_VIDEO_ATTR = "data-flemo-warm-video";
 
 /** The one-shot GPU pipeline prewarm element. */
 export const GPU_PREWARM_ATTR = "data-flemo-gpu-prewarm";
@@ -418,7 +419,6 @@ export const FLEMO_ATTRIBUTES = [
   DESK_HEAD_ATTR,
   PARK_HEAD_ATTR,
   WARM_ATTR,
-  WARM_VIDEO_ATTR,
   GPU_PREWARM_ATTR,
   OFFLOADED_SRC_ATTR,
   DEVTOOLS_PANEL_ATTR
