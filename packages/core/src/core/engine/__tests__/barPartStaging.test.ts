@@ -8,6 +8,7 @@ import {
   BAR_RIDING_ATTR,
   PART_HOME_ATTR,
   PART_NAME_ATTR,
+  PART_STAND_IN_ATTR,
   SCREEN_ATTR
 } from "@dom/attributes";
 
@@ -85,6 +86,48 @@ describe("stageBarParts", () => {
     // sized as one; a margin would offset a box that is already positioned.
     expect(part.style.boxSizing).toBe("border-box");
     expect(part.style.margin).toBe("0px");
+  });
+
+  it("leaves a stand-in holding the part's place in the bar", () => {
+    // A part is part of its bar's layout. Lift it out and the bar loses exactly
+    // its width; on a pop that happens to the RETURNING screen, whose bar is the
+    // one still on the glass at the landing. Measured on a real flight: the
+    // title moved 56px and moved back on release.
+    stage();
+
+    const standIn = bar.querySelector<HTMLElement>(`[${PART_STAND_IN_ATTR}]`);
+    expect(standIn).not.toBeNull();
+    expect(standIn!.style.width).toBe("24px");
+    expect(standIn!.style.height).toBe("24px");
+    // A flex bar must not be free to size it differently from the part it
+    // stands for, and it must not be seen or touched.
+    expect(standIn!.style.flex).toBe("0 0 auto");
+    expect(standIn!.style.visibility).toBe("hidden");
+    expect(standIn!.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("puts the part back into the stand-in's place, and takes the stand-in away", () => {
+    const before = document.createElement("span");
+    const after = document.createElement("span");
+    bar.insertBefore(before, part);
+    bar.appendChild(after);
+    const staged = stage();
+
+    staged!.release();
+
+    expect(bar.querySelector(`[${PART_STAND_IN_ATTR}]`)).toBeNull();
+    expect([...bar.children]).toEqual([before, part, after]);
+  });
+
+  it("takes the stand-in away with the part when the bar has gone", () => {
+    const staged = stage();
+    const standIn = bar.querySelector<HTMLElement>(`[${PART_STAND_IN_ATTR}]`)!;
+    bar.remove();
+
+    staged!.release();
+
+    expect(part.isConnected).toBe(false);
+    expect(standIn.isConnected).toBe(false);
   });
 
   it("marks the staged part with the screen it belongs to", () => {

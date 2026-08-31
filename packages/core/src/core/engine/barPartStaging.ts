@@ -1,3 +1,4 @@
+import { expectAnimationCancel } from "@core/engine/cancelResume";
 import {
   ANIM_HOLD,
   ANIM_HOLD_ATTR,
@@ -5,6 +6,7 @@ import {
   BAR_RIDING_ATTR,
   PART_HOME_ATTR,
   PART_NAME_ATTR,
+  PART_STAND_IN_ATTR,
   SCREEN_ATTR
 } from "@dom/attributes";
 
@@ -61,7 +63,39 @@ interface StagedPart {
   readonly nextSibling: Node | null;
   /** The element's own `style` attribute, verbatim, or null when it had none. */
   readonly inlineStyle: string | null;
+  /** The box holding the part's place in the bar while it is away. */
+  readonly standIn: HTMLElement;
 }
+
+// The part's place in the bar, kept while the part itself is up in the layer.
+//
+// Without it the bar simply loses the part's width and everything after it
+// slides over. On a push that happens to the covered screen, where nobody can
+// see it; on a pop it happens to the RETURNING screen, whose bar is exactly the
+// one left on the glass when the flight lands.
+//
+// It copies the border-box size and the margins because those are the part's
+// whole contribution to its bar's layout, and `flex: 0 0 auto` so a flex bar
+// cannot grow or shrink the stand-in into a different size than the part it
+// stands for.
+const buildStandIn = (element: HTMLElement, rect: DOMRect): HTMLElement => {
+  const standIn = element.ownerDocument.createElement("div");
+  standIn.setAttribute(PART_STAND_IN_ATTR, "");
+  standIn.setAttribute("aria-hidden", "true");
+  standIn.style.width = `${rect.width}px`;
+  standIn.style.height = `${rect.height}px`;
+  standIn.style.flex = "0 0 auto";
+  standIn.style.pointerEvents = "none";
+  standIn.style.visibility = "hidden";
+  const computed = element.ownerDocument.defaultView?.getComputedStyle(element);
+  if (computed) {
+    standIn.style.marginTop = computed.marginTop;
+    standIn.style.marginRight = computed.marginRight;
+    standIn.style.marginBottom = computed.marginBottom;
+    standIn.style.marginLeft = computed.marginLeft;
+  }
+  return standIn;
+};
 
 export interface StagedBarParts {
   /** Put every staged part back where it came from, exactly as it was. */
@@ -141,18 +175,27 @@ export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null 
 
     const rect = element.getBoundingClientRect();
     const box = intoLayerSpace(rect, layer);
+    const standIn = buildStandIn(element, rect);
     const entry: StagedPart = {
       element,
       parent,
       nextSibling: element.nextSibling,
-      inlineStyle: element.getAttribute("style")
+      inlineStyle: element.getAttribute("style"),
+      standIn
     };
+    // In place BEFORE the move, so the bar never lays out without one or the
+    // other and no frame can be painted a part narrower than it is at rest.
+    parent.insertBefore(standIn, element);
 
     // The compiled part rule matches on name + status + active with NO
     // structural term, so the move does not stop the animation from applying —
     // it restarts it, because a CSS animation belongs to the element's place in
     // the document. `includeRoot` carries the part's OWN clock across, which is
-    // the one the flight is being watched for.
+    // the one the flight is being watched for, and the mark tells cancel-resume
+    // the cancel this causes is ours and already answered — its own recovery
+    // writes a negative inline `animation-delay` that would erase the part's
+    // AUTHORED one.
+    expectAnimationCancel(element);
     preserveAnimations(element, () => layer.appendChild(element), { includeRoot: true });
 
     element.setAttribute(PART_HOME_ATTR, screenId);
@@ -216,13 +259,24 @@ export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null 
       // departing screen unmounts on landing. There is nothing to return to.
       if (!entry.parent.isConnected) {
         entry.element.remove();
+        entry.standIn.remove();
         continue;
       }
+      // Into the stand-in's place, not next to it: the consumer may have
+      // re-rendered the bar while the part was away, and the stand-in is the
+      // one node that has been holding the part's position through whatever
+      // else moved. It is swapped rather than removed first, so the bar is
+      // never laid out missing both.
+      expectAnimationCancel(entry.element);
       preserveAnimations(
         entry.element,
-        () => entry.parent.insertBefore(entry.element, entry.nextSibling),
+        () => {
+          if (entry.standIn.isConnected) entry.standIn.replaceWith(entry.element);
+          else entry.parent.insertBefore(entry.element, entry.nextSibling);
+        },
         { includeRoot: true }
       );
+      entry.standIn.remove();
     }
   };
 

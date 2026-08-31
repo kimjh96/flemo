@@ -150,6 +150,29 @@ describe("staging the covered side's shared-bar parts", () => {
     expect(barPart.hasAttribute(HOME)).toBe(false);
   });
 
+  it("brings a pop's parts home even though that screen is ACTIVE by the landing", () => {
+    // The side that staged is the passive one, and on a pop the passive side is
+    // the RETURNING screen — which is the top, and therefore active, by the time
+    // the flight completes. Releasing from the passive branch never reached it:
+    // the parts sat in the layer until the stranded backstop fired seconds
+    // later, and the bar they left kept the hole where they had been.
+    barPart.setAttribute("data-flemo-status", "POPPING");
+    drive("POPPING", false);
+    expect(barPart.parentElement).toBe(layer);
+
+    drive("COMPLETED", true);
+
+    expect(barPart.parentElement).toBe(bar);
+    expect(barPart.hasAttribute(HOME)).toBe(false);
+  });
+
+  it("brings them home on any status that is not a flight", () => {
+    drive("PUSHING", false);
+    drive("IDLE", false);
+
+    expect(barPart.parentElement).toBe(bar);
+  });
+
   it("stages again on the next flight after landing", () => {
     drive("PUSHING", false);
     drive("COMPLETED", false);

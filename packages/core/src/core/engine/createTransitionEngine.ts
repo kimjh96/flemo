@@ -184,6 +184,18 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
 
     const isTransitional = status === "PUSHING" || status === "POPPING" || status === "REPLACING";
 
+    // Bring staged bar parts home the moment this screen leaves the flight,
+    // WHICHEVER side it is by then. Not in the passive COMPLETED branch, where
+    // this used to live: a pop's passive screen is the returning one, so it is
+    // ACTIVE by the time the flight completes and never reached that branch at
+    // all. Its parts sat in the layer until the stranded backstop fired
+    // seconds later, and the bar they left kept the hole where they had been —
+    // observed as the title sitting shifted for the rest of the landing.
+    if (!isTransitional && stagedBarParts) {
+      stagedBarParts.release();
+      stagedBarParts = null;
+    }
+
     // Mirror the flight's hold onto Parts that live OUTSIDE any screen, which
     // the compiled hold rule's descendant selector cannot reach (see
     // collectUnheldOuterParts). Owned by the ACTIVE side only: both screens of
@@ -360,13 +372,6 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // under the new top (visible through any transparency, and a stale
       // baseline for the next transition).
       if (status === "COMPLETED") {
-        // Bring the staged bar parts home FIRST. They are cleaned up below as
-        // this screen's parts either way (collectScreenParts follows them into
-        // the layer), but the flight is over and the layer is for flights: a
-        // part left there would sit above every screen until the next one.
-        stagedBarParts?.release();
-        stagedBarParts = null;
-
         const { scope, decorator, bars, screenContainer } = getElements();
         const riders = [...(bars ?? []), ...collectLayerRiders(screenContainer ?? null)];
         if (scope) {

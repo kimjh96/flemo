@@ -192,6 +192,17 @@ export const PART_LAYER_ATTR = "data-flemo-part-layer";
  */
 export const PART_HOME_ATTR = "data-flemo-part-home";
 
+/**
+ * The box left behind in the bar while a part is staged.
+ *
+ * A part is a child of its bar's layout, so lifting it out shrinks the bar by
+ * exactly its size and everything after it slides over. That is invisible on
+ * the covered side and very visible on the other: a pop's staged part belongs
+ * to the RETURNING screen, whose bar is the one left on screen at the landing.
+ * Measured, it moved the title 56px and moved it back on release.
+ */
+export const PART_STAND_IN_ATTR = "data-flemo-part-stand-in";
+
 // ── Morphs (shared elements) ────────────────────────────────────────────────
 // A morph is one element that exists on BOTH screens of a flight under the
 // same `layoutId`. The binding marks it; the morph runtime (see @morph) pairs
@@ -429,6 +440,7 @@ export const FLEMO_ATTRIBUTES = [
   PART_NAME_ATTR,
   PART_LAYER_ATTR,
   PART_HOME_ATTR,
+  PART_STAND_IN_ATTR,
   MORPH_ATTR,
   MORPH_CAMERA_ATTR,
   MORPH_GHOST_ATTR,
