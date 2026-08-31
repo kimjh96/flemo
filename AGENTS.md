@@ -29,7 +29,7 @@ apps/web                  @flemo/web — Next.js 16 landing + docs (ko/en); the 
 
 ## Non-negotiable rules
 
-1. Never edit `package.json#version` manually in published packages or `apps/web`. For each user-visible change, create `.changeset/<short-kebab-slug>.md` without an interactive prompt or user delegation:
+1. Never edit `package.json#version` manually in published packages or `apps/web`. For every user-visible change, create `.changeset/<short-kebab-slug>.md` non-interactively:
 
 ```md
    ---
@@ -39,7 +39,7 @@ apps/web                  @flemo/web — Next.js 16 landing + docs (ko/en); the 
    1–2 sentence user-facing summary. Imperative voice.
    ```
 
-List each affected versioned package on its own frontmatter line. Use `patch` for fixes or internal changes, `minor` for features, and `major` only for API breaks. Skip changesets only for typos, behavior-neutral internal refactors, or documentation-only edits outside `docs/*`. Release automation owns versions, changelogs, npm publication, and GitHub Releases.
+List every affected versioned package on its own frontmatter line. Use `patch` for fixes or internal changes, `minor` for features, and `major` only for API breaks. Skip changesets only for typos, behavior-neutral internal refactors, or documentation-only edits outside `docs/*`. Release automation owns versions, changelogs, npm publication, and GitHub Releases.
 2. Add files under published packages only when they ship to npm; each package's `files` field is `["dist"]`. Put fixtures, demos, and scratch code in the playground's `_components/`, `_screens/`, `_router/`, `_data/`, `_hooks/`, `_providers/`, or `_transitions/`, or in a new `examples/*` workspace.
 3. Before completion, run at the repository root:
 
@@ -84,26 +84,13 @@ CI runs `pnpm install --frozen-lockfile`. Local development may use `bun install
 - Web and e2e: `apps/web/CLAUDE.md`
 - CI and releases: `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `.changeset/config.json`
 
-<!-- lervo:begin block=repository_instruction_routes schema=1 -->
-## Repository instruction routes
+<!-- lervo:begin block=repository_instruction_routes schema=2 -->
+## Repository instruction bootstrap
 
 - Read the verified current state with `lervo workstream current --context` before continuing repository work.
+- Before changing repository bytes, resolve applicable canonical instructions and portable skills with `lervo knowledge query "<task purpose and target paths>"`; read the returned sources before acting. The knowledge registry is authoritative, so do not grow this entrypoint with one route per rule or skill.
 - Before completing a terminal turn, create the first bounded checkpoint with `lervo workstream start` or advance the existing snapshot with `lervo workstream update`; perform this agent bookkeeping without asking the user to run it.
 - Translate explicit natural-language requests to hire, assign, inspect, resolve, hand off, or retire repository agents into `lervo agent`, `lervo assignment`, and workstream operations yourself; when authority or scope is ambiguous, record one bounded pending decision instead of guessing or asking for a bookkeeping command.
 - Resolve roles with `lervo role list|show|validate`; treat the six built-ins as templates, author a lazy `.lervo/roles/<role-id>.json` source when a requested repository role does not exist, and never bypass version, hash, capability, verification, or ancestry validation.
 - Register every subagent with its parent and apply the same durable identity, scoped lease, path-conflict, evidence, verification, and finalization contracts used for root agents.
-- For all repository work, read [coverage](docs/instructions/coverage.md).
-- For all repository work, read [diagnostics](docs/instructions/diagnostics.md).
-- For all repository work, read [motion-jank-postmortem](docs/instructions/motion-jank-postmortem.md).
-- For all repository work, read [addendum-2026-08-17](docs/instructions/motion-jank-postmortem/addendum-2026-08-17.md).
-- For all repository work, read [desktop-player-blank](docs/instructions/motion-jank-postmortem/desktop-player-blank.md).
-- For all repository work, read [do-not-retry](docs/instructions/motion-jank-postmortem/do-not-retry.md).
-- For all repository work, read [glass-campaign-2026-08-18](docs/instructions/motion-jank-postmortem/glass-campaign-2026-08-18.md).
-- For all repository work, read [long-content-reveal-block-2026-08-30](docs/instructions/motion-jank-postmortem/long-content-reveal-block-2026-08-30.md).
 <!-- lervo:end block=repository_instruction_routes -->
-
-<!-- lervo:begin block=development_pattern_routes schema=1 -->
-## Promoted development patterns
-
-- [Read the Codecov report, not the Codecov checks](docs/instructions/coverage.md)
-<!-- lervo:end block=development_pattern_routes -->
