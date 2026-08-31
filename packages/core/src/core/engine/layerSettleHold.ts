@@ -2,13 +2,7 @@ import { collectAnimatedProperties } from "@transition/compileTransitionStyles";
 
 import type { Transition } from "@transition/typing";
 
-import { residentScreenLayers } from "@core/engine/diagnosticFlags";
 import { flightWindowActive, onFlightWindowIdle } from "@core/engine/flightWindow";
-import { attrSelector, SCREEN_ATTR } from "@dom/attributes";
-
-// Test seam re-export: the cached `flemo:layers` read lives in the flag
-// registry, but the suites reach it through this module.
-export { resetResidentLayersForTesting } from "@core/engine/diagnosticFlags";
 
 // Deferred compositor-layer demotion for the transition's rule-matched
 // participants: the screen scope, its decorator, riding shared bars, and
@@ -75,12 +69,11 @@ export const LAYER_SETTLE_MS = 300;
 // present in its first ~50-150ms, position-locked to the moment the flight's
 // compositing layers are (re)created — WebKit pays a full-screen first
 // raster into each fresh backing store. Demoting at rest means every next
-// flight pays that creation raster again; keeping the screen layers
-// resident should delete the onset skip, at the cost of resident backing
-// stores. Set through the `flemo:layers` session key; the (cached) read lives
-// in diagnosticFlags.ts. URL arming was removed 2026-08-21 — a query parameter
-// wrote a session key on any visit, which made a link enough to change how the
-// library behaves for the rest of that tab.
+// flight pays that creation raster again. Keeping the screen layers RESIDENT
+// instead was tried behind a session key and reverted: a resident promotion is
+// a permanent stacking context on the consumer's screen, which silently
+// outranks any overlay rendered inside it (the tab-bar-over-bottom-sheet
+// report). The repaint is deferred here rather than skipped.
 
 // Per-element stamp record. `owners` maps each independent holder (an engine
 // transition, a swipe gesture — both promote riding bars, and their holds can
@@ -241,23 +234,6 @@ export const releaseScopeLayerAfterSettle = (scope: HTMLElement, owner: symbol =
   stamp.owners.delete(owner);
   if (stamp.owners.size > 0) {
     applyUnion(scope, stamp); // survivors keep the element a layer
-    return;
-  }
-  // EXPERIMENT branch (diagnostic, default off): screens stay promoted at
-  // rest — no demotion, no re-creation raster on the next flight. Bars and
-  // other non-screen participants demote normally. `contain` still restores
-  // (a resident containment would change rest-layout semantics).
-  if (
-    residentScreenLayers() &&
-    typeof scope.closest === "function" &&
-    scope.closest(attrSelector(SCREEN_ATTR))
-  ) {
-    if (stamp.pending != null) clearTimeout(stamp.pending);
-    stamp.pending = null;
-    stamp.settleOwner = null;
-    scope.style.willChange = "transform";
-    if (stamp.contain) scope.style.contain = stamp.contain;
-    else scope.style.removeProperty("contain");
     return;
   }
   stamp.settleOwner = owner; // this owner's window: it alone may cut it short

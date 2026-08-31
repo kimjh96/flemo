@@ -1,6 +1,6 @@
 # @flemo/devtools
 
-Zero-dependency flight recorder and optional visual panel for [flemo](https://flemo.dev) screen transitions. It observes existing `data-flemo-*` surfaces, `window.__flemoPlayerGaps`, the `flemo:*` storage registry, `MutationObserver`, `PerformanceObserver("longtask")`, and rAF, then produces a JSON report suitable for people or coding agents. It imports neither `@flemo/core` nor `@flemo/react`, and attaching it does not change measured motion.
+Zero-dependency flight recorder and optional visual panel for [flemo](https://flemo.dev) screen transitions. It observes existing `data-flemo-*` surfaces, `window.__flemoPlayerGaps`, leftover `flemo:*` storage keys, `MutationObserver`, `PerformanceObserver("longtask")`, and rAF, then produces a JSON report suitable for people or coding agents. It imports neither `@flemo/core` nor `@flemo/react`, and attaching it does not change measured motion.
 
 ## Quickstart
 
@@ -78,7 +78,7 @@ The panel must never repaint during a flight:
 A report contains:
 
 - `generatedAt`, `version: "2"`, and `environment`: user agent and brands, engine, platform, touch count, DPR, screen and viewport sizes, visual viewport scale, idle `rafCadence`, reduced-motion state, emulation suspicion, and observation support for long tasks, element animations, and the player-gap mirror.
-- `overrides.active`: every currently set `flemo:*` key from both storages, unknown keys, keys cleared since attachment, and persisted retired keys marked inert. Read `overrides.warnings` first; a non-empty list means behavior is not stock.
+- `overrides.active`: every currently set `flemo:*` key from both storages, unknown keys, keys cleared since attachment, and persisted retired keys marked inert. Since flemo 2026-08-31 the library reads no `flemo:*` key at all, so every engine key found on a device is retired residue that explains nothing; `overrides.warnings` says so per key.
 - `flights[]`: identity, router, navigation kind, timestamps, duration, detected driver, participants, holds, frame and phase statistics, motion, images, player gaps, long tasks, landing checks, and stable anomaly strings.
 - Session `anomalies`, constant `blindSpots`, and constant `judgingProtocol`.
 

@@ -1,17 +1,13 @@
-// Enumeration of the `flemo:*` diagnostic/override storage keys.
+// Enumeration of the `flemo:*` storage keys — two the panel owns, and a long
+// tail of RETIRED ones the library no longer reads.
 //
-// The rows below are a VERBATIM copy of core's `DIAGNOSTIC_FLAGS` /
-// `RETIRED_DIAGNOSTIC_FLAGS`, plus the two keys devtools owns itself.
-// Duplicated ON PURPOSE: this package is a pure consumer with zero runtime
-// dependencies — it observes pages whose flemo version it cannot assume, and a
-// recorder that failed to load because core moved an export would be worse than
-// one whose wording is a release behind.
-//
-// What is NOT left to good intentions is the copy staying a copy.
-// `__tests__/overridesRegistry.test.ts` deep-compares every shared row against
-// core's, field by field, through the test-only `@flemo/core` devDependency.
-// The last hand-maintained version of this list was missing five live keys and
-// still offering two dead ones, which is why the comparison exists.
+// The engine's own diagnostic keys lived here as a mirror of core's
+// `DIAGNOSTIC_FLAGS`, deep-compared against it in a test. Core stopped shipping
+// that surface on 2026-08-31 — every key it read is now a computed default with
+// no override — so the mirror became the retired list below and this package is
+// the only place the knowledge lives. That is the right home for it: a
+// diagnostic enumeration has no business in a consumer's bundle, and devtools
+// is already a pure consumer with zero runtime dependencies.
 //
 // Why this module exists at all: residual override keys are invisible in a
 // user's report ("it janks on my phone") and once burned a multi-day
@@ -70,136 +66,13 @@ export const DEVTOOLS_OWNED_FLAGS: readonly FlagDescriptor[] = [
   }
 ];
 
-/** Every `flemo:*` key the library reads, mirrored from core. */
-export const CORE_FLAGS: readonly FlagDescriptor[] = [
-  {
-    key: "flemo:sixty",
-    storage: "session",
-    kind: "production-state",
-    values: '"high" / a streak count',
-    fallback: "(learned)",
-    effect: "steady-60 desktop verdict seed — owned by steadySixtyCadence.ts"
-  },
-  {
-    key: "flemo:settle-gate",
-    storage: "session",
-    kind: "production-default-with-override",
-    values: '"on" / "off"',
-    fallback: "touch WebKit + touch Blink + desktop macOS WebKit + steady-60 desktop",
-    effect: "render-settle entry gate, shared by the engine's routing and the binding"
-  },
-  {
-    key: "flemo:arrivalhold",
-    storage: "session",
-    kind: "production-default-with-override",
-    values: '"off"',
-    fallback: "on",
-    effect: "the whole in-flight hold set (arrival, response, invisible animations, images)"
-  },
-  {
-    key: "flemo:deskflip",
-    storage: "session",
-    kind: "production-default-with-override",
-    values: '"on" / "off"',
-    fallback: "desktop macOS WebKit",
-    effect: "atomic release flip: the hold attribute flips on the DOM inside the readiness rAF"
-  },
-  {
-    key: "flemo:deskhead",
-    storage: "session",
-    kind: "production-default-with-override",
-    values: '"on" / "off"',
-    fallback: "desktop macOS WebKit",
-    effect: "desktop flat-head keyframes; arming it retires the desktop birth anchor"
-  },
-  {
-    key: "flemo:creep",
-    storage: "session",
-    kind: "production-default-with-override",
-    values: '"on" / "off"',
-    fallback: "touch WebKit",
-    effect:
-      "creep head: its end keyframe carries a hair of motion, so the compositor is already carrying the animation at the boundary"
-  },
-  {
-    key: "flemo:relcommit",
-    storage: "session",
-    kind: "production-default-with-override",
-    values: '"defer" / "sync"',
-    fallback: "touch WebKit",
-    effect: "the release's reconcile lands next frame instead of synchronously"
-  },
-  {
-    key: "flemo:imgoffload",
-    storage: "session",
-    kind: "production-default-with-override",
-    values: '"on" / "off"',
-    fallback: "on — the offloader decides per image, from the source's own size",
-    effect:
-      "image decode offloader: an oversized source is fetched and downscaled in a worker so its decode never lands in a paint"
-  },
-  {
-    key: "flemo:governed",
-    storage: "session",
-    kind: "production-default-with-override",
-    values: '"on" / "off"',
-    fallback: "legacy Android Blink (an old browser, not a slow device)",
-    effect:
-      "the governed head kit on touch Blink — a flat head covering a compiled flight's opening. The auto-detection reads browser AGE, so a modern-but-weak phone falls through it; this is how such a device gets measured"
-  },
-  {
-    key: "flemo:imghold",
-    storage: "session",
-    kind: "opt-in-diagnostic",
-    values: '"on" / "off"',
-    fallback: "off",
-    effect: "flight-scoped <img> reveal hold"
-  },
-  {
-    key: "flemo:preraster",
-    storage: "session",
-    kind: "opt-in-diagnostic",
-    values: '"on"',
-    fallback: "off",
-    effect:
-      "REST-time scope promotion, and the park-over hold variant. Flight-time promotion is the engine's own stamp and needs no flag"
-  },
-  {
-    key: "flemo:parkhead",
-    storage: "session",
-    kind: "production-default-with-override",
-    values: '"on" / "off"',
-    fallback: "on wherever the park-over hold itself is granted",
-    effect:
-      "carry the park pose through the governed head instead of the off-screen from-pose, so WebKit keeps the pre-raster across the 200ms wait. `off` is the A/B: it restores the head that drops it"
-  },
-  {
-    key: "flemo:layers",
-    storage: "session",
-    kind: "opt-in-diagnostic",
-    values: '"resident" / "off"',
-    fallback: "off",
-    effect:
-      "keep screen layers resident at rest — a resident layer is a PERMANENT stacking context over the consumer's screen"
-  },
-  {
-    key: "flemo:morph",
-    storage: "session",
-    kind: "opt-in-diagnostic",
-    values: '"on" / "off"',
-    fallback: "off",
-    effect:
-      "trace every morph flight decision to the console — why a pair did or did not fly, and whether it landed on its own animation or on the backstop"
-  },
-  {
-    key: "flemo:freeze",
-    storage: "session",
-    kind: "opt-in-diagnostic",
-    values: '"shallow"',
-    fallback: "off",
-    effect: "keep the direct prev screen live instead of freezing it"
-  }
-];
+/**
+ * Every `flemo:*` key the library reads. EMPTY since 2026-08-31: the engine's
+ * diagnostic surface was removed from the shipped package outright, so a
+ * session key can no longer change what a flight does. The array stays as the
+ * shape a report reads, and so this file keeps saying so out loud.
+ */
+export const CORE_FLAGS: readonly FlagDescriptor[] = [];
 
 export const FLAG_REGISTRY: readonly FlagDescriptor[] = [...CORE_FLAGS, ...DEVTOOLS_OWNED_FLAGS];
 
@@ -216,6 +89,81 @@ export interface RetiredFlag {
 }
 
 export const RETIRED_FLAGS: readonly RetiredFlag[] = [
+  {
+    key: "flemo:sixty",
+    storage: "session",
+    retiredWith: "the steady-60 verdict seed, now document-scoped module state (2026-08-31)"
+  },
+  {
+    key: "flemo:settle-gate",
+    storage: "session",
+    retiredWith: "the engine diagnostic surface (2026-08-31)"
+  },
+  {
+    key: "flemo:arrivalhold",
+    storage: "session",
+    retiredWith: "the engine diagnostic surface (2026-08-31)"
+  },
+  {
+    key: "flemo:deskflip",
+    storage: "session",
+    retiredWith: "the engine diagnostic surface (2026-08-31)"
+  },
+  {
+    key: "flemo:deskhead",
+    storage: "session",
+    retiredWith: "the engine diagnostic surface (2026-08-31)"
+  },
+  {
+    key: "flemo:creep",
+    storage: "session",
+    retiredWith: "the engine diagnostic surface (2026-08-31)"
+  },
+  {
+    key: "flemo:relcommit",
+    storage: "session",
+    retiredWith: "the engine diagnostic surface (2026-08-31)"
+  },
+  {
+    key: "flemo:imgoffload",
+    storage: "session",
+    retiredWith: "the engine diagnostic surface (2026-08-31)"
+  },
+  {
+    key: "flemo:governed",
+    storage: "session",
+    retiredWith: "the engine diagnostic surface (2026-08-31)"
+  },
+  {
+    key: "flemo:imghold",
+    storage: "session",
+    retiredWith: "the image reveal hold, whose only arming path it was (2026-08-31)"
+  },
+  {
+    key: "flemo:preraster",
+    storage: "session",
+    retiredWith: "the REST-time scope promotion, whose only arming path it was (2026-08-31)"
+  },
+  {
+    key: "flemo:parkhead",
+    storage: "session",
+    retiredWith: "the engine diagnostic surface — the park head is unconditional (2026-08-31)"
+  },
+  {
+    key: "flemo:layers",
+    storage: "session",
+    retiredWith: "the resident-layer experiment (2026-08-31)"
+  },
+  {
+    key: "flemo:morph",
+    storage: "session",
+    retiredWith: "the morph decision trace (2026-08-31)"
+  },
+  {
+    key: "flemo:freeze",
+    storage: "session",
+    retiredWith: "the shallow-freeze experiment (2026-08-31)"
+  },
   {
     key: "flemo:motion-driver",
     storage: "local",
@@ -289,7 +237,6 @@ const readKey = (storage: StorageLike | null, key: string): string | null => {
 
 const registryKeys = new Set(FLAG_REGISTRY.map((flag) => flag.key));
 const retiredKeys = new Set(RETIRED_FLAGS.map((flag) => flag.key));
-const devtoolsOwnedKeys = new Set(DEVTOOLS_OWNED_FLAGS.map((flag) => flag.key));
 
 /**
  * Snapshot every `flemo:*` key currently set, from both storages: the live
@@ -360,23 +307,12 @@ export const deriveOverrideWarnings = (active: Record<string, string>): string[]
       );
       continue;
     }
-    const flag = FLAG_REGISTRY.find(
-      (entry) => key === entry.key || key.startsWith(`${entry.key} `)
-    );
-    // The recorder's own keys are not findings about the page it is recording.
-    if (!flag || devtoolsOwnedKeys.has(flag.key)) continue;
-    if (flag.kind === "opt-in-diagnostic") {
-      warnings.push(
-        `${key}=${value} — opt-in diagnostic active (${flag.effect}); behavior differs from stock. ` +
-          "Possible left-over A/B toggle from an earlier debugging session."
-      );
-    } else if (flag.kind === "production-default-with-override") {
-      warnings.push(
-        `${key}=${value} — production default overridden for this session (${flag.effect}). ` +
-          `Stock behavior here is ${flag.fallback}.`
-      );
-    }
-    // production-state keys (learned ledgers) are normal — no warning.
+    // Nothing else on the page can be a finding: the library reads no
+    // `flemo:*` key at all since 2026-08-31, so the only live rows left are
+    // the recorder's own, and those are not findings about the page it is
+    // recording. An unknown key is surfaced by snapshotOverrides as unknown,
+    // which is the lead — this function only ever adds the verdict that a
+    // RETIRED key cannot be one.
   }
 
   return warnings;

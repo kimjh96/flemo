@@ -164,12 +164,6 @@ export { default as animateInline, clearInlineAnimation } from "@transition/anim
 // cleanup for a screen; bindings feed it plain DOM elements + state.
 export { default as createTransitionEngine } from "@core/engine/createTransitionEngine";
 export { governedCompiledActive } from "@platform/governedCompiled";
-// The `flemo:*` diagnostic-flag registry (see the module's header table).
-// Only the readers a binding consumes are public: the render-settle gate
-// (shared with the engine's routing so both sides always agree), the
-// desktop-Safari atomic release flip, the pre-raster probe, its
-// layer-promotion half (hydration-deferred by the binding — see the reader's
-// SSR contract), and the image-offloader override.
 // THE AMBIENT RUNTIME: the machinery an app sits in so the FIRST navigation is
 // not the one that pays for it — GPU pipelines compiled, oversized decodes off
 // the main thread, the compositor awake while the user is about to move. A
@@ -179,11 +173,9 @@ export { startFlemoRuntime } from "@runtime/flemoRuntime";
 
 // THE PLATFORM PROFILE: every per-browser decision, resolved in one place.
 // A binding asks for the profile and renders the answer; it never re-derives
-// policy from the probes and flag readers itself (see @platform/profile).
+// policy from the probes itself (see @platform/profile).
 export {
-  parkHeadEnabled,
   resolvePlatformProfile,
-  restLayerPromotionEnabled,
   type PlatformProfile,
   type PlatformProfileInput
 } from "@platform/profile";
@@ -238,17 +230,6 @@ export {
 // chrome, chrome under an overlay that exists to cover it, and the dim over
 // all three. See @dom/stacking.
 export { OVERLAY_LEVEL, SCREEN_STACKING_ORDER, UNNUMBERED_LEVEL } from "@dom/stacking";
-// The `flemo:*` DIAGNOSTIC-FLAG REGISTRY: what each storage key is, what it
-// defaults to, and which keys are retired residue. Exported so a report or a
-// panel enumerates the flags the library actually reads instead of a copy that
-// drifts from it. See @core/engine/diagnosticRegistry.
-export {
-  DIAGNOSTIC_FLAGS,
-  RETIRED_DIAGNOSTIC_FLAGS,
-  type DiagnosticFlag,
-  type DiagnosticFlagKind,
-  type RetiredDiagnosticFlag
-} from "@core/engine/diagnosticRegistry";
 export { TRANSITIONAL_STATUS_VALUES } from "@navigate/store";
 export {
   SKIP_ANIMATION_ATTR,

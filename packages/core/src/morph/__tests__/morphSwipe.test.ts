@@ -433,40 +433,6 @@ describe("a released gesture", () => {
   });
 });
 
-describe("the gesture's trace", () => {
-  afterEach(() => {
-    sessionStorage.clear();
-    delete (globalThis as { flemoMorphTrace?: unknown }).flemoMorphTrace;
-  });
-
-  it("records what it staged and what it handed back", () => {
-    // A drag is the one path with no status flip behind it, so nothing else in
-    // the trace says whether it staged, moved, or was handed back.
-    sessionStorage.setItem("flemo:morph", "on");
-
-    const swipe = beginMorphSwipe(store, "POPPING");
-    swipe.settle(true, 0.2);
-
-    const trace = (globalThis as { flemoMorphTrace?: { why: string }[] }).flemoMorphTrace ?? [];
-    expect(trace.map((entry) => entry.why)).toContain("swipe-begin");
-    expect(trace.map((entry) => entry.why)).toContain("swipe-settle-no-flight");
-  });
-
-  it("keeps the buffer to its last few hundred lines", () => {
-    // A drag writes a line per pointer move if it is scrubbing anything; a
-    // buffer that grew forever would be a leak on the one path that runs at
-    // frame rate.
-    sessionStorage.setItem("flemo:morph", "on");
-
-    for (let index = 0; index < 520; index += 1)
-      beginMorphSwipe(store, "POPPING").settle(true, 0.1);
-
-    const trace = (globalThis as { flemoMorphTrace?: unknown[] }).flemoMorphTrace ?? [];
-    expect(trace.length).toBeLessThanOrEqual(500);
-    expect(trace.length).toBeGreaterThan(400);
-  });
-});
-
 describe("a browser with no animation API", () => {
   it("stages the flight anyway rather than failing the gesture", () => {
     // `document.getAnimations` is what the gesture reaches the flight's clocks

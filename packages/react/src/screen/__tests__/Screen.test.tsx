@@ -26,9 +26,9 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  // The platform profile reads its overrides straight from sessionStorage, so a
-  // flag armed by one case would arm every case after it.
-  sessionStorage.clear();
+  // The platform profile is derived from the environment, so a case that poses
+  // as a touch device would pose for every case after it.
+  Reflect.deleteProperty(navigator, "maxTouchPoints");
 });
 
 function buildHarness(overrides: Partial<ScreenContextProps> = {}) {
@@ -682,7 +682,8 @@ describe("Screen", () => {
     // to still be matching while the head runs, long after the hold reads
     // RELEASED, or the release drops the screen off-screen and WebKit throws the
     // raster the park just paid for away.
-    sessionStorage.setItem("flemo:preraster", "on");
+    // park-over is the touch-WebKit profile (governedCompiledActive).
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
     stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
     stores.screen.setState({ screenSurfaces: { below: { opaqueBackground: true } } });
@@ -725,25 +726,6 @@ describe("Screen", () => {
     const scope = container.querySelector("[data-flemo-screen]")!;
     expect(scope.getAttribute("data-flemo-anim-hold")).toBe("park");
     expect(scope.getAttribute("data-flemo-park-head")).toBe("true");
-  });
-
-  it("drops the mark when the A/B flag disarms it", () => {
-    sessionStorage.setItem("flemo:parkhead", "off");
-    stores.navigate.setState({ status: "POPPING", transitionTaskId: null });
-    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
-    stores.screen.setState({ screenSurfaces: { top: { opaqueBackground: true } } });
-
-    const { container } = render(
-      <Screen>
-        <div>hello</div>
-      </Screen>,
-      { wrapper: buildHarness({ isActive: false, isPrev: true, id: "below", zIndex: 0 }) }
-    );
-
-    const scope = container.querySelector("[data-flemo-screen]")!;
-    // The park itself is untouched; only the head that would carry it.
-    expect(scope.getAttribute("data-flemo-anim-hold")).toBe("park");
-    expect(scope.getAttribute("data-flemo-park-head")).toBe(null);
   });
 
   it("leaves the mark off a screen that only ever parked under its cover", () => {

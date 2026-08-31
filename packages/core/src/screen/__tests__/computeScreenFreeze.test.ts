@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import computeScreenFreeze, {
   computeScreenFreezeMode,
-  resetShallowFreezeForTesting,
   type ScreenFreezeInput
 } from "@screen/computeScreenFreeze";
 
@@ -110,37 +109,5 @@ describe("computeScreenFreezeMode", () => {
   it("the boolean view mirrors the mode", () => {
     expect(computeScreenFreeze(base)).toBe(true);
     expect(computeScreenFreeze({ ...base, isActive: true })).toBe(false);
-  });
-});
-
-describe("shallow-freeze diagnostic", () => {
-  it("keeps the DIRECT prev live while deep screens still freeze", () => {
-    sessionStorage.setItem("flemo:freeze", "shallow");
-    resetShallowFreezeForTesting();
-    try {
-      // The just-covered direct prev at rest: normally "deferred" — armed,
-      // it stays live so a pop never pays the wake + layer re-creation.
-      expect(
-        computeScreenFreezeMode({
-          ...base,
-          isActive: false,
-          isPrev: false,
-          status: "COMPLETED",
-          dragStatus: "IDLE"
-        })
-      ).toBe("live");
-      // A DEEP screen keeps freezing — the O(depth) storm protection stays.
-      expect(
-        computeScreenFreezeMode({
-          ...base,
-          isPrev: true,
-          zIndex: 0,
-          index: 3
-        })
-      ).toBe("immediate");
-    } finally {
-      sessionStorage.removeItem("flemo:freeze");
-      resetShallowFreezeForTesting();
-    }
   });
 });

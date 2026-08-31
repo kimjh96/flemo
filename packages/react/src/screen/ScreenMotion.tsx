@@ -29,11 +29,9 @@ import {
   decoratorMap,
   enteringInitialStyle,
   observeBarHeight,
-  parkHeadEnabled,
   publishRideBox,
   resolvePlatformProfile,
   resolveTransition,
-  restLayerPromotionEnabled,
   sharedBarsMatch,
   type AnimHoldCoordinator,
   type MorphSwipe
@@ -54,8 +52,6 @@ import { useScreenViewport } from "@screen/ScreenViewportContext";
 import useScreen from "@screen/useScreen";
 
 import useViewportScrollHeight from "@screen/useViewportScrollHeight";
-
-import useHydrationSafeFlag from "@utils/useHydrationSafeFlag";
 
 import useHistoryStore from "@stores/useHistoryStore";
 import useNavigateStore from "@stores/useNavigateStore";
@@ -759,8 +755,7 @@ function ScreenMotion({
   //     Carrying that pose past the release would uncover the screen whole.
   if (
     parkHeadKeyRef.current !== holdKey &&
-    (holdAttr === ANIM_HOLD.PARK_OVER || holdAttr === ANIM_HOLD.PARK) &&
-    parkHeadEnabled()
+    (holdAttr === ANIM_HOLD.PARK_OVER || holdAttr === ANIM_HOLD.PARK)
   ) {
     parkHeadKeyRef.current = holdKey;
   }
@@ -782,21 +777,6 @@ function ScreenMotion({
     screenId: id,
     registerSlot
   };
-
-  // The scope's REST promotion (`flemo:preraster=on`). Browser-only state that
-  // reaches the DOM as an INLINE STYLE, so it is read through the hydration
-  // gate: evaluated directly, a server-rendered screen emits no `will-change`
-  // while the hydration render asks for one, and React reports a style mismatch
-  // on [data-flemo-screen]. The gate renders `false` for the server and the
-  // hydration render only, then re-renders with the real value one commit
-  // later — at rest, where nothing is animating.
-  //
-  // The FLIGHT-time promotion is not here: the engine stamps every participant
-  // for the length of the flight (layerSettleHold), on every tier. The binding
-  // used to promote the scope through the hold as well, and that duplicate is
-  // what made the stamp restore a promotion forever — see the profile's
-  // `restLayerPromotion` note in core.
-  const restLayerPromotion = useHydrationSafeFlag(restLayerPromotionEnabled);
 
   // Drive the navigation-task lifecycle through the framework-neutral engine.
   // It resolves the active screen's task on its animationend (or a microtask
@@ -913,7 +893,7 @@ function ScreenMotion({
             setAnimRelease((current) =>
               current.key === key && !current.released ? { key, released: true } : current
             );
-          // `flemo:relcommit=defer`, and only where the DOM flip already
+          // the profile's deferReleaseCommit, and only where the DOM flip already
           // released the hold: hand the reconcile to the NEXT frame so it stops
           // competing with the flight's first present (device-measured: the
           // release-frame drop is PUSH-only, 11/18 vs 0/17 on POP). Without the
@@ -938,7 +918,7 @@ function ScreenMotion({
         // paired push/replace release free.
         scope: scopeRef.current,
         decodeWait: decodeWaitRef.current,
-        // RENDER-settle gate (flemo:settle-gate=on): hold the motion until the
+        // RENDER-settle gate (the profile's renderSettleGate): hold the motion until the
         // ENTERING screen's mount render quiesces, so the opening plays in a
         // quiet window instead of losing frames to the screen's own commit
         // storm (device-measured detail-push jank — driver-independent). Unlike
@@ -959,9 +939,9 @@ function ScreenMotion({
           // commit/layerization, so gating the release to AFTER that task
           // measurably helped (gate on = slight hitch, gate off = worse).
           // That finding took until 2026-08-19 to reach the DEFAULT — the
-          // arming widened here while readSettleGateFlag stayed WebKit-only,
-          // so Android ran ungated for two rounds. If you widen an arming
-          // condition, widen the flag that enables it in the same change.
+          // arming widened here while core's own predicate stayed WebKit-only,
+          // so Android ran ungated for two rounds. The two live in one place
+          // now (settleGateActive), which is what stops them drifting again.
           // The gate arms on the screen whose render storm threatens the
           // flight: the ACTIVE side on push (fresh mount) — and on pop BOTH
           // sides, because the pop's storm belongs to the INACTIVE returning
@@ -1099,71 +1079,7 @@ function ScreenMotion({
           // tiles rasterized MID-SLIDE — the live-judged "뚝뚝" chop (pop was
           // smooth: its returning layer is already rastered). The promotion
           // forces the backing store to fill DURING the hold instead, where
-          // the settle gate's fast-frame requirement absorbs the cost. Only
-          // the will-change half engages by default — the park-over hold
-          // strategy stays behind the explicit flemo:preraster flag.
-          // …and on steady-60 desktops the promotion also PERSISTS on the top
-          // screen AT REST (2026-08-18, glass-measured): a resting top screen
-          // is a plain document paint, so the next push must promote and
-          // raster the WHOLE list layer at flight start — captured as the
-          // push-opening crawl-freeze-leap (100-400ms, longer the more
-          // infinite-scroll pages are loaded) while pops launch at full
-          // velocity on their first frame BECAUSE the covered screen's parked
-          // transform kept it composited the whole time. Keeping the top
-          // screen promoted at rest pre-pays that raster where nobody is
-          // watching. Root routers only (`!contained`): will-change makes
-          // this element the containing block for `position: fixed`
-          // descendants, which is visually identity-preserving when the
-          // screen box IS the viewport but would break consumer overlays in
-          // a nested region.
-          // NOT IMPLEMENTED, kept as a lead: extending the promotion to the
-          // COVERED direct-prev screen. The measurement that motivated it
-          // (2026-08-18, marker-synced glass): with the top screen fully
-          // occluding it at rest, cc EVICTS its tiles under a long-lived
-          // session's GPU memory pressure, and the pop that re-reveals it
-          // froze the whole output 216-316ms (13-19 frames, every pop, start
-          // of motion) waiting on its re-raster, while rAF ticked clean —
-          // activation-blocked, not main-thread-blocked, so no in-page
-          // instrument sees it (the recorder's stall detector cannot: a
-          // compiled animation's clock keeps advancing on the wall clock
-          // while the output is frozen).
-          //
-          // Deliberately not shipped. Nobody is reporting that freeze today,
-          // several treatments landed since the measurement (layerSettleHold,
-          // the deferred freeze) that may have absorbed
-          // it, and adding it behind a flag would be machinery with no
-          // consumer — the class of debt PR #272 deleted. If a desktop pop
-          // ever freezes at its opening again: add `|| zIndex === index - 1`
-          // to the rest term, DESKTOP PROFILE ONLY (a second resident
-          // full-screen backing store is the opposite of what a
-          // memory-pressured phone needs), and judge it by eye with DevTools
-          // closed or with a CDP presentation trace.
-          // REST promotion, CORRECT PREDICATE this time (2026-08-18): the
-          // earlier attempt keyed on `isActive`, which is false at rest, so
-          // it never applied and its null A/B result was meaningless. The
-          // top screen at rest is the entry whose zIndex equals the current
-          // history index — keeping ITS layer promoted means the next
-          // push's leaving side starts the flight with a live backing store
-          // instead of paying promotion + full-layer raster on the opening
-          // frames (the biggest structural GPU cost a flight still carries).
-          // Root routers only (`!contained`), same containing-block
-          // reasoning as before.
-          //
-          // OPT-IN since 2026-08-21 (`restLayerPromotion`, armed by
-          // `flemo:preraster=on`): a promotion is also a STACKING CONTEXT, and
-          // at rest the scope holds the entire consumer screen. Left on, a
-          // consumer's own `position: fixed; z-index: 50` overlay could never
-          // paint above the shared bars below (siblings at `z-index: 1`) — a
-          // bottom sheet came up UNDER the tab bar on iOS Safari, with no
-          // z-index on their side able to answer it. The hold-window half
-          // stays default-on by tier: there the scope is transformed anyway,
-          // so the confinement is already priced in and ends with the flight.
-          // `layerPromotion` / `restLayerPromotion` are the session predicates
-          // (deferred past hydration — see their declarations); the terms
-          // beside them are the per-screen ones.
-          ...(restLayerPromotion && zIndex === index && !contained
-            ? { willChange: "transform" }
-            : {}),
+          // the settle gate's fast-frame requirement absorbs the cost.
           ...initialStyle,
           ...props.style
         }}

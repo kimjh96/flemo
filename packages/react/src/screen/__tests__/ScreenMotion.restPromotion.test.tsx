@@ -82,12 +82,6 @@ describe("the resting top screen's scope", () => {
     expect(scope.style.willChange).toBe("");
   });
 
-  it("promotes at rest once flemo:preraster arms the opt-in half", () => {
-    sessionStorage.setItem("flemo:preraster", "on");
-
-    expect(scopeOf(renderScreen().container).style.willChange).toBe("transform");
-  });
-
   it("renders no promotion of its own for a flight either", () => {
     // A transition that animates nothing gets no engine stamp (the engine
     // gates every participant on its own definition), so whatever `will-change`

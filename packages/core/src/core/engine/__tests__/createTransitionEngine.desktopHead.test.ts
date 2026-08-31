@@ -11,7 +11,7 @@ import createTransitionEngine, {
 
 import type { TransitionEngineDeps } from "@core/engine/types";
 
-// The DESKTOP flat head (`flemo:deskhead`, `:root[data-flemo-desk-head]`).
+// The DESKTOP flat head (`:root[data-flemo-desk-head]`).
 //
 // Desktop macOS Safari runs the compiled tier (isDesktopMacWebKit) and WebKit
 // presents that clock from the main thread, so the release-to-glass pipeline is
@@ -123,14 +123,6 @@ describe("desktop flat head", () => {
     asDesktopSafari();
     drive();
     expect(anchorCalls.atRelease).toBe(0);
-  });
-
-  it("keeps the birth anchor under an explicit flemo:deskhead=off", () => {
-    asDesktopSafari();
-    sessionStorage.setItem("flemo:deskhead", "off");
-    drive();
-    expect(headed()).toBe(false);
-    expect(anchorCalls.atRelease).toBeGreaterThan(0);
   });
 
   it("stays off for touch WebKit and for a non-Mac desktop", () => {

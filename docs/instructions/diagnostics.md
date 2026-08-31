@@ -1,6 +1,6 @@
 # flemo diagnostics reference
 
-For agents and humans instrumenting a device session. The single source of truth for flag semantics is the header table in `packages/core/src/core/engine/diagnosticFlags.ts` (landed in PR #258) — this document adds _how to use them_ and the observation pitfalls that cost the 2026 campaigns weeks.
+For agents and humans instrumenting a device session. Every per-browser decision the library makes is resolved in one place, `packages/core/src/platform/profile.ts`, and pinned per environment by `platformDefaults.test.ts`. This document covers _how to observe a session_ and the pitfalls that cost the 2026 campaigns weeks.
 
 ## 0. Start with the flight recorder
 
@@ -11,60 +11,48 @@ Two of its sections exist because the campaign learned them the hard way:
 - `flights[].motion` — whether the pose ADVANCED, not merely whether frames arrived. Every defect in the 2026-08-18 round (release race, hold re-assert, freeze-then-leap) had clean frame timing while the screen stood still. Timing alone would have called those sessions healthy.
 - `judgingProtocol` — the preconditions a verdict needs (DevTools closed, no capture running, real input). A page cannot verify these, so the report states them; a clean report from a DevTools-open session is not evidence. See pitfall #1 below.
 
-## 1. The `flemo:*` storage keys
+## 1. There are no `flemo:*` flags
 
-All keys live in `sessionStorage` except `flemo:motion-driver` (localStorage). Set them in DevTools (`sessionStorage.setItem("flemo:apply", "scrub")`) and — for the cached set — **reload**. Full table with values/defaults/classes: `diagnosticFlags.ts`. Summary:
+The library reads **no** `flemo:*` storage key. Every one of the 24 keys core
+once read was removed on 2026-08-31, along with the registry that described
+them: each was a diagnostic instrument, and each shipped its key string and its
+prose into every consumer's bundle. What each key used to force is now a
+computed default with no override.
 
-**Production state (never set by hand; key strings frozen — persisted on users' devices)**
+Per-browser behavior is unchanged by that removal, because no consumer ever set
+these keys. What changed is that **an A/B on a device is no longer a one-liner**:
+comparing two behaviors now means building the branch that has the other one.
+Weigh that before adding a key back. The bar the removal set is that a
+measurement instrument does not ride in a consumer's bundle to be available on
+the one day somebody needs it.
 
-- `flemo:motion-driver` — player demotion ledger (`driverPolicy.ts`).
-- `flemo:lpm` — low-power cadence verdict seed (`lowPowerCadence.ts`).
-- ~~`flemo:lat`~~ — RETIRED 2026-08-19. The LPM release-latency ledger fed a hold nothing read; probe, ledger and key are gone. Clear it from any device that still carries one; nothing reads it now.
+The keys that remain are `@flemo/devtools`' own — `flemo:devtools` (arms the
+recorder) and `flemo:devtools-panel-height` — and they live in that package,
+which a consumer only installs as a devDependency.
 
-**Production default with override**
+### The residual-toggle hazard, which outlived the flags
 
-- `flemo:settle-gate` = `on`/`off` — render-settle entry gate; default ON for touch WebKit (`governedCompiledActive()`), touch Blink, and verified steady-60 desktop Blink; off elsewhere. It only protects the START of a flight — a block landing mid-flight ages a wall-clocked compiled animation regardless.
-- `flemo:snap` = `always`/`off`/`gate`/`hybrid` — player device-pixel snap policy. Platform default: WebKit at dpr<3 snaps always; dpr≥3 and Blink use the velocity gate.
-- `flemo:imgoffload` = `on`/`off` — image decode offloader; default auto (`isLegacyAndroidBlink()`).
+Session toggles OUTLIVE the A/B that set them, and on mobile tab restoration
+resurrects `sessionStorage` across _days_. Two real incidents, both costing
+multi-day re-investigations:
 
-**Opt-in diagnostics (default off)**
+- A user's `?snap=off` A/B toggle stayed in the session; weeks of "the shimmer
+  is back" reports were the toggle itself (found by reading the badge in their
+  screen recording).
+- A `flemo:lat` seed written by an older build silently defeated a newer build's
+  pessimistic branch.
 
-- `flemo:motion-driver-force` = `"raf@<epoch-ms>"` / `"css@<epoch-ms>"` — the driver pin. MUST carry the `@<epoch-ms>` stamp (unstamped values are removed on sight); expires after 24h. See the force-pin warning contract below.
-- `flemo:landing-snap` = `on` — Blink compiled-tier full snap easing A/B.
-- `flemo:imghold` = `on` — flight-scoped `<img>` reveal hold.
-- `flemo:handoff` = `on` (+ `flemo:handoffms` = number) — anchored-opening handoff. On current main, touch-WebKit routing goes compiled regardless, so this reaches the player only in pinned sessions (see driver-routing.md, gate 5).
-- `flemo:apply` = `scrub` — force the scrub-WAAPI value application for every track.
-- `flemo:snapband` = number — the `hybrid` snap's jitter-band width (device px).
-- `flemo:layers` = `resident`, `flemo:freeze` = `shallow` — see URL arming below.
-- `flemo:preraster` = `on` — park-over + entering content-layer promotion probe.
+Those keys are all inert now, which is exactly why devtools still enumerates
+them: a key found on a device reads as an unexplained lead unless something
+says it explains nothing. `overrides.warnings` says it, per key, with the
+retirement note. When a user reports a regression, read that section first.
 
-**Caching contract** (from the registry): the player-side set (`flemo:apply`, `flemo:snap`, `flemo:snapband`, `flemo:handoffms`, player-side `flemo:handoff`) and the URL-armed pair are read **once per page load** — toggling them requires a reload. The engine-routing set (`flemo:landing-snap`, `flemo:imghold`, `flemo:settle-gate`, engine-side `flemo:handoff`, `flemo:preraster`, `flemo:imgoffload`) is read per decision — a DevTools toggle takes effect on the next navigation. Every reader degrades to its default when storage throws (sandboxed/partitioned documents).
+## 2. Reading a device that carries residue
 
-### The residual-toggle hazard
-
-Session toggles OUTLIVE the A/B that set them — and on mobile, tab restoration resurrects `sessionStorage` across _days_. Two real incidents, both costing multi-day re-investigations:
-
-- A user's `?snap=off` A/B toggle stayed in the session; weeks of "the shimmer is back" reports were the toggle itself (found by reading the badge in their screen recording).
-- A `flemo:lat` seed written by an older build silently defeated a newer build's pessimistic branch. (That key is retired, but the lesson generalizes to every persisted ledger: `flemo:lpm`, `flemo:sixty`, `flemo:motion-driver`.)
-
-Rules: after ANY A/B round, explicitly clear the keys you set (or use a private window); when a user reports a regression, **check active overrides first** — `Object.entries(sessionStorage).filter(([k]) => k.startsWith("flemo:"))`. This is why the force pin now carries a TTL and a warning.
-
-### The force-pin warning contract
-
-"A forgotten pin must never run silently." Three mechanisms enforce it:
-
-1. `readForcedDriver()` console.warns once per session while a pin is active.
-2. `joinPlayer` calls `driverPolicy.pinnedDriver()` unconditionally at entry — even on routes that short-circuit before the pin could matter (desktop Blink), so the warning always fires. Do not remove that call as "dead"; an e2e test asserts it.
-3. Pins expire (24h TTL) and malformed/legacy values are deleted on read.
-
-## 2. URL arming: `?flemo-layers=` / `?flemo-freeze=`
-
-For sessions where you can't open a console (real phones): visiting a URL with `?flemo-layers=resident` (or `=off`) writes `flemo:layers` for the session at module load, before the first cached read (`layerSettleHold.ts`); `?flemo-freeze=shallow` (or `=off`) does the same for `flemo:freeze` (`computeScreenFreeze.ts`).
-
-- `layers=resident` — screen layers stay composited at rest instead of demoting `LAYER_SETTLE_MS` after the flip.
-- `freeze=shallow` — the direct prev screen stays live (never Activity-frozen); deeper screens still freeze.
-
-Both persist for the session after the URL param is gone — residual-toggle hazard applies.
+`Object.entries(sessionStorage).filter(([k]) => k.startsWith("flemo:"))` still
+tells you what a device is carrying, and the recorder reports the same thing
+with a verdict attached. Nothing it finds can change how a flight is flown, so
+treat every hit as archaeology: clear it and move on.
 
 ## 3. `window.__flemoPlayerGaps`
 
