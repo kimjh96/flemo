@@ -30,12 +30,12 @@
     "@changesets/cli": "^2.31.1",
     "@size-limit/preset-small-lib": "^12.1.0",
     "husky": "^9.1.7",
-    "lint-staged": "^17.3.0",
+    "lint-staged": "^17.4.1",
     "prettier": "^3.9.6",
     "size-limit": "^12.1.0",
-    "turbo": "^2.10.11"
+    "turbo": "^2.10.12"
   },
-  "packageManager": "pnpm@11.23.0",
+  "packageManager": "pnpm@11.24.0",
   "engines": {
     "node": ">=22.23.2"
   },
