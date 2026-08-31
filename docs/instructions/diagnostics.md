@@ -1,85 +1,65 @@
 # flemo diagnostics reference
 
-For agents and humans instrumenting a device session. Every per-browser decision the library makes is resolved in one place, `packages/core/src/platform/profile.ts`, and pinned per environment by `platformDefaults.test.ts`. This document covers _how to observe a session_ and the pitfalls that cost the 2026 campaigns weeks.
+Use this reference when instrumenting a device session. Per-browser decisions are resolved in `packages/core/src/platform/profile.ts` and pinned by `platformDefaults.test.ts`.
 
 ## 0. Start with the flight recorder
 
-Before setting any flag by hand, attach `@flemo/devtools` (playground: `/playground?devtools=on`) and reproduce once. `window.flemo.report()` answers, in one JSON blob, the questions this document otherwise asks you to establish manually: which tier drove each flight, whether the session carries A/B residue, whether the observation itself is trustworthy — and it names the defect classes the 2026 campaigns actually shipped fixes for, so a returning regression arrives as a sentence instead of a hunt.
+Attach `@flemo/devtools` before changing anything and reproduce once. The playground entrypoint is `/playground?devtools=on`. `window.flemo.report()` returns the driver tier, A/B residue, observation trustworthiness, and known 2026 defect classes.
 
-Two of its sections exist because the campaign learned them the hard way:
+Read these sections carefully:
 
-- `flights[].motion` — whether the pose ADVANCED, not merely whether frames arrived. Every defect in the 2026-08-18 round (release race, hold re-assert, freeze-then-leap) had clean frame timing while the screen stood still. Timing alone would have called those sessions healthy.
-- `judgingProtocol` — the preconditions a verdict needs (DevTools closed, no capture running, real input). A page cannot verify these, so the report states them; a clean report from a DevTools-open session is not evidence. See pitfall #1 below.
+- `flights[].motion` reports whether the pose advanced, not merely whether frames arrived. Release races, hold re-assertions, and freeze-then-leap defects can have clean frame timing while the screen is stationary.
+- `judgingProtocol` states required conditions that the page cannot verify: DevTools closed, no capture, and real input. A clean report collected with DevTools open is not evidence.
 
-## 1. There are no `flemo:*` flags
+## 1. There are no `flemo:*` engine flags
 
-The library reads **no** `flemo:*` storage key. Every one of the 24 keys core
-once read was removed on 2026-08-31, along with the registry that described
-them: each was a diagnostic instrument, and each shipped its key string and its
-prose into every consumer's bundle. What each key used to force is now a
-computed default with no override.
+Core reads no `flemo:*` storage key. All 24 former keys and their registry were removed on 2026-08-31 because diagnostic instruments and their documentation should not ship in consumer bundles. Each former override is now a computed default.
 
-Per-browser behavior is unchanged by that removal, because no consumer ever set
-these keys. What changed is that **an A/B on a device is no longer a one-liner**:
-comparing two behaviors now means building the branch that has the other one.
-Weigh that before adding a key back. The bar the removal set is that a
-measurement instrument does not ride in a consumer's bundle to be available on
-the one day somebody needs it.
+Per-browser behavior did not change because consumers never set these keys. Comparing alternative behavior now requires building the branch that implements it; consider that cost before restoring an override.
 
-The keys that remain are `@flemo/devtools`' own — `flemo:devtools` (arms the
-recorder) and `flemo:devtools-panel-height` — and they live in that package,
-which a consumer only installs as a devDependency.
+Only `@flemo/devtools` owns active keys: `flemo:devtools`, which arms the recorder, and `flemo:devtools-panel-height`. That package is installed only as a devDependency.
 
-### The residual-toggle hazard, which outlived the flags
+### Residual-toggle hazard
 
-Session toggles OUTLIVE the A/B that set them, and on mobile tab restoration
-resurrects `sessionStorage` across _days_. Two real incidents, both costing
-multi-day re-investigations:
+Session toggles outlive their A/B test. Mobile tab restoration can preserve `sessionStorage` for days. Two incidents demonstrate the risk:
 
-- A user's `?snap=off` A/B toggle stayed in the session; weeks of "the shimmer
-  is back" reports were the toggle itself (found by reading the badge in their
-  screen recording).
-- A `flemo:lat` seed written by an older build silently defeated a newer build's
-  pessimistic branch.
+- A lingering `?snap=off` toggle caused weeks of false “shimmer is back” reports; its badge was visible in the user's recording.
+- A legacy `flemo:lat` seed silently defeated a newer build's pessimistic branch.
 
-Those keys are all inert now, which is exactly why devtools still enumerates
-them: a key found on a device reads as an unexplained lead unless something
-says it explains nothing. `overrides.warnings` says it, per key, with the
-retirement note. When a user reports a regression, read that section first.
+Former engine keys are inert, but devtools enumerates them so they are not mistaken for active causes. `overrides.warnings` provides the retirement note for each key. Read it first for every regression report.
 
-## 2. Reading a device that carries residue
+## 2. Inspecting residue
 
-`Object.entries(sessionStorage).filter(([k]) => k.startsWith("flemo:"))` still
-tells you what a device is carrying, and the recorder reports the same thing
-with a verdict attached. Nothing it finds can change how a flight is flown, so
-treat every hit as archaeology: clear it and move on.
+Use `Object.entries(sessionStorage).filter(([k]) => k.startsWith("flemo:"))` or the recorder report to inspect stored keys. No discovered engine key can affect flight behavior; treat it as archaeology, clear it, and continue.
 
 ## 3. `window.__flemoPlayerGaps`
 
-The one surviving `window.__flemo*` global: every rAF-player frame gap (ms, rolling last 600) mirrored at module load in `transitionPlayer.ts`. Read it on-device to see the player's own clock — `gap max 42ms / miss 3 per 120` class readings are real starvation (each ~2-3 dropped frames = one visible hitch). The e2e suite reads it (`motion-perception.spec.ts`); a stalled CI runner is detected the same way. Note it only populates while the _player_ drives — a compiled-routed session shows nothing.
+This is the only surviving `window.__flemo*` global. `transitionPlayer.ts` mirrors the rolling last 600 rAF-player frame gaps, in milliseconds, at module load. Read it on-device to inspect the player's clock. Readings such as `gap max 42ms / miss 3 per 120` indicate real starvation: roughly two or three dropped frames produce one visible hitch.
+
+`motion-perception.spec.ts` also reads this mirror to detect stalled CI runners. It is populated only while the player drives; compiled-routed sessions produce no data.
 
 ## 4. E2E helpers (`apps/web/e2e/`)
 
-- `helpers/flemo.ts` — `activeScreen`/`allScreens` (the `data-flemo-*` locators), `waitForNavIdle(page)` (waits for no screen in PUSHING/POPPING/REPLACING + 150ms grace — **never use fixed waits under the rAF player**: the capped clock honestly extends a flight past any constant pause on a stalled runner), and `trackConsoleErrors` (filters network 404 noise).
-- `motion-perception.spec.ts` — the player-tier guardrails. They pin the player before the app boots (`openPlaygroundWithPinnedPlayer`):
+- `helpers/flemo.ts` provides `activeScreen` and `allScreens` for `data-flemo-*` locators; `waitForNavIdle(page)`, which waits until no screen is PUSHING, POPPING, or REPLACING plus a 150 ms grace period; and `trackConsoleErrors`, which filters network 404 noise. Never use fixed waits with the rAF player: its capped clock can legitimately extend a flight beyond any fixed delay on a stalled runner.
+- `motion-perception.spec.ts` contains player-tier guardrails. `openPlaygroundWithPinnedPlayer` pins the player before app startup:
 
   ```js
   page.addInitScript(() => sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`))
   ```
 
-  The player-mechanics specs `test.skip` on webkit and desktop chromium ("the rAF player is production only on touch Blink") and run on the `mobile-chromium` Playwright project (Pixel 7 emulation), while the #259 regression guard ("a pinned desktop player lands a re-entry on-screen") runs on desktop chromium by design. A `css@…` pin test asserts the pin warning text and that the player stayed off. CI's e2e job runs `--project=chromium --project=mobile-chromium` (since PR #257).
-- `perception/heavy-shell.mjs` — MANUAL motion-energy harness (Playwright video + ffmpeg tblend): measures `{ intermediateFrames, freezeMs }` for the content-first contract across engine × driver-pin × transition × mount-block matrices. Usage is in its header; run against a production build (`next start`), never dev.
+  Player-mechanics tests call `test.skip` on WebKit and desktop Chromium because the rAF player is production-only on touch Blink. They run in the `mobile-chromium` Playwright project with Pixel 7 emulation. The #259 guard, “a pinned desktop player lands a re-entry on-screen,” intentionally runs on desktop Chromium. A `css@…` pin test verifies both the pin warning and that the player remained disabled. Since PR #257, CI runs `--project=chromium --project=mobile-chromium`.
+- `perception/heavy-shell.mjs` is a manual motion-energy harness using Playwright video and ffmpeg `tblend`. It measures `{ intermediateFrames, freezeMs }` for the content-first contract across engine, driver pin, transition, and mount-block matrices. Follow its header and run it against `next start`, never a development build.
 
-## 5. OBSERVATION PITFALLS — read before judging any motion report
+## 5. Observation pitfalls
 
-Each of these fabricated or masked a symptom during the 2026 campaigns. The postmortem has the war stories; this is the checklist.
+Apply this checklist before judging motion:
 
-1. **DevTools device emulation renders to a separate scaled surface.** The emulated page is composited _into_ the DevTools UI through a generally-fractional rescale: moving text shimmers continuously, and post-landing housekeeping becomes visible flashes — on a plain window the same build is clean. Weeks were lost to this before a phone video showed the device toolbar in frame. `emulationNotice.ts` now warns once per session when a transition runs under emulation (Blink + Mac platform + maxTouchPoints > 0 — Macs have no touchscreens). **Establish the exact viewing configuration FIRST — ask for a screenshot of the whole setup (window vs emulation, which display, display scaling) before any code work.**
-2. **Residual session toggles** — see section 1. The `?snap=off` incident: the user's own A/B toggle, unset for weeks, reported as a regression. Read the badges/toggles visible in any user video FIRST.
-3. **DevTools FPS meter / `--show-fps-counter` forces continuous presentation.** Viz drawing its own overlay every vsync flips Chrome's macOS present pipeline into continuous-even mode — the judder being investigated _disappears while you measure it_, and the smooth state is sticky until browser restart. (Deliberately usable as a machine-level workaround; never as evidence of a fix.) A DevTools Performance recording forces frames the same way — it masked the convergence tremor and the compositor wake-up loss.
-4. **Screencast frame-gap cadence artifacts.** Tab screencast (and Playwright's) does not deliver every presented frame; gap patterns in captures can alias into phantom periodic "re-rolls" (a "30Hz dither re-roll" reading was partly this). Judge pixel phenomena with screenshot-energy probes or a real camera, not screencast timing.
-5. **`devtools.timeline` tracing forces per-vsync frames** (observer effect) — trace with non-forcing categories (`cc,benchmark`; PipelineReporter args key is `frame_reporter`) when frame pacing is the question.
-6. **Playwright disables field trials** — a Chrome behavior behind a trial can differ from real Chrome; pass `ignoreDefaultArgs` for the relevant switches when that matters.
-7. **Stale artifact caching when integrating via `file:` tarballs** (consumer-app verification): bun caches tarballs _by filename_ — repacking the same version+name serves the old bytes; rename every pack (`flemo-core-x.y.z-r2.tgz`, …). Vite's dep optimizer keys the served bundle by a `?v=<hash>` that does NOT change when a `file:` dep's content changes — the dev server AND the phone's HTTP cache keep serving stale flemo (multiple "fix didn't work" verdicts were stale bundles). Discipline: after any tarball swap, restart once with `--force` (boot-scoped), then **fingerprint the served dep** — find the live URL (`curl <app>/src/App.tsx | grep -o 'deps/@flemo_react[^"]*'`) and grep the bundle for a marker string unique to the round's change. A version badge in the app does not prove flemo-code freshness (source modules transform fresh while the dep bundle stales). Also: `curl | grep` cannot see a JS _syntax_ error in injected inline scripts — verify probes by executing in a real browser.
-8. **rAF-based instruments under LPM/throttling measure the observer, not the presentation.** iOS Low Power Mode caps the web process's rendering updates (~30Hz) while the compositor presents at panel rate — an rAF HUD reading "even 8.33ms" or "33ms gaps" says nothing about what the panel showed. Playwright WebKit reports `maxTouchPoints=0` even under iPhone emulation, so the touch-WebKit/LPM paths cannot be reproduced locally at all — only on glass.
-9. **Composite-side phenomena are invisible to DOM instruments.** `getComputedStyle`, screencast, and rAF sampling all read the main-thread side; swallowed openings and present-pipeline judder live after the commit. When instruments say "clean" and the eye says "janky", believe the eye and switch to screenshot-energy probes, camera video (a 30fps phone video is decisive more often than expected), or frame-extracted screen recordings.
+1. **DevTools emulation:** Device emulation composites the page into a separately scaled, often fractionally rescaled surface. Moving text may shimmer continuously and post-landing housekeeping may flash even when the same build is clean in a normal window. `emulationNotice.ts` warns once per session when a transition runs under suspected emulation: Blink on Mac with `maxTouchPoints > 0`, because Macs have no touchscreen. Before code work, establish the exact viewing setup and request a screenshot of the whole setup, including window versus emulation, display, and display scaling.
+2. **Residual toggles:** Inspect badges and toggles visible in user recordings first. A forgotten `?snap=off` caused a false regression report.
+3. **FPS and performance overlays:** DevTools FPS, `--show-fps-counter`, and DevTools Performance recording force continuous presentation. On macOS Chrome, the overlay can switch presentation into a continuous-even mode that hides judder and remains sticky until browser restart. It can be a machine-level workaround, never evidence of a fix.
+4. **Screencast cadence:** Tab and Playwright screencasts omit presented frames, so capture gaps can alias into phantom periodic re-rolls. Judge pixel phenomena with screenshot-energy probes or a real camera, not screencast timing.
+5. **Tracing:** `devtools.timeline` tracing forces per-vsync frames. When investigating frame pacing, use non-forcing categories `cc,benchmark`; the PipelineReporter argument key is `frame_reporter`.
+6. **Playwright field trials:** Playwright disables field trials. If a relevant Chrome behavior depends on one, pass `ignoreDefaultArgs` for the applicable switches.
+7. **`file:` tarball caching:** Bun caches tarballs by filename, so rename every repack, for example `flemo-core-x.y.z-r2.tgz`. Vite's `?v=<hash>` may remain unchanged after a `file:` dependency's contents change, leaving stale bytes in both the development server and phone HTTP cache. After every tarball swap, restart once with `--force`, then fingerprint the served dependency: find its live URL with `curl <app>/src/App.tsx | grep -o 'deps/@flemo_react[^\"]*'` and grep that bundle for a marker unique to the change. An application version badge proves only that source modules refreshed, not the flemo dependency bundle. `curl | grep` cannot detect a JavaScript syntax error in an injected inline script; execute probes in a real browser.
+8. **rAF under throttling:** Under iOS Low Power Mode, the web process may update around 30 Hz while the compositor presents at panel rate. rAF HUD readings such as even 8.33 ms or 33 ms gaps do not establish what the panel displayed. Playwright WebKit reports `maxTouchPoints=0` even with iPhone emulation, so touch-WebKit and Low Power Mode paths require testing on physical hardware.
+9. **Compositor effects:** `getComputedStyle`, screencasts, and rAF samples observe the main-thread side, not compositor-internal swallowed openings or present-pipeline judder. If instruments are clean but visible jank remains, trust the observation and use screenshot-energy probes, camera video, or frame-extracted screen recordings. A 30 fps phone recording is often decisive.
