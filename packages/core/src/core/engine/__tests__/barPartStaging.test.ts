@@ -1,0 +1,272 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { stageBarParts, PART_LAYER_LEVEL } from "@core/engine/barPartStaging";
+
+import {
+  ANIM_HOLD,
+  ANIM_HOLD_ATTR,
+  BAR_RIDING_ATTR,
+  PART_HOME_ATTR,
+  PART_NAME_ATTR,
+  SCREEN_ATTR
+} from "@dom/attributes";
+
+// THE COVERED SIDE'S PARTS COME UP OUT OF THE SCREEN.
+//
+// Two screens sharing a bar id each render their own copy of it, inside their
+// own screen container — an isolated stacking context at the screen's z-index.
+// So the covered screen's <Part> runs its half of the cross-fade under the other
+// screen's opaque surface, where nothing can see it. Staging lifts it above both
+// screens for the flight and puts it back, unchanged, when the flight lands.
+
+const NEXT_FRAME = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+const stubRect = (element: HTMLElement, rect: Partial<DOMRect>) => {
+  element.getBoundingClientRect = () =>
+    ({
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      toJSON: () => ({}),
+      ...rect
+    }) as DOMRect;
+};
+
+let layer: HTMLDivElement;
+let scope: HTMLDivElement;
+let bar: HTMLDivElement;
+let part: HTMLDivElement;
+
+beforeEach(() => {
+  layer = document.createElement("div");
+  document.body.appendChild(layer);
+
+  scope = document.createElement("div");
+  scope.setAttribute(SCREEN_ATTR, "screen-1");
+  scope.setAttribute(ANIM_HOLD_ATTR, ANIM_HOLD.HELD);
+  document.body.appendChild(scope);
+
+  bar = document.createElement("div");
+  // Matched with the partner's bar: it hands over rather than rides.
+  bar.setAttribute(BAR_RIDING_ATTR, "false");
+  document.body.appendChild(bar);
+
+  part = document.createElement("div");
+  part.setAttribute(PART_NAME_ATTR, "navigationIcon");
+  bar.appendChild(part);
+  stubRect(part, { x: 16, y: 44, width: 24, height: 24 });
+});
+
+afterEach(() => {
+  document.body.replaceChildren();
+  vi.useRealTimers();
+});
+
+const stage = (overrides: Partial<Parameters<typeof stageBarParts>[0]> = {}) =>
+  stageBarParts({ scope, bars: [bar], layer, strandedMs: 10_000, ...overrides });
+
+describe("stageBarParts", () => {
+  it("lifts a matched bar's part into the layer at the rect it occupied", () => {
+    const staged = stage();
+
+    expect(staged).not.toBeNull();
+    expect(part.parentElement).toBe(layer);
+    expect(part.style.position).toBe("absolute");
+    expect(part.style.left).toBe("16px");
+    expect(part.style.top).toBe("44px");
+    expect(part.style.width).toBe("24px");
+    expect(part.style.height).toBe("24px");
+    // getBoundingClientRect measures the border box, so the staged copy is
+    // sized as one; a margin would offset a box that is already positioned.
+    expect(part.style.boxSizing).toBe("border-box");
+    expect(part.style.margin).toBe("0px");
+  });
+
+  it("marks the staged part with the screen it belongs to", () => {
+    // Its ancestry is gone, and every participant query that still has to find
+    // it — the layer pin, the settle release, the COMPLETED inline clear — goes
+    // through this marker (see flightParticipants.collectScreenParts).
+    stage();
+
+    expect(part.getAttribute(PART_HOME_ATTR)).toBe("screen-1");
+  });
+
+  it("takes no pointer input and outranks the screens it stages over", () => {
+    stage();
+
+    expect(layer.style.pointerEvents).toBe("none");
+    expect(layer.style.zIndex).toBe(String(PART_LAYER_LEVEL));
+  });
+
+  it("leaves a riding bar's parts where they are", () => {
+    // A riding bar travels with its screen because the partner does not own it.
+    // There is no second copy to cross-fade with, and lifting its parts out of
+    // the motion carrying them would strand them mid-air.
+    bar.setAttribute(BAR_RIDING_ATTR, "true");
+
+    expect(stage()).toBeNull();
+    expect(part.parentElement).toBe(bar);
+  });
+
+  it("stages nothing when the Router published no layer", () => {
+    expect(stage({ layer: null })).toBeNull();
+    expect(part.parentElement).toBe(bar);
+  });
+
+  it("stages nothing for a scope with no screen identity", () => {
+    // Without an id to stamp, a staged part would silently drop out of its
+    // screen's participant set. Better not to stage it at all.
+    scope.removeAttribute(SCREEN_ATTR);
+
+    expect(stage()).toBeNull();
+    expect(part.parentElement).toBe(bar);
+  });
+
+  it("stages nothing when a matched bar carries no part", () => {
+    part.remove();
+
+    expect(stage()).toBeNull();
+  });
+
+  it("steps over a bar this screen does not render", () => {
+    // The binding hands over both bar refs; a screen with only a top bar passes
+    // null for the other.
+    const staged = stage({ bars: [null, bar] });
+
+    expect(staged).not.toBeNull();
+    expect(part.parentElement).toBe(layer);
+  });
+
+  it("stages without a MutationObserver to follow the hold with", () => {
+    // Old engines, and any environment that provides no observer. The parts
+    // still travel; only the hold stops tracking, which is the same deal
+    // <Morph> takes.
+    vi.stubGlobal("MutationObserver", undefined);
+
+    const staged = stage();
+
+    expect(part.parentElement).toBe(layer);
+    expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.HELD);
+    staged!.release();
+    expect(part.parentElement).toBe(bar);
+    vi.unstubAllGlobals();
+  });
+
+  it("mirrors the screen's hold onto the layer so the parts start on its clock", async () => {
+    stage();
+    expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.HELD);
+
+    scope.setAttribute(ANIM_HOLD_ATTR, ANIM_HOLD.RELEASED);
+    await NEXT_FRAME();
+
+    expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.RELEASED);
+  });
+
+  it("reads an unheld screen as released rather than leaving the layer bare", () => {
+    scope.removeAttribute(ANIM_HOLD_ATTR);
+    stage();
+
+    expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.RELEASED);
+  });
+
+  it("puts the part back exactly where it was, carrying no trace of the flight", () => {
+    const sibling = document.createElement("span");
+    bar.appendChild(sibling);
+    const staged = stage();
+
+    staged!.release();
+
+    expect(part.parentElement).toBe(bar);
+    expect(part.nextSibling).toBe(sibling);
+    expect(part.getAttribute("style")).toBeNull();
+    expect(part.hasAttribute(PART_HOME_ATTR)).toBe(false);
+    expect(layer.hasAttribute(ANIM_HOLD_ATTR)).toBe(false);
+  });
+
+  it("restores a consumer's own inline style verbatim", () => {
+    part.setAttribute("style", "color: red;");
+    const staged = stage();
+
+    staged!.release();
+
+    expect(part.getAttribute("style")).toBe("color: red;");
+  });
+
+  it("stops watching the hold once the parts are home", async () => {
+    const staged = stage();
+    staged!.release();
+
+    scope.setAttribute(ANIM_HOLD_ATTR, ANIM_HOLD.RELEASED);
+    await NEXT_FRAME();
+
+    expect(layer.hasAttribute(ANIM_HOLD_ATTR)).toBe(false);
+  });
+
+  it("drops a part whose screen went away while it was up here", () => {
+    // A replace unmounts the side it replaced. There is nothing to return to,
+    // and a part left in the layer would sit above every screen from then on.
+    const staged = stage();
+    bar.remove();
+
+    staged!.release();
+
+    expect(part.isConnected).toBe(false);
+  });
+
+  it("releases a staging nothing ever came back for", () => {
+    // A screen still transitional when it goes away never runs the COMPLETED
+    // drive that would return its parts.
+    vi.useFakeTimers();
+    stage({ strandedMs: 500 });
+    expect(part.parentElement).toBe(layer);
+
+    vi.advanceTimersByTime(500);
+
+    expect(part.parentElement).toBe(bar);
+  });
+
+  it("restores only once when the backstop and the landing race", () => {
+    vi.useFakeTimers();
+    const sibling = document.createElement("span");
+    bar.appendChild(sibling);
+    const staged = stage({ strandedMs: 500 });
+
+    staged!.release();
+    vi.advanceTimersByTime(500);
+
+    expect(bar.querySelectorAll(`[${PART_NAME_ATTR}]`)).toHaveLength(1);
+    expect(part.nextSibling).toBe(sibling);
+  });
+
+  it("leaves the hold to the flight that interrupted it", () => {
+    // A navigation interrupted mid-flight is followed by one staging over the
+    // top of it, and the two stage the same COUNT of the same kind of element —
+    // so occupancy cannot tell them apart. The interrupted flight's release
+    // must not strip the live one's hold.
+    const first = stage();
+
+    const nextScope = document.createElement("div");
+    nextScope.setAttribute(SCREEN_ATTR, "screen-2");
+    nextScope.setAttribute(ANIM_HOLD_ATTR, ANIM_HOLD.HELD);
+    document.body.appendChild(nextScope);
+    const nextBar = document.createElement("div");
+    nextBar.setAttribute(BAR_RIDING_ATTR, "false");
+    document.body.appendChild(nextBar);
+    const nextPart = document.createElement("div");
+    nextPart.setAttribute(PART_NAME_ATTR, "navigationIcon");
+    nextBar.appendChild(nextPart);
+    stubRect(nextPart, { x: 16, y: 44, width: 24, height: 24 });
+
+    const second = stage({ scope: nextScope, bars: [nextBar] });
+    first!.release();
+
+    expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.HELD);
+    second!.release();
+    expect(layer.hasAttribute(ANIM_HOLD_ATTR)).toBe(false);
+  });
+});

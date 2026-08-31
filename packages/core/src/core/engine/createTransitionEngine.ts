@@ -12,6 +12,7 @@ import resolveTransition from "@transition/resolveTransition";
 import type { TransitionVariant } from "@transition/typing";
 import { resolveVariantMotion, type VariantMotion } from "@transition/variantMotion";
 
+import { stageBarParts, type StagedBarParts } from "@core/engine/barPartStaging";
 import { wireCancelResume } from "@core/engine/cancelResume";
 import { createFlightHolds } from "@core/engine/flightHolds";
 import {
@@ -19,7 +20,8 @@ import {
   collectScreenParts,
   collectStampedOuterParts,
   collectUnheldOuterParts,
-  collectVariantParts
+  collectVariantParts,
+  statusChoreographySpanMs
 } from "@core/engine/flightParticipants";
 import { resolveFlightRouting } from "@core/engine/flightRouting";
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
@@ -169,6 +171,12 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     });
     pendingLanding = { land, cancel };
   };
+
+  // This screen's matched shared-bar parts while they are up in the Router's
+  // part layer (see barPartStaging.ts). Held across drive calls because the
+  // staging spans a whole flight: it is armed on the first transitional drive
+  // and returned on the COMPLETED one, with several hold-flip drives between.
+  let stagedBarParts: StagedBarParts | null = null;
 
   const driveScreenLifecycle = (input: ScreenLifecycleInput): (() => void) => {
     const { getElements, transitionName, prevTransitionName, status, isActive, animHoldReleased } =
@@ -352,6 +360,13 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // under the new top (visible through any transparency, and a stale
       // baseline for the next transition).
       if (status === "COMPLETED") {
+        // Bring the staged bar parts home FIRST. They are cleaned up below as
+        // this screen's parts either way (collectScreenParts follows them into
+        // the layer), but the flight is over and the layer is for flights: a
+        // part left there would sit above every screen until the next one.
+        stagedBarParts?.release();
+        stagedBarParts = null;
+
         const { scope, decorator, bars, screenContainer } = getElements();
         const riders = [...(bars ?? []), ...collectLayerRiders(screenContainer ?? null)];
         if (scope) {
@@ -387,15 +402,37 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // frames. Stamped from the FIRST transitional effect — the rules
       // promote from the same commit.
       if (isTransitional) {
-        const { scope, decorator, bars, screenContainer } = getElements();
+        const { scope, decorator, bars, screenContainer, partLayer } = getElements();
         const riders = [...(bars ?? []), ...collectLayerRiders(screenContainer ?? null)];
         if (scope) {
+          const transition = resolveTransition(transitionName);
           holdParticipantLayers(
             { scope, decorator, bars: riders },
-            resolveTransition(transitionName),
+            transition,
             `${status}-false` as TransitionVariant,
             layerOwner
           );
+          // THE COVERED SIDE'S BAR PARTS COME UP OUT OF THE SCREEN.
+          //
+          // This is the passive screen, and passive means covered: the other
+          // screen's container is an isolated stacking context at a higher
+          // z-index with an opaque surface, so this screen's shared-bar parts
+          // animate where nobody can see them. When the two screens share a bar
+          // id the bar is non-riding and the parts are supposed to cross-fade
+          // with their partners — so for the flight they are staged above both
+          // screens instead. Armed from the FIRST transitional drive, beside
+          // the layer pin, so the lift happens while the hold still has every
+          // animation paused at its from-pose.
+          stagedBarParts ??= stageBarParts({
+            scope,
+            bars: bars ?? [],
+            layer: partLayer ?? null,
+            // The backstop outlives the whole choreography, not just this
+            // screen's own variant: a part authored longer than its screen is
+            // exactly what statusChoreographySpanMs exists to measure, and the
+            // slack matches the liveness floor's.
+            strandedMs: statusChoreographySpanMs(scope, transition, status) + 1500
+          });
         }
       }
       // The passive side of the transition (exiting screen on push, returning

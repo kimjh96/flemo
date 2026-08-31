@@ -30,6 +30,7 @@ import {
   enteringInitialStyle,
   observeBarHeight,
   publishRideBox,
+  resolvePartLayer,
   resolvePlatformProfile,
   resolveTransition,
   sharedBarsMatch,
@@ -793,7 +794,12 @@ function ScreenMotion({
           // Not the overlays themselves: a nested screen's <Layer> lives in an
           // ancestor's host, so which elements ride is a rule over the DOM
           // rather than a ref the binding holds (see core layerRiders.ts).
-          screenContainer: screenRef.current
+          screenContainer: screenRef.current,
+          // Resolved from THIS Router's scope, not held as a ref: the layer is
+          // rendered by the Router, one box for every screen in it, and a
+          // screen has no ref to its sibling's element. Read live for the same
+          // reason the refs above are.
+          partLayer: resolvePartLayer(stores.navigate)
         }),
         transitionName,
         prevTransitionName,
@@ -804,7 +810,7 @@ function ScreenMotion({
         // the release re-runs this effect.
         animHoldReleased: !animHold
       }),
-    [engine, status, isActive, prevTransitionName, transitionName, animHold]
+    [engine, status, isActive, prevTransitionName, transitionName, animHold, stores.navigate]
   );
 
   useEffect(() => {

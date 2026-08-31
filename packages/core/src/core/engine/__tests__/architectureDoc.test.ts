@@ -75,6 +75,7 @@ describe("packages/core/docs/motion-engine.md", () => {
       // Deliberately outside the mapped directories — the doc's last table.
       "animStartAnchor.ts",
       "pendingNetwork.ts",
+      "partLayer.ts",
       "variantMotion.ts",
       "animateInline.ts",
       "compileTransitionStyles.ts",

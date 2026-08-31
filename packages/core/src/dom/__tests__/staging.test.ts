@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { preserveDescendantAnimations } from "@morph/morphAnimations";
+import { intoLayerSpace, preserveAnimations } from "@dom/staging";
 
 // jsdom has no animation timeline, so the animations are stood in for. What is
 // under test is the bookkeeping — which animations are matched across the move
@@ -21,7 +21,7 @@ function stubAnimations(root: Element, animations: () => FakeAnimation[]): void 
   (root as unknown as { getAnimations: () => unknown[] }).getAnimations = () => animations();
 }
 
-describe("preserveDescendantAnimations", () => {
+describe("preserveAnimations", () => {
   let root: HTMLElement;
   let child: HTMLElement;
   let destination: HTMLElement;
@@ -44,7 +44,7 @@ describe("preserveDescendantAnimations", () => {
     let live = [animation(child, "flemo-part-detail-PUSHING-true", 320)];
     stubAnimations(root, () => live);
 
-    preserveDescendantAnimations(root, () => {
+    preserveAnimations(root, () => {
       live = [animation(child, "flemo-part-detail-PUSHING-true", 0)];
       destination.appendChild(root);
     });
@@ -59,7 +59,7 @@ describe("preserveDescendantAnimations", () => {
     let live = [animation(root, "flemo-morph-1i-travel", 200)];
     stubAnimations(root, () => live);
 
-    preserveDescendantAnimations(root, () => {
+    preserveAnimations(root, () => {
       live = [animation(root, "flemo-morph-1i-travel", 0)];
       destination.appendChild(root);
     });
@@ -72,7 +72,7 @@ describe("preserveDescendantAnimations", () => {
     stubAnimations(root, () => live);
 
     expect(() =>
-      preserveDescendantAnimations(root, () => {
+      preserveAnimations(root, () => {
         live = [];
         destination.appendChild(root);
       })
@@ -100,7 +100,7 @@ describe("preserveDescendantAnimations", () => {
     ];
     stubAnimations(root, () => live);
 
-    preserveDescendantAnimations(root, () => {
+    preserveAnimations(root, () => {
       live = [
         { animationName: "", currentTime: 0, effect: { target: child } } as FakeAnimation,
         // An element that was never in the subtree the index was built from.
@@ -119,7 +119,7 @@ describe("preserveDescendantAnimations", () => {
     let live: FakeAnimation[] = [animation(child, "flemo-part-b", 90)];
     stubAnimations(root, () => live);
 
-    preserveDescendantAnimations(root, () => {
+    preserveAnimations(root, () => {
       live = [
         { animationName: "flemo-part-b", currentTime: 0, effect: null } as unknown as FakeAnimation,
         animation(child, "flemo-part-b", 0)
@@ -137,7 +137,7 @@ describe("preserveDescendantAnimations", () => {
     let live: FakeAnimation[] = [animation(child, "flemo-part-a", 120)];
     stubAnimations(root, () => live);
 
-    preserveDescendantAnimations(root, () => {
+    preserveAnimations(root, () => {
       const refusing = {
         animationName: "flemo-part-a",
         effect: { target: child },
@@ -156,8 +156,86 @@ describe("preserveDescendantAnimations", () => {
   });
 
   it("still performs the move where getAnimations is unavailable", () => {
-    preserveDescendantAnimations(root, () => destination.appendChild(root));
+    preserveAnimations(root, () => destination.appendChild(root));
 
     expect(root.parentElement).toBe(destination);
+  });
+});
+
+describe("intoLayerSpace", () => {
+  // A staging layer can sit inside a transformed ancestor: a device bezel, a
+  // scaled preview. A px it is positioned by is then not a px on the glass, and
+  // a flight expressed in viewport coordinates lands somewhere else entirely.
+  const layerAt = (measured: Partial<DOMRect>, laidOut: { width: number; height: number }) => {
+    const layer = document.createElement("div");
+    layer.getBoundingClientRect = () =>
+      ({
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+        top: 0,
+        left: 0,
+        toJSON: () => ({}),
+        ...measured
+      }) as DOMRect;
+    Object.defineProperty(layer, "offsetWidth", { value: laidOut.width });
+    Object.defineProperty(layer, "offsetHeight", { value: laidOut.height });
+    return layer;
+  };
+
+  it("divides out the scale an ancestor applied", () => {
+    // Laid out at 200x400, measured at 100x200: a half-scale bezel, offset in
+    // the viewport as well.
+    const layer = layerAt(
+      { left: 10, top: 20, width: 100, height: 200 },
+      { width: 200, height: 400 }
+    );
+
+    expect(intoLayerSpace({ x: 60, y: 120, width: 50, height: 50 }, layer)).toEqual({
+      x: 100,
+      y: 200,
+      width: 100,
+      height: 100
+    });
+  });
+
+  it("passes a rect straight through an unscaled layer", () => {
+    const layer = layerAt(
+      { left: 0, top: 0, width: 320, height: 640 },
+      { width: 320, height: 640 }
+    );
+
+    expect(intoLayerSpace({ x: 16, y: 44, width: 24, height: 24 }, layer)).toEqual({
+      x: 16,
+      y: 44,
+      width: 24,
+      height: 24
+    });
+  });
+
+  it("treats a laid-out layer measuring zero as unscaled rather than collapsing the rect", () => {
+    // A layer inside a collapsed or hidden ancestor measures nothing while
+    // still reporting its layout size. A scale of 0 would send every staged
+    // part to infinity.
+    const layer = layerAt({ left: 0, top: 0, width: 0, height: 0 }, { width: 320, height: 640 });
+
+    expect(intoLayerSpace({ x: 16, y: 44, width: 24, height: 24 }, layer)).toEqual({
+      x: 16,
+      y: 44,
+      width: 24,
+      height: 24
+    });
+  });
+
+  it("treats a layer with no laid-out size as unscaled rather than dividing by zero", () => {
+    const layer = layerAt({ left: 5, top: 5 }, { width: 0, height: 0 });
+
+    expect(intoLayerSpace({ x: 25, y: 15, width: 10, height: 10 }, layer)).toEqual({
+      x: 20,
+      y: 10,
+      width: 10,
+      height: 10
+    });
   });
 });

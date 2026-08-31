@@ -168,6 +168,30 @@ export const LAYER_OWNER_ATTR = "data-flemo-layer-owner";
  */
 export const PART_NAME_ATTR = "data-flemo-part-name";
 
+/**
+ * The per-Router PART LAYER: the box a shared bar's `<Part>` elements are staged
+ * in for a flight. Rendered by the binding, for the same reason the morph layer
+ * is (only a Router knows which box bounds its screens).
+ *
+ * Two screens that share a bar id each render their OWN copy of that bar inside
+ * their own screen container, and a screen container is an isolated stacking
+ * context carrying the screen's z-index. So the lower screen's parts are painted
+ * under the upper screen's opaque surface: both parts run their authored
+ * keyframes, but only one of them is ever seen, and the cross-fade the pair was
+ * written for never appears. Being covered is a property of being a descendant,
+ * so for the flight the covered side's parts stop being one.
+ */
+export const PART_LAYER_ATTR = "data-flemo-part-layer";
+
+/**
+ * On a staged part: the `data-flemo-screen` id of the screen it was lifted from.
+ * The engine's participant scan is otherwise structural (it walks out from the
+ * scope), and a staged part is no longer under any scope — without this it would
+ * drop out of the layer pin, the settle release and the COMPLETED inline clear,
+ * all of which must keep treating it as one of its screen's parts.
+ */
+export const PART_HOME_ATTR = "data-flemo-part-home";
+
 // ── Morphs (shared elements) ────────────────────────────────────────────────
 // A morph is one element that exists on BOTH screens of a flight under the
 // same `layoutId`. The binding marks it; the morph runtime (see @morph) pairs
@@ -403,6 +427,8 @@ export const FLEMO_ATTRIBUTES = [
   LAYER_OWNER_ATTR,
   LAYER_SLOT_ATTR,
   PART_NAME_ATTR,
+  PART_LAYER_ATTR,
+  PART_HOME_ATTR,
   MORPH_ATTR,
   MORPH_CAMERA_ATTR,
   MORPH_GHOST_ATTR,

@@ -25,7 +25,7 @@ import {
   attrValueSelector
 } from "@dom/attributes";
 
-import { preserveDescendantAnimations } from "@morph/morphAnimations";
+import { intoLayerSpace, preserveAnimations } from "@dom/staging";
 
 import { clipTravel, visibleInset } from "@morph/morphClip";
 import {
@@ -34,7 +34,6 @@ import {
   readElementPose,
   untransformedCentre,
   untransformRect,
-  type MorphRect,
   type MorphSnapshot
 } from "@morph/morphGeometry";
 
@@ -326,26 +325,6 @@ const resolveMorphMotion = (
 const prepareLayer = (layer: HTMLElement) => {
   layer.style.pointerEvents = "none";
   layer.style.zIndex = "2147483000";
-};
-
-/**
- * A viewport rect in the layer's own coordinates.
- *
- * The layer can sit inside a transformed ancestor (a demo bezel, a scaled
- * preview), in which case a px it is positioned by is not a px on the glass.
- * Its measured rect against its laid-out size gives the ratio, so a flight is
- * expressed in the space it is actually staged in.
- */
-const intoLayerSpace = (rect: MorphRect, layer: HTMLElement): MorphRect => {
-  const box = layer.getBoundingClientRect();
-  const scaleX = layer.offsetWidth > 0 ? box.width / layer.offsetWidth || 1 : 1;
-  const scaleY = layer.offsetHeight > 0 ? box.height / layer.offsetHeight || 1 : 1;
-  return {
-    x: (rect.x - box.left) / scaleX,
-    y: (rect.y - box.top) / scaleY,
-    width: rect.width / scaleX,
-    height: rect.height / scaleY
-  };
 };
 
 // One component of a computed `transform-origin`. A browser resolves it to px,
@@ -976,7 +955,7 @@ const startFlight = (
     ? INHERITED.map((property) => [property, inheritedValue(computed, property)] as const)
     : [];
 
-  preserveDescendantAnimations(entry.element, () => layer.appendChild(entry.element));
+  preserveAnimations(entry.element, () => layer.appendChild(entry.element));
   for (const [property, value] of inherited) entry.element.style[property] = value;
   entry.element.style.position = "absolute";
   entry.element.style.left = `${origin.x}px`;
@@ -1177,7 +1156,7 @@ const startFlight = (
     if (inline === null) entry.element.removeAttribute("style");
     else entry.element.setAttribute("style", inline);
     if (home.isConnected)
-      preserveDescendantAnimations(entry.element, () => standIn.replaceWith(entry.element));
+      preserveAnimations(entry.element, () => standIn.replaceWith(entry.element));
     else entry.element.remove();
     standIn.remove();
     entry.element.setAttribute(MORPH_ATTR, "");
