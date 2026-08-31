@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { resolvePlatformProfile, restLayerPromotionEnabled } from "@platform/profile";
+import {
+  parkHeadEnabled,
+  resolvePlatformProfile,
+  restLayerPromotionEnabled
+} from "@platform/profile";
 import { reportInFlightCadence, resetSteadySixtyForTests } from "@platform/steadySixtyCadence";
 
 // The platform profile is the ONE place a per-browser decision is made, so
@@ -145,6 +149,26 @@ describe("restLayerPromotion", () => {
     // The identity must be stable: React's useSyncExternalStore resubscribes
     // when the reader changes, which an inline lambda would do every render.
     expect(restLayerPromotionEnabled).toBe(restLayerPromotionEnabled);
+  });
+});
+
+describe("parkHeadEnabled", () => {
+  // Deliberately NOT a profile field: a head that drops the park loses the
+  // raster on every engine that has both, so there is no per-browser question
+  // here. What varies is which park is granted, which `parkOver` already
+  // answers, and a binding only asks this once one has been.
+  it("is on for every environment, and only an explicit off takes it away", () => {
+    for (const env of [
+      { blink: false, touch: true },
+      { blink: true, touch: true },
+      { blink: false, touch: false, mac: true },
+      { blink: true, touch: false, dpr: 2 }
+    ]) {
+      setEnv(env);
+      expect(parkHeadEnabled(), JSON.stringify(env)).toBe(true);
+    }
+    sessionStorage.setItem("flemo:parkhead", "off");
+    expect(parkHeadEnabled()).toBe(false);
   });
 });
 

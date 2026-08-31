@@ -6,11 +6,11 @@ Companions: [driver routing](./driver-routing.md), [`flemo:*` diagnostics](../di
 
 ## Driver tiers
 
-Each navigation flight uses exactly one value-application tier, selected by the library. Consumers do not select it. Mid-flight switching is prohibited because tiers use different clocks, easing evaluation, and write paths; the diagnostic anchored-opening handoff is the sole exception.
+Each navigation flight uses exactly one library-selected value-application tier. Consumers cannot select it. Mid-flight switching is prohibited because tiers use different clocks, easing evaluation, and write paths; the diagnostic anchored-opening handoff is the sole exception.
 
-1. **Compiled compositor CSS**: `compileTransitionStyles.ts` produces `@keyframes` and variant rules, injected by the React binding's `useTransitionStyles`. Rules match `data-flemo-status`, `data-flemo-active`, and `data-flemo-transition`. Browser animation machinery is compositor-driven on Blink but main-thread-presented on WebKit. This is the production tier for desktop Blink, desktop WebKit, governed-compiled touch WebKit, and high-refresh, demoted, or legacy touch Blink.
-2. **rAF player**: `transitionPlayer.ts` places every participant—entering and exiting screens, dim decorator, riding bars, and `<Part>` elements—on one player keyed by navigation task ID. It uses a shared clock, per-frame inline writes, velocity-gated device-pixel snapping, and a landing governor. A main-thread stall advances the capped clock by exactly one display frame and re-anchors the excess, delaying flights without skipping them. This is the production tier for modern touch Blink at ordinary refresh and a diagnostic tier elsewhere through `flemo:motion-driver-force`.
-3. **Scrub-WAAPI application**: within `transitionPlayer.ts`, values the numeric parser cannot faithfully interpolate—such as `calc()`, mixed units, noncanonical transform order, and clip-path templates—use paused `element.animate()` instances whose `currentTime` the player writes each frame. This is a player sub-tier, not a routing target. `flemo:apply=scrub` forces all tracks through it for A/B testing.
+1. **Compiled compositor CSS:** `compileTransitionStyles.ts` produces `@keyframes` and variant rules injected by the React binding's `useTransitionStyles`. Rules match `data-flemo-status`, `data-flemo-active`, and `data-flemo-transition`. Browser animation machinery is compositor-driven on Blink but main-thread-presented on WebKit. This is the production tier for desktop Blink, desktop WebKit, governed-compiled touch WebKit, and high-refresh, demoted, or legacy touch Blink.
+2. **rAF player:** `transitionPlayer.ts` places entering and exiting screens, the dim decorator, riding bars, and `<Part>` elements on one player keyed by navigation task ID. It uses a shared clock, per-frame inline writes, velocity-gated device-pixel snapping, and a landing governor. A main-thread stall advances the capped clock by exactly one display frame and re-anchors the excess, delaying the flight without skipping it. This is the production tier for modern touch Blink at ordinary refresh and a diagnostic tier elsewhere through `flemo:motion-driver-force`.
+3. **Scrub-WAAPI application:** Within `transitionPlayer.ts`, values the numeric parser cannot faithfully interpolate, including `calc()`, mixed units, noncanonical transform order, and clip-path templates, use paused `element.animate()` instances whose `currentTime` the player writes each frame. This is a player sub-tier, not a routing target. `flemo:apply=scrub` forces all tracks through it for A/B testing.
 
 See [driver routing](./driver-routing.md) for the production decision tree.
 
@@ -20,33 +20,33 @@ See [driver routing](./driver-routing.md) for the production decision tree.
 
 ### Hold and park before release
 
-The binding computes `holdKey` through `screen/animStartAnchor.ts` during render and stamps `data-flemo-anim-hold` on the scope, shared bars, and decorator in the same commit that changes status. `ANIM_HOLD_RULE` applies `animation-play-state: paused !important`; `fill: both` preserves the `from` pose. This prevents iOS WebKit from aging a CSS animation while a heavy first frame is not presented.
+During render, the binding computes `holdKey` through `screen/animStartAnchor.ts` and stamps `data-flemo-anim-hold` on the scope, shared bars, and decorator in the same commit that changes status. `ANIM_HOLD_RULE` applies `animation-play-state: paused !important`; `fill: both` preserves the `from` pose. This prevents iOS WebKit from aging a CSS animation while a heavy first frame is not presented.
 
 `ScreenMotion.holdAttr` values are:
 
 - `"true"`: pause at the `from` pose.
-- `"park"`: place a COVERED passive pop destination at its destination pose for hold-time rasterization. This requires a verifiably opaque covering background from the `ScreenSurface` registry.
-- `"park-under"`: place an ACTIVE push or replace entrant at its destination beneath the previous screen using `zIndex: -1` on the outer container. It also requires opaque cover. The entering initial inline style is withheld while parked because it would override the park rule.
+- `"park"`: put a COVERED passive pop destination at its destination pose for hold-time rasterization. This requires a verifiably opaque covering background from the `ScreenSurface` registry.
+- `"park-under"`: put an ACTIVE push or replace entrant at its destination beneath the previous screen using `zIndex: -1` on the outer container. This also requires opaque cover. The entering initial inline style is withheld while parked because it would override the park rule.
 - `"park-over"`: diagnostic-only destination pose above the prior screen at `opacity: 0.02`, enabled by `flemo:preraster=on`.
 
-`scheduleAnimHoldRelease` and `createAnimHoldCoordinator` provide double-rAF scheduling, image-decode readiness, and a pop pair barrier that releases both screens on one clock. The optional render-settle gate is default-on for touch WebKit, touch Blink, and the steady-60 desktop profile through `readSettleGateFlag()`. It waits only for entering-screen render commits to quiesce, never for data: `firstWaitMs` 120, `capMs` 700, `graceMs` 60, and `renderSettleOnly: true`.
+`scheduleAnimHoldRelease` and `createAnimHoldCoordinator` provide double-rAF scheduling, image-decode readiness, and a pop-pair barrier that releases both screens on one clock. The optional render-settle gate is default-on for touch WebKit, touch Blink, and the steady-60 desktop profile through `readSettleGateFlag()`. It waits only for entering-screen render commits to quiesce, never for data, using `firstWaitMs` 120, `capMs` 700, `graceMs` 60, and `renderSettleOnly: true`.
 
-The gate runs on every engine for the active PUSHING or POPPING side and for the INACTIVE returning pop screen. The returning side uses `minNodes: 1`; the active side uses 30. REPLACING is ungated. The gate protects only flight start; a block during a compiled flight still ages its wall clock.
+The gate runs on every engine for the active PUSHING or POPPING side and the INACTIVE returning pop screen. The returning side uses `minNodes: 1`; the active side uses 30. REPLACING is ungated. The gate protects only flight start; a block during a compiled flight still ages its wall clock.
 
-For non-Blink, authored `driver:"native"` pins, and governed-compiled touch WebKit, the release callback directly writes `data-flemo-anim-hold="false"` in the readiness rAF and clears the `park-under` z-index in that frame. This makes clock anchoring and first paint atomic. Player-routed flights retain the state-only release path because an early compiled start would play frames before the player restarts them.
+For non-Blink, authored `driver:"native"` pins, and governed-compiled touch WebKit, the release callback directly writes `data-flemo-anim-hold="false"` in the readiness rAF and clears the `park-under` z-index in that frame. This makes clock anchoring and first paint atomic. Player-routed flights retain state-only release because an early compiled start would play frames before the player restarts them.
 
 ### Release and flight
 
-When `animHoldReleased` becomes true, the engine effect reruns and `joinPlayer` selects the tier. A joined player leases an inline `animation: none` to suppress compiled animation and synchronously pins frame zero in the join commit.
+When `animHoldReleased` becomes true, the engine effect reruns and `joinPlayer` selects the tier. A joined player leases inline `animation: none` to suppress compiled animation and synchronously pins frame zero in the join commit.
 
-From the first transitional commit—not release—the engine arms cold-side protection for the push/replace entrant or returning pop screen:
+From the first transitional commit, not release, the engine arms cold-side protection for the push/replace entrant or returning pop screen:
 
 - `arrivalHold`: a `MutationObserver` hides mid-flight swaps and additions through `[data-flemo-held-arrival] { display: none !important }`, then reflects them in one rest commit. It is armed early because a release-frame commit can age the compiled clock.
 - `invisibleAnimationHold`: pauses invisible consumer animations, including culled skeleton shimmer subtrees whose first composite can stall presentation.
 - `responseHold`: patches `window.fetch` to park mid-flight response resolutions for every method except streams, then releases them as one rest batch. Its backstop is the full choreography span plus 1500 ms.
-- `imageRevealHold`: provides the `<img>` equivalent. It is default-on only for strictly unpainted images on the steady-60 desktop profile since 2026-08-18. Elsewhere it requires `flemo:imghold=on`; WebKit regressed when enabled.
+- `imageRevealHold`: provides the `<img>` equivalent. Since 2026-08-18, it is default-on only for strictly unpainted images on the steady-60 desktop profile. Elsewhere it requires `flemo:imghold=on`; WebKit regressed when enabled.
 - `beginFlightWindow`: exposes a global latch so out-of-engine systems, including the image-decode offloader, defer reveals until rest.
-- `settleScrubber.takeover(scope)`: concludes running swipe-settle WAAPI before navigation drives participants; those animations otherwise outrank compiled rules and player inline writes.
+- `settleScrubber.takeover(scope)`: concludes running swipe-settle WAAPI before navigation drives participants; otherwise those animations outrank compiled rules and player inline writes.
 
 `stampAsyncImageDecode` runs for every active or passive participant before any early-return branch. `holdParticipantLayers` pins compiled `will-change` and `contain` promotions inline for the flight and stamps desktop-Blink governed landing easing.
 
@@ -54,15 +54,15 @@ Compiled Blink flights also start a lazy, session-persistent no-op rAF frame-pac
 
 ### Perceptual cut and early landing
 
-`perceptualSpan.ts` allows resolution once every animated channel of every participant—active, passive, parts, and decorator—has permanently entered its imperceptibility band: less than one device pixel or one alpha step remains. Any unanalyzable participant vetoes the cut.
+`perceptualSpan.ts` permits resolution only after every animated channel of every participant—active, passive, parts, and decorator—has permanently entered its imperceptibility band: less than one device pixel or one alpha step remains. Any unanalyzable participant vetoes the cut.
 
 On the compiled path, a wall-clock cut timer starts at release. Cancel-resume, watchdog, or stall-shift recovery disarms it. Governed touch-WebKit tiers never arm it because their presentation does not reliably follow wall time and could visibly snap.
 
 On the player path, `navCutMs` is the maximum cut over tracks, with `null` vetoing. It uses the player's capped clock, writes the rest pose on the cut frame, and retains a landing-governor track until the presented pose lands through `pendingLanding`.
 
-Early landing releases the arrival hold when every participant is within one CSS pixel or alpha step, using a DPR-1 band at or before the cut. This places reveal layout and paint beneath the subpixel tail. It uses the cut's disarm rules and is disabled on the steady-60 desktop profile through `!steadySixtyPlayerEligible()`.
+Early landing releases the arrival hold when every participant is within one CSS pixel or alpha step, using a DPR-1 band at or before the cut. This places reveal layout and paint beneath the subpixel tail. It follows the cut's disarm rules and is disabled on the steady-60 desktop profile through `!steadySixtyPlayerEligible()`.
 
-The player landing governor in `composeTransform` closes a decelerating tail that cannot sustain one device pixel per frame within approximately the final 12 device pixels at exactly one device pixel per frame, monotonically and without a park-then-tick.
+The player landing governor in `composeTransform` closes a decelerating tail that cannot sustain one device pixel per frame within approximately the final 12 device pixels. It advances at exactly one device pixel per frame, monotonically and without a park-then-tick.
 
 ### Completion, landing clear, and layer settle
 
@@ -74,21 +74,21 @@ The COMPLETED effect force-clears inline residue on the scope, parts, and decora
 
 `layerSettleHold` keeps participant compositor promotions pinned until `LAYER_SETTLE_MS` after the flip and until the flight window is idle, avoiding a full-viewport demotion repaint on convergence frames. `flemo:layers=resident` retains screen layers permanently for diagnostics.
 
-The compositor warm-up begins at the first transitional commit and remains active for `WARM_SETTLE_MS = 400` after COMPLETED to preserve vsync cadence through convergence work.
+Compositor warm-up begins at the first transitional commit and remains active for `WARM_SETTLE_MS = 400` after COMPLETED to preserve vsync cadence through convergence work.
 
 ## Inline leases
 
 `transition/animateInline.ts` tracks every flemo inline CSS write in a WeakMap as `property → { original, owners: Set<symbol> }`.
 
 - Call `trackInlineWrite(el, property, owner)` before writing. The first lease captures the current inline value as `original`; later writes retain that capture and add owners.
-- `clearInlineAnimation(el, properties?, owner?)` restores the captured original instead of deleting it, preserving consumer values such as `animation-delay: 0.2s`. Owner-scoped clearing removes only that owner's stake and restores after the final owner leaves. Ownerless clearing is the force form used by COMPLETED and player teardown. Without a property list it releases all leased properties; if the lease map is empty, it falls back to stripping `transform` and `opacity`.
+- `clearInlineAnimation(el, properties?, owner?)` restores the captured original instead of deleting it, preserving consumer values such as `animation-delay: 0.2s`. Owner-scoped clearing removes only that owner's stake and restores after the final owner leaves. Ownerless clearing is the force form used by COMPLETED and player teardown. Without a property list, it releases all leased properties; if the lease map is empty, it falls back to stripping `transform` and `opacity`.
 - Multiple owners are required because swipe settle and engine player can co-write shared bars. A single owner would let the first finisher snap the element away from the other. Inline `transition` uses a separate single-value `transitionWriters` tag.
 
 ### PR #259 invariant
 
 `enteringInitialStyle` renders flemo's entering `from` pose inline, such as `transform: translate3d(100%,0,0)` for a Cupertino push. A player leasing `transform` therefore captures a flemo-authored value rather than a consumer value.
 
-Before PR #259, track detach restored that `from` pose at COMPLETED and removed its lease entry. A later force clear iterated only remaining keys, while the empty-map fallback did not run if another lease survived—on desktop Blink, governed `animation-timing-function` remains until `releaseParticipantLayers`. A pinned desktop player could therefore land at `translateX(100%)`, leaving a blank viewport. Touch happened to work only because its lease map was empty.
+Before PR #259, track detach restored that `from` pose at COMPLETED and removed its lease entry. A later force clear iterated only remaining keys, while the empty-map fallback did not run if another lease survived. On desktop Blink, governed `animation-timing-function` remains until `releaseParticipantLayers`; a pinned desktop player could therefore land at `translateX(100%)`, leaving a blank viewport. Touch worked only because its lease map was empty.
 
 PR #259, merged 2026-08-17, fixed this by explicitly clearing `transform` and `opacity` after force clearing, allowing the desktop rAF pin again. The invariant is: an original captured from a flemo-rendered inline style is not a consumer value; compiled rest rules own the landed scope.
 
@@ -113,7 +113,7 @@ PR #259, merged 2026-08-17, fixed this by explicitly clearing `transform` and `o
 | `imageDecodeOffloader.ts` | Off-main decode-to-scale for oversized images; auto-gated to legacy Android Blink and overridable by `flemo:imgoffload`. |
 | `flightWindow.ts` | Global nestable flight-in-progress latch. |
 | `layerSettleHold.ts` | Pins promotions and defers demotion; supports `flemo:layers=resident`. |
-| `compositorWarmUp.ts` | Refcounted invisible 48×48 background-position animation that repaints through flight and settle. The element is session-resident and its attribute value (`on`/`idle`) says whether it is forcing frames. |
+| `compositorWarmUp.ts` | Refcounted invisible 48×48 background-position animation that repaints through flight and settle. The element is session-resident; its `on`/`idle` attribute value indicates whether it is forcing frames. |
 | `gpuPipelinePrewarm.ts` | One-shot boot-idle probes that compile Chrome Graphite GPU pipelines before the first flight. |
 | `steadySixtyCadence.ts` | Desktop-profile cadence verdict for settle gating, unpainted image hold, and rest promotion. It does not route drivers; desktop uses compiled motion. |
 | `landingPixelSnap.ts` | Blink compiled-tier governed easing, default on desktop and high refresh, plus opt-in full snap through `flemo:landing-snap`. Governed easing closes the subpixel tail at one device pixel per frame. |
@@ -137,7 +137,7 @@ PR #259, merged 2026-08-17, fixed this by explicitly clearing `transform` and `o
 
 ## Single-resolution contract
 
-Exactly one live path resolves a flight's `TaskManger` navigation task. `resolveTask` ignores noncurrent IDs, and every resolver captures `flooredTaskId` when armed so stale work cannot resolve a newer flight.
+Exactly one live path resolves a flight's `TaskManger` navigation task. `resolveTask` ignores noncurrent IDs. Every resolver captures `flooredTaskId` when armed so stale work cannot resolve a newer flight.
 
 1. `animationend` is wired from the first transitional render for every driver and accepts the `-lpm` name. It cannot fire while hold pauses animation. Player `animation: none` suppression prevents it throughout player flights.
 2. Player `onComplete`, supplied as `resolvePresented` to `joinPlayer`, fires after every track finishes on the capped clock or reaches the player cut. On diagnostic handoff, the remainder animation's `finish` event resolves; compiled animation remains suppressed.
@@ -146,4 +146,4 @@ Exactly one live path resolves a flight's `TaskManger` navigation task. `resolve
 5. The liveness floor resolves the captured task ID after `max(motionSpan, participantSpan) + 1500ms`, preventing a rapid storm that orphans an element from deadlocking the serial queue.
 6. `TaskManger.anchorGate` and `markGateHeld` are the final backstop. They rearm while hold remains active so a long entering commit cannot cause a transition-less cut, and use the choreography span so long authored motion is not truncated.
 
-This invariant is necessary because resolution targets the live queue. A duplicate resolution can finish its deferred two-rAF landing-clear and choreography chain after the next task starts, cutting that newer navigation. This was measured as a fast-back pop reaching COMPLETED at about 90 ms with no motion in campaign R19-v3. Any new completion path must capture and resolve its own task ID or be provably suppressed while another path is live.
+Resolution targets the live queue, so duplicate resolution can finish its deferred two-rAF landing-clear and choreography chain after the next task starts, cutting that newer navigation. This appeared in campaign R19-v3 as a fast-back pop reaching COMPLETED at about 90 ms with no motion. Any new completion path must capture and resolve its own task ID or be provably suppressed while another path is live.

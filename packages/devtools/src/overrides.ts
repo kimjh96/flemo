@@ -165,6 +165,15 @@ export const CORE_FLAGS: readonly FlagDescriptor[] = [
       "REST-time scope promotion, and the park-over hold variant. Flight-time promotion is the engine's own stamp and needs no flag"
   },
   {
+    key: "flemo:parkhead",
+    storage: "session",
+    kind: "production-default-with-override",
+    values: '"on" / "off"',
+    fallback: "on wherever the park-over hold itself is granted",
+    effect:
+      "carry the park pose through the governed head instead of the off-screen from-pose, so WebKit keeps the pre-raster across the 200ms wait. `off` is the A/B: it restores the head that drops it"
+  },
+  {
     key: "flemo:layers",
     storage: "session",
     kind: "opt-in-diagnostic",

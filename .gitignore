@@ -49,3 +49,6 @@ coverage
 **/test-results
 **/.playwright
 .localpack*/
+# lervo:begin rebuildable-knowledge schema=1
+docs/knowledge/
+# lervo:end rebuildable-knowledge

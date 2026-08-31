@@ -26,6 +26,9 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  // The platform profile reads its overrides straight from sessionStorage, so a
+  // flag armed by one case would arm every case after it.
+  sessionStorage.clear();
 });
 
 function buildHarness(overrides: Partial<ScreenContextProps> = {}) {
@@ -672,6 +675,94 @@ describe("Screen", () => {
 
     const scope = container.querySelector("[data-flemo-screen]")!;
     expect(scope.getAttribute("data-flemo-anim-hold")).toBe("park-under");
+  });
+
+  it("marks a park-over for the head that follows it, and keeps the mark past the release", () => {
+    // The parked head is the compiled sheet's half of the same decision; it has
+    // to still be matching while the head runs, long after the hold reads
+    // RELEASED, or the release drops the screen off-screen and WebKit throws the
+    // raster the park just paid for away.
+    sessionStorage.setItem("flemo:preraster", "on");
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+    stores.screen.setState({ screenSurfaces: { below: { opaqueBackground: true } } });
+
+    const { container } = render(
+      <Screen>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true, id: "top", zIndex: 1 }) }
+    );
+
+    const scope = container.querySelector("[data-flemo-screen]")!;
+    expect(scope.getAttribute("data-flemo-anim-hold")).toBe("park-over");
+    expect(scope.getAttribute("data-flemo-park-head")).toBe("true");
+
+    act(() => {
+      stores.screen.setState({ screenSurfaces: { below: { opaqueBackground: false } } });
+    });
+    // The surface re-reading translucent mid-flight must not un-mark it: the
+    // screen is already parked and the head is what carries it home.
+    expect(scope.getAttribute("data-flemo-park-head")).toBe("true");
+  });
+
+  it("marks the COVERED park too — its cover is held on the same clock", () => {
+    // No profile gate here, and that is the point: what varies by environment is
+    // which park is granted, not whether a head should carry one. The covered
+    // side is hidden by the screen moving over it, and that screen is in its own
+    // head for the same window, so the concealment outlives the release.
+    stores.navigate.setState({ status: "POPPING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+    stores.screen.setState({ screenSurfaces: { top: { opaqueBackground: true } } });
+
+    const { container } = render(
+      <Screen>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: false, isPrev: true, id: "below", zIndex: 0 }) }
+    );
+
+    const scope = container.querySelector("[data-flemo-screen]")!;
+    expect(scope.getAttribute("data-flemo-anim-hold")).toBe("park");
+    expect(scope.getAttribute("data-flemo-park-head")).toBe("true");
+  });
+
+  it("drops the mark when the A/B flag disarms it", () => {
+    sessionStorage.setItem("flemo:parkhead", "off");
+    stores.navigate.setState({ status: "POPPING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+    stores.screen.setState({ screenSurfaces: { top: { opaqueBackground: true } } });
+
+    const { container } = render(
+      <Screen>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: false, isPrev: true, id: "below", zIndex: 0 }) }
+    );
+
+    const scope = container.querySelector("[data-flemo-screen]")!;
+    // The park itself is untouched; only the head that would carry it.
+    expect(scope.getAttribute("data-flemo-anim-hold")).toBe("park");
+    expect(scope.getAttribute("data-flemo-park-head")).toBe(null);
+  });
+
+  it("leaves the mark off a screen that only ever parked under its cover", () => {
+    // park-under keeps the layer occluded, which is the reason WebKit never
+    // rastered it — there is no raster for a parked head to protect.
+    stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
+    stores.history.setState({ index: 1, histories: [historyEntry("below"), historyEntry("top")] });
+    stores.screen.setState({ screenSurfaces: { below: { opaqueBackground: true } } });
+
+    const { container } = render(
+      <Screen>
+        <div>hello</div>
+      </Screen>,
+      { wrapper: buildHarness({ isActive: true, id: "top", zIndex: 1 }) }
+    );
+
+    const scope = container.querySelector("[data-flemo-screen]")!;
+    expect(scope.getAttribute("data-flemo-anim-hold")).toBe("park-under");
+    expect(scope.getAttribute("data-flemo-park-head")).toBe(null);
   });
 
   it("never park-unders the leaving top on POP (it would expose the returning screen)", () => {

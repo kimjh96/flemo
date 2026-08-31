@@ -319,6 +319,26 @@ export const CREEP_ATTR = "data-flemo-creep";
 /** The desktop macOS Safari flat head, with its own lengths. */
 export const DESK_HEAD_ATTR = "data-flemo-desk-head";
 
+/**
+ * The governed head PARKS instead of hiding — written on the entering screen's
+ * scope, not the root, because the decision is per-flight.
+ *
+ * The plain governed head holds the authored from-pose, which for an entering
+ * screen is fully off-screen, for `animation-delay` plus the head — 200ms on a
+ * PUSHING flight. WebKit drops a backing store that sits outside the coverage
+ * rect that long, so the pre-raster the park-over hold just paid for is thrown
+ * away and the slide reveals unrastered content (device-recorded 2026-08-30,
+ * iOS Safari: everything past the first ~512px tile row entered blank and the
+ * re-raster landed 183ms into the flight). Under this attribute the head holds
+ * the PARK pose instead — on-screen at the destination, near-zero opacity, the
+ * same place the hold already had it — so the tiles stay live across the wait.
+ *
+ * The binding writes it only where the park-over hold itself was granted (the
+ * covering screen's surface is verifiably opaque), so a translucent cover keeps
+ * the old off-screen head rather than showing a ghost.
+ */
+export const PARK_HEAD_ATTR = "data-flemo-park-head";
+
 // ── Engine-owned runtime markers ────────────────────────────────────────────
 // Written and read only by the engine. Listed here anyway: the names are still
 // in the page, and a consumer or a devtools build must be able to recognise
@@ -397,6 +417,7 @@ export const FLEMO_ATTRIBUTES = [
   GOVERNED_ATTR,
   CREEP_ATTR,
   DESK_HEAD_ATTR,
+  PARK_HEAD_ATTR,
   WARM_ATTR,
   GPU_PREWARM_ATTR,
   OFFLOADED_SRC_ATTR,

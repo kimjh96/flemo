@@ -31,6 +31,7 @@ import {
   LAYER_SLOT_ATTR,
   MORPH_ATTR,
   MORPH_GHOST_ATTR,
+  PARK_HEAD_ATTR,
   PART_NAME_ATTR,
   SCREEN_ATTR,
   STATUS_ATTR,
@@ -45,6 +46,12 @@ import type { PartTransition } from "@transition/partTransition/typing";
 const DECORATOR_VARIANTS = TRANSITION_VARIANTS;
 
 const CREEP_NUDGE = "translateZ(0.02px)";
+
+// The opacity a parked screen waits at: low enough that nothing reads as a
+// ghost over its cover, above zero so the browser still paints and composites
+// it (which is the entire point of parking). Shared by the park-over hold rule
+// and the head that carries the same pose past the release.
+const PARK_OPACITY = "0.02";
 
 const cssIdentifier = (raw: string) => raw.replace(/[^a-zA-Z0-9_-]/g, "_");
 
@@ -860,6 +867,28 @@ const compileVariantBlock = (
   const ruleBlockFor = (target: RideTarget = screenTarget) =>
     `${target.selector} {\n  animation: ${animationPropFor(target.keyframe)};\n${delayDecl}${durationDecl}${constantDecl}${willChangeDecl}${containmentDecl}}`;
 
+  // WHETHER THIS VARIANT PARKS, AND WHICH SIDE PARKS — decided ONCE.
+  //
+  // Everything below derives from these two, including the heads. The rule they
+  // encode is not "which preset is this": a consumer authors their own
+  // transitions and hides an entering screen however they like — a translate,
+  // an opacity, a scale, whatever `targetHidesScreen` grows to recognise next —
+  // and every park-shaped rule has to follow that one answer together. When the
+  // park's conditions were restated at each rule, they drifted: the head added
+  // in 2026-08 re-derived them and quietly excluded every opacity-authored
+  // transition, so `layout` (the preset the shared-element bench runs on) parked
+  // and then lost the park, while `cupertino` did not. A preset list would have
+  // hidden that; a shared predicate cannot.
+  const parkable = scope === "screen" && targetHidesScreen(fromValue) && authoredToDecls.length > 0;
+  // The COVERED side ("-false"): it sits under the screen that is moving over
+  // it, so its cover is a screen held on the same clock.
+  const parksCovered = parkable && variant.endsWith("-false");
+  // The ACTIVE ENTERING side of a push or replace. On a pop the active screen is
+  // the LEAVING top, and parking that at its destination would expose the screen
+  // returning underneath — a back-navigation flash.
+  const parksEntering =
+    parkable && variant.endsWith("-true") && (status === "PUSHING" || status === "REPLACING");
+
   // Destination pre-raster park. While a freshly started transition is held
   // (see the hold rule appended to the sheet), a COVERED screen whose `from`
   // frame hides it (fully off-screen or transparent) may park at its
@@ -873,15 +902,11 @@ const compileVariantBlock = (
   // opacity (see ScreenSurface); a translucent cover keeps the paused hold.
   // Variants without a park rule fall back to the global paused rule even
   // under the "park" attribute, so the attribute is always safe to render.
-  const parkBlock =
-    scope === "screen" &&
-    variant.endsWith("-false") &&
-    targetHidesScreen(fromValue) &&
-    authoredToDecls.length > 0
-      ? `\n${screenSelector}${attrValueSelector(ANIM_HOLD_ATTR, ANIM_HOLD.PARK)} {\n  animation: none;\n${declsToBlock(
-          authoredToDecls
-        )}\n}`
-      : "";
+  const parkBlock = parksCovered
+    ? `\n${screenSelector}${attrValueSelector(ANIM_HOLD_ATTR, ANIM_HOLD.PARK)} {\n  animation: none;\n${declsToBlock(
+        authoredToDecls
+      )}\n}`
+    : "";
 
   // The push-side mirror of the park: an ACTIVE entering screen starts fully
   // off-screen, so none of its tiles are rasterized during the hold, and the
@@ -895,31 +920,143 @@ const compileVariantBlock = (
   // The stacking demotion itself lives on the OUTER screen container in the
   // binding (siblings stack by DOM order; only the container can sink below
   // the previous screen).
-  const parkUnderBlock =
-    scope === "screen" &&
-    variant.endsWith("-true") &&
-    (variant.startsWith("PUSHING") || variant.startsWith("REPLACING")) &&
-    targetHidesScreen(fromValue) &&
-    authoredToDecls.length > 0
-      ? `\n${screenSelector}${attrValueSelector(ANIM_HOLD_ATTR, ANIM_HOLD.PARK_UNDER)} {\n  animation: none;\n${declsToBlock(
-          authoredToDecls
-        )}\n}`
-      : "";
+  const parkUnderBlock = parksEntering
+    ? `\n${screenSelector}${attrValueSelector(ANIM_HOLD_ATTR, ANIM_HOLD.PARK_UNDER)} {\n  animation: none;\n${declsToBlock(
+        authoredToDecls
+      )}\n}`
+    : "";
 
   // park-over: hold the entering screen at its DESTINATION but ON TOP at a
   // near-zero opacity, so the browser genuinely PAINTS/composites its tiles
   // (giant image textures included) during the hold — the slide then rides the
   // cached composite instead of paying the first paint mid-flight. opacity last.
-  const parkOverBlock =
-    scope === "screen" &&
-    variant.endsWith("-true") &&
-    (variant.startsWith("PUSHING") || variant.startsWith("REPLACING")) &&
-    targetHidesScreen(fromValue) &&
-    authoredToDecls.length > 0
-      ? `\n${screenSelector}${attrValueSelector(ANIM_HOLD_ATTR, ANIM_HOLD.PARK_OVER)} {\n  animation: none;\n${declsToBlock(
-          authoredToDecls
-        )}\n  opacity: 0.02;\n}`
-      : "";
+  const parkOverBlock = parksEntering
+    ? `\n${screenSelector}${attrValueSelector(ANIM_HOLD_ATTR, ANIM_HOLD.PARK_OVER)} {\n  animation: none;\n${declsToBlock(
+        authoredToDecls
+      )}\n  opacity: ${PARK_OPACITY};\n}`
+    : "";
+
+  // PARK THROUGH THE HEAD — the same park, carried across the wait in front of
+  // the curve.
+  //
+  // A head is a flat lead-in that holds the authored FROM-pose. For a screen
+  // that parks, that pose is by definition one that hides it, and the park just
+  // finished rasterizing the screen somewhere else — so the head undoes the park
+  // the moment it starts, and the browser is free to drop what the park paid
+  // for. On the governed tier the wait is `animation-delay` PLUS the head (the
+  // delay is shifted by the head as well): 200ms on a push.
+  //
+  // Device-recorded (iOS Safari, 2026-08-30, 60fps frame analysis of a long
+  // document pushed over a short list): the park painted the WHOLE entering
+  // screen (full viewport height, at 0.02) for four frames, the screen then sat
+  // invisible at its off-screen from-pose for nine, and the slide came up
+  // carrying only the first ~512px tile row — its background painted, its text
+  // absent — until a re-raster landed 183ms in, at 86% of the travel. A screen
+  // shorter than one tile row fits inside the survivor, which is why this only
+  // ever reads as a bug on a long one: the page appears to un-hide its overflow
+  // when the transition ends.
+  //
+  // So the head holds the PARK pose instead. Same place the hold already had it,
+  // for the same reason it was put there.
+  //
+  // WHY THIS IS DERIVED AND NOT RE-DECIDED: whether a screen parks is
+  // `parksCovered` / `parksEntering` above, and this asks them rather than
+  // re-deriving anything from the variant or the authored values. A consumer's
+  // own transition hides its screens however it likes, and the two halves of one
+  // decision must never be able to disagree about it.
+  //
+  // WHAT CONCEALS IT DIFFERS BY SIDE, and that is the one thing this has to know
+  // on its own — because it has to survive the RELEASE, which the hold did not:
+  //   - the entering side is concealed by the park's own near-zero opacity, and
+  //     an opacity travels with the animation. It carries.
+  //   - the covered side is concealed by the screen moving over it, which is
+  //     held on the SAME clock and is therefore still in its own head. It
+  //     carries too, and needs no opacity of its own — leaving the authored
+  //     values alone.
+  //   - park-UNDER is concealed by a z-index the binding drops at the release,
+  //     so it cannot carry. The binding writes the attribute only for the two
+  //     that can (see PARK_HEAD_ATTR); nothing here has to know that.
+  //
+  // The jump from the park pose to the from-pose is split into slivers that are
+  // each invisible for their own reason: the move happens while the screen is
+  // still at the park's opacity, and the opacity is restored once it is already
+  // hidden. No frame can land on a half-parked pose.
+  const parkHeadBlock = (
+    attribute: string,
+    suffix: string,
+    headS: number,
+    shiftDelay: boolean
+  ): string => {
+    if (!parksCovered && !parksEntering) return "";
+    /* v8 ignore next -- every parking variant is a PUSHING/REPLACING/POPPING
+       screen, so it has both a head and a duration; the guard mirrors
+       headBlock's so a future caller cannot walk into a malformed keyframe. */
+    if (headS <= 0 || duration <= 0) return "";
+
+    const total = duration + headS;
+    const headPct = (headS / total) * 100;
+    // Each sliver is 0.05% of the total — a quarter of a millisecond at the
+    // shipped lengths, well inside one frame at any refresh rate this runs on.
+    // Proportional below that, so an unusually long authored duration shrinks
+    // them rather than pushing the first stop past 0%.
+    const sliver = Math.min(0.05, headPct / 4);
+    const kf = `${keyframe}-${suffix}`;
+    // The entering side's concealment, and the only value this rule writes that
+    // the author did not: the same `opacity` the park-over hold already applies,
+    // held for the same reason.
+    const conceal = parksEntering ? `    opacity: ${PARK_OPACITY};` : "";
+    // RELEASING IT IS NOT THE SAME AS SETTING IT TO 1, and getting that wrong
+    // rewrites the author's motion. Where a transition animates opacity itself —
+    // `layout`, and every consumer fade — the from-pose already carries the
+    // author's own value, so the concealment is released simply by stopping:
+    // the authored decls take over and the fade runs from where it was written
+    // to run from. Forcing 1 there landed the screen fully opaque on the frame
+    // after the head and deleted the fade outright (WebKit-measured: opacity 1.0
+    // at 217ms where the authored curve is at 0.20).
+    //
+    // Only a transition that declares NO opacity needs the release spelled out,
+    // because there its `0.02` has nothing authored to fall back to.
+    const authorsOpacity = [...fromDecls, ...toDecls].some((d) => d.property === "opacity");
+    const release = parksEntering && !authorsOpacity ? `    opacity: 1;` : "";
+    // An injected opacity REPLACES the author's at that stop rather than
+    // trailing it: `opacity: 1; opacity: 0.02` resolves the same way, but only
+    // one of the two is ever the value and the sheet should say so.
+    const at = (pct: number, decls: CssDecl[], opacity: string) => {
+      const kept = opacity ? decls.filter((decl) => decl.property !== "opacity") : decls;
+      // A pose can be nothing BUT its opacity — a fade's from-pose is exactly
+      // that — so the authored block has to drop out of the stop rather than
+      // leave a blank line where its only declaration was.
+      const lines = [
+        ...(kept.length > 0 ? [declsToBlock(kept).replace(/^/gm, "  ")] : []),
+        ...(opacity ? [opacity] : [])
+      ];
+      return `  ${pct.toFixed(3)}% {\n${lines.join("\n")}\n  }`;
+    };
+    return (
+      `\n@keyframes ${kf} {\n` +
+      `${at(0, toDecls, conceal)}\n` +
+      `${at(headPct - sliver, toDecls, conceal)}\n` +
+      `${at(headPct, fromDecls, conceal)}\n` +
+      (parksEntering ? `${at(headPct + sliver, fromDecls, release)}\n` : "") +
+      `${at(100, toDecls, release)}\n` +
+      `}\n` +
+      `:root${attrSelector(attribute)} ${screenSelector}${attrValueSelector(PARK_HEAD_ATTR, "true")} {\n` +
+      `  animation-name: ${kf};\n` +
+      `  animation-duration: ${total.toFixed(3)}s;\n` +
+      `  animation-delay: ${(shiftDelay ? delay + headS : delay).toFixed(3)}s;\n` +
+      (parksEntering
+        ? `  will-change: ${[...new Set([...animatedProperties, "opacity"])].join(", ")};\n`
+        : "") +
+      `}`
+    );
+  };
+
+  // One parked copy per head the sheet emits, in the same order and by the same
+  // rule as `headsFor`: a head that holds an entering screen away from its park
+  // has this defect, and how long it holds it only decides how visible it is.
+  const parkHeadsFor = () =>
+    parkHeadBlock(GOVERNED_ATTR, "govpark", headForVariant(variant), true) +
+    parkHeadBlock(DESK_HEAD_ATTR, "deskpark", desktopHeadForVariant(variant), false);
 
   // The bar's corrected copy carries the same heads for the same reason the
   // screen does: a rider that keeps the screen's clock but loses the governed
@@ -931,7 +1068,7 @@ const compileVariantBlock = (
     ? `\n${keyframeBlockFor(barTarget)}\n${ruleBlockFor(barTarget)}${headsFor(barTarget)}`
     : "";
 
-  return `${keyframeBlock}\n${ruleBlockFor()}${headsFor()}${parkBlock}${parkUnderBlock}${parkOverBlock}${barBlock}`;
+  return `${keyframeBlock}\n${ruleBlockFor()}${headsFor()}${parkHeadsFor()}${parkBlock}${parkUnderBlock}${parkOverBlock}${barBlock}`;
 };
 
 // Whether a variant's `from` target leaves the screen invisible on its first

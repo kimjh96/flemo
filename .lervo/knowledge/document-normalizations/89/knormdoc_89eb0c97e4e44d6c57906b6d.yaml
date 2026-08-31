@@ -1,0 +1,32 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_7d6324f4265d2c9779143284
+compiler:
+  compilerBuildId: sha256:e2648f288df34473ac06655ebe52db6b4a9ce58af2e5fe9acc9ceb46eb670316
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 1+codex-cli 0.151.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_c575bdfe3b299636e5e5d4da
+outputLanguage: en
+outputs:
+  - byteCount: 5337
+    contentHash: sha256:db24c02a52af30d63be53da14e30915c963c477435830f31ee608ce0f7b0a40d
+    path: docs/instructions/motion-jank-postmortem/long-content-reveal-block-2026-08-30.md
+    userRegionHash: sha256:db24c02a52af30d63be53da14e30915c963c477435830f31ee608ce0f7b0a40d
+profile: instruction_document
+recordId: knormdoc_89eb0c97e4e44d6c57906b6d
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:4e49bdc1b74af89dc5069702a76623245285f06c2e2a232fea336c4ca14810ce
+sourcePath: docs/instructions/motion-jank-postmortem/long-content-reveal-block-2026-08-30.md
+sourceUnitVersionIds:
+  - uv_25610c12880910e5a0bf64d8
+  - uv_3b0b3d24928bf04a41c535dc
+  - uv_3c7e4d8f98dce32712ffa587
+  - uv_3f60690c64ceb671a88da358
+  - uv_aea02033be93bb05047e4abc
+  - uv_b4ca446b52ea6491ec088a9d
+  - uv_b966ae913956fdb3db834508

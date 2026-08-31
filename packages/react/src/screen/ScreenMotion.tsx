@@ -29,6 +29,7 @@ import {
   decoratorMap,
   enteringInitialStyle,
   observeBarHeight,
+  parkHeadEnabled,
   publishRideBox,
   resolvePlatformProfile,
   resolveTransition,
@@ -669,6 +670,10 @@ function ScreenMotion({
   // what lets the reconcile leave the release frame (profile.deferReleaseCommit).
   const releasedKeyRef = useRef<string | null>(null);
 
+  // The hold key whose park-over was granted, remembered past the release so the
+  // parked head keeps matching for as long as it runs (see `parkHead` below).
+  const parkHeadKeyRef = useRef<string | null>(null);
+
   const [animRelease, setAnimRelease] = useState<{ key: string | null; released: boolean }>({
     key: holdKey,
     released: holdKey === null
@@ -681,6 +686,10 @@ function ScreenMotion({
     // A new hold starts held: the previous flight's imperative release must not
     // leak into it.
     releasedKeyRef.current = null;
+    // Nor its park. Hold keys are `${status}:${transition}`, so two pushes in a
+    // row share one — without this, the second would inherit the first's mark
+    // and park a head whose cover was never measured.
+    parkHeadKeyRef.current = null;
     // Capture the wake-from-freeze signal for this hold BEFORE the tracker
     // below advances to the current commit's freeze value.
     decodeWaitRef.current = holdKey !== null && wasFrozenRef.current;
@@ -730,6 +739,32 @@ function ScreenMotion({
             ANIM_HOLD.PARK_OVER
           : ANIM_HOLD.PARK_UNDER
         : ANIM_HOLD.HELD;
+
+  // Whether the head that follows this hold should carry the park pose instead
+  // of the authored from-pose (see PARK_HEAD_ATTR). Sticky across the release on
+  // purpose: the attribute has to still be there for the whole head, and by then
+  // `holdAttr` has long since read RELEASED. Keyed on the flight's own hold key
+  // so the next navigation starts from nothing — a stale mark would park a
+  // screen whose cover was never measured opaque.
+  //
+  // THE TEST IS WHETHER THE CONCEALMENT SURVIVES THE RELEASE, and the three
+  // parks answer it differently:
+  //   - PARK_OVER hides the screen with its own near-zero opacity. An opacity is
+  //     part of the animation, so the head can keep applying it.
+  //   - PARK hides the covered screen under the one moving over it, which is
+  //     held on the SAME clock and so is still in its own head. Nothing has to
+  //     be re-applied for it to stay hidden.
+  //   - PARK_UNDER hides the entering screen under a z-index THIS COMPONENT
+  //     drops the moment the hold releases (see the outer container's zIndex).
+  //     Carrying that pose past the release would uncover the screen whole.
+  if (
+    parkHeadKeyRef.current !== holdKey &&
+    (holdAttr === ANIM_HOLD.PARK_OVER || holdAttr === ANIM_HOLD.PARK) &&
+    parkHeadEnabled()
+  ) {
+    parkHeadKeyRef.current = holdKey;
+  }
+  const parkHead = holdKey !== null && parkHeadKeyRef.current === holdKey;
 
   // What a <Layer> slot needs to keep being this screen while sitting outside
   // it. Every value here is one the slot cannot get by being where it is: it
@@ -1044,6 +1079,7 @@ function ScreenMotion({
         data-flemo-status={status}
         data-flemo-active={isActive ? "true" : "false"}
         data-flemo-anim-hold={holdAttr}
+        data-flemo-park-head={parkHead ? "true" : undefined}
         style={{
           display: "flex",
           flexDirection: "column",

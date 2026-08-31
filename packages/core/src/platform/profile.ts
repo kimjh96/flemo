@@ -2,6 +2,7 @@ import {
   readDeferReleaseCommitFlag,
   readDesktopReleaseFlipFlag,
   readImageOffloadOverride,
+  readParkHeadFlag,
   readPrerasterFlag,
   readRestLayerPromotionFlag,
   readSettleGateFlag
@@ -103,6 +104,7 @@ export const resolvePlatformProfile = (input: PlatformProfileInput = {}): Platfo
   const blink = detectBlinkEngine();
   const mainThreadPresented = !blink;
   const touchWebKit = governedCompiledActive();
+  const parkOver = readPrerasterFlag() || touchWebKit;
 
   return {
     mainThreadPresented,
@@ -113,7 +115,7 @@ export const resolvePlatformProfile = (input: PlatformProfileInput = {}): Platfo
       (input.authoredNativeDriver === true || touchWebKit || readDesktopReleaseFlipFlag()),
     deferReleaseCommit: readDeferReleaseCommitFlag(),
     renderSettleGate: readSettleGateFlag(),
-    parkOver: readPrerasterFlag() || touchWebKit,
+    parkOver,
     restLayerPromotion: readRestLayerPromotionFlag(),
     // THE IMAGE DECIDES, NOT THE DEVICE.
     //
@@ -147,3 +149,17 @@ export const resolvePlatformProfile = (input: PlatformProfileInput = {}): Platfo
  * `() => resolvePlatformProfile().restLayerPromotion` would not be.
  */
 export const restLayerPromotionEnabled = (): boolean => resolvePlatformProfile().restLayerPromotion;
+
+/**
+ * Whether a head carries the park in front of it (see PARK_HEAD_ATTR).
+ *
+ * Deliberately NOT a profile field. The profile answers per-browser questions,
+ * and this is not one: a head that drops the park loses the raster on every
+ * engine that has both, and how long it holds it only decides how visible that
+ * is. What varies by environment is which park is granted, which the profile
+ * already answers as `parkOver` — and a binding only ever asks this once a park
+ * has been granted, so an unverified environment reaches it with nothing armed.
+ *
+ * `flemo:parkhead=off` is the A/B, and the only reason this is a function at all.
+ */
+export const parkHeadEnabled = (): boolean => readParkHeadFlag();
