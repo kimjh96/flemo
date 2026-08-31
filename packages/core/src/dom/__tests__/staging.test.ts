@@ -67,6 +67,46 @@ describe("preserveAnimations", () => {
     expect(live[0].currentTime).toBe(0);
   });
 
+  it("carries a descendant while still leaving the root's own animation alone", () => {
+    // The shape a morph actually travels in: the shared element runs its own
+    // travel animation AND contains a <Part> running the flight's keyframes.
+    // The descendant has to come back to where it was; the root must not,
+    // because the morph runtime writes that one on both sides of the move.
+    let live = [
+      animation(root, "flemo-morph-1i-travel", 200),
+      animation(child, "flemo-part-detail-PUSHING-true", 320)
+    ];
+    stubAnimations(root, () => live);
+
+    preserveAnimations(root, () => {
+      live = [
+        animation(root, "flemo-morph-1i-travel", 0),
+        animation(child, "flemo-part-detail-PUSHING-true", 0)
+      ];
+      destination.appendChild(root);
+    });
+
+    expect(live.map((one) => one.currentTime)).toEqual([0, 320]);
+  });
+
+  it("carries the root's own animation when the caller asks for it", () => {
+    // A staged <Part> IS the animating element: the compiled part rule matches
+    // it directly, so the re-parent restarts the very animation being watched.
+    let live = [animation(root, "flemo-part-navigationIcon-POPPING-false", 140)];
+    stubAnimations(root, () => live);
+
+    preserveAnimations(
+      root,
+      () => {
+        live = [animation(root, "flemo-part-navigationIcon-POPPING-false", 0)];
+        destination.appendChild(root);
+      },
+      { includeRoot: true }
+    );
+
+    expect(live[0].currentTime).toBe(140);
+  });
+
   it("does not restore an animation that is not there after the move", () => {
     let live: FakeAnimation[] = [animation(child, "gone", 100)];
     stubAnimations(root, () => live);
