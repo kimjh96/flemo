@@ -1094,7 +1094,7 @@ function ScreenMotion({
           //
           // Deliberately not shipped. Nobody is reporting that freeze today,
           // several treatments landed since the measurement (layerSettleHold,
-          // the cadence video, the deferred freeze) that may have absorbed
+          // the deferred freeze) that may have absorbed
           // it, and adding it behind a flag would be machinery with no
           // consumer — the class of debt PR #272 deleted. If a desktop pop
           // ever freezes at its opening again: add `|| zIndex === index - 1`

@@ -181,7 +181,9 @@ Chronologically:
   repaint was the full-viewport flash landing exactly on the convergence frames.
   `flemo:layers=resident` keeps screen layers resident permanently (diagnostic).
 - The compositor warm-up (armed at the first transitional commit) outlives COMPLETED by
-  `WARM_SETTLE_MS = 400` so the convergence storm stays on the vsync cadence.
+  `WARM_SETTLE_MS = 400` so the convergence storm stays on the vsync cadence. Its element
+  is session-resident and only its animation is refcounted, so a release idles it rather
+  than removing it.
 
 ## 3. The inline lease model (`transition/animateInline.ts`)
 
@@ -244,7 +246,7 @@ is not a consumer value; the landed scope belongs to the compiled rest rules.**
 | `landingGovernor.ts`        | Reshapes the compiled easing so the convergence tail never falls under one device pixel per frame. Its removed sibling — the integer-pixel SNAP — is documented there as falsified; do not re-derive it.                                                    |
 | `perceptualSpan.ts`         | The imperceptibility-band math shared by the completion cut and the early landing.                                                                                                                                                                          |
 | `nativeStallAnchor.ts`      | Clock surgery for main-thread-presenting engines. Authored `driver: "native"` pins only.                                                                                                                                                                    |
-| `compositorWarmUp.ts`       | An invisible raster-class animation keeping the frame cadence alive through the flight and its settle window; refcounted.                                                                                                                                   |
+| `compositorWarmUp.ts`       | An invisible raster-class animation keeping the frame cadence alive through the flight and its settle window; refcounted, on a session-resident element.                                                                                                    |
 | `gpuPipelinePrewarm.ts`     | One-shot boot-idle probes compiling Chrome Graphite's GPU pipelines before the first flight.                                                                                                                                                                |
 | `diagnosticRegistry.ts`     | The `flemo:*` registry as DATA — every storage-backed key, its default, and the retired ones. Exported from the package so `@flemo/devtools` mirrors it instead of hand-copying; pinned to the readers by `diagnosticRegistry.test.ts` in both directions.  |
 | `diagnosticFlags.ts`        | The flag READERS. Each computes a default and lets its key override it; `documentedDefaults.test.ts` holds every registry row to the reader that implements it.                                                                                             |

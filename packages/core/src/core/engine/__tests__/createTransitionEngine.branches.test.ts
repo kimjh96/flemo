@@ -20,6 +20,13 @@ import { partTransitionMap } from "@transition/partTransition/partTransition";
 // jsdom reads as non-Blink with no touch points, so these suites exercise the
 // COMPILED path — the only motion driver the engine has.
 
+// The warm-up element is session-RESIDENT (see compositorWarmUp.ts): a release
+// stops it forcing frames rather than removing it, so its attribute VALUE, not
+// its presence, is what says a hold is live.
+const WARM_ON = '[data-flemo-warm="on"]';
+const warmAnimationStub = () =>
+  ({ cancel: vi.fn(), pause: vi.fn(), play: vi.fn() }) as unknown as Animation;
+
 const deps = () => ({
   getTransitionTaskId: vi.fn(() => null),
   setDragStatus: vi.fn(),
@@ -1977,12 +1984,11 @@ describe("arrival-hold landing placement", () => {
 });
 
 describe("compositor warm-up settle extension", () => {
-  it("keeps the warm element alive 400ms past COMPLETED, then removes it", () => {
+  it("keeps the warm-up forcing frames 400ms past COMPLETED, then idles it", () => {
     vi.useFakeTimers();
     const originalAnimate = Element.prototype.animate;
-    const cancel = vi.fn();
     Element.prototype.animate = vi.fn(
-      () => ({ cancel }) as unknown as Animation
+      warmAnimationStub
     ) as unknown as typeof Element.prototype.animate;
     try {
       const { scope } = elements();
@@ -1998,17 +2004,17 @@ describe("compositor warm-up settle extension", () => {
         });
 
       const cleanupFlight = drive("PUSHING");
-      expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+      expect(document.querySelector(WARM_ON)).not.toBeNull();
       cleanupFlight();
 
       // COMPLETED: the warm-up must survive the settle window...
       const cleanupRest = drive("COMPLETED");
-      expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+      expect(document.querySelector(WARM_ON)).not.toBeNull();
       vi.advanceTimersByTime(399);
-      expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+      expect(document.querySelector(WARM_ON)).not.toBeNull();
       // ...and end right after it.
       vi.advanceTimersByTime(2);
-      expect(document.querySelector("[data-flemo-warm]")).toBeNull();
+      expect(document.querySelector(WARM_ON)).toBeNull();
       cleanupRest();
     } finally {
       Element.prototype.animate = originalAnimate;
@@ -2020,7 +2026,7 @@ describe("compositor warm-up settle extension", () => {
     vi.useFakeTimers();
     const originalAnimate = Element.prototype.animate;
     Element.prototype.animate = vi.fn(
-      () => ({ cancel: vi.fn() }) as unknown as Animation
+      warmAnimationStub
     ) as unknown as typeof Element.prototype.animate;
     try {
       const { scope } = elements();
@@ -2041,11 +2047,11 @@ describe("compositor warm-up settle extension", () => {
       // Next navigation starts mid-settle: the pending release is cancelled.
       drive("POPPING")();
       vi.advanceTimersByTime(1000);
-      expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+      expect(document.querySelector(WARM_ON)).not.toBeNull();
       // Its own COMPLETED starts a fresh settle window.
       drive("COMPLETED")();
       vi.advanceTimersByTime(401);
-      expect(document.querySelector("[data-flemo-warm]")).toBeNull();
+      expect(document.querySelector(WARM_ON)).toBeNull();
     } finally {
       Element.prototype.animate = originalAnimate;
       vi.useRealTimers();
@@ -2117,7 +2123,7 @@ describe("compositor warm-up without setTimeout", () => {
   it("releases the warm hold immediately where timers do not exist", () => {
     const originalAnimate = Element.prototype.animate;
     Element.prototype.animate = vi.fn(
-      () => ({ cancel: vi.fn() }) as unknown as Animation
+      warmAnimationStub
     ) as unknown as typeof Element.prototype.animate;
     const { scope } = elements();
     const engine = createTransitionEngine(deps());
@@ -2131,7 +2137,7 @@ describe("compositor warm-up without setTimeout", () => {
         animHoldReleased: true
       });
     drive("PUSHING")();
-    expect(document.querySelector("[data-flemo-warm]")).not.toBeNull();
+    expect(document.querySelector(WARM_ON)).not.toBeNull();
 
     const originalSetTimeout = globalThis.setTimeout;
     // @ts-expect-error simulating an environment without timers for the
@@ -2143,6 +2149,6 @@ describe("compositor warm-up without setTimeout", () => {
       globalThis.setTimeout = originalSetTimeout;
       Element.prototype.animate = originalAnimate;
     }
-    expect(document.querySelector("[data-flemo-warm]")).toBeNull();
+    expect(document.querySelector(WARM_ON)).toBeNull();
   });
 });
