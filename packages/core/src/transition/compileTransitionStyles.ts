@@ -757,7 +757,7 @@ const compileVariantBlock = (
         .join(",\n");
     return `\n${gate()} {\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`;
   };
-  // The CREEP head (`flemo:creep`, `:root[data-flemo-governed][data-flemo-creep]`).
+  // The CREEP head (`:root[data-flemo-governed][data-flemo-creep]`).
   //
   // Device timelines (iPhone, 2026-08-20) put one dropped frame at the head's
   // LENGTH, not at any clock time: a 100ms head dropped the 6th frame after the

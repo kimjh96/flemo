@@ -1,15 +1,6 @@
-import {
-  readDeferReleaseCommitFlag,
-  readDesktopReleaseFlipFlag,
-  readImageOffloadOverride,
-  readParkHeadFlag,
-  readPrerasterFlag,
-  readRestLayerPromotionFlag,
-  readSettleGateFlag
-} from "@core/engine/diagnosticFlags";
-
-import { detectBlinkEngine } from "@platform/engineProbes";
+import { detectBlinkEngine, isDesktopMacWebKit } from "@platform/engineProbes";
 import { governedCompiledActive } from "@platform/governedCompiled";
+import { steadySixtyDesktopProfile } from "@platform/steadySixtyCadence";
 
 // THE PLATFORM PROFILE.
 //
@@ -28,10 +19,15 @@ import { governedCompiledActive } from "@platform/governedCompiled";
 //
 // A binding's job is now to ASK and to RENDER, never to decide.
 //
-// NOT CACHED, deliberately. Every field reads its flag live, so a DevTools
-// toggle takes effect on the next navigation without a reload — the uncached
-// semantics the flag registry documents. Resolve it per decision (per render,
-// per flight); never hoist one to module scope.
+// NOT CACHED, deliberately. Every field re-reads its probes live, because the
+// terms are not all constant for a session: the steady-60 verdict below only
+// forms after two measured flights. Resolve it per decision (per render, per
+// flight); never hoist one to module scope.
+//
+// There is no override channel. Every decision here is derived from the
+// environment alone — the `flemo:*` session keys that used to force each of
+// these both ways were diagnostic instruments that shipped to consumers, and
+// they were removed outright rather than merely defaulted off.
 
 export interface PlatformProfile {
   /**
@@ -49,7 +45,7 @@ export interface PlatformProfile {
    * its own frame's rendering update are atomic, so clock-start and first paint
    * become simultaneous by construction.
    *
-   * Device-verified on three populations; see readDesktopReleaseFlipFlag. An
+   * Device-verified on three populations; see the resolver below. An
    * authored `driver: "native"` transition takes it too — pass
    * `authoredNativeDriver` to fold that in.
    */
@@ -76,13 +72,6 @@ export interface PlatformProfile {
   readonly parkOver: boolean;
 
   /**
-   * Keep the screen scope's layer promoted at REST. Off everywhere by default:
-   * a promotion is also a stacking context, and at rest it outranks any
-   * consumer overlay inside the screen.
-   */
-  readonly restLayerPromotion: boolean;
-
-  /**
    * Rewrite oversized `<img>` sources to decoded-to-scale blobs off the main
    * thread. Auto on legacy Android Blink only — it touches consumer content,
    * so it must never run where the paint is already cheap.
@@ -100,23 +89,91 @@ export interface PlatformProfileInput {
   readonly authoredNativeDriver?: boolean;
 }
 
+// A touch Blink session — the phone class the settle gate was actually
+// validated on. This is NOT a weak-device predicate: the evidence is about the
+// phenomenon (a heavy mount commit stalling even the compositor's initial
+// layerization), which does not care whether the device is fast.
+// No navigator guard: detectBlinkEngine() returns false without one, so the
+// short circuit already covers it.
+const isTouchBlink = (): boolean => detectBlinkEngine() && navigator.maxTouchPoints > 0;
+
+/**
+ * The render-settle entry gate, as its own predicate — the flight routing asks
+ * for it directly (a PUSH only forces the compiled tier behind the gate), and
+ * the profile publishes it as `renderSettleGate`. One definition, because the
+ * two drifted apart once already: the ARMING widened in the react binding while
+ * core's stayed WebKit-only, and Android ran ungated for two release rounds.
+ *
+ * ON for touch WebKit (governedCompiledActive — the governed-compiled tier
+ * ships with it), for steady-60 desktop Blink sessions, for touch Blink, AND
+ * for desktop macOS Safari.
+ *
+ * The steady-60 desktop term is a PROFILE, not a driver claim. It was written
+ * when a verified steady-60 session routed to the player, whose main-thread
+ * per-frame write the entering mount commit would stall; that routing is gone
+ * (Blink runs compiled everywhere since 2026-08-19) but the term stays, because
+ * the reason that survives is the tier-independent one: the measured ~50ms
+ * desktop mount hitch ages a wall-clocked compiled animation just as it starved
+ * the player.
+ *
+ * Touch Blink was the gap: the pop-convergence round (de35c13) widened the
+ * arming to "ALL engines" after a device A/B on a demoted Note 9 falsified the
+ * WebKit-only reading — its heavy detail mount runs a ~290ms main-thread task
+ * that stalls even the compositor's initial commit, so gating the release to
+ * AFTER that task measurably helped. Re-confirmed on the same device class
+ * 2026-08-19.
+ *
+ * Desktop macOS Safari was the same gap one platform over. It runs the compiled
+ * tier on purpose (macOS Safari caps rAF at 60Hz), but WebKit presents compiled
+ * animations from the MAIN THREAD, so a heavy entering mount eats the opening
+ * exactly as it does on a phone. Frame-level measurement of the docs site's own
+ * Home -> Showcase push (2026-08-20, production build, WebKit): the entering
+ * screen's mount blocked the main thread for 103-135ms while the animation's
+ * clock ran, so the FIRST presented frame already stood at 48-77% progress; the
+ * release commit then re-anchored the animation and it replayed from zero — a
+ * jump followed by a rewind, both visible. The same flight on Chromium was
+ * clean, which is why it read as Safari-only.
+ *
+ * The gate is adaptive, which is why this is safe to arm widely: with no
+ * qualifying mount commit inside firstWaitMs it releases with no felt delay, so
+ * a fast phone pays nothing for carrying it.
+ */
+export const settleGateActive = (): boolean =>
+  governedCompiledActive() || steadySixtyDesktopProfile() || isTouchBlink() || isDesktopMacWebKit();
+
 export const resolvePlatformProfile = (input: PlatformProfileInput = {}): PlatformProfile => {
   const blink = detectBlinkEngine();
   const mainThreadPresented = !blink;
   const touchWebKit = governedCompiledActive();
-  const parkOver = readPrerasterFlag() || touchWebKit;
 
   return {
     mainThreadPresented,
     // Scoped to non-Blink: Blink's compiled animation is compositor-driven and
     // rides a main-thread gap without aging, so the flip would buy it nothing.
+    //
+    // Desktop macOS Safari (isDesktopMacWebKit) routes compiled and presents
+    // from the main thread — the exact combination the flip was built for. The
+    // flip's known failure mode is a player-routed flight, which that session
+    // cannot hit: gate 3 pins it to the compiled tier for every flight.
     atomicReleaseFlip:
       mainThreadPresented &&
-      (input.authoredNativeDriver === true || touchWebKit || readDesktopReleaseFlipFlag()),
-    deferReleaseCommit: readDeferReleaseCommitFlag(),
-    renderSettleGate: readSettleGateFlag(),
-    parkOver,
-    restLayerPromotion: readRestLayerPromotionFlag(),
+      (input.authoredNativeDriver === true || touchWebKit || isDesktopMacWebKit()),
+    // Device timelines (iPhone, 2026-08-20) show a dropped frame AT THE RELEASE
+    // on 11 of 18 stock PUSH flights and 0 of 17 POPs — the asymmetry a
+    // mount-heavy entering commit predicts. The compiled clock starts on the
+    // release frame's style change and WebKit presents it from the main thread,
+    // so React's reconcile of that same update competes with the first present.
+    //
+    // The `flushSync` this defers exists for a real defect: an unrelated commit
+    // landing in the flip->reconcile window renders the STALE held state and
+    // writes the paused hold attribute back over a RUNNING animation. Deferring
+    // alone would reopen it, so the binding pairs this with a render-phase read
+    // of the imperative release (ScreenMotion's releasedKeyRef).
+    deferReleaseCommit: touchWebKit,
+    renderSettleGate: settleGateActive(),
+    // Park a push's entering screen ON TOP at near-zero opacity so the browser
+    // genuinely paints its tiles during the hold.
+    parkOver: touchWebKit,
     // THE IMAGE DECIDES, NOT THE DEVICE.
     //
     // This used to be armed by `isLegacyAndroidBlink` — an old BROWSER. The
@@ -135,31 +192,6 @@ export const resolvePlatformProfile = (input: PlatformProfileInput = {}): Platfo
     //
     // Still nothing without a browser: SSR verifies nothing, and this profile's
     // rule is that an unverified environment arms nothing.
-    imageDecodeOffload: typeof navigator !== "undefined" && readImageOffloadOverride() !== "off"
+    imageDecodeOffload: typeof navigator !== "undefined"
   };
 };
-
-/**
- * The REST-promotion decision on its own, as a module-stable function.
- *
- * A binding that server-renders must read this through a hydration-scoped
- * snapshot (it reaches the DOM as an inline style, so a render-phase read
- * mismatches the server HTML), and React's `useSyncExternalStore` requires the
- * reader identity to be stable across renders — which an inline
- * `() => resolvePlatformProfile().restLayerPromotion` would not be.
- */
-export const restLayerPromotionEnabled = (): boolean => resolvePlatformProfile().restLayerPromotion;
-
-/**
- * Whether a head carries the park in front of it (see PARK_HEAD_ATTR).
- *
- * Deliberately NOT a profile field. The profile answers per-browser questions,
- * and this is not one: a head that drops the park loses the raster on every
- * engine that has both, and how long it holds it only decides how visible that
- * is. What varies by environment is which park is granted, which the profile
- * already answers as `parkOver` — and a binding only ever asks this once a park
- * has been granted, so an unverified environment reaches it with nothing armed.
- *
- * `flemo:parkhead=off` is the A/B, and the only reason this is a function at all.
- */
-export const parkHeadEnabled = (): boolean => readParkHeadFlag();

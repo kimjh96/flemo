@@ -65,8 +65,8 @@ Chronologically:
     its destination but z-ordered _beneath_ the previous screen (the `zIndex: -1` on the
     outer screen container). Also gated on the cover's opacity. While parked, the
     entering-initial inline style is withheld (it would override the park rule).
-  - `"park-over"` — diagnostic only (`flemo:preraster=on`): destination pose on top at
-    `opacity: 0.02`.
+  - `"park-over"` — touch WebKit (the profile's `parkOver`): destination pose on top at
+    `opacity: 0.02`, so the browser genuinely paints the entering tiles during the hold.
 - Release scheduling lives in core (`scheduleAnimHoldRelease` +
   `createAnimHoldCoordinator`): double-rAF + image-decode readiness, a pop _pair
   barrier_ (both screens of a pop release together on one clock), and the optional
@@ -119,10 +119,6 @@ Chronologically:
     _resolutions_ (every method, streams excluded) and delivers them in one batch at
     rest; moves the reveal's React render (script cost `display:none` can't touch) out
     of the flight. Backstopped by the whole choreography span + 1500ms.
-  - **imageRevealHold** — the `<img>` analog. Default ON (strictly-unpainted images
-    only) on the steady-60 desktop profile since 2026-08-18; elsewhere opt-in
-    (`flemo:imghold=on`, WebKit
-    got worse with it on).
   - **beginFlightWindow** — global latch for out-of-engine machinery (the image decode
     offloader defers reveals to the same rest).
   - A navigation owns its participants: any running swipe-settle animation is concluded
@@ -179,7 +175,6 @@ Chronologically:
 - **layerSettleHold**: participants' pinned compositor promotions demote off-cadence,
   `LAYER_SETTLE_MS` past the flip and only once the flight window is idle — the demote
   repaint was the full-viewport flash landing exactly on the convergence frames.
-  `flemo:layers=resident` keeps screen layers resident permanently (diagnostic).
 - The compositor warm-up (armed at the first transitional commit) outlives COMPLETED by
   `WARM_SETTLE_MS = 400` so the convergence storm stays on the vsync cadence. Its element
   is session-resident and only its animation is refcounted, so a release idles it rather
@@ -238,7 +233,6 @@ is not a consumer value; the landed scope belongs to the compiled rest rules.**
 | `arrivalHold.ts`            | In-flight commit hold: mid-flight swaps/additions held off-glass and reflected in one commit at rest.                                                                                                                                                       |
 | `responseHold.ts`           | Flight-scoped fetch-resolution park (every method, minus streams), delivered in one batch at rest.                                                                                                                                                          |
 | `invisibleAnimationHold.ts` | Pauses invisible consumer animations for the flight (the culled-subtree first-composite stall).                                                                                                                                                             |
-| `imageRevealHold.ts`        | The `<img>` analog of responseHold. Opt-in (`flemo:imghold`).                                                                                                                                                                                               |
 | `imageDecodeHygiene.ts`     | Stamps `decoding="async"` on participants' images, respecting authored attributes.                                                                                                                                                                          |
 | `imageDecodeOffloader.ts`   | Off-main decode-to-scale for oversized images; auto-gated to legacy Android Blink.                                                                                                                                                                          |
 | `flightWindow.ts`           | Global nestable "a flight is in progress" latch for out-of-engine modules.                                                                                                                                                                                  |
@@ -248,8 +242,6 @@ is not a consumer value; the landed scope belongs to the compiled rest rules.**
 | `nativeStallAnchor.ts`      | Clock surgery for main-thread-presenting engines. Authored `driver: "native"` pins only.                                                                                                                                                                    |
 | `compositorWarmUp.ts`       | An invisible raster-class animation keeping the frame cadence alive through the flight and its settle window; refcounted, on a session-resident element.                                                                                                    |
 | `gpuPipelinePrewarm.ts`     | One-shot boot-idle probes compiling Chrome Graphite's GPU pipelines before the first flight.                                                                                                                                                                |
-| `diagnosticRegistry.ts`     | The `flemo:*` registry as DATA — every storage-backed key, its default, and the retired ones. Exported from the package so `@flemo/devtools` mirrors it instead of hand-copying; pinned to the readers by `diagnosticRegistry.test.ts` in both directions.  |
-| `diagnosticFlags.ts`        | The flag READERS. Each computes a default and lets its key override it; `documentedDefaults.test.ts` holds every registry row to the reader that implements it.                                                                                             |
 | `emulationNotice.ts`        | Once-per-session warning when a transition runs under DevTools device emulation (a scaled surface fabricates shimmer).                                                                                                                                      |
 | `createSwipeController.ts`  | Framework-neutral swipe-back: drag-follow inline writes, the release settle clock, bar mirroring, tap slop. Its header carries the Low Power Mode DO-NOT-RETRY list.                                                                                        |
 | `types.ts`                  | The injected engine interface (`TransitionEngineDeps`).                                                                                                                                                                                                     |

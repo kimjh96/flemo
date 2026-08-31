@@ -9,8 +9,7 @@ import { beginFlightWindow, resetFlightWindowForTests } from "@core/engine/fligh
 import {
   holdScopeLayer,
   LAYER_SETTLE_MS,
-  releaseScopeLayerAfterSettle,
-  resetResidentLayersForTesting
+  releaseScopeLayerAfterSettle
 } from "@core/engine/layerSettleHold";
 import createPartTransition from "@transition/partTransition/createPartTransition";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
@@ -68,29 +67,6 @@ describe("layerSettleHold", () => {
 
     holdScopeLayer(scope, still, false, Symbol("stranger"));
     expect(scope.style.willChange).toBe(held);
-  });
-
-  it("resident diagnostic keeps a SCREEN promoted at rest; bars still demote", () => {
-    sessionStorage.setItem("flemo:layers", "resident");
-    resetResidentLayersForTesting();
-    try {
-      const screen = document.createElement("div");
-      screen.setAttribute("data-flemo-screen", "");
-      holdScopeLayer(screen, cupertino(), true);
-      releaseScopeLayerAfterSettle(screen);
-      vi.advanceTimersByTime(LAYER_SETTLE_MS * 2);
-      expect(screen.style.willChange).toBe("transform"); // resident
-      expect(screen.style.contain).toBe(""); // containment still restores
-
-      const bar = document.createElement("div");
-      holdScopeLayer(bar, cupertino(), false);
-      releaseScopeLayerAfterSettle(bar);
-      vi.advanceTimersByTime(LAYER_SETTLE_MS);
-      expect(bar.style.willChange).toBe(""); // non-screen demotes normally
-    } finally {
-      sessionStorage.removeItem("flemo:layers");
-      resetResidentLayersForTesting();
-    }
   });
 
   it("stamps the transition's animated properties inline", () => {

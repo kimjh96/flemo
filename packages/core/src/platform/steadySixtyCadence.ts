@@ -67,36 +67,14 @@ const STEADY_SIXTY_FLIGHTS = 2;
 // at 1x there is no shimmer to fix and the compiled tier keeps its record.
 const STEADY_SIXTY_MIN_DPR = 1.5;
 
-// PERSISTED across reloads (`flemo:sixty`, sessionStorage — production-state,
-// same class as the retired flemo:lpm seed): the verdict is a property of the tab's display
-// environment, not of one page load. Without the seed, EVERY reload re-ran
-// the two-flight compiled warm-up — a user who reloads while evaluating
-// effectively lives in the old tier and never sees the graduated behavior
-// (device-reported 2026-08-18: "둘 다 심하다" from the user's own tab while
-// the clean instance was already judged improved — they were watching the
-// warm-up). "high" latches; a numeric value seeds the streak.
-const STORAGE_KEY = "flemo:sixty";
-const readPersisted = (): string | null => {
-  try {
-    return typeof sessionStorage !== "undefined" ? sessionStorage.getItem(STORAGE_KEY) : null;
-  } catch {
-    return null;
-  }
-};
-const persist = (value: string): void => {
-  try {
-    if (typeof sessionStorage !== "undefined") sessionStorage.setItem(STORAGE_KEY, value);
-  } catch {
-    // A partitioned context loses the seed, never the session's own verdict.
-  }
-};
-
-const seed = readPersisted();
-let sawHighRefresh = seed === "high";
-let sixtyStreak =
-  seed !== null && seed !== "high"
-    ? Math.min(STEADY_SIXTY_FLIGHTS, Math.max(0, parseInt(seed, 10) || 0))
-    : 0;
+// MODULE STATE, for the life of the document. The verdict was persisted to
+// `flemo:sixty` (sessionStorage) until 2026-08-31, so that a RELOAD did not
+// re-run the two-flight warm-up; it went with every other `flemo:*` key when
+// the diagnostic surface was removed from the shipped library. Client-side
+// navigation keeps the verdict either way — only a hard reload starts the two
+// flights over, which is the pre-2026-08-18 behavior.
+let sawHighRefresh = false;
+let sixtyStreak = 0;
 
 // Whether this session could ever READ the verdict (see the note in
 // reportInFlightCadence). SSR and jsdom report no touch surface, so both keep
@@ -112,11 +90,10 @@ const canAccumulateVerdict = (): boolean =>
 export const reportInFlightCadence = (rawMedianMs: number, rawMaxMs?: number): void => {
   if (!Number.isFinite(rawMedianMs) || rawMedianMs <= 0) return;
   // A TOUCH session can never consume this verdict (steadySixtyDesktopProfile
-  // requires maxTouchPoints === 0), so it must not pay for one: the streak
-  // bookkeeping and — the part that actually costs — a synchronous
-  // sessionStorage write on EVERY flight. The display probe that feeds this
-  // still runs there, because its other output (learnedFrameIntervalMs) does
-  // reach touch Blink; only the verdict stops accumulating.
+  // requires maxTouchPoints === 0), so it must not pay the streak bookkeeping
+  // for one. The display probe that feeds this still runs there, because its
+  // other output (learnedFrameIntervalMs) does reach touch Blink; only the
+  // verdict stops accumulating.
   //
   // Touch-ness is the right guard because it cannot change within a session.
   // devicePixelRatio deliberately is NOT: a window dragged to another display
@@ -129,25 +106,21 @@ export const reportInFlightCadence = (rawMedianMs: number, rawMaxMs?: number): v
     // a busy real-world tab recovering from a main-thread jam fires rAF in
     // CATCH-UP BURSTS (1-8ms gaps right after a long one) whose median can
     // dip below the threshold — device-reported 2026-08-18 as a tab stuck
-    // on the compiled tier ("갈색") on a measured-60Hz display, now with
-    // the false latch PERSISTED by the reload seed. A window whose max gap
-    // betrays a stall is jam noise: ignore it entirely.
+    // on the compiled tier ("갈색") on a measured-60Hz display. A window
+    // whose max gap betrays a stall is jam noise: ignore it entirely.
     if (rawMaxMs !== undefined && rawMaxMs > HIGH_REFRESH_MAX_INTERVAL_MS * 2) return;
     sawHighRefresh = true;
     sixtyStreak = 0;
-    persist("high");
     return;
   }
   if (rawMedianMs >= STEADY_SIXTY_MIN_MS && rawMedianMs <= STEADY_SIXTY_MAX_MS) {
     sixtyStreak = Math.min(STEADY_SIXTY_FLIGHTS, sixtyStreak + 1);
-    if (!sawHighRefresh) persist(String(sixtyStreak));
     return;
   }
   // The ambiguous 12-14ms band resets; a slow (>22ms) median is neutral —
   // see the header.
   if (rawMedianMs < STEADY_SIXTY_MIN_MS) {
     sixtyStreak = 0;
-    if (!sawHighRefresh) persist("0");
   }
 };
 
@@ -175,15 +148,13 @@ export const steadySixtyDesktopProfile = (): boolean =>
   typeof navigator !== "undefined" &&
   navigator.maxTouchPoints === 0 &&
   typeof window !== "undefined" &&
-  (window.devicePixelRatio || 1) >= STEADY_SIXTY_MIN_DPR;
+  // No `|| 1` fallback: the threshold is above 1, so a falsy devicePixelRatio
+  // fails this comparison whether it is defaulted or not. The fallback only
+  // ever produced an untestable branch with no outcome of its own.
+  window.devicePixelRatio >= STEADY_SIXTY_MIN_DPR;
 
-/* v8 ignore next 8 -- test hook: the verdict is session-scoped module state. */
+/* v8 ignore next 4 -- test hook: the verdict is document-scoped module state. */
 export const resetSteadySixtyForTests = (): void => {
   sawHighRefresh = false;
   sixtyStreak = 0;
-  try {
-    if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // ignore
-  }
 };

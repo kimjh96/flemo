@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  parkHeadEnabled,
-  resolvePlatformProfile,
-  restLayerPromotionEnabled
-} from "@platform/profile";
+import { resolvePlatformProfile } from "@platform/profile";
 import { reportInFlightCadence, resetSteadySixtyForTests } from "@platform/steadySixtyCadence";
 
 // The platform profile is the ONE place a per-browser decision is made, so
@@ -80,23 +76,12 @@ describe("atomicReleaseFlip", () => {
     setEnv({ blink: true, touch: true });
     expect(resolvePlatformProfile().atomicReleaseFlip).toBe(false);
     expect(resolvePlatformProfile({ authoredNativeDriver: true }).atomicReleaseFlip).toBe(false);
-    sessionStorage.setItem("flemo:deskflip", "on");
-    expect(resolvePlatformProfile().atomicReleaseFlip).toBe(false);
   });
 
   it("is off for a plain non-Mac desktop non-Blink session unless a transition pins native", () => {
     setEnv({ blink: false, touch: false });
     expect(resolvePlatformProfile().atomicReleaseFlip).toBe(false);
     expect(resolvePlatformProfile({ authoredNativeDriver: true }).atomicReleaseFlip).toBe(true);
-  });
-
-  it("honors an explicit deskflip override in both directions", () => {
-    setEnv({ blink: false, touch: false, mac: true });
-    sessionStorage.setItem("flemo:deskflip", "off");
-    expect(resolvePlatformProfile().atomicReleaseFlip).toBe(false);
-    setEnv({ blink: false, touch: false });
-    sessionStorage.setItem("flemo:deskflip", "on");
-    expect(resolvePlatformProfile().atomicReleaseFlip).toBe(true);
   });
 });
 
@@ -118,57 +103,13 @@ describe("renderSettleGate", () => {
 });
 
 describe("parkOver", () => {
-  it("is on for touch WebKit, and elsewhere only when the preraster flag arms it", () => {
+  it("is on for touch WebKit and nowhere else", () => {
     setEnv({ blink: false, touch: true });
     expect(resolvePlatformProfile().parkOver).toBe(true);
     setEnv({ blink: true, touch: true });
     expect(resolvePlatformProfile().parkOver).toBe(false);
-    sessionStorage.setItem("flemo:preraster", "on");
-    expect(resolvePlatformProfile().parkOver).toBe(true);
-  });
-});
-
-describe("restLayerPromotion", () => {
-  it("is off on every tier by default — a resting promotion is a stacking context", () => {
-    for (const env of [
-      { blink: false, touch: true },
-      { blink: true, touch: true },
-      { blink: true, touch: false, dpr: 2 },
-      { blink: false, touch: false, mac: true }
-    ]) {
-      setEnv(env);
-      expect(resolvePlatformProfile().restLayerPromotion).toBe(false);
-    }
-  });
-
-  it("exposes the same decision as a module-stable reader for hydration-gated bindings", () => {
-    setEnv({ blink: false, touch: true });
-    expect(restLayerPromotionEnabled()).toBe(resolvePlatformProfile().restLayerPromotion);
-    sessionStorage.setItem("flemo:preraster", "on");
-    expect(restLayerPromotionEnabled()).toBe(true);
-    // The identity must be stable: React's useSyncExternalStore resubscribes
-    // when the reader changes, which an inline lambda would do every render.
-    expect(restLayerPromotionEnabled).toBe(restLayerPromotionEnabled);
-  });
-});
-
-describe("parkHeadEnabled", () => {
-  // Deliberately NOT a profile field: a head that drops the park loses the
-  // raster on every engine that has both, so there is no per-browser question
-  // here. What varies is which park is granted, which `parkOver` already
-  // answers, and a binding only asks this once one has been.
-  it("is on for every environment, and only an explicit off takes it away", () => {
-    for (const env of [
-      { blink: false, touch: true },
-      { blink: true, touch: true },
-      { blink: false, touch: false, mac: true },
-      { blink: true, touch: false, dpr: 2 }
-    ]) {
-      setEnv(env);
-      expect(parkHeadEnabled(), JSON.stringify(env)).toBe(true);
-    }
-    sessionStorage.setItem("flemo:parkhead", "off");
-    expect(parkHeadEnabled()).toBe(false);
+    setEnv({ blink: false, touch: false, mac: true });
+    expect(resolvePlatformProfile().parkOver).toBe(false);
   });
 });
 
@@ -191,24 +132,16 @@ describe("imageDecodeOffload", () => {
       expect(resolvePlatformProfile().imageDecodeOffload, JSON.stringify(env)).toBe(true);
     }
   });
-
-  it("honors the override both ways", () => {
-    setEnv({ blink: false, touch: true });
-    sessionStorage.setItem("flemo:imgoffload", "on");
-    expect(resolvePlatformProfile().imageDecodeOffload).toBe(true);
-    setEnv({ blink: true, touch: true, android: true, uaCh: false });
-    sessionStorage.setItem("flemo:imgoffload", "off");
-    expect(resolvePlatformProfile().imageDecodeOffload).toBe(false);
-  });
 });
 
 describe("the profile as a whole", () => {
-  it("is resolved fresh on every call, so a DevTools toggle lands on the next navigation", () => {
-    setEnv({ blink: false, touch: false, mac: true });
-    expect(resolvePlatformProfile().atomicReleaseFlip).toBe(true);
-    sessionStorage.setItem("flemo:deskflip", "off");
+  it("is resolved fresh on every call, so a verdict formed mid-session lands", () => {
+    setEnv({ blink: true, touch: false, dpr: 2 });
+    expect(resolvePlatformProfile().renderSettleGate).toBe(false);
+    reportInFlightCadence(16.7);
+    reportInFlightCadence(16.7);
     // No reset, no reload: the very next resolve sees it.
-    expect(resolvePlatformProfile().atomicReleaseFlip).toBe(false);
+    expect(resolvePlatformProfile().renderSettleGate).toBe(true);
   });
 
   it("answers every documented field for an environment with no navigator at all (SSR)", () => {
@@ -224,7 +157,6 @@ describe("the profile as a whole", () => {
         deferReleaseCommit: false,
         renderSettleGate: false,
         parkOver: false,
-        restLayerPromotion: false,
         imageDecodeOffload: false
       });
     } finally {

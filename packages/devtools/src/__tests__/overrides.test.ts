@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  CORE_FLAGS,
   deriveOverrideWarnings,
   FLAG_REGISTRY,
   RETIRED_FLAGS,
@@ -16,8 +17,16 @@ afterEach(() => {
 });
 
 describe("FLAG_REGISTRY", () => {
-  it("documents every key from the core diagnostic-flag table", () => {
-    const keys = FLAG_REGISTRY.map((flag) => flag.key);
+  it("lists no live engine key — the library reads none", () => {
+    // Core stopped shipping its diagnostic surface on 2026-08-31, so the only
+    // live rows are the recorder's own. Every engine key moved to RETIRED_FLAGS
+    // so a device still carrying one is told it explains nothing.
+    expect(CORE_FLAGS).toEqual([]);
+    expect(FLAG_REGISTRY.map((flag) => flag.key)).toEqual([
+      "flemo:devtools",
+      "flemo:devtools-panel-height"
+    ]);
+    const retired = RETIRED_FLAGS.map((flag) => flag.key);
     for (const expected of [
       "flemo:sixty",
       "flemo:imghold",
@@ -30,9 +39,12 @@ describe("FLAG_REGISTRY", () => {
       "flemo:layers",
       "flemo:freeze",
       "flemo:preraster",
+      "flemo:parkhead",
+      "flemo:morph",
+      "flemo:governed",
       "flemo:imgoffload"
     ]) {
-      expect(keys).toContain(expected);
+      expect(retired).toContain(expected);
     }
   });
 
@@ -48,9 +60,9 @@ describe("snapshotOverrides", () => {
   });
 
   it("reads registry keys from their native storage", () => {
-    sessionStorage.setItem("flemo:settle-gate", "off");
+    sessionStorage.setItem("flemo:devtools", "on");
     const active = snapshotOverrides();
-    expect(active["flemo:settle-gate"]).toBe("off");
+    expect(active["flemo:devtools"]).toBe("on");
   });
 
   it("captures a retired key from either storage, marked as retired", () => {
@@ -185,20 +197,18 @@ describe("deriveOverrideWarnings", () => {
     expect(warnings[0]).toContain("a removed feature");
   });
 
-  it("warns about opt-in diagnostics as possible A/B residue", () => {
-    const warnings = deriveOverrideWarnings({ "flemo:layers": "resident" });
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("flemo:layers=resident");
-    expect(warnings[0]).toContain("left-over A/B toggle");
+  it("does not warn about a live key — no engine key is live any more", () => {
+    // The recorder's own keys are not findings about the page it records, and
+    // nothing else can be live: the library reads no `flemo:*` key.
+    expect(deriveOverrideWarnings({ "flemo:devtools": "on" })).toEqual([]);
   });
 
-  it("warns about overridden production defaults", () => {
-    const warnings = deriveOverrideWarnings({ "flemo:settle-gate": "off" });
+  it("warns about an engine key left on a device, now that it is retired", () => {
+    const warnings = deriveOverrideWarnings({
+      [`flemo:settle-gate (sessionStorage) ${RETIRED_MARKER}`]: "off"
+    });
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("production default overridden");
-  });
-
-  it("does not warn about learned production-state ledgers or the devtools arming key", () => {
-    expect(deriveOverrideWarnings({ "flemo:lat": "120", "flemo:devtools": "on" })).toEqual([]);
+    expect(warnings[0]).toContain("RETIRED residue");
+    expect(warnings[0]).toContain("the engine diagnostic surface (2026-08-31)");
   });
 });

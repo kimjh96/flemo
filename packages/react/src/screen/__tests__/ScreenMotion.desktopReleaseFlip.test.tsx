@@ -9,7 +9,7 @@ import ScreenMotion from "@screen/ScreenMotion";
 import { createTestStores } from "@stores/__tests__/testUtils";
 import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 
-// The atomic release flip on DESKTOP macOS SAFARI (`flemo:deskflip`).
+// The atomic release flip on DESKTOP macOS SAFARI.
 //
 // That session runs the compiled tier (isDesktopMacWebKit), and WebKit
 // presents the compiled clock from the main thread — so the release writes
@@ -55,9 +55,7 @@ describe("ScreenMotion desktop-Safari release flip", () => {
   };
 
   beforeEach(() => {
-    // The render-settle gate has its own suite; hold it off so this one
-    // observes the release write and nothing else.
-    sessionStorage.setItem("flemo:settle-gate", "off");
+    vi.useFakeTimers();
     stores = createTestStores();
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: "task-1" });
     stores.history.setState({ index: 0, histories: [historyEntry("top")] });
@@ -80,6 +78,7 @@ describe("ScreenMotion desktop-Safari release flip", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     sessionStorage.clear();
     delete (navigator as unknown as Record<string, unknown>).maxTouchPoints;
@@ -100,10 +99,16 @@ describe("ScreenMotion desktop-Safari release flip", () => {
   };
 
   // Run the paint anchor's frames, then let the release's microtasks settle.
+  // The render-settle gate is unconditional on this session, so the release
+  // sits behind it: pump frames until it quiesces, then let the release's
+  // microtasks settle.
   const release = async () => {
     await act(async () => {
-      frames.splice(0).forEach((frameCallback) => frameCallback(0));
-      frames.splice(0).forEach((frameCallback) => frameCallback(16));
+      for (let frame = 0; frame < 60; frame += 1) {
+        frames.splice(0).forEach((frameCallback) => frameCallback(frame * 16));
+        vi.advanceTimersByTime(16);
+        for (let hop = 0; hop < 4; hop++) await Promise.resolve();
+      }
       for (let hop = 0; hop < 8; hop++) await Promise.resolve();
     });
   };
@@ -123,20 +128,6 @@ describe("ScreenMotion desktop-Safari release flip", () => {
     // Two writes of "false": the flip's own, then React reconciling to the
     // same value. Without the flip React's is the only one.
     expect(releasedWritesOn(scope)).toHaveLength(2);
-    expect(scope.getAttribute("data-flemo-anim-hold")).toBe("false");
-  });
-
-  it("keeps the state-only release under an explicit flemo:deskflip=off", async () => {
-    asNonBlinkDesktop("MacIntel");
-    sessionStorage.setItem("flemo:deskflip", "off");
-    const scope = renderScreen();
-    holdWrites.length = 0;
-
-    await release();
-
-    // The opt-out restores the pre-2026-08-20 path — the release reaches the
-    // DOM only through React, which is the ordering the flip changes.
-    expect(releasedWritesOn(scope)).toHaveLength(1);
     expect(scope.getAttribute("data-flemo-anim-hold")).toBe("false");
   });
 

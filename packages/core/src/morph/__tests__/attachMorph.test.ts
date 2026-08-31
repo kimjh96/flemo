@@ -1609,61 +1609,6 @@ describe("attachMorph", () => {
     expect(hero.parentElement).toBe(layer);
   });
 
-  it("names every decision on the trace when it is armed", () => {
-    // A morph that declines is silent by design — a broken shared element must
-    // never take the navigation down with it — so a miss looks exactly like a
-    // screen transition with no morph in it. Armed, each decision says which
-    // it was.
-    sessionStorage.setItem("flemo:morph", "on");
-    try {
-      const gallery = makeScreen("layout", true);
-      const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
-      attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
-
-      const trace = () =>
-        ((globalThis as { flemoMorphTrace?: { why: string }[] }).flemoMorphTrace ?? []).map(
-          (line) => line.why
-        );
-
-      // Registered while nothing is navigating: the commonest decision of all.
-      expect(trace()).toContain("not-transitional");
-
-      flipTo("PUSHING");
-      gallery.setAttribute(ACTIVE_ATTR, "false");
-      const detail = makeScreen("layout", true);
-      const hero = makeMorph(detail, [0, 0, 400, 300]);
-      attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
-      hero.dispatchEvent(
-        animationEndEvent(/flemo-morph-\d+i-travel/.exec(hero.style.animation)![0])
-      );
-
-      expect(trace()).toContain("land");
-    } finally {
-      sessionStorage.clear();
-      delete (globalThis as { flemoMorphTrace?: unknown }).flemoMorphTrace;
-    }
-  });
-
-  it("keeps the trace to its last few hundred decisions", () => {
-    // A screen with a grid of pairs writes a line per pair per status change,
-    // so the buffer has to hold a navigation's worth without growing forever.
-    sessionStorage.setItem("flemo:morph", "on");
-    try {
-      const gallery = makeScreen("layout", true);
-      for (let index = 0; index < 520; index += 1) {
-        const cell = makeMorph(gallery, [0, 0, 10, 10]);
-        attachMorph(cell, { layoutId: `cell-${index}`, navigateStore: store });
-      }
-
-      const trace = (globalThis as { flemoMorphTrace?: unknown[] }).flemoMorphTrace ?? [];
-      expect(trace.length).toBeLessThanOrEqual(500);
-      expect(trace.length).toBeGreaterThan(400);
-    } finally {
-      sessionStorage.clear();
-      delete (globalThis as { flemoMorphTrace?: unknown }).flemoMorphTrace;
-    }
-  });
-
   it("fades the arrival in when the author gave it a pose to fade from", () => {
     // The presets do not: the arrival is opaque and the ghost dissolves on top
     // of it, because fading both bleeds the background through the pair. An
@@ -1959,26 +1904,6 @@ describe("attachMorph", () => {
     await Promise.resolve();
 
     expect(heading.parentElement).toBe(layer);
-  });
-
-  it("says which decision it took for an element that is on no screen at all", () => {
-    sessionStorage.setItem("flemo:morph", "on");
-    try {
-      const orphan = document.createElement("div");
-      document.body.appendChild(orphan);
-      setRect(orphan, 0, 0, 40, 40);
-      attachMorph(orphan, { layoutId: "orphan-1", navigateStore: store });
-      flipTo("PUSHING");
-      attachMorph(orphan, { layoutId: "orphan-1", navigateStore: store });
-
-      const why = (
-        (globalThis as { flemoMorphTrace?: { why: string }[] }).flemoMorphTrace ?? []
-      ).map((line) => line.why);
-      expect(why).toContain("no-screen");
-    } finally {
-      sessionStorage.clear();
-      delete (globalThis as { flemoMorphTrace?: unknown }).flemoMorphTrace;
-    }
   });
 
   it("reads a screen's transform-origin however it is written", async () => {

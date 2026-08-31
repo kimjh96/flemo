@@ -2,8 +2,6 @@ import type { NavigateStatus, NavigateStoreApi } from "@navigate/store";
 
 import { invertEasing } from "@transition/cubicBezier";
 
-import { morphTraceArmed } from "@core/engine/diagnosticFlags";
-
 import {
   clearGestureDeliveries,
   heldFlights,
@@ -45,17 +43,6 @@ const isMorphAnimation = (animation: Animation): boolean => {
   return typeof name === "string" && name.startsWith(MORPH_ANIMATION_PREFIX);
 };
 
-// The gesture's own decisions, on the same buffer the flight runtime writes to
-// (`flemo:morph=on`). A drag is the one path with no status flip behind it, so
-// nothing else in the trace says whether it staged, moved, or was handed back.
-const traceSwipe = (why: string, extra?: unknown): void => {
-  if (!morphTraceArmed()) return;
-  const host = globalThis as unknown as { flemoMorphTrace?: unknown[] };
-  const log = (host.flemoMorphTrace ??= []);
-  log.push({ why, id: "swipe", status: "DRAG", extra, t: Math.round(performance.now()) });
-  if (log.length > 500) log.shift();
-};
-
 const morphAnimations = (): Animation[] => {
   if (typeof document === "undefined" || typeof document.getAnimations !== "function") return [];
   return document.getAnimations().filter(isMorphAnimation);
@@ -92,7 +79,6 @@ export const beginMorphSwipe = (
   // A new gesture supersedes whatever the last one left behind.
   clearGestureDeliveries(store);
   stageHeldFlights(store, status);
-  traceSwipe("swipe-begin", { flights: heldFlights(store).length });
 
   // THE PARTNER CAN BE ONE FRAME YOUNGER THAN THE GESTURE.
   //
@@ -114,7 +100,6 @@ export const beginMorphSwipe = (
     requestAnimationFrame(() => {
       if (released || heldFlights(store).length > 0) return;
       stageHeldFlights(store, status);
-      traceSwipe("swipe-restage", { flights: heldFlights(store).length });
       holdAt(0);
     });
   }
@@ -153,11 +138,6 @@ export const beginMorphSwipe = (
   holdAt(0);
   queueMicrotask(() => holdAt(0));
 
-  // The last thing the gesture asked for, so a settle can say whether the drag
-  // was reaching the scrub at all.
-  let lastAsked: number | null = null;
-  let scrubs = 0;
-
   return {
     get active() {
       return clockOf() !== null;
@@ -167,8 +147,6 @@ export const beginMorphSwipe = (
       const flight = clockOf();
       if (!flight) return;
       const clamped = progress < 0 ? 0 : progress > 1 ? 1 : progress;
-      lastAsked = clamped;
-      scrubs += 1;
       // The drag names how far along the element should LOOK, not where its
       // clock should be. Those are the same number only for a linear ease;
       // under the built-in curve a finger a tenth of the way across moves the
@@ -180,22 +158,10 @@ export const beginMorphSwipe = (
       released = true;
       const flight = clockOf();
       if (!flight) {
-        traceSwipe("swipe-settle-no-flight", { commit, seconds });
         return;
       }
       const animations = morphAnimations();
       const span = Math.max(seconds, 1 / 60);
-      traceSwipe("swipe-settle", {
-        commit,
-        seconds,
-        flights: heldFlights(store).length,
-        animations: animations.length,
-        at: (animations[0]?.currentTime as number | null) ?? null,
-        scrubs,
-        lastAsked,
-        duration: flight.duration,
-        start: flight.start
-      });
       // A COMMIT delivers these elements itself: the release plays them out to
       // the arrival, and the navigation this commits will stage a moment later.
       // Whether its staging finds them still flying is a race the release speed

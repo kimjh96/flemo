@@ -2,12 +2,6 @@ import { DESKTOP_HEAD_MS, GOVERNED_HEAD_MS } from "@transition/compileTransition
 
 import type { Transition } from "@transition/typing";
 
-import {
-  readBlinkGovernedOverride,
-  readCreepHeadFlag,
-  readDesktopHeadFlag,
-  readSettleGateFlag
-} from "@core/engine/diagnosticFlags";
 import { learnedFrameIntervalMs } from "@platform/displayCadence";
 import { COMPILED_TIER_MAX_INTERVAL_MS } from "@platform/displayProbe";
 import {
@@ -16,6 +10,7 @@ import {
   isLegacyAndroidBlink
 } from "@platform/engineProbes";
 import { governedCompiledActive } from "@platform/governedCompiled";
+import { settleGateActive } from "@platform/profile";
 
 // HOW THIS ONE FLIGHT IS FLOWN.
 //
@@ -28,8 +23,8 @@ import { governedCompiledActive } from "@platform/governedCompiled";
 // among four hundred lines of unrelated wiring. Together they are a single
 // decision with a name, and the evidence behind each one belongs beside it.
 //
-// Read once per drive run, never cached: the flags feeding it are read live so
-// a DevTools toggle lands on the next navigation.
+// Read once per drive run, never cached: the probes feeding it are read live,
+// so a verdict formed mid-session lands on the next navigation.
 
 export interface FlightRouting {
   /** This flight has motion to drive at all (not skipped, and it resolves). */
@@ -95,7 +90,7 @@ export interface FlightRouting {
    */
   readonly framePacingKeepalive: boolean;
 
-  /** Arm the creep head beside the governed one (`flemo:creep`). */
+  /** Arm the creep head beside the governed one. */
   readonly creepHead: boolean;
 }
 
@@ -117,7 +112,7 @@ const hasTouch = (): boolean => typeof navigator !== "undefined" && navigator.ma
  * WHICH HEAD KIT this session plays, and how long its flat head is.
  *
  * Extracted so it has exactly one definition. It is a pure function of the
- * platform, the diagnostic flags and the status — nothing about the flight —
+ * platform and the status — nothing about the flight —
  * and the MORPH runtime needs the same answer at a moment when it cannot get
  * it from the DOM: the head is announced by an attribute on the root, and the
  * engine writes that attribute from the SAME commit the morph is staged in.
@@ -153,24 +148,22 @@ export const resolveHeadKit = (
   // be taken blind: the 2026-08-14 round reverted exactly that blanket
   // treatment when fast devices picked up the compiled landing snap.
   //
-  // `flemo:governed` is how that gap gets measured rather than argued about: it
-  // arms or disarms the kit on a device whose browser age says otherwise, which
-  // is the only way to find out whether a given phone wants it.
-  const governedOverride = readBlinkGovernedOverride();
-  const blinkGoverned =
-    blink &&
-    touch &&
-    (governedOverride === "on" || (governedOverride !== "off" && isLegacyAndroidBlink()));
+  const blinkGoverned = blink && touch && isLegacyAndroidBlink();
 
   // POP always: device-measured, a heavy returning screen's re-commit swallows
   // POP's opening exactly like PUSH's. PUSH only with the settle gate on, which
   // moves that mount weight into the hold so the release is light enough for
   // the fixed head to cover the opening.
   const forceCompiled =
-    !blink && touch && (status === "POPPING" || (status === "PUSHING" && readSettleGateFlag()));
+    !blink && touch && (status === "POPPING" || (status === "PUSHING" && settleGateActive()));
 
   const governedHead = touchGoverned || blinkGoverned || forceCompiled;
-  const desktopHead = isDesktopMacWebKit() && readDesktopHeadFlag();
+  // The desktop flat head, the desktop sibling of the governed head: a compiled
+  // clock is born at the release update's style resolution but its first frame
+  // reaches the glass only after that update's paint, the compositor commit and
+  // the UI process's activation. The head holds the authored from-pose across
+  // that latency so the curve PLAYS from 0 instead of being entered partway.
+  const desktopHead = isDesktopMacWebKit();
   return {
     touchGoverned,
     forceCompiled,
@@ -211,6 +204,12 @@ export const resolveFlightRouting = (input: FlightRoutingInput): FlightRouting =
       blink &&
       ((typeof navigator !== "undefined" && navigator.maxTouchPoints === 0) ||
         learnedFrameIntervalMs() < COMPILED_TIER_MAX_INTERVAL_MS),
-    creepHead: governedHead && readCreepHeadFlag()
+    // The CREEP head: its end keyframe carries a translateZ hair instead of
+    // repeating the start pose, so the value changes across the head and the
+    // compositor is already carrying the animation when the real motion begins.
+    // Aimed at the one dropped frame device timelines pinned to the head
+    // BOUNDARY (it followed the head length: 100ms head -> 6th frame after
+    // release, 200ms -> 12th).
+    creepHead: governedHead && governedCompiledActive()
   };
 };

@@ -7,7 +7,6 @@ import {
 import type { AnimationOptions, TransitionTarget } from "@transition/cssTypes";
 import type { TransitionVariant } from "@transition/typing";
 
-import { morphTraceArmed } from "@core/engine/diagnosticFlags";
 import {
   ACTIVE_ATTR,
   ANIM_HOLD,
@@ -448,11 +447,9 @@ const startFlight = (
         };
       })();
   if (side.rect.width <= 0 || side.rect.height <= 0) {
-    trace("zero-destination", entry, status, side.rect);
     return;
   }
   if (captured.snapshot.rect.width <= 0 || captured.snapshot.rect.height <= 0) {
-    trace("zero-origin", entry, status, captured.snapshot.rect);
     return;
   }
 
@@ -463,7 +460,6 @@ const startFlight = (
      registered element that reached the pairing is in the tree. The guard is
      for SSR and for a binding that registers a detached node. */
   if (!layer || !home) {
-    trace(!layer ? "no-layer" : "no-home", entry, status);
     return;
   }
 
@@ -575,7 +571,6 @@ const startFlight = (
   // chrome and lands by sliding back beneath it (see morphClip). Nested pairs
   // are not given one: their container clips them itself.
   const edgeClip = clipTravel(visibleInset(captured.element), visibleInset(entry.element));
-  if (edgeClip) trace("edge-clip", entry, status, edgeClip);
 
   const id = `${(flightSequence += 1)}`;
 
@@ -745,7 +740,6 @@ const startFlight = (
     // its corner, its surface and its border were the destination's from the
     // first frame, which is the same step the container was already fixed for.
     if (!retypes && !reshapes && !respaces && !travels && !resizes && paint.length === 0) {
-      trace("nested-nothing-to-do", entry, status);
       return;
     }
 
@@ -795,13 +789,11 @@ const startFlight = (
     entry.element.setAttribute(MORPH_ATTR, MORPH_ROLE.ENTER);
 
     let grown = false;
-    let nestedByBackstop = false;
     const finishNested = () => {
       /* v8 ignore next -- the listener is removed and the net cleared on the
          first landing; the guard is for a second caller racing the first. */
       if (grown) return;
       grown = true;
-      trace("land-nested", entry, status, { backstop: nestedByBackstop });
       entry.element.removeEventListener("animationend", onGrown);
       clearTimeout(nestedBackstop);
       if (inlineNested === null) entry.element.removeAttribute("style");
@@ -815,7 +807,6 @@ const startFlight = (
       // Same rule as the container's landing: an end that ran for no time is a
       // rebuilt animation, not a finished one (see `onEnd`).
       if (flightDuration > 0 && event.elapsedTime === 0) {
-        trace("false-end-nested", entry, status, { name: event.animationName });
         return;
       }
       finishNested();
@@ -823,7 +814,6 @@ const startFlight = (
     const nestedNet = (seconds: number) =>
       setTimeout(
         () => {
-          nestedByBackstop = true;
           finishNested();
         },
         seconds * 1000 + 250
@@ -1037,11 +1027,9 @@ const startFlight = (
       // hole: artwork read as a hero collapsing to a strip, type read as the
       // title vanishing at the tap. Both were real, and both were THIS pair's
       // flight having silently DECLINED (a zero-width destination, measured
-      // while a sibling's staged size squeezed it — see zero-destination in
-      // the trace), so nothing was underneath the window. With no real
-      // flight, a hidden copy IS a hole; the fix belonged to the declined
-      // flight, not to the ghost. When a pair goes missing mid-flight, read
-      // `flemoMorphTrace` before touching this line.
+      // while a sibling's staged size squeezed it), so nothing was underneath
+      // the window. With no real flight, a hidden copy IS a hole; the fix
+      // belonged to the declined flight, not to the ghost.
       if (node !== ghost && node.hasAttribute(MORPH_ATTR)) node.style.opacity = "0";
       node.removeAttribute(MORPH_ATTR);
       node.removeAttribute(MORPH_NAME_ATTR);
@@ -1174,18 +1162,11 @@ const startFlight = (
   if (screen) holdWatch?.observe(screen, { attributes: true, attributeFilter: [ANIM_HOLD_ATTR] });
 
   let landed = false;
-  let byBackstop = false;
   const finish = () => {
     /* v8 ignore next -- the travel's end and the backstop race; whichever
        arrives second must not restore the element twice. */
     if (landed) return;
     landed = true;
-    trace("land", entry, status, {
-      backstop: byBackstop,
-      hold: layer.getAttribute(ANIM_HOLD_ATTR),
-      screenHold: screen?.getAttribute(ANIM_HOLD_ATTR) ?? null,
-      elapsed: Math.round(performance.now() - startedAt)
-    });
     entry.element.removeEventListener("animationend", onEnd);
     clearTimeout(backstop);
     holdWatch?.disconnect();
@@ -1232,7 +1213,6 @@ const startFlight = (
     // it, on the other hand, is unrecoverable — the element is back in its
     // screen before it has moved a pixel.
     if (flightDuration > 0 && event.elapsedTime === 0) {
-      trace("false-end", entry, status, { name: event.animationName });
       return;
     }
     finish();
@@ -1241,11 +1221,9 @@ const startFlight = (
   // never get one — a screen frozen mid-air, a tab backgrounded before the
   // compositor reports back — because a morph that never lands leaves the
   // element in the layer, outside the tree its consumer wrote.
-  const startedAt = performance.now();
   const net = (seconds: number) =>
     setTimeout(
       () => {
-        byBackstop = true;
         finish();
       },
       seconds * 1000 + 250
@@ -1371,32 +1349,6 @@ const measurePartnerNow = (
 
 const MORPH_SELECTOR = attrSelector(MORPH_ATTR);
 
-/**
- * One line per flight decision, when `flemo:morph=on` is armed.
- *
- * A morph that declines is silent on purpose — a shared element is an
- * enhancement, and a broken one must never take the navigation down with it —
- * so a miss looks exactly like a screen transition that simply has no morph in
- * it. That is not something a consumer can report usefully, or ask for again.
- * Armed, every decision names itself on `globalThis.flemoMorphTrace` — data,
- * not console noise, so a session that saw something once can read the last
- * two hundred decisions back and devtools can surface them without the
- * runtime knowing devtools exists.
- */
-// Deep enough that a session which saw something once still has the flight in
-// the buffer when it reaches for the console: a screen with a grid of pairs
-// writes a line per pair per status change, so a few dozen entries is one
-// navigation, not one flight.
-const TRACE_LIMIT = 500;
-const trace = (why: string, entry: MorphEntry, status: string, extra?: unknown): void => {
-  if (!morphTraceArmed()) return;
-  const host = globalThis as unknown as { flemoMorphTrace?: unknown[] };
-  const line = { why, id: entry.layoutId, status, extra, t: Math.round(performance.now()) };
-  const log = (host.flemoMorphTrace ??= []);
-  log.push(line);
-  if (log.length > TRACE_LIMIT) log.shift();
-};
-
 const evaluate = (
   scope: MorphScope,
   store: NavigateStoreApi,
@@ -1412,14 +1364,12 @@ const evaluate = (
 ): void => {
   const status = forcedStatus ?? store.getState().status;
   if (!forcedStatus && !isTransitional(status)) {
-    trace("not-transitional", entry, status);
     return;
   }
   if (scope.flights.has(entry.layoutId)) {
     // The gesture's flight is still in the air and this navigation is riding
     // it, so the delivery mark has done its job and must not outlive it.
     scope.delivered.delete(entry.layoutId);
-    trace("already-flying", entry, status);
     return;
   }
 
@@ -1471,11 +1421,6 @@ const evaluate = (
   // once mid-navigation, and letting either start one would run the pairing
   // twice, in two directions.
   if (!carrying && (!screen || !isArriving(screen, status))) {
-    trace(!screen ? "no-screen" : "not-arriving", entry, status, {
-      active: screen?.getAttribute(ACTIVE_ATTR),
-      enclosing: !!enclosing,
-      deferred
-    });
     return;
   }
 
@@ -1487,7 +1432,6 @@ const evaluate = (
     // A gesture already carried this element to the very place this flight
     // would take it, and landed it a frame or two ago. Flying it again would
     // put it back where it started and repeat the whole trip.
-    trace("gesture-delivered", entry, status);
     return;
   }
 
@@ -1500,11 +1444,9 @@ const evaluate = (
       ? snapshot
       : measurePartnerNow(scope, entry, status, gesture);
   if (!captured) {
-    trace(!snapshot ? "no-snapshot" : "self-snapshot", entry, status, { deferred });
     return;
   }
 
-  trace("start", entry, status, { carrying: !!carrying, recovered: captured !== snapshot });
   startFlight(scope, entry, captured, status, screen, store, carrying);
 };
 

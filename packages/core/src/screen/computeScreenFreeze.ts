@@ -1,23 +1,12 @@
 import type { NavigateStatus } from "@navigate/store";
 
-import { shallowFreeze } from "@core/engine/diagnosticFlags";
-
-// Test seam re-export: the cached `flemo:freeze` read lives in the flag
-// registry, but the suites reach it through this module.
-export { resetShallowFreezeForTesting } from "@core/engine/diagnosticFlags";
-
-// OPT-IN diagnostic: keep the DIRECT prev screen live (never freeze it).
-// Measurement motive (2026-08, Mac Safari glass): resident screen layers
-// halved the per-flight onset present-skip, but the POP-returning screen
-// still pays a layer creation + first raster — its freeze (display:none)
-// destroys the layer regardless of any will-change, so the wake recreates
-// it at flight start. Keeping only the direct prev live pre-serves its
-// rasterized layer for the instant a pop needs it; DEEP screens keep
-// freezing (the O(depth) storm protection stays intact). Cost: one extra
-// live full-screen subtree at rest. Set through the `flemo:freeze` session
-// key; the (cached) read lives in diagnosticFlags.ts. URL arming was removed
-// 2026-08-21 — a query parameter wrote a session key on any visit, which made
-// a link enough to change how the library behaves for the rest of that tab.
+// Keeping the DIRECT prev screen live (never freezing it) was an opt-in
+// experiment, removed 2026-08-31 with the rest of the diagnostic surface.
+// Measurement motive (2026-08, Mac Safari glass): the POP-returning screen
+// pays a layer creation + first raster, because its freeze (display:none)
+// destroys the layer regardless of any will-change, so the wake recreates it
+// at flight start. The cost that kept it from shipping is one extra live
+// full-screen subtree at rest, per screen, forever.
 
 export interface ScreenFreezeInput {
   isActive: boolean;
@@ -54,7 +43,7 @@ export function computeScreenFreezeMode(input: ScreenFreezeInput): ScreenFreezeM
     (input.isPrev && input.index - 2 > input.zIndex);
   if (deep) return "immediate";
   const isTransitionCompleted = input.status === "COMPLETED" && input.dragStatus === "IDLE";
-  if (!input.isActive && isTransitionCompleted) return shallowFreeze() ? "live" : "deferred";
+  if (!input.isActive && isTransitionCompleted) return "deferred";
   return "live";
 }
 
