@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WARM_ATTR, attrSelector } from "@dom/attributes";
+import { WARM_ATTR, attrSelector, attrValueSelector } from "@dom/attributes";
 import { resetFlemoRuntimeForTests, startFlemoRuntime } from "@runtime/flemoRuntime";
 
 // The ambient runtime: what an app sits in so the FIRST navigation is not the
@@ -11,13 +11,18 @@ import { resetFlemoRuntimeForTests, startFlemoRuntime } from "@runtime/flemoRunt
 // Router mount, so a nested Router starts a second one; before this module they
 // each installed their own document listeners.
 
-const warmElement = () => document.querySelector(attrSelector(WARM_ATTR));
+// The warm element is session-RESIDENT (see compositorWarmUp.ts), so its
+// ATTRIBUTE VALUE is what says a hold is live; presence alone never goes back
+// to null once an interaction has built it.
+const warmOn = () => document.querySelector(attrValueSelector(WARM_ATTR, "on"));
 
 beforeEach(() => {
   vi.useFakeTimers();
   // jsdom has no compositing, so the warm-up's animation is stubbed; the
   // element's lifecycle is what this suite is about.
-  Element.prototype.animate = vi.fn(() => ({ cancel: vi.fn() }) as unknown as Animation);
+  Element.prototype.animate = vi.fn(
+    () => ({ cancel: vi.fn(), pause: vi.fn(), play: vi.fn() }) as unknown as Animation
+  );
 });
 
 afterEach(() => {
@@ -30,17 +35,17 @@ afterEach(() => {
 describe("startFlemoRuntime", () => {
   it("warms the compositor on interaction, and releases after the tail", () => {
     const release = startFlemoRuntime();
-    expect(warmElement()).toBeNull();
+    expect(warmOn()).toBeNull();
 
     document.dispatchEvent(new Event("pointermove"));
-    expect(warmElement()).not.toBeNull();
+    expect(warmOn()).not.toBeNull();
 
     // The hold outlives the interaction — the gap between a pointer settling
     // and the tap that follows it is what this is covering.
     vi.advanceTimersByTime(2_000);
-    expect(warmElement()).not.toBeNull();
+    expect(warmOn()).not.toBeNull();
     vi.advanceTimersByTime(2_000);
-    expect(warmElement()).toBeNull();
+    expect(warmOn()).toBeNull();
 
     release();
   });
@@ -54,10 +59,10 @@ describe("startFlemoRuntime", () => {
 
     // Without the renewal the hold would have expired at 3s. It has not.
     vi.advanceTimersByTime(2_000);
-    expect(warmElement()).not.toBeNull();
+    expect(warmOn()).not.toBeNull();
     // And the tail runs from the RENEWAL, not the first interaction.
     vi.advanceTimersByTime(1_500);
-    expect(warmElement()).toBeNull();
+    expect(warmOn()).toBeNull();
 
     release();
   });
@@ -74,7 +79,7 @@ describe("startFlemoRuntime", () => {
     // All of them were dropped, so the tail still expires on the FIRST
     // interaction's clock — a renewal would have pushed it past this point.
     vi.advanceTimersByTime(2_700);
-    expect(warmElement()).toBeNull();
+    expect(warmOn()).toBeNull();
 
     release();
   });
@@ -83,7 +88,7 @@ describe("startFlemoRuntime", () => {
     const release = startFlemoRuntime();
     for (const type of ["pointerdown", "wheel", "touchstart", "keydown"]) {
       document.dispatchEvent(new Event(type));
-      expect(warmElement(), type).not.toBeNull();
+      expect(warmOn(), type).not.toBeNull();
       vi.advanceTimersByTime(4_000);
       vi.advanceTimersByTime(600); // clear the renewal throttle
     }
@@ -98,11 +103,11 @@ describe("startFlemoRuntime", () => {
 
     // The outer holder still owns the runtime, so interaction still warms.
     document.dispatchEvent(new Event("pointermove"));
-    expect(warmElement()).not.toBeNull();
+    expect(warmOn()).not.toBeNull();
 
     outer();
     vi.advanceTimersByTime(4_000);
-    expect(warmElement()).toBeNull();
+    expect(warmOn()).toBeNull();
   });
 
   it("stops listening once the last holder releases", () => {
@@ -110,7 +115,7 @@ describe("startFlemoRuntime", () => {
     release();
 
     document.dispatchEvent(new Event("pointermove"));
-    expect(warmElement()).toBeNull();
+    expect(warmOn()).toBeNull();
   });
 
   it("ignores a repeated release from the same holder", () => {
@@ -122,7 +127,7 @@ describe("startFlemoRuntime", () => {
 
     // A sloppy caller must not tear down a runtime the outer holder still owns.
     document.dispatchEvent(new Event("pointermove"));
-    expect(warmElement()).not.toBeNull();
+    expect(warmOn()).not.toBeNull();
 
     outer();
   });
