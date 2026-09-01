@@ -485,7 +485,7 @@ describe("engine wiring", () => {
     idleBar.remove();
   });
 
-  it("this screen's <Part> elements stamp with their own definitions and demote off-cadence", () => {
+  it("no <Part> is stamped, while the screen still demotes off-cadence", () => {
     const container = document.createElement("div");
     const scope = document.createElement("div");
     scope.setAttribute("data-flemo-screen", "true");
@@ -507,15 +507,24 @@ describe("engine wiring", () => {
     );
     const engine = createTransitionEngine(deps());
 
+    // A part is never stamped, so there is no layer to demote off-cadence and
+    // nothing for the settle window to do. The screen keeps both: it is the
+    // surface the deferred demotion was written for. Parts lost the promotion
+    // because real Safari presents a promoted part at its STATIC opacity while
+    // the animation runs, which stopped a shared bar's departing glyph from
+    // fading at all (see participantLayers).
     drive(engine, scope, "PUSHING", false);
-    expect(part.style.willChange).toBe("opacity");
+    expect(part.style.willChange).toBe("");
+    expect(scope.style.willChange).not.toBe("");
 
     part.setAttribute("data-flemo-status", "COMPLETED");
     drive(engine, scope, "COMPLETED", false);
-    expect(part.style.willChange).toBe("opacity");
+    expect(part.style.willChange).toBe("");
+    expect(scope.style.willChange).not.toBe("");
     resetFlightWindowForTests();
     vi.advanceTimersByTime(LAYER_SETTLE_MS);
     expect(part.style.willChange).toBe("");
+    expect(scope.style.willChange).toBe("");
 
     container.remove();
     partTransitionMap.delete("settle-title" as never);

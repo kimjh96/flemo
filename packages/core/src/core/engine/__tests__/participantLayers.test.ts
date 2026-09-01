@@ -151,7 +151,10 @@ describe("holdParticipantLayers", () => {
     // not, and each is judged against its own box.
     expect(scope.style.animationTimingFunction).toBe("");
     expect(part.style.animationTimingFunction).toMatch(/^linear\(/);
-    expect(part.style.willChange).not.toBe("");
+    // The governor's easing is per-part; the layer promotion is not — a part is
+    // never promoted (real Safari presents a promoted part at its static
+    // opacity, so its animation never reaches the glass).
+    expect(part.style.willChange).toBe("");
   });
 
   it("stamps no easing where the governor does not engage", () => {
