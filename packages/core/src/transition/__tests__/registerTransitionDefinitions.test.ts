@@ -4,7 +4,7 @@ import createRawTransition from "@transition/createRawTransition";
 import registerTransitionDefinitions from "@transition/registerTransitionDefinitions";
 import { transitionMap } from "@transition/transition";
 
-import type { TransitionName, TransitionVariantValue } from "@transition/typing";
+import type { TransitionName, ScreenVariantValue } from "@transition/typing";
 
 import createRawDecorator from "@transition/decorator/createRawDecorator";
 import { decoratorMap } from "@transition/decorator/decorator";
@@ -16,7 +16,7 @@ import { partTransitionMap } from "@transition/partTransition/partTransition";
 import type { DecoratorName } from "@transition/decorator/typing";
 import type { PartTransitionName } from "@transition/partTransition/typing";
 
-const variant: TransitionVariantValue = {
+const variant: ScreenVariantValue = {
   value: { opacity: 1 },
   options: { duration: 0.2 }
 };

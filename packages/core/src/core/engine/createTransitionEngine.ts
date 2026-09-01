@@ -61,7 +61,7 @@ import {
 import { detectBlinkEngine } from "@platform/engineProbes";
 import { decoratorMap } from "@transition/decorator/decorator";
 import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
-import { partTransitionMap } from "@transition/partTransition/partTransition";
+import { resolvePartDefinition } from "@transition/partTransition/partTransition";
 
 const noop = () => {};
 
@@ -354,7 +354,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
 
       for (const part of collectVariantParts(scopeEl, variant)) {
         const partName = part.getAttribute(PART_NAME_ATTR)!;
-        const definition = partTransitionMap.get(partName);
+        const definition = resolvePartDefinition(partName, resolveTransition(transitionName));
         const partMotion = definition ? resolveVariantMotion(definition, variant) : null;
         if (!partMotion) continue;
         wirePure(part, animationName("part", partName, variant), partMotion);
@@ -612,7 +612,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       : null;
     const statusPartMotions: { element: HTMLElement; motion: VariantMotion }[] = [];
     for (const part of collectFlightParts(scope, status)) {
-      const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
+      const definition = resolvePartDefinition(
+        part.getAttribute(PART_NAME_ATTR),
+        currentTransition
+      );
       const partVariant = `${status}-${part.getAttribute(ACTIVE_ATTR)}` as TransitionVariant;
       const partMotion =
         definition && variantHasAnimation(definition, partVariant)

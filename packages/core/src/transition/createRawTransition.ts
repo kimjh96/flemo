@@ -2,22 +2,22 @@ import type { InitialTarget } from "@transition/cssTypes";
 import {
   type TransitionOptions,
   type Transition,
-  type TransitionVariantValue,
+  type ScreenVariantValue,
   type TransitionName
 } from "@transition/typing";
 
 interface CreateRawTransitionProps {
   name: TransitionName;
   initial: InitialTarget;
-  idle: TransitionVariantValue;
-  pushOnEnter: TransitionVariantValue;
-  pushOnExit: TransitionVariantValue;
-  replaceOnEnter: TransitionVariantValue;
-  replaceOnExit: TransitionVariantValue;
-  popOnEnter: TransitionVariantValue;
-  popOnExit: TransitionVariantValue;
-  completedOnEnter: TransitionVariantValue;
-  completedOnExit: TransitionVariantValue;
+  idle: ScreenVariantValue;
+  pushOnEnter: ScreenVariantValue;
+  pushOnExit: ScreenVariantValue;
+  replaceOnEnter: ScreenVariantValue;
+  replaceOnExit: ScreenVariantValue;
+  popOnEnter: ScreenVariantValue;
+  popOnExit: ScreenVariantValue;
+  completedOnEnter: ScreenVariantValue;
+  completedOnExit: ScreenVariantValue;
   options?: TransitionOptions;
 }
 

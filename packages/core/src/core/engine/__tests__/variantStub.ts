@@ -13,7 +13,7 @@ import { TRANSITION_VARIANTS } from "@transition/variantMotion";
  * the pop variant for the ceiling the decorator borrows. A partial table is a
  * shape no real `Transition` can have, so the stubs carry all ten keys.
  */
-export const fullVariants = (value: TransitionTarget, options?: AnimationOptions) =>
+export const fullVariants = (value: TransitionTarget, options: AnimationOptions = {}) =>
   Object.fromEntries(
     TRANSITION_VARIANTS.map((variant) => [variant, { value, options }])
   ) as Transition["variants"];

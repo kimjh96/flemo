@@ -52,13 +52,13 @@ const short = slider("clock-short", 0.3, "clock-dim");
 describe("resolveDecoratorClock", () => {
   it("takes the screen's duration for the SAME variant key", () => {
     const resolved = resolveDecoratorClock(long, dim);
-    expect(resolved.variants["PUSHING-false"].options.duration).toBe(0.7);
-    expect(resolved.variants["POPPING-false"].options.duration).toBe(0.7);
+    expect(resolved.variants["PUSHING-false"].options?.duration).toBe(0.7);
+    expect(resolved.variants["POPPING-false"].options?.duration).toBe(0.7);
   });
 
   it("gives one decorator two clocks on two transitions", () => {
-    expect(resolveDecoratorClock(long, dim).variants["PUSHING-false"].options.duration).toBe(0.7);
-    expect(resolveDecoratorClock(short, dim).variants["PUSHING-false"].options.duration).toBe(0.3);
+    expect(resolveDecoratorClock(long, dim).variants["PUSHING-false"].options?.duration).toBe(0.7);
+    expect(resolveDecoratorClock(short, dim).variants["PUSHING-false"].options?.duration).toBe(0.3);
   });
 
   it("carries DIRECTION, because direction is part of the clock", () => {
@@ -75,8 +75,8 @@ describe("resolveDecoratorClock", () => {
       options: { decoratorName: "clock-dim" }
     });
     const resolved = resolveDecoratorClock(directional, dim);
-    expect(resolved.variants["PUSHING-false"].options.duration).toBe(0.35);
-    expect(resolved.variants["POPPING-false"].options.duration).toBe(0.25);
+    expect(resolved.variants["PUSHING-false"].options?.duration).toBe(0.35);
+    expect(resolved.variants["POPPING-false"].options?.duration).toBe(0.25);
   });
 
   it("lets an authored duration win, including a zero and a longer span", () => {
@@ -90,10 +90,10 @@ describe("resolveDecoratorClock", () => {
       exit: { value: { opacity: 0 } }
     });
     const resolved = resolveDecoratorClock(long, fixed);
-    expect(resolved.variants["IDLE-true"].options.duration).toBe(0);
-    expect(resolved.variants["PUSHING-false"].options.duration).toBe(3);
+    expect(resolved.variants["IDLE-true"].options?.duration).toBe(0);
+    expect(resolved.variants["PUSHING-false"].options?.duration).toBe(3);
     // ...and the unauthored one still inherits.
-    expect(resolved.variants["POPPING-false"].options.duration).toBe(0.7);
+    expect(resolved.variants["POPPING-false"].options?.duration).toBe(0.7);
   });
 
   it("never inherits the screen's EASE", () => {
@@ -108,7 +108,7 @@ describe("resolveDecoratorClock", () => {
       options: { decoratorName: "clock-dim" }
     });
     const resolved = resolveDecoratorClock(curved, dim);
-    expect(resolved.variants["PUSHING-false"].options.ease).toBeUndefined();
+    expect(resolved.variants["PUSHING-false"].options?.ease).toBeUndefined();
   });
 });
 

@@ -313,7 +313,10 @@ const resolveMorphMotion = (
   return {
     from: fromKey === "initial" ? transition.initial : transition.variants["IDLE-true"].value,
     to: target.value,
-    options: target.options
+    // A morph reads a SCREEN transition, whose factories require a clock; the
+    // fallback is for a hand-built transition and keeps the morph's own
+    // inheritance (`?? side.screenDuration`) the thing that decides its length.
+    options: target.options ?? {}
   };
 };
 

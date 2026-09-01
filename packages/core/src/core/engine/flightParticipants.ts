@@ -18,7 +18,7 @@ import {
 
 import { decoratorMap } from "@transition/decorator/decorator";
 import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
-import { partTransitionMap } from "@transition/partTransition/partTransition";
+import { resolvePartDefinition } from "@transition/partTransition/partTransition";
 
 // WHO IS IN THIS FLIGHT.
 //
@@ -181,7 +181,10 @@ export const statusChoreographySpanMs = (
     spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
   }
   for (const part of collectFlightParts(scope, status)) {
-    const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
+    // Against THIS flight's transition: a part with no authored duration runs
+    // at the screen's, so a span computed from the authored variants would
+    // close the flight while the part was still moving.
+    const definition = resolvePartDefinition(part.getAttribute(PART_NAME_ATTR), transition);
     const partVariant = `${status}-${part.getAttribute(ACTIVE_ATTR)}` as TransitionVariant;
     if (!definition || !variantHasAnimation(definition, partVariant)) continue;
     const motion = resolveVariantMotion(definition, partVariant)!;

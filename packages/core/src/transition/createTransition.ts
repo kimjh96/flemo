@@ -2,18 +2,18 @@ import type { InitialTarget } from "@transition/cssTypes";
 import {
   type TransitionOptions,
   type Transition,
-  type TransitionVariantValue,
+  type ScreenVariantValue,
   type TransitionName
 } from "@transition/typing";
 
 interface CreateTransitionProps {
   name: TransitionName;
   initial: InitialTarget;
-  idle: TransitionVariantValue;
-  enter: TransitionVariantValue;
-  enterBack: TransitionVariantValue;
-  exit: TransitionVariantValue;
-  exitBack: TransitionVariantValue;
+  idle: ScreenVariantValue;
+  enter: ScreenVariantValue;
+  enterBack: ScreenVariantValue;
+  exit: ScreenVariantValue;
+  exitBack: ScreenVariantValue;
   options?: TransitionOptions;
 }
 

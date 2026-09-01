@@ -48,10 +48,10 @@ describe("transition presets", () => {
     // Against cupertino the dim gets cupertino's own span, on the matching
     // variant key — the number that used to be written into the decorator.
     const onCupertino = resolveDecoratorClock(cupertino, overlay);
-    expect(onCupertino.variants["PUSHING-false"].options.duration).toBe(
+    expect(onCupertino.variants["PUSHING-false"].options?.duration).toBe(
       cupertino.variants["PUSHING-false"].options?.duration
     );
-    expect(onCupertino.variants["POPPING-false"].options.duration).toBe(
+    expect(onCupertino.variants["POPPING-false"].options?.duration).toBe(
       cupertino.variants["POPPING-false"].options?.duration
     );
 
@@ -60,11 +60,11 @@ describe("transition presets", () => {
     // a 0.4s flight left a wash on the screen underneath for 300ms after the
     // dismissing screen had gone.
     const onLayout = resolveDecoratorClock(layout, overlay);
-    expect(onLayout.variants["PUSHING-false"].options.duration).toBe(
+    expect(onLayout.variants["PUSHING-false"].options?.duration).toBe(
       layout.variants["PUSHING-false"].options?.duration
     );
-    expect(onLayout.variants["PUSHING-false"].options.duration).not.toBe(
-      onCupertino.variants["PUSHING-false"].options.duration
+    expect(onLayout.variants["PUSHING-false"].options?.duration).not.toBe(
+      onCupertino.variants["PUSHING-false"].options?.duration
     );
   });
 
