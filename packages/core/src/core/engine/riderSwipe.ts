@@ -115,13 +115,30 @@ export const beginRiderSwipe = (riders: readonly RiderMotion[]): RiderSwipe | nu
       released = true;
       for (const rider of staged) {
         if (commit) rider.element.setAttribute(SKIP_ANIMATION_ATTR, "true");
-        settleScrubbed([rider.animation], rider.clock, commit, seconds, () => {
-          // Backwards, the gesture is undone: drop the staged animation so the
-          // element's own rest rule owns it again. Forward, the pose it lands
-          // on IS the rest pose the navigation resolves to, so it is left in
-          // place and the engine's COMPLETED cleanup takes it.
-          rider.animation.cancel();
-        });
+        // BOTH DIRECTIONS HAND THE ELEMENT BACK.
+        //
+        // A staged animation carries `fill: both`, so one left behind holds its
+        // end pose for good — and a gesture-driven rider is not a throwaway
+        // like the departing screen's parts: the screen a swipe RETURNS to
+        // survives, and its parts then wore the finished pose into the next
+        // flight, where they fought the compiled rule that was supposed to move
+        // them. Reported as the previous element overlapping and then vanishing
+        // on the next push, and as a pop that would not run its whole way.
+        //
+        // `settleScrubbed`'s own reverse hook cannot do this: it exists because
+        // a backwards animation fires no `animationend`, and the morph that
+        // taught it that still wants forward landings left to the engine. This
+        // one listens for the Animation's own `finish`, which both directions
+        // do fire.
+        rider.animation.addEventListener(
+          "finish",
+          () => {
+            rider.animation.cancel();
+            rider.element.removeAttribute(SKIP_ANIMATION_ATTR);
+          },
+          { once: true }
+        );
+        settleScrubbed([rider.animation], rider.clock, commit, seconds);
       }
     }
   };

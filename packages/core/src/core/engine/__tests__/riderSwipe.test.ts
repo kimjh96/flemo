@@ -161,6 +161,22 @@ describe("beginRiderSwipe", () => {
     expect(animations[0]!.playbackRate).toBeGreaterThan(0);
   });
 
+  it("hands the element back when a COMMITTED settle finishes", () => {
+    // A staged animation carries `fill: both`, so one left behind holds its end
+    // pose for good. The screen a swipe returns to SURVIVES, and its parts then
+    // wore that pose into the next flight and fought the compiled rule meant to
+    // move them: reported as the previous element overlapping and then
+    // vanishing on the next push.
+    const swipe = beginRiderSwipe([{ element, motion: motion() }]);
+    swipe!.scrub(0.5);
+    swipe!.settle(true, 0.2);
+
+    animations[0]!.listeners.finish?.forEach((fn) => fn());
+
+    expect(animations[0]!.cancelled).toBe(true);
+    expect(element.hasAttribute(SKIP_ANIMATION_ATTR)).toBe(false);
+  });
+
   it("runs backwards on cancel and leaves the element to its rest rule", () => {
     const swipe = beginRiderSwipe([{ element, motion: motion() }]);
     swipe!.scrub(0.5);
@@ -170,7 +186,7 @@ describe("beginRiderSwipe", () => {
     expect(element.hasAttribute(SKIP_ANIMATION_ATTR)).toBe(false);
     expect(animations[0]!.playbackRate).toBeLessThan(0);
     // Backwards an animation finishes at its start and fires no animationend,
-    // so the handback is explicit.
+    // so the handback is explicit here too.
     animations[0]!.listeners.finish?.forEach((fn) => fn());
     expect(animations[0]!.cancelled).toBe(true);
   });

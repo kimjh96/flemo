@@ -514,7 +514,15 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // explicit-list force form removes untracked properties by contract.
         clearInlineAnimation(scope, ["transform", "opacity"]);
         scope.removeAttribute(SKIP_ANIMATION_ATTR);
-        for (const part of collectScreenParts(scope)) clearInlineAnimation(part);
+        for (const part of collectScreenParts(scope)) {
+          clearInlineAnimation(part);
+          // A swipe marks its riders so the landing does not replay them from
+          // their start (riderSwipe). The rider clears its own mark when its
+          // animation finishes; this is for the one torn down before it could —
+          // a mark left behind would suppress the NEXT flight's part animation
+          // on an element that outlives this navigation.
+          part.removeAttribute(SKIP_ANIMATION_ATTR);
+        }
       }
       if (decorator) {
         clearInlineAnimation(decorator);
