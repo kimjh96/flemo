@@ -174,6 +174,18 @@ export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null 
     const parent = element.parentNode!;
 
     const rect = element.getBoundingClientRect();
+    // NEVER STAGE WHAT CANNOT BE MEASURED.
+    //
+    // A covered screen is Activity-hidden once its flight settles, and hidden
+    // means `display: none`: every rect inside it reads 0,0 0x0. Pinning a part
+    // at that measurement puts it at the layer's ORIGIN with no size — observed
+    // on a real swipe as the returning screen's icon and badge drawn clipped in
+    // the top-left corner, nowhere near the bar they belong to.
+    //
+    // There is nothing to do about it here. A part that has no box has no place
+    // to be staged AT, so it stays home and keeps the behaviour it had before
+    // any of this: covered, but correct.
+    if (rect.width <= 0 || rect.height <= 0) continue;
     const box = intoLayerSpace(rect, layer);
     const standIn = buildStandIn(element, rect);
     const entry: StagedPart = {
@@ -211,6 +223,10 @@ export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null 
 
     staged.push(entry);
   }
+
+  // Every candidate was unmeasurable. Nothing was moved, so there is nothing to
+  // give back.
+  if (staged.length === 0) return null;
 
   // The layer is outside the screen, so the compiled hold rule cannot reach a
   // staged part through it. Mirroring the owning screen's hold attribute onto

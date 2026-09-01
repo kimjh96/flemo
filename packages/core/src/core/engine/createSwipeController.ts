@@ -490,6 +490,24 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     stagedDragParts = null;
   };
 
+  // Lift and arm the covered side's riders, once the screen they belong to can
+  // actually be measured. Safe to call on every frame of a drag: the staging
+  // returns null while that screen is still Activity-hidden, and both halves
+  // no-op once they have taken.
+  const armDragRiders = () => {
+    // The finger may already be gone; a drag that ended owns nothing.
+    if (!swipeActive || stagedDragParts) return;
+    // The drag is a flight the engine never sees: the navigate status stays
+    // COMPLETED, so nothing else stages the covered side's bar parts and they
+    // would cross-fade underneath the screen the finger is moving.
+    stageDragParts();
+    if (!stagedDragParts) return;
+    // Nor does anything else MOVE them. The compiled rules key on a status no
+    // drag ever sets, so a part or a dim that declared only a pose sat still
+    // while the screens followed the finger.
+    riderSwipe = beginRiderSwipe(collectRiders());
+  };
+
   // The riders this gesture drives ITSELF: the ones that declared a pose and no
   // swipe hooks. An author who wrote `onSwipe*` owns that element and is called
   // through drivePartTransitions as before; this is the default for everyone
@@ -665,14 +683,25 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
 
     if (isTriggered && !forceCancelRequested) {
       config.setDragStatus("PENDING");
-      // The drag is a flight the engine never sees: the navigate status stays
-      // COMPLETED, so nothing else stages the covered side's bar parts and
-      // they would cross-fade underneath the screen the finger is moving.
-      stageDragParts();
-      // Nor does anything else MOVE them. The compiled rules key on a status
-      // no drag ever sets, so a part or a dim that declared only a pose sat
-      // still while the screens followed the finger.
-      riderSwipe = beginRiderSwipe(collectRiders());
+      // AFTER the unfreeze, not before it.
+      //
+      // The screen this drag reveals is Activity-hidden until `setDragStatus`
+      // above reaches a commit, and hidden means `display: none`: every rect
+      // inside it reads zero. Measuring there pinned the returning screen's
+      // parts at the layer's origin with no size — seen on a real swipe as an
+      // icon and a badge drawn clipped into the top-left corner. One frame is
+      // what the binding needs to paint the screen it was told to reveal.
+      //
+      // Both of these read the DOM, so both wait: the staging measures rects,
+      // and the riders measure nothing but must not lift a part the staging
+      // declined to move.
+      //
+      // ONE FRAME IS NOT A PROMISE. The unfreeze is a store write, a React
+      // render and an <Activity> reveal, and how many frames that takes is not
+      // this file's to know — so the attempt repeats from the drag itself until
+      // it takes. It is idempotent and costs a null check once it has.
+      if (typeof requestAnimationFrame === "function") requestAnimationFrame(armDragRiders);
+      else armDragRiders();
       // The drag is CONFIRMED here, not in the handler's `onStart`: every
       // built-in transition returns `true` from `onSwipeStart` without ever
       // calling that callback, so anything hung off it never runs. This is the
@@ -936,6 +965,9 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
           prevDecorator: prevDecorator as HTMLDivElement
         });
         drivePartTransitions("swipe", triggered, gestureProgress);
+        // Until it takes: the screen these belong to is revealed by the drag
+        // itself, and the frame that lands on is not ours to predict.
+        armDragRiders();
         // The same span everything else reads, in the 0-1 form the scrub takes.
         riderSwipe?.scrub(gestureProgress / 100);
       }

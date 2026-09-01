@@ -71,6 +71,21 @@ describe("staging the covered side's shared-bar parts", () => {
     barPart.setAttribute("data-flemo-status", "PUSHING");
     barPart.setAttribute("data-flemo-active", "false");
     bar.appendChild(barPart);
+    // A real box. jsdom lays nothing out, and staging refuses to place a part
+    // it cannot measure — the guard that keeps an Activity-hidden screen's zero
+    // rects from pinning its parts to the layer's origin.
+    barPart.getBoundingClientRect = () =>
+      ({
+        x: 20,
+        y: 28,
+        width: 40,
+        height: 40,
+        top: 28,
+        left: 20,
+        right: 60,
+        bottom: 68,
+        toJSON: () => ({})
+      }) as DOMRect;
 
     layer = document.createElement("div");
 

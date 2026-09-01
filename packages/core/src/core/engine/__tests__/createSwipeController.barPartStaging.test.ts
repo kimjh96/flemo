@@ -33,6 +33,21 @@ function buildDom() {
   const prevPart = document.createElement("div");
   prevPart.setAttribute(PART_NAME_ATTR, "navigationIcon");
   prevBar.appendChild(prevPart);
+  // A real box. jsdom lays nothing out, and staging refuses to place a part it
+  // cannot measure — the guard that keeps an Activity-hidden screen's zero
+  // rects from pinning its parts to the layer's origin.
+  prevPart.getBoundingClientRect = () =>
+    ({
+      x: 20,
+      y: 28,
+      width: 40,
+      height: 40,
+      top: 28,
+      left: 20,
+      right: 60,
+      bottom: 68,
+      toJSON: () => ({})
+    }) as DOMRect;
   prevScreenContainer.append(prevScope, prevBar);
 
   const screenContainer = document.createElement("div");

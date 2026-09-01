@@ -170,6 +170,32 @@ describe("stageBarParts", () => {
     expect(part.parentElement).toBe(bar);
   });
 
+  it("stages nothing it cannot measure", () => {
+    // A covered screen is Activity-hidden once its flight settles, and hidden
+    // means display: none — every rect inside it reads 0,0 0x0. Pinning a part
+    // at that measurement puts it at the layer's origin with no size, seen on a
+    // real swipe as the returning screen's icon and badge drawn clipped into
+    // the top-left corner.
+    stubRect(part, { x: 0, y: 0, width: 0, height: 0 });
+
+    expect(stage()).toBeNull();
+    expect(part.parentElement).toBe(bar);
+    expect(bar.querySelector(`[${PART_STAND_IN_ATTR}]`)).toBeNull();
+  });
+
+  it("stages the measurable parts and leaves the rest at home", () => {
+    const hidden = document.createElement("div");
+    hidden.setAttribute(PART_NAME_ATTR, "progress");
+    bar.appendChild(hidden);
+    stubRect(hidden, { x: 0, y: 0, width: 0, height: 0 });
+
+    const staged = stage();
+
+    expect(staged).not.toBeNull();
+    expect(part.parentElement).toBe(layer);
+    expect(hidden.parentElement).toBe(bar);
+  });
+
   it("stages nothing when a matched bar carries no part", () => {
     part.remove();
 
