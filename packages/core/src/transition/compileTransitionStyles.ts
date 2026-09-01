@@ -904,8 +904,25 @@ const compileVariantBlock = (
   const animatedProperties = Array.from(new Set([...fromByProp.keys(), ...toByProp.keys()])).filter(
     (property) => fromByProp.get(property) !== toByProp.get(property)
   );
+  // A PART IS NEVER PROMOTED, because in Safari the promotion is what breaks
+  // it. `will-change` gives the element its own compositing layer, and a real
+  // Safari (not the headless WebKit any automation drives, which composites
+  // through a different path and shows none of this) then presents that layer
+  // at its static opacity while the animation runs: device-measured on a
+  // matched shared bar, the departing glyph held FULL colour through the whole
+  // flight and was cut at unmount instead of fading, with `getComputedStyle`
+  // reporting a perfectly interpolated 0.46 the entire time. Proved by
+  // elimination on the device — one override, `[data-flemo-part-name] {
+  // will-change: auto }`, and the same build cross-fades.
+  //
+  // Nothing is traded away. A screen is a full-viewport surface whose transform
+  // runs for the whole flight, which is what the promotion was written for; a
+  // part is a glyph or a label inside chrome that is already composited, so its
+  // layer buys no frames and costs a correct hand-over.
   const willChangeDecl =
-    animatedProperties.length > 0 ? `  will-change: ${animatedProperties.join(", ")};\n` : "";
+    scope !== "part" && animatedProperties.length > 0
+      ? `  will-change: ${animatedProperties.join(", ")};\n`
+      : "";
 
   // `contain: layout` confines layout invalidation inside the transitioning
   // scope, so a heavy arrival screen's reflow doesn't propagate up through
