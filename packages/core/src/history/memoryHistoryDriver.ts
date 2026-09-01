@@ -34,6 +34,9 @@ export default function createMemoryHistoryDriver(initial?: {
   };
 
   return {
+    // Its own stack, sharing nothing with `window.history` — so its navigations
+    // need not take turns with any other Router's (see HistoryDriver.isolated).
+    isolated: true,
     readState: () => entries[index].state,
     readPathname: () => entries[index].url,
     pushState: (state, url) => {

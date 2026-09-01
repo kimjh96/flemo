@@ -2,6 +2,8 @@ import { pathToRegexp } from "path-to-regexp";
 
 import TaskManager, { TRANSITION_GATE_BACKSTOP_MS } from "@core/TaskManger";
 
+import { navigationLane } from "@history/historyDriver";
+
 import createBrowserHistoryDriver, { type HistoryDriver } from "@history/historyDriver";
 import type { History, HistoryStoreApi } from "@history/store";
 
@@ -122,6 +124,8 @@ export default function createNavigationController(deps: NavigationControllerDep
     driver = createBrowserHistoryDriver(),
     markSelfInduced = markSelfInducedPop
   } = deps;
+  // Every task this Router raises takes its turn in its own history's lane.
+  const scope = navigationLane(driver);
 
   // A queued navigation runs LATER than the user's gesture, and the browser
   // may have traversed elsewhere in between (its stale events coalesce away —
@@ -266,6 +270,7 @@ export default function createNavigationController(deps: NavigationControllerDep
           };
         },
         {
+          scope,
           id,
           control: {
             manual: true,
@@ -415,6 +420,7 @@ export default function createNavigationController(deps: NavigationControllerDep
           };
         },
         {
+          scope,
           id,
           control: {
             manual: true,
@@ -511,6 +517,7 @@ export default function createNavigationController(deps: NavigationControllerDep
           };
         },
         {
+          scope,
           id,
           control: {
             manual: true,

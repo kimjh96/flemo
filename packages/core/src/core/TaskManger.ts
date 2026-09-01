@@ -43,6 +43,8 @@ interface Task<T> {
   status: TaskStatus;
   dependencies: string[];
   instanceId: string;
+  // Which serial lane this task takes its turn in (see TaskManager.laneOf).
+  scope: string;
   abortController?: AbortController;
   backstopTimer?: ReturnType<typeof setTimeout>;
   manualResolver?: {
@@ -54,6 +56,11 @@ interface Task<T> {
 
 // The default gate backstop for flemo's transition-gated tasks (see
 // Control.maxLifetimeMs). Sits well above the slowest shipped transition.
+// The lane every Router that shares `window.history` takes its turn in. One
+// browser history, one turn order — exactly the serialization that existed
+// before lanes, for exactly the Routers it was written for.
+export const BROWSER_HISTORY_LANE = "browser-history";
+
 export const TRANSITION_GATE_BACKSTOP_MS = 1200;
 
 // How many extra backstop windows a HELD gate may claim before the backstop
@@ -85,11 +92,40 @@ interface GatePhaseEntry {
 class TaskManager {
   private tasks: Map<string, Task<unknown>> = new Map();
   private readonly instanceId = Date.now().toString();
-  private isLocked: boolean = false;
-  private currentTaskId: string | null = null;
-  private taskQueue: Promise<void> = Promise.resolve();
   private signalListeners: Map<string, Set<string>> = new Map();
   private pendingTaskQueue: Task<unknown>[] = [];
+
+  // ONE SERIAL LANE PER HISTORY, NOT ONE PER PAGE.
+  //
+  // Navigations run one at a time because `window.history` is singular: one
+  // URL, one state, one popstate stream, so two Routers mutating it at once
+  // would clobber each other. That reason covers Routers that SHARE the
+  // browser's history and no others. A `history="memory"` Router owns its own
+  // stack (HistoryDriver.isolated) and touches none of it, yet it used to
+  // queue behind every other Router on the page and make them queue behind it.
+  //
+  // Measured on the marketing site, whose landing runs two looping memory
+  // mockups: clicking its primary call to action started the real navigation
+  // in 58-67ms while the mockups were idle, and in 246-868ms while one was
+  // mid-flight. Cleanly separated, ten trials. On a phone, where each mockup
+  // flight is far longer, that is the reported "the tap does nothing for
+  // seconds, then the screen changes with no transition".
+  //
+  // Each lane keeps the exact serial guarantee it always had; lanes simply do
+  // not wait on each other. Everything keyed by task id (resolveTask,
+  // markGateHeld, anchorGate, the gate phases) stays global and untouched, so
+  // an engine resolving a task never has to know which lane it came from.
+  private lanes: Map<string, { chain: Promise<void>; locked: boolean; current: string | null }> =
+    new Map();
+
+  private laneOf(scope: string) {
+    let lane = this.lanes.get(scope);
+    if (!lane) {
+      lane = { chain: Promise.resolve(), locked: false, current: null };
+      this.lanes.set(scope, lane);
+    }
+    return lane;
+  }
 
   // Ids of the queued tasks (INCLUDING the currently-running one). The transition
   // engine subtracts its own id to detect a replay chain.
@@ -99,14 +135,15 @@ class TaskManager {
 
   private isProcessingPending: boolean = false;
 
-  private async acquireLock(taskId: string) {
+  private async acquireLock(taskId: string, scope: string) {
     const maxRetries = 10;
     const retryDelay = 100;
+    const lane = this.laneOf(scope);
 
     for (let i = 0; i < maxRetries; i++) {
-      if (!this.isLocked) {
-        this.isLocked = true;
-        this.currentTaskId = taskId;
+      if (!lane.locked) {
+        lane.locked = true;
+        lane.current = taskId;
         return true;
       }
       await new Promise((resolve) => setTimeout(resolve, retryDelay));
@@ -114,10 +151,11 @@ class TaskManager {
     return false;
   }
 
-  private releaseLock(taskId: string): void {
-    if (this.currentTaskId === taskId) {
-      this.isLocked = false;
-      this.currentTaskId = null;
+  private releaseLock(taskId: string, scope: string): void {
+    const lane = this.laneOf(scope);
+    if (lane.current === taskId) {
+      lane.locked = false;
+      lane.current = null;
     }
   }
 
@@ -202,12 +240,14 @@ class TaskManager {
 
   // 모든 대기 중인 태스크가 완료될 때까지 대기. Event-driven with a slow poll
   // as the safety net (a waiter must never hang on a missed notification).
-  private async waitForPendingTasks(): Promise<void> {
+  private async waitForPendingTasks(scope: string): Promise<void> {
     return new Promise((resolve) => {
       let timer: ReturnType<typeof setTimeout> | null = null;
       const checkPendingTasks = () => {
         const pendingTasks = this.pendingTaskQueue.filter(
-          (task) => task.status === "MANUAL_PENDING" || task.status === "SIGNAL_PENDING"
+          (task) =>
+            task.scope === scope &&
+            (task.status === "MANUAL_PENDING" || task.status === "SIGNAL_PENDING")
         );
 
         if (pendingTasks.length === 0) {
@@ -265,12 +305,18 @@ class TaskManager {
       rollback?: () => Promise<void>;
       dependencies?: string[];
       control?: Control;
+      // The serial lane this navigation belongs to (see `lanes`). Callers that
+      // share the browser's history omit it and take the one global turn order
+      // they always had; a Router with its own stack passes its own key.
+      scope?: string;
     } = {}
   ): Promise<TaskResult<T>> {
     const id = options.id || this.generateTaskId();
+    const scope = options.scope ?? BROWSER_HISTORY_LANE;
+    const lane = this.laneOf(scope);
 
     return new Promise((resolve, reject) => {
-      this.taskQueue = this.taskQueue
+      lane.chain = lane.chain
         .then(async () => {
           try {
             const { control, validate, rollback, dependencies = [], delay } = options;
@@ -284,6 +330,7 @@ class TaskManager {
               status: "PENDING",
               dependencies,
               instanceId: this.instanceId,
+              scope,
               validate,
               rollback,
               control,
@@ -292,20 +339,21 @@ class TaskManager {
 
             this.tasks.set(task.id, task as Task<unknown>);
 
-            // 대기 중인 태스크가 있는지 확인하고 대기
-            const hasPendingTasks = this.pendingTaskQueue.length > 0;
+            // 대기 중인 태스크가 있는지 확인하고 대기. Only this lane's: a
+            // Router with its own history has no turn to take behind another's.
+            const hasPendingTasks = this.pendingTaskQueue.some((queued) => queued.scope === scope);
 
             if (hasPendingTasks) {
               // 대기 큐에 추가하고 모든 대기 중인 태스크가 완료될 때까지 대기
               this.pendingTaskQueue.push(task as Task<unknown>);
-              await this.waitForPendingTasks();
+              await this.waitForPendingTasks(scope);
 
               // 대기 큐에서 제거
               this.pendingTaskQueue = this.pendingTaskQueue.filter((t) => t.id !== task.id);
             }
 
             try {
-              const lockAcquired = await this.acquireLock(task.id);
+              const lockAcquired = await this.acquireLock(task.id, scope);
               if (!lockAcquired) {
                 task.status = "FAILED";
                 throw new Error(`FAILED`);
@@ -435,7 +483,7 @@ class TaskManager {
                 await this.onTaskStatusChange(task.id, task.status);
                 throw error;
               } finally {
-                this.releaseLock(task.id);
+                this.releaseLock(task.id, scope);
               }
             } catch (error) {
               reject(error);
