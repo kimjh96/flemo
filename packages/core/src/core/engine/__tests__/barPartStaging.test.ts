@@ -22,21 +22,50 @@ import {
 
 const NEXT_FRAME = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-const stubRect = (element: HTMLElement, rect: Partial<DOMRect>) => {
+// jsdom lays nothing out: `offsetWidth` is always 0 and every rect is empty.
+// Staging reads BOTH — the layout box for the size, and the stand-in's rect for
+// the place — so a fixture has to stand in for the layout engine on both.
+const stubBox = (
+  element: HTMLElement,
+  box: { x: number; y: number; width: number; height: number }
+) => {
   element.getBoundingClientRect = () =>
     ({
-      x: 0,
-      y: 0,
-      width: 0,
-      height: 0,
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      toJSON: () => ({}),
-      ...rect
+      ...box,
+      top: box.y,
+      left: box.x,
+      right: box.x + box.width,
+      bottom: box.y + box.height,
+      toJSON: () => ({})
     }) as DOMRect;
+  Object.defineProperty(element, "offsetWidth", { value: box.width, configurable: true });
+  Object.defineProperty(element, "offsetHeight", { value: box.height, configurable: true });
 };
+
+// The stand-in is created by the runtime, so the fixture cannot reach it before
+// it is measured. It reports the place its part was in, which is what a laid-out
+// document would have given it.
+const stubStandInLayout = (box: { x: number; y: number; width: number; height: number }) => {
+  const original = Element.prototype.getBoundingClientRect;
+  Element.prototype.getBoundingClientRect = function (this: Element) {
+    if (this.hasAttribute(PART_STAND_IN_ATTR)) {
+      return {
+        ...box,
+        top: box.y,
+        left: box.x,
+        right: box.x + box.width,
+        bottom: box.y + box.height,
+        toJSON: () => ({})
+      } as DOMRect;
+    }
+    return original.call(this);
+  };
+  return () => {
+    Element.prototype.getBoundingClientRect = original;
+  };
+};
+
+let restoreStandIn: () => void;
 
 let layer: HTMLDivElement;
 let scope: HTMLDivElement;
@@ -60,10 +89,12 @@ beforeEach(() => {
   part = document.createElement("div");
   part.setAttribute(PART_NAME_ATTR, "navigationIcon");
   bar.appendChild(part);
-  stubRect(part, { x: 16, y: 44, width: 24, height: 24 });
+  stubBox(part, { x: 16, y: 44, width: 24, height: 24 });
+  restoreStandIn = stubStandInLayout({ x: 16, y: 44, width: 24, height: 24 });
 });
 
 afterEach(() => {
+  restoreStandIn?.();
   document.body.replaceChildren();
   vi.useRealTimers();
 });
@@ -176,7 +207,7 @@ describe("stageBarParts", () => {
     // at that measurement puts it at the layer's origin with no size, seen on a
     // real swipe as the returning screen's icon and badge drawn clipped into
     // the top-left corner.
-    stubRect(part, { x: 0, y: 0, width: 0, height: 0 });
+    stubBox(part, { x: 0, y: 0, width: 0, height: 0 });
 
     expect(stage()).toBeNull();
     expect(part.parentElement).toBe(bar);
@@ -187,7 +218,7 @@ describe("stageBarParts", () => {
     const hidden = document.createElement("div");
     hidden.setAttribute(PART_NAME_ATTR, "progress");
     bar.appendChild(hidden);
-    stubRect(hidden, { x: 0, y: 0, width: 0, height: 0 });
+    stubBox(hidden, { x: 0, y: 0, width: 0, height: 0 });
 
     const staged = stage();
 
@@ -329,7 +360,7 @@ describe("stageBarParts", () => {
     const nextPart = document.createElement("div");
     nextPart.setAttribute(PART_NAME_ATTR, "navigationIcon");
     nextBar.appendChild(nextPart);
-    stubRect(nextPart, { x: 16, y: 44, width: 24, height: 24 });
+    stubBox(nextPart, { x: 16, y: 44, width: 24, height: 24 });
 
     const second = stage({ scope: nextScope, bars: [nextBar] });
     first!.release();

@@ -78,12 +78,12 @@ interface StagedPart {
 // whole contribution to its bar's layout, and `flex: 0 0 auto` so a flex bar
 // cannot grow or shrink the stand-in into a different size than the part it
 // stands for.
-const buildStandIn = (element: HTMLElement, rect: DOMRect): HTMLElement => {
+const buildStandIn = (element: HTMLElement, width: number, height: number): HTMLElement => {
   const standIn = element.ownerDocument.createElement("div");
   standIn.setAttribute(PART_STAND_IN_ATTR, "");
   standIn.setAttribute("aria-hidden", "true");
-  standIn.style.width = `${rect.width}px`;
-  standIn.style.height = `${rect.height}px`;
+  standIn.style.width = `${width}px`;
+  standIn.style.height = `${height}px`;
   standIn.style.flex = "0 0 auto";
   standIn.style.pointerEvents = "none";
   standIn.style.visibility = "hidden";
@@ -173,21 +173,36 @@ export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null 
     // descendant of something by construction and this cannot be null.
     const parent = element.parentNode!;
 
-    const rect = element.getBoundingClientRect();
+    // THE PLACE, NOT THE PAINTED ELEMENT.
+    //
+    // `getBoundingClientRect` reports where the element is DRAWN, and by the
+    // time a flight stages anything the compiled rule has already applied its
+    // `from` pose with `fill: both`. For a part whose variant moves it, that
+    // pose is a transform: measuring there pins the element at its own offset
+    // and the animation then applies the same offset again, so it lands beside
+    // where it belongs. Device-measured as a badge arriving 24px right of its
+    // place and snapping back when the flight released it — the authored
+    // `x: 24` counted twice.
+    //
+    // `offsetWidth/Height` are the LAYOUT box, which no transform touches, and
+    // the stand-in inserted at that size carries no transform of its own. So
+    // the stand-in's rect is the part's place, measured from the one thing in
+    // the bar that is standing exactly in it.
+    const width = element.offsetWidth;
+    const height = element.offsetHeight;
     // NEVER STAGE WHAT CANNOT BE MEASURED.
     //
     // A covered screen is Activity-hidden once its flight settles, and hidden
-    // means `display: none`: every rect inside it reads 0,0 0x0. Pinning a part
-    // at that measurement puts it at the layer's ORIGIN with no size — observed
-    // on a real swipe as the returning screen's icon and badge drawn clipped in
+    // means `display: none`: every box inside it reads zero. Pinning a part at
+    // that measurement puts it at the layer's ORIGIN with no size — observed on
+    // a real swipe as the returning screen's icon and badge drawn clipped in
     // the top-left corner, nowhere near the bar they belong to.
     //
     // There is nothing to do about it here. A part that has no box has no place
     // to be staged AT, so it stays home and keeps the behaviour it had before
     // any of this: covered, but correct.
-    if (rect.width <= 0 || rect.height <= 0) continue;
-    const box = intoLayerSpace(rect, layer);
-    const standIn = buildStandIn(element, rect);
+    if (width <= 0 || height <= 0) continue;
+    const standIn = buildStandIn(element, width, height);
     const entry: StagedPart = {
       element,
       parent,
@@ -209,6 +224,21 @@ export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null 
     // AUTHORED one.
     expectAnimationCancel(element);
     preserveAnimations(element, () => layer.appendChild(element), { includeRoot: true });
+
+    // MEASURED AFTER THE MOVE, and from the stand-in.
+    //
+    // Not from the part: `getBoundingClientRect` reports where an element is
+    // DRAWN, and by staging time the compiled rule has applied its `from` pose
+    // with `fill: both`. For a variant that moves the part, that pose is a
+    // transform, so pinning there counts the offset twice — device-measured as
+    // a badge landing 24px right of its place and snapping back at the release.
+    //
+    // And not BEFORE the move either: while the part is still in the flow the
+    // bar lays both boxes out side by side, so the stand-in sits a whole part's
+    // width off — measured at 67px on the same badge. With the part gone the
+    // stand-in holds the place alone, which is exactly the place being asked
+    // for. No frame is painted in between: this is all one task.
+    const box = intoLayerSpace(standIn.getBoundingClientRect(), layer);
 
     element.setAttribute(PART_HOME_ATTR, screenId);
     element.style.position = "absolute";

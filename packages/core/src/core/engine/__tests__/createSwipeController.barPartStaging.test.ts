@@ -35,19 +35,8 @@ function buildDom() {
   prevBar.appendChild(prevPart);
   // A real box. jsdom lays nothing out, and staging refuses to place a part it
   // cannot measure — the guard that keeps an Activity-hidden screen's zero
-  // rects from pinning its parts to the layer's origin.
-  prevPart.getBoundingClientRect = () =>
-    ({
-      x: 20,
-      y: 28,
-      width: 40,
-      height: 40,
-      top: 28,
-      left: 20,
-      right: 60,
-      bottom: 68,
-      toJSON: () => ({})
-    }) as DOMRect;
+  // boxes from pinning its parts to the layer's origin.
+  restoreLayout = stubLayout(prevPart, 20, 28, 40, 40);
   prevScreenContainer.append(prevScope, prevBar);
 
   const screenContainer = document.createElement("div");
@@ -74,6 +63,35 @@ const flush = () =>
   new Promise((resolve) => {
     requestAnimationFrame(() => setTimeout(resolve, 0));
   });
+
+// jsdom lays nothing out. Staging reads the LAYOUT box for the size and the
+// stand-in's rect for the place, so a fixture stands in for both — and the
+// stand-in is created by the runtime, so its rect comes from the prototype.
+const stubLayout = (element: HTMLElement, x: number, y: number, w: number, h: number) => {
+  const rect = {
+    x,
+    y,
+    width: w,
+    height: h,
+    top: y,
+    left: x,
+    right: x + w,
+    bottom: y + h,
+    toJSON: () => ({})
+  } as DOMRect;
+  element.getBoundingClientRect = () => rect;
+  Object.defineProperty(element, "offsetWidth", { value: w, configurable: true });
+  Object.defineProperty(element, "offsetHeight", { value: h, configurable: true });
+  const original = Element.prototype.getBoundingClientRect;
+  Element.prototype.getBoundingClientRect = function (this: Element) {
+    return this.hasAttribute("data-flemo-part-stand-in") ? rect : original.call(this);
+  };
+  return () => {
+    Element.prototype.getBoundingClientRect = original;
+  };
+};
+
+let restoreLayout: () => void;
 
 describe("createSwipeController shared-bar part staging", () => {
   let dom: ReturnType<typeof buildDom>;
@@ -135,6 +153,7 @@ describe("createSwipeController shared-bar part staging", () => {
   });
 
   afterEach(() => {
+    restoreLayout?.();
     dom.root.remove();
   });
 
