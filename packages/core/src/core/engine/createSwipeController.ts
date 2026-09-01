@@ -4,7 +4,7 @@ import { easeControlPoints } from "@transition/cubicBezier";
 import { resolveRideTarget } from "@transition/rideOffset";
 import { reaimReleaseEase, releaseLaunchSlope, swipeSettleSeconds } from "@transition/swipeSettle";
 
-import type { Transition } from "@transition/typing";
+import type { Transition, TransitionVariant } from "@transition/typing";
 import { resolveVariantMotion } from "@transition/variantMotion";
 
 import findScrollable from "@utils/findScrollable";
@@ -12,6 +12,7 @@ import findScrollable from "@utils/findScrollable";
 import { stageBarParts, type StagedBarParts } from "@core/engine/barPartStaging";
 import { collectLayerRiders } from "@core/engine/layerRiders";
 import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
+import { beginRiderSwipe, type RiderMotion, type RiderSwipe } from "@core/engine/riderSwipe";
 import {
   attrSelector,
   attrValueSelector,
@@ -28,7 +29,10 @@ import {
 import { sharedBarsMatch, type SharedBarPresenceLike } from "@screen/computeBarRiding";
 
 import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
-import { partTransitionMap } from "@transition/partTransition/partTransition";
+import {
+  partTransitionMap,
+  resolvePartDefinition
+} from "@transition/partTransition/partTransition";
 
 import type { SharedBarId, SharedBarsMetadata } from "@screen/store";
 
@@ -144,6 +148,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   let prevContainer: HTMLElement | null = null;
   // Its matched-bar parts while they are up in the part layer.
   let stagedDragParts: StagedBarParts | null = null;
+  // The riders this gesture moves itself, for the authors who wrote no hooks.
+  let riderSwipe: RiderSwipe | null = null;
   let ridingBars: { current: HTMLElement[]; prev: HTMLElement[] } = { current: [], prev: [] };
   // The subset of the ride lists that is a SHARED BAR, and the screen box those
   // bars must travel. A bar's own box is shorter than its screen's, so a drag
@@ -484,6 +490,45 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     stagedDragParts = null;
   };
 
+  // The riders this gesture drives ITSELF: the ones that declared a pose and no
+  // swipe hooks. An author who wrote `onSwipe*` owns that element and is called
+  // through drivePartTransitions as before; this is the default for everyone
+  // else, who until now got nothing while the screens moved under their chrome.
+  //
+  // A swipe-back is a POP, so the dragged screen's riders take the active side
+  // of POPPING and the screen returning underneath takes the passive one — the
+  // same two variants the landing flight would run.
+  const collectRiders = (): RiderMotion[] => {
+    const transition = config.getTransition();
+    const riders: RiderMotion[] = [];
+
+    const addPart = (element: HTMLElement, active: boolean) => {
+      const authored = partTransitionMap.get(element.getAttribute(PART_NAME_ATTR)!);
+      if (!authored || authored.onSwipe || authored.onSwipeStart || authored.onSwipeEnd) return;
+      const definition = resolvePartDefinition(element.getAttribute(PART_NAME_ATTR), transition);
+      const motion = definition
+        ? resolveVariantMotion(definition, `POPPING-${active}` as TransitionVariant)
+        : null;
+      if (motion) riders.push({ element, motion });
+    };
+    for (const element of partEls.current) addPart(element, true);
+    for (const element of partEls.prev) addPart(element, false);
+
+    const decoratorDef = config.getDecorator();
+    if (decoratorDef && !decoratorDef.onSwipe && !decoratorDef.onSwipeStart) {
+      const clock = resolveDecoratorClock(transition, decoratorDef);
+      const addDecorator = (element: HTMLElement | null, active: boolean) => {
+        if (!element) return;
+        const motion = resolveVariantMotion(clock, `POPPING-${active}` as TransitionVariant);
+        if (motion) riders.push({ element, motion });
+      };
+      addDecorator(config.getElements().decorator ?? null, true);
+      addDecorator(prevDecorator, false);
+    }
+
+    return riders;
+  };
+
   const capturePartTransitions = (prevScreenContainer: HTMLElement | null) => {
     const { screenContainer } = config.getElements();
     // Reached only after beginSwipe's guards resolve the scope + prev screen, so
@@ -624,6 +669,10 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       // COMPLETED, so nothing else stages the covered side's bar parts and
       // they would cross-fade underneath the screen the finger is moving.
       stageDragParts();
+      // Nor does anything else MOVE them. The compiled rules key on a status
+      // no drag ever sets, so a part or a dim that declared only a pose sat
+      // still while the screens followed the finger.
+      riderSwipe = beginRiderSwipe(collectRiders());
       // The drag is CONFIRMED here, not in the handler's `onStart`: every
       // built-in transition returns `true` from `onSwipeStart` without ever
       // calling that callback, so anything hung off it never runs. This is the
@@ -639,6 +688,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       releaseDragLayers();
       releasePartTransitions();
       releaseDragParts();
+      riderSwipe?.settle(false, 0);
+      riderSwipe = null;
     }
   };
 
@@ -885,6 +936,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
           prevDecorator: prevDecorator as HTMLDivElement
         });
         drivePartTransitions("swipe", triggered, gestureProgress);
+        // The same span everything else reads, in the 0-1 form the scrub takes.
+        riderSwipe?.scrub(gestureProgress / 100);
       }
     });
     // The morph runtime already took this number, in its own 0-1 form, and has
@@ -1001,6 +1054,10 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       if (settleReported) return;
       settleReported = true;
       config.onDragSettle?.(committed, seconds);
+      // The riders settle on the SAME number the morph and the screens do, so
+      // everything the gesture was carrying lands together.
+      riderSwipe?.settle(committed, seconds);
+      riderSwipe = null;
     };
 
     const gestureScaled = <T extends typeof animateInline>(

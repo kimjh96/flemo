@@ -76,6 +76,8 @@ describe("packages/core/docs/motion-engine.md", () => {
       "animStartAnchor.ts",
       "pendingNetwork.ts",
       "partLayer.ts",
+      "gestureScrub.ts",
+      "resolvePartClock.ts",
       "variantMotion.ts",
       "animateInline.ts",
       "compileTransitionStyles.ts",
