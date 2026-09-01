@@ -285,12 +285,24 @@ export function scheduleAnimHoldReadiness(
   // commits: nothing within `firstWaitMs` means the screen is already complete
   // (a warm destination) and the motion starts immediately; a commit extends
   // the wait until two quiet frames, bounded by `capMs`.
-  const settleForContent = (done: () => void) => {
+  //
+  // WATCHING STARTS NOW; the deadlines start after the paint anchor. The
+  // observer used to be attached only once the anchor had run, which put its
+  // first two frames OUTSIDE the gate — and those are exactly the frames a
+  // pop's returning screen commits its Activity unfreeze in. The storm the gate
+  // exists to keep out of the motion was therefore invisible to it: no wave
+  // ever qualified, and every pop fell through to the grace deadline and
+  // released on a wall clock (measured on an empty two-screen stage: 117ms of
+  // hold, of which 60 was the grace running out over a screen that had already
+  // finished). Attaching at t=0 costs nothing and closes that blind window.
+  // Returns the arming function for the deadlines, so their windows keep the
+  // length they were tuned at rather than being eaten by the anchor.
+  const settleForContent = (done: () => void): (() => void) => {
     const settle = options.contentSettle;
     const scope = options.scope;
     if (!settle || !scope || typeof MutationObserver === "undefined") {
       done();
-      return;
+      return () => {};
     }
     // Two independent conditions must BOTH hold for this screen to be worth
     // waiting on, because either alone misreads a common case:
@@ -312,7 +324,7 @@ export function scheduleAnimHoldReadiness(
     // firstWaitMs give-up to keep a warm screen delay-free.)
     if (!settle.renderSettleOnly && !looksLikeShell(scope)) {
       done();
-      return;
+      return () => {};
     }
     /* v8 ignore start -- performance exists in every runtime under test;
        the fallback only shields exotic embedders. */
@@ -322,6 +334,12 @@ export function scheduleAnimHoldReadiness(
     let quietFrames: number[] = [];
     let seen = false;
     let finished = false;
+    // Declared up here because the observer now runs BEFORE they are armed: a
+    // wave landing during the paint anchor can settle and finish while these
+    // are still unset, and `finish` has to be able to clear whatever exists.
+    let graceTimer: ReturnType<typeof setTimeout> | undefined;
+    let firstTimer: ReturnType<typeof setTimeout> | undefined;
+    let capTimer: ReturnType<typeof setTimeout> | undefined;
     // React is holding a throttled suspense reveal for this scope: still a
     // shell, placeholders animating (see hasAnimatedPlaceholders). Pure state,
     // no timing window — the reveal ENDS this condition when it lands, and the
@@ -477,6 +495,7 @@ export function scheduleAnimHoldReadiness(
       quiet();
     });
     observer.observe(scope, { childList: true, subtree: true });
+    cancellers.push(finish);
     // A shell with nothing in flight is not loading — it is simply a sparse
     // screen (an empty state, an error). Give up on the short grace instead of
     // the full window. The check is deferred rather than immediate because a
@@ -487,29 +506,49 @@ export function scheduleAnimHoldReadiness(
     // nothing is observable yet, but the reveal is coming, so this early exit
     // must not fire; the give-up deadline and the settle cap remain the
     // bounds.
-    const graceTimer = setTimeout(() => {
-      if (!seen && !loadingWait()) finishWhenFramesFast();
-    }, settle.graceMs);
-    // Giving up at a fixed deadline is what leaves the slow screens exposed:
-    // measured at an emulated mobile viewport, a flight whose content lands
-    // inside it is bad in a third of transitions, while a flight that waits is
-    // clean in every one. So the deadline only applies while NOTHING is in
-    // flight — as long as this screen still has requests outstanding, its
-    // content is genuinely coming and the wait continues to the cap.
-    const firstTimer = setTimeout(function giveUp() {
-      if (seen) return;
-      if (loadingWait() && elapsed() < settle.capMs) {
-        setTimeout(giveUp, 100);
-        return;
-      }
-      finishWhenFramesFast();
-    }, settle.firstWaitMs);
-    const capTimer = setTimeout(finish, settle.capMs);
-    cancellers.push(finish);
+    return () => {
+      // A wave that already arrived and settled during the anchor needs no
+      // deadlines; arming them would only leave timers for `finish` to clear.
+      if (finished) return;
+      graceTimer = setTimeout(() => {
+        if (!seen && !loadingWait()) finishWhenFramesFast();
+      }, settle.graceMs);
+      // Giving up at a fixed deadline is what leaves the slow screens exposed:
+      // measured at an emulated mobile viewport, a flight whose content lands
+      // inside it is bad in a third of transitions, while a flight that waits is
+      // clean in every one. So the deadline only applies while NOTHING is in
+      // flight — as long as this screen still has requests outstanding, its
+      // content is genuinely coming and the wait continues to the cap.
+      firstTimer = setTimeout(function giveUp() {
+        if (seen) return;
+        if (loadingWait() && elapsed() < settle.capMs) {
+          setTimeout(giveUp, 100);
+          return;
+        }
+        finishWhenFramesFast();
+      }, settle.firstWaitMs);
+      capTimer = setTimeout(finish, settle.capMs);
+    };
   };
+  // The paint anchor and the settle gate run CONCURRENTLY, and the readiness
+  // needs both: the anchor answers "has this screen's first frame been
+  // painted", the gate answers "has its commit storm passed". Running them in
+  // series made the second wait out the first for no reason, and hid the
+  // storm's own frames from the gate (see settleForContent).
+  let anchorDone = false;
+  let settleDone = false;
+  const readyWhenBothLand = () => {
+    if (anchorDone && settleDone) readyAfterDecodes();
+  };
+  const armSettleDeadlines = settleForContent(() => {
+    settleDone = true;
+    readyWhenBothLand();
+  });
   const chain = (remaining: number) => {
     if (remaining <= 0) {
-      settleForContent(readyAfterDecodes);
+      anchorDone = true;
+      if (!settleDone) armSettleDeadlines();
+      readyWhenBothLand();
       return;
     }
     chainedFrames.push(requestAnimationFrame(() => chain(remaining - 1)));
