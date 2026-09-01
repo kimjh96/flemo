@@ -9,6 +9,7 @@ import { resolveVariantMotion } from "@transition/variantMotion";
 
 import findScrollable from "@utils/findScrollable";
 
+import { stageBarParts, type StagedBarParts } from "@core/engine/barPartStaging";
 import { collectLayerRiders } from "@core/engine/layerRiders";
 import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
 import {
@@ -18,6 +19,7 @@ import {
   BAR_ID_ATTR,
   BAR_ID_TYPE_ATTR,
   DECORATOR_ATTR,
+  PART_HOME_ATTR,
   PART_NAME_ATTR,
   SCREEN_ATTR,
   SKIP_ANIMATION_ATTR
@@ -89,6 +91,16 @@ export interface SwipeControllerConfig {
   onDragProgress?: (progress: number) => void;
   /** The release: whether it committed, and the seconds the screens settle in. */
   onDragSettle?: (committed: boolean, seconds: number) => void;
+  /**
+   * The Router scope's part layer (see @screen/partLayer), for staging the
+   * covered side's matched shared-bar parts while the finger is down.
+   *
+   * A drag is not a flight: the navigate status stays COMPLETED throughout, so
+   * the engine's own staging never arms and the previous screen's bar parts
+   * cross-fade under the screen being dragged off them. Omitted by a binding
+   * that renders no layer; the drag then behaves as it did before.
+   */
+  getPartLayer?: () => HTMLElement | null;
 }
 
 export interface SwipeController {
@@ -127,6 +139,11 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
 
   let prevScreen: HTMLElement | null = null;
   let prevDecorator: HTMLElement | null = null;
+  // The previous screen's own container, kept because the drag stages that
+  // screen's bar parts and the confirm site is not where it was resolved.
+  let prevContainer: HTMLElement | null = null;
+  // Its matched-bar parts while they are up in the part layer.
+  let stagedDragParts: StagedBarParts | null = null;
   let ridingBars: { current: HTMLElement[]; prev: HTMLElement[] } = { current: [], prev: [] };
   // The subset of the ride lists that is a SHARED BAR, and the screen box those
   // bars must travel. A bar's own box is shorter than its screen's, so a drag
@@ -440,6 +457,33 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     ridingBars = { current: [], prev: [] };
   };
 
+  // How long a staging may sit unclaimed. Every drag exit releases explicitly,
+  // so this only covers a teardown that reaches none of them — and unlike a
+  // flight, a drag has no authored span to derive a deadline from: it lasts as
+  // long as the finger does.
+  const DRAG_STRANDED_MS = 60_000;
+
+  // Lift the covered side's matched-bar parts for the drag. The screen being
+  // dragged off is the one on top, so the previous screen's bar — the one whose
+  // parts are supposed to trade places with it — is underneath the whole way.
+  const stageDragParts = () => {
+    if (stagedDragParts || !prevScreen || !prevContainer) return;
+    stagedDragParts = stageBarParts({
+      scope: prevScreen,
+      bars: [
+        ownChild(prevContainer, attrValueSelector(BAR_ATTR, "app")),
+        ownChild(prevContainer, attrValueSelector(BAR_ATTR, "nav"))
+      ],
+      layer: config.getPartLayer?.() ?? null,
+      strandedMs: DRAG_STRANDED_MS
+    });
+  };
+
+  const releaseDragParts = () => {
+    stagedDragParts?.release();
+    stagedDragParts = null;
+  };
+
   const capturePartTransitions = (prevScreenContainer: HTMLElement | null) => {
     const { screenContainer } = config.getElements();
     // Reached only after beginSwipe's guards resolve the scope + prev screen, so
@@ -451,12 +495,24 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // (null for a bar-mounted one, which this screen still owns).
     const select = (root: HTMLElement | null) => {
       const ownScope = ownChild(root, attrSelector(SCREEN_ATTR));
-      return Array.from(root!.querySelectorAll<HTMLElement>(attrSelector(PART_NAME_ATTR))).filter(
-        (part) => {
-          const owner = part.closest(attrSelector(SCREEN_ATTR));
-          return owner === null || owner === ownScope;
-        }
+      const inPlace = Array.from(
+        root!.querySelectorAll<HTMLElement>(attrSelector(PART_NAME_ATTR))
+      ).filter((part) => {
+        const owner = part.closest(attrSelector(SCREEN_ATTR));
+        return owner === null || owner === ownScope;
+      });
+      // Plus any this screen has STAGED. A drag lifts the covered side's
+      // bar parts out of the container this walks, and a part the gesture
+      // cannot see is a part the gesture cannot move — it would hang at its
+      // pre-drag pose while everything else follows the finger.
+      const screenId = ownScope?.getAttribute(SCREEN_ATTR) ?? null;
+      if (screenId === null) return inPlace;
+      const staged = Array.from(
+        root!.ownerDocument.querySelectorAll<HTMLElement>(
+          attrValueSelector(PART_HOME_ATTR, screenId)
+        )
       );
+      return staged.length === 0 ? inPlace : [...inPlace, ...staged];
     };
     partEls = { current: select(screenContainer), prev: select(prevScreenContainer) };
   };
@@ -517,6 +573,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // wrapper div that no longer exists.)
     const prevScreenContainer =
       (screenContainer?.previousElementSibling as HTMLElement | null) ?? null;
+    prevContainer = prevScreenContainer;
     prevScreen = ownChild(prevScreenContainer, attrSelector(SCREEN_ATTR));
     prevDecorator = ownChild(prevScreenContainer, attrSelector(DECORATOR_ATTR));
 
@@ -563,6 +620,10 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
 
     if (isTriggered && !forceCancelRequested) {
       config.setDragStatus("PENDING");
+      // The drag is a flight the engine never sees: the navigate status stays
+      // COMPLETED, so nothing else stages the covered side's bar parts and
+      // they would cross-fade underneath the screen the finger is moving.
+      stageDragParts();
       // The drag is CONFIRMED here, not in the handler's `onStart`: every
       // built-in transition returns `true` from `onSwipeStart` without ever
       // calling that callback, so anything hung off it never runs. This is the
@@ -577,6 +638,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       releaseRidingBars();
       releaseDragLayers();
       releasePartTransitions();
+      releaseDragParts();
     }
   };
 
@@ -1096,6 +1158,13 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       // engine's COMPLETED cleanup strips them once the rest rules own the
       // element.
       partEls = { current: [], prev: [] };
+      // Home BEFORE the commit, so the landing flight's own staging finds them
+      // in their bar and takes them over cleanly. Handing the same elements
+      // across would not work: stageBarParts collects from the bar, so parts
+      // already up in the layer read as nothing to stage, and the drag's
+      // release would then pull them home in the middle of the pop. Same task
+      // as `back()`, so no frame is painted with them back in place.
+      releaseDragParts();
       config.back();
       // Hand the drag promotion back. A hold is owned, and the engine's
       // COMPLETED cleanup releases under ITS owner — a release this owner
@@ -1119,6 +1188,9 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       releaseRidingBars();
       releaseDragLayers();
       releasePartTransitions();
+      // After releasePartTransitions, which strips the drag's inline writes
+      // while the parts are still where the gesture left them.
+      releaseDragParts();
       config.setDragStatus("IDLE");
     }
   };

@@ -352,6 +352,9 @@ function ScreenMotion({
       }),
       hasSharedTopBar: () => swipeEnvRef.current.hasSharedTopBar,
       hasSharedBottomBar: () => swipeEnvRef.current.hasSharedBottomBar,
+      // Resolved from this Router's scope, exactly as the flight path does: the
+      // layer is the Router's, and a screen holds no ref to it.
+      getPartLayer: () => resolvePartLayer(stores.navigate),
       getSharedTopBarId: () => swipeEnvRef.current.sharedTopBarId,
       getSharedBottomBarId: () => swipeEnvRef.current.sharedBottomBarId,
       getViewportScrollHeight: () => swipeEnvRef.current.viewportScrollHeight,
