@@ -1,24 +1,24 @@
 import type { InitialTarget } from "@transition/cssTypes";
-import { type TransitionVariantValue } from "@transition/typing";
 
 import {
   type PartTransition,
   type PartTransitionName,
-  type PartTransitionOptions
+  type PartTransitionOptions,
+  type PartVariantValue
 } from "@transition/partTransition/typing";
 
 interface CreateRawPartProps {
   name: PartTransitionName;
   initial: InitialTarget;
-  idle: TransitionVariantValue;
-  pushOnEnter: TransitionVariantValue;
-  pushOnExit: TransitionVariantValue;
-  replaceOnEnter: TransitionVariantValue;
-  replaceOnExit: TransitionVariantValue;
-  popOnEnter: TransitionVariantValue;
-  popOnExit: TransitionVariantValue;
-  completedOnEnter: TransitionVariantValue;
-  completedOnExit: TransitionVariantValue;
+  idle: PartVariantValue;
+  pushOnEnter: PartVariantValue;
+  pushOnExit: PartVariantValue;
+  replaceOnEnter: PartVariantValue;
+  replaceOnExit: PartVariantValue;
+  popOnEnter: PartVariantValue;
+  popOnExit: PartVariantValue;
+  completedOnEnter: PartVariantValue;
+  completedOnExit: PartVariantValue;
   options?: PartTransitionOptions;
 }
 

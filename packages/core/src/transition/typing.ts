@@ -14,25 +14,8 @@ export type TransitionVariant = `${NavigateStatus}-${boolean}`;
 
 export type TransitionVariantValue = {
   value: TransitionTarget;
-  /**
-   * The clock, where the author is the one who decides it.
-   *
-   * Optional, because a `<Part>` and a decorator state a POSE and inherit their
-   * length from the flight carrying them (resolvePartClock,
-   * resolveDecoratorClock). Restating it is how the two drift apart, and an
-   * omitted one used to resolve to zero: the part SNAPPED under a screen that
-   * ran for three quarters of a second.
-   *
-   * A SCREEN transition is the thing that decides how long a navigation takes,
-   * so there is nothing above it to inherit from and omitting the clock is an
-   * author error. Its factories therefore ask for `ScreenVariantValue`, which
-   * puts the requirement back.
-   */
-  options?: AnimationOptions;
+  options: AnimationOptions;
 };
-
-/** A variant of the screen transition itself, which must state its own clock. */
-export type ScreenVariantValue = TransitionVariantValue & { options: AnimationOptions };
 
 // Native pointer-driven swipe info. Mirrors motion's PanInfo shape so
 // existing custom transitions need no behavioural rewrite. They just take

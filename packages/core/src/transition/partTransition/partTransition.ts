@@ -33,5 +33,5 @@ export const resolvePartDefinition = (
   if (name === null) return undefined;
   const authored = partTransitionMap.get(name as PartTransitionName);
   if (!authored) return undefined;
-  return transition ? resolvePartClock(transition, authored) : authored;
+  return resolvePartClock(transition, authored);
 };

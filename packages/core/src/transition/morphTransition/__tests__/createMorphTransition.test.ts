@@ -90,8 +90,8 @@ describe("the shared preset", () => {
 
   it("authors no duration, so it inherits the flying screen's", () => {
     // The one decision that keeps a morph from needing a transition of its own.
-    expect(shared.variants["PUSHING-true"].options?.duration).toBeUndefined();
-    expect(shared.variants["PUSHING-false"].options?.duration).toBeUndefined();
+    expect(shared.variants["PUSHING-true"].options.duration).toBeUndefined();
+    expect(shared.variants["PUSHING-false"].options.duration).toBeUndefined();
     // And no `initial` opacity: the arrival is opaque from its first frame,
     // and the element it replaces is cut in that same frame. Authoring one
     // together with a `crossFade` window is what turns the swap into a

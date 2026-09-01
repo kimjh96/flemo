@@ -29,6 +29,12 @@ import type { PartTransition } from "@transition/partTransition/typing";
  * select the right one. A part mounted outside any screen has no transition to
  * inherit from and keeps what it authored.
  *
+ * `transition` is null where there is no flight to inherit from — the by-name
+ * pass, and a part mounted outside any screen. It then normalizes rather than
+ * inherits: every variant comes back with a clock, so nothing downstream has to
+ * carry the optional shape. That normalization is the reason PartVariantValue's
+ * looseness stops here, exactly as DecoratorVariantValue's does.
+ *
  * Resolution is COMPILE TIME and produces a literal. It must never become a
  * `var()` in `animation-duration`: timing that depended on custom properties
  * lost WebKit's accelerated playback and collapsed to a 2-frame snap under
@@ -36,14 +42,14 @@ import type { PartTransition } from "@transition/partTransition/typing";
  * compileTransitionStyles.ts).
  */
 export const resolvePartClock = (
-  transition: Pick<Transition, "variants">,
+  transition: Pick<Transition, "variants"> | null,
   part: Pick<PartTransition, "initial" | "variants">
 ): Pick<BaseTransition, "initial" | "variants"> => {
   const variants = {} as BaseTransition["variants"];
 
   for (const variant of TRANSITION_VARIANTS as TransitionVariant[]) {
     const authored = part.variants[variant];
-    const screen = transition.variants[variant];
+    const screen = transition?.variants[variant];
 
     variants[variant] = {
       value: authored.value,
@@ -51,8 +57,8 @@ export const resolvePartClock = (
         ...authored.options,
         // `??`, not `||`: an authored `0` is a snap the author asked for, and
         // it has to survive a screen that runs for three quarters of a second.
-        duration: authored.options?.duration ?? variantDuration(screen.options),
-        delay: authored.options?.delay ?? variantDelay(screen.options)
+        duration: authored.options?.duration ?? variantDuration(screen?.options),
+        delay: authored.options?.delay ?? variantDelay(screen?.options)
       }
     };
   }

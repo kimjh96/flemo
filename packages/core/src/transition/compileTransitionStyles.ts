@@ -1250,9 +1250,14 @@ export const compileTransitionStyles = (
 
   for (const partTransition of partList) {
     const name = partTransition.name;
+    // Normalized, not inherited: this is the rule a part with no transition
+    // matches, and there is no flight above it to take a clock from. Passing it
+    // through the same resolver is what keeps the optional shape from reaching
+    // the emitter.
+    const byName = resolvePartClock(null, partTransition);
 
     for (const variant of DECORATOR_VARIANTS) {
-      const variantValue = partTransition.variants[variant];
+      const variantValue = byName.variants[variant];
       const fromKey = FROM_VARIANT[variant];
 
       if (fromKey === "self") {
@@ -1260,8 +1265,7 @@ export const compileTransitionStyles = (
         continue;
       }
 
-      const fromValue =
-        fromKey === "initial" ? partTransition.initial : partTransition.variants[fromKey].value;
+      const fromValue = fromKey === "initial" ? byName.initial : byName.variants[fromKey].value;
 
       blocks.push(
         compileVariantBlock("part", name, variant, fromValue, variantValue, partSelector)
