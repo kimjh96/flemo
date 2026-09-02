@@ -1,5 +1,34 @@
 # @flemo/devtools
 
+## 0.4.0
+
+### Minor Changes
+
+- [`28d0377`](https://github.com/kimjh96/flemo/commit/28d03778381fbd5c761712cf8b827aaf0b60a23e) Remove the `flemo:*` diagnostic flag surface from the shipped library. Core read
+  24 session keys and exported the registry that described them, so every key
+  string and every explanation shipped in a consumer's bundle; each key is now a
+  computed default with no override. `DIAGNOSTIC_FLAGS`, `RETIRED_DIAGNOSTIC_FLAGS`,
+  `parkHeadEnabled`, `restLayerPromotionEnabled` and `PlatformProfile.restLayerPromotion`
+  are gone from the public API, and the machinery only a flag could arm goes with
+  them: the image reveal hold, the REST-time layer promotion, the resident-layer
+  and shallow-freeze experiments, and the morph decision trace. Per-browser
+  behavior is unchanged, because no consumer set these keys. `@flemo/devtools` now
+  lists every engine key as retired residue, so a device still carrying one is told
+  it explains nothing.
+
+  Released as a minor rather than a major on purpose: the removed exports described
+  a diagnostic surface nothing consumed at runtime, and `@flemo/devtools` mirrored
+  the registry through a test-only dependency rather than importing it.
+
+### Patch Changes
+
+- [`472432c`](https://github.com/kimjh96/flemo/commit/472432c6e6c7c951975437fbedf9dc8530e92de2) Keep a screen's pre-raster alive across the head that follows it, so a pushed
+  page taller than the viewport no longer slides in blank below the first tile row
+  and fill in near the end of the transition on iOS Safari. It applies wherever
+  the engine parks a screen: every authored transition, however it hides one, on
+  both the entering and the covered side. Set `flemo:parkhead=off` to compare
+  against the previous behaviour.
+
 ## 0.3.0
 
 ### Minor Changes
