@@ -15,7 +15,29 @@ export interface DocsNavSheetProps {
 // button, and the Back button all pop the step.
 function DocsNavSheet({ open, onClose }: DocsNavSheetProps) {
   return (
-    <div className={`fixed inset-0 z-50 md:hidden ${open ? "" : "pointer-events-none"}`}>
+    // A CLOSED DRAWER MUST NOT BE PAINTED.
+    //
+    // This is always mounted so opening and closing animate from one
+    // declaration, but neither `opacity: 0` on the backdrop nor a translated
+    // drawer stops the browser from rendering it: a full-viewport layer, and a
+    // whole second copy of the navigation, were rastered on every frame that
+    // touched this subtree. Device-measured on an iPhone, entering the docs:
+    // the flight's readiness gate sat behind one 462ms main-thread block, and
+    // removing this element alone took that block to 65ms and the hold from
+    // 1014ms to 264ms. `md:hidden` is why it never showed on desktop.
+    //
+    // `visibility: hidden` takes it out of painting entirely while keeping it in
+    // the layout tree, and it holds through the close so the drawer can still
+    // slide out (the delay matches the transition below); opening flips it back
+    // with no delay, before the transform runs.
+    <div
+      className={`fixed inset-0 z-50 md:hidden ${open ? "" : "pointer-events-none"}`}
+      style={{
+        visibility: open ? "visible" : "hidden",
+        transition: "visibility 0s linear",
+        transitionDelay: open ? "0s" : "300ms"
+      }}
+    >
       <button
         type="button"
         aria-label="Close"
