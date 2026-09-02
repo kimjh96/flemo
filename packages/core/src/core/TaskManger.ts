@@ -115,13 +115,18 @@ class TaskManager {
   // not wait on each other. Everything keyed by task id (resolveTask,
   // markGateHeld, anchorGate, the gate phases) stays global and untouched, so
   // an engine resolving a task never has to know which lane it came from.
-  private lanes: Map<string, { chain: Promise<void>; locked: boolean; current: string | null }> =
-    new Map();
+  //
+  // The chain IS the serialization: a lane's whole task body, including the
+  // wait for an open gate and the release on the way out, is awaited inside one
+  // `.then`, and the trailing `.catch` keeps a failure from poisoning the rest.
+  // A lane therefore never has two task bodies in flight, which is why there is
+  // no lock here to take.
+  private lanes: Map<string, { chain: Promise<void> }> = new Map();
 
   private laneOf(scope: string) {
     let lane = this.lanes.get(scope);
     if (!lane) {
-      lane = { chain: Promise.resolve(), locked: false, current: null };
+      lane = { chain: Promise.resolve() };
       this.lanes.set(scope, lane);
     }
     return lane;
@@ -134,30 +139,6 @@ class TaskManager {
   }
 
   private isProcessingPending: boolean = false;
-
-  private async acquireLock(taskId: string, scope: string) {
-    const maxRetries = 10;
-    const retryDelay = 100;
-    const lane = this.laneOf(scope);
-
-    for (let i = 0; i < maxRetries; i++) {
-      if (!lane.locked) {
-        lane.locked = true;
-        lane.current = taskId;
-        return true;
-      }
-      await new Promise((resolve) => setTimeout(resolve, retryDelay));
-    }
-    return false;
-  }
-
-  private releaseLock(taskId: string, scope: string): void {
-    const lane = this.laneOf(scope);
-    if (lane.current === taskId) {
-      lane.locked = false;
-      lane.current = null;
-    }
-  }
 
   public generateTaskId() {
     return `${this.instanceId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -353,12 +334,6 @@ class TaskManager {
             }
 
             try {
-              const lockAcquired = await this.acquireLock(task.id, scope);
-              if (!lockAcquired) {
-                task.status = "FAILED";
-                throw new Error(`FAILED`);
-              }
-
               try {
                 task.status = "PROCESSING";
 
@@ -482,8 +457,6 @@ class TaskManager {
                 // 상태 변경 알림
                 await this.onTaskStatusChange(task.id, task.status);
                 throw error;
-              } finally {
-                this.releaseLock(task.id, scope);
               }
             } catch (error) {
               reject(error);
