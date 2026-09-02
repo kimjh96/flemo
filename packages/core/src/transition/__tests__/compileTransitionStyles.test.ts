@@ -4,6 +4,8 @@ import {
   animationName,
   collectAnimatedProperties,
   compileTransitionStyles,
+  HEAD_ANIMATION_SUFFIXES,
+  matchesFlightAnimationName,
   decoratorAnimationName,
   easingToCss,
   targetToDecls,
@@ -1939,5 +1941,62 @@ describe("compileTransitionStyles: parts are not promoted", () => {
       );
 
     expect(screenRule).toMatch(/will-change:\s*transform;/);
+  });
+});
+
+// EVERY HEAD THE COMPILER EMITS MUST BE RECOGNIZED.
+//
+// `animationend` carries the SUFFIXED keyframe name, and a listener that does
+// not recognize it silently stops resolving the flight — the restart watchdog
+// then replays the whole transition. That is not hypothetical: `govpark` and
+// `deskpark` shipped without ever being added to the suffix list, and on an
+// iPhone every parked push ran its animation twice (device-traced: the park
+// keyframe ended at 912ms and started again at 1179ms) and took 1959ms against
+// the desktop tier's 780ms.
+//
+// So this does not check a hand-written list against another hand-written list.
+// It reads the keyframe names OUT of the compiled sheet and requires the
+// matcher to accept each one, which is the check that would have caught it.
+describe("compileTransitionStyles: every emitted head is matchable", () => {
+  const headNames = (css: string) =>
+    [...css.matchAll(/@keyframes\s+(flemo-screen-[\w-]+)/g)].map((match) => match[1]!);
+
+  it("accepts the animationend name of every head keyframe in the sheet", () => {
+    const css = compileTransitionStyles([cupertino, material], [], []);
+    const names = headNames(css);
+    expect(names.length).toBeGreaterThan(0);
+
+    // A head keyframe is a base name plus one suffix. Split each emitted name at
+    // its LAST hyphen-suffix and require the matcher to pair the two.
+    const suffixed = names.filter((name) =>
+      HEAD_ANIMATION_SUFFIXES.some((suffix) => name.endsWith(suffix))
+    );
+    expect(suffixed.length).toBeGreaterThan(0);
+
+    const unmatched = names
+      .filter((name) => /-(gov|desk)[a-z]*$/.test(name))
+      .filter((name) => {
+        const base = name.replace(/-(gov|desk)[a-z]*$/, "");
+        return !matchesFlightAnimationName(name, base);
+      });
+
+    expect(unmatched).toEqual([]);
+  });
+
+  it("names the park heads, which is where the list had drifted", () => {
+    expect(HEAD_ANIMATION_SUFFIXES).toContain("-govpark");
+    expect(HEAD_ANIMATION_SUFFIXES).toContain("-deskpark");
+    expect(
+      matchesFlightAnimationName(
+        "flemo-screen-x-PUSHING-true-govpark",
+        "flemo-screen-x-PUSHING-true"
+      )
+    ).toBe(true);
+    expect(
+      matchesFlightAnimationName(
+        "flemo-screen-x-PUSHING-true-deskpark",
+        "flemo-screen-x-PUSHING-true"
+      )
+    ).toBe(true);
   });
 });

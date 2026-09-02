@@ -1,5 +1,7 @@
 import TaskManager, { TRANSITION_GATE_BACKSTOP_MS } from "@core/TaskManger";
 
+import { navigationLane } from "@history/historyDriver";
+
 import createBrowserHistoryDriver, {
   type HistoryDriver,
   type HistoryNavEvent
@@ -69,6 +71,8 @@ interface PopStateFrame {
 // binding calls it from its own effect.
 export default function createHistorySync(deps: HistorySyncDeps): () => void {
   const { stores, driver = createBrowserHistoryDriver(), consume = consumeSelfInducedPop } = deps;
+  // Every task this Router raises takes its turn in its own history's lane.
+  const scope = navigationLane(driver);
 
   // Set when the binding disposes this sync (its Router unmounted). Traversal
   // tasks the sync already queued can still be sitting in the SHARED task
@@ -235,6 +239,7 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
           };
         },
         {
+          scope,
           id: taskId,
           control: {
             manual: true,

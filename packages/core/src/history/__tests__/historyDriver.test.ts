@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import createBrowserHistoryDriver, { type HistoryNavEvent } from "@history/historyDriver";
+import { BROWSER_HISTORY_LANE } from "@core/TaskManger";
+
+import createBrowserHistoryDriver, {
+  type HistoryDriver,
+  type HistoryNavEvent,
+  navigationLane
+} from "@history/historyDriver";
+import createMemoryHistoryDriver from "@history/memoryHistoryDriver";
 
 // The keyed browser driver namespaces its frame under a routerKey so multiple
 // browser Routers can share `window.history.state` without clobbering. These run
@@ -193,5 +200,47 @@ describe("createBrowserHistoryDriver (readState)", () => {
 
     expect(shell.readState()).toEqual({ id: "shell-root", index: 0 });
     expect(docs.readState()).toEqual({ id: "docs-root", index: 3 });
+  });
+});
+
+// The serial lane a driver's navigations take their turn in. Everything on the
+// browser's own history shares one lane, exactly as before; a driver with a
+// stack of its own gets a lane nobody else waits on.
+describe("navigationLane", () => {
+  it("puts every driver that shares window.history in the one browser lane", () => {
+    expect(navigationLane(createBrowserHistoryDriver())).toBe(BROWSER_HISTORY_LANE);
+    expect(navigationLane(createBrowserHistoryDriver("shell"))).toBe(BROWSER_HISTORY_LANE);
+    expect(navigationLane(createBrowserHistoryDriver("docs"))).toBe(BROWSER_HISTORY_LANE);
+  });
+
+  it("gives an isolated driver a lane of its own", () => {
+    const lane = navigationLane(createMemoryHistoryDriver());
+
+    expect(lane).not.toBe(BROWSER_HISTORY_LANE);
+  });
+
+  it("returns the same lane for the same driver every time", () => {
+    // A Router builds one driver and hands it to its navigation, step and sync
+    // controllers, which all mutate the one stack and so must share a lane.
+    const driver = createMemoryHistoryDriver();
+
+    expect(navigationLane(driver)).toBe(navigationLane(driver));
+  });
+
+  it("does not put two isolated drivers in the same lane", () => {
+    // Two memory Routers on a page (the landing's looping mockups) own separate
+    // stacks, so neither has a turn to take behind the other.
+    const first = createMemoryHistoryDriver();
+    const second = createMemoryHistoryDriver();
+
+    expect(navigationLane(first)).not.toBe(navigationLane(second));
+  });
+
+  it("reads isolation off the driver, not off its construction", () => {
+    // Any driver may declare its own stack; the memory driver is only the one
+    // shipped that does.
+    const isolated: HistoryDriver = { ...createBrowserHistoryDriver(), isolated: true };
+
+    expect(navigationLane(isolated)).not.toBe(BROWSER_HISTORY_LANE);
   });
 });
