@@ -1,5 +1,46 @@
 # @flemo/react
 
+## 2.2.0
+
+### Minor Changes
+
+- [`429599d`](https://github.com/kimjh96/flemo/commit/429599d7ffc022467b9301184d6e746d9c1bada1) Cross-fade a shared bar's `<Part>` elements between screens that match on `sharedTopBarId` or `sharedBottomBarId`. Both sides already received the right status and ran the right keyframes, but each screen renders its own copy of the bar inside its own isolated container, so the covered screen's part animated under the other screen's opaque surface and was never seen. On a pop it was worse than invisible: the returning part finished its enter animation while occluded, then appeared un-transitioned the moment the departing screen was released.
+
+  The covered side's parts now spend the flight in a Router owned part layer above both screens, at the rect they occupied, and go back exactly as they were on landing. A stand-in holds the part's place so the bar keeps its layout while it is away. This works on push, pop, replace and the interactive swipe, and needs nothing from the application: no bar z-index to coordinate and no selectors on internal `data-flemo-*` attributes.
+
+  A `<Part>` also takes its clock from the flight carrying it, which is the rule decorators already follow and by the same same-variant-key mapping. A part states a pose; how long the hand-over takes is the flight's answer and the flight already gave it. Restating it is how the two drift apart, and omitting it used to resolve to zero: the part snapped under a screen running for three quarters of a second, while a part authored longer than its screen held the whole flight open and disabled swipe-back for as long as it ran. A part's variant states its clock optionally, the way a decorator's already does, so a pose can be written without one.
+
+  What rides a flight now follows the finger too. A drag flips no status, so the compiled rules never matched and a `<Part>` or a decorator that declared only a pose sat still while the screens moved under it: only an author who hand wrote `onSwipe` got anything, restating in imperative code the pose they had already declared. The gesture now stages those animations itself and scrubs them, which is the model `<Morph>` has used since it learned it, and an authored `onSwipe` still overrides. A committed swipe marks each rider so the landing does not replay it from its start, the contract the swipe already applied to the screen and the dim.
+
+### Patch Changes
+
+- [`28d0377`](https://github.com/kimjh96/flemo/commit/28d03778381fbd5c761712cf8b827aaf0b60a23e) Remove the `flemo:*` diagnostic flag surface from the shipped library. Core read
+  24 session keys and exported the registry that described them, so every key
+  string and every explanation shipped in a consumer's bundle; each key is now a
+  computed default with no override. `DIAGNOSTIC_FLAGS`, `RETIRED_DIAGNOSTIC_FLAGS`,
+  `parkHeadEnabled`, `restLayerPromotionEnabled` and `PlatformProfile.restLayerPromotion`
+  are gone from the public API, and the machinery only a flag could arm goes with
+  them: the image reveal hold, the REST-time layer promotion, the resident-layer
+  and shallow-freeze experiments, and the morph decision trace. Per-browser
+  behavior is unchanged, because no consumer set these keys. `@flemo/devtools` now
+  lists every engine key as retired residue, so a device still carrying one is told
+  it explains nothing.
+
+  Released as a minor rather than a major on purpose: the removed exports described
+  a diagnostic surface nothing consumed at runtime, and `@flemo/devtools` mirrored
+  the registry through a test-only dependency rather than importing it.
+
+- [`472432c`](https://github.com/kimjh96/flemo/commit/472432c6e6c7c951975437fbedf9dc8530e92de2) Keep a screen's pre-raster alive across the head that follows it, so a pushed
+  page taller than the viewport no longer slides in blank below the first tile row
+  and fill in near the end of the transition on iOS Safari. It applies wherever
+  the engine parks a screen: every authored transition, however it hides one, on
+  both the entering and the covered side. Set `flemo:parkhead=off` to compare
+  against the previous behaviour.
+
+- [`207444c`](https://github.com/kimjh96/flemo/commit/207444c2a9ddcf0705308a26fb56cf079488344f) Start the render-settle gate watching with the transition instead of after its paint anchor, so a pop's Activity unfreeze is seen by the gate that exists to keep it out of the motion. Drop the mount grace for screens that are not mounting, which removes about 50ms of frozen flight from every pop.
+- Updated dependencies ([`28d0377`](https://github.com/kimjh96/flemo/commit/28d03778381fbd5c761712cf8b827aaf0b60a23e), [`e0cb632`](https://github.com/kimjh96/flemo/commit/e0cb632d620e712e8407c8f850ed6019e7024142), [`8608b73`](https://github.com/kimjh96/flemo/commit/8608b73536c305d0410489f55aeb6834a4ab9849), [`472432c`](https://github.com/kimjh96/flemo/commit/472432c6e6c7c951975437fbedf9dc8530e92de2), [`429599d`](https://github.com/kimjh96/flemo/commit/429599d7ffc022467b9301184d6e746d9c1bada1), [`6975302`](https://github.com/kimjh96/flemo/commit/697530271edafea590ebf95e7ce3bfaf2a04cfb6), [`207444c`](https://github.com/kimjh96/flemo/commit/207444c2a9ddcf0705308a26fb56cf079488344f), [`82930e8`](https://github.com/kimjh96/flemo/commit/82930e8e4e3bb12838d21dd9ed3427d1d5c75443)):
+  - @flemo/core@2.2.0
+
 ## 2.1.0
 
 ### Minor Changes
