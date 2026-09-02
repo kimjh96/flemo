@@ -1,3 +1,5 @@
+import { BROWSER_HISTORY_LANE } from "@core/TaskManger";
+
 // The browser-history surface flemo's navigation engine depends on, behind one
 // injectable seam. The default is the real `window.history` / `popstate` /
 // `window.location` (see `createBrowserHistoryDriver`), used by a <Router>.
@@ -47,7 +49,37 @@ export interface HistoryDriver {
   // Subscribe to back/forward traversals (popstate-equivalent). Returns a
   // disposer. The engine also uses this for a one-shot wait after a `go`.
   subscribe(listener: (event: HistoryNavEvent) => void): () => void;
+  // Whether this driver owns a stack of its OWN rather than a share of the
+  // browser's. The navigation task queue is serial because `window.history` is
+  // singular (see the note at the top of this file) — one URL, one state, one
+  // popstate stream, so two browser Routers mutating it at once would clobber
+  // each other. A Router that touches none of that has nothing to take turns
+  // for, and making it queue behind unrelated Routers is pure latency: measured
+  // on the marketing site, whose landing runs two looping memory-history demo
+  // mockups, a real navigation started in 63ms when the mockups were idle and
+  // in 246-868ms when one was mid-flight. Set by the memory driver.
+  readonly isolated?: boolean;
 }
+
+// The serial lane this driver's navigations take their turn in. Everything on
+// the browser's own history shares one lane, exactly as before; each isolated
+// driver gets a lane of its own, so two memory Routers on a page do not wait on
+// each other either. Keyed on the driver instance because a Router builds one
+// and hands the same one to its navigation, step, and sync controllers, which
+// all mutate the one stack and so must share a lane.
+const isolatedLanes = new WeakMap<HistoryDriver, string>();
+let isolatedLaneCount = 0;
+
+export const navigationLane = (driver: HistoryDriver): string => {
+  if (!driver.isolated) return BROWSER_HISTORY_LANE;
+  let lane = isolatedLanes.get(driver);
+  if (!lane) {
+    isolatedLaneCount += 1;
+    lane = `isolated-history-${isolatedLaneCount}`;
+    isolatedLanes.set(driver, lane);
+  }
+  return lane;
+};
 
 // Merge this Router's frame under its key into the current `window.history.state`,
 // preserving any sibling Router's frame already stored in the same entry.

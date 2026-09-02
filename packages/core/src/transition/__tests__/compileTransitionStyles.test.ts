@@ -4,6 +4,8 @@ import {
   animationName,
   collectAnimatedProperties,
   compileTransitionStyles,
+  HEAD_ANIMATION_SUFFIXES,
+  matchesFlightAnimationName,
   decoratorAnimationName,
   easingToCss,
   targetToDecls,
@@ -1874,5 +1876,127 @@ describe("a shared bar's ride distance", () => {
 
     expect(rule).toContain("data-flemo-bar");
     expect(keyframesFor(css, "flemo-screen-material-PUSHING-false-ride")).toBeUndefined();
+  });
+});
+
+// A PART IS NEVER PROMOTED.
+//
+// `will-change` gives an element its own compositing layer, and real Safari
+// then presents a part's layer at its STATIC opacity while the animation runs.
+// Device-measured on a matched shared bar: the departing glyph held full colour
+// through the whole flight and was cut at unmount instead of fading, while
+// `getComputedStyle` reported a perfectly interpolated 0.46 throughout — the
+// reason every automated check passed. Headless WebKit composites through
+// another path and reproduces none of it, so this rule is the only thing
+// standing between the defect and a release.
+describe("compileTransitionStyles: parts are not promoted", () => {
+  const fade = createPartTransition({
+    name: "test-title-fade",
+    initial: { opacity: 0 },
+    idle: { value: { opacity: 1 }, options: { duration: 0.4 } },
+    enter: { value: { opacity: 0 }, options: { duration: 0.3 } },
+    exit: { value: { opacity: 1 }, options: { duration: 0.3 } }
+  });
+
+  const partRules = (css: string) =>
+    css
+      .split("\n}")
+      .filter((block) => block.includes("data-flemo-part-name") && !block.includes("@keyframes"));
+
+  it("emits no will-change on any part rule, however many properties it writes", () => {
+    const css = compileTransitionStyles([cupertino], [], [fade]);
+    const rules = partRules(css);
+
+    expect(rules.length).toBeGreaterThan(0);
+    for (const rule of rules) expect(rule).not.toContain("will-change");
+  });
+
+  it("emits none on a part that moves as well as fades", () => {
+    const css = compileTransitionStyles(
+      [cupertino],
+      [],
+      [
+        createPartTransition({
+          name: "test-title-fade",
+          initial: { opacity: 0, x: 24 },
+          idle: { value: { opacity: 1, x: 0 }, options: { duration: 0.4 } },
+          enter: { value: { opacity: 0, x: 24 }, options: { duration: 0.3 } },
+          exit: { value: { opacity: 1, x: 0 }, options: { duration: 0.3 } }
+        })
+      ]
+    );
+
+    for (const rule of partRules(css)) expect(rule).not.toContain("will-change");
+  });
+
+  it("leaves the screen's own promotion alone — that is what it was written for", () => {
+    const css = compileTransitionStyles([cupertino], [], [fade]);
+    const screenRule = css
+      .split("\n}")
+      .find(
+        (block) =>
+          block.includes('[data-flemo-status="PUSHING"][data-flemo-active="true"]') &&
+          !block.includes("data-flemo-part-name") &&
+          !block.includes("@keyframes")
+      );
+
+    expect(screenRule).toMatch(/will-change:\s*transform;/);
+  });
+});
+
+// EVERY HEAD THE COMPILER EMITS MUST BE RECOGNIZED.
+//
+// `animationend` carries the SUFFIXED keyframe name, and a listener that does
+// not recognize it silently stops resolving the flight — the restart watchdog
+// then replays the whole transition. That is not hypothetical: `govpark` and
+// `deskpark` shipped without ever being added to the suffix list, and on an
+// iPhone every parked push ran its animation twice (device-traced: the park
+// keyframe ended at 912ms and started again at 1179ms) and took 1959ms against
+// the desktop tier's 780ms.
+//
+// So this does not check a hand-written list against another hand-written list.
+// It reads the keyframe names OUT of the compiled sheet and requires the
+// matcher to accept each one, which is the check that would have caught it.
+describe("compileTransitionStyles: every emitted head is matchable", () => {
+  const headNames = (css: string) =>
+    [...css.matchAll(/@keyframes\s+(flemo-screen-[\w-]+)/g)].map((match) => match[1]!);
+
+  it("accepts the animationend name of every head keyframe in the sheet", () => {
+    const css = compileTransitionStyles([cupertino, material], [], []);
+    const names = headNames(css);
+    expect(names.length).toBeGreaterThan(0);
+
+    // A head keyframe is a base name plus one suffix. Split each emitted name at
+    // its LAST hyphen-suffix and require the matcher to pair the two.
+    const suffixed = names.filter((name) =>
+      HEAD_ANIMATION_SUFFIXES.some((suffix) => name.endsWith(suffix))
+    );
+    expect(suffixed.length).toBeGreaterThan(0);
+
+    const unmatched = names
+      .filter((name) => /-(gov|desk)[a-z]*$/.test(name))
+      .filter((name) => {
+        const base = name.replace(/-(gov|desk)[a-z]*$/, "");
+        return !matchesFlightAnimationName(name, base);
+      });
+
+    expect(unmatched).toEqual([]);
+  });
+
+  it("names the park heads, which is where the list had drifted", () => {
+    expect(HEAD_ANIMATION_SUFFIXES).toContain("-govpark");
+    expect(HEAD_ANIMATION_SUFFIXES).toContain("-deskpark");
+    expect(
+      matchesFlightAnimationName(
+        "flemo-screen-x-PUSHING-true-govpark",
+        "flemo-screen-x-PUSHING-true"
+      )
+    ).toBe(true);
+    expect(
+      matchesFlightAnimationName(
+        "flemo-screen-x-PUSHING-true-deskpark",
+        "flemo-screen-x-PUSHING-true"
+      )
+    ).toBe(true);
   });
 });

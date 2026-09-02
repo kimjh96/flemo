@@ -32,6 +32,7 @@ import HistoryListener from "@history/HistoryListener";
 import Renderer from "@renderer/Renderer";
 
 import MorphLayer from "@screen/MorphLayer";
+import PartLayer from "@screen/PartLayer";
 import ScreenContext from "@screen/ScreenContext";
 
 import ScreenViewportContext from "@screen/ScreenViewportContext";
@@ -477,6 +478,7 @@ function Router({
       <div className={className} style={{ position: "relative", overflow: "hidden", ...style }}>
         {content}
         <MorphLayer stores={stores} />
+        <PartLayer stores={stores} />
       </div>
     );
   }
@@ -485,6 +487,7 @@ function Router({
     <>
       {content}
       <MorphLayer stores={stores} />
+      <PartLayer stores={stores} />
     </>
   );
 }

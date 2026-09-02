@@ -7,6 +7,7 @@ import createTransition from "@transition/createTransition";
 
 import { transitionMap } from "@transition/transition";
 
+import { expectAnimationCancel } from "@core/engine/cancelResume";
 import createTransitionEngine from "@core/engine/createTransitionEngine";
 import { SKIP_ANIMATION_ATTR, type TransitionEngineDeps } from "@core/engine/types";
 import createPartTransition from "@transition/partTransition/createPartTransition";
@@ -619,6 +620,30 @@ describe("createTransitionEngine cancel-resume liveness", () => {
 
     expect(scope.style.animationDelay).toBe("-0.04s"); // the 4th resume landed
     expect(resolveSpy).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it("stands down for a cancel the engine announced as its own re-parent", () => {
+    // Taking an element out of the document cancels its animations, so staging
+    // a shared bar's part into the part layer fires animationcancel exactly
+    // like a browser-dropped animation. Recovering from it writes a negative
+    // inline animation-delay ON TOP of the AUTHORED one, which erases it: a
+    // part written to arrive late started immediately instead, device-measured
+    // as a 2.2s authored delay replaced by -0.083s. The move carries the clock
+    // itself, so there is nothing to recover.
+    const scope = newDiv();
+    const dispose = driveActive(scope);
+
+    expectAnimationCancel(scope);
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.05));
+
+    expect(scope.style.animationDelay).toBe("");
+    expect(resolveSpy).not.toHaveBeenCalled();
+
+    // The mark covers ONE cancel, the one its own re-parent produces. A genuine
+    // loss after it still resumes, or a dropped animation would die silently.
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.05));
+    expect(scope.style.animationDelay).toBe("-0.05s");
     dispose();
   });
 

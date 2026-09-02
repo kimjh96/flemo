@@ -666,3 +666,72 @@ describe("TaskManger: the queue hands over on a frame boundary", () => {
     }
   });
 });
+
+// ONE SERIAL LANE PER HISTORY, NOT ONE PER PAGE.
+//
+// Navigations take turns because `window.history` is singular. A Router with
+// its own stack (history="memory") shares none of that, and used to queue
+// behind every other Router on the page anyway: on the marketing site, whose
+// landing runs two looping memory mockups, the real call to action started its
+// flight in 58-67ms while they were idle and in 246-868ms while one was
+// mid-flight. These tests pin that a lane still serializes itself and no longer
+// serializes against anyone else.
+describe("TaskManger: serial lanes", () => {
+  // A task that parks its gate open until the test resolves it, which is the
+  // shape a transition-gated navigation takes.
+  const parked = (id: string, scope?: string) =>
+    TaskManger.addTask(async () => id, { id, scope, control: { manual: true } });
+
+  it("still serializes two tasks in the same lane", async () => {
+    const order: string[] = [];
+    const first = TaskManger.addTask(
+      async () => {
+        order.push("first-start");
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        order.push("first-end");
+      },
+      { scope: "lane-a" }
+    );
+    const second = TaskManger.addTask(
+      async () => {
+        order.push("second-start");
+      },
+      { scope: "lane-a" }
+    );
+
+    await Promise.all([first, second]);
+
+    expect(order).toEqual(["first-start", "first-end", "second-start"]);
+  });
+
+  it("does not make one lane wait on another lane's open gate", async () => {
+    // A parked gate in one lane: its own lane is blocked for as long as it
+    // stays open. This is the looping mockup.
+    const blocking = parked("lane-b-parked", "lane-b");
+
+    // The other lane must run to completion regardless.
+    const free = await TaskManger.addTask(async () => "ran", { scope: "lane-c" });
+    expect(free.success).toBe(true);
+    expect(free.result).toBe("ran");
+
+    await TaskManger.resolveTask("lane-b-parked");
+    await blocking;
+  });
+
+  it("keeps the browser lane shared by every caller that names no lane", async () => {
+    const blocking = parked("browser-parked");
+    const order: string[] = [];
+
+    const queued = TaskManger.addTask(async () => {
+      order.push("queued");
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(order).toEqual([]); // still behind the open gate, as it always was
+
+    await TaskManger.resolveTask("browser-parked");
+    await blocking;
+    await queued;
+    expect(order).toEqual(["queued"]);
+  });
+});

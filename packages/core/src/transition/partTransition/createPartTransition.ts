@@ -1,10 +1,10 @@
 import type { InitialTarget } from "@transition/cssTypes";
-import { type TransitionVariantValue } from "@transition/typing";
 
 import {
   type PartTransition,
   type PartTransitionName,
-  type PartTransitionOptions
+  type PartTransitionOptions,
+  type PartVariantValue
 } from "@transition/partTransition/typing";
 
 interface CreatePartProps {
@@ -14,15 +14,15 @@ interface CreatePartProps {
   // (PUSHING-true / REPLACING-true), POPPING-true and COMPLETED-true. The bar
   // element sits here when its screen isn't shifting into / out of the
   // background.
-  idle: TransitionVariantValue;
+  idle: PartVariantValue;
   // The screen is moving INTO the background (becoming "previous"): PUSHING-false
   // / REPLACING-false (peak) and COMPLETED-false (settled behind). For a title
   // cross-fade this is the faded-out state.
-  enter: TransitionVariantValue;
+  enter: PartVariantValue;
   // The previously-behind screen returning to active: POPPING-false. Animates
   // from `enter` back toward the rest state. Match `exit` to `idle` to land
   // softly without a snap.
-  exit: TransitionVariantValue;
+  exit: PartVariantValue;
   options?: PartTransitionOptions;
 }
 

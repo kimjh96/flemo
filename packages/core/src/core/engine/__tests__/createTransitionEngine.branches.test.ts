@@ -424,7 +424,7 @@ describe("createTransitionEngine branches", () => {
     transitionMap.delete("branches-active-deco" as never);
   });
 
-  it("this screen's <Part> elements are promoted; nested screens' parts are not", () => {
+  it("no <Part> is promoted, this screen's or a nested screen's", () => {
     const container = document.createElement("div");
     const scope = document.createElement("div");
     scope.setAttribute("data-flemo-screen", "true");
@@ -485,9 +485,13 @@ describe("createTransitionEngine branches", () => {
       animHoldReleased: true
     });
 
-    // This screen's part took the inline layer pin; the nested screen's part
-    // belongs to its own engine and must be untouched.
-    expect(part.style.willChange).not.toBe("");
+    // NO PART IS PROMOTED, this screen's or a nested one's. A promoted part is
+    // presented by real Safari at its STATIC opacity while the animation runs,
+    // so the departing glyph of a shared-bar hand-over never faded and was cut
+    // at unmount instead. The compiled rule stopped emitting `will-change` for
+    // parts, and the inline pin has to agree: pinning here would put the
+    // promotion straight back where no stylesheet override could reach it.
+    expect(part.style.willChange).toBe("");
     expect(nestedPart.style.willChange).toBe("");
 
     cleanup();
@@ -497,7 +501,7 @@ describe("createTransitionEngine branches", () => {
     transitionMap.delete("branches-parts" as never);
   });
 
-  it("parts with no registered definition or a motionless variant are not promoted", () => {
+  it("the screen is promoted and no part is, whatever the part animates", () => {
     const container = document.createElement("div");
     const scope = document.createElement("div");
     scope.setAttribute("data-flemo-screen", "true");
@@ -562,13 +566,14 @@ describe("createTransitionEngine branches", () => {
       animHoldReleased: true
     });
 
-    // The screen is promoted. An unregistered part and a motionless variant
-    // are skipped; a part that DOES animate (any channel) is promoted like any
-    // other participant.
+    // The SCREEN is promoted — a full-viewport surface moving for the whole
+    // flight is what the promotion was written for. No part is, whatever it
+    // animates: not the unregistered one, not the motionless one, and not the
+    // one that genuinely moves.
     expect(scope.style.willChange).not.toBe("");
     expect(ghost.style.willChange).toBe("");
     expect(still.style.willChange).toBe("");
-    expect(clipped.style.willChange).not.toBe("");
+    expect(clipped.style.willChange).toBe("");
 
     cleanup();
     container.remove();

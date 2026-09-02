@@ -25,6 +25,31 @@ export const RESUME_BUDGET = 4;
 // `animation-delay` (e.g. -0.075 instead of -0.07500000000000001).
 const cssSeconds = (seconds: number) => `${Math.round(seconds * 1000) / 1000}s`;
 
+// Cancels the engine ITSELF caused and has already compensated for.
+//
+// Taking an element out of the document cancels every CSS animation on it, so
+// staging a shared bar's part into the part layer (barPartStaging.ts) fires
+// `animationcancel` exactly like a browser-dropped animation does — and the
+// recovery below then "rejoins the original clock" by writing a negative inline
+// `animation-delay`. That write lands on top of the AUTHORED delay and erases
+// it: a part written to arrive late started immediately instead, measured on a
+// real flight as a 2.2s delay replaced by -0.083s.
+//
+// Nothing needs recovering there. The move carries the animation's own clock
+// across it (see @dom/staging preserveAnimations), so the mark says "this one
+// is handled" and the recovery stands down for it. Consumed by the first cancel
+// that follows, because one re-parent produces exactly one.
+const expectedCancels = new WeakSet<HTMLElement>();
+
+/**
+ * Announce a re-parent that will cancel this element's animations, so
+ * cancel-resume treats the cancel as expected instead of recovering from it.
+ * The caller is responsible for the clock across its own move.
+ */
+export const expectAnimationCancel = (element: HTMLElement): void => {
+  expectedCancels.add(element);
+};
+
 export interface CancelResumeConfig {
   element: HTMLElement;
   // The compiled animation name this element runs; cancels of any other name
@@ -97,6 +122,11 @@ export const wireCancelResume = (config: CancelResumeConfig) => {
       event.target !== element ||
       !matchesFlightAnimationName(event.animationName, expectedName)
     ) {
+      return;
+    }
+    // The engine's own re-parent, already compensated by whoever moved it.
+    if (expectedCancels.has(element)) {
+      expectedCancels.delete(element);
       return;
     }
     if (!config.isLive() || config.budgetUsed() >= RESUME_BUDGET) {

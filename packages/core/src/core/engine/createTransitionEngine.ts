@@ -12,6 +12,7 @@ import resolveTransition from "@transition/resolveTransition";
 import type { TransitionVariant } from "@transition/typing";
 import { resolveVariantMotion, type VariantMotion } from "@transition/variantMotion";
 
+import { stageBarParts, type StagedBarParts } from "@core/engine/barPartStaging";
 import { wireCancelResume } from "@core/engine/cancelResume";
 import { createFlightHolds } from "@core/engine/flightHolds";
 import {
@@ -19,7 +20,8 @@ import {
   collectScreenParts,
   collectStampedOuterParts,
   collectUnheldOuterParts,
-  collectVariantParts
+  collectVariantParts,
+  statusChoreographySpanMs
 } from "@core/engine/flightParticipants";
 import { resolveFlightRouting } from "@core/engine/flightRouting";
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
@@ -59,7 +61,7 @@ import {
 import { detectBlinkEngine } from "@platform/engineProbes";
 import { decoratorMap } from "@transition/decorator/decorator";
 import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
-import { partTransitionMap } from "@transition/partTransition/partTransition";
+import { resolvePartDefinition } from "@transition/partTransition/partTransition";
 
 const noop = () => {};
 
@@ -170,11 +172,29 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     pendingLanding = { land, cancel };
   };
 
+  // This screen's matched shared-bar parts while they are up in the Router's
+  // part layer (see barPartStaging.ts). Held across drive calls because the
+  // staging spans a whole flight: it is armed on the first transitional drive
+  // and returned on the COMPLETED one, with several hold-flip drives between.
+  let stagedBarParts: StagedBarParts | null = null;
+
   const driveScreenLifecycle = (input: ScreenLifecycleInput): (() => void) => {
     const { getElements, transitionName, prevTransitionName, status, isActive, animHoldReleased } =
       input;
 
     const isTransitional = status === "PUSHING" || status === "POPPING" || status === "REPLACING";
+
+    // Bring staged bar parts home the moment this screen leaves the flight,
+    // WHICHEVER side it is by then. Not in the passive COMPLETED branch, where
+    // this used to live: a pop's passive screen is the returning one, so it is
+    // ACTIVE by the time the flight completes and never reached that branch at
+    // all. Its parts sat in the layer until the stranded backstop fired
+    // seconds later, and the bar they left kept the hole where they had been —
+    // observed as the title sitting shifted for the rest of the landing.
+    if (!isTransitional && stagedBarParts) {
+      stagedBarParts.release();
+      stagedBarParts = null;
+    }
 
     // Mirror the flight's hold onto Parts that live OUTSIDE any screen, which
     // the compiled hold rule's descendant selector cannot reach (see
@@ -334,7 +354,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
 
       for (const part of collectVariantParts(scopeEl, variant)) {
         const partName = part.getAttribute(PART_NAME_ATTR)!;
-        const definition = partTransitionMap.get(partName);
+        const definition = resolvePartDefinition(partName, resolveTransition(transitionName));
         const partMotion = definition ? resolveVariantMotion(definition, variant) : null;
         if (!partMotion) continue;
         wirePure(part, animationName("part", partName, variant), partMotion);
@@ -387,15 +407,37 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // frames. Stamped from the FIRST transitional effect — the rules
       // promote from the same commit.
       if (isTransitional) {
-        const { scope, decorator, bars, screenContainer } = getElements();
+        const { scope, decorator, bars, screenContainer, partLayer } = getElements();
         const riders = [...(bars ?? []), ...collectLayerRiders(screenContainer ?? null)];
         if (scope) {
+          const transition = resolveTransition(transitionName);
           holdParticipantLayers(
             { scope, decorator, bars: riders },
-            resolveTransition(transitionName),
+            transition,
             `${status}-false` as TransitionVariant,
             layerOwner
           );
+          // THE COVERED SIDE'S BAR PARTS COME UP OUT OF THE SCREEN.
+          //
+          // This is the passive screen, and passive means covered: the other
+          // screen's container is an isolated stacking context at a higher
+          // z-index with an opaque surface, so this screen's shared-bar parts
+          // animate where nobody can see them. When the two screens share a bar
+          // id the bar is non-riding and the parts are supposed to cross-fade
+          // with their partners — so for the flight they are staged above both
+          // screens instead. Armed from the FIRST transitional drive, beside
+          // the layer pin, so the lift happens while the hold still has every
+          // animation paused at its from-pose.
+          stagedBarParts ??= stageBarParts({
+            scope,
+            bars: bars ?? [],
+            layer: partLayer ?? null,
+            // The backstop outlives the whole choreography, not just this
+            // screen's own variant: a part authored longer than its screen is
+            // exactly what statusChoreographySpanMs exists to measure, and the
+            // slack matches the liveness floor's.
+            strandedMs: statusChoreographySpanMs(scope, transition, status) + 1500
+          });
         }
       }
       // The passive side of the transition (exiting screen on push, returning
@@ -472,7 +514,15 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // explicit-list force form removes untracked properties by contract.
         clearInlineAnimation(scope, ["transform", "opacity"]);
         scope.removeAttribute(SKIP_ANIMATION_ATTR);
-        for (const part of collectScreenParts(scope)) clearInlineAnimation(part);
+        for (const part of collectScreenParts(scope)) {
+          clearInlineAnimation(part);
+          // A swipe marks its riders so the landing does not replay them from
+          // their start (riderSwipe). The rider clears its own mark when its
+          // animation finishes; this is for the one torn down before it could —
+          // a mark left behind would suppress the NEXT flight's part animation
+          // on an element that outlives this navigation.
+          part.removeAttribute(SKIP_ANIMATION_ATTR);
+        }
       }
       if (decorator) {
         clearInlineAnimation(decorator);
@@ -570,7 +620,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       : null;
     const statusPartMotions: { element: HTMLElement; motion: VariantMotion }[] = [];
     for (const part of collectFlightParts(scope, status)) {
-      const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
+      const definition = resolvePartDefinition(
+        part.getAttribute(PART_NAME_ATTR),
+        currentTransition
+      );
       const partVariant = `${status}-${part.getAttribute(ACTIVE_ATTR)}` as TransitionVariant;
       const partMotion =
         definition && variantHasAnimation(definition, partVariant)

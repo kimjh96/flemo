@@ -30,6 +30,7 @@ import {
   enteringInitialStyle,
   observeBarHeight,
   publishRideBox,
+  resolvePartLayer,
   resolvePlatformProfile,
   resolveTransition,
   sharedBarsMatch,
@@ -351,6 +352,9 @@ function ScreenMotion({
       }),
       hasSharedTopBar: () => swipeEnvRef.current.hasSharedTopBar,
       hasSharedBottomBar: () => swipeEnvRef.current.hasSharedBottomBar,
+      // Resolved from this Router's scope, exactly as the flight path does: the
+      // layer is the Router's, and a screen holds no ref to it.
+      getPartLayer: () => resolvePartLayer(stores.navigate),
       getSharedTopBarId: () => swipeEnvRef.current.sharedTopBarId,
       getSharedBottomBarId: () => swipeEnvRef.current.sharedBottomBarId,
       getViewportScrollHeight: () => swipeEnvRef.current.viewportScrollHeight,
@@ -670,6 +674,17 @@ function ScreenMotion({
   // parked head keeps matching for as long as it runs (see `parkHead` below).
   const parkHeadKeyRef = useRef<string | null>(null);
 
+  // Whether this screen has ever been at rest, which is the same question as
+  // "is it mounting into the flight it is holding for". A screen pushed onto
+  // the stack mounts already holding and does not rest until that flight lands;
+  // every other participant — a pop's returning screen, a pop's departing top,
+  // a push's exiting side — was at rest a moment ago. Keyed on rest rather than
+  // on the hold key because two pushes in a row SHARE a key (`${status}:
+  // ${transition}`), so a key comparison would call the second one a mount too.
+  const hasRestedRef = useRef(false);
+  if (holdKey === null) hasRestedRef.current = true;
+  const mountingIntoFlight = !hasRestedRef.current;
+
   const [animRelease, setAnimRelease] = useState<{ key: string | null; released: boolean }>({
     key: holdKey,
     released: holdKey === null
@@ -793,7 +808,12 @@ function ScreenMotion({
           // Not the overlays themselves: a nested screen's <Layer> lives in an
           // ancestor's host, so which elements ride is a rule over the DOM
           // rather than a ref the binding holds (see core layerRiders.ts).
-          screenContainer: screenRef.current
+          screenContainer: screenRef.current,
+          // Resolved from THIS Router's scope, not held as a ref: the layer is
+          // rendered by the Router, one box for every screen in it, and a
+          // screen has no ref to its sibling's element. Read live for the same
+          // reason the refs above are.
+          partLayer: resolvePartLayer(stores.navigate)
         }),
         transitionName,
         prevTransitionName,
@@ -804,7 +824,7 @@ function ScreenMotion({
         // the release re-runs this effect.
         animHoldReleased: !animHold
       }),
-    [engine, status, isActive, prevTransitionName, transitionName, animHold]
+    [engine, status, isActive, prevTransitionName, transitionName, animHold, stores.navigate]
   );
 
   useEffect(() => {
@@ -964,7 +984,20 @@ function ScreenMotion({
                 // release frame.
                 firstWaitMs: 120,
                 capMs: 700,
-                graceMs: 60,
+                // The grace exists to let a screen's MOUNT EFFECTS declare
+                // themselves: they issue their requests a tick after the paint
+                // this gate anchors to, so giving up before that would call a
+                // loading screen warm. A screen that is not mounting has no
+                // such tick coming — a pop moves two screens that both existed
+                // before it, and the storm the gate watches for there is the
+                // Activity unfreeze, which commits inside the paint anchor and
+                // is now seen directly (the observer attaches at t=0). Waiting
+                // the grace out on top of that was 60ms of dead flight on every
+                // pop, measured on an empty two-screen stage as 117ms of hold
+                // where 67 is the anchor plus the raster guard. The guard is
+                // what keeps this honest: a give-up still has to ride two fast
+                // frames, so a screen whose block has not run yet keeps waiting.
+                graceMs: mountingIntoFlight ? 60 : 0,
                 // The RETURNING side of a pop must wait out the PREVIOUS
                 // push's landing storm (the batched arrival reveal + query
                 // writes land two frames past that flight's rest — exactly
@@ -982,7 +1015,7 @@ function ScreenMotion({
             : undefined
       }
     );
-  }, [animHold, holdKey, holdAttr, isActive, status, stores.navigate, zIndex]);
+  }, [animHold, holdKey, holdAttr, isActive, mountingIntoFlight, status, stores.navigate, zIndex]);
 
   const initialStyle =
     holdAttr === ANIM_HOLD.PARK_UNDER || holdAttr === ANIM_HOLD.PARK_OVER

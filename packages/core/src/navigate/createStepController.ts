@@ -1,5 +1,7 @@
 import TaskManager, { TRANSITION_GATE_BACKSTOP_MS } from "@core/TaskManger";
 
+import { navigationLane } from "@history/historyDriver";
+
 import type { HistoryDriver } from "@history/historyDriver";
 import type { HistoryStoreApi } from "@history/store";
 
@@ -48,45 +50,53 @@ export interface StepControllerDeps {
 // reads around it.
 export default function createStepController(deps: StepControllerDeps) {
   const { stores, driver, markSelfInduced, buildStepPathname, applyParams } = deps;
+  // Every task this Router raises takes its turn in its own history's lane.
+  const scope = navigationLane(driver);
 
   const pushStep = async (params: object) => {
     (
-      await TaskManager.addTask(async () => {
-        const pathname = buildStepPathname(params);
+      await TaskManager.addTask(
+        async () => {
+          const pathname = buildStepPathname(params);
 
-        // Mark the current frame as a step boundary, preserving its params, so a
-        // later popStep back onto it restores that frame's params instead of an
-        // empty object.
-        const current = driver.readState() as { step?: boolean } | null;
+          // Mark the current frame as a step boundary, preserving its params, so a
+          // later popStep back onto it restores that frame's params instead of an
+          // empty object.
+          const current = driver.readState() as { step?: boolean } | null;
 
-        if (!current?.step) {
-          // Read the current path THROUGH the driver (a wrapping driver's URL
-          // mapping round-trips); never `window.location` directly.
-          driver.replaceState({ ...current, step: true }, driver.readPathname());
-        }
+          if (!current?.step) {
+            // Read the current path THROUGH the driver (a wrapping driver's URL
+            // mapping round-trips); never `window.location` directly.
+            driver.replaceState({ ...current, step: true }, driver.readPathname());
+          }
 
-        driver.pushState(
-          { ...(driver.readState() as object | null), step: true, params },
-          pathname
-        );
+          driver.pushState(
+            { ...(driver.readState() as object | null), step: true, params },
+            pathname
+          );
 
-        return async () => applyParams(params);
-      })
+          return async () => applyParams(params);
+        },
+        { scope }
+      )
     ).result?.();
   };
 
   const replaceStep = async (params: object) => {
     (
-      await TaskManager.addTask(async () => {
-        const pathname = buildStepPathname(params);
+      await TaskManager.addTask(
+        async () => {
+          const pathname = buildStepPathname(params);
 
-        driver.replaceState(
-          { ...(driver.readState() as object | null), step: true, params },
-          pathname
-        );
+          driver.replaceState(
+            { ...(driver.readState() as object | null), step: true, params },
+            pathname
+          );
 
-        return async () => applyParams(params);
-      })
+          return async () => applyParams(params);
+        },
+        { scope }
+      )
     ).result?.();
   };
 
@@ -153,6 +163,7 @@ export default function createStepController(deps: StepControllerDeps) {
           };
         },
         {
+          scope,
           id,
           control: {
             manual: true,
@@ -185,8 +196,13 @@ export function subscribeStepParamsRestore(
 
     if (!frame?.step) return;
 
-    TaskManager.addTask(async () => {
-      onParams(frame.params ?? {});
-    });
+    TaskManager.addTask(
+      async () => {
+        onParams(frame.params ?? {});
+      },
+      // A standalone subscriber, so it resolves the lane from the driver it was
+      // handed rather than from a controller's closure.
+      { scope: navigationLane(driver) }
+    );
   });
 }

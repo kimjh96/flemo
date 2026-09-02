@@ -40,6 +40,8 @@ import {
 
 import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
 
+import { resolvePartClock } from "@transition/partTransition/resolvePartClock";
+
 import type { Decorator } from "@transition/decorator/typing";
 import type { PartTransition } from "@transition/partTransition/typing";
 
@@ -440,6 +442,74 @@ const partSelector = (name: string, variant: TransitionVariant): string => {
   );
 };
 
+// The same part, under one particular screen transition.
+//
+// A part is referenced by name and may appear under any transition in the
+// Router, so unlike a decorator it cannot be resolved once. The transition term
+// is what picks the right resolved clock (see resolvePartClock), and it also
+// carries the specificity: four attribute selectors to the base rule's three,
+// so a part INSIDE a screen takes the inherited clock while one mounted outside
+// any screen — persistent chrome beside a `<Slot>`, a portal — matches only the
+// base rule and keeps exactly what it authored.
+const partPairSelector = (
+  transitionName: string,
+  name: string,
+  variant: TransitionVariant
+): string => attrValueSelector(TRANSITION_ATTR, transitionName) + partSelector(name, variant);
+
+// One `@keyframes NAME` survives; later blocks with the same name and the same
+// body do not.
+//
+// A part's keyframes are its POSE, which does not depend on the transition
+// carrying it — only its clock does, and a clock lives in the rule. So every
+// (transition x part) pair re-emits a keyframe set byte-identical to the one
+// before it. Dropping the repeats here keeps the pair pass to what actually
+// varies, and leaves the emission sites free to state their own output in full
+// rather than coordinating over who writes the keyframes.
+export const dedupeKeyframeBlocks = (css: string): string => {
+  const seen = new Set<string>();
+  let out = "";
+  let index = 0;
+
+  while (index < css.length) {
+    const start = css.indexOf("@keyframes", index);
+    if (start === -1) {
+      out += css.slice(index);
+      break;
+    }
+    const open = css.indexOf("{", start);
+    if (open === -1) {
+      out += css.slice(index);
+      break;
+    }
+    let depth = 0;
+    let end = open;
+    for (; end < css.length; end++) {
+      if (css[end] === "{") depth++;
+      else if (css[end] === "}" && --depth === 0) break;
+    }
+    /* v8 ignore next -- the compiler never emits an unbalanced block; this is
+       a guard against a caller passing arbitrary text, not a reachable path. */
+    if (depth !== 0) {
+      out += css.slice(index);
+      break;
+    }
+
+    const block = css.slice(start, end + 1);
+    out += css.slice(index, start);
+    if (!seen.has(block)) {
+      seen.add(block);
+      out += block;
+    } else {
+      // Swallow the separator the duplicate would have left behind.
+      out = out.replace(/\n{2,}$/, "\n\n");
+    }
+    index = end + 1;
+  }
+
+  return out;
+};
+
 export const animationName = (
   scope: "screen" | "decorator" | "part",
   name: string,
@@ -463,7 +533,22 @@ export const decoratorAnimationName = (
 // the restart watchdog then replays the whole transition (glass-visible as a
 // second fade on REPLACE). Keep this list beside the suffixes the compiler
 // emits, and route every name comparison through the matcher.
-export const HEAD_ANIMATION_SUFFIXES = ["-gov", "-deskhead", "-govcreep"] as const;
+// Named once, so the matcher below and the compiler that emits the keyframes
+// cannot drift apart. They already did: `govpark` and `deskpark` shipped
+// without ever being added here, so every parked flight's `animationend` went
+// unrecognized. On an iPhone that is the whole reported defect — the restart
+// watchdog replayed the transition (the second run is visible on the glass, and
+// device-traced: the park keyframe ended at 912ms and started over at 1179ms)
+// and the navigation took 1959ms where the desktop tier took 780ms.
+export const HEAD_SUFFIXES = {
+  governed: "gov",
+  desktop: "deskhead",
+  creep: "govcreep",
+  governedPark: "govpark",
+  desktopPark: "deskpark"
+} as const;
+
+export const HEAD_ANIMATION_SUFFIXES = Object.values(HEAD_SUFFIXES).map((suffix) => `-${suffix}`);
 
 export const matchesFlightAnimationName = (eventName: string, expectedName: string): boolean =>
   eventName === expectedName ||
@@ -797,7 +882,7 @@ const compileVariantBlock = (
     })();
     const total = duration + headS;
     const headPct = ((headS / total) * 100).toFixed(3);
-    const kf = `${target.keyframe}-govcreep`;
+    const kf = `${target.keyframe}-${HEAD_SUFFIXES.creep}`;
     const gatedSelector = target.selector
       .split(",\n")
       .map((one) => `:root${attrSelector(GOVERNED_ATTR)}${attrSelector(CREEP_ATTR)} ${one}`)
@@ -812,10 +897,16 @@ const compileVariantBlock = (
   // emitted: governed head, governed part delay, creep head, desktop head,
   // desktop part delay.
   const headsFor = (target: RideTarget = screenTarget) =>
-    headBlock(GOVERNED_ATTR, "gov", headForVariant(variant), true, target) +
+    headBlock(GOVERNED_ATTR, HEAD_SUFFIXES.governed, headForVariant(variant), true, target) +
     partDelayBlock(GOVERNED_ATTR, headForVariant(variant)) +
     creepHeadBlockFor(target) +
-    headBlock(DESK_HEAD_ATTR, "deskhead", desktopHeadForVariant(variant), false, target) +
+    headBlock(
+      DESK_HEAD_ATTR,
+      HEAD_SUFFIXES.desktop,
+      desktopHeadForVariant(variant),
+      false,
+      target
+    ) +
     partDelayBlock(DESK_HEAD_ATTR, desktopHeadForVariant(variant));
 
   // `will-change` is scoped to the variant-active rule (PUSHING/POPPING/...)
@@ -834,8 +925,25 @@ const compileVariantBlock = (
   const animatedProperties = Array.from(new Set([...fromByProp.keys(), ...toByProp.keys()])).filter(
     (property) => fromByProp.get(property) !== toByProp.get(property)
   );
+  // A PART IS NEVER PROMOTED, because in Safari the promotion is what breaks
+  // it. `will-change` gives the element its own compositing layer, and a real
+  // Safari (not the headless WebKit any automation drives, which composites
+  // through a different path and shows none of this) then presents that layer
+  // at its static opacity while the animation runs: device-measured on a
+  // matched shared bar, the departing glyph held FULL colour through the whole
+  // flight and was cut at unmount instead of fading, with `getComputedStyle`
+  // reporting a perfectly interpolated 0.46 the entire time. Proved by
+  // elimination on the device — one override, `[data-flemo-part-name] {
+  // will-change: auto }`, and the same build cross-fades.
+  //
+  // Nothing is traded away. A screen is a full-viewport surface whose transform
+  // runs for the whole flight, which is what the promotion was written for; a
+  // part is a glyph or a label inside chrome that is already composited, so its
+  // layer buys no frames and costs a correct hand-over.
   const willChangeDecl =
-    animatedProperties.length > 0 ? `  will-change: ${animatedProperties.join(", ")};\n` : "";
+    scope !== "part" && animatedProperties.length > 0
+      ? `  will-change: ${animatedProperties.join(", ")};\n`
+      : "";
 
   // `contain: layout` confines layout invalidation inside the transitioning
   // scope, so a heavy arrival screen's reflow doesn't propagate up through
@@ -1055,8 +1163,8 @@ const compileVariantBlock = (
   // rule as `headsFor`: a head that holds an entering screen away from its park
   // has this defect, and how long it holds it only decides how visible it is.
   const parkHeadsFor = () =>
-    parkHeadBlock(GOVERNED_ATTR, "govpark", headForVariant(variant), true) +
-    parkHeadBlock(DESK_HEAD_ATTR, "deskpark", desktopHeadForVariant(variant), false);
+    parkHeadBlock(GOVERNED_ATTR, HEAD_SUFFIXES.governedPark, headForVariant(variant), true) +
+    parkHeadBlock(DESK_HEAD_ATTR, HEAD_SUFFIXES.desktopPark, desktopHeadForVariant(variant), false);
 
   // The bar's corrected copy carries the same heads for the same reason the
   // screen does: a rider that keeps the screen's clock but loses the governed
@@ -1174,11 +1282,20 @@ export const compileTransitionStyles = (
     }
   }
 
-  for (const partTransition of partTransitions) {
+  // Materialized because the pair pass below walks the parts a second time, and
+  // the callers hand this in as a Map's `.values()` iterator.
+  const partList = [...partTransitions];
+
+  for (const partTransition of partList) {
     const name = partTransition.name;
+    // Normalized, not inherited: this is the rule a part with no transition
+    // matches, and there is no flight above it to take a clock from. Passing it
+    // through the same resolver is what keeps the optional shape from reaching
+    // the emitter.
+    const byName = resolvePartClock(null, partTransition);
 
     for (const variant of DECORATOR_VARIANTS) {
-      const variantValue = partTransition.variants[variant];
+      const variantValue = byName.variants[variant];
       const fromKey = FROM_VARIANT[variant];
 
       if (fromKey === "self") {
@@ -1186,8 +1303,7 @@ export const compileTransitionStyles = (
         continue;
       }
 
-      const fromValue =
-        fromKey === "initial" ? partTransition.initial : partTransition.variants[fromKey].value;
+      const fromValue = fromKey === "initial" ? byName.initial : byName.variants[fromKey].value;
 
       blocks.push(
         compileVariantBlock("part", name, variant, fromValue, variantValue, partSelector)
@@ -1195,7 +1311,47 @@ export const compileTransitionStyles = (
     }
   }
 
-  return [...blocks.filter((b) => b.length > 0), ANIM_HOLD_RULE, ARRIVAL_HOLD_RULE].join("\n\n");
+  // ONE PASS PER (TRANSITION x PART) PAIR, on top of the by-name pass above.
+  //
+  // A part declares a POSE; how long it takes is the flight's answer, and the
+  // flight already gave it. Before this, an omitted duration resolved to zero
+  // and the part SNAPPED under a screen that ran for three quarters of a
+  // second — and a part authored LONGER than its screen held the whole flight
+  // open (statusChoreographySpanMs), which disables swipe-back for as long as
+  // it runs. The by-name pass stays: it is what a part mounted outside any
+  // screen matches, and that one has no transition to inherit from.
+  for (const transition of transitionList) {
+    for (const part of partList) {
+      const resolved = resolvePartClock(transition, part);
+      const selectorBuilder = (_: string, pairVariant: TransitionVariant) =>
+        partPairSelector(transition.name, part.name, pairVariant);
+
+      for (const variant of DECORATOR_VARIANTS) {
+        const variantValue = resolved.variants[variant];
+        const fromKey = FROM_VARIANT[variant];
+
+        if (fromKey === "self") {
+          blocks.push(compileRestBlock(selectorBuilder, part.name, variant, variantValue));
+          continue;
+        }
+
+        const fromValue =
+          fromKey === "initial" ? resolved.initial : resolved.variants[fromKey].value;
+
+        // The BASE part name, so the pair reuses the by-name keyframes rather
+        // than minting a set per transition: the pose is the same, only the
+        // clock differs, and the clock lives in the rule. dedupeKeyframeBlocks
+        // drops what that repetition emits.
+        blocks.push(
+          compileVariantBlock("part", part.name, variant, fromValue, variantValue, selectorBuilder)
+        );
+      }
+    }
+  }
+
+  return dedupeKeyframeBlocks(
+    [...blocks.filter((b) => b.length > 0), ANIM_HOLD_RULE, ARRIVAL_HOLD_RULE].join("\n\n")
+  );
 };
 
 // A freshly-started transition animation is held paused while the binding

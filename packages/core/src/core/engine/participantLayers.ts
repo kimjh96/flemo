@@ -14,7 +14,7 @@ import { COMPILED_TIER_MAX_INTERVAL_MS } from "@platform/displayProbe";
 import { detectBlinkEngine } from "@platform/engineProbes";
 import { decoratorMap } from "@transition/decorator/decorator";
 import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
-import { partTransitionMap } from "@transition/partTransition/partTransition";
+import { resolvePartDefinition } from "@transition/partTransition/partTransition";
 
 // COMPOSITOR LAYERS, held for the length of a flight and released after it.
 //
@@ -93,9 +93,21 @@ export const holdParticipantLayers = (
     }
   }
   for (const part of collectVariantParts(scope, variant)) {
-    const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
+    // Against the flight's transition, so the pin matches the clock the CSS
+    // actually runs the part at (see resolvePartDefinition).
+    const definition = resolvePartDefinition(part.getAttribute(PART_NAME_ATTR), transition);
     if (definition && variantHasAnimation(definition, variant)) {
-      holdScopeLayer(part, definition, containment, owner);
+      // NO LAYER FOR A PART. holdScopeLayer's own rule is that a stamp must
+      // mirror the compiled rule, "stamping would ADD a layer the CSS path
+      // never made" — and the compiled part rule no longer promotes anything
+      // (see compileTransitionStyles: real Safari presents a promoted part at
+      // its static opacity while the animation runs, so the departing glyph
+      // never fades). Pinning it here would put the promotion straight back,
+      // inline, where no stylesheet override can reach it.
+      //
+      // Nothing is left unheld. The pin exists to stop a promoted layer being
+      // demoted and repainted at the COMPLETED flip; an element that was never
+      // promoted has no such flip to survive.
       const partMotion = resolveVariantMotion(definition, variant)!;
       const partEasing = easingFor(partMotion, part);
       if (partEasing) {
