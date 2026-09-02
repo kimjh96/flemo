@@ -197,4 +197,12 @@ describe("dedupeKeyframeBlocks", () => {
   it("passes through css with no keyframes at all", () => {
     expect(dedupeKeyframeBlocks(".a { color: red; }")).toBe(".a { color: red; }");
   });
+
+  it("passes through a keyframes header with no body to scan", () => {
+    // A truncated sheet has no block to compare, and the pass must hand back
+    // what it was given rather than drop the tail looking for a brace.
+    const css = ".a { color: red; }\n@keyframes truncated";
+
+    expect(dedupeKeyframeBlocks(css)).toBe(css);
+  });
 });

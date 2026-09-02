@@ -473,6 +473,9 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   // dragged off is the one on top, so the previous screen's bar — the one whose
   // parts are supposed to trade places with it — is underneath the whole way.
   const stageDragParts = () => {
+    /* v8 ignore next -- the one caller already returns on a staging it holds,
+       and beginSwipe sets swipeActive only after it has resolved both the prev
+       screen and its container; this keeps the narrowing local. */
     if (stagedDragParts || !prevScreen || !prevContainer) return;
     stagedDragParts = stageBarParts({
       scope: prevScreen,
@@ -524,6 +527,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       const authored = partTransitionMap.get(element.getAttribute(PART_NAME_ATTR)!);
       if (!authored || authored.onSwipe || authored.onSwipeStart || authored.onSwipeEnd) return;
       const definition = resolvePartDefinition(element.getAttribute(PART_NAME_ATTR), transition);
+      /* v8 ignore next -- both read the same registry under the same name, so
+         the guard above has already established there is a definition. */
       const motion = definition
         ? resolveVariantMotion(definition, `POPPING-${active}` as TransitionVariant)
         : null;

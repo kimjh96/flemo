@@ -191,6 +191,20 @@ describe("beginRiderSwipe", () => {
     expect(animations[0]!.cancelled).toBe(true);
   });
 
+  it("ignores a scrub that lands after the release", () => {
+    // The finger's last move can arrive after the settle has already taken the
+    // riders over; scrubbing then would drag a landing animation backwards.
+    const swipe = beginRiderSwipe([{ element, motion: motion() }]);
+    swipe!.scrub(0.5);
+    const scrubbed = animations[0]!.currentTime;
+
+    swipe!.settle(true, 0.2);
+    swipe!.scrub(0.9);
+
+    expect(animations[0]!.currentTime).toBe(scrubbed);
+    expect(swipe!.active).toBe(false);
+  });
+
   it("settles once, however many times the release reports", () => {
     const swipe = beginRiderSwipe([{ element, motion: motion() }]);
 

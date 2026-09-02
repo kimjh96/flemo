@@ -509,6 +509,9 @@ export function scheduleAnimHoldReadiness(
     return () => {
       // A wave that already arrived and settled during the anchor needs no
       // deadlines; arming them would only leave timers for `finish` to clear.
+      /* v8 ignore next -- `finish` calls `done` synchronously, so a finished
+         settle has already set settleDone and the one caller (chain) skips the
+         arming; kept so this function stays safe on its own terms. */
       if (finished) return;
       graceTimer = setTimeout(() => {
         if (!seen && !loadingWait()) finishWhenFramesFast();

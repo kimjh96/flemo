@@ -343,6 +343,41 @@ describe("stageBarParts", () => {
     expect(part.nextSibling).toBe(sibling);
   });
 
+  it("puts the part back at its recorded place when the stand-in is gone", () => {
+    // The consumer owns the bar and may re-render it while the part is away,
+    // which throws away a stand-in the runtime put there. The part still has to
+    // land in its own slot rather than at the end of the bar.
+    const before = document.createElement("span");
+    const after = document.createElement("span");
+    bar.prepend(before);
+    bar.append(after);
+    const staged = stage();
+    bar.querySelector(`[${PART_STAND_IN_ATTR}]`)!.remove();
+
+    staged!.release();
+
+    expect(part.previousSibling).toBe(before);
+    expect(part.nextSibling).toBe(after);
+  });
+
+  it("stands in for a part it cannot read computed margins for", () => {
+    // A document with no view (a detached one an embedder built) answers no
+    // computed style. The stand-in still has to hold the part's box.
+    const view = Object.getOwnPropertyDescriptor(Document.prototype, "defaultView");
+    Object.defineProperty(document, "defaultView", { value: null, configurable: true });
+
+    try {
+      stage();
+
+      const standIn = bar.querySelector<HTMLElement>(`[${PART_STAND_IN_ATTR}]`);
+      expect(standIn).not.toBeNull();
+      expect(standIn!.style.width).toBe("24px");
+      expect(standIn!.style.marginTop).toBe("");
+    } finally {
+      Object.defineProperty(document, "defaultView", view!);
+    }
+  });
+
   it("leaves the hold to the flight that interrupted it", () => {
     // A navigation interrupted mid-flight is followed by one staging over the
     // top of it, and the two stage the same COUNT of the same kind of element —
