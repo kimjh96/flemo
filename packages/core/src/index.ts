@@ -122,6 +122,13 @@ export { default as attachMorph, type AttachMorphOptions } from "@morph/attachMo
 // binding because only a Router knows which box bounds its screens.
 export { registerMorphLayer } from "@morph/morphLayer";
 
+// The PART LAYER: where a matched shared bar's <Part> elements are staged for a
+// flight so the covered screen's copy is not painted under the other screen's
+// opaque surface. Published by the binding for the same reason the flight layer
+// is, and resolved by it too — the engine takes the box as a DOM node beside
+// the scope and the bars, so nothing in it has to know about stores.
+export { registerPartLayer, resolvePartLayer } from "@screen/partLayer";
+
 // THE INTERACTIVE MORPH. A gesture stages its own flights and moves them by
 // hand — the shared element follows the finger instead of running a clock — and
 // hands them back to the browser on release. A binding wires this to its swipe
@@ -219,6 +226,8 @@ export {
   MORPH_SLOT_ATTR,
   MORPH_SHEET_ATTR,
   PARK_HEAD_ATTR,
+  PART_HOME_ATTR,
+  PART_LAYER_ATTR,
   PART_NAME_ATTR,
   ROUTER_ATTR,
   SCREEN_ATTR,

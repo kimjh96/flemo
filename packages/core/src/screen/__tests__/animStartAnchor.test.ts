@@ -1704,3 +1704,159 @@ describe("render-settle give-up without a performance clock", () => {
     expect(onReady).toHaveBeenCalledTimes(1);
   });
 });
+
+// THE GATE HAS TO BE WATCHING WHEN THE STORM RUNS.
+//
+// The settle gate used to be armed only after the paint anchor, which put the
+// anchor's own two frames outside it — and those are the frames a pop's
+// returning screen commits its Activity unfreeze in. The gate therefore never
+// saw the very storm it exists to keep out of the motion: no wave qualified,
+// every pop fell through to the grace deadline, and the release rode a wall
+// clock. Watching starts with the readiness now; only the deadlines wait for
+// the anchor, so their tuned windows keep their length.
+describe("scheduleAnimHoldReadiness watches during the paint anchor", () => {
+  let frames: Map<number, FrameRequestCallback>;
+  let frameId: number;
+  const flushFrame = () => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((frameCallback) => frameCallback(performance.now()));
+  };
+  const SETTLE = {
+    graceMs: 60,
+    firstWaitMs: 120,
+    capMs: 700,
+    minNodes: 30,
+    renderSettleOnly: true
+  };
+
+  const popScope = () => {
+    const scope = document.createElement("div");
+    for (let i = 0; i < 10; i++) scope.appendChild(document.createElement("div"));
+    document.body.appendChild(scope);
+    return scope;
+  };
+  const commitWave = (scope: HTMLElement) => {
+    const wave = document.createElement("section");
+    for (let i = 0; i < 40; i++) wave.appendChild(document.createElement("p"));
+    scope.appendChild(wave);
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    frames = new Map();
+    frameId = 0;
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      frames.set(++frameId, frameCallback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) => {
+      frames.delete(handle);
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    document.body.textContent = "";
+    setPendingForTests(false);
+  });
+
+  const fastFrame = () => {
+    vi.advanceTimersByTime(16);
+    flushFrame();
+  };
+
+  it("sees a wave that lands DURING the anchor and waits it out instead of giving up", async () => {
+    const scope = popScope();
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope, contentSettle: SETTLE });
+
+    // The storm commits before the anchor's two frames have run — the window
+    // that used to be invisible to the gate.
+    commitWave(scope);
+    await Promise.resolve();
+    flushFrame();
+    flushFrame();
+
+    // Past the grace, plus the two fast frames a give-up rides. That was the
+    // whole release path when the wave went unseen; a seen wave owes the full
+    // quiet window instead.
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    fastFrame();
+    fastFrame();
+    expect(onReady).not.toHaveBeenCalled();
+
+    for (let i = 0; i < 6; i++) fastFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("still gives up on the grace when the anchor really was quiet", () => {
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, { scope: popScope(), contentSettle: SETTLE });
+    flushFrame();
+    flushFrame();
+
+    vi.advanceTimersByTime(SETTLE.graceMs + 1);
+    fastFrame();
+    fastFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("a zero grace releases at the anchor plus the raster guard, not on a wall clock", () => {
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, {
+      scope: popScope(),
+      contentSettle: { ...SETTLE, graceMs: 0 }
+    });
+    flushFrame();
+    flushFrame();
+
+    // No wall-clock wait left to serve: the deadline is due immediately and the
+    // two fast frames of the raster guard are the only thing between the anchor
+    // and the release.
+    vi.advanceTimersByTime(1);
+    fastFrame();
+    expect(onReady).not.toHaveBeenCalled();
+    fastFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("a zero grace still waits out a block: a slow frame restarts the guard", () => {
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, {
+      scope: popScope(),
+      contentSettle: { ...SETTLE, graceMs: 0 }
+    });
+    flushFrame();
+    flushFrame();
+
+    vi.advanceTimersByTime(1);
+    // The unfreeze block runs here — a 60ms frame gap. The pair restarts.
+    vi.advanceTimersByTime(60);
+    flushFrame();
+    fastFrame();
+    expect(onReady).not.toHaveBeenCalled();
+    fastFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("the readiness needs BOTH the anchor and the gate, whichever lands last", async () => {
+    const scope = popScope();
+    const onReady = vi.fn();
+    scheduleAnimHoldReadiness(onReady, {
+      scope,
+      // extraFrames pushes the anchor well past the gate, so the gate finishing
+      // first must not release on its own.
+      extraFrames: 6,
+      contentSettle: { ...SETTLE, graceMs: 0 }
+    });
+
+    vi.advanceTimersByTime(1);
+    for (let i = 0; i < 4; i++) fastFrame();
+    expect(onReady).not.toHaveBeenCalled();
+
+    for (let i = 0; i < 6; i++) fastFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+});

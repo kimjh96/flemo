@@ -1,6 +1,6 @@
 import type { NavigateStatus, NavigateStoreApi } from "@navigate/store";
 
-import { invertEasing } from "@transition/cubicBezier";
+import { holdScrubAt, scrubTo, settleScrubbed } from "@transition/gestureScrub";
 
 import {
   clearGestureDeliveries,
@@ -120,15 +120,7 @@ export const beginMorphSwipe = (
 
   const holdAt = (seconds: number) => {
     suspendBackstops();
-    for (const animation of morphAnimations()) {
-      animation.pause();
-      try {
-        animation.currentTime = seconds * 1000;
-      } catch {
-        // An animation with no resolved timeline yet refuses the seek. It will
-        // be seeked again on the next pointer move, which is 16ms away.
-      }
-    }
+    holdScrubAt(morphAnimations(), seconds);
   };
 
   // Nested flights are staged one microtask late (a container has to decline or
@@ -146,12 +138,8 @@ export const beginMorphSwipe = (
       if (released) return;
       const flight = clockOf();
       if (!flight) return;
-      const clamped = progress < 0 ? 0 : progress > 1 ? 1 : progress;
-      // The drag names how far along the element should LOOK, not where its
-      // clock should be. Those are the same number only for a linear ease;
-      // under the built-in curve a finger a tenth of the way across moves the
-      // element a fiftieth, and the release is left to rush the rest.
-      holdAt(flight.start + invertEasing(flight.ease)(clamped) * flight.duration);
+      suspendBackstops();
+      scrubTo(morphAnimations(), flight, progress);
     },
     settle: (commit: boolean, seconds: number) => {
       if (released) return;
@@ -171,42 +159,9 @@ export const beginMorphSwipe = (
       // Handed back to the browser, so the net goes back up — sized to the
       // release, not to the flight the gesture never ran.
       for (const held of heldFlights(store)) held.armBackstop(span);
-      // The remaining travel decides the RATE, so a release near either end
-      // lands as quickly as the screens do rather than replaying a whole
-      // flight's worth of clock.
-      const now = ((animations[0]?.currentTime as number | null) ?? 0) / 1000;
-      const total = flight.start + flight.duration;
-      const remaining = commit ? Math.max(total - now, 0) : Math.max(now, 0);
-      const rate = remaining > 0 ? remaining / span : 1;
-      for (const animation of animations) {
-        // `play()` on a FINISHED animation rewinds it. That is the spec — an
-        // exhausted animation replays from its start — and it is wrong for
-        // every passenger of a flight that is already done with its own span:
-        // the departure's cut is 17ms long and finished before the finger let
-        // go, so handing the flight back replayed it, and the element that had
-        // been cut came back opaque for a frame before cutting again. Its time
-        // is kept and put back after the play.
-        const at = animation.currentTime;
-        animation.playbackRate = commit ? rate : -rate;
-        // Backwards, an animation finishes at its start and fires no
-        // `animationend` — the landing listens for one, so the flights are
-        // brought home explicitly instead.
-        if (!commit) {
-          animation.addEventListener(
-            "finish",
-            () => {
-              for (const held of heldFlights(store)) held.finish();
-            },
-            { once: true }
-          );
-        }
-        animation.play();
-        try {
-          animation.currentTime = at;
-        } catch {
-          // A timeline that refuses the seek leaves the play as it landed.
-        }
-      }
+      settleScrubbed(animations, flight, commit, seconds, () => {
+        for (const held of heldFlights(store)) held.finish();
+      });
     }
   };
 };

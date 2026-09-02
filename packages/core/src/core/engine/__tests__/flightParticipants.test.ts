@@ -14,7 +14,13 @@ import {
   collectVariantParts,
   statusChoreographySpanMs
 } from "@core/engine/flightParticipants";
-import { ANIM_HOLD_ATTR, PART_NAME_ATTR, ROUTER_ATTR, SCREEN_ATTR } from "@dom/attributes";
+import {
+  ANIM_HOLD_ATTR,
+  PART_HOME_ATTR,
+  PART_NAME_ATTR,
+  ROUTER_ATTR,
+  SCREEN_ATTR
+} from "@dom/attributes";
 
 import createPartTransition from "@transition/partTransition/createPartTransition";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
@@ -67,6 +73,39 @@ describe("collectScreenParts", () => {
     const own = part("title");
     scope.appendChild(own);
     expect(collectScreenParts(scope)).toEqual([own]);
+  });
+
+  it("follows a staged bar part out into the part layer", () => {
+    // A matched shared bar's parts spend the flight above both screens (see
+    // barPartStaging.ts), where the container walk cannot reach them. Every
+    // caller here is one where losing them is a defect: the layer pin, the
+    // settle release, the COMPLETED inline clear.
+    const container = el({});
+    const scope = el({ [SCREEN_ATTR]: "screen-1" });
+    const own = part("title");
+    scope.appendChild(own);
+    container.appendChild(scope);
+    const layer = el({});
+    const staged = part("action", { [PART_HOME_ATTR]: "screen-1" });
+    layer.appendChild(staged);
+    document.body.append(container, layer);
+
+    expect(collectScreenParts(scope)).toEqual([own, staged]);
+    container.remove();
+    layer.remove();
+  });
+
+  it("leaves another screen's staged part alone", () => {
+    const container = el({});
+    const scope = el({ [SCREEN_ATTR]: "screen-1" });
+    container.appendChild(scope);
+    const layer = el({});
+    layer.appendChild(part("action", { [PART_HOME_ATTR]: "screen-2" }));
+    document.body.append(container, layer);
+
+    expect(collectScreenParts(scope)).toEqual([]);
+    container.remove();
+    layer.remove();
   });
 });
 

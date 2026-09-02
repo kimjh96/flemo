@@ -9,6 +9,7 @@ import {
   ANIM_HOLD_ATTR,
   attrSelector,
   attrValueSelector,
+  PART_HOME_ATTR,
   PART_NAME_ATTR,
   ROUTER_ATTR,
   SCREEN_ATTR,
@@ -17,7 +18,7 @@ import {
 
 import { decoratorMap } from "@transition/decorator/decorator";
 import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
-import { partTransitionMap } from "@transition/partTransition/partTransition";
+import { resolvePartDefinition } from "@transition/partTransition/partTransition";
 
 // WHO IS IN THIS FLIGHT.
 //
@@ -32,15 +33,31 @@ import { partTransitionMap } from "@transition/partTransition/partTransition";
 // This screen's <Part> elements. The container (the scope's parent) hosts
 // bar-mounted parts too; parts owned by a NESTED screen inside the container
 // belong to that screen's own engine and are excluded.
+//
+// Plus the ones this screen has STAGED. A matched shared bar's parts spend the
+// flight in the Router's part layer, outside every screen (see
+// barPartStaging.ts) — so the container walk above cannot reach them, and each
+// caller of this function is a place where losing them is a defect rather than
+// a saving: the layer pin and its settle release (participantLayers.ts) and the
+// COMPLETED inline clear. They are found by the explicit home marker rather
+// than by structure, for the reason stated below collectFlightParts: a staged
+// part has no ancestry left to infer ownership from.
 
 export const collectScreenParts = (scope: HTMLElement): HTMLElement[] => {
   const container = scope.parentElement ?? scope;
-  return Array.from(container.querySelectorAll<HTMLElement>(`[${PART_NAME_ATTR}]`)).filter(
+  const inPlace = Array.from(container.querySelectorAll<HTMLElement>(`[${PART_NAME_ATTR}]`)).filter(
     (part) => {
       const owner = part.closest(attrSelector(SCREEN_ATTR));
       return !owner || owner === scope || !container.contains(owner);
     }
   );
+
+  const screenId = scope.getAttribute(SCREEN_ATTR);
+  if (screenId === null) return inPlace;
+  const staged = Array.from(
+    scope.ownerDocument.querySelectorAll<HTMLElement>(attrValueSelector(PART_HOME_ATTR, screenId))
+  );
+  return staged.length === 0 ? inPlace : [...inPlace, ...staged];
 };
 
 // The subset currently mirroring this join's variant (parts self-carry their
@@ -164,7 +181,10 @@ export const statusChoreographySpanMs = (
     spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
   }
   for (const part of collectFlightParts(scope, status)) {
-    const definition = partTransitionMap.get(part.getAttribute(PART_NAME_ATTR)!);
+    // Against THIS flight's transition: a part with no authored duration runs
+    // at the screen's, so a span computed from the authored variants would
+    // close the flight while the part was still moving.
+    const definition = resolvePartDefinition(part.getAttribute(PART_NAME_ATTR), transition);
     const partVariant = `${status}-${part.getAttribute(ACTIVE_ATTR)}` as TransitionVariant;
     if (!definition || !variantHasAnimation(definition, partVariant)) continue;
     const motion = resolveVariantMotion(definition, partVariant)!;

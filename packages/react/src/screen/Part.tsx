@@ -22,7 +22,7 @@ export interface PartProps extends PropsWithChildren<ComponentPropsWithRef<"div"
 // right variant matches. Selective by design: only the wrapped child animates,
 // the rest of the bar stays put.
 function Part({ ref, name, style, children, ...props }: PartProps) {
-  const { isActive, isPrev, navigateStore, routerId: screenRouterId } = useScreen();
+  const { isActive, isPrev, navigateStore, routerId: screenRouterId, transitionName } = useScreen();
   // The part's OWNING Router, stamped on the element so the engine can scope
   // a flight's choreography without structure guesses even for parts OUTSIDE
   // any screen (a persistent header next to a <Slot>, a portal). Inside a
@@ -51,6 +51,13 @@ function Part({ ref, name, style, children, ...props }: PartProps) {
     <div
       ref={ref}
       data-flemo-part-name={name}
+      // The flight's transition, so the compiled rule can hand this part the
+      // clock that transition runs at rather than the zero an omitted duration
+      // resolves to (see resolvePartClock). It is the ENCLOSING screen's, for
+      // the same reason the status below is: a part in a nested Router's chrome
+      // belongs to the outer flight. Absent outside any screen, where there is
+      // no flight to inherit from and the by-name rule keeps what was authored.
+      data-flemo-transition={transitionName}
       data-flemo-router={ownerRouterId}
       data-flemo-status={status}
       data-flemo-active={isActive ? "true" : "false"}

@@ -31,6 +31,12 @@ export interface ScreenLifecycleInput {
     // screen's is in an ancestor's host — so finding it is a rule rather than
     // a ref, and the rule belongs with the protocol (see layerRiders.ts).
     screenContainer?: HTMLElement | null;
+    // The Router scope's part layer (see @screen/partLayer): where this
+    // screen's matched shared-bar <Part> elements are staged for the flight so
+    // they are not painted under the other screen's opaque surface. Resolved by
+    // the binding because only a Router knows which box bounds its screens.
+    // Omitted by a binding that renders no layer; staging is then skipped.
+    partLayer?: HTMLElement | null;
   };
   transitionName: TransitionName;
   prevTransitionName: TransitionName;
