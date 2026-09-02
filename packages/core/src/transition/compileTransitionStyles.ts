@@ -463,7 +463,22 @@ export const decoratorAnimationName = (
 // the restart watchdog then replays the whole transition (glass-visible as a
 // second fade on REPLACE). Keep this list beside the suffixes the compiler
 // emits, and route every name comparison through the matcher.
-export const HEAD_ANIMATION_SUFFIXES = ["-gov", "-deskhead", "-govcreep"] as const;
+// Named once, so the matcher below and the compiler that emits the keyframes
+// cannot drift apart. They already did: `govpark` and `deskpark` shipped
+// without ever being added here, so every parked flight's `animationend` went
+// unrecognized. On an iPhone that is the whole reported defect — the restart
+// watchdog replayed the transition (the second run is visible on the glass, and
+// device-traced: the park keyframe ended at 912ms and started over at 1179ms)
+// and the navigation took 1959ms where the desktop tier took 780ms.
+export const HEAD_SUFFIXES = {
+  governed: "gov",
+  desktop: "deskhead",
+  creep: "govcreep",
+  governedPark: "govpark",
+  desktopPark: "deskpark"
+} as const;
+
+export const HEAD_ANIMATION_SUFFIXES = Object.values(HEAD_SUFFIXES).map((suffix) => `-${suffix}`);
 
 export const matchesFlightAnimationName = (eventName: string, expectedName: string): boolean =>
   eventName === expectedName ||
@@ -797,7 +812,7 @@ const compileVariantBlock = (
     })();
     const total = duration + headS;
     const headPct = ((headS / total) * 100).toFixed(3);
-    const kf = `${target.keyframe}-govcreep`;
+    const kf = `${target.keyframe}-${HEAD_SUFFIXES.creep}`;
     const gatedSelector = target.selector
       .split(",\n")
       .map((one) => `:root${attrSelector(GOVERNED_ATTR)}${attrSelector(CREEP_ATTR)} ${one}`)
@@ -812,10 +827,16 @@ const compileVariantBlock = (
   // emitted: governed head, governed part delay, creep head, desktop head,
   // desktop part delay.
   const headsFor = (target: RideTarget = screenTarget) =>
-    headBlock(GOVERNED_ATTR, "gov", headForVariant(variant), true, target) +
+    headBlock(GOVERNED_ATTR, HEAD_SUFFIXES.governed, headForVariant(variant), true, target) +
     partDelayBlock(GOVERNED_ATTR, headForVariant(variant)) +
     creepHeadBlockFor(target) +
-    headBlock(DESK_HEAD_ATTR, "deskhead", desktopHeadForVariant(variant), false, target) +
+    headBlock(
+      DESK_HEAD_ATTR,
+      HEAD_SUFFIXES.desktop,
+      desktopHeadForVariant(variant),
+      false,
+      target
+    ) +
     partDelayBlock(DESK_HEAD_ATTR, desktopHeadForVariant(variant));
 
   // `will-change` is scoped to the variant-active rule (PUSHING/POPPING/...)
@@ -1055,8 +1076,8 @@ const compileVariantBlock = (
   // rule as `headsFor`: a head that holds an entering screen away from its park
   // has this defect, and how long it holds it only decides how visible it is.
   const parkHeadsFor = () =>
-    parkHeadBlock(GOVERNED_ATTR, "govpark", headForVariant(variant), true) +
-    parkHeadBlock(DESK_HEAD_ATTR, "deskpark", desktopHeadForVariant(variant), false);
+    parkHeadBlock(GOVERNED_ATTR, HEAD_SUFFIXES.governedPark, headForVariant(variant), true) +
+    parkHeadBlock(DESK_HEAD_ATTR, HEAD_SUFFIXES.desktopPark, desktopHeadForVariant(variant), false);
 
   // The bar's corrected copy carries the same heads for the same reason the
   // screen does: a rider that keeps the screen's clock but loses the governed
