@@ -26,6 +26,16 @@
 // flight's range agreed to the last digit. So the canvas is the oracle, and the
 // only question is how few times it has to be asked.
 //
+// WHAT A STEP IS WORTH is not the same everywhere. The engine snaps each half
+// of the height to its own grid, and that grid is a whole CSS pixel on one
+// display and a DEVICE pixel on another: device-reported from a 2x desktop
+// Chrome, a 14.5px face measuring 17.5 where a headless 2x reported whole
+// numbers throughout. A canvas rounds to ITS pixels, so asking it at a size
+// scaled by the grid and dividing the answer back is the same quantisation the
+// layout used. Which scale that is comes from the same discipline as everything
+// else here: try the candidates, keep the one that reproduces both measured
+// ends, and correct nothing where neither does.
+//
 // Two ratios off one call at a large size place each boundary to about a
 // hundredth of a pixel of font size, which is close enough to be wrong: at the
 // end of a flight the ease crawls, and a hundredth of font size was measured to
@@ -136,9 +146,23 @@ const measureRatios = (
   }
 };
 
-/** The face height the line box will be built from, at one size. */
-export const faceHeightAt = (size: number, ratios: FaceRatios): number =>
-  Math.round(size * ratios.ascent) + Math.round(size * ratios.descent);
+/** The grids an engine is known to snap the two halves of a face height to. */
+export const faceGrids = (): number[] => {
+  /* v8 ignore next -- SSR: nothing is rendered, so nothing is on a grid. */
+  const ratio = typeof window === "undefined" ? 1 : window.devicePixelRatio;
+  return typeof ratio === "number" && ratio > 1 ? [1, ratio] : [1];
+};
+
+const snap = (value: number, scale: number) => Math.round(value * scale) / scale;
+
+/**
+ * The face height the line box will be built from, at one size.
+ *
+ * `scale` is the reciprocal of the grid: 1 for whole pixels, the device pixel
+ * ratio for device pixels.
+ */
+export const faceHeightAt = (size: number, ratios: FaceRatios, scale: number): number =>
+  snap(size * ratios.ascent, scale) + snap(size * ratios.descent, scale);
 
 /**
  * The face's own height at one size, as the font reports it.
@@ -147,17 +171,20 @@ export const faceHeightAt = (size: number, ratios: FaceRatios): number =>
  */
 export const faceHeight = (
   size: number,
-  font: { family: string; weight: string | number; style: string }
+  font: { family: string; weight: string | number; style: string },
+  scale: number
 ): number | null => {
   const context = canvas();
   if (!context) return null;
   try {
-    context.font = `${font.style} ${font.weight} ${size}px ${font.family}`;
+    // The canvas rounds to ITS pixels. Asking at a scaled size and dividing the
+    // answer back is what puts the answer on the grid the layout used.
+    context.font = `${font.style} ${font.weight} ${size * scale}px ${font.family}`;
     const metrics = context.measureText("");
     const ascent = metrics.fontBoundingBoxAscent;
     const descent = metrics.fontBoundingBoxDescent;
     if (typeof ascent !== "number" || typeof descent !== "number") return null;
-    return ascent + descent;
+    return (ascent + descent) / scale;
     /* v8 ignore next 3 -- a malformed shorthand throws on assignment. */
   } catch {
     return null;
@@ -182,6 +209,7 @@ export const faceSteps = (
   from: number,
   to: number,
   ratios: FaceRatios,
+  scale: number,
   measure: (size: number) => number | null
 ): { size: number; height: number }[] => {
   const low = Math.min(from, to);
@@ -189,16 +217,20 @@ export const faceSteps = (
   const aimed: number[] = [];
   for (const ratio of [ratios.ascent, ratios.descent]) {
     if (!(ratio > 0)) continue;
-    // The first half-integer of `size * ratio` at or after the low end.
-    let k = Math.ceil(low * ratio - 0.5);
-    for (;;) {
-      const size = (k + 0.5) / ratio;
+    // Halfway between two points of the grid is where a half of the height
+    // snaps to the next one.
+    const step = ratio * scale;
+    /* v8 ignore next -- a grid with no size to it enumerates nothing. */
+    if (!(step > 0)) continue;
+    let k = Math.ceil(low * step - 0.5);
+    // Counted rather than measured by what was kept: a candidate outside the
+    // range pushes nothing, and a backstop that only watched the result would
+    // not be watching at all.
+    for (let seen = 0; seen < 4096; seen += 1) {
+      const size = (k + 0.5) / step;
       if (size > high) break;
       if (size > low) aimed.push(size);
       k += 1;
-      /* v8 ignore next -- a ratio near zero would enumerate forever; the break
-         above is the ordinary exit and this is the backstop. */
-      if (aimed.length > 512) return [];
     }
   }
   aimed.sort((a, b) => a - b);

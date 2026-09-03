@@ -27,7 +27,7 @@
 import type { AnimationOptions } from "@transition/cssTypes";
 import { invertEasing } from "@transition/cubicBezier";
 
-import { faceHeight, faceHeightAt, faceRatios, faceSteps, type FaceRatios } from "@morph/morphFace";
+import { faceGrids, faceHeight, faceRatios, faceSteps } from "@morph/morphFace";
 
 /** The properties the hold writes, so a caller can reason about what it costs. */
 export const LINE_HOLD = {
@@ -234,17 +234,26 @@ const buildStops = (
 ): LeadingStop[] | null => {
   const ratios = faceRatios(font);
   if (!ratios) return null;
-  // THE MEASUREMENT IS THE AUTHORITY. A predicted face height that does not
-  // reproduce both ends is a prediction about the wrong engine.
-  if (!reproduces(from, ratios) || !reproduces(to, ratios)) return null;
+
+  // THE MEASUREMENT IS THE AUTHORITY. The engine snaps each half of the face
+  // height to a grid, and which grid that is differs between displays — so the
+  // candidates are tried and the one that reproduces what was actually measured
+  // at BOTH ends is the one used. Where none does, the engine is not one that
+  // steps at all (or not one this understands), and nothing is corrected.
+  const scale = faceGrids().find(
+    (candidate) =>
+      matches(faceHeight(from.fontSize, font, candidate), from.textHeight) &&
+      matches(faceHeight(to.fontSize, font, candidate), to.textHeight)
+  );
+  if (scale === undefined) return null;
 
   // The leading the arrival RESTS at, which every stop is built to preserve.
   const leading = to.lineHeight - to.textHeight;
   const invert = invertEasing(ease);
   const span = to.fontSize - from.fontSize;
   const stops: LeadingStop[] = [{ at: 0, lineHeight: from.textHeight + leading }];
-  for (const step of faceSteps(from.fontSize, to.fontSize, ratios, (size) =>
-    faceHeight(size, font)
+  for (const step of faceSteps(from.fontSize, to.fontSize, ratios, scale, (size) =>
+    faceHeight(size, font, scale)
   )) {
     // Font size interpolates with the eased progress, so the TIME a step is met
     // is the time at which the ease has travelled that far.
@@ -260,7 +269,5 @@ const buildStops = (
   return stops.length > 2 ? stops : null;
 };
 
-const reproduces = (end: LeadingEndType, ratios: FaceRatios): boolean =>
-  end.fontSize !== null &&
-  end.textHeight !== null &&
-  Math.abs(faceHeightAt(end.fontSize, ratios) - end.textHeight) < EXACT;
+const matches = (predicted: number | null, measured: number): boolean =>
+  predicted !== null && Math.abs(predicted - measured) < EXACT;
