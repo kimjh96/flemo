@@ -212,6 +212,17 @@ describe("leadingBias", () => {
     ).toBe(0);
   });
 
+  it("falls back to whole pixels where the host reports no ratio", () => {
+    // A grid finer than a CSS pixel needs a ratio to derive it from.
+    dpr(undefined);
+    const cell = { lineHeight: 16, textHeight: 14, leadOffset: 1 };
+    const page = { lineHeight: 20, textHeight: 18, leadOffset: 1 };
+    expect(leadingBias(cell, page)).toBe(1);
+
+    dpr(0);
+    expect(leadingBias(cell, page)).toBe(1);
+  });
+
   it("declines an end it cannot measure", () => {
     dpr(3);
     const cell = { lineHeight: 16, textHeight: 14, leadOffset: 1 };
@@ -219,5 +230,114 @@ describe("leadingBias", () => {
     expect(leadingBias({ ...cell, lineHeight: null }, page)).toBe(0);
     expect(leadingBias({ ...cell, textHeight: null }, page)).toBe(0);
     expect(leadingBias(cell, { ...page, leadOffset: null })).toBe(0);
+  });
+});
+
+// The face's own metrics come off ONE range rect: its height is the type's, its
+// top against the box's is where the engine put the line. jsdom gives a range no
+// rects at all, so the rect is supplied here and what is under test is the
+// bookkeeping around it: the per-face cache, and the two refusals.
+describe("captureMorphSnapshot type metrics", () => {
+  const runRect = (top: number, height: number) =>
+    ({ top, height, left: 0, right: 0, bottom: top + height, width: 0, x: 0, y: top }) as DOMRect;
+
+  const stubRange = (rects: () => DOMRect[]) => {
+    const create = vi.spyOn(document, "createRange").mockImplementation(
+      () =>
+        ({
+          selectNodeContents: () => {},
+          getClientRects: () => rects() as unknown as DOMRectList
+        }) as unknown as Range
+    );
+    return create;
+  };
+
+  const line = (family: string, height: number) => {
+    const element = document.createElement("span");
+    element.textContent = "Thu 20:00";
+    setRect(element, 119, height);
+    Object.defineProperty(element, "offsetHeight", { value: height, configurable: true });
+    stubStyles({
+      fontSize: "14px",
+      fontWeight: "400",
+      fontStyle: "normal",
+      fontFamily: family,
+      lineHeight: "20px"
+    });
+    return element;
+  };
+
+  it("reads the face's height and the rendered line offset from one rect", () => {
+    stubRange(() => [runRect(2, 17)]);
+    const snapshot = captureMorphSnapshot(line("Probe One", 20));
+
+    expect(snapshot.textHeight).toBe(17);
+    expect(snapshot.leadOffset).toBe(2);
+  });
+
+  it("measures once per type style, not once per element", () => {
+    // A navigation captures every registered morph, and a range measurement is
+    // a forced layout each. The face's height belongs to the face.
+    const create = stubRange(() => [runRect(1.5, 16)]);
+    captureMorphSnapshot(line("Probe Two", 20));
+    const after = create.mock.calls.length;
+    captureMorphSnapshot(line("Probe Two", 20));
+    captureMorphSnapshot(line("Probe Two", 20));
+
+    expect(create.mock.calls.length).toBe(after);
+  });
+
+  it("refuses a measurement taken through an ancestor's scale", () => {
+    // A range's rects are painted, so a scale is baked into them while the size
+    // the cache is keyed on is not.
+    stubRange(() => [runRect(2, 17)]);
+    const element = line("Probe Three", 20);
+    Object.defineProperty(element, "offsetHeight", { value: 40, configurable: true });
+
+    expect(captureMorphSnapshot(element).textHeight).toBeNull();
+  });
+
+  it("refuses a run with no rects, and one with no height", () => {
+    stubRange(() => []);
+    expect(captureMorphSnapshot(line("Probe Four", 20)).textHeight).toBeNull();
+    stubRange(() => [runRect(0, 0)]);
+    expect(captureMorphSnapshot(line("Probe Five", 20)).textHeight).toBeNull();
+  });
+
+  it("declines a host whose ranges have no rects at all", () => {
+    // jsdom, and anything else that lays nothing out.
+    vi.spyOn(document, "createRange").mockImplementation(
+      () => ({ selectNodeContents: () => {} }) as unknown as Range
+    );
+    expect(captureMorphSnapshot(line("Probe Six", 20)).textHeight).toBeNull();
+  });
+
+  it("keys on the font loader's status, so a fallback face is not kept for the webfont", () => {
+    // The same declaration measures differently before and after the webfont
+    // lands, and the cache must not carry the first answer into the second.
+    Object.defineProperty(document, "fonts", {
+      value: { status: "loading" },
+      configurable: true
+    });
+    stubRange(() => [runRect(2, 15)]);
+    expect(captureMorphSnapshot(line("Probe Eight", 20)).textHeight).toBe(15);
+
+    Object.defineProperty(document, "fonts", {
+      value: { status: "loaded" },
+      configurable: true
+    });
+    stubRange(() => [runRect(2, 17)]);
+    expect(captureMorphSnapshot(line("Probe Eight", 20)).textHeight).toBe(17);
+
+    Reflect.deleteProperty(document, "fonts");
+  });
+
+  it("declines anything that is not one run of text", () => {
+    stubRange(() => [runRect(2, 17)]);
+    const withChild = line("Probe Seven", 20);
+    withChild.textContent = "";
+    withChild.appendChild(document.createElement("b"));
+
+    expect(captureMorphSnapshot(withChild).textHeight).toBeNull();
   });
 });

@@ -230,6 +230,49 @@ describe("attachMorph", () => {
     expect(nestedRule).not.toContain("\\");
   });
 
+  it("carries a leading correction for a pair whose two ends already share one", () => {
+    // The size moves under the leading, so the half-leading the engine renders
+    // moves with it, and a leading held at its authored value would step as the
+    // type grows past a boundary. The channel is emitted for the correction
+    // even where there is no leading travel to carry it.
+    Object.defineProperty(window, "devicePixelRatio", { value: 1, configurable: true });
+    const rect = (top: number, height: number) =>
+      ({ top, height, left: 0, right: 0, bottom: top + height, width: 0, x: 0, y: top }) as DOMRect;
+    vi.spyOn(document, "createRange").mockImplementation(
+      () =>
+        ({
+          selectNodeContents: () => {},
+          getClientRects: () => [rect(1, 18)] as unknown as DOMRectList
+        }) as unknown as Range
+    );
+
+    const gallery = makeScreen("layout", true);
+    // Both boxes at y 0, so the stubbed run's top IS the rendered line offset.
+    const label = makeMorph(gallery, [20, 0, 119, 20]);
+    label.textContent = "Thu 20:00";
+    label.style.fontSize = "11px";
+    label.style.lineHeight = "20px";
+    Object.defineProperty(label, "offsetHeight", { value: 20, configurable: true });
+    attachMorph(label, { layoutId: "meta-4", name: "text", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const meta = makeMorph(detail, [16, 0, 314, 20]);
+    meta.textContent = "Thu 20:00";
+    meta.style.fontSize = "14px";
+    meta.style.lineHeight = "20px";
+    Object.defineProperty(meta, "offsetHeight", { value: 20, configurable: true });
+    attachMorph(meta, { layoutId: "meta-4", name: "text", navigateStore: store });
+
+    // Both ends read a half-leading of exactly 1, which is the boundary an
+    // interpolation can only approach, so both ends take the same pixel of
+    // leading and the flight renders on the step the landing will.
+    const travel = inserted.find((rule) => rule.includes("-travel"))!;
+    expect(travel).toContain("line-height: 21px");
+  });
+
   it("holds a text pair to one line for the whole flight", () => {
     // The flying element is the ARRIVAL's tree, so it re-wraps at every width
     // between the two ends under the arrival's rules. Where both ends are one

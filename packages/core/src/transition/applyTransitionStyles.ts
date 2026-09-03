@@ -67,6 +67,7 @@ const compileForSignature = (key: string): string => {
   );
   if (compiled.size >= CACHE_LIMIT) {
     const oldest = compiled.keys().next();
+    /* v8 ignore next -- the size check above is what guarantees a first key. */
     if (!oldest.done) compiled.delete(oldest.value);
   }
   compiled.set(key, css);
@@ -78,6 +79,7 @@ const compileForSignature = (key: string): string => {
 // when the CSS actually changes. No-op on the server. Framework-neutral DOM: a
 // binding calls this after it (un)registers entries in the shared maps.
 export default function applyTransitionStyles() {
+  /* v8 ignore next -- there is no document to write the sheet into. */
   if (isServer()) return;
 
   const css = compileForSignature(signature());

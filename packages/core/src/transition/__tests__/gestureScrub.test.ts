@@ -171,3 +171,29 @@ describe("settleScrubbed", () => {
     expect(animation.playbackRate).toBeCloseTo(0.4 / (1 / 60), 5);
   });
 });
+
+// `currentTime` and `startTime` are `CSSNumberish`: a plain number on every
+// engine that ships this, and a `CSSNumericValue` under the scroll-timeline
+// proposals. The release reads whichever it is given.
+describe("a timeline that answers in CSSNumericValue", () => {
+  const numeric = (value: unknown) => ({ value }) as unknown as number;
+
+  it("reads the number off the unit value", () => {
+    const animation = fakeAnimation({ currentTime: numeric(200) });
+
+    settleScrubbed(asAnimations([animation]), clock, true, 0.4);
+
+    expect(animation.playbackRate).toBeCloseTo(1, 5);
+    expect((1_000 - (animation.startTime ?? 0)) * animation.playbackRate).toBeCloseTo(200, 5);
+  });
+
+  it("treats a value it cannot read as the start of the flight", () => {
+    // A sum or a product has no single number to read, and a release that
+    // cannot place the animation must not place it at NaN.
+    const animation = fakeAnimation({ currentTime: numeric("nope") });
+
+    settleScrubbed(asAnimations([animation]), clock, true, 0.4);
+
+    expect(Number.isFinite(animation.startTime ?? NaN)).toBe(true);
+  });
+});

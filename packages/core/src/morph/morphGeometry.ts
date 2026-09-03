@@ -166,6 +166,13 @@ interface TypeMetrics {
 
 const typeMetrics = new Map<string, TypeMetrics>();
 
+// Part of the key because a fallback face and the webfont that replaces it are
+// different metrics under the same declaration.
+/* v8 ignore next 3 -- SSR, and a host with no font loader: neither reaches a
+   measurement to key. */
+const fontLoaderStatus = (): string =>
+  typeof document === "undefined" ? "" : (document.fonts?.status ?? "");
+
 const faceKey = (styles: Record<string, string | undefined>): string =>
   [
     styles.fontFamily,
@@ -173,7 +180,7 @@ const faceKey = (styles: Record<string, string | undefined>): string =>
     styles.fontWeight,
     styles.fontStyle,
     styles.lineHeight,
-    typeof document === "undefined" ? "" : (document.fonts?.status ?? "")
+    fontLoaderStatus()
   ].join("|");
 
 const measureType = (
@@ -190,6 +197,8 @@ const measureType = (
   const seen = typeMetrics.get(key);
   if (seen !== undefined) return seen;
 
+  /* v8 ignore next -- SSR; a jsdom host is covered through the range it does
+     give, which carries no rects. */
   if (typeof document === "undefined" || typeof document.createRange !== "function") return null;
   const range = document.createRange();
   // jsdom lays nothing out and gives its ranges no rects at all; a host without

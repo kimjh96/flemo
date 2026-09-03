@@ -80,6 +80,7 @@ export const holdsOneLine = (from: boolean, to: boolean): boolean => from && to;
 // correction that is wrong on the other, so both are tried and the one that
 // reproduces what BOTH ends actually rendered is the one that is used.
 const quanta = (): number[] => {
+  /* v8 ignore next -- SSR: nothing is rendered, so nothing is on a grid. */
   const ratio = typeof window === "undefined" ? 1 : window.devicePixelRatio;
   const device = typeof ratio === "number" && ratio > 0 ? 1 / ratio : 1;
   return device === 1 ? [1] : [1, device];

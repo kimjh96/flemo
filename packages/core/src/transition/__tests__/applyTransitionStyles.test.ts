@@ -96,3 +96,26 @@ describe("the compile is keyed on what is registered", () => {
     applyTransitionStyles();
   });
 });
+
+describe("the cache is bounded", () => {
+  it("drops its oldest signature rather than growing without limit", () => {
+    // Four entries leave room for a nested Router's churn to interleave with
+    // its parent's; a fifth registry evicts the first.
+    const probes = [1, 2, 3, 4, 5].map((n) => ({
+      ...cupertino,
+      name: `apply-styles-limit-${n}` as never
+    }));
+    applyTransitionStyles();
+    for (const probe of probes) {
+      transitionMap.set(probe.name, probe);
+      applyTransitionStyles();
+    }
+    for (const probe of probes) transitionMap.delete(probe.name);
+
+    const base = compiles.count;
+    applyTransitionStyles();
+
+    // The bare registry was the first signature in and is gone, so it compiles.
+    expect(compiles.count).toBe(base + 1);
+  });
+});
