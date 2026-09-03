@@ -8,7 +8,9 @@ import {
   IDENTITY_POSE,
   type MorphPose,
   PINNED_POSE_TRANSFORM,
-  pinnedPoseDecls
+  pinnedPoseDecls,
+  PINNED_TRAVEL,
+  pinnedTravelDecls
 } from "@morph/morphPose";
 
 import type { MorphClipInset } from "@morph/morphClip";
@@ -45,8 +47,12 @@ const insetCss = (inset: MorphClipInset): string =>
 //
 // `translate` rather than `transform`, so an author's pose keeps `transform`
 // to itself and the two compose instead of overwriting one another.
-const boxBlock = (rect: MorphRect, origin: MorphRect) =>
-  `    translate: ${px(rect.x - origin.x)} ${px(rect.y - origin.y)};\n    width: ${px(rect.width)};\n    height: ${px(rect.height)};`;
+const boxBlock = (rect: MorphRect, origin: MorphRect, pinned: boolean) =>
+  `${
+    pinned
+      ? pinnedTravelDecls(rect.x - origin.x, rect.y - origin.y)
+      : `    left: ${px(rect.x)};\n    top: ${px(rect.y)};`
+  }\n    width: ${px(rect.width)};\n    height: ${px(rect.height)};`;
 
 const declsToBlock = (decls: { property: string; value: string }[]): string =>
   decls.map((decl) => `    ${decl.property}: ${decl.value};`).join("\n");
@@ -92,6 +98,13 @@ export interface MorphKeyframeSet {
    * registered with it has to be presented from there too (see the camera).
    */
   geometryAccelerated: boolean;
+  /**
+   * The `translate` the caller must set on the element, or null.
+   *
+   * Non-null where the travel is driven through registered properties, which
+   * is what keeps its position on the same thread as its size.
+   */
+  translate: string | null;
   /**
    * The `transform` the caller must set on the element, or null.
    *
@@ -215,6 +228,14 @@ export const buildMorphKeyframes = (input: {
    * where the geometry is already layout-bound, which needs no help.
    */
   pinned?: boolean;
+  /**
+   * Drive the travel's own position through registered properties.
+   *
+   * False only where they could not be registered, and there the position goes
+   * back to `left` and `top`: a literal `translate` would be run by WebKit's
+   * compositor while the size it belongs to waits for the main thread.
+   */
+  travelPinned?: boolean;
 }): MorphKeyframeSet => {
   const {
     id,
@@ -234,7 +255,8 @@ export const buildMorphKeyframes = (input: {
     clip,
     leading,
     lift,
-    pinned = false
+    pinned = false,
+    travelPinned = false
   } = input;
   const rules: string[] = [];
   const animations: string[] = [];
@@ -284,8 +306,8 @@ export const buildMorphKeyframes = (input: {
       : { from: 0, to: 0 };
     // The element RESTS at its destination and is carried back to where it
     // started, so the position it is laid out at never moves.
-    fromParts.push(boxBlock({ ...box.from, y: box.from.y + raise.from }, box.to));
-    toParts.push(boxBlock({ ...box.to, y: box.to.y + raise.to }, box.to));
+    fromParts.push(boxBlock({ ...box.from, y: box.from.y + raise.from }, box.to, travelPinned));
+    toParts.push(boxBlock({ ...box.to, y: box.to.y + raise.to }, box.to, travelPinned));
   }
   const fromPoses = composePoses([travel.from, travel.authoredFrom]);
   const toPoses = composePoses([travel.to ?? IDENTITY_POSE, travel.authoredTo]);
@@ -408,7 +430,8 @@ export const buildMorphKeyframes = (input: {
     // A pinned set is not on the compositor either, and a caller reading this to
     // decide what else has to wait must be told the truth about it.
     geometryAccelerated: !layoutBound && transform === null,
-    transform
+    transform,
+    translate: box && travelPinned ? PINNED_TRAVEL : null
   };
 };
 

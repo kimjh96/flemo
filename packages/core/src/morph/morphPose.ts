@@ -176,6 +176,27 @@ const PINNED = {
   rotate: "--flemo-pose-r"
 } as const;
 
+// The travel's own coordinates. A flight's POSITION moves by `translate` so
+// that the glyphs on it are painted from a transform rather than from a layout
+// box (see morphKeyframes), and `translate` is one of the few things WebKit
+// will run on the compositor EVEN WHERE THE SAME KEYFRAME ANIMATES A SIZE:
+// measured with the main thread blocked, a keyframe animating `translate` and
+// `width` together kept moving while a keyframe animating `width` alone stood
+// still. That is the position of a line of type running ahead of its own size,
+// which is the text arriving late that it reads as.
+//
+// So the travel is driven through registered properties too, which no
+// compositor can run, and the flight stays on one thread while keeping the
+// painting a transform gives it.
+const TRAVEL = { x: "--flemo-move-x", y: "--flemo-move-y" } as const;
+
+/** The `translate` an element wears while its travel is pinned. */
+export const PINNED_TRAVEL = `var(${TRAVEL.x}) var(${TRAVEL.y})`;
+
+/** One end of a pinned travel, as the keyframe declarations that drive it. */
+export const pinnedTravelDecls = (x: number, y: number, indent = "    "): string =>
+  `${indent}${TRAVEL.x}: ${round(x)}px;\n${indent}${TRAVEL.y}: ${round(y)}px;`;
+
 /** The `transform` an element wears while its pose is pinned. */
 export const PINNED_POSE_TRANSFORM = `translate3d(var(${PINNED.x}), var(${PINNED.y}), 0) scale(var(${PINNED.scaleX}), var(${PINNED.scaleY})) rotate(var(${PINNED.rotate}))`;
 
@@ -193,6 +214,8 @@ export const PINNED_POSE_TRANSFORM = `translate3d(var(${PINNED.x}), var(${PINNED
  * a pose meant for its parent.
  */
 export const PINNED_POSE_PROPERTY_RULES = [
+  `@property ${TRAVEL.x} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
+  `@property ${TRAVEL.y} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${PINNED.x} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${PINNED.y} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${PINNED.scaleX} {\n  syntax: "<number>";\n  inherits: false;\n  initial-value: 1;\n}`,

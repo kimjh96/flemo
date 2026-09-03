@@ -621,6 +621,12 @@ const startFlight = (
   // on the way, which is the difference between an element that GROWS and a
   // picture of one being zoomed. It costs layout per frame on this one subtree,
   // which is the honest price of the thing actually being laid out.
+  // The travel's position rides registered properties: a literal `translate` is
+  // run by WebKit's compositor even beside the size it belongs to, and a
+  // position that runs ahead of its own size is a line of type arriving late.
+  // Where they cannot be registered it goes back to `left` and `top`.
+  const travelPinned = ensurePinnedPoses();
+
   const arriving = buildMorphKeyframes({
     id: `${id}i`,
     travel: {
@@ -650,6 +656,7 @@ const startFlight = (
     lineHeight: type.lineHeight,
     leading: type.leading,
     lift: type.lift,
+    travelPinned,
     // The arrival fades only if the author gave it an entry pose to fade from.
     // The presets do not: the arrival is opaque and the ghost dissolves on top
     // of it, because fading both bleeds the background through the pair.
@@ -817,6 +824,7 @@ const startFlight = (
       lineHeight: type.lineHeight,
       leading: type.leading,
       lift: type.lift,
+      travelPinned,
       aspectRatio: reshapes
         ? { from: captured.snapshot.aspectRatio!, to: side.aspectRatio! }
         : null,
@@ -1053,8 +1061,8 @@ const startFlight = (
   // travel's own `translate`. A position that comes from layout is painted at
   // whole pixels on Blink, and a line of type stepping a pixel at a time is the
   // tremor this whole channel exists to avoid (see morphKeyframes).
-  entry.element.style.left = `${destination.x}px`;
-  entry.element.style.top = `${destination.y}px`;
+  entry.element.style.left = `${(travelPinned ? destination : origin).x}px`;
+  entry.element.style.top = `${(travelPinned ? destination : origin).y}px`;
   entry.element.style.width = `${origin.width}px`;
   entry.element.style.height = `${origin.height}px`;
   entry.element.style.margin = "0";
@@ -1077,6 +1085,9 @@ const startFlight = (
   // still inside it.
   entry.element.style.zIndex = `${morphDepth(home) + 1}`;
   entry.element.style.animation = arriving.animation;
+  // A pinned travel animates the position's coordinates; the element needs the
+  // `translate` that reads them.
+  if (arriving.translate) entry.element.style.translate = arriving.translate;
   // Both ends are one line, so every width in between is one line too. Without
   // this the arrival's own wrapping rules run at the departure's width and put
   // a second line under the first for the opening frames (see morphLine).

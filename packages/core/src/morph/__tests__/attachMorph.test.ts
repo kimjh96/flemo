@@ -121,7 +121,8 @@ describe("attachMorph", () => {
     // Its BOX travels, from the partner's to its own — not a scale, which
     // would stretch everything inside it.
     const travel = inserted.find((rule) => rule.includes("-travel"))!;
-    expect(travel).toContain("translate: 20px 600px;");
+    expect(travel).toContain("--flemo-move-x: 20px;");
+    expect(travel).toContain("--flemo-move-y: 600px;");
     expect(travel).toContain("width: 400px");
     expect(travel).toContain("height: 300px");
     expect(hero.style.animation).toContain("flemo-morph-");
@@ -235,7 +236,7 @@ describe("attachMorph", () => {
     expect(heading.parentElement).toBe(bigCard);
     // It rides its container's box: not staged, never absolutely positioned.
     const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
-    expect(nestedRule).not.toContain("translate:");
+    expect(nestedRule).not.toContain("--flemo-move-x");
     // And it BEGINS where the pair measured it — the from-delta between the
     // label's box (28, 730) and the heading's (16, 260) — decaying to rest.
     expect(nestedRule).toContain("translate3d(12px, 470px, 0)");
@@ -777,7 +778,8 @@ describe("attachMorph", () => {
     expect(hero.style.left).toBe("0px");
     expect(hero.style.width).toBe("80px");
     const travel = inserted.find((rule) => rule.includes("-travel"))!;
-    expect(travel).toContain("translate: 20px 600px;");
+    expect(travel).toContain("--flemo-move-x: 20px;");
+    expect(travel).toContain("--flemo-move-y: 600px;");
     expect(travel).toContain("width: 80px");
     expect(travel).toContain("width: 400px");
     // And its place is held by a copy of it, so nothing reflows while it is
@@ -1055,7 +1057,8 @@ describe("attachMorph", () => {
 
     const travel = inserted.find((rule) => rule.includes("-travel"));
     expect(travel).toBeDefined();
-    expect(travel).toContain("translate: 20px 600px;");
+    expect(travel).toContain("--flemo-move-x: 20px;");
+    expect(travel).toContain("--flemo-move-y: 600px;");
     expect(travel).toContain("width: 400px");
     expect(hero.parentElement).toBe(layer);
   });
@@ -1139,12 +1142,12 @@ describe("attachMorph", () => {
     attachMorph(hero, { layoutId: "photo-1", name: "zoom", navigateStore: store });
 
     const registrations = inserted.filter((rule) => rule.startsWith("@property"));
-    expect(registrations).toHaveLength(5);
+    expect(registrations).toHaveLength(7);
 
     const second = makeMorph(detail, [0, 0, 400, 300]);
     attachMorph(second, { layoutId: "photo-2", name: "zoom", navigateStore: store });
 
-    expect(inserted.filter((rule) => rule.startsWith("@property"))).toHaveLength(5);
+    expect(inserted.filter((rule) => rule.startsWith("@property"))).toHaveLength(7);
   });
 
   it("leaves the camera literal where those properties cannot be registered", () => {
@@ -1907,7 +1910,7 @@ describe("attachMorph", () => {
       });
 
       const travel = inserted.find((rule) => rule.includes("-travel"))!;
-      expect(travel).toContain("translate: 20px");
+      expect(travel).toContain("--flemo-move-x: 20px;");
       expect(travel).not.toContain("translate3d");
     } finally {
       morphTransitionMap.delete("unresolvable" as never);
@@ -1977,7 +1980,7 @@ describe("attachMorph", () => {
     attachMorph(hero, { layoutId: "photo-8", navigateStore: store });
 
     const travel = inserted.find((rule) => rule.includes("-travel"))!;
-    expect(travel).toContain("translate: 20px");
+    expect(travel).toContain("--flemo-move-x: 20px;");
     expect(travel).not.toContain("Infinity");
   });
 
@@ -2020,7 +2023,7 @@ describe("attachMorph", () => {
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
 
     const travel = inserted.find((rule) => rule.includes("-travel"))!;
-    expect(travel).toContain("translate: 20px");
+    expect(travel).toContain("--flemo-move-x: 20px;");
     expect(travel).not.toContain("Infinity");
   });
 
@@ -2098,7 +2101,7 @@ describe("attachMorph", () => {
       // A negative window means no ghost at all, not a negative duration in a
       // keyframe — and the travel itself is unaffected.
       expect(hero.parentElement).toBe(layer);
-      expect(inserted.find((rule) => rule.includes("-travel"))).toContain("translate: 20px");
+      expect(inserted.find((rule) => rule.includes("-travel"))).toContain("--flemo-move-x: 20px;");
       expect(inserted.some((rule) => rule.includes("-ghost"))).toBe(false);
     } finally {
       morphTransitionMap.delete("over-faded" as never);
@@ -2268,7 +2271,7 @@ describe("attachMorph", () => {
     attachMorph(hero, { layoutId: "photo-2", navigateStore: store });
 
     expect(hero.parentElement).toBe(layer);
-    expect(inserted.find((rule) => rule.includes("-travel"))).toContain("translate: 20px");
+    expect(inserted.find((rule) => rule.includes("-travel"))).toContain("--flemo-move-x: 20px;");
   });
 
   it("declines when there is no morph transition to fly at all", () => {
