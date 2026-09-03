@@ -413,6 +413,18 @@ const screenTransformOrigin = (
   };
 };
 
+// A keyframe set can ask the element to wear a declaration: a pinned travel
+// animates the position's coordinates and a pinned pose animates the pose's, and
+// neither is any use without the property that reads them. One place, so a
+// riding pair and a flying one cannot drift apart on it.
+const wear = (
+  element: HTMLElement,
+  set: { translate: string | null; transform: string | null }
+) => {
+  if (set.translate) element.style.translate = set.translate;
+  if (set.transform) element.style.transform = set.transform;
+};
+
 const startFlight = (
   scope: MorphScope,
   entry: MorphEntry,
@@ -854,7 +866,7 @@ const startFlight = (
     const disposeNested = insertMorphRules(growing.rules);
     const inlineNested = entry.element.getAttribute("style");
     entry.element.style.animation = growing.animation;
-    if (growing.transform) entry.element.style.transform = growing.transform;
+    wear(entry.element, growing);
     // As above: a nested pair re-typesets on its container's clock, at every
     // width the container passes through.
     if (holdsOneLine(captured.snapshot.singleLine, arrivalOneLine)) holdOneLine(entry.element);
@@ -1061,8 +1073,12 @@ const startFlight = (
   // travel's own `translate`. A position that comes from layout is painted at
   // whole pixels on Blink, and a line of type stepping a pixel at a time is the
   // tremor this whole channel exists to avoid (see morphKeyframes).
-  entry.element.style.left = `${(travelPinned ? destination : origin).x}px`;
-  entry.element.style.top = `${(travelPinned ? destination : origin).y}px`;
+  // Laid out where it LANDS whenever the travel carries it back, and where it
+  // STARTS when it does not. The emitter decides which, and says so by handing
+  // back a `translate` for the element to wear.
+  const laidOutAt = arriving.translate ? destination : origin;
+  entry.element.style.left = `${laidOutAt.x}px`;
+  entry.element.style.top = `${laidOutAt.y}px`;
   entry.element.style.width = `${origin.width}px`;
   entry.element.style.height = `${origin.height}px`;
   entry.element.style.margin = "0";
@@ -1085,9 +1101,7 @@ const startFlight = (
   // still inside it.
   entry.element.style.zIndex = `${morphDepth(home) + 1}`;
   entry.element.style.animation = arriving.animation;
-  // A pinned travel animates the position's coordinates; the element needs the
-  // `translate` that reads them.
-  if (arriving.translate) entry.element.style.translate = arriving.translate;
+  wear(entry.element, arriving);
   // Both ends are one line, so every width in between is one line too. Without
   // this the arrival's own wrapping rules run at the departure's width and put
   // a second line under the first for the opening frames (see morphLine).
@@ -1157,9 +1171,7 @@ const startFlight = (
     ghost.style.contain = "layout";
     ghost.style.zIndex = `${morphDepth(home) + 2}`;
     ghost.style.animation = ghostSet.animation;
-    // A pinned set animates the pose's coordinates, so the element needs the
-    // transform that reads them.
-    if (ghostSet.transform) ghost.style.transform = ghostSet.transform;
+    wear(ghost, ghostSet);
     layer.appendChild(ghost);
   }
 

@@ -188,14 +188,30 @@ const PINNED = {
 // So the travel is driven through registered properties too, which no
 // compositor can run, and the flight stays on one thread while keeping the
 // painting a transform gives it.
-const TRAVEL = { x: "--flemo-move-x", y: "--flemo-move-y" } as const;
+const TRAVEL = { x: "--flemo-move-x", y: "--flemo-move-y", lift: "--flemo-lift-y" } as const;
 
-/** The `translate` an element wears while its travel is pinned. */
-export const PINNED_TRAVEL = `var(${TRAVEL.x}) var(${TRAVEL.y})`;
+// TWO CLOCKS ON ONE PROPERTY.
+//
+// A flight's position eases; the ascent it has to cancel climbs in steps (see
+// morphLine). Those are two timings, and one property can only carry one
+// keyframe — which is why the cancellation used to need a SECOND property, and
+// why it was refused wherever that property was already spoken for: a nested
+// pair riding its container writes its own transform, and had nowhere to put
+// it. The poster grid showed the result as a title starting an ascent too high.
+//
+// A `calc` of two registered properties carries both. Each is animated by its
+// own keyframe on its own timing, and the value they add up to is the one the
+// element wears. Verified on both engines, sampled either side of every step:
+// the sum tracked the eased travel plus the held lift exactly.
+export const PINNED_TRAVEL = `var(${TRAVEL.x}) calc(var(${TRAVEL.y}) + var(${TRAVEL.lift}))`;
 
 /** One end of a pinned travel, as the keyframe declarations that drive it. */
 export const pinnedTravelDecls = (x: number, y: number, indent = "    "): string =>
   `${indent}${TRAVEL.x}: ${round(x)}px;\n${indent}${TRAVEL.y}: ${round(y)}px;`;
+
+/** One stop of the ascent's staircase, on the half of the pair that holds. */
+export const pinnedLiftDecl = (ascent: number, indent = "    "): string =>
+  `${indent}${TRAVEL.lift}: ${round(-ascent)}px;`;
 
 /** The `transform` an element wears while its pose is pinned. */
 export const PINNED_POSE_TRANSFORM = `translate3d(var(${PINNED.x}), var(${PINNED.y}), 0) scale(var(${PINNED.scaleX}), var(${PINNED.scaleY})) rotate(var(${PINNED.rotate}))`;
@@ -216,6 +232,7 @@ export const PINNED_POSE_TRANSFORM = `translate3d(var(${PINNED.x}), var(${PINNED
 export const PINNED_POSE_PROPERTY_RULES = [
   `@property ${TRAVEL.x} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${TRAVEL.y} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
+  `@property ${TRAVEL.lift} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${PINNED.x} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${PINNED.y} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${PINNED.scaleX} {\n  syntax: "<number>";\n  inherits: false;\n  initial-value: 1;\n}`,

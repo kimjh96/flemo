@@ -223,6 +223,7 @@ describe("buildMorphKeyframes", () => {
           { at: 40, ascent: 16 },
           { at: 100, ascent: 23 }
         ],
+        travelPinned: true,
         fade: null,
         paint: []
       });
@@ -230,13 +231,13 @@ describe("buildMorphKeyframes", () => {
       const rise = lifted.rules.find((rule) => rule.includes("-lift"))!;
 
       // The box travels to `top + ascent` at each end...
-      // The box lands at its destination RAISED by the arrival's ascent, and
-      // starts raised by the departure's: 113 and 323 against a resting 300.
-      expect(geometry).toContain("top: 113px;");
-      expect(geometry).toContain("top: 323px;");
-      // ...and the transform takes exactly that back off again.
-      expect(rise).toContain("transform: translateY(-13px);");
-      expect(rise).toContain("transform: translateY(-23px);");
+      // The move channel carries the box back AND the ascent up: from is
+      // (100 + 13) - 300 = -187, and to is (300 + 23) - 300 = 23.
+      expect(geometry).toContain("--flemo-move-y: -187px;");
+      expect(geometry).toContain("--flemo-move-y: 23px;");
+      // ...and the lift takes exactly that back off again, on the same channel.
+      expect(rise).toContain("--flemo-lift-y: -13px;");
+      expect(rise).toContain("--flemo-lift-y: -23px;");
       expect(rise).toContain("animation-timing-function: steps(1, end);");
       expect(lifted.animation).toContain("flemo-morph-1u-lift");
     });
