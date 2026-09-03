@@ -272,12 +272,17 @@ export const buildMorphKeyframes = (input: {
   // Anything but the transform takes the whole keyframe off the compositor, so
   // a set carrying any of it is the main thread's already and needs no pinning.
   const staircase = leading && leading.length > 1 ? leading : null;
-  // The two travel together or not at all: a box sent to `top + ascent` with
-  // nothing to take the ascent back off is a line of type an ascent too low.
+  // The two travel together or not at all. The transform that takes the ascent
+  // off is only half of it: the other half is the BOX going up by the same
+  // amount, and that lives in the box channel. A set with NO box of its own — a
+  // nested pair riding its container — has nowhere to put the other half, and
+  // the transform alone leaves the line an ascent too HIGH. Device-reported
+  // from the poster grid as a title starting twelve pixels up.
+  //
   // And the taking-off is a transform, so a set that already writes one of its
-  // own has no room for it.
+  // own has no room for it either.
   const carried =
-    leading && leading.length > 1 && lift && lift.length > 1 && !authored ? lift : null;
+    box && leading && leading.length > 1 && lift && lift.length > 1 && !authored ? lift : null;
   const layoutBound = Boolean(
     box ||
     fontSize ||

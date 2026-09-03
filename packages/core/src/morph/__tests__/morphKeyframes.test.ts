@@ -241,6 +241,28 @@ describe("buildMorphKeyframes", () => {
       expect(lifted.animation).toContain("flemo-morph-1u-lift");
     });
 
+    it("refuses to lift a set with no box to cancel against", () => {
+      // A nested pair rides its container and has no box channel of its own, so
+      // there is nowhere to send the box up by the amount the transform takes
+      // off. Emitting half of a cancellation leaves the line an ascent too high
+      // — device-reported from the poster grid as a title starting twelve
+      // pixels up.
+      const riding = buildMorphKeyframes({
+        id: "1x",
+        travel: plain,
+        fontSize: { from: 14, to: 24 },
+        leading: stairs,
+        lift: [
+          { at: 0, ascent: 13 },
+          { at: 100, ascent: 23 }
+        ],
+        fade: null,
+        paint: []
+      });
+
+      expect(riding.rules.some((rule) => rule.includes("-lift"))).toBe(false);
+    });
+
     it("refuses to lift a set that writes a transform of its own", () => {
       // The two would be fighting over one property, and a box sent up with
       // nothing to bring it back down is a line of type an ascent too low.
