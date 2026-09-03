@@ -9,6 +9,10 @@ import {
   type MorphPose,
   PINNED_POSE_TRANSFORM,
   pinnedPoseDecls,
+  pinnedLiftDecl,
+  PINNED_TRACK,
+  pinnedTrackDecl,
+  pinnedTrackFixDecl,
   PINNED_TRAVEL,
   pinnedTravelDecls
 } from "@morph/morphPose";
@@ -47,12 +51,8 @@ const insetCss = (inset: MorphClipInset): string =>
 //
 // `translate` rather than `transform`, so an author's pose keeps `transform`
 // to itself and the two compose instead of overwriting one another.
-const boxBlock = (rect: MorphRect, origin: MorphRect, pinned: boolean) =>
-  `${
-    pinned
-      ? pinnedTravelDecls(rect.x - origin.x, rect.y - origin.y)
-      : `    left: ${px(rect.x)};\n    top: ${px(rect.y)};`
-  }\n    width: ${px(rect.width)};\n    height: ${px(rect.height)};`;
+const boxBlock = (rect: MorphRect, moved: boolean) =>
+  `${moved ? "" : `    left: ${px(rect.x)};\n    top: ${px(rect.y)};\n`}    width: ${px(rect.width)};\n    height: ${px(rect.height)};`;
 
 const declsToBlock = (decls: { property: string; value: string }[]): string =>
   decls.map((decl) => `    ${decl.property}: ${decl.value};`).join("\n");
@@ -113,6 +113,13 @@ export interface MorphKeyframeSet {
    * transform that reads them (see PINNED_POSE_TRANSFORM).
    */
   transform: string | null;
+  /**
+   * The `letter-spacing` the caller must set on the element, or null.
+   *
+   * Non-null where the tracking carries a correction, which is written as a sum
+   * of the author's own and the correction's, each on its own clock.
+   */
+  letterSpacing: string | null;
 }
 
 /**
@@ -171,6 +178,26 @@ export const buildMorphKeyframes = (input: {
    * is the tremor this exists to remove.
    */
   lift?: { at: number; ascent: number }[] | null;
+  /**
+   * What the baseline owes at the START, in px, because the staircase holds the
+   * ARRIVAL's leading from the first frame (see attachMorph).
+   *
+   * Paid on the same channel as the ascent's cancellation and with the same
+   * shape: the whole amount at the departure, nothing at the landing, so what
+   * the flight travels is unchanged and only its first frame moves.
+   */
+  leadStart?: number | null;
+  /**
+   * The correction that keeps a growing run of glyphs from drifting apart.
+   *
+   * A run's width against its size is one curve, and where it leaves the
+   * straight line between its ends every glyph carries the error that piled up
+   * before it. Spread the negative of that over the gaps and it cancels (see
+   * morphLine). It rides `letter-spacing` beside the author's own tracking, on
+   * its own clock, and is RAMPED rather than held because what it cancels is a
+   * curve rather than a staircase.
+   */
+  track?: { at: number; fix: number }[] | null;
   /** Type's other two dimensions, so it re-typesets rather than merely re-sizing. */
   fontWeight?: { from: number; to: number } | null;
   letterSpacing?: { from: number; to: number } | null;
@@ -254,7 +281,9 @@ export const buildMorphKeyframes = (input: {
     size,
     clip,
     leading,
+    leadStart,
     lift,
+    track,
     pinned = false,
     travelPinned = false
   } = input;
@@ -262,27 +291,12 @@ export const buildMorphKeyframes = (input: {
   const animations: string[] = [];
   const easing = easingToCss(travel.ease);
   const start = travel.start.toFixed(3);
-  const authored =
-    composePosesToCss([travel.from, travel.authoredFrom]) !== "none" ||
-    composePosesToCss([travel.to ?? IDENTITY_POSE, travel.authoredTo]) !== "none";
-
   const geometryName = `flemo-morph-${id}-travel`;
   const fromParts: string[] = [];
   const toParts: string[] = [];
   // Anything but the transform takes the whole keyframe off the compositor, so
   // a set carrying any of it is the main thread's already and needs no pinning.
   const staircase = leading && leading.length > 1 ? leading : null;
-  // The two travel together or not at all. The transform that takes the ascent
-  // off is only half of it: the other half is the BOX going up by the same
-  // amount, and that lives in the box channel. A set with NO box of its own — a
-  // nested pair riding its container — has nowhere to put the other half, and
-  // the transform alone leaves the line an ascent too HIGH. Device-reported
-  // from the poster grid as a title starting twelve pixels up.
-  //
-  // And the taking-off is a transform, so a set that already writes one of its
-  // own has no room for it either.
-  const carried =
-    box && leading && leading.length > 1 && lift && lift.length > 1 && !authored ? lift : null;
   const layoutBound = Boolean(
     box ||
     fontSize ||
@@ -305,32 +319,79 @@ export const buildMorphKeyframes = (input: {
   // and a landing waiting on an animation that was never created waits for the
   // backstop instead, a quarter-second after the motion finished.
   let clockName: string | null = null;
-  if (box) {
-    const raise = carried
-      ? { from: carried[0]!.ascent, to: carried[carried.length - 1]!.ascent }
-      : { from: 0, to: 0 };
-    // The element RESTS at its destination and is carried back to where it
-    // started, so the position it is laid out at never moves.
-    fromParts.push(boxBlock({ ...box.from, y: box.from.y + raise.from }, box.to, travelPinned));
-    toParts.push(boxBlock({ ...box.to, y: box.to.y + raise.to }, box.to, travelPinned));
-  }
   const fromPoses = composePoses([travel.from, travel.authoredFrom]);
   const toPoses = composePoses([travel.to ?? IDENTITY_POSE, travel.authoredTo]);
+
+  // ONE CHANNEL CARRIES THE POSITION, WHATEVER THE POSITION CAME FROM.
+  //
+  // A box travel and a pose's translate are both translations on the same
+  // clock, so they add up, and adding them up is what lets the ascent's
+  // cancellation ride along on the same property (see morphPose). It is why
+  // this works for a pair that FLIES and a pair that RIDES its container alike:
+  // the first has a box and no pose, the second a pose and no box, and neither
+  // is a special case here.
+  //
+  // Only where a single pose stands at each end. Two of them is a matrix
+  // product — `transform: A B` maps a point through B and then A — and pulling
+  // the second one's translate out to the front would not be the same motion.
+  const solo = fromPoses.length <= 1 && toPoses.length <= 1;
+  const moving = travelPinned && solo;
+  const lifting = moving && staircase && lift && lift.length > 1 ? lift : null;
+  // The tracking correction needs the property to itself, which it gets by
+  // carrying the author's own tracking alongside it on the same `calc`.
+  const tracking = travelPinned && track && track.length > 1 ? track : null;
+  if (moving) {
+    // The element RESTS at its destination and is carried back to where it
+    // started, so the position it is laid out at never moves.
+    const at = (
+      side: "from" | "to",
+      poses: MorphPose[],
+      ascent: number
+    ): { x: number; y: number } => {
+      const pose = poses[0];
+      const rect = box ? (side === "from" ? box.from : box.to) : null;
+      return {
+        x: (rect ? rect.x - box!.to.x : 0) + (pose ? pose.x : 0),
+        y: (rect ? rect.y - box!.to.y : 0) + (pose ? pose.y : 0) + ascent
+      };
+    };
+    // The smooth half of the cancellation: the position goes UP by the ascent
+    // at both ends, and the staircase below takes it straight back off.
+    const rise = lifting
+      ? { from: lifting[0]!.ascent, to: lifting[lifting.length - 1]!.ascent }
+      : { from: 0, to: 0 };
+    // And the half-leading the staircase does not render at the departure,
+    // owed only at the start because the last stop is the arrival's own line.
+    if (staircase && leadStart) rise.from += leadStart;
+    const start = at("from", fromPoses, rise.from);
+    const end = at("to", toPoses, rise.to);
+    fromParts.push(pinnedTravelDecls(start.x, start.y));
+    toParts.push(pinnedTravelDecls(end.x, end.y));
+  }
+  if (box) {
+    fromParts.push(boxBlock(box.from, moving));
+    toParts.push(boxBlock(box.to, moving));
+  }
   // A pinned pose is five numbers, which says ONE transform. Where an end
   // composes two — a measured travel with an author's flourish stacked on it —
   // concatenation is a matrix product that five numbers cannot always express,
   // so that set stays literal rather than being approximated. It is then still
   // accelerated, and this is recorded rather than hidden: a flight that reaches
   // it has a part that can lead the rest.
-  const pinnable = pinned && !layoutBound && fromPoses.length <= 1 && toPoses.length <= 1;
-  const fromPose = composePosesToCss([travel.from, travel.authoredFrom]);
-  const toPose = composePosesToCss([travel.to ?? IDENTITY_POSE, travel.authoredTo]);
+  const pinnable = pinned && !layoutBound && solo;
+  // Whatever the move channel took, the transform does not repeat. `translate`
+  // is applied before `transform`, so a translation pulled out to the front
+  // composes to the same matrix it was part of.
+  const rest = (poses: MorphPose[]): MorphPose[] =>
+    moving ? poses.map((pose) => ({ ...pose, x: 0, y: 0 })) : poses;
+  const fromPose = composePosesToCss(rest(fromPoses));
+  const toPose = composePosesToCss(rest(toPoses));
   let transform: string | null = null;
   if (fromPose !== "none" || toPose !== "none") {
     if (pinnable) {
       transform = PINNED_POSE_TRANSFORM;
-      fromParts.push(pinnedPoseDecls(fromPoses[0] ?? IDENTITY_POSE));
-      toParts.push(pinnedPoseDecls(toPoses[0] ?? IDENTITY_POSE));
+      fromParts.push(pinnedPoseDecls(rest(fromPoses)[0] ?? IDENTITY_POSE));
+      toParts.push(pinnedPoseDecls(rest(toPoses)[0] ?? IDENTITY_POSE));
     } else {
       fromParts.push(`    transform: ${fromPose};`);
       toParts.push(`    transform: ${toPose};`);
@@ -343,11 +404,17 @@ export const buildMorphKeyframes = (input: {
       `    font-weight: ${Math.round(fontWeight.from)};`,
       `    font-weight: ${Math.round(fontWeight.to)};`
     );
-  if (letterSpacing)
+  if (tracking) {
+    pushSize(
+      pinnedTrackDecl(letterSpacing ? letterSpacing.from : 0),
+      pinnedTrackDecl(letterSpacing ? letterSpacing.to : 0)
+    );
+  } else if (letterSpacing) {
     pushSize(
       `    letter-spacing: ${px(letterSpacing.from)};`,
       `    letter-spacing: ${px(letterSpacing.to)};`
     );
+  }
   if (wordSpacing)
     pushSize(
       `    word-spacing: ${px(wordSpacing.from)};`,
@@ -403,16 +470,32 @@ export const buildMorphKeyframes = (input: {
     animations.push(`${leadName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
   }
 
-  if (carried) {
+  if (lifting) {
     const liftName = `flemo-morph-${id}-lift`;
-    const blocks = carried
+    // `steps(1, end)` on every stop is what makes this a staircase rather than
+    // a ramp: each value is held for its whole interval and changes at the
+    // instant the face height it matches does.
+    const blocks = lifting
       .map(
         (stop) =>
-          `  ${stop.at.toFixed(4)}% {\n    transform: translateY(${px(-stop.ascent)});\n    animation-timing-function: steps(1, end);\n  }`
+          `  ${stop.at.toFixed(4)}% {\n${pinnedLiftDecl(stop.ascent)}\n    animation-timing-function: steps(1, end);\n  }`
       )
       .join("\n");
     rules.push(`@keyframes ${liftName} {\n${blocks}\n}`);
     animations.push(`${liftName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
+  }
+
+  if (tracking) {
+    const trackName = `flemo-morph-${id}-track`;
+    // Ramped between samples, unlike the lift beside it. The lift cancels a
+    // staircase and has to be one; this cancels a smooth curve, and holding a
+    // sample until the next one leaves the whole climb between them on the
+    // glass. Same stops, same bytes, a third of the worst frame's error.
+    const blocks = tracking
+      .map((stop) => `  ${stop.at.toFixed(4)}% {\n${pinnedTrackFixDecl(stop.fix)}\n  }`)
+      .join("\n");
+    rules.push(`@keyframes ${trackName} {\n${blocks}\n}`);
+    animations.push(`${trackName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
   }
 
   if (paint.length > 0) {
@@ -436,7 +519,18 @@ export const buildMorphKeyframes = (input: {
     // decide what else has to wait must be told the truth about it.
     geometryAccelerated: !layoutBound && transform === null,
     transform,
-    translate: box && travelPinned ? PINNED_TRAVEL : null
+    // WHOEVER WRITES THE CHANNEL MUST ALSO WEAR IT.
+    //
+    // The move channel is written for every `moving` set, and what it carries
+    // is not only a box travel or a pose: a pair that rides its container has
+    // NEITHER and still has an ascent to cancel and a half-leading to pay. This
+    // asked for one of the two it happened to be built for, so a riding text
+    // pair animated both registered properties with nothing reading them, and
+    // the whole cancellation was dead on exactly the pairs a container
+    // transform is made of. Measured on the poster grid: its title began every
+    // flight a pixel above the line it was flying from.
+    translate: moving ? PINNED_TRAVEL : null,
+    letterSpacing: tracking ? PINNED_TRACK : null
   };
 };
 

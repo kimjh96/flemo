@@ -1,7 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { resolveEasing } from "@transition/cubicBezier";
+
 import { captureMorphSnapshot, isSingleLine } from "@morph/morphGeometry";
-import { holdOneLine, holdsOneLine, leadingBias, leadingStops, LINE_HOLD } from "@morph/morphLine";
+import {
+  holdOneLine,
+  holdsOneLine,
+  leadingBias,
+  leadingOwed,
+  leadingStops,
+  LINE_HOLD,
+  trackStops
+} from "@morph/morphLine";
 
 const setRect = (element: HTMLElement, width: number, height: number) => {
   element.getBoundingClientRect = () =>
@@ -619,5 +629,175 @@ describe("leadingStops", () => {
     leadingStops(...args);
 
     expect(context.mock.calls.length).toBe(first);
+  });
+});
+
+// A RUN THAT DOES NOT DRIFT APART.
+//
+// Only the correction's SHAPE is testable without a real face: that it reads
+// one width per size, aims at the straight line between the two ends, and
+// spreads what it finds over the gaps. Which faces actually need it is a
+// property of the face, measured on glass.
+describe("trackStops", () => {
+  const FONT = { family: "Test Sans", weight: 800, style: "normal" };
+  const EASE: [number, number, number, number] = [0.32, 0.72, 0, 1];
+  const TEXT = "Aria Wave";
+  const GAPS = [...TEXT].length - 1;
+
+  const advances = (widthFor: (size: number) => number) => {
+    const context = {
+      font: "",
+      measureText: () => ({
+        width: widthFor(
+          Number.parseFloat(context.font.split(" ").find((p) => p.endsWith("px")) ?? "0")
+        )
+      })
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      context as unknown as CanvasRenderingContext2D
+    );
+  };
+
+  it("declines where there is no face to ask, no travel, or no gap to spread over", () => {
+    advances((size) => size * 4);
+
+    expect(trackStops(TEXT, { fontSize: 14 }, { fontSize: 24 }, null, EASE)).toBeNull();
+    expect(trackStops(TEXT, { fontSize: 14 }, { fontSize: 14 }, FONT, EASE)).toBeNull();
+    expect(trackStops(TEXT, { fontSize: null }, { fontSize: 24 }, FONT, EASE)).toBeNull();
+    // One glyph has no gap, so there is nowhere to put a correction.
+    expect(trackStops("A", { fontSize: 14 }, { fontSize: 24 }, FONT, EASE)).toBeNull();
+  });
+
+  it("declines a face whose advances track their size, having nothing to cancel", () => {
+    advances((size) => size * 4);
+
+    expect(trackStops(TEXT, { fontSize: 14 }, { fontSize: 25 }, FONT, EASE)).toBeNull();
+  });
+
+  // A CORRECTION SMALLER THAN THE GRID IT RIDES ON IS A NEW DEFECT.
+  //
+  // Tracking reaches the glass through layout, which carries a run's width on a
+  // 1/64px grid. A correction that ramps below that grid cannot track its curve
+  // and can only cross grid lines, which is a staircase where there was none.
+  it("declines a bow too small to be delivered on the grid it rides", () => {
+    // A tenth of a pixel across the whole run, which is six grid steps and
+    // nothing the eye was ever reported at.
+    advances((size) => size * 4 + (size - 15) * (27 - size) * 0.004);
+
+    expect(trackStops(TEXT, { fontSize: 15 }, { fontSize: 27 }, FONT, EASE)).toBeNull();
+  });
+
+  it("spreads the run's whole deviation from the line over its gaps", () => {
+    // A face that bows off the line in the middle and meets it at both ends,
+    // which is the shape an optically sized face actually draws.
+    const width = (size: number) => size * 4 + (size - 14) * (26 - size) * 0.2;
+    advances(width);
+
+    const stops = trackStops(TEXT, { fontSize: 14 }, { fontSize: 26 }, FONT, EASE)!;
+    const curve = resolveEasing(EASE);
+
+    for (const [index, stop] of stops.entries()) {
+      const part = index / (stops.length - 1);
+      const size = 14 + 12 * part;
+      // What the run measures here, plus the correction spread back over its
+      // gaps, is the width the straight line asked for.
+      expect(width(size) + stop.fix * GAPS).toBeCloseTo(
+        width(14) + (width(26) - width(14)) * part,
+        6
+      );
+      // And the stop sits at the time the flight reaches that size.
+      expect(curve(stop.at / 100)).toBeCloseTo(part, 4);
+    }
+    // Both ends measure themselves, so the landing is untouched.
+    expect(stops[0].fix).toBeCloseTo(0, 6);
+    expect(stops[stops.length - 1].fix).toBeCloseTo(0, 6);
+    // The middle is off the line, so there is something to carry there.
+    expect(Math.abs(stops[Math.floor(stops.length / 2)].fix)).toBeGreaterThan(0.01);
+  });
+
+  it("asks a face for a run once and remembers what it said", () => {
+    let asked = 0;
+    advances((size) => {
+      asked += 1;
+      return size * 4 + (size - 12) * (28 - size) * 0.2;
+    });
+
+    const first = trackStops(TEXT, { fontSize: 12 }, { fontSize: 28 }, FONT, EASE);
+    const measured = asked;
+    const again = trackStops(TEXT, { fontSize: 12 }, { fontSize: 28 }, FONT, EASE);
+
+    expect(again).toBe(first);
+    expect(asked).toBe(measured);
+    // A flight with no authored easing is a different question, not the same
+    // answer under a different name.
+    expect(trackStops(TEXT, { fontSize: 12 }, { fontSize: 28 }, FONT, undefined)).not.toBe(first);
+    expect(asked).toBeGreaterThan(measured);
+  });
+
+  it("keeps its stops in order and inside the flight", () => {
+    advances((size) => size * 4 + Math.sin(size) * 2);
+
+    const stops = trackStops(TEXT, { fontSize: 13 }, { fontSize: 27 }, FONT, EASE)!;
+
+    expect(stops[0].at).toBe(0);
+    expect(stops[stops.length - 1].at).toBe(100);
+    for (let i = 1; i < stops.length; i += 1) expect(stops[i].at).toBeGreaterThan(stops[i - 1].at);
+  });
+});
+
+// THE FLIGHT MUST BEGIN ON THE LINE THE DEPARTURE DREW.
+//
+// The staircase holds the ARRIVAL's leading from the first frame, so the line
+// it renders at the departure is not the line the departure rendered. Half of
+// that difference is what the baseline owes, and it is measured on the grid the
+// engine actually put both ends on, not divided in two.
+describe("leadingOwed", () => {
+  const end = (lineHeight: number, textHeight: number, leadOffset: number | null) => ({
+    lineHeight,
+    textHeight,
+    leadOffset
+  });
+
+  const held = (lineHeight: number) => [
+    { at: 0, lineHeight, ascent: 12 },
+    { at: 100, lineHeight: 32, ascent: 24 }
+  ];
+
+  it("owes nothing where there is no staircase to hold a line at all", () => {
+    expect(leadingOwed(end(20, 14, 3), end(32, 24, 4), null)).toBe(0);
+  });
+
+  it("owes nothing where the flight already renders the departure's line", () => {
+    expect(leadingOwed(end(20, 14, 3), end(32, 24, 4), held(20))).toBe(0);
+  });
+
+  it("owes what the engine's grid puts between the two lines, not half of it", () => {
+    // A whole-pixel grid: 16px over a 13px face renders 1px of half-leading and
+    // 17px renders 2px, so a line-height one pixel apart is a baseline a WHOLE
+    // pixel apart. Halving the difference would pay half the debt.
+    expect(leadingOwed(end(16, 13, 1), end(20, 15, 2), held(17))).toBe(-1);
+  });
+
+  it("falls back to the arithmetic where no grid reproduces both ends", () => {
+    // Neither candidate grid puts the measured line where the engine said, so
+    // the claim about the grid is not one this can rest on.
+    expect(leadingOwed(end(20, 14, 99), end(32, 24, 99), held(18))).toBe(1);
+  });
+
+  it("stands down where an end cannot be measured", () => {
+    expect(
+      leadingOwed(
+        end(20, 14, 3),
+        { lineHeight: null, textHeight: null, leadOffset: null },
+        held(18)
+      )
+    ).toBe(1);
+    expect(
+      leadingOwed(
+        { lineHeight: null, textHeight: null, leadOffset: null },
+        end(32, 24, 4),
+        held(18)
+      )
+    ).toBe(0);
   });
 });

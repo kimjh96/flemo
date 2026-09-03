@@ -7,6 +7,7 @@ import {
   faceHeightAt,
   faceParts,
   faceRatios,
+  runAdvance,
   sameFace
 } from "@morph/morphFace";
 
@@ -244,5 +245,54 @@ describe("faceGrids", () => {
     } finally {
       if (ratio) Object.defineProperty(window, "devicePixelRatio", ratio);
     }
+  });
+});
+
+describe("runAdvance", () => {
+  // The width of a whole run, which is the quantity the tracking correction is
+  // built against: one number per size, not one per glyph.
+  const advances = (widthFor: (size: number) => number) => {
+    const context = {
+      font: "",
+      measureText: () => ({
+        width: widthFor(
+          Number.parseFloat(context.font.split(" ").find((p) => p.endsWith("px")) ?? "0")
+        )
+      })
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      context as unknown as CanvasRenderingContext2D
+    );
+    return context;
+  };
+
+  it("asks the face for the run at the size given", () => {
+    const context = advances((size) => size * 4);
+
+    expect(runAdvance("Aria Wave", 14, FAMILY)).toBe(56);
+    expect(context.font).toBe("normal 400 14px Test Sans");
+  });
+
+  it("declines a host with no canvas to ask", () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+
+    expect(runAdvance("Aria Wave", 14, FAMILY)).toBeNull();
+  });
+
+  it("declines a width that is not one", () => {
+    advances(() => 0);
+
+    expect(runAdvance("Aria Wave", 14, FAMILY)).toBeNull();
+  });
+
+  it("declines a face whose name the shorthand will not take", () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      set font(_value: string) {
+        throw new SyntaxError("bad shorthand");
+      },
+      measureText: () => ({ width: 10 })
+    } as unknown as CanvasRenderingContext2D);
+
+    expect(runAdvance("Aria Wave", 14, FAMILY)).toBeNull();
   });
 });

@@ -32,6 +32,7 @@ import {
   faceGrids,
   faceParts,
   faceRatios,
+  runAdvance,
   sameFace,
   type FaceParts
 } from "@morph/morphFace";
@@ -119,6 +120,47 @@ export interface LeadingEnd {
   /** What the engine actually rendered for this end (see MorphSnapshot). */
   leadOffset: number | null;
 }
+
+/**
+ * The half-leading a flight owes at its START, in px.
+ *
+ * The staircase holds ONE leading for the whole flight so the rendered
+ * half-leading cannot step, and the one it holds is the ARRIVAL's, because that
+ * is the value the landing has to restore. At the other end that makes the
+ * first frame render a line-height the departure never had, and half of that
+ * difference is where the departure's baseline sat.
+ *
+ * Half of the difference is not the answer, though: the engine puts the
+ * half-leading on a grid, so a line-height a pixel apart can render a whole
+ * pixel apart rather than half of one. Both ends reported where their line was
+ * actually put, so the grid is the one that reproduces both — the same
+ * authority `leadingBias` answers to — and where no candidate does, the
+ * arithmetic difference is the honest fallback.
+ */
+export const leadingOwed = (
+  from: LeadingEnd,
+  to: LeadingEnd,
+  stops: LeadingStop[] | null
+): number => {
+  if (stops === null) return 0;
+  if (from.lineHeight === null || from.textHeight === null) return 0;
+  const rested = (from.lineHeight - from.textHeight) / 2;
+  const flown = (stops[0]!.lineHeight - from.textHeight) / 2;
+  if (
+    from.leadOffset === null ||
+    to.leadOffset === null ||
+    to.lineHeight === null ||
+    to.textHeight === null
+  )
+    return rested - flown;
+  const quantum = quanta().find(
+    (q) =>
+      Math.abs(onGrid(rested, q) - from.leadOffset!) < SAME &&
+      Math.abs(onGrid((to.lineHeight! - to.textHeight!) / 2, q) - to.leadOffset!) < SAME
+  );
+  if (quantum === undefined) return rested - flown;
+  return onGrid(rested, quantum) - onGrid(flown, quantum);
+};
 
 export const leadingBias = (from: LeadingEnd, to: LeadingEnd): number => {
   const half = (end: LeadingEnd): number | null =>
@@ -360,4 +402,144 @@ const settle = (
     else high = mid;
   }
   return high;
+};
+
+// A RUN THAT DOES NOT DRIFT APART.
+//
+// The leading and the ascent are one number each, so one channel cancels them.
+// The glyph advances looked like nine numbers and therefore hopeless — and that
+// was wrong. A run's width against its size is ONE curve, and where that curve
+// is not the straight line between its ends, every glyph after the first sits
+// off by the part of the error that accumulated before it. An error that
+// accumulates evenly across a run is cancelled by spreading its negative over
+// the gaps, which is exactly what `letter-spacing` is.
+//
+// Whether there is anything to cancel is the FACE's business, not the flight's.
+// Sweeping a nine-character title from 14px to 24px and fitting its width
+// against its size: Helvetica, Arial, Georgia, Times, Courier, Impact, Comic
+// Sans and Pretendard Variable all sit on the line to within 0.008px, and for
+// them this whole machine measures zero and emits a correction of about
+// 0.003px, which is nothing. `system-ui` and `-apple-system` deviate by 0.95px,
+// in BOTH engines — an optically sized face resolving a different outline as it
+// grows. That stack is the default of every app that does not ship a webfont,
+// so the case is common even though most named families do not show it.
+//
+// The target is not the width the engine would lay out — that width is what
+// carries the error. It is the width the run would have if advances tracked
+// their size: the straight line between the two ends, which is what the size
+// itself is travelling along.
+//
+// Two things decide how much of the error actually comes off. The error is a
+// smooth curve rather than a staircase (401 distinct widths across a 10px
+// sweep, no findable edges), so the correction is INTERPOLATED between its
+// stops instead of held — a hold leaves each step's whole height on the glass,
+// a ramp leaves only the curvature inside it. And the stops are placed evenly
+// in SIZE rather than in time, since the error lives in size and an eased
+// flight crosses most of its size in the first few frames. Sixteen stops:
+// held and time-even the worst frame kept 0.44px of the 0.95px, ramped and
+// size-even it keeps 0.12px, at the same bytes.
+//
+// The price is the tracking moving by the correction spread over the gaps,
+// which is smaller than the error it removes and moves the run TOWARDS the
+// width it should have rather than away from it.
+
+export interface TrackStop {
+  /** Percent of the flight, 0 to 100. */
+  at: number;
+  /** The correction, in px, to add to every gap between the glyphs. */
+  fix: number;
+}
+
+/**
+ * How many places the correction is sampled at.
+ *
+ * It is not a staircase with findable edges the way a face height is, so there
+ * is nothing to aim at and the curve is simply sampled. Sixteen stops, ramped
+ * and spaced evenly in size, hold the worst frame to about an eighth of a pixel
+ * on the worst face measured; doubling them buys another 0.04px for twice the
+ * bytes, which is not worth carrying in every sheet.
+ */
+const TRACK_SAMPLES = 16;
+
+/**
+ * How far a run has to be off the line before correcting it is worth anything.
+ *
+ * A CORRECTION SMALLER THAN THE GRID IT RIDES ON IS A NEW DEFECT. Tracking
+ * reaches the glass through layout, and layout carries a run's width on a
+ * 1/64px grid: measured, 0.0001px per gap over eighteen gaps rounds away to
+ * nothing and 0.005px per gap lands on exactly 6/64. A correction that ramps
+ * through values below that grid cannot track the curve it was built from. All
+ * it can do is cross grid lines, which is a staircase where there was none.
+ *
+ * That is not hypothetical. The poster grid's meta line is 0.03px off the line
+ * across its whole flight, and correcting it moved that line from ZERO
+ * discontinuities to seven, because every grid crossing the ramp made was a
+ * step the run had not been taking. The canvas model is only good to 0.015px
+ * against layout anyway, so below this floor the correction is fitting noise.
+ *
+ * Half a pixel is the scale the eye was reported at throughout this work, and
+ * it separates the two populations cleanly: every face that tracks its size
+ * measures under 0.01px, a small line's own bow measures 0.03px, and
+ * `system-ui` at a title's travel measures 0.95px.
+ */
+const TRACK_FLOOR = 0.5;
+
+/** The tracking correction for a growing run, or null where there is none to make. */
+export const trackStops = (
+  text: string,
+  from: { fontSize: number | null },
+  to: { fontSize: number | null },
+  font: { family: string; weight: string | number; style: string } | null,
+  ease: AnimationOptions["ease"]
+): TrackStop[] | null => {
+  if (!font) return null;
+  if (from.fontSize === null || to.fontSize === null) return null;
+  if (Math.abs(from.fontSize - to.fontSize) < EXACT) return null;
+  // One glyph has no gap to spread a correction over, and nothing accumulates
+  // across a run of one.
+  const gaps = [...text].length - 1;
+  if (gaps < 1) return null;
+
+  const key = `${font.style}|${font.weight}|${font.family}|${from.fontSize}|${to.fontSize}|${text}|${JSON.stringify(ease ?? null)}`;
+  const cached = trackCache.get(key);
+  if (cached !== undefined) return cached;
+  const built = buildTrack(text, from.fontSize, to.fontSize, gaps, font, ease);
+  trackCache.set(key, built);
+  return built;
+};
+
+const trackCache = new Map<string, TrackStop[] | null>();
+
+const buildTrack = (
+  text: string,
+  from: number,
+  to: number,
+  gaps: number,
+  font: { family: string; weight: string | number; style: string },
+  ease: AnimationOptions["ease"]
+): TrackStop[] | null => {
+  const ends = [runAdvance(text, from, font), runAdvance(text, to, font)];
+  if (ends[0] === null || ends[1] === null) return null;
+  const invert = invertEasing(ease);
+  const span = to - from;
+  const stops: TrackStop[] = [];
+  for (let i = 0; i <= TRACK_SAMPLES; i += 1) {
+    // Even in size, then asked back what time the flight is at that size.
+    const part = i / TRACK_SAMPLES;
+    const size = from + span * part;
+    const measured = runAdvance(text, size, font);
+    /* v8 ignore next -- the ends above already refused a face with no metrics. */
+    if (measured === null) return null;
+    // The width a run whose advances tracked their size would have here: the
+    // straight line between the two ends, which is what the size travels along.
+    const ideal = ends[0] + (ends[1] - ends[0]) * part;
+    stops.push({ at: invert(part) * 100, fix: (ideal - measured) / gaps });
+  }
+  // Below the floor there is nothing this can deliver, and trying puts its own
+  // staircase on a run that was travelling smoothly.
+  const worst = Math.max(...stops.map((stop) => Math.abs(stop.fix))) * gaps;
+  if (worst < TRACK_FLOOR) return null;
+  // Both ends measure themselves, so the correction is zero there by
+  // construction and the landing is untouched.
+  return stops;
 };

@@ -198,9 +198,11 @@ describe("attachMorph", () => {
     await Promise.resolve();
 
     const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
-    expect(nestedRule).toContain("--flemo-pose-x:");
+    // Its travel rides the same channel a flying pair's box does: one
+    // translation, on one clock, with room for the ascent to cancel on.
+    expect(nestedRule).toContain("--flemo-move-x:");
     expect(nestedRule).not.toContain("transform:");
-    expect(heading.style.transform).toContain("var(--flemo-pose-x)");
+    expect(heading.style.translate).toContain("var(--flemo-move-x)");
   });
 
   it("lets a nested morph RIDE its container, starting from the measured from-pose", async () => {
@@ -236,15 +238,17 @@ describe("attachMorph", () => {
     expect(heading.parentElement).toBe(bigCard);
     // It rides its container's box: not staged, never absolutely positioned.
     const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
-    expect(nestedRule).not.toContain("--flemo-move-x");
+    expect(nestedRule).toContain("--flemo-move-x: 12px;");
+    expect(nestedRule).toContain("--flemo-move-y: 470px;");
     // And it BEGINS where the pair measured it — the from-delta between the
     // label's box (28, 730) and the heading's (16, 260) — decaying to rest.
-    expect(nestedRule).toContain("translate3d(12px, 470px, 0)");
+
     // Literal, and rightly so: this pair also carries its own size, which is
     // the main thread's work already. Pinning is for the parts a compositor
     // could otherwise run away with while the rest of the flight waits.
     expect(nestedRule).toContain("width:");
-    expect(nestedRule).toMatch(/to \{[^}]*transform: none/);
+    expect(nestedRule).toMatch(/to \{[^}]*--flemo-move-x: 0px;/);
+    expect(nestedRule).not.toContain("transform:");
     // SIZE is the other half of the same correction. Riding sizes the child
     // through the container's width interpolation, and a container that is
     // already at destination width lays the child out full-size on frame one:
@@ -303,6 +307,57 @@ describe("attachMorph", () => {
     // leading and the flight renders on the step the landing will.
     const travel = inserted.find((rule) => rule.includes("-travel"))!;
     expect(travel).toContain("line-height: 21px");
+  });
+
+  it("cancels a growing run's drift on the tracking, beside the author's own", () => {
+    // A face whose run width bows off the straight line between its ends, which
+    // is what makes a title's later characters wander further than its earlier
+    // ones. `system-ui` does exactly this in both engines.
+    const context = {
+      font: "",
+      measureText: () => {
+        const size = Number.parseFloat(
+          context.font.split(" ").find((p) => p.endsWith("px")) ?? "0"
+        );
+        return {
+          width: size * 4 + (size - 11) * (14 - size) * 4,
+          fontBoundingBoxAscent: Math.round(size * 0.95),
+          fontBoundingBoxDescent: Math.round(size * 0.25)
+        };
+      }
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      context as unknown as CanvasRenderingContext2D
+    );
+
+    const gallery = makeScreen("layout", true);
+    const label = makeMorph(gallery, [20, 600, 119, 16]);
+    label.append("Aria", document.createComment("hydration"), " Wave");
+    label.style.fontFamily = "Test Sans";
+    label.style.fontSize = "11px";
+    label.style.lineHeight = "16px";
+    attachMorph(label, { layoutId: "track-1", name: "text", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const heading = makeMorph(detail, [16, 120, 314, 20]);
+    heading.append("Aria", document.createComment("hydration"), " Wave");
+    heading.style.fontFamily = "Test Sans";
+    heading.style.fontSize = "14px";
+    heading.style.lineHeight = "20px";
+    attachMorph(heading, { layoutId: "track-1", name: "text", navigateStore: store });
+
+    // The run is read from ALL of the element's text, not just its first node.
+    // Two clocks on one property, so neither can be written as a plain length.
+    expect(heading.style.letterSpacing).toBe("calc(var(--flemo-track) + var(--flemo-track-fix))");
+    const track = inserted.find(
+      (rule) => rule.startsWith("@keyframes") && rule.includes("-track {")
+    )!;
+    expect(track).toBeDefined();
+    // Ramped, not held: what it cancels is a curve rather than a staircase.
+    expect(track).not.toContain("steps(1, end)");
   });
 
   it("holds a text pair to one line for the whole flight", () => {
@@ -1142,12 +1197,12 @@ describe("attachMorph", () => {
     attachMorph(hero, { layoutId: "photo-1", name: "zoom", navigateStore: store });
 
     const registrations = inserted.filter((rule) => rule.startsWith("@property"));
-    expect(registrations).toHaveLength(7);
+    expect(registrations).toHaveLength(10);
 
     const second = makeMorph(detail, [0, 0, 400, 300]);
     attachMorph(second, { layoutId: "photo-2", name: "zoom", navigateStore: store });
 
-    expect(inserted.filter((rule) => rule.startsWith("@property"))).toHaveLength(7);
+    expect(inserted.filter((rule) => rule.startsWith("@property"))).toHaveLength(10);
   });
 
   it("leaves the camera literal where those properties cannot be registered", () => {
@@ -1866,12 +1921,13 @@ describe("attachMorph", () => {
       attachMorph(hero, { layoutId: "photo-5", name: "fading" as never, navigateStore: store });
 
       // Its own duration, its own delay, its own cross-fade window — and the
-      // authored translate composed on top of the measured travel.
+      // authored translate ADDED to the measured travel, since both are
+      // translations on one clock and the move channel carries them together.
       expect(hero.style.animation).toContain("-travel 0.500s");
       expect(hero.style.animation).toContain("0.050s both");
       expect(hero.style.animation).toContain("-fade 0.125s");
       const travel = inserted.find((rule) => rule.includes("-travel"))!;
-      expect(travel).toContain("translate3d(40px, 0px, 0)");
+      expect(travel).toContain("--flemo-move-x: 60px;");
     } finally {
       morphTransitionMap.delete("fading" as never);
     }

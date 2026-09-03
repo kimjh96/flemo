@@ -223,6 +223,7 @@ describe("buildMorphKeyframes", () => {
           { at: 40, ascent: 16 },
           { at: 100, ascent: 23 }
         ],
+        travelPinned: true,
         fade: null,
         paint: []
       });
@@ -230,13 +231,13 @@ describe("buildMorphKeyframes", () => {
       const rise = lifted.rules.find((rule) => rule.includes("-lift"))!;
 
       // The box travels to `top + ascent` at each end...
-      // The box lands at its destination RAISED by the arrival's ascent, and
-      // starts raised by the departure's: 113 and 323 against a resting 300.
-      expect(geometry).toContain("top: 113px;");
-      expect(geometry).toContain("top: 323px;");
-      // ...and the transform takes exactly that back off again.
-      expect(rise).toContain("transform: translateY(-13px);");
-      expect(rise).toContain("transform: translateY(-23px);");
+      // The move channel carries the box back AND the ascent up: from is
+      // (100 + 13) - 300 = -187, and to is (300 + 23) - 300 = 23.
+      expect(geometry).toContain("--flemo-move-y: -187px;");
+      expect(geometry).toContain("--flemo-move-y: 23px;");
+      // ...and the lift takes exactly that back off again, on the same channel.
+      expect(rise).toContain("--flemo-lift-y: -13px;");
+      expect(rise).toContain("--flemo-lift-y: -23px;");
       expect(rise).toContain("animation-timing-function: steps(1, end);");
       expect(lifted.animation).toContain("flemo-morph-1u-lift");
     });
@@ -554,5 +555,124 @@ describe("buildCameraKeyframes", () => {
       expect(pinned.rules[1]).toContain("animation-duration: 0.400s !important");
       expect(pinned.rules[1]).toContain("animation-fill-mode: both !important");
     });
+  });
+});
+
+describe("buildMorphKeyframes() tracking", () => {
+  const track = [
+    { at: 0, fix: 0 },
+    { at: 30, fix: -0.05 },
+    { at: 100, fix: 0 }
+  ];
+
+  it("carries the correction beside the author's own tracking on one property", () => {
+    const built = buildMorphKeyframes({
+      id: "3t",
+      travel,
+      fade: null,
+      paint: [],
+      travelPinned: true,
+      fontSize: { from: 14, to: 24 },
+      letterSpacing: { from: -0.18, to: -0.48 },
+      track
+    });
+
+    // Two clocks on one property: neither can author `letter-spacing` alone.
+    expect(built.letterSpacing).toBe("calc(var(--flemo-track) + var(--flemo-track-fix))");
+    const travelRule = built.rules.find((rule) => rule.includes("-travel"))!;
+    expect(travelRule).toContain("--flemo-track: -0.18px");
+    expect(travelRule).toContain("--flemo-track: -0.48px");
+    expect(travelRule).not.toContain("letter-spacing:");
+  });
+
+  // A HELD CORRECTION LEAVES ITS OWN STEP BEHIND.
+  //
+  // The lift beside it holds, because a staircase is what it cancels. This
+  // cancels a smooth curve, so holding a sample until the next one puts the
+  // whole climb between them back on the glass.
+  it("ramps between its stops rather than holding them", () => {
+    const built = buildMorphKeyframes({
+      id: "4t",
+      travel,
+      fade: null,
+      paint: [],
+      travelPinned: true,
+      fontSize: { from: 14, to: 24 },
+      track
+    });
+
+    const rule = built.rules.find((r) => r.startsWith("@keyframes flemo-morph-4t-track"))!;
+    expect(rule).toContain("--flemo-track-fix: -0.05px");
+    expect(rule).not.toContain("steps(1, end)");
+  });
+
+  it("leaves the property alone where there is no correction to carry", () => {
+    const built = buildMorphKeyframes({
+      id: "5t",
+      travel,
+      fade: null,
+      paint: [],
+      travelPinned: true,
+      fontSize: { from: 14, to: 24 },
+      track: null
+    });
+
+    expect(built.letterSpacing).toBeNull();
+    expect(built.rules.some((rule) => rule.includes("-track {"))).toBe(false);
+  });
+});
+
+// WHOEVER WRITES THE CHANNEL MUST ALSO WEAR IT.
+describe("buildMorphKeyframes() move channel", () => {
+  const lift = [
+    { at: 0, ascent: 12 },
+    { at: 50, ascent: 13 },
+    { at: 100, ascent: 14 }
+  ];
+  const leading = [
+    { at: 0, lineHeight: 18 },
+    { at: 50, lineHeight: 19 },
+    { at: 100, lineHeight: 20 }
+  ];
+
+  it("wears the channel for a pair that rides its container, which has no box and no pose", () => {
+    // The case that was dead: neither a box travel nor a pose of its own, and
+    // an ascent staircase whose cancellation had nothing reading it.
+    const built = buildMorphKeyframes({
+      id: "6r",
+      travel: { ...travel, from: IDENTITY_POSE },
+      fade: null,
+      paint: [],
+      travelPinned: true,
+      fontSize: { from: 13, to: 24 },
+      leading,
+      lift
+    });
+
+    expect(built.translate).toBe(
+      "var(--flemo-move-x) calc(var(--flemo-move-y) + var(--flemo-lift-y))"
+    );
+    const rule = built.rules.find((r) => r.startsWith("@keyframes flemo-morph-6r-travel"))!;
+    expect(rule).toContain("--flemo-move-y: 12px");
+  });
+
+  it("pays the half-leading the staircase does not render at the departure", () => {
+    const built = buildMorphKeyframes({
+      id: "7r",
+      travel: { ...travel, from: IDENTITY_POSE },
+      fade: null,
+      paint: [],
+      travelPinned: true,
+      fontSize: { from: 13, to: 24 },
+      leading,
+      lift,
+      leadStart: 1
+    });
+
+    const rule = built.rules.find((r) => r.startsWith("@keyframes flemo-morph-7r-travel"))!;
+    // The ascent at the start plus what the baseline owes, and the landing
+    // untouched: the last stop is the arrival's own line.
+    expect(rule).toContain("--flemo-move-y: 13px");
+    expect(rule).toContain("--flemo-move-y: 14px");
   });
 });

@@ -41,7 +41,14 @@ import {
 import { buildCameraKeyframes, buildMorphKeyframes, contentDecls } from "@morph/morphKeyframes";
 
 import { resolveMorphLayer } from "@morph/morphLayer";
-import { holdOneLine, holdsOneLine, leadingBias, leadingStops } from "@morph/morphLine";
+import {
+  holdOneLine,
+  holdsOneLine,
+  leadingBias,
+  leadingOwed,
+  leadingStops,
+  trackStops
+} from "@morph/morphLine";
 import { paintTravel } from "@morph/morphPaint";
 
 import { IDENTITY_POSE, resolvePose } from "@morph/morphPose";
@@ -279,7 +286,8 @@ const typeTravel = (
   from: TypeFace,
   to: TypeFace,
   font: { family: string; weight: string | number; style: string } | null,
-  ease: AnimationOptions["ease"]
+  ease: AnimationOptions["ease"],
+  run: string | null
 ) => {
   const fontSize = channel(from.fontSize, to.fontSize, 0.5);
   const leading = channel(from.lineHeight, to.lineHeight, 0.25);
@@ -287,6 +295,10 @@ const typeTravel = (
   // It holds the rendered leading at ONE value for the whole flight, which is
   // strictly more than the bias below can do, so the bias stands aside for it.
   const stairs = fontSize ? leadingStops(from, to, font, ease) : null;
+  // A run's width against its size is one curve, and where a face draws it off
+  // the straight line the glyphs after the first carry what piled up before
+  // them. Spread the negative over the gaps and it cancels.
+  const drift = fontSize && run ? trackStops(run, from, to, font, ease) : null;
   // Owed only where the rendered half-leading MOVES, which is a leading that
   // interpolates or a size that does underneath one that does not. Both ends
   // take the same amount, so what the flight travels is unchanged and only the
@@ -295,6 +307,23 @@ const typeTravel = (
   return {
     fontSize,
     leading: stairs,
+    // THE FLIGHT MUST BEGIN ON THE LINE THE DEPARTURE DREW.
+    //
+    // The staircase holds ONE leading for the whole flight so the rendered
+    // half-leading cannot step, and the one it holds is the ARRIVAL's, because
+    // that is the value the landing has to restore. At the other end that makes
+    // the first frame render a line-height the departure never had: measured on
+    // the poster grid, a title resting at 20px began its flight at 18px and its
+    // glyphs therefore began a whole pixel high, while its BOX sat exactly
+    // where it should. Both engines, every bench, and invisible to a net that
+    // watches boxes.
+    //
+    // Half the difference is what the baseline owes, and the box is where it
+    // gets paid: the same channel the ascent's cancellation already rides, with
+    // the same shape (owed at the start, nothing at the landing) and no
+    // property or keyframe of its own.
+    leadStart: leadingOwed(from, to, stairs),
+    track: drift,
     // A variable font takes every weight between; a static family snaps to the
     // faces it has. Both are better than starting at the destination's.
     fontWeight: channel(from.fontWeight, to.fontWeight, 1),
@@ -411,6 +440,19 @@ const screenTransformOrigin = (
     x: box.x + originOffset(parts[0], box.width),
     y: box.y + originOffset(parts[1], box.height)
   };
+};
+
+// A keyframe set can ask the element to wear a declaration: a pinned travel
+// animates the position's coordinates and a pinned pose animates the pose's, and
+// neither is any use without the property that reads them. One place, so a
+// riding pair and a flying one cannot drift apart on it.
+const wear = (
+  element: HTMLElement,
+  set: { translate: string | null; transform: string | null; letterSpacing: string | null }
+) => {
+  if (set.translate) element.style.translate = set.translate;
+  if (set.transform) element.style.transform = set.transform;
+  if (set.letterSpacing) element.style.letterSpacing = set.letterSpacing;
 };
 
 const startFlight = (
@@ -545,7 +587,16 @@ const startFlight = (
             : null;
         })()
       : null;
-  const type = typeTravel(captured.snapshot, side, face, ease);
+  // The words themselves, where the element holds nothing but words: the
+  // correction is measured on the text that is actually being typeset, and a
+  // field per JSX expression leaves that text in SEVERAL nodes rather than one.
+  const words =
+    entry.element.firstElementChild === null
+      ? Array.from(entry.element.childNodes, (node) => (node instanceof Text ? node.data : ""))
+          .join("")
+          .trim()
+      : "";
+  const type = typeTravel(captured.snapshot, side, face, ease, words || null);
   // Everything else the two ends paint differently, from the table rather than
   // from a branch per property (see morphPaint). `radius: false` is how a morph
   // transition opts one out — the `text` preset does, because type has no
@@ -655,7 +706,9 @@ const startFlight = (
     wordSpacing: type.wordSpacing,
     lineHeight: type.lineHeight,
     leading: type.leading,
+    leadStart: type.leadStart,
     lift: type.lift,
+    track: type.track,
     travelPinned,
     // The arrival fades only if the author gave it an entry pose to fade from.
     // The presets do not: the arrival is opaque and the ghost dissolves on top
@@ -823,7 +876,9 @@ const startFlight = (
       wordSpacing: type.wordSpacing,
       lineHeight: type.lineHeight,
       leading: type.leading,
+      leadStart: type.leadStart,
       lift: type.lift,
+      track: type.track,
       travelPinned,
       aspectRatio: reshapes
         ? { from: captured.snapshot.aspectRatio!, to: side.aspectRatio! }
@@ -854,7 +909,7 @@ const startFlight = (
     const disposeNested = insertMorphRules(growing.rules);
     const inlineNested = entry.element.getAttribute("style");
     entry.element.style.animation = growing.animation;
-    if (growing.transform) entry.element.style.transform = growing.transform;
+    wear(entry.element, growing);
     // As above: a nested pair re-typesets on its container's clock, at every
     // width the container passes through.
     if (holdsOneLine(captured.snapshot.singleLine, arrivalOneLine)) holdOneLine(entry.element);
@@ -1061,8 +1116,12 @@ const startFlight = (
   // travel's own `translate`. A position that comes from layout is painted at
   // whole pixels on Blink, and a line of type stepping a pixel at a time is the
   // tremor this whole channel exists to avoid (see morphKeyframes).
-  entry.element.style.left = `${(travelPinned ? destination : origin).x}px`;
-  entry.element.style.top = `${(travelPinned ? destination : origin).y}px`;
+  // Laid out where it LANDS whenever the travel carries it back, and where it
+  // STARTS when it does not. The emitter decides which, and says so by handing
+  // back a `translate` for the element to wear.
+  const laidOutAt = arriving.translate ? destination : origin;
+  entry.element.style.left = `${laidOutAt.x}px`;
+  entry.element.style.top = `${laidOutAt.y}px`;
   entry.element.style.width = `${origin.width}px`;
   entry.element.style.height = `${origin.height}px`;
   entry.element.style.margin = "0";
@@ -1085,9 +1144,7 @@ const startFlight = (
   // still inside it.
   entry.element.style.zIndex = `${morphDepth(home) + 1}`;
   entry.element.style.animation = arriving.animation;
-  // A pinned travel animates the position's coordinates; the element needs the
-  // `translate` that reads them.
-  if (arriving.translate) entry.element.style.translate = arriving.translate;
+  wear(entry.element, arriving);
   // Both ends are one line, so every width in between is one line too. Without
   // this the arrival's own wrapping rules run at the departure's width and put
   // a second line under the first for the opening frames (see morphLine).
@@ -1157,9 +1214,7 @@ const startFlight = (
     ghost.style.contain = "layout";
     ghost.style.zIndex = `${morphDepth(home) + 2}`;
     ghost.style.animation = ghostSet.animation;
-    // A pinned set animates the pose's coordinates, so the element needs the
-    // transform that reads them.
-    if (ghostSet.transform) ghost.style.transform = ghostSet.transform;
+    wear(ghost, ghostSet);
     layer.appendChild(ghost);
   }
 
