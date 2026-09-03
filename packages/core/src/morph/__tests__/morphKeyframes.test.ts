@@ -201,6 +201,89 @@ describe("buildMorphKeyframes", () => {
       expect(plain.rules.some((rule) => rule.includes("-lead"))).toBe(false);
     });
 
+    // A box travel with no pose of its own, which is what a type morph is.
+    const plain: MorphTravel = { ...travel, from: IDENTITY_POSE };
+
+    it("carries the ascent's staircase backwards on the box", () => {
+      // A held leading still leaves the BASELINE stepping, because it sits an
+      // ascent below the inline box and the ascent is on the same grid. The box
+      // is not on any grid, so the flight sends it the other way by exactly as
+      // much and the glyphs come out still.
+      const lifted = buildMorphKeyframes({
+        id: "1u",
+        travel: plain,
+        box: {
+          from: { x: 0, y: 100, width: 10, height: 10 },
+          to: { x: 0, y: 300, width: 20, height: 20 }
+        },
+        lineHeight: { from: 20, to: 32 },
+        leading: stairs,
+        lift: [
+          { at: 0, ascent: 13 },
+          { at: 40, ascent: 16 },
+          { at: 100, ascent: 23 }
+        ],
+        fade: null,
+        paint: []
+      });
+      const geometry = lifted.rules.find((rule) => rule.includes("-travel"))!;
+      const rise = lifted.rules.find((rule) => rule.includes("-lift"))!;
+
+      // The box travels to `top + ascent` at each end...
+      expect(geometry).toContain("top: 113px;");
+      expect(geometry).toContain("top: 323px;");
+      // ...and the transform takes exactly that back off again.
+      expect(rise).toContain("transform: translateY(-13px);");
+      expect(rise).toContain("transform: translateY(-23px);");
+      expect(rise).toContain("animation-timing-function: steps(1, end);");
+      expect(lifted.animation).toContain("flemo-morph-1u-lift");
+    });
+
+    it("refuses to lift a set that writes a transform of its own", () => {
+      // The two would be fighting over one property, and a box sent up with
+      // nothing to bring it back down is a line of type an ascent too low.
+      const posed = buildMorphKeyframes({
+        id: "1v",
+        travel: { ...travel, authoredFrom: { x: 0, y: 8, scaleX: 1, scaleY: 1, rotate: 0 } },
+        box: {
+          from: { x: 0, y: 100, width: 10, height: 10 },
+          to: { x: 0, y: 300, width: 20, height: 20 }
+        },
+        lineHeight: { from: 20, to: 32 },
+        leading: stairs,
+        lift: [
+          { at: 0, ascent: 13 },
+          { at: 100, ascent: 23 }
+        ],
+        fade: null,
+        paint: []
+      });
+
+      expect(posed.rules.some((rule) => rule.includes("-lift"))).toBe(false);
+      expect(posed.rules.find((rule) => rule.includes("-travel"))).toContain("top: 100px;");
+    });
+
+    it("leaves the box where it was when there is no staircase to cancel", () => {
+      const unlifted = buildMorphKeyframes({
+        id: "1w",
+        travel: plain,
+        box: {
+          from: { x: 0, y: 100, width: 10, height: 10 },
+          to: { x: 0, y: 300, width: 20, height: 20 }
+        },
+        leading: null,
+        lift: [
+          { at: 0, ascent: 13 },
+          { at: 100, ascent: 23 }
+        ],
+        fade: null,
+        paint: []
+      });
+
+      expect(unlifted.rules.find((rule) => rule.includes("-travel"))).toContain("top: 100px;");
+      expect(unlifted.rules.some((rule) => rule.includes("-lift"))).toBe(false);
+    });
+
     it("is the main thread's work, and says so", () => {
       // A line-height is not something a compositor can run, so a set carrying
       // one cannot be accelerated and anything registered with it must know.

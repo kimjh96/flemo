@@ -118,6 +118,21 @@ export const buildMorphKeyframes = (input: {
    * is, and the geometry keyframe cannot hold one channel while easing the rest.
    */
   leading?: { at: number; lineHeight: number }[] | null;
+  /**
+   * The ascent's staircase, carried backwards on the box so the two cancel.
+   *
+   * A held leading still leaves the BASELINE stepping, because it sits an
+   * ascent below the inline box's top and the ascent is on the same grid. The
+   * two terms are both grid-locked, so nothing done to the line-height can make
+   * their sum smooth. The box under them is not grid-locked, so the flight
+   * sends the box the OTHER way by the same amount and the glyphs come out
+   * still: the box travels to `top + ascent` and a transform takes the ascent
+   * straight back off, exactly at both ends and within half a pixel between.
+   *
+   * A box wobbling half a pixel is nothing to look at; a line of type doing it
+   * is the tremor this exists to remove.
+   */
+  lift?: { at: number; ascent: number }[] | null;
   /** Type's other two dimensions, so it re-typesets rather than merely re-sizing. */
   fontWeight?: { from: number; to: number } | null;
   letterSpacing?: { from: number; to: number } | null;
@@ -193,12 +208,16 @@ export const buildMorphKeyframes = (input: {
     size,
     clip,
     leading,
+    lift,
     pinned = false
   } = input;
   const rules: string[] = [];
   const animations: string[] = [];
   const easing = easingToCss(travel.ease);
   const start = travel.start.toFixed(3);
+  const authored =
+    composePosesToCss([travel.from, travel.authoredFrom]) !== "none" ||
+    composePosesToCss([travel.to ?? IDENTITY_POSE, travel.authoredTo]) !== "none";
 
   const geometryName = `flemo-morph-${id}-travel`;
   const fromParts: string[] = [];
@@ -206,6 +225,12 @@ export const buildMorphKeyframes = (input: {
   // Anything but the transform takes the whole keyframe off the compositor, so
   // a set carrying any of it is the main thread's already and needs no pinning.
   const staircase = leading && leading.length > 1 ? leading : null;
+  // The two travel together or not at all: a box sent to `top + ascent` with
+  // nothing to take the ascent back off is a line of type an ascent too low.
+  // And the taking-off is a transform, so a set that already writes one of its
+  // own has no room for it.
+  const carried =
+    leading && leading.length > 1 && lift && lift.length > 1 && !authored ? lift : null;
   const layoutBound = Boolean(
     box ||
     fontSize ||
@@ -229,8 +254,11 @@ export const buildMorphKeyframes = (input: {
   // backstop instead, a quarter-second after the motion finished.
   let clockName: string | null = null;
   if (box) {
-    fromParts.push(boxBlock(box.from));
-    toParts.push(boxBlock(box.to));
+    const raise = carried
+      ? { from: carried[0]!.ascent, to: carried[carried.length - 1]!.ascent }
+      : { from: 0, to: 0 };
+    fromParts.push(boxBlock({ ...box.from, y: box.from.y + raise.from }));
+    toParts.push(boxBlock({ ...box.to, y: box.to.y + raise.to }));
   }
   const fromPoses = composePoses([travel.from, travel.authoredFrom]);
   const toPoses = composePoses([travel.to ?? IDENTITY_POSE, travel.authoredTo]);
@@ -319,6 +347,18 @@ export const buildMorphKeyframes = (input: {
     // Linear, because the stops already carry the flight's easing in WHERE they
     // sit; easing between them again would move them.
     animations.push(`${leadName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
+  }
+
+  if (carried) {
+    const liftName = `flemo-morph-${id}-lift`;
+    const blocks = carried
+      .map(
+        (stop) =>
+          `  ${stop.at.toFixed(4)}% {\n    transform: translateY(${px(-stop.ascent)});\n    animation-timing-function: steps(1, end);\n  }`
+      )
+      .join("\n");
+    rules.push(`@keyframes ${liftName} {\n${blocks}\n}`);
+    animations.push(`${liftName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
   }
 
   if (paint.length > 0) {

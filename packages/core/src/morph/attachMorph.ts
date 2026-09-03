@@ -303,6 +303,10 @@ const typeTravel = (
     // A leading the two ends already share still gets a channel when there is a
     // bias to carry: the size moves under it, and a leading held at its
     // authored value would step as the type grows past a pixel boundary.
+    // The ascent's staircase rides with the leading's -- the same stops, read
+    // for their other half. The emitter refuses it where the set writes a
+    // transform of its own for it to fight with.
+    lift: stairs,
     lineHeight: leading
       ? { from: leading.from + bias, to: leading.to + bias }
       : bias !== 0 && to.lineHeight !== null
@@ -645,6 +649,7 @@ const startFlight = (
     wordSpacing: type.wordSpacing,
     lineHeight: type.lineHeight,
     leading: type.leading,
+    lift: type.lift,
     // The arrival fades only if the author gave it an entry pose to fade from.
     // The presets do not: the arrival is opaque and the ghost dissolves on top
     // of it, because fading both bleeds the background through the pair.
@@ -811,6 +816,7 @@ const startFlight = (
       wordSpacing: type.wordSpacing,
       lineHeight: type.lineHeight,
       leading: type.leading,
+      lift: type.lift,
       aspectRatio: reshapes
         ? { from: captured.snapshot.aspectRatio!, to: side.aspectRatio! }
         : null,

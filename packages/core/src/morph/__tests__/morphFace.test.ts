@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { faceGrids, faceHeight, faceHeightAt, faceRatios, faceSteps } from "@morph/morphFace";
+import {
+  faceGrids,
+  faceHeight,
+  faceHeightAt,
+  faceParts,
+  faceRatios,
+  faceSteps
+} from "@morph/morphFace";
 
 // A FACE'S HEIGHT IS NOT A LINE.
 //
@@ -137,6 +144,12 @@ describe("faceHeight", () => {
     expect(faceHeight(20, FAMILY, 1)).toBeNull();
   });
 
+  it("gives the two halves apart, because the baseline sits on the ascent", () => {
+    face(0.95, 0.25);
+
+    expect(faceParts(20, FAMILY, 1)).toEqual({ ascent: 19, descent: 5 });
+  });
+
   it("puts the answer on a finer grid by asking at a scaled size", () => {
     // The canvas rounds to ITS pixels, so a face measured at twice the size and
     // halved back is the same face rounded to half pixels — which is the grid a
@@ -165,31 +178,37 @@ describe("faceHeight", () => {
 
 describe("faceSteps", () => {
   const ratios = { ascent: 0.95, descent: 0.25 };
-  const height = (size: number) => Math.round(size * 0.95) + Math.round(size * 0.25);
+  const parts = (size: number) => ({
+    ascent: Math.round(size * 0.95),
+    descent: Math.round(size * 0.25)
+  });
+  const height = (size: number) => parts(size).ascent + parts(size).descent;
 
   it("lands each step where the font actually takes it, not where arithmetic aimed", () => {
-    const steps = faceSteps(14, 24, ratios, 1, height);
+    const steps = faceSteps(14, 24, ratios, 1, parts);
 
     expect(steps.length).toBeGreaterThan(0);
     for (const step of steps) {
       // The height on the far side is the one the stop carries, and a hair
       // before it the face is still shorter.
-      expect(height(step.size)).toBe(step.height);
-      expect(height(step.size - 0.01)).toBeLessThan(step.height);
+      expect(height(step.size)).toBe(step.parts.ascent + step.parts.descent);
+      expect(height(step.size - 0.01)).toBeLessThan(step.parts.ascent + step.parts.descent);
     }
   });
 
   it("gives every step the flight passes through, in the order it meets them", () => {
-    const steps = faceSteps(14, 24, ratios, 1, height);
+    const steps = faceSteps(14, 24, ratios, 1, parts);
     const sizes = steps.map((s) => s.size);
 
     expect(sizes).toEqual([...sizes].sort((a, b) => a - b));
-    expect(steps[0]!.height).toBe(height(steps[0]!.size));
-    expect(steps[steps.length - 1]!.height).toBe(height(24));
+    expect(steps[0]!.parts.ascent + steps[0]!.parts.descent).toBe(height(steps[0]!.size));
+    expect(steps[steps.length - 1]!.parts.ascent + steps[steps.length - 1]!.parts.descent).toBe(
+      height(24)
+    );
   });
 
   it("reads a shrinking flight backwards", () => {
-    const sizes = faceSteps(24, 14, ratios, 1, height).map((s) => s.size);
+    const sizes = faceSteps(24, 14, ratios, 1, parts).map((s) => s.size);
 
     expect(sizes).toEqual([...sizes].sort((a, b) => b - a));
   });
@@ -198,22 +217,25 @@ describe("faceSteps", () => {
     // A face whose ascent and descent cross a half at the same size steps by
     // two, not twice: one stop carries the whole change.
     const both = { ascent: 0.5, descent: 0.5 };
-    const together = (size: number) => Math.round(size * 0.5) + Math.round(size * 0.5);
-    const steps = faceSteps(14, 24, both, 1, together);
+    const steps = faceSteps(14, 24, both, 1, (size: number) => ({
+      ascent: Math.round(size * 0.5),
+      descent: Math.round(size * 0.5)
+    }));
 
     expect(new Set(steps.map((s) => s.size)).size).toBe(steps.length);
   });
 
   it("ignores a half of the height that does not scale", () => {
-    const steps = faceSteps(14, 24, { ascent: 0.95, descent: 0 }, 1, (size: number) =>
-      Math.round(size * 0.95)
-    );
+    const steps = faceSteps(14, 24, { ascent: 0.95, descent: 0 }, 1, (size: number) => ({
+      ascent: Math.round(size * 0.95),
+      descent: 0
+    }));
 
     expect(steps.length).toBeGreaterThan(0);
   });
 
   it("finds nothing where the face never changes height", () => {
-    expect(faceSteps(14, 24, ratios, 1, () => 20)).toEqual([]);
+    expect(faceSteps(14, 24, ratios, 1, () => ({ ascent: 15, descent: 5 }))).toEqual([]);
   });
 
   it("declines a face it cannot measure rather than guessing", () => {

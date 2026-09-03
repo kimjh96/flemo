@@ -414,7 +414,9 @@ describe("leadingStops", () => {
       undefined
     )!;
 
-    expect(stops[stops.length - 1]).toEqual({ at: 100, lineHeight: 32 });
+    const last = stops[stops.length - 1]!;
+    expect(last.at).toBe(100);
+    expect(last.lineHeight).toBe(32);
   });
 
   it("stands down where the face height does not step", () => {
@@ -522,6 +524,28 @@ describe("leadingStops", () => {
       expect(stop.at).toBeGreaterThan(0);
       expect(stop.at).toBeLessThan(100);
     }
+  });
+
+  it("stands down where the ends' own metrics cannot be had", () => {
+    // The stops carry the ascent as well as the height, and a face that will
+    // not give one has nothing for the box to cancel.
+    const context = {
+      font: "",
+      measureText: () => ({ fontBoundingBoxAscent: 9521, fontBoundingBoxDescent: 2412 })
+    };
+    let asked = 0;
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => {
+      asked += 1;
+      // The ratios come off the first call; every size after it answers with
+      // nothing, which is a host that measured once and then could not.
+      return (asked <= 1
+        ? context
+        : { font: "", measureText: () => ({}) }) as unknown as CanvasRenderingContext2D;
+    });
+
+    expect(
+      leadingStops(end(14, 20), end(24, 32), { ...FONT, family: "Gone Sans" }, undefined)
+    ).toBeNull();
   });
 
   it("remembers a pair's stairs rather than bisecting them twice", () => {

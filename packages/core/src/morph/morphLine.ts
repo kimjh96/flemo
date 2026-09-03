@@ -27,7 +27,7 @@
 import type { AnimationOptions } from "@transition/cssTypes";
 import { invertEasing } from "@transition/cubicBezier";
 
-import { faceGrids, faceHeight, faceRatios, faceSteps } from "@morph/morphFace";
+import { faceGrids, faceParts, faceRatios, faceSteps, type FaceParts } from "@morph/morphFace";
 
 /** The properties the hold writes, so a caller can reason about what it costs. */
 export const LINE_HOLD = {
@@ -179,6 +179,21 @@ export interface LeadingStop {
   /** Percent of the flight, 0 to 100. */
   at: number;
   lineHeight: number;
+  /**
+   * The face's ascent from this stop on.
+   *
+   * A held leading is only half the answer. The BASELINE sits an ascent below
+   * the inline box's top, and the ascent is on the same grid the leading is, so
+   * it steps just as often — device-measured at seventeen steps of half a pixel
+   * across one flight of forty-nine frames, which is a jump every third frame.
+   *
+   * Neither term can be made smooth: both are on the grid, so their sum is too,
+   * and a baseline that has nine and a half pixels of grid to climb must climb
+   * it in steps. What CAN be smooth is the box under them, because a box's
+   * position is not on any grid — so the flight carries the ascent's staircase
+   * BACKWARDS on the box and lets the two cancel (see `lift`).
+   */
+  ascent: number;
 }
 
 /** How close a prediction has to be to what was measured to be believed. */
@@ -240,20 +255,29 @@ const buildStops = (
   // candidates are tried and the one that reproduces what was actually measured
   // at BOTH ends is the one used. Where none does, the engine is not one that
   // steps at all (or not one this understands), and nothing is corrected.
-  const scale = faceGrids().find(
-    (candidate) =>
-      matches(faceHeight(from.fontSize, font, candidate), from.textHeight) &&
-      matches(faceHeight(to.fontSize, font, candidate), to.textHeight)
-  );
-  if (scale === undefined) return null;
+  // The candidate brings its own measurements with it: the check IS the
+  // measurement, so nothing is asked for twice.
+  let grid: { scale: number; ends: [FaceParts, FaceParts] } | null = null;
+  for (const candidate of faceGrids()) {
+    const first = faceParts(from.fontSize, font, candidate);
+    const last = faceParts(to.fontSize, font, candidate);
+    if (first === null || last === null) continue;
+    if (!matches(first, from.textHeight) || !matches(last, to.textHeight)) continue;
+    grid = { scale: candidate, ends: [first, last] };
+    break;
+  }
+  if (grid === null) return null;
+  const { scale, ends } = grid;
 
   // The leading the arrival RESTS at, which every stop is built to preserve.
   const leading = to.lineHeight - to.textHeight;
   const invert = invertEasing(ease);
   const span = to.fontSize - from.fontSize;
-  const stops: LeadingStop[] = [{ at: 0, lineHeight: from.textHeight + leading }];
+  const stops: LeadingStop[] = [
+    { at: 0, lineHeight: from.textHeight + leading, ascent: ends[0].ascent }
+  ];
   for (const step of faceSteps(from.fontSize, to.fontSize, ratios, scale, (size) =>
-    faceHeight(size, font, scale)
+    faceParts(size, font, scale)
   )) {
     // Font size interpolates with the eased progress, so the TIME a step is met
     // is the time at which the ease has travelled that far.
@@ -261,13 +285,17 @@ const buildStops = (
     /* v8 ignore next -- faceSteps returns only sizes strictly inside the range,
        so a stop cannot land on either end. */
     if (at <= 0 || at >= 100) continue;
-    stops.push({ at, lineHeight: step.height + leading });
+    stops.push({
+      at,
+      lineHeight: step.parts.ascent + step.parts.descent + leading,
+      ascent: step.parts.ascent
+    });
   }
   // The last stop is the arrival's own line-height by construction, so the
   // landing restores exactly what the flight ended on.
-  stops.push({ at: 100, lineHeight: to.lineHeight });
+  stops.push({ at: 100, lineHeight: to.lineHeight, ascent: ends[1].ascent });
   return stops.length > 2 ? stops : null;
 };
 
-const matches = (predicted: number | null, measured: number): boolean =>
-  predicted !== null && Math.abs(predicted - measured) < EXACT;
+const matches = (parts: FaceParts, measured: number): boolean =>
+  Math.abs(parts.ascent + parts.descent - measured) < EXACT;

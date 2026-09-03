@@ -164,16 +164,25 @@ const snap = (value: number, scale: number) => Math.round(value * scale) / scale
 export const faceHeightAt = (size: number, ratios: FaceRatios, scale: number): number =>
   snap(size * ratios.ascent, scale) + snap(size * ratios.descent, scale);
 
+/** The two halves of a face's box at one size, as the font reports them. */
+export interface FaceParts {
+  ascent: number;
+  descent: number;
+}
+
 /**
- * The face's own height at one size, as the font reports it.
+ * The face's ascent and descent at one size, as the font reports them.
  *
- * The same number the line box is built from, got without laying anything out.
+ * The same numbers the line box is built from, got without laying anything out.
+ * The BASELINE sits at the ascent below the inline box's top, so a flight that
+ * holds its half-leading still is only half done: the ascent is on the same
+ * grid and steps just as often (see morphLine).
  */
-export const faceHeight = (
+export const faceParts = (
   size: number,
   font: { family: string; weight: string | number; style: string },
   scale: number
-): number | null => {
+): FaceParts | null => {
   const context = canvas();
   if (!context) return null;
   try {
@@ -184,11 +193,21 @@ export const faceHeight = (
     const ascent = metrics.fontBoundingBoxAscent;
     const descent = metrics.fontBoundingBoxDescent;
     if (typeof ascent !== "number" || typeof descent !== "number") return null;
-    return (ascent + descent) / scale;
+    return { ascent: ascent / scale, descent: descent / scale };
     /* v8 ignore next 3 -- a malformed shorthand throws on assignment. */
   } catch {
     return null;
   }
+};
+
+/** The face's own height at one size: its two halves added up. */
+export const faceHeight = (
+  size: number,
+  font: { family: string; weight: string | number; style: string },
+  scale: number
+): number | null => {
+  const parts = faceParts(size, font, scale);
+  return parts === null ? null : parts.ascent + parts.descent;
 };
 
 /** How near a boundary has to be pinned: a thousandth of a pixel of font size. */
@@ -210,8 +229,8 @@ export const faceSteps = (
   to: number,
   ratios: FaceRatios,
   scale: number,
-  measure: (size: number) => number | null
-): { size: number; height: number }[] => {
+  measure: (size: number) => FaceParts | null
+): { size: number; parts: FaceParts }[] => {
   const low = Math.min(from, to);
   const high = Math.max(from, to);
   const aimed: number[] = [];
@@ -235,7 +254,7 @@ export const faceSteps = (
   }
   aimed.sort((a, b) => a - b);
 
-  const found: { size: number; height: number }[] = [];
+  const found: { size: number; parts: FaceParts }[] = [];
   for (const aim of aimed) {
     const edge = bisect(Math.max(low, aim - BRACKET), Math.min(high, aim + BRACKET), measure);
     if (edge === null) continue;
@@ -251,11 +270,11 @@ export const faceSteps = (
 const bisect = (
   lo: number,
   hi: number,
-  measure: (size: number) => number | null
-): { size: number; height: number } | null => {
+  measure: (size: number) => FaceParts | null
+): { size: number; parts: FaceParts } | null => {
   const below = measure(lo);
   const above = measure(hi);
-  if (below === null || above === null || below === above) return null;
+  if (below === null || above === null || same(below, above)) return null;
   let low = lo;
   let high = hi;
   while (high - low > PRECISION) {
@@ -263,8 +282,11 @@ const bisect = (
     const here = measure(mid);
     /* v8 ignore next -- the guard above already refused a face with no metrics. */
     if (here === null) return null;
-    if (here === below) low = mid;
+    if (same(here, below)) low = mid;
     else high = mid;
   }
-  return { size: high, height: above };
+  return { size: high, parts: above };
 };
+
+const same = (a: FaceParts, b: FaceParts): boolean =>
+  a.ascent === b.ascent && a.descent === b.descent;
