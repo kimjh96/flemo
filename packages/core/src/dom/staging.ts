@@ -28,10 +28,34 @@ export interface StagingRect {
  * Its measured rect against its laid-out size gives the ratio, so a flight is
  * expressed in the space it is actually staged in.
  */
+// THE LAID-OUT SIZE IS ROUNDED. THE PAINTED ONE IS NOT.
+//
+// `offsetWidth` is a whole number of pixels; `getBoundingClientRect` is not. So
+// a layer whose LAYOUT width is fractional — a stage sized by `aspect-ratio`
+// against a viewport that is not a round number, which is every phone with a
+// collapsing toolbar — reports a ratio of up to half a pixel where there is no
+// transform at all. That ratio is then divided into every rect staged through
+// it, and half a pixel over a 342px layer inflates a 314px arrival by 0.46px.
+//
+// What that looks like is the flight ending half a pixel wide of where the
+// element rests and stepping there in one frame at the landing. Device-measured
+// on an iPhone at 3x: the detail's meta line landed 0.94px high and dropped.
+// It does not show on a whole-pixel layout, which is why every desktop window
+// and every headless viewport had been clean.
+//
+// Rounding can only ever be half a pixel, so anything inside that is rounding
+// rather than a scale. A real transform that lands inside it is a scale of
+// under 0.15% on a 342px box, which is not a scale anyone authored.
+const untransformedScale = (painted: number, laidOut: number): number => {
+  if (laidOut <= 0) return 1;
+  if (Math.abs(painted - laidOut) <= 0.5) return 1;
+  return painted / laidOut || 1;
+};
+
 export const intoLayerSpace = (rect: StagingRect, layer: HTMLElement): StagingRect => {
   const box = layer.getBoundingClientRect();
-  const scaleX = layer.offsetWidth > 0 ? box.width / layer.offsetWidth || 1 : 1;
-  const scaleY = layer.offsetHeight > 0 ? box.height / layer.offsetHeight || 1 : 1;
+  const scaleX = untransformedScale(box.width, layer.offsetWidth);
+  const scaleY = untransformedScale(box.height, layer.offsetHeight);
   return {
     x: (rect.x - box.left) / scaleX,
     y: (rect.y - box.top) / scaleY,

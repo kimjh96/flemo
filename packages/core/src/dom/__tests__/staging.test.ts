@@ -254,6 +254,38 @@ describe("intoLayerSpace", () => {
     });
   });
 
+  it("reads a fractional layout as rounding, not as a scale", () => {
+    // `offsetWidth` is a whole number and the painted box is not, so a layer
+    // whose LAYOUT width is fractional — a stage sized by `aspect-ratio` on a
+    // viewport that is not a round number — reports a ratio where there is no
+    // transform. Divided into every staged rect, half a pixel over a 342px
+    // layer inflated a 314px arrival by 0.46px, and the flight then stepped
+    // that far at the landing.
+    const layer = layerAt(
+      { left: 0, top: 0, width: 341.5, height: 719.375 },
+      { width: 342, height: 719 }
+    );
+
+    expect(intoLayerSpace({ x: 8, y: 125, width: 314, height: 20 }, layer)).toEqual({
+      x: 8,
+      y: 125,
+      width: 314,
+      height: 20
+    });
+  });
+
+  it("still divides out a scale that is larger than the rounding", () => {
+    // The guard is exactly half a pixel wide, which is all the rounding can
+    // ever be. A 0.98 bezel on the same layer is 7px, and still a scale.
+    const layer = layerAt(
+      { left: 0, top: 0, width: 335.16, height: 705 },
+      { width: 342, height: 719 }
+    );
+
+    const staged = intoLayerSpace({ x: 0, y: 0, width: 171, height: 100 }, layer);
+    expect(staged.width).toBeCloseTo(174.49, 2);
+  });
+
   it("treats a laid-out layer measuring zero as unscaled rather than collapsing the rect", () => {
     // A layer inside a collapsed or hidden ancestor measures nothing while
     // still reporting its layout size. A scale of 0 would send every staged

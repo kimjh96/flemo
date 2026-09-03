@@ -32,6 +32,289 @@ describe("buildMorphKeyframes", () => {
     expect(geometry).not.toContain("border-radius");
   });
 
+  // WHO ELSE HAS TO WAIT FOR THIS KEYFRAME.
+  //
+  // The flag is not decoration: a camera carrying this element reads it to
+  // decide which thread it is presented from, and getting it wrong is the two
+  // of them drifting apart by however far behind the main thread is.
+  it("reports a transform-only travel as one the compositor can run", () => {
+    expect(
+      buildMorphKeyframes({ id: "1a", travel, fade: null, paint: [] }).geometryAccelerated
+    ).toBe(true);
+  });
+
+  it("reports a travel carrying a box as one it cannot", () => {
+    expect(
+      buildMorphKeyframes({
+        id: "1b",
+        travel,
+        box: {
+          from: { x: 0, y: 0, width: 10, height: 10 },
+          to: { x: 0, y: 0, width: 20, height: 20 }
+        },
+        fade: null,
+        paint: []
+      }).geometryAccelerated
+    ).toBe(false);
+  });
+
+  it("reports type that re-typesets as one it cannot either", () => {
+    // Anything but the transform takes the whole keyframe off the compositor,
+    // not just a box: a font size is resolved by the main thread too.
+    expect(
+      buildMorphKeyframes({
+        id: "1c",
+        travel,
+        fontSize: { from: 14, to: 24 },
+        fade: null,
+        paint: []
+      }).geometryAccelerated
+    ).toBe(false);
+  });
+
+  // ONE FLIGHT, ONE THREAD.
+  //
+  // The parts of a flight are placed relative to each other, so a part the
+  // compositor can run on its own advances on frames the element travelling by
+  // its box never reached. Pinning is how a part gives that up.
+  describe("pinned", () => {
+    const pin = (over: Partial<Parameters<typeof buildMorphKeyframes>[0]> = {}) =>
+      buildMorphKeyframes({ id: "1p", travel, fade: null, paint: [], pinned: true, ...over });
+
+    it("animates the pose's coordinates instead of the transform", () => {
+      const { rules } = pin();
+      const geometry = rules.find((rule) => rule.includes("-travel"))!;
+
+      expect(geometry).toContain("--flemo-pose-x: -100px;");
+      expect(geometry).toContain("--flemo-pose-sx: 0.25;");
+      expect(geometry).not.toContain("transform:");
+    });
+
+    it("hands back the transform that reads them", () => {
+      // The keyframes move the coordinates; something still has to compose them
+      // into a transform, and that is the caller's to write on the element.
+      expect(pin().transform).toContain("var(--flemo-pose-x)");
+    });
+
+    it("writes every channel at both ends, changed or not", () => {
+      // These are the coordinates of one transform, not five animations: an end
+      // that omitted a channel would interpolate it from the registered initial
+      // value rather than holding it.
+      const geometry = pin().rules.find((rule) => rule.includes("-travel"))!;
+      const to = geometry.slice(geometry.indexOf("to {"));
+
+      for (const axis of ["x", "y", "sx", "sy", "r"]) expect(to).toContain(`--flemo-pose-${axis}:`);
+    });
+
+    it("says a pinned set is not on the compositor either", () => {
+      // A camera reads this to decide its own thread, and a set that reported
+      // itself accelerated while being pinned would send the camera the other
+      // way.
+      expect(pin().geometryAccelerated).toBe(false);
+      expect(pin().transform).not.toBeNull();
+    });
+
+    it("leaves an end that composes two poses literal rather than approximating it", () => {
+      // `transform: A B` is a matrix product, and five numbers say one pose.
+      // Rather than guess at a composition it cannot express, the set stays as
+      // it was, which is honest about being accelerated.
+      // `travel.from` is already a measured pose; an authored flourish on the
+      // same end makes two.
+      const stacked = pin({
+        travel: { ...travel, authoredFrom: { x: 10, y: 0, scaleX: 1, scaleY: 1, rotate: 0 } }
+      });
+
+      expect(stacked.transform).toBeNull();
+      expect(stacked.rules.find((rule) => rule.includes("-travel"))).toContain("transform:");
+    });
+
+    it("changes nothing for a set that was never the compositor's to run", () => {
+      // A box travel is already the main thread's, and pinning has nothing to
+      // add to it.
+      const boxed = pin({
+        box: {
+          from: { x: 0, y: 0, width: 10, height: 10 },
+          to: { x: 0, y: 0, width: 20, height: 20 }
+        }
+      });
+
+      expect(boxed.geometryAccelerated).toBe(false);
+      expect(boxed.rules.find((rule) => rule.includes("-travel"))).toContain("left:");
+    });
+  });
+
+  // A LEADING THAT DOES NOT DRIFT.
+  //
+  // The line-height rides its own animation because it needs its own timing:
+  // each stop HOLDS until the next, which is what a staircase is, and one
+  // keyframe cannot hold a channel while easing the rest.
+  describe("a line-height staircase", () => {
+    const stairs = [
+      { at: 0, lineHeight: 20 },
+      { at: 40, lineHeight: 25 },
+      { at: 100, lineHeight: 32 }
+    ];
+    const built = () =>
+      buildMorphKeyframes({
+        id: "1s",
+        travel,
+        lineHeight: { from: 20, to: 32 },
+        leading: stairs,
+        fade: null,
+        paint: []
+      });
+
+    it("rides its own animation, holding each value until the next", () => {
+      const { rules, animation } = built();
+      const lead = rules.find((rule) => rule.includes("-lead"))!;
+
+      expect(lead).toContain("0.0000% {");
+      expect(lead).toContain("line-height: 20px;");
+      expect(lead).toContain("line-height: 32px;");
+      expect(lead).toContain("animation-timing-function: steps(1, end);");
+      expect(animation).toContain("flemo-morph-1s-lead");
+    });
+
+    it("runs linear, because the stops already carry the flight's curve", () => {
+      // They sit where the ease reaches each face height; easing between them
+      // again would move them off it.
+      expect(built().animation).toContain("flemo-morph-1s-lead 0.400s linear");
+    });
+
+    it("takes the channel off the geometry keyframe, so the two cannot both author it", () => {
+      const geometry = built().rules.find((rule) => rule.includes("-travel"))!;
+
+      expect(geometry).not.toContain("line-height");
+    });
+
+    it("leaves the geometry keyframe alone where there are no stairs to climb", () => {
+      const plain = buildMorphKeyframes({
+        id: "1t",
+        travel,
+        lineHeight: { from: 20, to: 32 },
+        leading: null,
+        fade: null,
+        paint: []
+      });
+
+      expect(plain.rules.find((rule) => rule.includes("-travel"))).toContain("line-height: 20px;");
+      expect(plain.rules.some((rule) => rule.includes("-lead"))).toBe(false);
+    });
+
+    // A box travel with no pose of its own, which is what a type morph is.
+    const plain: MorphTravel = { ...travel, from: IDENTITY_POSE };
+
+    it("carries the ascent's staircase backwards on the box", () => {
+      // A held leading still leaves the BASELINE stepping, because it sits an
+      // ascent below the inline box and the ascent is on the same grid. The box
+      // is not on any grid, so the flight sends it the other way by exactly as
+      // much and the glyphs come out still.
+      const lifted = buildMorphKeyframes({
+        id: "1u",
+        travel: plain,
+        box: {
+          from: { x: 0, y: 100, width: 10, height: 10 },
+          to: { x: 0, y: 300, width: 20, height: 20 }
+        },
+        lineHeight: { from: 20, to: 32 },
+        leading: stairs,
+        lift: [
+          { at: 0, ascent: 13 },
+          { at: 40, ascent: 16 },
+          { at: 100, ascent: 23 }
+        ],
+        fade: null,
+        paint: []
+      });
+      const geometry = lifted.rules.find((rule) => rule.includes("-travel"))!;
+      const rise = lifted.rules.find((rule) => rule.includes("-lift"))!;
+
+      // The box travels to `top + ascent` at each end...
+      // The box lands at its destination RAISED by the arrival's ascent, and
+      // starts raised by the departure's: 113 and 323 against a resting 300.
+      expect(geometry).toContain("top: 113px;");
+      expect(geometry).toContain("top: 323px;");
+      // ...and the transform takes exactly that back off again.
+      expect(rise).toContain("transform: translateY(-13px);");
+      expect(rise).toContain("transform: translateY(-23px);");
+      expect(rise).toContain("animation-timing-function: steps(1, end);");
+      expect(lifted.animation).toContain("flemo-morph-1u-lift");
+    });
+
+    it("refuses to lift a set with no box to cancel against", () => {
+      // A nested pair rides its container and has no box channel of its own, so
+      // there is nowhere to send the box up by the amount the transform takes
+      // off. Emitting half of a cancellation leaves the line an ascent too high
+      // — device-reported from the poster grid as a title starting twelve
+      // pixels up.
+      const riding = buildMorphKeyframes({
+        id: "1x",
+        travel: plain,
+        fontSize: { from: 14, to: 24 },
+        leading: stairs,
+        lift: [
+          { at: 0, ascent: 13 },
+          { at: 100, ascent: 23 }
+        ],
+        fade: null,
+        paint: []
+      });
+
+      expect(riding.rules.some((rule) => rule.includes("-lift"))).toBe(false);
+    });
+
+    it("refuses to lift a set that writes a transform of its own", () => {
+      // The two would be fighting over one property, and a box sent up with
+      // nothing to bring it back down is a line of type an ascent too low.
+      const posed = buildMorphKeyframes({
+        id: "1v",
+        travel: { ...travel, authoredFrom: { x: 0, y: 8, scaleX: 1, scaleY: 1, rotate: 0 } },
+        box: {
+          from: { x: 0, y: 100, width: 10, height: 10 },
+          to: { x: 0, y: 300, width: 20, height: 20 }
+        },
+        lineHeight: { from: 20, to: 32 },
+        leading: stairs,
+        lift: [
+          { at: 0, ascent: 13 },
+          { at: 100, ascent: 23 }
+        ],
+        fade: null,
+        paint: []
+      });
+
+      expect(posed.rules.some((rule) => rule.includes("-lift"))).toBe(false);
+      expect(posed.rules.find((rule) => rule.includes("-travel"))).toContain("top: 100px;");
+    });
+
+    it("leaves the box where it was when there is no staircase to cancel", () => {
+      const unlifted = buildMorphKeyframes({
+        id: "1w",
+        travel: plain,
+        box: {
+          from: { x: 0, y: 100, width: 10, height: 10 },
+          to: { x: 0, y: 300, width: 20, height: 20 }
+        },
+        leading: null,
+        lift: [
+          { at: 0, ascent: 13 },
+          { at: 100, ascent: 23 }
+        ],
+        fade: null,
+        paint: []
+      });
+
+      expect(unlifted.rules.find((rule) => rule.includes("-travel"))).toContain("top: 100px;");
+      expect(unlifted.rules.some((rule) => rule.includes("-lift"))).toBe(false);
+    });
+
+    it("is the main thread's work, and says so", () => {
+      // A line-height is not something a compositor can run, so a set carrying
+      // one cannot be accelerated and anything registered with it must know.
+      expect(built().geometryAccelerated).toBe(false);
+    });
+  });
+
   it("gives the fade and the corner their own clocks", () => {
     // Different windows on purpose: the cross-fade has to be over while the two
     // sides still overlap, the corner has to track the scale for the whole
@@ -182,7 +465,8 @@ describe("buildCameraKeyframes", () => {
       duration: 0.4,
       start: 0,
       ease: [0.32, 0.72, 0, 1],
-      selector: "[data-flemo-screen]"
+      selector: "[data-flemo-screen]",
+      accelerated: true
     });
 
   it("scales from the width alone, and writes longhands rather than the shorthand", () => {
@@ -211,10 +495,64 @@ describe("buildCameraKeyframes", () => {
       duration: 0.4,
       start: 0,
       ease: undefined,
-      selector: "[data-flemo-screen]"
+      selector: "[data-flemo-screen]",
+      accelerated: true
     });
 
     expect(settling.rules[0]).toMatch(/from \{\n {4}transform: translate/);
     expect(settling.rules[0]).toContain("to {\n    transform: none;");
+  });
+
+  // A CAMERA IS ONLY RIGHT WHILE IT AGREES WITH WHAT IT CARRIES.
+  //
+  // Both forms describe the same zoom on the same clock. The difference is which
+  // thread presents them: a literal transform is one a compositor runs on its
+  // own, and a transform composed from registered custom properties is one it
+  // cannot, so the camera advances on exactly the frames the element does.
+  describe("pinned to the main thread", () => {
+    const pinned = buildCameraKeyframes({
+      id: "11i",
+      origin: { x: 0, y: 0 },
+      small: { x: 100, y: 200, width: 100, height: 100 },
+      big: { x: 0, y: 0, width: 400, height: 800 },
+      settling: false,
+      duration: 0.4,
+      start: 0,
+      ease: undefined,
+      selector: "[data-flemo-screen]",
+      accelerated: false
+    });
+
+    it("animates the camera's coordinates instead of the transform", () => {
+      expect(pinned.rules[0]).toContain("--flemo-pose-sx: 4;");
+      expect(pinned.rules[0]).toContain("--flemo-pose-sx: 1;");
+      expect(pinned.rules[0]).not.toContain("transform:");
+    });
+
+    it("says the zoom as the pose every other part of the flight is said in", () => {
+      // One uniform scale, so both axes carry it, and no rotation. Written
+      // through the same five coordinates a ghost or a nested pair uses, which
+      // is what lets one registration serve the whole flight.
+      expect(pinned.rules[0]).toContain("--flemo-pose-sy: 4;");
+      expect(pinned.rules[0]).toContain("--flemo-pose-r: 0deg;");
+    });
+
+    it("composes the transform from them on the element itself", () => {
+      expect(pinned.rules[1]).toContain(
+        "transform: translate3d(var(--flemo-pose-x), var(--flemo-pose-y), 0) scale(var(--flemo-pose-sx), var(--flemo-pose-sy)) rotate(var(--flemo-pose-r)) !important;"
+      );
+    });
+
+    it("resolves to the identity at the resting end", () => {
+      // `none` has no equivalent to write into three coordinates, so rest is
+      // spelled out: no translation and a scale of one.
+      expect(pinned.rules[0]).toContain("--flemo-pose-x: 0px;");
+      expect(pinned.rules[0]).toContain("--flemo-pose-y: 0px;");
+    });
+
+    it("keeps the same clock as the accelerated form", () => {
+      expect(pinned.rules[1]).toContain("animation-duration: 0.400s !important");
+      expect(pinned.rules[1]).toContain("animation-fill-mode: both !important");
+    });
   });
 });

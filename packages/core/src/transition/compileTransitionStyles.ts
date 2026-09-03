@@ -53,7 +53,20 @@ const CREEP_NUDGE = "translateZ(0.02px)";
 // ghost over its cover, above zero so the browser still paints and composites
 // it (which is the entire point of parking). Shared by the park-over hold rule
 // and the head that carries the same pose past the release.
-const PARK_OPACITY = "0.02";
+//
+// BOUNDED BY THE COMPOSITE, NOT BY EYE. A parked screen is drawn over its
+// cover, so the most it can change any channel is its opacity times the two
+// colours' distance — and the composite that carries it is eight bits, whose
+// smallest step is 1/255. An opacity under that cannot move a pixel by a whole
+// step whatever it is drawn over.
+//
+// 0.02 was chosen by eye and is five steps: over a bright cover it reads as a
+// tint, and a tab switch parks a WHOLE screen for the length of the hold.
+// Device-reported on iOS Safari — the next tab visibly showing through before
+// its transition — which is exactly what the line above says must not happen.
+// Above zero is the only other requirement: an engine skips painting a layer at
+// `opacity: 0`, and painting is the entire point of parking.
+const PARK_OPACITY = "0.004";
 
 const cssIdentifier = (raw: string) => raw.replace(/[^a-zA-Z0-9_-]/g, "_");
 

@@ -121,8 +121,8 @@ describe("attachMorph", () => {
     // Its BOX travels, from the partner's to its own — not a scale, which
     // would stretch everything inside it.
     const travel = inserted.find((rule) => rule.includes("-travel"))!;
-    expect(travel).toContain("left: 20px");
-    expect(travel).toContain("top: 600px");
+    expect(travel).toContain("--flemo-move-x: 20px;");
+    expect(travel).toContain("--flemo-move-y: 600px;");
     expect(travel).toContain("width: 400px");
     expect(travel).toContain("height: 300px");
     expect(hero.style.animation).toContain("flemo-morph-");
@@ -174,6 +174,35 @@ describe("attachMorph", () => {
     expect(thumbnail.style.animation).toContain("0.000s both");
   });
 
+  it("pins a nested pair that only travels, so it cannot outrun its container", async () => {
+    // The one nested case a compositor could run by itself: same size, same
+    // type, only a different place inside the box. Its container travels by its
+    // box and cannot be run there, so a bare transform here would advance on
+    // frames the container never reached and slide the child around inside it.
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 160, 160]);
+    const label = makeMorph(card, [28, 730, 140, 20]);
+    attachMorph(card, { layoutId: "card-2", navigateStore: store });
+    attachMorph(label, { layoutId: "title-2", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+    // Same 140x20 box as the label, moved: nothing to re-typeset, nothing to
+    // resize.
+    const heading = makeMorph(bigCard, [16, 260, 140, 20]);
+    attachMorph(bigCard, { layoutId: "card-2", navigateStore: store });
+    attachMorph(heading, { layoutId: "title-2", navigateStore: store });
+    await Promise.resolve();
+
+    const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
+    expect(nestedRule).toContain("--flemo-pose-x:");
+    expect(nestedRule).not.toContain("transform:");
+    expect(heading.style.transform).toContain("var(--flemo-pose-x)");
+  });
+
   it("lets a nested morph RIDE its container, starting from the measured from-pose", async () => {
     // Tried the two hard alternatives on glass. Flying free tears the
     // container apart in the air; cancelling the container's transform so the
@@ -207,11 +236,14 @@ describe("attachMorph", () => {
     expect(heading.parentElement).toBe(bigCard);
     // It rides its container's box: not staged, never absolutely positioned.
     const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
-    expect(nestedRule).not.toContain("left:");
-    expect(nestedRule).not.toContain("top:");
+    expect(nestedRule).not.toContain("--flemo-move-x");
     // And it BEGINS where the pair measured it — the from-delta between the
     // label's box (28, 730) and the heading's (16, 260) — decaying to rest.
     expect(nestedRule).toContain("translate3d(12px, 470px, 0)");
+    // Literal, and rightly so: this pair also carries its own size, which is
+    // the main thread's work already. Pinning is for the parts a compositor
+    // could otherwise run away with while the rest of the flight waits.
+    expect(nestedRule).toContain("width:");
     expect(nestedRule).toMatch(/to \{[^}]*transform: none/);
     // SIZE is the other half of the same correction. Riding sizes the child
     // through the container's width interpolation, and a container that is
@@ -228,6 +260,140 @@ describe("attachMorph", () => {
     // height declaration: width animated alone and the pop shrank as a
     // squashed rectangle. Substring assertions above cannot catch that.
     expect(nestedRule).not.toContain("\\");
+  });
+
+  it("carries a leading correction for a pair whose two ends already share one", () => {
+    // The size moves under the leading, so the half-leading the engine renders
+    // moves with it, and a leading held at its authored value would step as the
+    // type grows past a boundary. The channel is emitted for the correction
+    // even where there is no leading travel to carry it.
+    Object.defineProperty(window, "devicePixelRatio", { value: 1, configurable: true });
+    const rect = (top: number, height: number) =>
+      ({ top, height, left: 0, right: 0, bottom: top + height, width: 0, x: 0, y: top }) as DOMRect;
+    vi.spyOn(document, "createRange").mockImplementation(
+      () =>
+        ({
+          selectNodeContents: () => {},
+          getClientRects: () => [rect(1, 18)] as unknown as DOMRectList
+        }) as unknown as Range
+    );
+
+    const gallery = makeScreen("layout", true);
+    // Both boxes at y 0, so the stubbed run's top IS the rendered line offset.
+    const label = makeMorph(gallery, [20, 0, 119, 20]);
+    label.textContent = "Thu 20:00";
+    label.style.fontSize = "11px";
+    label.style.lineHeight = "20px";
+    Object.defineProperty(label, "offsetHeight", { value: 20, configurable: true });
+    attachMorph(label, { layoutId: "meta-4", name: "text", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const meta = makeMorph(detail, [16, 0, 314, 20]);
+    meta.textContent = "Thu 20:00";
+    meta.style.fontSize = "14px";
+    meta.style.lineHeight = "20px";
+    Object.defineProperty(meta, "offsetHeight", { value: 20, configurable: true });
+    attachMorph(meta, { layoutId: "meta-4", name: "text", navigateStore: store });
+
+    // Both ends read a half-leading of exactly 1, which is the boundary an
+    // interpolation can only approach, so both ends take the same pixel of
+    // leading and the flight renders on the step the landing will.
+    const travel = inserted.find((rule) => rule.includes("-travel"))!;
+    expect(travel).toContain("line-height: 21px");
+  });
+
+  it("holds a text pair to one line for the whole flight", () => {
+    // The flying element is the ARRIVAL's tree, so it re-wraps at every width
+    // between the two ends under the arrival's rules. Where both ends are one
+    // line, the widths in between have no honest reason for two: the detail's
+    // meta line broke after its middle dot at the small end of every push on
+    // iOS, while the cells beside it kept their ellipsis.
+    const gallery = makeScreen("layout", true);
+    const label = makeMorph(gallery, [20, 600, 119, 16]);
+    label.textContent = "Thu 20:00 · 35,000";
+    label.style.fontSize = "11px";
+    label.style.lineHeight = "16px";
+    attachMorph(label, { layoutId: "meta-1", name: "text", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const meta = makeMorph(detail, [16, 120, 314, 20]);
+    meta.textContent = "Thu 20:00 · 35,000";
+    meta.style.fontSize = "14px";
+    meta.style.lineHeight = "20px";
+    attachMorph(meta, { layoutId: "meta-1", name: "text", navigateStore: store });
+
+    // The departure's own appearance, held for the flight: one line, clipped
+    // to the box, ellipsised where it does not fit yet.
+    expect(meta.style.whiteSpace).toBe("nowrap");
+    expect(meta.style.overflow).toBe("hidden");
+    expect(meta.style.textOverflow).toBe("ellipsis");
+
+    // And dropped at the landing with the rest of the flight's inline style.
+    meta.dispatchEvent(animationEndEvent(`${meta.style.animation.split(" ")[0]}`));
+    expect(meta.style.whiteSpace).toBe("");
+  });
+
+  it("leaves a pair that wraps at either end to its own line breaking", () => {
+    // A heading that is two lines where it lands is meant to be two lines, and
+    // holding it to one would clip the half the flight is carrying.
+    const gallery = makeScreen("layout", true);
+    const label = makeMorph(gallery, [20, 600, 119, 16]);
+    label.textContent = "Thu 20:00 · 35,000";
+    label.style.fontSize = "11px";
+    label.style.lineHeight = "16px";
+    attachMorph(label, { layoutId: "meta-2", name: "text", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const meta = makeMorph(detail, [16, 120, 200, 40]);
+    meta.textContent = "Thu 20:00 · 35,000";
+    meta.style.fontSize = "14px";
+    meta.style.lineHeight = "20px";
+    attachMorph(meta, { layoutId: "meta-2", name: "text", navigateStore: store });
+
+    expect(meta.style.whiteSpace).toBe("");
+  });
+
+  it("reads a nested arrival's line count at rest, not inside a staged container", async () => {
+    // A nested arrival is measured inside a container that is ALREADY staged
+    // at its from-box, so what it measures is the wrapped height — the very
+    // thing the hold exists to prevent, refusing the hold on its own evidence.
+    // Its registration measurement is the one taken before any container of it
+    // was staged.
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 160, 160]);
+    const label = makeMorph(card, [28, 730, 119, 16]);
+    label.textContent = "Thu 20:00 · 35,000";
+    label.style.fontSize = "11px";
+    label.style.lineHeight = "16px";
+    attachMorph(card, { layoutId: "card-2", navigateStore: store });
+    attachMorph(label, { layoutId: "meta-3", name: "text", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+    const meta = makeMorph(bigCard, [16, 260, 314, 20]);
+    meta.textContent = "Thu 20:00 · 35,000";
+    meta.style.fontSize = "14px";
+    meta.style.lineHeight = "20px";
+    attachMorph(bigCard, { layoutId: "card-2", navigateStore: store });
+    attachMorph(meta, { layoutId: "meta-3", name: "text", navigateStore: store });
+    // Registered at rest; by the time the nested pass runs a microtask later
+    // the container is staged small and the meta measures two lines.
+    setRect(meta, 16, 260, 119, 40);
+    await Promise.resolve();
+
+    expect(meta.style.whiteSpace).toBe("nowrap");
   });
 
   it("adds no translate to a nested pair whose two ends already agree", async () => {
@@ -402,7 +568,10 @@ describe("attachMorph", () => {
     // prints the two over each other.
     expect(ghost.style.width).toBe("80px");
     const ghostRule = inserted.find((rule) => rule.includes("g-travel"))!;
-    expect(ghostRule).toContain("transform:");
+    // Carried by the pose's coordinates rather than by a literal transform, so
+    // the copy cannot be run by the compositor over a card that is not moving.
+    expect(ghostRule).toContain("--flemo-pose-x:");
+    expect(ghost.style.transform).toContain("var(--flemo-pose-x)");
     expect(ghostRule).not.toContain("width:");
     expect(ghost.style.animation).toContain("-travel");
     expect(ghost.style.animation).toContain("-fade");
@@ -601,14 +770,16 @@ describe("attachMorph", () => {
     const hero = makeMorph(home, [400, 0, 400, 300]);
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
 
-    // Out of the screen and into the layer, staged on the DEPARTURE's box and
-    // animating to its own — and the screen being held a width off-stage is
-    // undone before either box is computed.
+    // Out of the screen and into the layer, laid out where it LANDS and carried
+    // back to the departure's box by the travel — and the screen being held a
+    // width off-stage is undone before either box is computed.
     expect(hero.parentElement).toBe(layer);
     expect(hero.style.position).toBe("absolute");
-    expect(hero.style.left).toBe("20px");
+    expect(hero.style.left).toBe("0px");
     expect(hero.style.width).toBe("80px");
     const travel = inserted.find((rule) => rule.includes("-travel"))!;
+    expect(travel).toContain("--flemo-move-x: 20px;");
+    expect(travel).toContain("--flemo-move-y: 600px;");
     expect(travel).toContain("width: 80px");
     expect(travel).toContain("width: 400px");
     // And its place is held by a copy of it, so nothing reflows while it is
@@ -886,8 +1057,8 @@ describe("attachMorph", () => {
 
     const travel = inserted.find((rule) => rule.includes("-travel"));
     expect(travel).toBeDefined();
-    expect(travel).toContain("left: 20px");
-    expect(travel).toContain("top: 600px");
+    expect(travel).toContain("--flemo-move-x: 20px;");
+    expect(travel).toContain("--flemo-move-y: 600px;");
     expect(travel).toContain("width: 400px");
     expect(hero.parentElement).toBe(layer);
   });
@@ -917,8 +1088,14 @@ describe("attachMorph", () => {
     // 80px wide becoming 400px is a 5x zoom, and the translate is whatever
     // lands the thumbnail's centre (60, 640) on the hero's (200, 150) about
     // the screen's own transform-origin (200, 400).
-    expect(camera).toContain("transform: none");
-    expect(camera).toContain("translate(700px, -1450px) scale(5)");
+    //
+    // Written as the camera's three coordinates rather than as a transform: the
+    // element it carries travels by its box, so the camera is pinned to the same
+    // thread and the transform is composed from these by style resolution.
+    expect(camera).toContain("--flemo-pose-sx: 1;");
+    expect(camera).toContain("--flemo-pose-x: 700px;");
+    expect(camera).toContain("--flemo-pose-y: -1450px;");
+    expect(camera).toContain("--flemo-pose-sx: 5;");
     // Emitted as LONGHANDS: animation-play-state belongs to the compiled hold,
     // and the shorthand would take it.
     const applied = inserted.find((rule) => rule.includes("data-flemo-morph-camera"))!;
@@ -946,7 +1123,56 @@ describe("attachMorph", () => {
     expect(detail.hasAttribute("data-flemo-morph-camera")).toBe(false);
     const camera = inserted.filter((rule) => rule.includes("-camera {")).at(-1)!;
     // Reversed: zoomed at the start, resting at the end.
-    expect(camera.indexOf("scale(5)")).toBeLessThan(camera.indexOf("transform: none"));
+    expect(camera.indexOf("--flemo-pose-sx: 5;")).toBeLessThan(
+      camera.indexOf("--flemo-pose-sx: 1;")
+    );
+  });
+
+  it("registers the pose's coordinates once, not once per flight", () => {
+    // A `@property` registration is document-wide, and adding one invalidates
+    // style for the whole page — the single frame a flight has the least room
+    // in. Two flights, one registration.
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", name: "zoom", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-1", name: "zoom", navigateStore: store });
+
+    const registrations = inserted.filter((rule) => rule.startsWith("@property"));
+    expect(registrations).toHaveLength(7);
+
+    const second = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(second, { layoutId: "photo-2", name: "zoom", navigateStore: store });
+
+    expect(inserted.filter((rule) => rule.startsWith("@property"))).toHaveLength(7);
+  });
+
+  it("leaves the camera literal where those properties cannot be registered", () => {
+    // Unregistered, they are strings to the engine: they animate discretely and
+    // would jump the zoom at its midpoint. A camera that leads the card it
+    // carries is a flaw; a camera that teleports halfway through is a break.
+    vi.spyOn(CSSStyleSheet.prototype, "insertRule").mockImplementation((rule: string) => {
+      if (rule.startsWith("@property")) throw new Error("unknown at-rule");
+      inserted.push(rule);
+      return 0;
+    });
+
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", name: "zoom", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-1", name: "zoom", navigateStore: store });
+
+    const camera = inserted.find((rule) => rule.includes("-camera {"))!;
+    expect(camera).toContain("transform: none");
+    expect(camera).toContain("scale(5)");
+    expect(camera).not.toContain("--flemo-pose");
   });
 
   it("gives no camera to a morph that did not ask for one", () => {
@@ -1684,7 +1910,7 @@ describe("attachMorph", () => {
       });
 
       const travel = inserted.find((rule) => rule.includes("-travel"))!;
-      expect(travel).toContain("left: 20px");
+      expect(travel).toContain("--flemo-move-x: 20px;");
       expect(travel).not.toContain("translate3d");
     } finally {
       morphTransitionMap.delete("unresolvable" as never);
@@ -1710,9 +1936,9 @@ describe("attachMorph", () => {
     // background that zooms toward the wrong corner. A percentage read as a
     // length would put the anchor 50px from the corner of an 800px screen.
     for (const [origin, expected] of [
-      ["left top", "translate(0px, 0px)"],
-      ["10px 20px", "translate("],
-      ["nonsense", "translate("]
+      ["left top", "--flemo-pose-x: 0px;\n    --flemo-pose-y: 0px;"],
+      ["10px 20px", "--flemo-pose-x:"],
+      ["nonsense", "--flemo-pose-x:"]
     ] as const) {
       const gallery = makeScreen("layout", true);
       gallery.style.transformOrigin = origin;
@@ -1754,7 +1980,7 @@ describe("attachMorph", () => {
     attachMorph(hero, { layoutId: "photo-8", navigateStore: store });
 
     const travel = inserted.find((rule) => rule.includes("-travel"))!;
-    expect(travel).toContain("left: 20px");
+    expect(travel).toContain("--flemo-move-x: 20px;");
     expect(travel).not.toContain("Infinity");
   });
 
@@ -1797,7 +2023,7 @@ describe("attachMorph", () => {
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
 
     const travel = inserted.find((rule) => rule.includes("-travel"))!;
-    expect(travel).toContain("left: 20px");
+    expect(travel).toContain("--flemo-move-x: 20px;");
     expect(travel).not.toContain("Infinity");
   });
 
@@ -1875,7 +2101,7 @@ describe("attachMorph", () => {
       // A negative window means no ghost at all, not a negative duration in a
       // keyframe — and the travel itself is unaffected.
       expect(hero.parentElement).toBe(layer);
-      expect(inserted.find((rule) => rule.includes("-travel"))).toContain("left: 20px");
+      expect(inserted.find((rule) => rule.includes("-travel"))).toContain("--flemo-move-x: 20px;");
       expect(inserted.some((rule) => rule.includes("-ghost"))).toBe(false);
     } finally {
       morphTransitionMap.delete("over-faded" as never);
@@ -1912,9 +2138,9 @@ describe("attachMorph", () => {
     // back the specified value rather than resolving it, which is exactly the
     // environment the keyword and single-token forms have to survive.
     for (const [origin, expected] of [
-      ["left top", "translate(0px, 0px)"],
-      ["left", "translate(0px, "],
-      ["nonsense nonsense", "translate("]
+      ["left top", "--flemo-pose-x: 0px;\n    --flemo-pose-y: 0px;"],
+      ["left", "--flemo-pose-x: 0px;"],
+      ["nonsense nonsense", "--flemo-pose-x:"]
     ] as const) {
       vi.stubGlobal("getComputedStyle", () => ({ transformOrigin: origin }));
       try {
@@ -1951,7 +2177,7 @@ describe("attachMorph", () => {
     try {
       attachMorph(hero, { layoutId: "cam-2", name: "zoom", navigateStore: store });
       // No origin to read is the same as the default one: the screen's centre.
-      expect(inserted.find((rule) => rule.includes("-camera {"))).toContain("scale(4)");
+      expect(inserted.find((rule) => rule.includes("-camera {"))).toContain("--flemo-pose-sx: 4;");
     } finally {
       vi.unstubAllGlobals();
     }
@@ -2045,7 +2271,7 @@ describe("attachMorph", () => {
     attachMorph(hero, { layoutId: "photo-2", navigateStore: store });
 
     expect(hero.parentElement).toBe(layer);
-    expect(inserted.find((rule) => rule.includes("-travel"))).toContain("left: 20px");
+    expect(inserted.find((rule) => rule.includes("-travel"))).toContain("--flemo-move-x: 20px;");
   });
 
   it("declines when there is no morph transition to fly at all", () => {

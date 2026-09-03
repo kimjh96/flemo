@@ -19,6 +19,23 @@ import { invertEasing } from "@transition/cubicBezier";
 // rather than in @morph because a `<Part>` and a decorator now ride the same
 // gesture, and a second copy of this arithmetic is how the two would drift.
 
+/**
+ * Milliseconds off an animation or a timeline, or null when it has none yet.
+ *
+ * `currentTime` and `startTime` are `CSSNumberish`: a plain number on every
+ * engine that ships this, and a `CSSNumericValue` under the scroll-timeline
+ * proposals. Both are read here.
+ */
+const timeOf = (holder: { currentTime: CSSNumberish | null } | null): number | null => {
+  const time = holder?.currentTime ?? null;
+  if (time === null) return null;
+  if (typeof time === "number") return time;
+  // `CSSUnitValue` carries the number; the wider `CSSNumericValue` it is typed
+  // as does not, and a sum or a product has no single one to read.
+  const unit = time as { value?: unknown };
+  return typeof unit.value === "number" ? unit.value : null;
+};
+
 export interface ScrubClock {
   /** Seconds from the animation's zero to the first frame of travel. */
   readonly start: number;
@@ -81,28 +98,54 @@ export const settleScrubbed = (
   // The remaining travel decides the RATE, so a release near either end lands
   // as quickly as the screens do rather than replaying a whole flight's worth
   // of clock.
-  const now = ((animations[0]?.currentTime as number | null) ?? 0) / 1000;
+  const now = (timeOf(animations[0] ?? null) ?? 0) / 1000;
   const total = clock.start + clock.duration;
   const remaining = commit ? Math.max(total - now, 0) : Math.max(now, 0);
   const rate = remaining > 0 ? remaining / span : 1;
 
   for (const animation of animations) {
-    // `play()` on a FINISHED animation rewinds it. That is the spec — an
-    // exhausted animation replays from its start — and it is wrong for every
-    // passenger of a flight already done with its own span: a 17ms cut that
-    // finished before the finger let go replayed, and the element that had
-    // been cut came back opaque for a frame before cutting again. Its time is
-    // kept and put back after the play.
-    const at = animation.currentTime;
-    animation.playbackRate = commit ? rate : -rate;
+    const at = timeOf(animation) ?? 0;
+    const playbackRate = commit ? rate : -rate;
+    animation.playbackRate = playbackRate;
     if (!commit && onReverseFinish) {
       animation.addEventListener("finish", onReverseFinish, { once: true });
     }
-    animation.play();
+
+    // THE RELEASE PLACES THE ANIMATION, IT DOES NOT `play()` IT.
+    //
+    // `play()` does not resume a held animation where it was held. It clears
+    // the hold and leaves the animation play-PENDING, with the start time the
+    // NEXT frame resolves deciding what time it lands on — and the two engines
+    // resolve it differently. Blink starts the clock at the release, which is
+    // what the gesture means. WebKit resolves it against the animation's own
+    // origin, so a flight the finger held for a second comes back a second in:
+    // `currentTime` jumps the whole drag's worth of clock in one frame, the
+    // element stops tracking what the clock says, and the flight is torn down
+    // by its own end a moment later. On glass that is a shared element frozen
+    // at the pose the finger let go of while the screens slide out from under
+    // it, and then gone. Measured on iOS Safari and reproduced in WebKit.
+    //
+    // A start time written by hand has no pending frame to disagree about:
+    // `currentTime` is `(timeline - start) * rate` by definition, so solving it
+    // for the time the gesture held puts the animation exactly there, running,
+    // in both engines. It also runs FORWARD from a finished passenger rather
+    // than rewinding it, which `play()` does not — a 17ms cut that finished
+    // before the release used to replay, and the element that had been cut came
+    // back opaque for a frame before cutting again.
+    const timeline = timeOf(animation.timeline);
+    if (timeline === null) {
+      // No resolved timeline to solve against (a document not yet presented).
+      // The play is the only way to hand it back, and its pending frame is
+      // whatever the engine decides.
+      animation.play();
+      continue;
+    }
     try {
-      animation.currentTime = at;
+      animation.startTime = timeline - at / playbackRate;
     } catch {
-      // A timeline that refuses the seek leaves the play as it landed.
+      // A timeline that refuses the write leaves the animation where it is;
+      // the flight's own backstop still brings the element home.
+      animation.play();
     }
   }
 };

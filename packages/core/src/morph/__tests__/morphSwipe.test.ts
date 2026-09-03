@@ -41,12 +41,18 @@ const setRect = (element: HTMLElement, x: number, y: number, width: number, heig
 // jsdom implements no Web Animations, so the flight's animations are stood in
 // for: one fake per element, named the way the runtime names them, recording
 // what the gesture does to it.
+// The document timeline the release solves its start times against. jsdom has
+// none, so the fakes share this one.
+const documentTimeline = { currentTime: 5_000 };
+
 class FakeAnimation {
   animationName: string;
   currentTime: number | null = 0;
   playbackRate = 1;
   playState: "paused" | "running" | "finished" = "running";
   plays = 0;
+  timeline: { currentTime: number } | null = documentTimeline;
+  private start: number | null = null;
   private finishHandlers: (() => void)[] = [];
 
   constructor(name: string) {
@@ -54,6 +60,17 @@ class FakeAnimation {
   }
   pause() {
     this.playState = "paused";
+  }
+  // WAAPI: a resolved start time clears the hold time, so writing one is what
+  // hands a held animation back to the browser. The gesture's release uses that
+  // rather than `play()`, which resumes at whatever time the next frame
+  // resolves — a time the two engines do not agree on.
+  get startTime() {
+    return this.start;
+  }
+  set startTime(value: number | null) {
+    this.start = value;
+    if (value !== null) this.playState = "running";
   }
   // WAAPI: playing a FINISHED animation rewinds it to its start. That is the
   // behaviour that replayed a departure's cut when the gesture handed the

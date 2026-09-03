@@ -2,7 +2,16 @@ import { easingToCss, targetToDecls } from "@transition/compileTransitionStyles"
 
 import type { AnimationOptions, TransitionTarget } from "@transition/cssTypes";
 
-import { composePosesToCss, IDENTITY_POSE, type MorphPose } from "@morph/morphPose";
+import {
+  composePoses,
+  composePosesToCss,
+  IDENTITY_POSE,
+  type MorphPose,
+  PINNED_POSE_TRANSFORM,
+  pinnedPoseDecls,
+  PINNED_TRAVEL,
+  pinnedTravelDecls
+} from "@morph/morphPose";
 
 import type { MorphClipInset } from "@morph/morphClip";
 
@@ -13,8 +22,37 @@ const px = (value: number) => `${Math.round(value * 100) / 100}px`;
 const insetCss = (inset: MorphClipInset): string =>
   `inset(${inset.top.toFixed(2)}% ${inset.right.toFixed(2)}% ${inset.bottom.toFixed(2)}% ${inset.left.toFixed(2)}%)`;
 
-const boxBlock = (rect: MorphRect) =>
-  `    left: ${px(rect.x)};\n    top: ${px(rect.y)};\n    width: ${px(rect.width)};\n    height: ${px(rect.height)};`;
+// THE BOX TRAVELS BY SIZE AND MOVES BY TRANSLATE.
+//
+// A size has to be laid out — that is the whole point of a type morph, and it
+// is why the geometry keyframe cannot be the compositor's. A POSITION does not,
+// and where it comes from decides how the glyphs on it are painted. Measured on
+// desktop Chrome at 2x, moving the same line of type by the same amount:
+//
+//   asked      by `top`   by `translate`   by `translate`, promoted
+//   0.125px      0.000        0.000                0.352
+//   0.250px      0.000        0.500                0.451
+//   0.500px      1.000        0.500                0.500
+//
+// Blink paints text from a LAYOUT position at whole CSS pixels. So a line that
+// travels by `top` does not glide, it steps a full pixel at a time — and the
+// ease crawls at the landing, which is where the steps are slow enough to read
+// as a tremor. `getBoundingClientRect` reports the smooth value throughout,
+// which is why every layout measurement of this said it was fine.
+//
+// WebKit already paints a layout position on the device grid, so it sees half
+// of the step and none of this changes it. Promotion alone does not help
+// either: it is the layout ORIGIN of the position that is rounded, not the
+// layer.
+//
+// `translate` rather than `transform`, so an author's pose keeps `transform`
+// to itself and the two compose instead of overwriting one another.
+const boxBlock = (rect: MorphRect, origin: MorphRect, pinned: boolean) =>
+  `${
+    pinned
+      ? pinnedTravelDecls(rect.x - origin.x, rect.y - origin.y)
+      : `    left: ${px(rect.x)};\n    top: ${px(rect.y)};`
+  }\n    width: ${px(rect.width)};\n    height: ${px(rect.height)};`;
 
 const declsToBlock = (decls: { property: string; value: string }[]): string =>
   decls.map((decl) => `    ${decl.property}: ${decl.value};`).join("\n");
@@ -51,6 +89,30 @@ export interface MorphKeyframeSet {
    * one, the corner where the corner is all that changes.
    */
   geometryName: string;
+  /**
+   * Whether the geometry keyframe is one the COMPOSITOR can run.
+   *
+   * True only where the travel is a transform and nothing else. A keyframe that
+   * also carries a box, a type size or a clip is resolved by the MAIN THREAD,
+   * once per frame it manages to produce — and anything that has to stay
+   * registered with it has to be presented from there too (see the camera).
+   */
+  geometryAccelerated: boolean;
+  /**
+   * The `translate` the caller must set on the element, or null.
+   *
+   * Non-null where the travel is driven through registered properties, which
+   * is what keeps its position on the same thread as its size.
+   */
+  translate: string | null;
+  /**
+   * The `transform` the caller must set on the element, or null.
+   *
+   * Non-null only for a PINNED set, whose keyframes animate the pose's
+   * coordinates rather than the transform itself, and which therefore needs the
+   * transform that reads them (see PINNED_POSE_TRANSFORM).
+   */
+  transform: string | null;
 }
 
 /**
@@ -84,6 +146,31 @@ export const buildMorphKeyframes = (input: {
   box?: { from: MorphRect; to: MorphRect } | null;
   /** Type morphs by growing, not by being scaled: px at each end. */
   fontSize?: { from: number; to: number } | null;
+  /**
+   * The line-height as a STAIRCASE, holding the leading still for the flight.
+   *
+   * Supersedes `lineHeight` where it is given: the two cannot both author the
+   * property, and the staircase is the one that keeps the glyphs from stepping
+   * inside the box (see morphLine). It rides its own animation because it needs
+   * its own timing — each stop HOLDS until the next, which is what a staircase
+   * is, and the geometry keyframe cannot hold one channel while easing the rest.
+   */
+  leading?: { at: number; lineHeight: number }[] | null;
+  /**
+   * The ascent's staircase, carried backwards on the box so the two cancel.
+   *
+   * A held leading still leaves the BASELINE stepping, because it sits an
+   * ascent below the inline box's top and the ascent is on the same grid. The
+   * two terms are both grid-locked, so nothing done to the line-height can make
+   * their sum smooth. The box under them is not grid-locked, so the flight
+   * sends the box the OTHER way by the same amount and the glyphs come out
+   * still: the box travels to `top + ascent` and a transform takes the ascent
+   * straight back off, exactly at both ends and within half a pixel between.
+   *
+   * A box wobbling half a pixel is nothing to look at; a line of type doing it
+   * is the tremor this exists to remove.
+   */
+  lift?: { at: number; ascent: number }[] | null;
   /** Type's other two dimensions, so it re-typesets rather than merely re-sizing. */
   fontWeight?: { from: number; to: number } | null;
   letterSpacing?: { from: number; to: number } | null;
@@ -125,6 +212,30 @@ export const buildMorphKeyframes = (input: {
    * shadow. One animation, so the travel keyframe stays on the compositor.
    */
   paint: { property: string; from: string; to: string }[];
+  /**
+   * Keep this set on the main thread even where its geometry is a transform the
+   * compositor could have run.
+   *
+   * A flight is one composition, and its parts are placed relative to each
+   * other. The moment one of them travels by its box — which is every flight
+   * where the element GROWS rather than being scaled — the frames it can be
+   * drawn on are the main thread's, and a part that keeps advancing without it
+   * separates from it by however far behind that thread is. A ghost is the
+   * clearest case: it is a copy of the departure whose only job is to sit on
+   * the element it dissolves into, and one that leads prints the card twice.
+   *
+   * So the flight decides once, and every part it emits abides by it. Ignored
+   * where the geometry is already layout-bound, which needs no help.
+   */
+  pinned?: boolean;
+  /**
+   * Drive the travel's own position through registered properties.
+   *
+   * False only where they could not be registered, and there the position goes
+   * back to `left` and `top`: a literal `translate` would be run by WebKit's
+   * compositor while the size it belongs to waits for the main thread.
+   */
+  travelPinned?: boolean;
 }): MorphKeyframeSet => {
   const {
     id,
@@ -141,16 +252,50 @@ export const buildMorphKeyframes = (input: {
     padding,
     margin,
     size,
-    clip
+    clip,
+    leading,
+    lift,
+    pinned = false,
+    travelPinned = false
   } = input;
   const rules: string[] = [];
   const animations: string[] = [];
   const easing = easingToCss(travel.ease);
   const start = travel.start.toFixed(3);
+  const authored =
+    composePosesToCss([travel.from, travel.authoredFrom]) !== "none" ||
+    composePosesToCss([travel.to ?? IDENTITY_POSE, travel.authoredTo]) !== "none";
 
   const geometryName = `flemo-morph-${id}-travel`;
   const fromParts: string[] = [];
   const toParts: string[] = [];
+  // Anything but the transform takes the whole keyframe off the compositor, so
+  // a set carrying any of it is the main thread's already and needs no pinning.
+  const staircase = leading && leading.length > 1 ? leading : null;
+  // The two travel together or not at all. The transform that takes the ascent
+  // off is only half of it: the other half is the BOX going up by the same
+  // amount, and that lives in the box channel. A set with NO box of its own — a
+  // nested pair riding its container — has nowhere to put the other half, and
+  // the transform alone leaves the line an ascent too HIGH. Device-reported
+  // from the poster grid as a title starting twelve pixels up.
+  //
+  // And the taking-off is a transform, so a set that already writes one of its
+  // own has no room for it either.
+  const carried =
+    box && leading && leading.length > 1 && lift && lift.length > 1 && !authored ? lift : null;
+  const layoutBound = Boolean(
+    box ||
+    fontSize ||
+    fontWeight ||
+    letterSpacing ||
+    wordSpacing ||
+    lineHeight ||
+    aspectRatio ||
+    padding ||
+    margin ||
+    size ||
+    clip
+  );
   const pushSize = (from: string, to: string) => {
     fromParts.push(from);
     toParts.push(to);
@@ -161,14 +306,35 @@ export const buildMorphKeyframes = (input: {
   // backstop instead, a quarter-second after the motion finished.
   let clockName: string | null = null;
   if (box) {
-    fromParts.push(boxBlock(box.from));
-    toParts.push(boxBlock(box.to));
+    const raise = carried
+      ? { from: carried[0]!.ascent, to: carried[carried.length - 1]!.ascent }
+      : { from: 0, to: 0 };
+    // The element RESTS at its destination and is carried back to where it
+    // started, so the position it is laid out at never moves.
+    fromParts.push(boxBlock({ ...box.from, y: box.from.y + raise.from }, box.to, travelPinned));
+    toParts.push(boxBlock({ ...box.to, y: box.to.y + raise.to }, box.to, travelPinned));
   }
+  const fromPoses = composePoses([travel.from, travel.authoredFrom]);
+  const toPoses = composePoses([travel.to ?? IDENTITY_POSE, travel.authoredTo]);
+  // A pinned pose is five numbers, which says ONE transform. Where an end
+  // composes two — a measured travel with an author's flourish stacked on it —
+  // concatenation is a matrix product that five numbers cannot always express,
+  // so that set stays literal rather than being approximated. It is then still
+  // accelerated, and this is recorded rather than hidden: a flight that reaches
+  // it has a part that can lead the rest.
+  const pinnable = pinned && !layoutBound && fromPoses.length <= 1 && toPoses.length <= 1;
   const fromPose = composePosesToCss([travel.from, travel.authoredFrom]);
   const toPose = composePosesToCss([travel.to ?? IDENTITY_POSE, travel.authoredTo]);
+  let transform: string | null = null;
   if (fromPose !== "none" || toPose !== "none") {
-    fromParts.push(`    transform: ${fromPose};`);
-    toParts.push(`    transform: ${toPose};`);
+    if (pinnable) {
+      transform = PINNED_POSE_TRANSFORM;
+      fromParts.push(pinnedPoseDecls(fromPoses[0] ?? IDENTITY_POSE));
+      toParts.push(pinnedPoseDecls(toPoses[0] ?? IDENTITY_POSE));
+    } else {
+      fromParts.push(`    transform: ${fromPose};`);
+      toParts.push(`    transform: ${toPose};`);
+    }
   }
   if (fontSize)
     pushSize(`    font-size: ${px(fontSize.from)};`, `    font-size: ${px(fontSize.to)};`);
@@ -187,7 +353,7 @@ export const buildMorphKeyframes = (input: {
       `    word-spacing: ${px(wordSpacing.from)};`,
       `    word-spacing: ${px(wordSpacing.to)};`
     );
-  if (lineHeight)
+  if (lineHeight && !staircase)
     pushSize(`    line-height: ${px(lineHeight.from)};`, `    line-height: ${px(lineHeight.to)};`);
   if (aspectRatio)
     pushSize(`    aspect-ratio: ${aspectRatio.from};`, `    aspect-ratio: ${aspectRatio.to};`);
@@ -220,6 +386,35 @@ export const buildMorphKeyframes = (input: {
     }
   }
 
+  if (staircase) {
+    const leadName = `flemo-morph-${id}-lead`;
+    // `steps(1, end)` on every stop is what makes this a staircase rather than
+    // a ramp: each value is held for its whole interval and changes at the
+    // instant the face height it matches does.
+    const blocks = staircase
+      .map(
+        (stop) =>
+          `  ${stop.at.toFixed(4)}% {\n    line-height: ${px(stop.lineHeight)};\n    animation-timing-function: steps(1, end);\n  }`
+      )
+      .join("\n");
+    rules.push(`@keyframes ${leadName} {\n${blocks}\n}`);
+    // Linear, because the stops already carry the flight's easing in WHERE they
+    // sit; easing between them again would move them.
+    animations.push(`${leadName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
+  }
+
+  if (carried) {
+    const liftName = `flemo-morph-${id}-lift`;
+    const blocks = carried
+      .map(
+        (stop) =>
+          `  ${stop.at.toFixed(4)}% {\n    transform: translateY(${px(-stop.ascent)});\n    animation-timing-function: steps(1, end);\n  }`
+      )
+      .join("\n");
+    rules.push(`@keyframes ${liftName} {\n${blocks}\n}`);
+    animations.push(`${liftName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
+  }
+
   if (paint.length > 0) {
     const paintName = `flemo-morph-${id}-paint`;
     const from = paint.map((channel) => `    ${channel.property}: ${channel.from};`).join("\n");
@@ -233,17 +428,56 @@ export const buildMorphKeyframes = (input: {
     clockName ??= paintName;
   }
 
-  return { rules, animation: animations.join(", "), geometryName: clockName ?? geometryName };
+  return {
+    rules,
+    animation: animations.join(", "),
+    geometryName: clockName ?? geometryName,
+    // A pinned set is not on the compositor either, and a caller reading this to
+    // decide what else has to wait must be told the truth about it.
+    geometryAccelerated: !layoutBound && transform === null,
+    transform,
+    translate: box && travelPinned ? PINNED_TRAVEL : null
+  };
 };
 
 /**
  * The CAMERA: the transform that takes a screen from resting to "zoomed onto
  * this element", for a flight that carries its screen.
  *
- * One uniform scale and one translate, both literal — the same discipline the
- * travel keeps, and for the same reason: a compiled animation whose values come
- * from custom properties was device-bisected off the compositor on WebKit
- * (see the literal-timing note in compileTransitionStyles).
+ * One uniform scale and one translate.
+ *
+ * THE CAMERA IS NOT AN ANIMATION OF ITS OWN. It is defined as exactly the zoom
+ * that carries the element from one end of the flight to the other, and the two
+ * are emitted on one clock: same duration, same delay, same easing, released
+ * together. Measured, they agree to a thousandth of a frame at every sample.
+ *
+ * They still do not agree ON GLASS, because they are not PRESENTED by the same
+ * thread. A transform is one of the few things a compositor can run by itself,
+ * so the camera advances every vsync whatever the page is doing; the element
+ * travels by its box, which no compositor can interpolate, so it advances only
+ * on frames the main thread manages to produce. Isolated on both engines: with
+ * the main thread blocked mid-flight, a transform twin of a box travel ran 146px
+ * (Blink) and 167px (WebKit) ahead of it before the box moved at all. That gap
+ * is the whole defect — a card trailing the grid it is supposed to be opening
+ * out of, reported from iOS Safari as the camera being a beat ahead of the card.
+ *
+ * So where the element it carries is main-thread bound, the camera is too: the
+ * transform is composed from REGISTERED custom properties and the keyframes
+ * animate those, which no compositor can run because the substitution is style
+ * resolution's work. It then advances on exactly the frames the element does,
+ * and the pair is rigid again at whatever rate the device can hold.
+ *
+ * That is the only lever that works. `calc(var())` in the timing — the one this
+ * codebase already knew took a fade off WebKit's compositor — leaves a literal
+ * transform accelerated on both engines, as do constant `left`, `background-color`
+ * and `clip-path` channels alongside it; all four were measured to run away from
+ * the main thread exactly as the plain transform did. It costs nothing: the
+ * screen keeps its layer, so the per-frame work is a style resolution and a
+ * transform update, and frame times were indistinguishable from the literal form
+ * at 1x, 6x and 12x CPU throttle.
+ *
+ * Where the element's own travel IS a transform, the camera stays literal and
+ * accelerated: there is then nothing main-thread bound for it to wait for.
  *
  * The scale comes from WIDTH alone. The element's own box changes aspect across
  * the flight, so no single uniform scale can match both axes, and width is the
@@ -269,8 +503,16 @@ export const buildCameraKeyframes = (input: {
   start: number;
   ease: AnimationOptions["ease"];
   selector: string;
+  /**
+   * Emit the literal transform the compositor can run.
+   *
+   * True only where the element this camera carries is itself on the
+   * compositor; false pins the camera to the main thread's cadence, which is
+   * where a box travel lives (see above).
+   */
+  accelerated: boolean;
 }): { rules: string[]; name: string } => {
-  const { id, origin, small, big, settling, duration, start, ease, selector } = input;
+  const { id, origin, small, big, settling, duration, start, ease, selector, accelerated } = input;
   const scale = small.width > 0 ? big.width / small.width : 1;
   const centre = (rect: MorphRect) => ({
     x: rect.x + rect.width / 2,
@@ -282,11 +524,20 @@ export const buildCameraKeyframes = (input: {
   // Solve for the t that lands the small box's centre on the big one's.
   const tx = to.x - origin.x - scale * (from.x - origin.x);
   const ty = to.y - origin.y - scale * (from.y - origin.y);
-  const zoomed = `translate(${px(tx)}, ${px(ty)}) scale(${Math.round(scale * 10000) / 10000})`;
+  // The camera is a pose like any other: a translate and one uniform scale. Said
+  // that way it pins through exactly the same registered properties every other
+  // participant in the flight does.
+  const uniform = Math.round(scale * 10000) / 10000;
+  const zoomed: MorphPose = { x: tx, y: ty, scaleX: uniform, scaleY: uniform, rotate: 0 };
+  const stop = (atRest: boolean) => {
+    const pose = atRest ? IDENTITY_POSE : zoomed;
+    if (!accelerated) return pinnedPoseDecls(pose);
+    return `    transform: ${atRest ? "none" : `translate(${px(pose.x)}, ${px(pose.y)}) scale(${uniform})`};`;
+  };
   const name = `flemo-morph-${id}-camera`;
   const rules = [
-    `@keyframes ${name} {\n  from {\n    transform: ${settling ? zoomed : "none"};\n  }\n  to {\n    transform: ${settling ? "none" : zoomed};\n  }\n}`,
-    `${selector} {\n  animation-name: ${name} !important;\n  animation-duration: ${duration.toFixed(3)}s !important;\n  animation-timing-function: ${easingToCss(ease)} !important;\n  animation-delay: ${start.toFixed(3)}s !important;\n  animation-fill-mode: both !important;\n}`
+    `@keyframes ${name} {\n  from {\n${stop(!settling)}\n  }\n  to {\n${stop(settling)}\n  }\n}`,
+    `${selector} {\n${accelerated ? "" : `  transform: ${PINNED_POSE_TRANSFORM} !important;\n`}  animation-name: ${name} !important;\n  animation-duration: ${duration.toFixed(3)}s !important;\n  animation-timing-function: ${easingToCss(ease)} !important;\n  animation-delay: ${start.toFixed(3)}s !important;\n  animation-fill-mode: both !important;\n}`
   ];
   return { rules, name };
 };
