@@ -30,6 +30,7 @@ import { intoLayerSpace, preserveAnimations } from "@dom/staging";
 import { clipTravel, visibleInset } from "@morph/morphClip";
 import {
   captureMorphSnapshot,
+  isSingleLine,
   followPose,
   readElementPose,
   untransformedCentre,
@@ -40,6 +41,7 @@ import {
 import { buildCameraKeyframes, buildMorphKeyframes, contentDecls } from "@morph/morphKeyframes";
 
 import { resolveMorphLayer } from "@morph/morphLayer";
+import { holdOneLine, holdsOneLine, leadingBias } from "@morph/morphLine";
 import { paintTravel } from "@morph/morphPaint";
 
 import { IDENTITY_POSE, resolvePose } from "@morph/morphPose";
@@ -269,17 +271,35 @@ interface TypeFace {
   letterSpacing: number | null;
   wordSpacing: number | null;
   lineHeight: number | null;
+  textHeight: number | null;
+  leadOffset: number | null;
 }
 
-const typeTravel = (from: TypeFace, to: TypeFace) => ({
-  fontSize: channel(from.fontSize, to.fontSize, 0.5),
-  // A variable font takes every weight between; a static family snaps to the
-  // faces it has. Both are better than starting at the destination's.
-  fontWeight: channel(from.fontWeight, to.fontWeight, 1),
-  letterSpacing: channel(from.letterSpacing, to.letterSpacing, 0.01),
-  wordSpacing: channel(from.wordSpacing, to.wordSpacing, 0.01),
-  lineHeight: channel(from.lineHeight, to.lineHeight, 0.25)
-});
+const typeTravel = (from: TypeFace, to: TypeFace) => {
+  const fontSize = channel(from.fontSize, to.fontSize, 0.5);
+  const leading = channel(from.lineHeight, to.lineHeight, 0.25);
+  // Owed only where the rendered half-leading MOVES, which is a leading that
+  // interpolates or a size that does underneath one that does not. Both ends
+  // take the same amount, so what the flight travels is unchanged and only the
+  // pixel of half-leading it renders in moves (see morphLine).
+  const bias = fontSize || leading ? leadingBias(from, to) : 0;
+  return {
+    fontSize,
+    // A variable font takes every weight between; a static family snaps to the
+    // faces it has. Both are better than starting at the destination's.
+    fontWeight: channel(from.fontWeight, to.fontWeight, 1),
+    letterSpacing: channel(from.letterSpacing, to.letterSpacing, 0.01),
+    wordSpacing: channel(from.wordSpacing, to.wordSpacing, 0.01),
+    // A leading the two ends already share still gets a channel when there is a
+    // bias to carry: the size moves under it, and a leading held at its
+    // authored value would step as the type grows past a pixel boundary.
+    lineHeight: leading
+      ? { from: leading.from + bias, to: leading.to + bias }
+      : bias !== 0 && to.lineHeight !== null
+        ? { from: to.lineHeight + bias, to: to.lineHeight + bias }
+        : null
+  };
+};
 
 // One frame at 60Hz: long enough to be an animation, short enough to read as
 // the cut it is.
@@ -418,6 +438,9 @@ const startFlight = (
           padding: own.padding,
           margin: own.margin,
           paint: own.paint,
+          singleLine: own.singleLine,
+          textHeight: own.textHeight,
+          leadOffset: own.leadOffset,
           // Nested: the container is the flight, and it is the container that
           // shares (or does not share) a moving screen's clock.
           screenMoves: false,
@@ -484,6 +507,17 @@ const startFlight = (
   const destination = intoLayerSpace(side.rect, layer);
   const origin = intoLayerSpace(captured.snapshot.rect, layer);
   const box = { width: destination.width, height: destination.height };
+  // WHAT THE ARRIVAL IS AT REST, not what it is right now.
+  //
+  // A NESTED arrival is measured inside a container that is already staged at
+  // its from-box, so its measured height is the height it takes at the SMALL
+  // end — two lines, where the hold is exactly what would have prevented them.
+  // Its registration measurement is the one taken before any container of it
+  // was staged (see MorphEntry.restSize).
+  const arrivalOneLine =
+    entry.element.firstElementChild === null && entry.restSize
+      ? isSingleLine(entry.restSize.height, side.lineHeight, side.fontSize)
+      : side.singleLine;
   const crossFade = clamp01(transition.crossFade ?? 0.55);
   const type = typeTravel(captured.snapshot, side);
   // Everything else the two ends paint differently, from the table rather than
@@ -765,6 +799,9 @@ const startFlight = (
     const disposeNested = insertMorphRules(growing.rules);
     const inlineNested = entry.element.getAttribute("style");
     entry.element.style.animation = growing.animation;
+    // As above: a nested pair re-typesets on its container's clock, at every
+    // width the container passes through.
+    if (holdsOneLine(captured.snapshot.singleLine, arrivalOneLine)) holdOneLine(entry.element);
     entry.element.setAttribute(MORPH_ATTR, MORPH_ROLE.ENTER);
 
     let grown = false;
@@ -982,6 +1019,10 @@ const startFlight = (
   // still inside it.
   entry.element.style.zIndex = `${morphDepth(home) + 1}`;
   entry.element.style.animation = arriving.animation;
+  // Both ends are one line, so every width in between is one line too. Without
+  // this the arrival's own wrapping rules run at the departure's width and put
+  // a second line under the first for the opening frames (see morphLine).
+  if (holdsOneLine(captured.snapshot.singleLine, arrivalOneLine)) holdOneLine(entry.element);
   entry.element.setAttribute(MORPH_ATTR, MORPH_ROLE.ENTER);
 
   if (ghost && ghostSet) {
@@ -1318,7 +1359,10 @@ const measurePartnerNow = (
         aspectRatio: side.aspectRatio,
         padding: side.padding,
         margin: side.margin,
-        paint: side.paint
+        paint: side.paint,
+        singleLine: side.singleLine,
+        textHeight: side.textHeight,
+        leadOffset: side.leadOffset
       },
       element: candidate.element
     };

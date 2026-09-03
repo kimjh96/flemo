@@ -230,6 +230,97 @@ describe("attachMorph", () => {
     expect(nestedRule).not.toContain("\\");
   });
 
+  it("holds a text pair to one line for the whole flight", () => {
+    // The flying element is the ARRIVAL's tree, so it re-wraps at every width
+    // between the two ends under the arrival's rules. Where both ends are one
+    // line, the widths in between have no honest reason for two: the detail's
+    // meta line broke after its middle dot at the small end of every push on
+    // iOS, while the cells beside it kept their ellipsis.
+    const gallery = makeScreen("layout", true);
+    const label = makeMorph(gallery, [20, 600, 119, 16]);
+    label.textContent = "Thu 20:00 · 35,000";
+    label.style.fontSize = "11px";
+    label.style.lineHeight = "16px";
+    attachMorph(label, { layoutId: "meta-1", name: "text", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const meta = makeMorph(detail, [16, 120, 314, 20]);
+    meta.textContent = "Thu 20:00 · 35,000";
+    meta.style.fontSize = "14px";
+    meta.style.lineHeight = "20px";
+    attachMorph(meta, { layoutId: "meta-1", name: "text", navigateStore: store });
+
+    // The departure's own appearance, held for the flight: one line, clipped
+    // to the box, ellipsised where it does not fit yet.
+    expect(meta.style.whiteSpace).toBe("nowrap");
+    expect(meta.style.overflow).toBe("hidden");
+    expect(meta.style.textOverflow).toBe("ellipsis");
+
+    // And dropped at the landing with the rest of the flight's inline style.
+    meta.dispatchEvent(animationEndEvent(`${meta.style.animation.split(" ")[0]}`));
+    expect(meta.style.whiteSpace).toBe("");
+  });
+
+  it("leaves a pair that wraps at either end to its own line breaking", () => {
+    // A heading that is two lines where it lands is meant to be two lines, and
+    // holding it to one would clip the half the flight is carrying.
+    const gallery = makeScreen("layout", true);
+    const label = makeMorph(gallery, [20, 600, 119, 16]);
+    label.textContent = "Thu 20:00 · 35,000";
+    label.style.fontSize = "11px";
+    label.style.lineHeight = "16px";
+    attachMorph(label, { layoutId: "meta-2", name: "text", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const meta = makeMorph(detail, [16, 120, 200, 40]);
+    meta.textContent = "Thu 20:00 · 35,000";
+    meta.style.fontSize = "14px";
+    meta.style.lineHeight = "20px";
+    attachMorph(meta, { layoutId: "meta-2", name: "text", navigateStore: store });
+
+    expect(meta.style.whiteSpace).toBe("");
+  });
+
+  it("reads a nested arrival's line count at rest, not inside a staged container", async () => {
+    // A nested arrival is measured inside a container that is ALREADY staged
+    // at its from-box, so what it measures is the wrapped height — the very
+    // thing the hold exists to prevent, refusing the hold on its own evidence.
+    // Its registration measurement is the one taken before any container of it
+    // was staged.
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 160, 160]);
+    const label = makeMorph(card, [28, 730, 119, 16]);
+    label.textContent = "Thu 20:00 · 35,000";
+    label.style.fontSize = "11px";
+    label.style.lineHeight = "16px";
+    attachMorph(card, { layoutId: "card-2", navigateStore: store });
+    attachMorph(label, { layoutId: "meta-3", name: "text", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+    const meta = makeMorph(bigCard, [16, 260, 314, 20]);
+    meta.textContent = "Thu 20:00 · 35,000";
+    meta.style.fontSize = "14px";
+    meta.style.lineHeight = "20px";
+    attachMorph(bigCard, { layoutId: "card-2", navigateStore: store });
+    attachMorph(meta, { layoutId: "meta-3", name: "text", navigateStore: store });
+    // Registered at rest; by the time the nested pass runs a microtask later
+    // the container is staged small and the meta measures two lines.
+    setRect(meta, 16, 260, 119, 40);
+    await Promise.resolve();
+
+    expect(meta.style.whiteSpace).toBe("nowrap");
+  });
+
   it("adds no translate to a nested pair whose two ends already agree", async () => {
     // The correction exists for DISAGREEING local arrangements. A pair whose
     // element sits at the same offsets inside both cards needs nothing, and

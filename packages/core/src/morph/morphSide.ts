@@ -75,6 +75,12 @@ export interface MorphSide {
   padding: string;
   margin: string;
   paint: Record<string, string>;
+  /** Whether this end is one line of text (see MorphSnapshot.singleLine). */
+  singleLine: boolean;
+  /** This end's first text run height (see MorphSnapshot.textHeight). */
+  textHeight: number | null;
+  /** Where this end's line was actually rendered (see MorphSnapshot.leadOffset). */
+  leadOffset: number | null;
   /**
    * Whether this screen's transition MOVES it — read from the DEFINITION, not
    * from the element: at the moment a flight is staged the arriving screen is
@@ -111,6 +117,9 @@ export const resolveMorphSide = (
     padding: snapshot.padding,
     margin: snapshot.margin,
     paint: snapshot.paint,
+    singleLine: snapshot.singleLine,
+    textHeight: snapshot.textHeight,
+    leadOffset: snapshot.leadOffset,
     screenMoves: false,
     screenDuration: 0,
     screenEase: undefined
@@ -149,6 +158,9 @@ export const resolveMorphSide = (
     padding: snapshot.padding,
     margin: snapshot.margin,
     paint: snapshot.paint,
+    singleLine: snapshot.singleLine,
+    textHeight: snapshot.textHeight,
+    leadOffset: snapshot.leadOffset,
     screenMoves: movesScreen(motion.from) || movesScreen(motion.to),
     screenDuration: motion.duration,
     screenEase: motion.ease
