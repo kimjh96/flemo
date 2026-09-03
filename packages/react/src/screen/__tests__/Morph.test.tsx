@@ -192,4 +192,42 @@ describe("Morph", () => {
     expect(element.getAttribute("data-flemo-morph-name")).toBe("shared");
     expect(element.textContent).toBe("caption");
   });
+
+  it("says which flight it is on, so a shared bar does not have to be guessed at", () => {
+    // The runtime cannot read this off the tree for a morph in a SHARED BAR:
+    // the bar is a sibling of its own screen scope, so the nearest
+    // [data-flemo-screen] belongs to some other Router or to nothing. The
+    // binding is standing in the enclosing Screen and simply knows.
+    const { getByTestId } = render(
+      <StoreContext.Provider value={stores}>
+        <ScreenContext.Provider
+          value={{ ...base, navigateStore: stores.navigate, routerId: "router-1" }}
+        >
+          <Morph layoutId="photo-1" data-testid="thumb" />
+        </ScreenContext.Provider>
+      </StoreContext.Provider>
+    );
+
+    const element = getByTestId("thumb");
+    expect(element.getAttribute("data-flemo-router")).toBe("router-1");
+    expect(element.getAttribute("data-flemo-transition")).toBe("layout");
+    expect(element.getAttribute("data-flemo-status")).toBe("IDLE");
+    expect(element.getAttribute("data-flemo-active")).toBe("true");
+  });
+
+  it("says nothing when it is not in a screen at all", () => {
+    // Persistent chrome beside the <Slot> — a mini player — has no side of a
+    // flight to be on, and the runtime pairs it precisely BECAUSE it answers
+    // nothing. An active flag invented here would read as "arriving" on a pop.
+    const { getByTestId } = render(
+      <StoreContext.Provider value={stores}>
+        <Morph layoutId="track-1" data-testid="thumb" />
+      </StoreContext.Provider>
+    );
+
+    const element = getByTestId("thumb");
+    expect(element.hasAttribute("data-flemo-status")).toBe(false);
+    expect(element.hasAttribute("data-flemo-active")).toBe(false);
+    expect(element.hasAttribute("data-flemo-router")).toBe(false);
+  });
 });

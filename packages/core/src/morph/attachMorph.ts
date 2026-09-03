@@ -20,6 +20,7 @@ import {
   MORPH_SLOT_ATTR,
   MORPH_STAND_IN_ATTR,
   PART_NAME_ATTR,
+  ROUTER_ATTR,
   STATUS_ATTR,
   SCREEN_ATTR,
   attrValueSelector
@@ -228,6 +229,44 @@ const isTransitional = (status: NavigateStatus): boolean =>
 
 const closestScreen = (element: HTMLElement): HTMLElement | null =>
   element.closest<HTMLElement>(SCREEN_SELECTOR);
+
+// WHICH SIDE OF THE FLIGHT THIS END IS ON, AND WHOSE TRANSFORM IT WEARS.
+//
+// One `closest('[data-flemo-screen]')` used to answer both, and for anything
+// written inside a screen it still does — the two are the same element. They
+// come apart for SHARED CHROME.
+//
+// A shared bar is rendered as a SIBLING of the screen scope it belongs to (the
+// bar hands over between two screens, so it cannot live inside either), which
+// puts it OUTSIDE its own `[data-flemo-screen]`. Walking up from a morph in
+// that bar therefore finds no screen at all at the root, and some ENCLOSING
+// Router's screen when the bar belongs to a nested one. Either way the answer
+// is not this element's side of the flight: both ends of a bar-to-bar pair
+// resolved to the same non-transitional outer screen, no partner passed the
+// eligibility test, and the pair never flew.
+//
+// So the two questions are asked separately, of two different things:
+//
+//   OWNER    — the flight this end belongs to. The binding stamps status and
+//              active on the element itself wherever it can (it knows, from the
+//              enclosing Screen, what structure cannot tell), so the element IS
+//              its own answer; anything unstamped falls back to the walk.
+//   PHYSICAL — whose transform displaces the measured rect, which is only ever
+//              a screen the element is genuinely INSIDE. An element that
+//              declares a different Router than the screen above it is chrome
+//              sitting over someone else's screen: that screen's pose is not
+//              its pose, and undoing it would aim the travel a screen away.
+const owningScreen = (element: HTMLElement): HTMLElement | null =>
+  element.hasAttribute(STATUS_ATTR) && element.hasAttribute(ACTIVE_ATTR)
+    ? element
+    : closestScreen(element);
+
+const physicalScreen = (element: HTMLElement): HTMLElement | null => {
+  const screen = closestScreen(element);
+  if (!screen) return null;
+  const owner = element.getAttribute(ROUTER_ATTR);
+  return owner === null || owner === screen.getAttribute(ROUTER_ATTR) ? screen : null;
+};
 
 /**
  * Which value of `data-flemo-active` marks the screen a flight is going TO.
@@ -460,6 +499,9 @@ const startFlight = (
   entry: MorphEntry,
   captured: { snapshot: MorphSnapshot; element: HTMLElement },
   status: NavigateStatus,
+  /** The flight this end belongs to — its clock (see owningScreen). */
+  owner: HTMLElement | null,
+  /** The screen whose transform displaces it, if it is inside one. */
   screen: HTMLElement | null,
   store: NavigateStoreApi,
   carrying: MorphFlight | null
@@ -479,9 +521,15 @@ const startFlight = (
   scope.residue.get(entry.element)?.();
   scope.residue.get(captured.element)?.();
 
-  const side = screen
-    ? resolveMorphSide(entry.element, screen, enterVariant)
-    : (() => {
+  // NESTED is the one case with no screen to ask at all: the container took
+  // this element out of the screen tree when it was staged, and the container's
+  // flight is both the clock and the thing that displaces it. Every other end
+  // resolves through `resolveMorphSide`, which takes the two apart — the owner
+  // for the clock, the physical screen (if any) for the pose to undo. Shared
+  // chrome has the first and not the second, which is why they are two
+  // arguments and not one.
+  const side = carrying
+    ? (() => {
         const own = captureMorphSnapshot(entry.element);
         return {
           rect: own.rect,
@@ -500,10 +548,11 @@ const startFlight = (
           // Nested: the container is the flight, and it is the container that
           // shares (or does not share) a moving screen's clock.
           screenMoves: false,
-          screenDuration: carrying!.duration,
-          screenEase: carrying!.ease
+          screenDuration: carrying.duration,
+          screenEase: carrying.ease
         };
-      })();
+      })()
+    : resolveMorphSide(entry.element, owner, screen, enterVariant);
   if (side.rect.width <= 0 || side.rect.height <= 0) {
     return;
   }
@@ -1025,7 +1074,7 @@ const startFlight = (
     transition.carry === "screen" && !carrying
       ? settling
         ? screen
-        : closestScreen(partner)
+        : physicalScreen(partner)
       : null;
   const camera =
     cameraScreen && origin.width > 0 && destination.width > 0
@@ -1122,8 +1171,26 @@ const startFlight = (
   const laidOutAt = arriving.translate ? destination : origin;
   entry.element.style.left = `${laidOutAt.x}px`;
   entry.element.style.top = `${laidOutAt.y}px`;
-  entry.element.style.width = `${origin.width}px`;
-  entry.element.style.height = `${origin.height}px`;
+  // NO INLINE BOX. The travel keyframe carries `width`/`height` at both ends
+  // and runs `both`, so it already states the box for every frame of the
+  // flight: the backwards fill holds the origin through the head, the
+  // interpolation owns the middle, and the forwards fill holds the destination
+  // until the landing takes the animation off. Writing the origin here as well
+  // said the same thing twice, in two places that disagree for the whole
+  // flight — and a duplicate only has to win once to break it.
+  //
+  // It did. An animation outranks inline style in the cascade, but WebKit
+  // resolved this pair the other way and the inline origin won: the element
+  // translated the full distance at its DEPARTURE width and then snapped to its
+  // destination width in one frame at the landing. Device-measured on iOS
+  // Safari and reproduced in WebKit on a real page (the box read 98.05px for
+  // every frame of a 98.05 -> 138.97 travel; removing this line mid-flight
+  // moved it to 136.38px on the very next frame and it finished the curve
+  // correctly). Chromium followed the cascade, which is why the same build
+  // looked right in Chrome and wrong in Safari.
+  //
+  // The clamps below are NOT the same case: they describe where the element
+  // rests and there is no keyframe channel for them, so they stay.
   entry.element.style.margin = "0";
   // A CLAMP outranks the animation. `min-height: 100%` on the destination —
   // the ordinary way to write an element that fills its screen — pins the
@@ -1429,7 +1496,12 @@ const isFlightPartner = (
   gesture = false
 ): boolean => {
   if (!element.isConnected) return false;
-  const screen = closestScreen(element);
+  // ALREADY IN THE AIR. An element a previous flight hoisted into the layer is
+  // a real partner — a pop interrupting a push flies the very card the push
+  // was carrying — and it is no longer under any screen to be judged by. The
+  // role attribute is only ever set on a staged element, so it says so exactly.
+  if (element.getAttribute(MORPH_ATTR)) return true;
+  const screen = owningScreen(element);
   if (!screen) return true;
   if (!gesture && !isTransitional(screen.getAttribute(STATUS_ATTR) as NavigateStatus)) return false;
   return screen.getAttribute(ACTIVE_ATTR) !== arrivingActive(status);
@@ -1468,13 +1540,20 @@ const measurePartnerNow = (
     if (candidate.element === entry.element) continue;
     if (candidate.layoutId !== entry.layoutId) continue;
     if (!isFlightPartner(candidate.element, status, gesture)) continue;
-    const partnerScreen = closestScreen(candidate.element);
-    // Off-screen (already in the flight layer): what it is wearing IS where it
-    // is, and there is no screen pose to undo.
-    if (!partnerScreen) {
+    const partnerOwner = owningScreen(candidate.element);
+    const partnerScreen = physicalScreen(candidate.element);
+    // Nothing to read at all — already in the flight layer, with no owner of
+    // its own: what it is wearing IS where it is, and there is no screen pose
+    // to undo.
+    if (!partnerOwner && !partnerScreen) {
       return { snapshot: captureMorphSnapshot(candidate.element), element: candidate.element };
     }
-    const side = resolveMorphSide(candidate.element, partnerScreen, flightVariants(status).exit);
+    const side = resolveMorphSide(
+      candidate.element,
+      partnerOwner,
+      partnerScreen,
+      flightVariants(status).exit
+    );
     return {
       snapshot: {
         rect: side.rect,
@@ -1566,11 +1645,14 @@ const evaluate = (
   // carrying it, and the container's flight is the clock it grows on. Looking
   // for a screen ancestor would find none anyway — the container took its
   // subtree out of the screen tree when it was staged.
-  const screen = carrying ? null : closestScreen(entry.element);
+  const owner = carrying ? null : owningScreen(entry.element);
+  const screen = carrying ? null : physicalScreen(entry.element);
   // Only the ARRIVING side drives a flight. Both elements are registered at
   // once mid-navigation, and letting either start one would run the pairing
-  // twice, in two directions.
-  if (!carrying && (!screen || !isArriving(screen, status))) {
+  // twice, in two directions. Asked of the OWNER: the physical screen above a
+  // shared bar is not the side this end is on, and answering from it made both
+  // ends of a bar-to-bar pair claim the arrival.
+  if (!carrying && (!owner || !isArriving(owner, status))) {
     return;
   }
 
@@ -1597,7 +1679,7 @@ const evaluate = (
     return;
   }
 
-  startFlight(scope, entry, captured, status, screen, store, carrying);
+  startFlight(scope, entry, captured, status, owner, screen, store, carrying);
 };
 
 // Freeze every registered element's pose at the instant a navigation starts.
@@ -1621,7 +1703,7 @@ const capture = (scope: MorphScope): void => {
     // top screen is the active one in the state the DOM is still showing (the
     // flip has not been rendered yet). So "prefer active" reads the same for a
     // push and a pop, unlike the arrival, which does not.
-    const screen = closestScreen(entry.element);
+    const screen = owningScreen(entry.element);
     if (existing && screen && screen.getAttribute(ACTIVE_ATTR) !== "true") continue;
     scope.snapshots.set(entry.layoutId, {
       snapshot: captureMorphSnapshot(entry.element),

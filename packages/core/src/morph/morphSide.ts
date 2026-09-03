@@ -99,10 +99,25 @@ export interface MorphSide {
  * The screen is read from the DOM PROTOCOL — its transition name is an
  * attribute — rather than from a store, so a morph works the same for any
  * binding and needs nothing threaded through from the consumer's tree.
+ *
+ * TWO SCREENS, BECAUSE THEY ARE TWO DIFFERENT QUESTIONS.
+ *
+ * `owner` answers WHICH FLIGHT this end is part of, and therefore how long it
+ * runs. `screen` answers WHOSE TRANSFORM the measured rect is displaced by, and
+ * therefore what has to be undone to get back to rest space.
+ *
+ * For an ordinary screen descendant they are the same element and nothing here
+ * changes. They come apart for shared chrome: a shared bar is rendered OUTSIDE
+ * the screen scope it belongs to, so the nearest `[data-flemo-screen]` above it
+ * is some other Router's screen — one that is not moving, and whose pose it
+ * would be wrong to undo. That end still has a clock (its own, stamped by the
+ * binding), so reading the two off one element answered one question with the
+ * other's evidence.
  */
 export const resolveMorphSide = (
   element: HTMLElement,
-  screen: HTMLElement,
+  owner: HTMLElement | null,
+  screen: HTMLElement | null,
   variant: TransitionVariant
 ): MorphSide => {
   const snapshot = captureMorphSnapshot(element);
@@ -129,12 +144,24 @@ export const resolveMorphSide = (
   // is keyed by the augmentable TransitionName union, which a consumer's own
   // transitions widen. The lookup is the validation: an unregistered name
   // simply resolves to nothing and the rect is taken as measured.
-  const transitionName = screen.getAttribute(TRANSITION_ATTR) as TransitionName | null;
+  const transitionName = owner?.getAttribute(TRANSITION_ATTR) as TransitionName | null | undefined;
   const transition = transitionName ? transitionMap.get(transitionName) : undefined;
   if (!transition) return inert;
 
   const motion = resolveVariantMotion(transition, variant);
   if (!motion) return inert;
+
+  // The clock is the owner's; the displacement is the physical screen's. With
+  // no physical screen there is nothing to undo — the element is not inside the
+  // thing that moves — so the measured rect IS the rest rect.
+  if (!screen) {
+    return {
+      ...inert,
+      screenMoves: movesScreen(motion.from) || movesScreen(motion.to),
+      screenDuration: motion.duration,
+      screenEase: motion.ease
+    };
+  }
 
   // What the screen is WEARING, not what its variant says it should be: the
   // destination park rules hold an entering screen at its destination rather

@@ -71,14 +71,16 @@ describe("resolveMorphSide", () => {
     // stands as measured and the flight simply corrects for nothing.
     const element = document.createElement("div");
     screenWith(null).appendChild(element);
-    expect(resolveMorphSide(element, element.parentElement!, "PUSHING-true")).toMatchObject({
+    expect(
+      resolveMorphSide(element, element.parentElement!, element.parentElement!, "PUSHING-true")
+    ).toMatchObject({
       screenMoves: false,
       screenDuration: 0
     });
 
     const stranger = screenWith("not-a-registered-transition");
     stranger.appendChild(element);
-    expect(resolveMorphSide(element, stranger, "PUSHING-true")).toMatchObject({
+    expect(resolveMorphSide(element, stranger, stranger, "PUSHING-true")).toMatchObject({
       screenMoves: false,
       screenDuration: 0
     });
@@ -89,7 +91,7 @@ describe("resolveMorphSide", () => {
     const element = document.createElement("div");
     screen.appendChild(element);
 
-    const side = resolveMorphSide(element, screen, "PUSHING-true");
+    const side = resolveMorphSide(element, screen, screen, "PUSHING-true");
     // cupertino slides its arrival in, which is what makes the morph's
     // destination a moving target.
     expect(side.screenMoves).toBe(true);
@@ -102,7 +104,7 @@ describe("resolveMorphSide", () => {
     const element = document.createElement("div");
     screen.appendChild(element);
 
-    expect(resolveMorphSide(element, screen, "COMPLETED-true")).toMatchObject({
+    expect(resolveMorphSide(element, screen, screen, "COMPLETED-true")).toMatchObject({
       screenMoves: false,
       screenDuration: 0
     });

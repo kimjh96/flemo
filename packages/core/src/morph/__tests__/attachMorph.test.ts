@@ -9,6 +9,7 @@ import {
   MORPH_ATTR,
   MORPH_ROLE,
   PART_NAME_ATTR,
+  ROUTER_ATTR,
   SCREEN_ATTR,
   STATUS_ATTR,
   TRANSITION_ATTR
@@ -831,7 +832,11 @@ describe("attachMorph", () => {
     expect(hero.parentElement).toBe(layer);
     expect(hero.style.position).toBe("absolute");
     expect(hero.style.left).toBe("0px");
-    expect(hero.style.width).toBe("80px");
+    // The BOX is the keyframe's alone. Writing it inline as well says the same
+    // thing twice from two cascade levels, and the duplicate only has to win
+    // once to strand the element at its departure size (see startFlight).
+    expect(hero.style.width).toBe("");
+    expect(hero.style.height).toBe("");
     const travel = inserted.find((rule) => rule.includes("-travel"))!;
     expect(travel).toContain("--flemo-move-x: 20px;");
     expect(travel).toContain("--flemo-move-y: 600px;");
@@ -859,9 +864,13 @@ describe("attachMorph", () => {
     hero.style.minHeight = "100%";
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
 
-    expect(hero.style.height).toBe("80px");
     expect(hero.style.minHeight).toBe("0px");
     expect(hero.style.maxHeight).toBe("none");
+    // The clamps go; the box never came from here in the first place.
+    expect(hero.style.height).toBe("");
+    const grow = inserted.find((rule) => rule.includes("-travel"))!;
+    expect(grow).toContain("height: 80px");
+    expect(grow).toContain("height: 800px");
 
     hero.dispatchEvent(animationEndEvent(/flemo-morph-\d+i-travel/.exec(hero.style.animation)![0]));
     expect(hero.style.minHeight).toBe("100%");
@@ -980,6 +989,84 @@ describe("attachMorph", () => {
 
     expect(art.style.animation).toContain("-travel");
     expect(mini.style.animation).toContain("-fade");
+  });
+
+  // A SHARED BAR is rendered as a sibling of the screen scope it belongs to, so
+  // walking up from a morph inside one leaves that screen entirely — and in a
+  // nested Router it lands on the ENCLOSING screen, which both ends share. The
+  // side of the flight therefore cannot come from structure; the binding stamps
+  // it on the element, and these two cover the shapes that broke.
+  const makeBar = (host: HTMLElement, status: NavigateStatus, active: boolean) => {
+    // The scope div carries the protocol; the bar is its SIBLING, inside a
+    // container that carries nothing. That is the binding's own shape.
+    const container = document.createElement("div");
+    host.appendChild(container);
+    const scope = document.createElement("div");
+    scope.setAttribute(SCREEN_ATTR, "");
+    scope.setAttribute(TRANSITION_ATTR, "layout");
+    scope.setAttribute(STATUS_ATTR, status);
+    scope.setAttribute(ACTIVE_ATTR, active ? "true" : "false");
+    setRect(scope, 0, 0, 400, 800);
+    container.appendChild(scope);
+    const bar = document.createElement("div");
+    container.appendChild(bar);
+    return bar;
+  };
+
+  const stamp = (
+    element: HTMLElement,
+    status: NavigateStatus,
+    active: boolean,
+    routerId: string
+  ) => {
+    element.setAttribute(TRANSITION_ATTR, "layout");
+    element.setAttribute(ROUTER_ATTR, routerId);
+    element.setAttribute(STATUS_ATTR, status);
+    element.setAttribute(ACTIVE_ATTR, active ? "true" : "false");
+  };
+
+  it("pairs two ends that both live in shared bars, with no screen between them", () => {
+    const leaving = makeMorph(makeBar(document.body, "IDLE", true), [300, 10, 80, 32]);
+    stamp(leaving, "REPLACING", true, "inner");
+    attachMorph(leaving, { layoutId: "header-actions", navigateStore: store });
+
+    flipTo("REPLACING");
+    stamp(leaving, "REPLACING", false, "inner");
+
+    const arriving = makeMorph(makeBar(document.body, "REPLACING", true), [220, 10, 160, 32]);
+    stamp(arriving, "REPLACING", true, "inner");
+    attachMorph(arriving, { layoutId: "header-actions", navigateStore: store });
+
+    expect(arriving.style.animation).toContain("-travel");
+    expect(arriving.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.ENTER);
+    expect(leaving.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.EXIT);
+  });
+
+  it("does not undo the pose of a screen the bar is merely sitting over", () => {
+    // A nested Router's bar hangs under the ENCLOSING screen, which belongs to
+    // another Router and is not part of this flight. Reading its transform as
+    // this end's displacement aimed the travel a screen away.
+    const outer = makeScreen("cupertino", true);
+    outer.setAttribute(ROUTER_ATTR, "outer");
+    outer.style.transform = "translate3d(400px, 0, 0)";
+    setRect(outer, 400, 0, 400, 800);
+
+    const leaving = makeMorph(makeBar(outer, "IDLE", true), [300, 10, 80, 32]);
+    stamp(leaving, "REPLACING", true, "inner");
+    attachMorph(leaving, { layoutId: "header-actions", navigateStore: store });
+
+    flipTo("REPLACING");
+    stamp(leaving, "REPLACING", false, "inner");
+
+    const arriving = makeMorph(makeBar(outer, "REPLACING", true), [220, 10, 160, 32]);
+    stamp(arriving, "REPLACING", true, "inner");
+    attachMorph(arriving, { layoutId: "header-actions", navigateStore: store });
+
+    // Measured where they are, not shifted back by the outer screen's 400px.
+    const travel = inserted.find((rule) => rule.includes("-travel"))!;
+    expect(travel).toContain("--flemo-move-x: 80px;");
+    expect(travel).toContain("width: 80px");
+    expect(travel).toContain("width: 160px");
   });
 
   it("lands: the travel's end takes every trace of the flight with it", () => {
