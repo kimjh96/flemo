@@ -139,7 +139,7 @@ describe("buildMorphKeyframes", () => {
       });
 
       expect(boxed.geometryAccelerated).toBe(false);
-      expect(boxed.rules.find((rule) => rule.includes("-travel"))).toContain("left:");
+      expect(boxed.rules.find((rule) => rule.includes("-travel"))).toContain("translate:");
     });
   });
 
@@ -230,8 +230,10 @@ describe("buildMorphKeyframes", () => {
       const rise = lifted.rules.find((rule) => rule.includes("-lift"))!;
 
       // The box travels to `top + ascent` at each end...
-      expect(geometry).toContain("top: 113px;");
-      expect(geometry).toContain("top: 323px;");
+      // The box lands at its destination RAISED by the arrival's ascent, and
+      // starts raised by the departure's: 113 and 323 against a resting 300.
+      expect(geometry).toContain("translate: 0px -187px;");
+      expect(geometry).toContain("translate: 0px 23px;");
       // ...and the transform takes exactly that back off again.
       expect(rise).toContain("transform: translateY(-13px);");
       expect(rise).toContain("transform: translateY(-23px);");
@@ -260,7 +262,9 @@ describe("buildMorphKeyframes", () => {
       });
 
       expect(posed.rules.some((rule) => rule.includes("-lift"))).toBe(false);
-      expect(posed.rules.find((rule) => rule.includes("-travel"))).toContain("top: 100px;");
+      expect(posed.rules.find((rule) => rule.includes("-travel"))).toContain(
+        "translate: 0px -200px;"
+      );
     });
 
     it("leaves the box where it was when there is no staircase to cancel", () => {
@@ -280,7 +284,9 @@ describe("buildMorphKeyframes", () => {
         paint: []
       });
 
-      expect(unlifted.rules.find((rule) => rule.includes("-travel"))).toContain("top: 100px;");
+      expect(unlifted.rules.find((rule) => rule.includes("-travel"))).toContain(
+        "translate: 0px -200px;"
+      );
       expect(unlifted.rules.some((rule) => rule.includes("-lift"))).toBe(false);
     });
 

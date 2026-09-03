@@ -1049,8 +1049,12 @@ const startFlight = (
   preserveAnimations(entry.element, () => layer.appendChild(entry.element));
   for (const [property, value] of inherited) entry.element.style[property] = value;
   entry.element.style.position = "absolute";
-  entry.element.style.left = `${origin.x}px`;
-  entry.element.style.top = `${origin.y}px`;
+  // Laid out where it LANDS, and carried back to where it started by the
+  // travel's own `translate`. A position that comes from layout is painted at
+  // whole pixels on Blink, and a line of type stepping a pixel at a time is the
+  // tremor this whole channel exists to avoid (see morphKeyframes).
+  entry.element.style.left = `${destination.x}px`;
+  entry.element.style.top = `${destination.y}px`;
   entry.element.style.width = `${origin.width}px`;
   entry.element.style.height = `${origin.height}px`;
   entry.element.style.margin = "0";

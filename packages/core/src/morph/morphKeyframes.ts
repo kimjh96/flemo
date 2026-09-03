@@ -20,8 +20,33 @@ const px = (value: number) => `${Math.round(value * 100) / 100}px`;
 const insetCss = (inset: MorphClipInset): string =>
   `inset(${inset.top.toFixed(2)}% ${inset.right.toFixed(2)}% ${inset.bottom.toFixed(2)}% ${inset.left.toFixed(2)}%)`;
 
-const boxBlock = (rect: MorphRect) =>
-  `    left: ${px(rect.x)};\n    top: ${px(rect.y)};\n    width: ${px(rect.width)};\n    height: ${px(rect.height)};`;
+// THE BOX TRAVELS BY SIZE AND MOVES BY TRANSLATE.
+//
+// A size has to be laid out — that is the whole point of a type morph, and it
+// is why the geometry keyframe cannot be the compositor's. A POSITION does not,
+// and where it comes from decides how the glyphs on it are painted. Measured on
+// desktop Chrome at 2x, moving the same line of type by the same amount:
+//
+//   asked      by `top`   by `translate`   by `translate`, promoted
+//   0.125px      0.000        0.000                0.352
+//   0.250px      0.000        0.500                0.451
+//   0.500px      1.000        0.500                0.500
+//
+// Blink paints text from a LAYOUT position at whole CSS pixels. So a line that
+// travels by `top` does not glide, it steps a full pixel at a time — and the
+// ease crawls at the landing, which is where the steps are slow enough to read
+// as a tremor. `getBoundingClientRect` reports the smooth value throughout,
+// which is why every layout measurement of this said it was fine.
+//
+// WebKit already paints a layout position on the device grid, so it sees half
+// of the step and none of this changes it. Promotion alone does not help
+// either: it is the layout ORIGIN of the position that is rounded, not the
+// layer.
+//
+// `translate` rather than `transform`, so an author's pose keeps `transform`
+// to itself and the two compose instead of overwriting one another.
+const boxBlock = (rect: MorphRect, origin: MorphRect) =>
+  `    translate: ${px(rect.x - origin.x)} ${px(rect.y - origin.y)};\n    width: ${px(rect.width)};\n    height: ${px(rect.height)};`;
 
 const declsToBlock = (decls: { property: string; value: string }[]): string =>
   decls.map((decl) => `    ${decl.property}: ${decl.value};`).join("\n");
@@ -257,8 +282,10 @@ export const buildMorphKeyframes = (input: {
     const raise = carried
       ? { from: carried[0]!.ascent, to: carried[carried.length - 1]!.ascent }
       : { from: 0, to: 0 };
-    fromParts.push(boxBlock({ ...box.from, y: box.from.y + raise.from }));
-    toParts.push(boxBlock({ ...box.to, y: box.to.y + raise.to }));
+    // The element RESTS at its destination and is carried back to where it
+    // started, so the position it is laid out at never moves.
+    fromParts.push(boxBlock({ ...box.from, y: box.from.y + raise.from }, box.to));
+    toParts.push(boxBlock({ ...box.to, y: box.to.y + raise.to }, box.to));
   }
   const fromPoses = composePoses([travel.from, travel.authoredFrom]);
   const toPoses = composePoses([travel.to ?? IDENTITY_POSE, travel.authoredTo]);
