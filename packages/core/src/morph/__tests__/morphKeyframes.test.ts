@@ -32,6 +32,46 @@ describe("buildMorphKeyframes", () => {
     expect(geometry).not.toContain("border-radius");
   });
 
+  // WHO ELSE HAS TO WAIT FOR THIS KEYFRAME.
+  //
+  // The flag is not decoration: a camera carrying this element reads it to
+  // decide which thread it is presented from, and getting it wrong is the two
+  // of them drifting apart by however far behind the main thread is.
+  it("reports a transform-only travel as one the compositor can run", () => {
+    expect(
+      buildMorphKeyframes({ id: "1a", travel, fade: null, paint: [] }).geometryAccelerated
+    ).toBe(true);
+  });
+
+  it("reports a travel carrying a box as one it cannot", () => {
+    expect(
+      buildMorphKeyframes({
+        id: "1b",
+        travel,
+        box: {
+          from: { x: 0, y: 0, width: 10, height: 10 },
+          to: { x: 0, y: 0, width: 20, height: 20 }
+        },
+        fade: null,
+        paint: []
+      }).geometryAccelerated
+    ).toBe(false);
+  });
+
+  it("reports type that re-typesets as one it cannot either", () => {
+    // Anything but the transform takes the whole keyframe off the compositor,
+    // not just a box: a font size is resolved by the main thread too.
+    expect(
+      buildMorphKeyframes({
+        id: "1c",
+        travel,
+        fontSize: { from: 14, to: 24 },
+        fade: null,
+        paint: []
+      }).geometryAccelerated
+    ).toBe(false);
+  });
+
   it("gives the fade and the corner their own clocks", () => {
     // Different windows on purpose: the cross-fade has to be over while the two
     // sides still overlap, the corner has to track the scale for the whole
@@ -182,7 +222,8 @@ describe("buildCameraKeyframes", () => {
       duration: 0.4,
       start: 0,
       ease: [0.32, 0.72, 0, 1],
-      selector: "[data-flemo-screen]"
+      selector: "[data-flemo-screen]",
+      accelerated: true
     });
 
   it("scales from the width alone, and writes longhands rather than the shorthand", () => {
@@ -211,10 +252,56 @@ describe("buildCameraKeyframes", () => {
       duration: 0.4,
       start: 0,
       ease: undefined,
-      selector: "[data-flemo-screen]"
+      selector: "[data-flemo-screen]",
+      accelerated: true
     });
 
     expect(settling.rules[0]).toMatch(/from \{\n {4}transform: translate/);
     expect(settling.rules[0]).toContain("to {\n    transform: none;");
+  });
+
+  // A CAMERA IS ONLY RIGHT WHILE IT AGREES WITH WHAT IT CARRIES.
+  //
+  // Both forms describe the same zoom on the same clock. The difference is which
+  // thread presents them: a literal transform is one a compositor runs on its
+  // own, and a transform composed from registered custom properties is one it
+  // cannot, so the camera advances on exactly the frames the element does.
+  describe("pinned to the main thread", () => {
+    const pinned = buildCameraKeyframes({
+      id: "11i",
+      origin: { x: 0, y: 0 },
+      small: { x: 100, y: 200, width: 100, height: 100 },
+      big: { x: 0, y: 0, width: 400, height: 800 },
+      settling: false,
+      duration: 0.4,
+      start: 0,
+      ease: undefined,
+      selector: "[data-flemo-screen]",
+      accelerated: false
+    });
+
+    it("animates the camera's coordinates instead of the transform", () => {
+      expect(pinned.rules[0]).toContain("--flemo-camera-s: 4;");
+      expect(pinned.rules[0]).toContain("--flemo-camera-s: 1;");
+      expect(pinned.rules[0]).not.toContain("transform:");
+    });
+
+    it("composes the transform from them on the element itself", () => {
+      expect(pinned.rules[1]).toContain(
+        "transform: translate(var(--flemo-camera-x), var(--flemo-camera-y)) scale(var(--flemo-camera-s)) !important;"
+      );
+    });
+
+    it("resolves to the identity at the resting end", () => {
+      // `none` has no equivalent to write into three coordinates, so rest is
+      // spelled out: no translation and a scale of one.
+      expect(pinned.rules[0]).toContain("--flemo-camera-x: 0px;");
+      expect(pinned.rules[0]).toContain("--flemo-camera-y: 0px;");
+    });
+
+    it("keeps the same clock as the accelerated form", () => {
+      expect(pinned.rules[1]).toContain("animation-duration: 0.400s !important");
+      expect(pinned.rules[1]).toContain("animation-fill-mode: both !important");
+    });
   });
 });

@@ -51,6 +51,15 @@ export interface MorphKeyframeSet {
    * one, the corner where the corner is all that changes.
    */
   geometryName: string;
+  /**
+   * Whether the geometry keyframe is one the COMPOSITOR can run.
+   *
+   * True only where the travel is a transform and nothing else. A keyframe that
+   * also carries a box, a type size or a clip is resolved by the MAIN THREAD,
+   * once per frame it manages to produce — and anything that has to stay
+   * registered with it has to be presented from there too (see the camera).
+   */
+  geometryAccelerated: boolean;
 }
 
 /**
@@ -151,7 +160,12 @@ export const buildMorphKeyframes = (input: {
   const geometryName = `flemo-morph-${id}-travel`;
   const fromParts: string[] = [];
   const toParts: string[] = [];
+  // Anything but the transform, which is what takes the whole keyframe off the
+  // compositor. Tracked rather than re-derived, because the emitter is the only
+  // place that knows what actually went in.
+  let layoutBound = false;
   const pushSize = (from: string, to: string) => {
+    layoutBound = true;
     fromParts.push(from);
     toParts.push(to);
   };
@@ -161,6 +175,7 @@ export const buildMorphKeyframes = (input: {
   // backstop instead, a quarter-second after the motion finished.
   let clockName: string | null = null;
   if (box) {
+    layoutBound = true;
     fromParts.push(boxBlock(box.from));
     toParts.push(boxBlock(box.to));
   }
@@ -233,17 +248,76 @@ export const buildMorphKeyframes = (input: {
     clockName ??= paintName;
   }
 
-  return { rules, animation: animations.join(", "), geometryName: clockName ?? geometryName };
+  return {
+    rules,
+    animation: animations.join(", "),
+    geometryName: clockName ?? geometryName,
+    geometryAccelerated: !layoutBound
+  };
 };
+
+// The camera's own coordinates, for the flights where it is pinned to the main
+// thread. They have to be REGISTERED: an unregistered custom property is a
+// string to the engine and animates discretely, which would jump the zoom at its
+// midpoint instead of interpolating it.
+//
+// One set of names for every flight rather than one per flight, because a
+// registration is global and re-registering invalidates style for the whole
+// document — the one frame a flight cannot afford. `inherits: false` is what
+// makes that safe: each screen holds its own values, so two cameras in nested
+// Routers never read each other's, and no descendant inherits a zoom meant for
+// the screen.
+const CAMERA_X = "--flemo-camera-x";
+const CAMERA_Y = "--flemo-camera-y";
+const CAMERA_S = "--flemo-camera-s";
+
+export const CAMERA_TRANSFORM = `translate(var(${CAMERA_X}), var(${CAMERA_Y})) scale(var(${CAMERA_S}))`;
+
+/** Inserted once per document, never dropped (see morphSheet). */
+export const CAMERA_PROPERTY_RULES = [
+  `@property ${CAMERA_X} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
+  `@property ${CAMERA_Y} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
+  `@property ${CAMERA_S} {\n  syntax: "<number>";\n  inherits: false;\n  initial-value: 1;\n}`
+];
 
 /**
  * The CAMERA: the transform that takes a screen from resting to "zoomed onto
  * this element", for a flight that carries its screen.
  *
- * One uniform scale and one translate, both literal — the same discipline the
- * travel keeps, and for the same reason: a compiled animation whose values come
- * from custom properties was device-bisected off the compositor on WebKit
- * (see the literal-timing note in compileTransitionStyles).
+ * One uniform scale and one translate.
+ *
+ * THE CAMERA IS NOT AN ANIMATION OF ITS OWN. It is defined as exactly the zoom
+ * that carries the element from one end of the flight to the other, and the two
+ * are emitted on one clock: same duration, same delay, same easing, released
+ * together. Measured, they agree to a thousandth of a frame at every sample.
+ *
+ * They still do not agree ON GLASS, because they are not PRESENTED by the same
+ * thread. A transform is one of the few things a compositor can run by itself,
+ * so the camera advances every vsync whatever the page is doing; the element
+ * travels by its box, which no compositor can interpolate, so it advances only
+ * on frames the main thread manages to produce. Isolated on both engines: with
+ * the main thread blocked mid-flight, a transform twin of a box travel ran 146px
+ * (Blink) and 167px (WebKit) ahead of it before the box moved at all. That gap
+ * is the whole defect — a card trailing the grid it is supposed to be opening
+ * out of, reported from iOS Safari as the camera being a beat ahead of the card.
+ *
+ * So where the element it carries is main-thread bound, the camera is too: the
+ * transform is composed from REGISTERED custom properties and the keyframes
+ * animate those, which no compositor can run because the substitution is style
+ * resolution's work. It then advances on exactly the frames the element does,
+ * and the pair is rigid again at whatever rate the device can hold.
+ *
+ * That is the only lever that works. `calc(var())` in the timing — the one this
+ * codebase already knew took a fade off WebKit's compositor — leaves a literal
+ * transform accelerated on both engines, as do constant `left`, `background-color`
+ * and `clip-path` channels alongside it; all four were measured to run away from
+ * the main thread exactly as the plain transform did. It costs nothing: the
+ * screen keeps its layer, so the per-frame work is a style resolution and a
+ * transform update, and frame times were indistinguishable from the literal form
+ * at 1x, 6x and 12x CPU throttle.
+ *
+ * Where the element's own travel IS a transform, the camera stays literal and
+ * accelerated: there is then nothing main-thread bound for it to wait for.
  *
  * The scale comes from WIDTH alone. The element's own box changes aspect across
  * the flight, so no single uniform scale can match both axes, and width is the
@@ -269,8 +343,16 @@ export const buildCameraKeyframes = (input: {
   start: number;
   ease: AnimationOptions["ease"];
   selector: string;
+  /**
+   * Emit the literal transform the compositor can run.
+   *
+   * True only where the element this camera carries is itself on the
+   * compositor; false pins the camera to the main thread's cadence, which is
+   * where a box travel lives (see above).
+   */
+  accelerated: boolean;
 }): { rules: string[]; name: string } => {
-  const { id, origin, small, big, settling, duration, start, ease, selector } = input;
+  const { id, origin, small, big, settling, duration, start, ease, selector, accelerated } = input;
   const scale = small.width > 0 ? big.width / small.width : 1;
   const centre = (rect: MorphRect) => ({
     x: rect.x + rect.width / 2,
@@ -282,11 +364,22 @@ export const buildCameraKeyframes = (input: {
   // Solve for the t that lands the small box's centre on the big one's.
   const tx = to.x - origin.x - scale * (from.x - origin.x);
   const ty = to.y - origin.y - scale * (from.y - origin.y);
-  const zoomed = `translate(${px(tx)}, ${px(ty)}) scale(${Math.round(scale * 10000) / 10000})`;
+  const zoomed = { x: tx, y: ty, scale: Math.round(scale * 10000) / 10000 };
+  const resting = { x: 0, y: 0, scale: 1 };
+  // Two ways to say the same pose. The literal one is what a compositor can
+  // run; the driven one is what it cannot, which is the point of it.
+  const literal = (pose: typeof zoomed, atRest: boolean) =>
+    `    transform: ${atRest ? "none" : `translate(${px(pose.x)}, ${px(pose.y)}) scale(${pose.scale})`};`;
+  const driven = (pose: typeof zoomed) =>
+    `    ${CAMERA_X}: ${px(pose.x)};\n    ${CAMERA_Y}: ${px(pose.y)};\n    ${CAMERA_S}: ${pose.scale};`;
+  const stop = (atRest: boolean) => {
+    const pose = atRest ? resting : zoomed;
+    return accelerated ? literal(pose, atRest) : driven(pose);
+  };
   const name = `flemo-morph-${id}-camera`;
   const rules = [
-    `@keyframes ${name} {\n  from {\n    transform: ${settling ? zoomed : "none"};\n  }\n  to {\n    transform: ${settling ? "none" : zoomed};\n  }\n}`,
-    `${selector} {\n  animation-name: ${name} !important;\n  animation-duration: ${duration.toFixed(3)}s !important;\n  animation-timing-function: ${easingToCss(ease)} !important;\n  animation-delay: ${start.toFixed(3)}s !important;\n  animation-fill-mode: both !important;\n}`
+    `@keyframes ${name} {\n  from {\n${stop(!settling)}\n  }\n  to {\n${stop(settling)}\n  }\n}`,
+    `${selector} {\n${accelerated ? "" : `  transform: ${CAMERA_TRANSFORM} !important;\n`}  animation-name: ${name} !important;\n  animation-duration: ${duration.toFixed(3)}s !important;\n  animation-timing-function: ${easingToCss(ease)} !important;\n  animation-delay: ${start.toFixed(3)}s !important;\n  animation-fill-mode: both !important;\n}`
   ];
   return { rules, name };
 };

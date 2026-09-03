@@ -2,6 +2,8 @@ import isServer from "@utils/isServer";
 
 import { MORPH_SHEET_ATTR } from "@dom/attributes";
 
+import { CAMERA_PROPERTY_RULES } from "@morph/morphKeyframes";
+
 // The per-flight keyframe sheet.
 //
 // Every other animation in flemo is compiled once from its definition, because
@@ -16,6 +18,11 @@ import { MORPH_SHEET_ATTR } from "@dom/attributes";
 // starts inside a layout effect, one style recalculation away from the frame
 // the user sees, and re-parsing the whole sheet there is work the flight would
 // pay for.
+//
+// The one exception to "literal" is a PINNED camera, which is driven through
+// registered custom properties precisely so that no compositor can run it (see
+// buildCameraKeyframes). Those registrations live below, and unlike a flight's
+// own rules they are never dropped.
 const sheet = (): CSSStyleSheet | null => {
   if (isServer()) return null;
   let tag = document.head.querySelector<HTMLStyleElement>(`style[${MORPH_SHEET_ATTR}]`);
@@ -60,4 +67,41 @@ export const insertMorphRules = (rules: string[]): (() => void) => {
     }
     inserted.length = 0;
   };
+};
+
+// REGISTERED ONCE, AND KEPT.
+//
+// `@property` is a document-wide registration, and adding or removing one
+// invalidates style for everything — which is the single frame a flight has the
+// least room in. So the camera's three go in on the first flight that needs
+// them and stay there for the session: three declarations, and no churn on any
+// flight after the first.
+//
+// Keyed by the sheet rather than by a module flag so a second document (a test,
+// an iframe) registers into its own.
+const registered = new WeakMap<CSSStyleSheet, boolean>();
+
+/**
+ * Register the camera's custom properties, and report whether they took.
+ *
+ * A browser that does not understand `@property` refuses the rule, and there
+ * the camera has to stay literal: unregistered, those properties would animate
+ * discretely and jump the zoom at its midpoint rather than interpolating it.
+ */
+export const ensureCameraProperties = (): boolean => {
+  const target = sheet();
+  /* v8 ignore next -- no document to register into. */
+  if (!target) return false;
+  const seen = registered.get(target);
+  if (seen !== undefined) return seen;
+  let took = true;
+  for (const rule of CAMERA_PROPERTY_RULES) {
+    try {
+      target.insertRule(rule, target.cssRules.length);
+    } catch {
+      took = false;
+    }
+  }
+  registered.set(target, took);
+  return took;
 };

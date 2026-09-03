@@ -1051,8 +1051,14 @@ describe("attachMorph", () => {
     // 80px wide becoming 400px is a 5x zoom, and the translate is whatever
     // lands the thumbnail's centre (60, 640) on the hero's (200, 150) about
     // the screen's own transform-origin (200, 400).
-    expect(camera).toContain("transform: none");
-    expect(camera).toContain("translate(700px, -1450px) scale(5)");
+    //
+    // Written as the camera's three coordinates rather than as a transform: the
+    // element it carries travels by its box, so the camera is pinned to the same
+    // thread and the transform is composed from these by style resolution.
+    expect(camera).toContain("--flemo-camera-s: 1;");
+    expect(camera).toContain("--flemo-camera-x: 700px;");
+    expect(camera).toContain("--flemo-camera-y: -1450px;");
+    expect(camera).toContain("--flemo-camera-s: 5;");
     // Emitted as LONGHANDS: animation-play-state belongs to the compiled hold,
     // and the shorthand would take it.
     const applied = inserted.find((rule) => rule.includes("data-flemo-morph-camera"))!;
@@ -1080,7 +1086,56 @@ describe("attachMorph", () => {
     expect(detail.hasAttribute("data-flemo-morph-camera")).toBe(false);
     const camera = inserted.filter((rule) => rule.includes("-camera {")).at(-1)!;
     // Reversed: zoomed at the start, resting at the end.
-    expect(camera.indexOf("scale(5)")).toBeLessThan(camera.indexOf("transform: none"));
+    expect(camera.indexOf("--flemo-camera-s: 5;")).toBeLessThan(
+      camera.indexOf("--flemo-camera-s: 1;")
+    );
+  });
+
+  it("registers the camera's coordinates once, not once per flight", () => {
+    // A `@property` registration is document-wide, and adding one invalidates
+    // style for the whole page — the single frame a flight has the least room
+    // in. Two flights, one registration.
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", name: "zoom", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-1", name: "zoom", navigateStore: store });
+
+    const registrations = inserted.filter((rule) => rule.startsWith("@property"));
+    expect(registrations).toHaveLength(3);
+
+    const second = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(second, { layoutId: "photo-2", name: "zoom", navigateStore: store });
+
+    expect(inserted.filter((rule) => rule.startsWith("@property"))).toHaveLength(3);
+  });
+
+  it("leaves the camera literal where those properties cannot be registered", () => {
+    // Unregistered, they are strings to the engine: they animate discretely and
+    // would jump the zoom at its midpoint. A camera that leads the card it
+    // carries is a flaw; a camera that teleports halfway through is a break.
+    vi.spyOn(CSSStyleSheet.prototype, "insertRule").mockImplementation((rule: string) => {
+      if (rule.startsWith("@property")) throw new Error("unknown at-rule");
+      inserted.push(rule);
+      return 0;
+    });
+
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", name: "zoom", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-1", name: "zoom", navigateStore: store });
+
+    const camera = inserted.find((rule) => rule.includes("-camera {"))!;
+    expect(camera).toContain("transform: none");
+    expect(camera).toContain("scale(5)");
+    expect(camera).not.toContain("--flemo-camera");
   });
 
   it("gives no camera to a morph that did not ask for one", () => {
@@ -1844,9 +1899,9 @@ describe("attachMorph", () => {
     // background that zooms toward the wrong corner. A percentage read as a
     // length would put the anchor 50px from the corner of an 800px screen.
     for (const [origin, expected] of [
-      ["left top", "translate(0px, 0px)"],
-      ["10px 20px", "translate("],
-      ["nonsense", "translate("]
+      ["left top", "--flemo-camera-x: 0px;\n    --flemo-camera-y: 0px;"],
+      ["10px 20px", "--flemo-camera-x:"],
+      ["nonsense", "--flemo-camera-x:"]
     ] as const) {
       const gallery = makeScreen("layout", true);
       gallery.style.transformOrigin = origin;
@@ -2046,9 +2101,9 @@ describe("attachMorph", () => {
     // back the specified value rather than resolving it, which is exactly the
     // environment the keyword and single-token forms have to survive.
     for (const [origin, expected] of [
-      ["left top", "translate(0px, 0px)"],
-      ["left", "translate(0px, "],
-      ["nonsense nonsense", "translate("]
+      ["left top", "--flemo-camera-x: 0px;\n    --flemo-camera-y: 0px;"],
+      ["left", "--flemo-camera-x: 0px;"],
+      ["nonsense nonsense", "--flemo-camera-x:"]
     ] as const) {
       vi.stubGlobal("getComputedStyle", () => ({ transformOrigin: origin }));
       try {
@@ -2085,7 +2140,7 @@ describe("attachMorph", () => {
     try {
       attachMorph(hero, { layoutId: "cam-2", name: "zoom", navigateStore: store });
       // No origin to read is the same as the default one: the screen's centre.
-      expect(inserted.find((rule) => rule.includes("-camera {"))).toContain("scale(4)");
+      expect(inserted.find((rule) => rule.includes("-camera {"))).toContain("--flemo-camera-s: 4;");
     } finally {
       vi.unstubAllGlobals();
     }

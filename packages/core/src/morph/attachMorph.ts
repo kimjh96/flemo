@@ -46,7 +46,7 @@ import { paintTravel } from "@morph/morphPaint";
 
 import { IDENTITY_POSE, resolvePose } from "@morph/morphPose";
 
-import { insertMorphRules } from "@morph/morphSheet";
+import { ensureCameraProperties, insertMorphRules } from "@morph/morphSheet";
 import { headSeconds, resolveMorphSide } from "@morph/morphSide";
 
 import { morphTransitionMap } from "@transition/morphTransition/morphTransition";
@@ -924,7 +924,14 @@ const startFlight = (
           duration: flightDuration,
           start,
           ease,
-          selector: attrValueSelector(MORPH_CAMERA_ATTR, `${id}c`)
+          selector: attrValueSelector(MORPH_CAMERA_ATTR, `${id}c`),
+          // The camera has to be presented by whatever thread presents the
+          // element it is carrying, or the two drift apart by however far
+          // behind that thread is (see buildCameraKeyframes). A box travel is
+          // the main thread's, so the camera goes there with it — unless the
+          // properties that pin it there cannot be registered, in which case a
+          // literal camera that leads is still better than one that jumps.
+          accelerated: arriving.geometryAccelerated || !ensureCameraProperties()
         })
       : null;
 
