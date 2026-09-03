@@ -1194,12 +1194,12 @@ describe("compileTransitionStyles bar transitions", () => {
       // The head waits at the DESTINATION (x: 0 → identity) at the park's
       // opacity — on-screen, so WebKit keeps its tiles — not at the off-screen
       // from-pose the plain head holds.
-      expect(kf).toContain("0.000% {\n    transform: none;\n    opacity: 0.02;");
+      expect(kf).toContain("0.000% {\n    transform: none;\n    opacity: 0.004;");
       // The jump to the from-pose is split so neither sliver can be seen: the
       // move happens at the park's opacity, the opacity is restored off-screen.
-      expect(kf).toContain("19.950% {\n    transform: none;\n    opacity: 0.02;");
+      expect(kf).toContain("19.950% {\n    transform: none;\n    opacity: 0.004;");
       expect(kf).toContain(
-        "20.000% {\n    transform: translate3d(100%, 0, 0);\n    opacity: 0.02;"
+        "20.000% {\n    transform: translate3d(100%, 0, 0);\n    opacity: 0.004;"
       );
       expect(kf).toContain("20.050% {\n    transform: translate3d(100%, 0, 0);\n    opacity: 1;");
       expect(kf).toContain("100.000% {\n    transform: none;\n    opacity: 1;");
@@ -1232,8 +1232,8 @@ describe("compileTransitionStyles bar transitions", () => {
       const kf = css.slice(kfIndex, css.indexOf("\n}", kfIndex));
       // Parked at the park's opacity, then straight onto the authored fade: 0 at
       // the from-pose, 1 at the destination. No injected value survives the jump.
-      expect(kf).toContain("  0.000% {\n    opacity: 0.02;\n  }");
-      expect(kf).toContain("  20.000% {\n    opacity: 0.02;\n  }");
+      expect(kf).toContain("  0.000% {\n    opacity: 0.004;\n  }");
+      expect(kf).toContain("  20.000% {\n    opacity: 0.004;\n  }");
       expect(kf).toContain("  20.050% {\n    opacity: 0;\n  }");
       expect(kf).toContain("  100.000% {\n    opacity: 1;\n  }");
     });
