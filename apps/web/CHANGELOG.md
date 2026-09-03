@@ -1,5 +1,15 @@
 # @flemo/web
 
+## 0.11.2
+
+### Patch Changes
+
+- [`54039f7`](https://github.com/kimjh96/flemo/commit/54039f7f2735a83b22f79937b1b67e774bc41032) Stop painting the docs navigation drawer while it is closed. It stayed in the paint tree behind an off-screen transform, which cost a 462ms main-thread block on every mobile entry into the docs.
+- Updated dependencies ([`28d0377`](https://github.com/kimjh96/flemo/commit/28d03778381fbd5c761712cf8b827aaf0b60a23e), [`e0cb632`](https://github.com/kimjh96/flemo/commit/e0cb632d620e712e8407c8f850ed6019e7024142), [`8608b73`](https://github.com/kimjh96/flemo/commit/8608b73536c305d0410489f55aeb6834a4ab9849), [`472432c`](https://github.com/kimjh96/flemo/commit/472432c6e6c7c951975437fbedf9dc8530e92de2), [`429599d`](https://github.com/kimjh96/flemo/commit/429599d7ffc022467b9301184d6e746d9c1bada1), [`6975302`](https://github.com/kimjh96/flemo/commit/697530271edafea590ebf95e7ce3bfaf2a04cfb6), [`207444c`](https://github.com/kimjh96/flemo/commit/207444c2a9ddcf0705308a26fb56cf079488344f), [`82930e8`](https://github.com/kimjh96/flemo/commit/82930e8e4e3bb12838d21dd9ed3427d1d5c75443)):
+  - @flemo/core@2.2.0
+  - @flemo/react@2.2.0
+  - @flemo/devtools@0.4.0
+
 ## 0.11.1
 
 ### Patch Changes
