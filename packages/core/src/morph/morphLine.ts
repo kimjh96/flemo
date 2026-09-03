@@ -25,9 +25,16 @@
 // content the flight is supposed to be carrying.
 
 import type { AnimationOptions } from "@transition/cssTypes";
-import { invertEasing } from "@transition/cubicBezier";
+import { invertEasing, resolveEasing } from "@transition/cubicBezier";
 
-import { faceGrids, faceParts, faceRatios, faceSteps, type FaceParts } from "@morph/morphFace";
+import {
+  faceAims,
+  faceGrids,
+  faceParts,
+  faceRatios,
+  sameFace,
+  type FaceParts
+} from "@morph/morphFace";
 
 /** The properties the hold writes, so a caller can reason about what it costs. */
 export const LINE_HOLD = {
@@ -199,6 +206,15 @@ export interface LeadingStop {
 /** How close a prediction has to be to what was measured to be believed. */
 const EXACT = 1e-6;
 
+/**
+ * How near a step has to be pinned, as a fraction of the flight.
+ *
+ * A thousandth of a flight is under a millisecond of a half-second one, which
+ * is a fifteenth of a frame: far too small for a frame to land inside the gap
+ * between where the box thinks the ascent stepped and where it did.
+ */
+const TIME = 0.001;
+
 // The stairs a pair climbs never change while the face does not, and the
 // bisection that finds them is the only part of a type morph that is not
 // arithmetic. Measured at about 4ms for a first flight and nothing after it.
@@ -272,23 +288,45 @@ const buildStops = (
   // The leading the arrival RESTS at, which every stop is built to preserve.
   const leading = to.lineHeight - to.textHeight;
   const invert = invertEasing(ease);
+  const curve = resolveEasing(ease);
   const span = to.fontSize - from.fontSize;
+  // A STEP IS PINNED IN TIME, NOT IN SIZE.
+  //
+  // The arithmetic aims at a size, and a size is the wrong thing to be exact
+  // about: an ease that lands slowly maps a thousandth of a pixel of font size
+  // to several milliseconds near the end, which is a whole frame in which the
+  // box has moved and the ascent has not. Device-reported as two half-pixel
+  // jumps on a card whose type grew 13px to 24px. So the aim is turned into a
+  // time and the search happens there, where the precision means what it has to.
+  const face = (progress: number): FaceParts | null =>
+    faceParts(from.fontSize + span * curve(progress), font, scale);
   const stops: LeadingStop[] = [
     { at: 0, lineHeight: from.textHeight + leading, ascent: ends[0].ascent }
   ];
-  for (const step of faceSteps(from.fontSize, to.fontSize, ratios, scale, (size) =>
-    faceParts(size, font, scale)
-  )) {
-    // Font size interpolates with the eased progress, so the TIME a step is met
-    // is the time at which the ease has travelled that far.
-    const at = invert((step.size - from.fontSize) / span) * 100;
-    /* v8 ignore next -- faceSteps returns only sizes strictly inside the range,
-       so a stop cannot land on either end. */
-    if (at <= 0 || at >= 100) continue;
+  // Each aim is searched between its NEIGHBOURS, never in a window of its own
+  // size. An ease that opens fast packs several steps into a hundredth of the
+  // flight, and a fixed window there swallows the ones after the first: three
+  // half-pixel jumps came back the moment one was tried.
+  const aims = faceAims(from.fontSize, to.fontSize, ratios, scale).map((aim) =>
+    invert((aim - from.fontSize) / span)
+  );
+  let floor = 0;
+  for (let i = 0; i < aims.length; i += 1) {
+    const here = aims[i]!;
+    const before = i > 0 ? (aims[i - 1]! + here) / 2 : 0;
+    const after = i < aims.length - 1 ? (here + aims[i + 1]!) / 2 : 1;
+    const at = settle(Math.max(floor, before), after, face);
+    if (at === null) continue;
+    const parts = face(at);
+    /* v8 ignore next -- `settle` only returns a time it measured. */
+    if (parts === null) continue;
+    floor = at;
+    // A stop landing on either end is harmless: the endpoint pushed after this
+    // loop is written later and is the one the flight ends on.
     stops.push({
-      at,
-      lineHeight: step.parts.ascent + step.parts.descent + leading,
-      ascent: step.parts.ascent
+      at: at * 100,
+      lineHeight: parts.ascent + parts.descent + leading,
+      ascent: parts.ascent
     });
   }
   // The last stop is the arrival's own line-height by construction, so the
@@ -299,3 +337,27 @@ const buildStops = (
 
 const matches = (parts: FaceParts, measured: number): boolean =>
   Math.abs(parts.ascent + parts.descent - measured) < EXACT;
+
+/** The time at which the face first changes inside `[lo, hi]`, or null. */
+const settle = (
+  lo: number,
+  hi: number,
+  face: (progress: number) => FaceParts | null
+): number | null => {
+  let low = Math.max(0, lo);
+  // Clamped rather than guarded: a bracket that has already been passed
+  // collapses to a point, and a point cannot differ from itself.
+  let high = Math.max(low, Math.min(1, hi));
+  const before = face(low);
+  const after = face(high);
+  if (before === null || after === null || sameFace(before, after)) return null;
+  while (high - low > TIME) {
+    const mid = (low + high) / 2;
+    const here = face(mid);
+    /* v8 ignore next -- the guard above already refused a face with no metrics. */
+    if (here === null) return null;
+    if (sameFace(here, before)) low = mid;
+    else high = mid;
+  }
+  return high;
+};

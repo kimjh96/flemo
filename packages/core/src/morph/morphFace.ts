@@ -210,34 +210,20 @@ export const faceHeight = (
   return parts === null ? null : parts.ascent + parts.descent;
 };
 
-/** How near a boundary has to be pinned: a thousandth of a pixel of font size. */
-const PRECISION = 0.001;
-/** How far either side of an aimed boundary the real one can be. */
-const BRACKET = 0.05;
-
 /**
- * Every size in `[from, to]` at which the face height changes, with the height
- * it takes from there on.
+ * Every size in `[from, to]` at which the face height MIGHT change.
  *
- * The arithmetic aims and the canvas decides. Each half of the height steps
- * where `size * ratio` crosses a half, which gives a candidate; the candidate is
- * then bracketed and bisected against what the font actually reports, because a
- * candidate off by a hundredth is a whole frame wrong where the ease is slow.
+ * Arithmetic only, and deliberately: each half of the height steps where
+ * `size * ratio` crosses a half of the grid, which gives the candidates. Where
+ * each one really falls is not settled here, because the thing that has to be
+ * exact is the TIME the flight meets it, and only the caller knows the curve
+ * that maps one to the other (see morphLine).
  */
-export const faceSteps = (
-  from: number,
-  to: number,
-  ratios: FaceRatios,
-  scale: number,
-  measure: (size: number) => FaceParts | null
-): { size: number; parts: FaceParts }[] => {
+export const faceAims = (from: number, to: number, ratios: FaceRatios, scale: number): number[] => {
   const low = Math.min(from, to);
   const high = Math.max(from, to);
   const aimed: number[] = [];
   for (const ratio of [ratios.ascent, ratios.descent]) {
-    if (!(ratio > 0)) continue;
-    // Halfway between two points of the grid is where a half of the height
-    // snaps to the next one.
     const step = ratio * scale;
     /* v8 ignore next -- a grid with no size to it enumerates nothing. */
     if (!(step > 0)) continue;
@@ -253,40 +239,11 @@ export const faceSteps = (
     }
   }
   aimed.sort((a, b) => a - b);
-
-  const found: { size: number; parts: FaceParts }[] = [];
-  for (const aim of aimed) {
-    const edge = bisect(Math.max(low, aim - BRACKET), Math.min(high, aim + BRACKET), measure);
-    if (edge === null) continue;
-    // Two aims can land on one real boundary when both halves step together.
-    if (found.length > 0 && Math.abs(found[found.length - 1]!.size - edge.size) < PRECISION)
-      continue;
-    found.push(edge);
-  }
-  return from <= to ? found : found.reverse();
+  return from <= to ? aimed : aimed.reverse();
 };
 
-/** The size at which `measure` first changes inside `[lo, hi]`, or null. */
-const bisect = (
-  lo: number,
-  hi: number,
-  measure: (size: number) => FaceParts | null
-): { size: number; parts: FaceParts } | null => {
-  const below = measure(lo);
-  const above = measure(hi);
-  if (below === null || above === null || same(below, above)) return null;
-  let low = lo;
-  let high = hi;
-  while (high - low > PRECISION) {
-    const mid = (low + high) / 2;
-    const here = measure(mid);
-    /* v8 ignore next -- the guard above already refused a face with no metrics. */
-    if (here === null) return null;
-    if (same(here, below)) low = mid;
-    else high = mid;
-  }
-  return { size: high, parts: above };
-};
+/** Whether two faces are the same height, ascent and descent alike. */
+export const sameFace = (a: FaceParts, b: FaceParts): boolean => same(a, b);
 
 const same = (a: FaceParts, b: FaceParts): boolean =>
   a.ascent === b.ascent && a.descent === b.descent;

@@ -548,6 +548,68 @@ describe("leadingStops", () => {
     ).toBeNull();
   });
 
+  it("finds a step even where the aims crowd together", () => {
+    // An ease that opens fast packs several steps into a hundredth of the
+    // flight. Searching each aim in a window of its own size swallowed the ones
+    // after the first; each is searched between its NEIGHBOURS instead.
+    stub(0.95, 0.25);
+    const stops = leadingStops(
+      end(14, 20),
+      end(24, 32),
+      { ...FONT, family: "Crowd Sans" },
+      [0.32, 0.72, 0, 1]
+    )!;
+
+    expect(stops.length).toBeGreaterThan(4);
+    // Every stop is its own moment, in order, and the heights only ever climb.
+    for (let i = 1; i < stops.length; i += 1) {
+      expect(stops[i]!.at).toBeGreaterThan(stops[i - 1]!.at);
+      expect(stops[i]!.lineHeight).toBeGreaterThanOrEqual(stops[i - 1]!.lineHeight);
+    }
+  });
+
+  it("keeps a step the flight never reaches out of the stops", () => {
+    // A face whose height is settled before the flight begins has nothing to
+    // find, and an aim with no change inside its bracket is dropped.
+    stub(0.95, 0.25);
+    const flat = (fontSize: number, lineHeight: number) => ({
+      fontSize,
+      lineHeight,
+      textHeight: Math.round(fontSize * 0.95) + Math.round(fontSize * 0.25)
+    });
+
+    expect(
+      leadingStops(flat(20.1, 27), flat(20.2, 27.1), { ...FONT, family: "Still Sans" }, undefined)
+    ).toBeNull();
+  });
+
+  it("counts a step once where both halves of the face cross together", () => {
+    // Two aims land on one real boundary, so the second finds nothing left in
+    // its bracket: the first has already carried the change and the search
+    // starts after it.
+    stub(0.5, 0.5);
+    const both = (fontSize: number, lineHeight: number) => ({
+      fontSize,
+      lineHeight,
+      textHeight: Math.round(fontSize * 0.5) * 2
+    });
+    const stops = leadingStops(
+      both(14, 20),
+      both(24, 32),
+      { ...FONT, family: "Twin Sans" },
+      undefined
+    )!;
+
+    expect(stops).not.toBeNull();
+    for (let i = 1; i < stops.length; i += 1) {
+      expect(stops[i]!.at).toBeGreaterThan(stops[i - 1]!.at);
+    }
+    // One stop per real change, not two: a face that steps by two at once
+    // gets one stop carrying the whole change.
+    const interior = stops.slice(1, -1).map((stop) => stop.lineHeight);
+    expect(new Set(interior).size).toBe(interior.length);
+  });
+
   it("remembers a pair's stairs rather than bisecting them twice", () => {
     const context = stub(0.95, 0.25);
     const args = [end(14, 20), end(24, 32), { ...FONT, family: "Cached Sans" }, undefined] as const;

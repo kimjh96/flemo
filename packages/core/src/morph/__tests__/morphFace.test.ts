@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  faceAims,
   faceGrids,
   faceHeight,
   faceHeightAt,
   faceParts,
   faceRatios,
-  faceSteps
+  sameFace
 } from "@morph/morphFace";
 
 // A FACE'S HEIGHT IS NOT A LINE.
@@ -176,70 +177,48 @@ describe("faceHeight", () => {
   });
 });
 
-describe("faceSteps", () => {
+describe("faceAims", () => {
   const ratios = { ascent: 0.95, descent: 0.25 };
-  const parts = (size: number) => ({
-    ascent: Math.round(size * 0.95),
-    descent: Math.round(size * 0.25)
-  });
-  const height = (size: number) => parts(size).ascent + parts(size).descent;
 
-  it("lands each step where the font actually takes it, not where arithmetic aimed", () => {
-    const steps = faceSteps(14, 24, ratios, 1, parts);
+  it("names every size at which a half of the height could cross the grid", () => {
+    const aims = faceAims(14, 24, ratios, 1);
 
-    expect(steps.length).toBeGreaterThan(0);
-    for (const step of steps) {
-      // The height on the far side is the one the stop carries, and a hair
-      // before it the face is still shorter.
-      expect(height(step.size)).toBe(step.parts.ascent + step.parts.descent);
-      expect(height(step.size - 0.01)).toBeLessThan(step.parts.ascent + step.parts.descent);
+    expect(aims.length).toBeGreaterThan(0);
+    for (const aim of aims) {
+      expect(aim).toBeGreaterThan(14);
+      expect(aim).toBeLessThanOrEqual(24);
+      // Halfway between two points of the grid, for one half or the other.
+      const onAscent = Math.abs(((aim * 0.95) % 1) - 0.5) < 1e-6;
+      const onDescent = Math.abs(((aim * 0.25) % 1) - 0.5) < 1e-6;
+      expect(onAscent || onDescent).toBe(true);
     }
   });
 
-  it("gives every step the flight passes through, in the order it meets them", () => {
-    const steps = faceSteps(14, 24, ratios, 1, parts);
-    const sizes = steps.map((s) => s.size);
-
-    expect(sizes).toEqual([...sizes].sort((a, b) => a - b));
-    expect(steps[0]!.parts.ascent + steps[0]!.parts.descent).toBe(height(steps[0]!.size));
-    expect(steps[steps.length - 1]!.parts.ascent + steps[steps.length - 1]!.parts.descent).toBe(
-      height(24)
+  it("gives them in the order the flight meets them", () => {
+    expect(faceAims(14, 24, ratios, 1)).toEqual(
+      [...faceAims(14, 24, ratios, 1)].sort((a, b) => a - b)
     );
+    const back = faceAims(24, 14, ratios, 1);
+    expect(back).toEqual([...back].sort((a, b) => b - a));
   });
 
-  it("reads a shrinking flight backwards", () => {
-    const sizes = faceSteps(24, 14, ratios, 1, parts).map((s) => s.size);
-
-    expect(sizes).toEqual([...sizes].sort((a, b) => b - a));
-  });
-
-  it("counts a boundary once where both halves of the height step together", () => {
-    // A face whose ascent and descent cross a half at the same size steps by
-    // two, not twice: one stop carries the whole change.
-    const both = { ascent: 0.5, descent: 0.5 };
-    const steps = faceSteps(14, 24, both, 1, (size: number) => ({
-      ascent: Math.round(size * 0.5),
-      descent: Math.round(size * 0.5)
-    }));
-
-    expect(new Set(steps.map((s) => s.size)).size).toBe(steps.length);
+  it("aims on the grid it is given", () => {
+    // A finer grid has more places to cross, so a display that snaps to half
+    // pixels meets twice as many steps as one that snaps to whole ones.
+    expect(faceAims(14, 24, ratios, 2).length).toBeGreaterThan(faceAims(14, 24, ratios, 1).length);
   });
 
   it("ignores a half of the height that does not scale", () => {
-    const steps = faceSteps(14, 24, { ascent: 0.95, descent: 0 }, 1, (size: number) => ({
-      ascent: Math.round(size * 0.95),
-      descent: 0
-    }));
-
-    expect(steps.length).toBeGreaterThan(0);
+    expect(faceAims(14, 24, { ascent: 0.95, descent: 0 }, 1).length).toBeGreaterThan(0);
   });
+});
 
-  it("finds nothing where the face never changes height", () => {
-    expect(faceSteps(14, 24, ratios, 1, () => ({ ascent: 15, descent: 5 }))).toEqual([]);
-  });
-
-  it("declines a face it cannot measure rather than guessing", () => {
-    expect(faceSteps(14, 24, ratios, 1, () => null)).toEqual([]);
+describe("sameFace", () => {
+  it("compares both halves, since the baseline rides only one of them", () => {
+    expect(sameFace({ ascent: 19, descent: 5 }, { ascent: 19, descent: 5 })).toBe(true);
+    // Same height, different halves: the line box is the same and the baseline
+    // is not.
+    expect(sameFace({ ascent: 19, descent: 5 }, { ascent: 18, descent: 6 })).toBe(false);
   });
 });
 
