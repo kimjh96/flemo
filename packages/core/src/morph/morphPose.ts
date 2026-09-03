@@ -129,10 +129,93 @@ export const poseToCss = (pose: MorphPose): string => {
  * measured travel and an author's flourish stack on one element instead of
  * needing a wrapper each.
  */
+export const composePoses = (poses: MorphPose[]): MorphPose[] =>
+  poses.filter((pose) => !poseIsIdentity(pose));
+
 export const composePosesToCss = (poses: MorphPose[]): string => {
-  const parts = poses.filter((pose) => !poseIsIdentity(pose)).map(poseToCss);
+  const parts = composePoses(poses).map(poseToCss);
   return parts.length === 0 ? "none" : parts.join(" ");
 };
+
+// A POSE THE COMPOSITOR CANNOT RUN, AND WHY ONE IS NEEDED.
+//
+// A transform is one of the few things a compositor can animate by itself, so
+// an animation of one advances every vsync whatever the page is doing. That is
+// usually the point. It is exactly wrong for the things in a flight that are
+// not animations in their own right: a GHOST is a copy of the departure whose
+// whole job is to sit on the element it is dissolving into, and a CAMERA is
+// defined as precisely the zoom that carries the element from one end of the
+// flight to the other. Both are defined RELATIVE to an element that travels by
+// its box, which no compositor can interpolate, and which therefore only
+// advances on the frames the main thread manages to produce.
+//
+// Sampled off the `Animation` objects, the pair agrees: same `startTime`, same
+// `currentTime`, computed progress within a thousandth. They disagree only in
+// what reaches the glass. Isolated on both engines with the main thread blocked
+// mid-flight, a transform twin of a box travel ran 146px (Blink) and 167px
+// (WebKit) ahead of it, over a travel of 280px, before the box moved at all.
+//
+// Composing the transform from REGISTERED custom properties is what takes it
+// off the compositor, because substituting them is style resolution's work. It
+// is the ONLY lever that does. Measured and rejected first, all still
+// accelerated on both engines: `calc(var())` in the animation timing, which
+// this codebase already knew took a fade off WebKit's compositor; constant
+// `left`, `background-color` and `clip-path` channels beside the transform; and
+// a registered property animated as an extra channel while the transform stayed
+// literal. A single `<transform-list>` property would be the tidiest form and is
+// not portable — WebKit refuses to register that syntax at all.
+//
+// It costs nothing measurable: the element keeps its layer, so a frame is a
+// style resolution and a transform update, and frame times were
+// indistinguishable from the literal form at 1x, 6x and 12x CPU throttle.
+const PINNED = {
+  x: "--flemo-pose-x",
+  y: "--flemo-pose-y",
+  scaleX: "--flemo-pose-sx",
+  scaleY: "--flemo-pose-sy",
+  rotate: "--flemo-pose-r"
+} as const;
+
+/** The `transform` an element wears while its pose is pinned. */
+export const PINNED_POSE_TRANSFORM = `translate3d(var(${PINNED.x}), var(${PINNED.y}), 0) scale(var(${PINNED.scaleX}), var(${PINNED.scaleY})) rotate(var(${PINNED.rotate}))`;
+
+/**
+ * The registrations the pinned form needs, inserted once per document.
+ *
+ * They have to be REGISTERED: an unregistered custom property is a string to
+ * the engine and animates discretely, which would teleport a pose at its
+ * midpoint instead of interpolating it.
+ *
+ * One set of names for every flight rather than one per participant, because a
+ * registration is document-wide and re-registering invalidates style for the
+ * whole page. `inherits: false` is what makes that safe: each element holds its
+ * own values, so two flights never read each other's and no descendant inherits
+ * a pose meant for its parent.
+ */
+export const PINNED_POSE_PROPERTY_RULES = [
+  `@property ${PINNED.x} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
+  `@property ${PINNED.y} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
+  `@property ${PINNED.scaleX} {\n  syntax: "<number>";\n  inherits: false;\n  initial-value: 1;\n}`,
+  `@property ${PINNED.scaleY} {\n  syntax: "<number>";\n  inherits: false;\n  initial-value: 1;\n}`,
+  `@property ${PINNED.rotate} {\n  syntax: "<angle>";\n  inherits: false;\n  initial-value: 0deg;\n}`
+];
+
+/**
+ * One pose as the keyframe declarations that drive `PINNED_POSE_TRANSFORM`.
+ *
+ * Every channel is written at both ends even where it does not change, because
+ * these are the coordinates of one transform rather than five animations: an
+ * end that omitted a channel would interpolate it from its registered initial
+ * value instead of holding it.
+ */
+export const pinnedPoseDecls = (pose: MorphPose, indent = "    "): string =>
+  [
+    `${indent}${PINNED.x}: ${round(pose.x)}px;`,
+    `${indent}${PINNED.y}: ${round(pose.y)}px;`,
+    `${indent}${PINNED.scaleX}: ${round(pose.scaleX)};`,
+    `${indent}${PINNED.scaleY}: ${round(pose.scaleY)};`,
+    `${indent}${PINNED.rotate}: ${round(pose.rotate)}deg;`
+  ].join("\n");
 
 export const interpolatePose = (from: MorphPose, to: MorphPose, progress: number): MorphPose => ({
   x: from.x + (to.x - from.x) * progress,

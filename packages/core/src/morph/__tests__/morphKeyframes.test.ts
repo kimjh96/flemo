@@ -72,6 +72,77 @@ describe("buildMorphKeyframes", () => {
     ).toBe(false);
   });
 
+  // ONE FLIGHT, ONE THREAD.
+  //
+  // The parts of a flight are placed relative to each other, so a part the
+  // compositor can run on its own advances on frames the element travelling by
+  // its box never reached. Pinning is how a part gives that up.
+  describe("pinned", () => {
+    const pin = (over: Partial<Parameters<typeof buildMorphKeyframes>[0]> = {}) =>
+      buildMorphKeyframes({ id: "1p", travel, fade: null, paint: [], pinned: true, ...over });
+
+    it("animates the pose's coordinates instead of the transform", () => {
+      const { rules } = pin();
+      const geometry = rules.find((rule) => rule.includes("-travel"))!;
+
+      expect(geometry).toContain("--flemo-pose-x: -100px;");
+      expect(geometry).toContain("--flemo-pose-sx: 0.25;");
+      expect(geometry).not.toContain("transform:");
+    });
+
+    it("hands back the transform that reads them", () => {
+      // The keyframes move the coordinates; something still has to compose them
+      // into a transform, and that is the caller's to write on the element.
+      expect(pin().transform).toContain("var(--flemo-pose-x)");
+    });
+
+    it("writes every channel at both ends, changed or not", () => {
+      // These are the coordinates of one transform, not five animations: an end
+      // that omitted a channel would interpolate it from the registered initial
+      // value rather than holding it.
+      const geometry = pin().rules.find((rule) => rule.includes("-travel"))!;
+      const to = geometry.slice(geometry.indexOf("to {"));
+
+      for (const axis of ["x", "y", "sx", "sy", "r"]) expect(to).toContain(`--flemo-pose-${axis}:`);
+    });
+
+    it("says a pinned set is not on the compositor either", () => {
+      // A camera reads this to decide its own thread, and a set that reported
+      // itself accelerated while being pinned would send the camera the other
+      // way.
+      expect(pin().geometryAccelerated).toBe(false);
+      expect(pin().transform).not.toBeNull();
+    });
+
+    it("leaves an end that composes two poses literal rather than approximating it", () => {
+      // `transform: A B` is a matrix product, and five numbers say one pose.
+      // Rather than guess at a composition it cannot express, the set stays as
+      // it was, which is honest about being accelerated.
+      // `travel.from` is already a measured pose; an authored flourish on the
+      // same end makes two.
+      const stacked = pin({
+        travel: { ...travel, authoredFrom: { x: 10, y: 0, scaleX: 1, scaleY: 1, rotate: 0 } }
+      });
+
+      expect(stacked.transform).toBeNull();
+      expect(stacked.rules.find((rule) => rule.includes("-travel"))).toContain("transform:");
+    });
+
+    it("changes nothing for a set that was never the compositor's to run", () => {
+      // A box travel is already the main thread's, and pinning has nothing to
+      // add to it.
+      const boxed = pin({
+        box: {
+          from: { x: 0, y: 0, width: 10, height: 10 },
+          to: { x: 0, y: 0, width: 20, height: 20 }
+        }
+      });
+
+      expect(boxed.geometryAccelerated).toBe(false);
+      expect(boxed.rules.find((rule) => rule.includes("-travel"))).toContain("left:");
+    });
+  });
+
   it("gives the fade and the corner their own clocks", () => {
     // Different windows on purpose: the cross-fade has to be over while the two
     // sides still overlap, the corner has to track the scale for the whole
@@ -281,22 +352,30 @@ describe("buildCameraKeyframes", () => {
     });
 
     it("animates the camera's coordinates instead of the transform", () => {
-      expect(pinned.rules[0]).toContain("--flemo-camera-s: 4;");
-      expect(pinned.rules[0]).toContain("--flemo-camera-s: 1;");
+      expect(pinned.rules[0]).toContain("--flemo-pose-sx: 4;");
+      expect(pinned.rules[0]).toContain("--flemo-pose-sx: 1;");
       expect(pinned.rules[0]).not.toContain("transform:");
+    });
+
+    it("says the zoom as the pose every other part of the flight is said in", () => {
+      // One uniform scale, so both axes carry it, and no rotation. Written
+      // through the same five coordinates a ghost or a nested pair uses, which
+      // is what lets one registration serve the whole flight.
+      expect(pinned.rules[0]).toContain("--flemo-pose-sy: 4;");
+      expect(pinned.rules[0]).toContain("--flemo-pose-r: 0deg;");
     });
 
     it("composes the transform from them on the element itself", () => {
       expect(pinned.rules[1]).toContain(
-        "transform: translate(var(--flemo-camera-x), var(--flemo-camera-y)) scale(var(--flemo-camera-s)) !important;"
+        "transform: translate3d(var(--flemo-pose-x), var(--flemo-pose-y), 0) scale(var(--flemo-pose-sx), var(--flemo-pose-sy)) rotate(var(--flemo-pose-r)) !important;"
       );
     });
 
     it("resolves to the identity at the resting end", () => {
       // `none` has no equivalent to write into three coordinates, so rest is
       // spelled out: no translation and a scale of one.
-      expect(pinned.rules[0]).toContain("--flemo-camera-x: 0px;");
-      expect(pinned.rules[0]).toContain("--flemo-camera-y: 0px;");
+      expect(pinned.rules[0]).toContain("--flemo-pose-x: 0px;");
+      expect(pinned.rules[0]).toContain("--flemo-pose-y: 0px;");
     });
 
     it("keeps the same clock as the accelerated form", () => {

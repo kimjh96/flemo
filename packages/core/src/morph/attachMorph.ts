@@ -46,7 +46,7 @@ import { paintTravel } from "@morph/morphPaint";
 
 import { IDENTITY_POSE, resolvePose } from "@morph/morphPose";
 
-import { ensureCameraProperties, insertMorphRules } from "@morph/morphSheet";
+import { ensurePinnedPoses, insertMorphRules } from "@morph/morphSheet";
 import { headSeconds, resolveMorphSide } from "@morph/morphSide";
 
 import { morphTransitionMap } from "@transition/morphTransition/morphTransition";
@@ -632,6 +632,22 @@ const startFlight = (
     paint
   });
 
+  // ONE FLIGHT, ONE THREAD.
+  //
+  // The parts of a flight are placed relative to each other, so they have to be
+  // drawn on the same frames. The element itself travels by its BOX, which no
+  // compositor can interpolate, so those frames are the main thread's; anything
+  // else here that is a bare transform would be run by the compositor instead
+  // and would advance on frames the element never reached. Measured on the
+  // playground with the main thread blocked mid-flight: the ghost and the camera
+  // both kept moving over a card that had stopped.
+  //
+  // So the principal decides, and every part follows it (see morphPose for what
+  // pinning is and why nothing cheaper works). Where the registrations cannot be
+  // made, nothing is pinned: a part that leads is a flaw, and a part animating an
+  // unregistered property would teleport at its midpoint instead.
+  const pinned = !arriving.geometryAccelerated && ensurePinnedPoses();
+
   // The element left behind. It does not travel — the arrival starts on top of
   // it — so all it does is hand over while the two are still co-located.
   const partner = captured.element;
@@ -794,11 +810,13 @@ const startFlight = (
           }
         : null,
       fade: null,
-      paint
+      paint,
+      pinned
     });
     const disposeNested = insertMorphRules(growing.rules);
     const inlineNested = entry.element.getAttribute("style");
     entry.element.style.animation = growing.animation;
+    if (growing.transform) entry.element.style.transform = growing.transform;
     // As above: a nested pair re-typesets on its container's clock, at every
     // width the container passes through.
     if (holdsOneLine(captured.snapshot.singleLine, arrivalOneLine)) holdOneLine(entry.element);
@@ -890,7 +908,10 @@ const startFlight = (
         fade: { from: { opacity: 1 }, to: { opacity: 0 }, duration: flightDuration * crossFade },
         // The GHOST is a copy of the departure and never re-lays itself out, so
         // it holds the departure's own paint for its whole (short) life.
-        paint: []
+        paint: [],
+        // And it is the plainest case of a part that must not lead: a copy of
+        // the card printed over the card.
+        pinned
       })
     : null;
 
@@ -925,13 +946,9 @@ const startFlight = (
           start,
           ease,
           selector: attrValueSelector(MORPH_CAMERA_ATTR, `${id}c`),
-          // The camera has to be presented by whatever thread presents the
-          // element it is carrying, or the two drift apart by however far
-          // behind that thread is (see buildCameraKeyframes). A box travel is
-          // the main thread's, so the camera goes there with it — unless the
-          // properties that pin it there cannot be registered, in which case a
-          // literal camera that leads is still better than one that jumps.
-          accelerated: arriving.geometryAccelerated || !ensureCameraProperties()
+          // The camera is the largest part of all: it carries a whole screen.
+          // It follows the same decision as everything else in the flight.
+          accelerated: !pinned
         })
       : null;
 
@@ -1095,6 +1112,9 @@ const startFlight = (
     ghost.style.contain = "layout";
     ghost.style.zIndex = `${morphDepth(home) + 2}`;
     ghost.style.animation = ghostSet.animation;
+    // A pinned set animates the pose's coordinates, so the element needs the
+    // transform that reads them.
+    if (ghostSet.transform) ghost.style.transform = ghostSet.transform;
     layer.appendChild(ghost);
   }
 

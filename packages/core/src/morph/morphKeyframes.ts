@@ -2,7 +2,14 @@ import { easingToCss, targetToDecls } from "@transition/compileTransitionStyles"
 
 import type { AnimationOptions, TransitionTarget } from "@transition/cssTypes";
 
-import { composePosesToCss, IDENTITY_POSE, type MorphPose } from "@morph/morphPose";
+import {
+  composePoses,
+  composePosesToCss,
+  IDENTITY_POSE,
+  type MorphPose,
+  PINNED_POSE_TRANSFORM,
+  pinnedPoseDecls
+} from "@morph/morphPose";
 
 import type { MorphClipInset } from "@morph/morphClip";
 
@@ -60,6 +67,14 @@ export interface MorphKeyframeSet {
    * registered with it has to be presented from there too (see the camera).
    */
   geometryAccelerated: boolean;
+  /**
+   * The `transform` the caller must set on the element, or null.
+   *
+   * Non-null only for a PINNED set, whose keyframes animate the pose's
+   * coordinates rather than the transform itself, and which therefore needs the
+   * transform that reads them (see PINNED_POSE_TRANSFORM).
+   */
+  transform: string | null;
 }
 
 /**
@@ -134,6 +149,22 @@ export const buildMorphKeyframes = (input: {
    * shadow. One animation, so the travel keyframe stays on the compositor.
    */
   paint: { property: string; from: string; to: string }[];
+  /**
+   * Keep this set on the main thread even where its geometry is a transform the
+   * compositor could have run.
+   *
+   * A flight is one composition, and its parts are placed relative to each
+   * other. The moment one of them travels by its box — which is every flight
+   * where the element GROWS rather than being scaled — the frames it can be
+   * drawn on are the main thread's, and a part that keeps advancing without it
+   * separates from it by however far behind that thread is. A ghost is the
+   * clearest case: it is a copy of the departure whose only job is to sit on
+   * the element it dissolves into, and one that leads prints the card twice.
+   *
+   * So the flight decides once, and every part it emits abides by it. Ignored
+   * where the geometry is already layout-bound, which needs no help.
+   */
+  pinned?: boolean;
 }): MorphKeyframeSet => {
   const {
     id,
@@ -150,7 +181,8 @@ export const buildMorphKeyframes = (input: {
     padding,
     margin,
     size,
-    clip
+    clip,
+    pinned = false
   } = input;
   const rules: string[] = [];
   const animations: string[] = [];
@@ -160,12 +192,22 @@ export const buildMorphKeyframes = (input: {
   const geometryName = `flemo-morph-${id}-travel`;
   const fromParts: string[] = [];
   const toParts: string[] = [];
-  // Anything but the transform, which is what takes the whole keyframe off the
-  // compositor. Tracked rather than re-derived, because the emitter is the only
-  // place that knows what actually went in.
-  let layoutBound = false;
+  // Anything but the transform takes the whole keyframe off the compositor, so
+  // a set carrying any of it is the main thread's already and needs no pinning.
+  const layoutBound = Boolean(
+    box ||
+    fontSize ||
+    fontWeight ||
+    letterSpacing ||
+    wordSpacing ||
+    lineHeight ||
+    aspectRatio ||
+    padding ||
+    margin ||
+    size ||
+    clip
+  );
   const pushSize = (from: string, to: string) => {
-    layoutBound = true;
     fromParts.push(from);
     toParts.push(to);
   };
@@ -175,15 +217,30 @@ export const buildMorphKeyframes = (input: {
   // backstop instead, a quarter-second after the motion finished.
   let clockName: string | null = null;
   if (box) {
-    layoutBound = true;
     fromParts.push(boxBlock(box.from));
     toParts.push(boxBlock(box.to));
   }
+  const fromPoses = composePoses([travel.from, travel.authoredFrom]);
+  const toPoses = composePoses([travel.to ?? IDENTITY_POSE, travel.authoredTo]);
+  // A pinned pose is five numbers, which says ONE transform. Where an end
+  // composes two — a measured travel with an author's flourish stacked on it —
+  // concatenation is a matrix product that five numbers cannot always express,
+  // so that set stays literal rather than being approximated. It is then still
+  // accelerated, and this is recorded rather than hidden: a flight that reaches
+  // it has a part that can lead the rest.
+  const pinnable = pinned && !layoutBound && fromPoses.length <= 1 && toPoses.length <= 1;
   const fromPose = composePosesToCss([travel.from, travel.authoredFrom]);
   const toPose = composePosesToCss([travel.to ?? IDENTITY_POSE, travel.authoredTo]);
+  let transform: string | null = null;
   if (fromPose !== "none" || toPose !== "none") {
-    fromParts.push(`    transform: ${fromPose};`);
-    toParts.push(`    transform: ${toPose};`);
+    if (pinnable) {
+      transform = PINNED_POSE_TRANSFORM;
+      fromParts.push(pinnedPoseDecls(fromPoses[0] ?? IDENTITY_POSE));
+      toParts.push(pinnedPoseDecls(toPoses[0] ?? IDENTITY_POSE));
+    } else {
+      fromParts.push(`    transform: ${fromPose};`);
+      toParts.push(`    transform: ${toPose};`);
+    }
   }
   if (fontSize)
     pushSize(`    font-size: ${px(fontSize.from)};`, `    font-size: ${px(fontSize.to)};`);
@@ -252,33 +309,12 @@ export const buildMorphKeyframes = (input: {
     rules,
     animation: animations.join(", "),
     geometryName: clockName ?? geometryName,
-    geometryAccelerated: !layoutBound
+    // A pinned set is not on the compositor either, and a caller reading this to
+    // decide what else has to wait must be told the truth about it.
+    geometryAccelerated: !layoutBound && transform === null,
+    transform
   };
 };
-
-// The camera's own coordinates, for the flights where it is pinned to the main
-// thread. They have to be REGISTERED: an unregistered custom property is a
-// string to the engine and animates discretely, which would jump the zoom at its
-// midpoint instead of interpolating it.
-//
-// One set of names for every flight rather than one per flight, because a
-// registration is global and re-registering invalidates style for the whole
-// document — the one frame a flight cannot afford. `inherits: false` is what
-// makes that safe: each screen holds its own values, so two cameras in nested
-// Routers never read each other's, and no descendant inherits a zoom meant for
-// the screen.
-const CAMERA_X = "--flemo-camera-x";
-const CAMERA_Y = "--flemo-camera-y";
-const CAMERA_S = "--flemo-camera-s";
-
-export const CAMERA_TRANSFORM = `translate(var(${CAMERA_X}), var(${CAMERA_Y})) scale(var(${CAMERA_S}))`;
-
-/** Inserted once per document, never dropped (see morphSheet). */
-export const CAMERA_PROPERTY_RULES = [
-  `@property ${CAMERA_X} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
-  `@property ${CAMERA_Y} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
-  `@property ${CAMERA_S} {\n  syntax: "<number>";\n  inherits: false;\n  initial-value: 1;\n}`
-];
 
 /**
  * The CAMERA: the transform that takes a screen from resting to "zoomed onto
@@ -364,22 +400,20 @@ export const buildCameraKeyframes = (input: {
   // Solve for the t that lands the small box's centre on the big one's.
   const tx = to.x - origin.x - scale * (from.x - origin.x);
   const ty = to.y - origin.y - scale * (from.y - origin.y);
-  const zoomed = { x: tx, y: ty, scale: Math.round(scale * 10000) / 10000 };
-  const resting = { x: 0, y: 0, scale: 1 };
-  // Two ways to say the same pose. The literal one is what a compositor can
-  // run; the driven one is what it cannot, which is the point of it.
-  const literal = (pose: typeof zoomed, atRest: boolean) =>
-    `    transform: ${atRest ? "none" : `translate(${px(pose.x)}, ${px(pose.y)}) scale(${pose.scale})`};`;
-  const driven = (pose: typeof zoomed) =>
-    `    ${CAMERA_X}: ${px(pose.x)};\n    ${CAMERA_Y}: ${px(pose.y)};\n    ${CAMERA_S}: ${pose.scale};`;
+  // The camera is a pose like any other: a translate and one uniform scale. Said
+  // that way it pins through exactly the same registered properties every other
+  // participant in the flight does.
+  const uniform = Math.round(scale * 10000) / 10000;
+  const zoomed: MorphPose = { x: tx, y: ty, scaleX: uniform, scaleY: uniform, rotate: 0 };
   const stop = (atRest: boolean) => {
-    const pose = atRest ? resting : zoomed;
-    return accelerated ? literal(pose, atRest) : driven(pose);
+    const pose = atRest ? IDENTITY_POSE : zoomed;
+    if (!accelerated) return pinnedPoseDecls(pose);
+    return `    transform: ${atRest ? "none" : `translate(${px(pose.x)}, ${px(pose.y)}) scale(${uniform})`};`;
   };
   const name = `flemo-morph-${id}-camera`;
   const rules = [
     `@keyframes ${name} {\n  from {\n${stop(!settling)}\n  }\n  to {\n${stop(settling)}\n  }\n}`,
-    `${selector} {\n${accelerated ? "" : `  transform: ${CAMERA_TRANSFORM} !important;\n`}  animation-name: ${name} !important;\n  animation-duration: ${duration.toFixed(3)}s !important;\n  animation-timing-function: ${easingToCss(ease)} !important;\n  animation-delay: ${start.toFixed(3)}s !important;\n  animation-fill-mode: both !important;\n}`
+    `${selector} {\n${accelerated ? "" : `  transform: ${PINNED_POSE_TRANSFORM} !important;\n`}  animation-name: ${name} !important;\n  animation-duration: ${duration.toFixed(3)}s !important;\n  animation-timing-function: ${easingToCss(ease)} !important;\n  animation-delay: ${start.toFixed(3)}s !important;\n  animation-fill-mode: both !important;\n}`
   ];
   return { rules, name };
 };

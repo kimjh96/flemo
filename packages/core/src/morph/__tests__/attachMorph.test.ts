@@ -174,6 +174,35 @@ describe("attachMorph", () => {
     expect(thumbnail.style.animation).toContain("0.000s both");
   });
 
+  it("pins a nested pair that only travels, so it cannot outrun its container", async () => {
+    // The one nested case a compositor could run by itself: same size, same
+    // type, only a different place inside the box. Its container travels by its
+    // box and cannot be run there, so a bare transform here would advance on
+    // frames the container never reached and slide the child around inside it.
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 160, 160]);
+    const label = makeMorph(card, [28, 730, 140, 20]);
+    attachMorph(card, { layoutId: "card-2", navigateStore: store });
+    attachMorph(label, { layoutId: "title-2", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+    // Same 140x20 box as the label, moved: nothing to re-typeset, nothing to
+    // resize.
+    const heading = makeMorph(bigCard, [16, 260, 140, 20]);
+    attachMorph(bigCard, { layoutId: "card-2", navigateStore: store });
+    attachMorph(heading, { layoutId: "title-2", navigateStore: store });
+    await Promise.resolve();
+
+    const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
+    expect(nestedRule).toContain("--flemo-pose-x:");
+    expect(nestedRule).not.toContain("transform:");
+    expect(heading.style.transform).toContain("var(--flemo-pose-x)");
+  });
+
   it("lets a nested morph RIDE its container, starting from the measured from-pose", async () => {
     // Tried the two hard alternatives on glass. Flying free tears the
     // container apart in the air; cancelling the container's transform so the
@@ -212,6 +241,10 @@ describe("attachMorph", () => {
     // And it BEGINS where the pair measured it — the from-delta between the
     // label's box (28, 730) and the heading's (16, 260) — decaying to rest.
     expect(nestedRule).toContain("translate3d(12px, 470px, 0)");
+    // Literal, and rightly so: this pair also carries its own size, which is
+    // the main thread's work already. Pinning is for the parts a compositor
+    // could otherwise run away with while the rest of the flight waits.
+    expect(nestedRule).toContain("width:");
     expect(nestedRule).toMatch(/to \{[^}]*transform: none/);
     // SIZE is the other half of the same correction. Riding sizes the child
     // through the container's width interpolation, and a container that is
@@ -536,7 +569,10 @@ describe("attachMorph", () => {
     // prints the two over each other.
     expect(ghost.style.width).toBe("80px");
     const ghostRule = inserted.find((rule) => rule.includes("g-travel"))!;
-    expect(ghostRule).toContain("transform:");
+    // Carried by the pose's coordinates rather than by a literal transform, so
+    // the copy cannot be run by the compositor over a card that is not moving.
+    expect(ghostRule).toContain("--flemo-pose-x:");
+    expect(ghost.style.transform).toContain("var(--flemo-pose-x)");
     expect(ghostRule).not.toContain("width:");
     expect(ghost.style.animation).toContain("-travel");
     expect(ghost.style.animation).toContain("-fade");
@@ -1055,10 +1091,10 @@ describe("attachMorph", () => {
     // Written as the camera's three coordinates rather than as a transform: the
     // element it carries travels by its box, so the camera is pinned to the same
     // thread and the transform is composed from these by style resolution.
-    expect(camera).toContain("--flemo-camera-s: 1;");
-    expect(camera).toContain("--flemo-camera-x: 700px;");
-    expect(camera).toContain("--flemo-camera-y: -1450px;");
-    expect(camera).toContain("--flemo-camera-s: 5;");
+    expect(camera).toContain("--flemo-pose-sx: 1;");
+    expect(camera).toContain("--flemo-pose-x: 700px;");
+    expect(camera).toContain("--flemo-pose-y: -1450px;");
+    expect(camera).toContain("--flemo-pose-sx: 5;");
     // Emitted as LONGHANDS: animation-play-state belongs to the compiled hold,
     // and the shorthand would take it.
     const applied = inserted.find((rule) => rule.includes("data-flemo-morph-camera"))!;
@@ -1086,12 +1122,12 @@ describe("attachMorph", () => {
     expect(detail.hasAttribute("data-flemo-morph-camera")).toBe(false);
     const camera = inserted.filter((rule) => rule.includes("-camera {")).at(-1)!;
     // Reversed: zoomed at the start, resting at the end.
-    expect(camera.indexOf("--flemo-camera-s: 5;")).toBeLessThan(
-      camera.indexOf("--flemo-camera-s: 1;")
+    expect(camera.indexOf("--flemo-pose-sx: 5;")).toBeLessThan(
+      camera.indexOf("--flemo-pose-sx: 1;")
     );
   });
 
-  it("registers the camera's coordinates once, not once per flight", () => {
+  it("registers the pose's coordinates once, not once per flight", () => {
     // A `@property` registration is document-wide, and adding one invalidates
     // style for the whole page — the single frame a flight has the least room
     // in. Two flights, one registration.
@@ -1105,12 +1141,12 @@ describe("attachMorph", () => {
     attachMorph(hero, { layoutId: "photo-1", name: "zoom", navigateStore: store });
 
     const registrations = inserted.filter((rule) => rule.startsWith("@property"));
-    expect(registrations).toHaveLength(3);
+    expect(registrations).toHaveLength(5);
 
     const second = makeMorph(detail, [0, 0, 400, 300]);
     attachMorph(second, { layoutId: "photo-2", name: "zoom", navigateStore: store });
 
-    expect(inserted.filter((rule) => rule.startsWith("@property"))).toHaveLength(3);
+    expect(inserted.filter((rule) => rule.startsWith("@property"))).toHaveLength(5);
   });
 
   it("leaves the camera literal where those properties cannot be registered", () => {
@@ -1135,7 +1171,7 @@ describe("attachMorph", () => {
     const camera = inserted.find((rule) => rule.includes("-camera {"))!;
     expect(camera).toContain("transform: none");
     expect(camera).toContain("scale(5)");
-    expect(camera).not.toContain("--flemo-camera");
+    expect(camera).not.toContain("--flemo-pose");
   });
 
   it("gives no camera to a morph that did not ask for one", () => {
@@ -1899,9 +1935,9 @@ describe("attachMorph", () => {
     // background that zooms toward the wrong corner. A percentage read as a
     // length would put the anchor 50px from the corner of an 800px screen.
     for (const [origin, expected] of [
-      ["left top", "--flemo-camera-x: 0px;\n    --flemo-camera-y: 0px;"],
-      ["10px 20px", "--flemo-camera-x:"],
-      ["nonsense", "--flemo-camera-x:"]
+      ["left top", "--flemo-pose-x: 0px;\n    --flemo-pose-y: 0px;"],
+      ["10px 20px", "--flemo-pose-x:"],
+      ["nonsense", "--flemo-pose-x:"]
     ] as const) {
       const gallery = makeScreen("layout", true);
       gallery.style.transformOrigin = origin;
@@ -2101,9 +2137,9 @@ describe("attachMorph", () => {
     // back the specified value rather than resolving it, which is exactly the
     // environment the keyword and single-token forms have to survive.
     for (const [origin, expected] of [
-      ["left top", "--flemo-camera-x: 0px;\n    --flemo-camera-y: 0px;"],
-      ["left", "--flemo-camera-x: 0px;"],
-      ["nonsense nonsense", "--flemo-camera-x:"]
+      ["left top", "--flemo-pose-x: 0px;\n    --flemo-pose-y: 0px;"],
+      ["left", "--flemo-pose-x: 0px;"],
+      ["nonsense nonsense", "--flemo-pose-x:"]
     ] as const) {
       vi.stubGlobal("getComputedStyle", () => ({ transformOrigin: origin }));
       try {
@@ -2140,7 +2176,7 @@ describe("attachMorph", () => {
     try {
       attachMorph(hero, { layoutId: "cam-2", name: "zoom", navigateStore: store });
       // No origin to read is the same as the default one: the screen's centre.
-      expect(inserted.find((rule) => rule.includes("-camera {"))).toContain("--flemo-camera-s: 4;");
+      expect(inserted.find((rule) => rule.includes("-camera {"))).toContain("--flemo-pose-sx: 4;");
     } finally {
       vi.unstubAllGlobals();
     }

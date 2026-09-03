@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MORPH_SHEET_ATTR } from "@dom/attributes";
 
-import { ensureCameraProperties, insertMorphRules } from "@morph/morphSheet";
+import { ensurePinnedPoses, insertMorphRules } from "@morph/morphSheet";
 
 // THE PER-FLIGHT SHEET.
 //
@@ -70,22 +70,22 @@ describe("insertMorphRules", () => {
   });
 });
 
-// THE CAMERA'S REGISTRATIONS.
+// THE PINNED POSE'S REGISTRATIONS.
 //
 // Everything else in this sheet belongs to one flight and leaves with it. These
-// three do not: a `@property` registration is document-wide, and adding or
+// five do not: a `@property` registration is document-wide, and adding or
 // removing one invalidates style for the whole page — the single frame a flight
 // has the least room in. So they go in once and stay.
-describe("ensureCameraProperties", () => {
-  it("registers the camera's three coordinates", () => {
+describe("ensurePinnedPoses", () => {
+  it("registers the pinned pose's five coordinates", () => {
     const insertRule = vi.spyOn(CSSStyleSheet.prototype, "insertRule").mockReturnValue(0);
 
-    expect(ensureCameraProperties()).toBe(true);
+    expect(ensurePinnedPoses()).toBe(true);
 
     const written = insertRule.mock.calls.map(([rule]) => String(rule)).join("\n");
-    expect(written).toContain("@property --flemo-camera-x");
-    expect(written).toContain("@property --flemo-camera-y");
-    expect(written).toContain("@property --flemo-camera-s");
+    for (const axis of ["x", "y", "sx", "sy", "r"]) {
+      expect(written).toContain(`@property --flemo-pose-${axis}`);
+    }
     // `inherits: false` is what keeps two cameras in nested Routers out of each
     // other's values, and what stops a screen's zoom reaching its descendants.
     expect(written).toContain("inherits: false");
@@ -95,23 +95,23 @@ describe("ensureCameraProperties", () => {
   it("registers once and not again on the next flight", () => {
     const insertRule = vi.spyOn(CSSStyleSheet.prototype, "insertRule").mockReturnValue(0);
 
-    ensureCameraProperties();
+    ensurePinnedPoses();
     const after = insertRule.mock.calls.length;
-    ensureCameraProperties();
-    ensureCameraProperties();
+    ensurePinnedPoses();
+    ensurePinnedPoses();
 
     expect(insertRule.mock.calls.length).toBe(after);
     insertRule.mockRestore();
   });
 
-  it("reports a browser that will not take them, so the camera stays literal", () => {
+  it("reports a browser that will not take them, so every pose stays literal", () => {
     // Unregistered, those properties are strings: they would animate discretely
     // and jump the zoom at its midpoint rather than interpolating it.
     const insertRule = vi.spyOn(CSSStyleSheet.prototype, "insertRule").mockImplementation(() => {
       throw new Error("unknown at-rule");
     });
 
-    expect(ensureCameraProperties()).toBe(false);
+    expect(ensurePinnedPoses()).toBe(false);
     insertRule.mockRestore();
   });
 });
