@@ -1,7 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { resolveEasing } from "@transition/cubicBezier";
+
 import { captureMorphSnapshot, isSingleLine } from "@morph/morphGeometry";
-import { holdOneLine, holdsOneLine, leadingBias, leadingStops, LINE_HOLD } from "@morph/morphLine";
+import {
+  holdOneLine,
+  holdsOneLine,
+  leadingBias,
+  leadingStops,
+  LINE_HOLD,
+  trackStops
+} from "@morph/morphLine";
 
 const setRect = (element: HTMLElement, width: number, height: number) => {
   element.getBoundingClientRect = () =>
@@ -619,5 +628,108 @@ describe("leadingStops", () => {
     leadingStops(...args);
 
     expect(context.mock.calls.length).toBe(first);
+  });
+});
+
+// A RUN THAT DOES NOT DRIFT APART.
+//
+// Only the correction's SHAPE is testable without a real face: that it reads
+// one width per size, aims at the straight line between the two ends, and
+// spreads what it finds over the gaps. Which faces actually need it is a
+// property of the face, measured on glass.
+describe("trackStops", () => {
+  const FONT = { family: "Test Sans", weight: 800, style: "normal" };
+  const EASE: [number, number, number, number] = [0.32, 0.72, 0, 1];
+  const TEXT = "Aria Wave";
+  const GAPS = [...TEXT].length - 1;
+
+  const advances = (widthFor: (size: number) => number) => {
+    const context = {
+      font: "",
+      measureText: () => ({
+        width: widthFor(
+          Number.parseFloat(context.font.split(" ").find((p) => p.endsWith("px")) ?? "0")
+        )
+      })
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      context as unknown as CanvasRenderingContext2D
+    );
+  };
+
+  it("declines where there is no face to ask, no travel, or no gap to spread over", () => {
+    advances((size) => size * 4);
+
+    expect(trackStops(TEXT, { fontSize: 14 }, { fontSize: 24 }, null, EASE)).toBeNull();
+    expect(trackStops(TEXT, { fontSize: 14 }, { fontSize: 14 }, FONT, EASE)).toBeNull();
+    expect(trackStops(TEXT, { fontSize: null }, { fontSize: 24 }, FONT, EASE)).toBeNull();
+    // One glyph has no gap, so there is nowhere to put a correction.
+    expect(trackStops("A", { fontSize: 14 }, { fontSize: 24 }, FONT, EASE)).toBeNull();
+  });
+
+  it("finds nothing to cancel on a face whose advances track their size", () => {
+    advances((size) => size * 4);
+
+    const stops = trackStops(TEXT, { fontSize: 14 }, { fontSize: 25 }, FONT, EASE)!;
+
+    expect(stops).not.toBeNull();
+    for (const stop of stops) expect(stop.fix).toBeCloseTo(0, 6);
+  });
+
+  it("spreads the run's whole deviation from the line over its gaps", () => {
+    // A face that bows off the line in the middle and meets it at both ends,
+    // which is the shape an optically sized face actually draws.
+    const width = (size: number) => size * 4 + (size - 14) * (26 - size) * 0.02;
+    advances(width);
+
+    const stops = trackStops(TEXT, { fontSize: 14 }, { fontSize: 26 }, FONT, EASE)!;
+    const curve = resolveEasing(EASE);
+
+    for (const [index, stop] of stops.entries()) {
+      const part = index / (stops.length - 1);
+      const size = 14 + 12 * part;
+      // What the run measures here, plus the correction spread back over its
+      // gaps, is the width the straight line asked for.
+      expect(width(size) + stop.fix * GAPS).toBeCloseTo(
+        width(14) + (width(26) - width(14)) * part,
+        6
+      );
+      // And the stop sits at the time the flight reaches that size.
+      expect(curve(stop.at / 100)).toBeCloseTo(part, 4);
+    }
+    // Both ends measure themselves, so the landing is untouched.
+    expect(stops[0].fix).toBeCloseTo(0, 6);
+    expect(stops[stops.length - 1].fix).toBeCloseTo(0, 6);
+    // The middle is off the line, so there is something to carry there.
+    expect(Math.abs(stops[Math.floor(stops.length / 2)].fix)).toBeGreaterThan(0.01);
+  });
+
+  it("asks a face for a run once and remembers what it said", () => {
+    let asked = 0;
+    advances((size) => {
+      asked += 1;
+      return size * 4;
+    });
+
+    const first = trackStops(TEXT, { fontSize: 12 }, { fontSize: 28 }, FONT, EASE);
+    const measured = asked;
+    const again = trackStops(TEXT, { fontSize: 12 }, { fontSize: 28 }, FONT, EASE);
+
+    expect(again).toBe(first);
+    expect(asked).toBe(measured);
+    // A flight with no authored easing is a different question, not the same
+    // answer under a different name.
+    expect(trackStops(TEXT, { fontSize: 12 }, { fontSize: 28 }, FONT, undefined)).not.toBe(first);
+    expect(asked).toBeGreaterThan(measured);
+  });
+
+  it("keeps its stops in order and inside the flight", () => {
+    advances((size) => size * 4 + Math.sin(size) * 0.1);
+
+    const stops = trackStops(TEXT, { fontSize: 13 }, { fontSize: 27 }, FONT, EASE)!;
+
+    expect(stops[0].at).toBe(0);
+    expect(stops[stops.length - 1].at).toBe(100);
+    for (let i = 1; i < stops.length; i += 1) expect(stops[i].at).toBeGreaterThan(stops[i - 1].at);
   });
 });

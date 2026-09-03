@@ -557,3 +557,67 @@ describe("buildCameraKeyframes", () => {
     });
   });
 });
+
+describe("buildMorphKeyframes() tracking", () => {
+  const track = [
+    { at: 0, fix: 0 },
+    { at: 30, fix: -0.05 },
+    { at: 100, fix: 0 }
+  ];
+
+  it("carries the correction beside the author's own tracking on one property", () => {
+    const built = buildMorphKeyframes({
+      id: "3t",
+      travel,
+      fade: null,
+      paint: [],
+      travelPinned: true,
+      fontSize: { from: 14, to: 24 },
+      letterSpacing: { from: -0.18, to: -0.48 },
+      track
+    });
+
+    // Two clocks on one property: neither can author `letter-spacing` alone.
+    expect(built.letterSpacing).toBe("calc(var(--flemo-track) + var(--flemo-track-fix))");
+    const travelRule = built.rules.find((rule) => rule.includes("-travel"))!;
+    expect(travelRule).toContain("--flemo-track: -0.18px");
+    expect(travelRule).toContain("--flemo-track: -0.48px");
+    expect(travelRule).not.toContain("letter-spacing:");
+  });
+
+  // A HELD CORRECTION LEAVES ITS OWN STEP BEHIND.
+  //
+  // The lift beside it holds, because a staircase is what it cancels. This
+  // cancels a smooth curve, so holding a sample until the next one puts the
+  // whole climb between them back on the glass.
+  it("ramps between its stops rather than holding them", () => {
+    const built = buildMorphKeyframes({
+      id: "4t",
+      travel,
+      fade: null,
+      paint: [],
+      travelPinned: true,
+      fontSize: { from: 14, to: 24 },
+      track
+    });
+
+    const rule = built.rules.find((r) => r.startsWith("@keyframes flemo-morph-4t-track"))!;
+    expect(rule).toContain("--flemo-track-fix: -0.05px");
+    expect(rule).not.toContain("steps(1, end)");
+  });
+
+  it("leaves the property alone where there is no correction to carry", () => {
+    const built = buildMorphKeyframes({
+      id: "5t",
+      travel,
+      fade: null,
+      paint: [],
+      travelPinned: true,
+      fontSize: { from: 14, to: 24 },
+      track: null
+    });
+
+    expect(built.letterSpacing).toBeNull();
+    expect(built.rules.some((rule) => rule.includes("-track {"))).toBe(false);
+  });
+});

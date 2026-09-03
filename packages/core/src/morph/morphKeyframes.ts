@@ -10,6 +10,9 @@ import {
   PINNED_POSE_TRANSFORM,
   pinnedPoseDecls,
   pinnedLiftDecl,
+  PINNED_TRACK,
+  pinnedTrackDecl,
+  pinnedTrackFixDecl,
   PINNED_TRAVEL,
   pinnedTravelDecls
 } from "@morph/morphPose";
@@ -110,6 +113,13 @@ export interface MorphKeyframeSet {
    * transform that reads them (see PINNED_POSE_TRANSFORM).
    */
   transform: string | null;
+  /**
+   * The `letter-spacing` the caller must set on the element, or null.
+   *
+   * Non-null where the tracking carries a correction, which is written as a sum
+   * of the author's own and the correction's, each on its own clock.
+   */
+  letterSpacing: string | null;
 }
 
 /**
@@ -168,6 +178,17 @@ export const buildMorphKeyframes = (input: {
    * is the tremor this exists to remove.
    */
   lift?: { at: number; ascent: number }[] | null;
+  /**
+   * The correction that keeps a growing run of glyphs from drifting apart.
+   *
+   * A run's width against its size is one curve, and where it leaves the
+   * straight line between its ends every glyph carries the error that piled up
+   * before it. Spread the negative of that over the gaps and it cancels (see
+   * morphLine). It rides `letter-spacing` beside the author's own tracking, on
+   * its own clock, and is RAMPED rather than held because what it cancels is a
+   * curve rather than a staircase.
+   */
+  track?: { at: number; fix: number }[] | null;
   /** Type's other two dimensions, so it re-typesets rather than merely re-sizing. */
   fontWeight?: { from: number; to: number } | null;
   letterSpacing?: { from: number; to: number } | null;
@@ -252,6 +273,7 @@ export const buildMorphKeyframes = (input: {
     clip,
     leading,
     lift,
+    track,
     pinned = false,
     travelPinned = false
   } = input;
@@ -305,6 +327,9 @@ export const buildMorphKeyframes = (input: {
   const solo = fromPoses.length <= 1 && toPoses.length <= 1;
   const moving = travelPinned && solo;
   const lifting = moving && staircase && lift && lift.length > 1 ? lift : null;
+  // The tracking correction needs the property to itself, which it gets by
+  // carrying the author's own tracking alongside it on the same `calc`.
+  const tracking = travelPinned && track && track.length > 1 ? track : null;
   if (moving) {
     // The element RESTS at its destination and is carried back to where it
     // started, so the position it is laid out at never moves.
@@ -366,11 +391,17 @@ export const buildMorphKeyframes = (input: {
       `    font-weight: ${Math.round(fontWeight.from)};`,
       `    font-weight: ${Math.round(fontWeight.to)};`
     );
-  if (letterSpacing)
+  if (tracking) {
+    pushSize(
+      pinnedTrackDecl(letterSpacing ? letterSpacing.from : 0),
+      pinnedTrackDecl(letterSpacing ? letterSpacing.to : 0)
+    );
+  } else if (letterSpacing) {
     pushSize(
       `    letter-spacing: ${px(letterSpacing.from)};`,
       `    letter-spacing: ${px(letterSpacing.to)};`
     );
+  }
   if (wordSpacing)
     pushSize(
       `    word-spacing: ${px(wordSpacing.from)};`,
@@ -441,6 +472,19 @@ export const buildMorphKeyframes = (input: {
     animations.push(`${liftName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
   }
 
+  if (tracking) {
+    const trackName = `flemo-morph-${id}-track`;
+    // Ramped between samples, unlike the lift beside it. The lift cancels a
+    // staircase and has to be one; this cancels a smooth curve, and holding a
+    // sample until the next one leaves the whole climb between them on the
+    // glass. Same stops, same bytes, a third of the worst frame's error.
+    const blocks = tracking
+      .map((stop) => `  ${stop.at.toFixed(4)}% {\n${pinnedTrackFixDecl(stop.fix)}\n  }`)
+      .join("\n");
+    rules.push(`@keyframes ${trackName} {\n${blocks}\n}`);
+    animations.push(`${trackName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
+  }
+
   if (paint.length > 0) {
     const paintName = `flemo-morph-${id}-paint`;
     const from = paint.map((channel) => `    ${channel.property}: ${channel.from};`).join("\n");
@@ -462,7 +506,8 @@ export const buildMorphKeyframes = (input: {
     // decide what else has to wait must be told the truth about it.
     geometryAccelerated: !layoutBound && transform === null,
     transform,
-    translate: moving && (box || fromPoses.length > 0 || toPoses.length > 0) ? PINNED_TRAVEL : null
+    translate: moving && (box || fromPoses.length > 0 || toPoses.length > 0) ? PINNED_TRAVEL : null,
+    letterSpacing: tracking ? PINNED_TRACK : null
   };
 };
 

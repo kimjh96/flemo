@@ -190,6 +190,23 @@ const PINNED = {
 // painting a transform gives it.
 const TRAVEL = { x: "--flemo-move-x", y: "--flemo-move-y", lift: "--flemo-lift-y" } as const;
 
+// The two halves of a type morph's tracking. The author's travels on the
+// flight's own curve; the correction that keeps the glyphs from drifting apart
+// holds and steps (see morphLine). One property, two clocks, the same way the
+// travel carries its lift.
+const TRACK = { authored: "--flemo-track", fix: "--flemo-track-fix" } as const;
+
+/** The `letter-spacing` an element wears while its tracking is corrected. */
+export const PINNED_TRACK = `calc(var(${TRACK.authored}) + var(${TRACK.fix}))`;
+
+/** One end of the authored tracking. */
+export const pinnedTrackDecl = (value: number, indent = "    "): string =>
+  `${indent}${TRACK.authored}: ${round(value)}px;`;
+
+/** One stop of the correction that keeps a run from drifting apart. */
+export const pinnedTrackFixDecl = (value: number, indent = "    "): string =>
+  `${indent}${TRACK.fix}: ${round(value)}px;`;
+
 // TWO CLOCKS ON ONE PROPERTY.
 //
 // A flight's position eases; the ascent it has to cancel climbs in steps (see
@@ -233,6 +250,8 @@ export const PINNED_POSE_PROPERTY_RULES = [
   `@property ${TRAVEL.x} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${TRAVEL.y} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${TRAVEL.lift} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
+  `@property ${TRACK.authored} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
+  `@property ${TRACK.fix} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${PINNED.x} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${PINNED.y} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${PINNED.scaleX} {\n  syntax: "<number>";\n  inherits: false;\n  initial-value: 1;\n}`,

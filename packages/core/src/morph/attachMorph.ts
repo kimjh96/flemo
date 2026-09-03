@@ -41,7 +41,7 @@ import {
 import { buildCameraKeyframes, buildMorphKeyframes, contentDecls } from "@morph/morphKeyframes";
 
 import { resolveMorphLayer } from "@morph/morphLayer";
-import { holdOneLine, holdsOneLine, leadingBias, leadingStops } from "@morph/morphLine";
+import { holdOneLine, holdsOneLine, leadingBias, leadingStops, trackStops } from "@morph/morphLine";
 import { paintTravel } from "@morph/morphPaint";
 
 import { IDENTITY_POSE, resolvePose } from "@morph/morphPose";
@@ -279,7 +279,8 @@ const typeTravel = (
   from: TypeFace,
   to: TypeFace,
   font: { family: string; weight: string | number; style: string } | null,
-  ease: AnimationOptions["ease"]
+  ease: AnimationOptions["ease"],
+  run: string | null
 ) => {
   const fontSize = channel(from.fontSize, to.fontSize, 0.5);
   const leading = channel(from.lineHeight, to.lineHeight, 0.25);
@@ -287,6 +288,10 @@ const typeTravel = (
   // It holds the rendered leading at ONE value for the whole flight, which is
   // strictly more than the bias below can do, so the bias stands aside for it.
   const stairs = fontSize ? leadingStops(from, to, font, ease) : null;
+  // A run's width against its size is one curve, and where a face draws it off
+  // the straight line the glyphs after the first carry what piled up before
+  // them. Spread the negative over the gaps and it cancels.
+  const drift = fontSize && run ? trackStops(run, from, to, font, ease) : null;
   // Owed only where the rendered half-leading MOVES, which is a leading that
   // interpolates or a size that does underneath one that does not. Both ends
   // take the same amount, so what the flight travels is unchanged and only the
@@ -295,6 +300,7 @@ const typeTravel = (
   return {
     fontSize,
     leading: stairs,
+    track: drift,
     // A variable font takes every weight between; a static family snaps to the
     // faces it has. Both are better than starting at the destination's.
     fontWeight: channel(from.fontWeight, to.fontWeight, 1),
@@ -419,10 +425,11 @@ const screenTransformOrigin = (
 // riding pair and a flying one cannot drift apart on it.
 const wear = (
   element: HTMLElement,
-  set: { translate: string | null; transform: string | null }
+  set: { translate: string | null; transform: string | null; letterSpacing: string | null }
 ) => {
   if (set.translate) element.style.translate = set.translate;
   if (set.transform) element.style.transform = set.transform;
+  if (set.letterSpacing) element.style.letterSpacing = set.letterSpacing;
 };
 
 const startFlight = (
@@ -557,7 +564,16 @@ const startFlight = (
             : null;
         })()
       : null;
-  const type = typeTravel(captured.snapshot, side, face, ease);
+  // The words themselves, where the element is a single run of them: the
+  // correction is measured on the text that is actually being typeset.
+  const words = entry.element.firstElementChild === null ? entry.element.firstChild : null;
+  const type = typeTravel(
+    captured.snapshot,
+    side,
+    face,
+    ease,
+    words instanceof Text ? words.data.trim() : null
+  );
   // Everything else the two ends paint differently, from the table rather than
   // from a branch per property (see morphPaint). `radius: false` is how a morph
   // transition opts one out — the `text` preset does, because type has no
@@ -668,6 +684,7 @@ const startFlight = (
     lineHeight: type.lineHeight,
     leading: type.leading,
     lift: type.lift,
+    track: type.track,
     travelPinned,
     // The arrival fades only if the author gave it an entry pose to fade from.
     // The presets do not: the arrival is opaque and the ghost dissolves on top
@@ -836,6 +853,7 @@ const startFlight = (
       lineHeight: type.lineHeight,
       leading: type.leading,
       lift: type.lift,
+      track: type.track,
       travelPinned,
       aspectRatio: reshapes
         ? { from: captured.snapshot.aspectRatio!, to: side.aspectRatio! }
