@@ -31,7 +31,12 @@ module.exports = [
     // be `motion` in a consumer's node_modules and are now flemo's own. That
     // is a whole feature's worth of growth and it is measured separately
     // below, so the next KB has to say which half it came from.
-    limit: "48 KB",
+    //
+    // 48.4 kB after the 2026-09-03 type-morph campaign, and the morph entry
+    // below says all of it came from that half: the face-metric reader, the
+    // grid the engine snaps a line to, and the two staircases that hold a
+    // growing line of type still. Re-based to 52 KB.
+    limit: "52 KB",
     gzip: true
   },
   // The morph runtime, measured as its own reachable graph. It is a real
@@ -45,8 +50,15 @@ module.exports = [
     path: "packages/core/dist/index.mjs",
     import: "{ attachMorph, beginMorphSwipe, registerMorphLayer, createMorphTransition }",
     // 15.6 kB at birth, including what it shares with the engine (the easing
-    // solver, the style compiler's declaration writer). ~15% headroom.
-    limit: "18 KB",
+    // solver, the style compiler's declaration writer).
+    //
+    // 18.9 kB after 2026-09-03. What the KB bought, all of it device-driven:
+    // a face's metrics read off a canvas instead of a layout probe, the grid
+    // the engine snaps a line to chosen by what it reproduces, a line-height
+    // that climbs the face's own staircase, and the ascent carried backwards
+    // on the box so the baseline comes out smooth. Re-based to 22 KB, the
+    // ~15% headroom this entry has always kept.
+    limit: "22 KB",
     gzip: true
   },
   {
