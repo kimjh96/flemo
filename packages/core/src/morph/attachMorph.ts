@@ -564,16 +564,16 @@ const startFlight = (
             : null;
         })()
       : null;
-  // The words themselves, where the element is a single run of them: the
-  // correction is measured on the text that is actually being typeset.
-  const words = entry.element.firstElementChild === null ? entry.element.firstChild : null;
-  const type = typeTravel(
-    captured.snapshot,
-    side,
-    face,
-    ease,
-    words instanceof Text ? words.data.trim() : null
-  );
+  // The words themselves, where the element holds nothing but words: the
+  // correction is measured on the text that is actually being typeset, and a
+  // field per JSX expression leaves that text in SEVERAL nodes rather than one.
+  const words =
+    entry.element.firstElementChild === null
+      ? Array.from(entry.element.childNodes, (node) => (node instanceof Text ? node.data : ""))
+          .join("")
+          .trim()
+      : "";
+  const type = typeTravel(captured.snapshot, side, face, ease, words || null);
   // Everything else the two ends paint differently, from the table rather than
   // from a branch per property (see morphPaint). `radius: false` is how a morph
   // transition opts one out — the `text` preset does, because type has no

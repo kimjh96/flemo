@@ -320,7 +320,7 @@ describe("attachMorph", () => {
           context.font.split(" ").find((p) => p.endsWith("px")) ?? "0"
         );
         return {
-          width: size * 4 + (size - 11) * (14 - size) * 0.4,
+          width: size * 4 + (size - 11) * (14 - size) * 4,
           fontBoundingBoxAscent: Math.round(size * 0.95),
           fontBoundingBoxDescent: Math.round(size * 0.25)
         };
@@ -332,7 +332,7 @@ describe("attachMorph", () => {
 
     const gallery = makeScreen("layout", true);
     const label = makeMorph(gallery, [20, 600, 119, 16]);
-    label.textContent = "Aria Wave";
+    label.append("Aria", document.createComment("hydration"), " Wave");
     label.style.fontFamily = "Test Sans";
     label.style.fontSize = "11px";
     label.style.lineHeight = "16px";
@@ -343,12 +343,13 @@ describe("attachMorph", () => {
 
     const detail = makeScreen("layout", true);
     const heading = makeMorph(detail, [16, 120, 314, 20]);
-    heading.textContent = "Aria Wave";
+    heading.append("Aria", document.createComment("hydration"), " Wave");
     heading.style.fontFamily = "Test Sans";
     heading.style.fontSize = "14px";
     heading.style.lineHeight = "20px";
     attachMorph(heading, { layoutId: "track-1", name: "text", navigateStore: store });
 
+    // The run is read from ALL of the element's text, not just its first node.
     // Two clocks on one property, so neither can be written as a plain length.
     expect(heading.style.letterSpacing).toBe("calc(var(--flemo-track) + var(--flemo-track-fix))");
     const track = inserted.find(

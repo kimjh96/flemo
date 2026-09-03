@@ -667,19 +667,29 @@ describe("trackStops", () => {
     expect(trackStops("A", { fontSize: 14 }, { fontSize: 24 }, FONT, EASE)).toBeNull();
   });
 
-  it("finds nothing to cancel on a face whose advances track their size", () => {
+  it("declines a face whose advances track their size, having nothing to cancel", () => {
     advances((size) => size * 4);
 
-    const stops = trackStops(TEXT, { fontSize: 14 }, { fontSize: 25 }, FONT, EASE)!;
+    expect(trackStops(TEXT, { fontSize: 14 }, { fontSize: 25 }, FONT, EASE)).toBeNull();
+  });
 
-    expect(stops).not.toBeNull();
-    for (const stop of stops) expect(stop.fix).toBeCloseTo(0, 6);
+  // A CORRECTION SMALLER THAN THE GRID IT RIDES ON IS A NEW DEFECT.
+  //
+  // Tracking reaches the glass through layout, which carries a run's width on a
+  // 1/64px grid. A correction that ramps below that grid cannot track its curve
+  // and can only cross grid lines, which is a staircase where there was none.
+  it("declines a bow too small to be delivered on the grid it rides", () => {
+    // A tenth of a pixel across the whole run, which is six grid steps and
+    // nothing the eye was ever reported at.
+    advances((size) => size * 4 + (size - 15) * (27 - size) * 0.004);
+
+    expect(trackStops(TEXT, { fontSize: 15 }, { fontSize: 27 }, FONT, EASE)).toBeNull();
   });
 
   it("spreads the run's whole deviation from the line over its gaps", () => {
     // A face that bows off the line in the middle and meets it at both ends,
     // which is the shape an optically sized face actually draws.
-    const width = (size: number) => size * 4 + (size - 14) * (26 - size) * 0.02;
+    const width = (size: number) => size * 4 + (size - 14) * (26 - size) * 0.2;
     advances(width);
 
     const stops = trackStops(TEXT, { fontSize: 14 }, { fontSize: 26 }, FONT, EASE)!;
@@ -708,7 +718,7 @@ describe("trackStops", () => {
     let asked = 0;
     advances((size) => {
       asked += 1;
-      return size * 4;
+      return size * 4 + (size - 12) * (28 - size) * 0.2;
     });
 
     const first = trackStops(TEXT, { fontSize: 12 }, { fontSize: 28 }, FONT, EASE);
@@ -724,7 +734,7 @@ describe("trackStops", () => {
   });
 
   it("keeps its stops in order and inside the flight", () => {
-    advances((size) => size * 4 + Math.sin(size) * 0.1);
+    advances((size) => size * 4 + Math.sin(size) * 2);
 
     const stops = trackStops(TEXT, { fontSize: 13 }, { fontSize: 27 }, FONT, EASE)!;
 

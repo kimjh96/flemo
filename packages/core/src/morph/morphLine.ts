@@ -420,6 +420,29 @@ export interface TrackStop {
  */
 const TRACK_SAMPLES = 16;
 
+/**
+ * How far a run has to be off the line before correcting it is worth anything.
+ *
+ * A CORRECTION SMALLER THAN THE GRID IT RIDES ON IS A NEW DEFECT. Tracking
+ * reaches the glass through layout, and layout carries a run's width on a
+ * 1/64px grid: measured, 0.0001px per gap over eighteen gaps rounds away to
+ * nothing and 0.005px per gap lands on exactly 6/64. A correction that ramps
+ * through values below that grid cannot track the curve it was built from. All
+ * it can do is cross grid lines, which is a staircase where there was none.
+ *
+ * That is not hypothetical. The poster grid's meta line is 0.03px off the line
+ * across its whole flight, and correcting it moved that line from ZERO
+ * discontinuities to seven, because every grid crossing the ramp made was a
+ * step the run had not been taking. The canvas model is only good to 0.015px
+ * against layout anyway, so below this floor the correction is fitting noise.
+ *
+ * Half a pixel is the scale the eye was reported at throughout this work, and
+ * it separates the two populations cleanly: every face that tracks its size
+ * measures under 0.01px, a small line's own bow measures 0.03px, and
+ * `system-ui` at a title's travel measures 0.95px.
+ */
+const TRACK_FLOOR = 0.5;
+
 /** The tracking correction for a growing run, or null where there is none to make. */
 export const trackStops = (
   text: string,
@@ -471,6 +494,10 @@ const buildTrack = (
     const ideal = ends[0] + (ends[1] - ends[0]) * part;
     stops.push({ at: invert(part) * 100, fix: (ideal - measured) / gaps });
   }
+  // Below the floor there is nothing this can deliver, and trying puts its own
+  // staircase on a run that was travelling smoothly.
+  const worst = Math.max(...stops.map((stop) => Math.abs(stop.fix))) * gaps;
+  if (worst < TRACK_FLOOR) return null;
   // Both ends measure themselves, so the correction is zero there by
   // construction and the landing is untouched.
   return stops;
