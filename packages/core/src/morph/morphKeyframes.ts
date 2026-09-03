@@ -10,7 +10,10 @@ import {
   PINNED_POSE_TRANSFORM,
   pinnedPoseDecls,
   pinnedLiftDecl,
+  PINNED_BOX,
+  PINNED_BOX_HEIGHT,
   PINNED_TRACK,
+  pinnedBoxDecls,
   pinnedTrackDecl,
   pinnedTrackFixDecl,
   PINNED_TRAVEL,
@@ -51,8 +54,14 @@ const insetCss = (inset: MorphClipInset): string =>
 //
 // `translate` rather than `transform`, so an author's pose keeps `transform`
 // to itself and the two compose instead of overwriting one another.
-const boxBlock = (rect: MorphRect, moved: boolean) =>
-  `${moved ? "" : `    left: ${px(rect.x)};\n    top: ${px(rect.y)};\n`}    width: ${px(rect.width)};\n    height: ${px(rect.height)};`;
+// `sized` writes the box's own size through the channel instead of the
+// property, which is what keeps WebKit from dropping it (see morphPose).
+const boxBlock = (rect: MorphRect, moved: boolean, sized: boolean) =>
+  `${moved ? "" : `    left: ${px(rect.x)};\n    top: ${px(rect.y)};\n`}${
+    sized
+      ? pinnedBoxDecls(rect.width, rect.height)
+      : `    width: ${px(rect.width)};\n    height: ${px(rect.height)};`
+  }`;
 
 const declsToBlock = (decls: { property: string; value: string }[]): string =>
   decls.map((decl) => `    ${decl.property}: ${decl.value};`).join("\n");
@@ -105,6 +114,13 @@ export interface MorphKeyframeSet {
    * is what keeps its position on the same thread as its size.
    */
   translate: string | null;
+  /**
+   * The `width` and `height` the caller must set on the element, or null.
+   *
+   * Non-null where the box's size is driven through registered properties,
+   * which is what keeps an engine from dropping it (see morphPose).
+   */
+  size: { width: string; height: string } | null;
   /**
    * The `transform` the caller must set on the element, or null.
    *
@@ -340,6 +356,9 @@ export const buildMorphKeyframes = (input: {
   // The tracking correction needs the property to itself, which it gets by
   // carrying the author's own tracking alongside it on the same `calc`.
   const tracking = travelPinned && track && track.length > 1 ? track : null;
+  // The box's size goes through the channel wherever the keyframe is already
+  // animating custom properties, which is the case WebKit drops it in.
+  const sized = Boolean(box) && (moving || Boolean(tracking));
   if (moving) {
     // The element RESTS at its destination and is carried back to where it
     // started, so the position it is laid out at never moves.
@@ -369,8 +388,8 @@ export const buildMorphKeyframes = (input: {
     toParts.push(pinnedTravelDecls(end.x, end.y));
   }
   if (box) {
-    fromParts.push(boxBlock(box.from, moving));
-    toParts.push(boxBlock(box.to, moving));
+    fromParts.push(boxBlock(box.from, moving, sized));
+    toParts.push(boxBlock(box.to, moving, sized));
   }
   // A pinned pose is five numbers, which says ONE transform. Where an end
   // composes two — a measured travel with an author's flourish stacked on it —
@@ -530,6 +549,7 @@ export const buildMorphKeyframes = (input: {
     // transform is made of. Measured on the poster grid: its title began every
     // flight a pixel above the line it was flying from.
     translate: moving ? PINNED_TRAVEL : null,
+    size: sized ? { width: PINNED_BOX, height: PINNED_BOX_HEIGHT } : null,
     letterSpacing: tracking ? PINNED_TRACK : null
   };
 };

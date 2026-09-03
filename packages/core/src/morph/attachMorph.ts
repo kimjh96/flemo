@@ -487,11 +487,22 @@ const screenTransformOrigin = (
 // riding pair and a flying one cannot drift apart on it.
 const wear = (
   element: HTMLElement,
-  set: { translate: string | null; transform: string | null; letterSpacing: string | null }
+  set: {
+    translate: string | null;
+    transform: string | null;
+    letterSpacing: string | null;
+    size: { width: string; height: string } | null;
+  }
 ) => {
   if (set.translate) element.style.translate = set.translate;
   if (set.transform) element.style.transform = set.transform;
   if (set.letterSpacing) element.style.letterSpacing = set.letterSpacing;
+  // AFTER the staging that wrote the departure's own size: what the element
+  // wears now READS the channel, and the keyframe writes the channel.
+  if (set.size) {
+    element.style.width = set.size.width;
+    element.style.height = set.size.height;
+  }
 };
 
 const startFlight = (

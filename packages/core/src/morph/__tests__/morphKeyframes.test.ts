@@ -676,3 +676,52 @@ describe("buildMorphKeyframes() move channel", () => {
     expect(rule).toContain("--flemo-move-y: 14px");
   });
 });
+
+// A BOX THAT ANIMATES ITS OWN SIZE MUST NOT WRITE IT DIRECTLY.
+describe("buildMorphKeyframes() box size", () => {
+  const box = {
+    from: { x: 0, y: 0, width: 80, height: 80 } as MorphRect,
+    to: { x: 0, y: 0, width: 400, height: 300 } as MorphRect
+  };
+
+  it("drives the size through the channel wherever the keyframe animates properties", () => {
+    // WebKit drops an animated `width` on an element that is also animating a
+    // custom property. Reading the size from a registered length instead gives
+    // the engine nothing but custom properties to interpolate.
+    const built = buildMorphKeyframes({
+      id: "8b",
+      travel,
+      fade: null,
+      paint: [],
+      travelPinned: true,
+      box
+    });
+
+    expect(built.size).toEqual({ width: "var(--flemo-box-w)", height: "var(--flemo-box-h)" });
+    const rule = built.rules.find((r) => r.startsWith("@keyframes flemo-morph-8b-travel"))!;
+    expect(rule).toContain("--flemo-box-w: 80px");
+    expect(rule).toContain("--flemo-box-h: 300px");
+    expect(rule).not.toContain("width: 80px");
+  });
+
+  it("writes the size plainly where the keyframe animates nothing else through a property", () => {
+    const built = buildMorphKeyframes({
+      id: "9b",
+      travel,
+      fade: null,
+      paint: [],
+      box
+    });
+
+    expect(built.size).toBeNull();
+    const rule = built.rules.find((r) => r.startsWith("@keyframes flemo-morph-9b-travel"))!;
+    expect(rule).toContain("width: 80px");
+    expect(rule).not.toContain("--flemo-box-w");
+  });
+
+  it("has no size to wear where there is no box", () => {
+    expect(
+      buildMorphKeyframes({ id: "10b", travel, fade: null, paint: [], travelPinned: true }).size
+    ).toBeNull();
+  });
+});

@@ -124,8 +124,8 @@ describe("attachMorph", () => {
     const travel = inserted.find((rule) => rule.includes("-travel"))!;
     expect(travel).toContain("--flemo-move-x: 20px;");
     expect(travel).toContain("--flemo-move-y: 600px;");
-    expect(travel).toContain("width: 400px");
-    expect(travel).toContain("height: 300px");
+    expect(travel).toContain("--flemo-box-w: 400px");
+    expect(travel).toContain("--flemo-box-h: 300px");
     expect(hero.style.animation).toContain("flemo-morph-");
     expect(hero.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.ENTER);
     expect(thumbnail.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.EXIT);
@@ -832,16 +832,17 @@ describe("attachMorph", () => {
     expect(hero.parentElement).toBe(layer);
     expect(hero.style.position).toBe("absolute");
     expect(hero.style.left).toBe("0px");
-    // The BOX is the keyframe's alone. Writing it inline as well says the same
-    // thing twice from two cascade levels, and the duplicate only has to win
-    // once to strand the element at its departure size (see startFlight).
-    expect(hero.style.width).toBe("");
-    expect(hero.style.height).toBe("");
+    // The box's SIZE is the keyframe's alone. What the element wears inline is
+    // the channel that keyframe writes, never a copy of the value: a duplicate
+    // only has to win once to strand the element at its departure size, and a
+    // `var()` cannot, because there is only one value and the keyframe owns it.
+    expect(hero.style.width).toBe("var(--flemo-box-w)");
+    expect(hero.style.height).toBe("var(--flemo-box-h)");
     const travel = inserted.find((rule) => rule.includes("-travel"))!;
     expect(travel).toContain("--flemo-move-x: 20px;");
     expect(travel).toContain("--flemo-move-y: 600px;");
-    expect(travel).toContain("width: 80px");
-    expect(travel).toContain("width: 400px");
+    expect(travel).toContain("--flemo-box-w: 80px");
+    expect(travel).toContain("--flemo-box-w: 400px");
     // And its place is held by a copy of it, so nothing reflows while it is
     // away (see the stand-in test above).
     expect(home.querySelector("[data-flemo-morph-stand-in]")).not.toBeNull();
@@ -866,11 +867,11 @@ describe("attachMorph", () => {
 
     expect(hero.style.minHeight).toBe("0px");
     expect(hero.style.maxHeight).toBe("none");
-    // The clamps go; the box never came from here in the first place.
-    expect(hero.style.height).toBe("");
+    // The clamps go; the box's own size is read from the channel.
+    expect(hero.style.height).toBe("var(--flemo-box-h)");
     const grow = inserted.find((rule) => rule.includes("-travel"))!;
-    expect(grow).toContain("height: 80px");
-    expect(grow).toContain("height: 800px");
+    expect(grow).toContain("--flemo-box-h: 80px");
+    expect(grow).toContain("--flemo-box-h: 800px");
 
     hero.dispatchEvent(animationEndEvent(/flemo-morph-\d+i-travel/.exec(hero.style.animation)![0]));
     expect(hero.style.minHeight).toBe("100%");
@@ -939,8 +940,8 @@ describe("attachMorph", () => {
     // Travelling the other way: the box starts at the big cover's and ends at
     // the small one's.
     const travel = inserted.find((rule) => rule.includes("-travel"))!;
-    expect(travel).toContain("width: 400px");
-    expect(travel).toContain("width: 80px");
+    expect(travel).toContain("--flemo-box-w: 400px");
+    expect(travel).toContain("--flemo-box-w: 80px");
   });
 
   it("lets only the arriving side drive the flight", () => {
@@ -1065,8 +1066,8 @@ describe("attachMorph", () => {
     // Measured where they are, not shifted back by the outer screen's 400px.
     const travel = inserted.find((rule) => rule.includes("-travel"))!;
     expect(travel).toContain("--flemo-move-x: 80px;");
-    expect(travel).toContain("width: 80px");
-    expect(travel).toContain("width: 160px");
+    expect(travel).toContain("--flemo-box-w: 80px");
+    expect(travel).toContain("--flemo-box-w: 160px");
   });
 
   it("lands: the travel's end takes every trace of the flight with it", () => {
@@ -1201,7 +1202,7 @@ describe("attachMorph", () => {
     expect(travel).toBeDefined();
     expect(travel).toContain("--flemo-move-x: 20px;");
     expect(travel).toContain("--flemo-move-y: 600px;");
-    expect(travel).toContain("width: 400px");
+    expect(travel).toContain("--flemo-box-w: 400px");
     expect(hero.parentElement).toBe(layer);
   });
 
@@ -1284,12 +1285,12 @@ describe("attachMorph", () => {
     attachMorph(hero, { layoutId: "photo-1", name: "zoom", navigateStore: store });
 
     const registrations = inserted.filter((rule) => rule.startsWith("@property"));
-    expect(registrations).toHaveLength(10);
+    expect(registrations).toHaveLength(12);
 
     const second = makeMorph(detail, [0, 0, 400, 300]);
     attachMorph(second, { layoutId: "photo-2", name: "zoom", navigateStore: store });
 
-    expect(inserted.filter((rule) => rule.startsWith("@property"))).toHaveLength(10);
+    expect(inserted.filter((rule) => rule.startsWith("@property"))).toHaveLength(12);
   });
 
   it("leaves the camera literal where those properties cannot be registered", () => {
@@ -2143,7 +2144,7 @@ describe("attachMorph", () => {
     try {
       attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
       expect(hero.parentElement).toBe(layer);
-      expect(inserted.find((rule) => rule.includes("-travel"))).toContain("width: 400px");
+      expect(inserted.find((rule) => rule.includes("-travel"))).toContain("--flemo-box-w: 400px");
     } finally {
       vi.unstubAllGlobals();
     }
