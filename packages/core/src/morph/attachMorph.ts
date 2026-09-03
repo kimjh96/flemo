@@ -41,7 +41,14 @@ import {
 import { buildCameraKeyframes, buildMorphKeyframes, contentDecls } from "@morph/morphKeyframes";
 
 import { resolveMorphLayer } from "@morph/morphLayer";
-import { holdOneLine, holdsOneLine, leadingBias, leadingStops, trackStops } from "@morph/morphLine";
+import {
+  holdOneLine,
+  holdsOneLine,
+  leadingBias,
+  leadingOwed,
+  leadingStops,
+  trackStops
+} from "@morph/morphLine";
 import { paintTravel } from "@morph/morphPaint";
 
 import { IDENTITY_POSE, resolvePose } from "@morph/morphPose";
@@ -300,6 +307,22 @@ const typeTravel = (
   return {
     fontSize,
     leading: stairs,
+    // THE FLIGHT MUST BEGIN ON THE LINE THE DEPARTURE DREW.
+    //
+    // The staircase holds ONE leading for the whole flight so the rendered
+    // half-leading cannot step, and the one it holds is the ARRIVAL's, because
+    // that is the value the landing has to restore. At the other end that makes
+    // the first frame render a line-height the departure never had: measured on
+    // the poster grid, a title resting at 20px began its flight at 18px and its
+    // glyphs therefore began a whole pixel high, while its BOX sat exactly
+    // where it should. Both engines, every bench, and invisible to a net that
+    // watches boxes.
+    //
+    // Half the difference is what the baseline owes, and the box is where it
+    // gets paid: the same channel the ascent's cancellation already rides, with
+    // the same shape (owed at the start, nothing at the landing) and no
+    // property or keyframe of its own.
+    leadStart: leadingOwed(from, to, stairs),
     track: drift,
     // A variable font takes every weight between; a static family snaps to the
     // faces it has. Both are better than starting at the destination's.
@@ -683,6 +706,7 @@ const startFlight = (
     wordSpacing: type.wordSpacing,
     lineHeight: type.lineHeight,
     leading: type.leading,
+    leadStart: type.leadStart,
     lift: type.lift,
     track: type.track,
     travelPinned,
@@ -852,6 +876,7 @@ const startFlight = (
       wordSpacing: type.wordSpacing,
       lineHeight: type.lineHeight,
       leading: type.leading,
+      leadStart: type.leadStart,
       lift: type.lift,
       track: type.track,
       travelPinned,

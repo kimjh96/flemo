@@ -121,6 +121,47 @@ export interface LeadingEnd {
   leadOffset: number | null;
 }
 
+/**
+ * The half-leading a flight owes at its START, in px.
+ *
+ * The staircase holds ONE leading for the whole flight so the rendered
+ * half-leading cannot step, and the one it holds is the ARRIVAL's, because that
+ * is the value the landing has to restore. At the other end that makes the
+ * first frame render a line-height the departure never had, and half of that
+ * difference is where the departure's baseline sat.
+ *
+ * Half of the difference is not the answer, though: the engine puts the
+ * half-leading on a grid, so a line-height a pixel apart can render a whole
+ * pixel apart rather than half of one. Both ends reported where their line was
+ * actually put, so the grid is the one that reproduces both — the same
+ * authority `leadingBias` answers to — and where no candidate does, the
+ * arithmetic difference is the honest fallback.
+ */
+export const leadingOwed = (
+  from: LeadingEnd,
+  to: LeadingEnd,
+  stops: LeadingStop[] | null
+): number => {
+  if (stops === null) return 0;
+  if (from.lineHeight === null || from.textHeight === null) return 0;
+  const rested = (from.lineHeight - from.textHeight) / 2;
+  const flown = (stops[0]!.lineHeight - from.textHeight) / 2;
+  if (
+    from.leadOffset === null ||
+    to.leadOffset === null ||
+    to.lineHeight === null ||
+    to.textHeight === null
+  )
+    return rested - flown;
+  const quantum = quanta().find(
+    (q) =>
+      Math.abs(onGrid(rested, q) - from.leadOffset!) < SAME &&
+      Math.abs(onGrid((to.lineHeight! - to.textHeight!) / 2, q) - to.leadOffset!) < SAME
+  );
+  if (quantum === undefined) return rested - flown;
+  return onGrid(rested, quantum) - onGrid(flown, quantum);
+};
+
 export const leadingBias = (from: LeadingEnd, to: LeadingEnd): number => {
   const half = (end: LeadingEnd): number | null =>
     end.lineHeight === null || end.textHeight === null

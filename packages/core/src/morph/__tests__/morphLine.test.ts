@@ -7,6 +7,7 @@ import {
   holdOneLine,
   holdsOneLine,
   leadingBias,
+  leadingOwed,
   leadingStops,
   LINE_HOLD,
   trackStops
@@ -741,5 +742,62 @@ describe("trackStops", () => {
     expect(stops[0].at).toBe(0);
     expect(stops[stops.length - 1].at).toBe(100);
     for (let i = 1; i < stops.length; i += 1) expect(stops[i].at).toBeGreaterThan(stops[i - 1].at);
+  });
+});
+
+// THE FLIGHT MUST BEGIN ON THE LINE THE DEPARTURE DREW.
+//
+// The staircase holds the ARRIVAL's leading from the first frame, so the line
+// it renders at the departure is not the line the departure rendered. Half of
+// that difference is what the baseline owes, and it is measured on the grid the
+// engine actually put both ends on, not divided in two.
+describe("leadingOwed", () => {
+  const end = (lineHeight: number, textHeight: number, leadOffset: number | null) => ({
+    lineHeight,
+    textHeight,
+    leadOffset
+  });
+
+  const held = (lineHeight: number) => [
+    { at: 0, lineHeight, ascent: 12 },
+    { at: 100, lineHeight: 32, ascent: 24 }
+  ];
+
+  it("owes nothing where there is no staircase to hold a line at all", () => {
+    expect(leadingOwed(end(20, 14, 3), end(32, 24, 4), null)).toBe(0);
+  });
+
+  it("owes nothing where the flight already renders the departure's line", () => {
+    expect(leadingOwed(end(20, 14, 3), end(32, 24, 4), held(20))).toBe(0);
+  });
+
+  it("owes what the engine's grid puts between the two lines, not half of it", () => {
+    // A whole-pixel grid: 16px over a 13px face renders 1px of half-leading and
+    // 17px renders 2px, so a line-height one pixel apart is a baseline a WHOLE
+    // pixel apart. Halving the difference would pay half the debt.
+    expect(leadingOwed(end(16, 13, 1), end(20, 15, 2), held(17))).toBe(-1);
+  });
+
+  it("falls back to the arithmetic where no grid reproduces both ends", () => {
+    // Neither candidate grid puts the measured line where the engine said, so
+    // the claim about the grid is not one this can rest on.
+    expect(leadingOwed(end(20, 14, 99), end(32, 24, 99), held(18))).toBe(1);
+  });
+
+  it("stands down where an end cannot be measured", () => {
+    expect(
+      leadingOwed(
+        end(20, 14, 3),
+        { lineHeight: null, textHeight: null, leadOffset: null },
+        held(18)
+      )
+    ).toBe(1);
+    expect(
+      leadingOwed(
+        { lineHeight: null, textHeight: null, leadOffset: null },
+        end(32, 24, 4),
+        held(18)
+      )
+    ).toBe(0);
   });
 });

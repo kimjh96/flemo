@@ -621,3 +621,58 @@ describe("buildMorphKeyframes() tracking", () => {
     expect(built.rules.some((rule) => rule.includes("-track {"))).toBe(false);
   });
 });
+
+// WHOEVER WRITES THE CHANNEL MUST ALSO WEAR IT.
+describe("buildMorphKeyframes() move channel", () => {
+  const lift = [
+    { at: 0, ascent: 12 },
+    { at: 50, ascent: 13 },
+    { at: 100, ascent: 14 }
+  ];
+  const leading = [
+    { at: 0, lineHeight: 18 },
+    { at: 50, lineHeight: 19 },
+    { at: 100, lineHeight: 20 }
+  ];
+
+  it("wears the channel for a pair that rides its container, which has no box and no pose", () => {
+    // The case that was dead: neither a box travel nor a pose of its own, and
+    // an ascent staircase whose cancellation had nothing reading it.
+    const built = buildMorphKeyframes({
+      id: "6r",
+      travel: { ...travel, from: IDENTITY_POSE },
+      fade: null,
+      paint: [],
+      travelPinned: true,
+      fontSize: { from: 13, to: 24 },
+      leading,
+      lift
+    });
+
+    expect(built.translate).toBe(
+      "var(--flemo-move-x) calc(var(--flemo-move-y) + var(--flemo-lift-y))"
+    );
+    const rule = built.rules.find((r) => r.startsWith("@keyframes flemo-morph-6r-travel"))!;
+    expect(rule).toContain("--flemo-move-y: 12px");
+  });
+
+  it("pays the half-leading the staircase does not render at the departure", () => {
+    const built = buildMorphKeyframes({
+      id: "7r",
+      travel: { ...travel, from: IDENTITY_POSE },
+      fade: null,
+      paint: [],
+      travelPinned: true,
+      fontSize: { from: 13, to: 24 },
+      leading,
+      lift,
+      leadStart: 1
+    });
+
+    const rule = built.rules.find((r) => r.startsWith("@keyframes flemo-morph-7r-travel"))!;
+    // The ascent at the start plus what the baseline owes, and the landing
+    // untouched: the last stop is the arrival's own line.
+    expect(rule).toContain("--flemo-move-y: 13px");
+    expect(rule).toContain("--flemo-move-y: 14px");
+  });
+});

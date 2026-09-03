@@ -179,6 +179,15 @@ export const buildMorphKeyframes = (input: {
    */
   lift?: { at: number; ascent: number }[] | null;
   /**
+   * What the baseline owes at the START, in px, because the staircase holds the
+   * ARRIVAL's leading from the first frame (see attachMorph).
+   *
+   * Paid on the same channel as the ascent's cancellation and with the same
+   * shape: the whole amount at the departure, nothing at the landing, so what
+   * the flight travels is unchanged and only its first frame moves.
+   */
+  leadStart?: number | null;
+  /**
    * The correction that keeps a growing run of glyphs from drifting apart.
    *
    * A run's width against its size is one curve, and where it leaves the
@@ -272,6 +281,7 @@ export const buildMorphKeyframes = (input: {
     size,
     clip,
     leading,
+    leadStart,
     lift,
     track,
     pinned = false,
@@ -350,6 +360,9 @@ export const buildMorphKeyframes = (input: {
     const rise = lifting
       ? { from: lifting[0]!.ascent, to: lifting[lifting.length - 1]!.ascent }
       : { from: 0, to: 0 };
+    // And the half-leading the staircase does not render at the departure,
+    // owed only at the start because the last stop is the arrival's own line.
+    if (staircase && leadStart) rise.from += leadStart;
     const start = at("from", fromPoses, rise.from);
     const end = at("to", toPoses, rise.to);
     fromParts.push(pinnedTravelDecls(start.x, start.y));
@@ -506,7 +519,17 @@ export const buildMorphKeyframes = (input: {
     // decide what else has to wait must be told the truth about it.
     geometryAccelerated: !layoutBound && transform === null,
     transform,
-    translate: moving && (box || fromPoses.length > 0 || toPoses.length > 0) ? PINNED_TRAVEL : null,
+    // WHOEVER WRITES THE CHANNEL MUST ALSO WEAR IT.
+    //
+    // The move channel is written for every `moving` set, and what it carries
+    // is not only a box travel or a pose: a pair that rides its container has
+    // NEITHER and still has an ascent to cancel and a half-leading to pay. This
+    // asked for one of the two it happened to be built for, so a riding text
+    // pair animated both registered properties with nothing reading them, and
+    // the whole cancellation was dead on exactly the pairs a container
+    // transform is made of. Measured on the poster grid: its title began every
+    // flight a pixel above the line it was flying from.
+    translate: moving ? PINNED_TRAVEL : null,
     letterSpacing: tracking ? PINNED_TRACK : null
   };
 };
