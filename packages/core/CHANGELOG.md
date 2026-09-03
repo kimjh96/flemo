@@ -1,5 +1,33 @@
 # @flemo/core
 
+## 2.2.1
+
+### Patch Changes
+
+- [`7594fca`](https://github.com/kimjh96/flemo/commit/7594fca26e2351cd2f4c80e258d403dc7593fedb) Carry a type morph's baseline smoothly while its size travels. Holding the leading still left the glyphs stepping anyway, because the baseline sits an ascent below the line's top and the ascent climbs the same pixel grid the leading does. Neither can be made smooth, so the flight now sends the box the other way by exactly as much and the two cancel.
+
+- [`ba00e4b`](https://github.com/kimjh96/flemo/commit/ba00e4ba3f3023dbc7cfb7b1d10a5b147c228bc3) Hold a type morph's leading still for the whole flight. A line-height that interpolates smoothly against a face height that climbs in whole-pixel steps is a sawtooth, and it crossed the grid the engine renders leading on three times per flight on desktop Chrome, which read as a tremor with the type nudged down a moment after it landed. The line-height now climbs the same steps the face does, read off the font itself rather than measured with layout, and an engine whose face height is continuous is left exactly as it was.
+
+- [`702fec3`](https://github.com/kimjh96/flemo/commit/702fec3aab535e1c89c5932f704fed2a252ac5f3) Compile the transition stylesheet once per registry rather than once per registration. A Router's definitions are usually an array literal, so its registration effect tears down and re-runs on every render, recompiling every keyframe twice for a set that did not change. Profiled on a stack holding several Routers, that was a 237 ms frame on every navigation, growing with each one.
+
+- [`ba123f1`](https://github.com/kimjh96/flemo/commit/ba123f1d3b9364e279627455c4dbf1ad594eb86a) Hand a swipe's morph and riders back by placing their start time rather than calling `play()`. A pending play resumed at a time each engine resolved differently, so on WebKit the shared element froze at the pose the finger let go of while the screens slid out from under it, then jumped to the arrival in one frame.
+
+- [`a477e51`](https://github.com/kimjh96/flemo/commit/a477e510ccdf18730a4a7ce4b86df3b6c80f9d66) Only carry a type morph's ascent backwards where there is a box to carry it on. A nested pair riding its container has no box channel, so the transform that takes the ascent off was emitted with nothing to send the box up by the same amount, and the line started an ascent too high. Reported from the poster grid as a title jumping twelve pixels up at the first frame.
+
+- [`ddb6d02`](https://github.com/kimjh96/flemo/commit/ddb6d02d1d28317726c1b51a7632f6bc2ac57aa8) Keep a morph's leading inside one step of the grid its engine puts lines on. Both engines floor the half-leading, and an interpolation only holds its endpoint from the instant the flight lands, so a line whose arrival half-leading sits on a step rendered one down for the whole flight and dropped there at the landing. The grid is not assumed: whole CSS pixels and device pixels are both tried, the one that reproduces what both ends actually rendered is used, and the correction stands down when neither does.
+
+- [`8a8b56d`](https://github.com/kimjh96/flemo/commit/8a8b56dfc3e1cd83ae1d5e547f2307f714c277e6) Present every part of a morph flight on the thread that presents the element it is placed against. A ghost, a nested pair and a `carry: "screen"` camera were each free to be run by the compositor while the element travelled by its box on the main thread, so they advanced on frames the element never reached. This applies to any transition, authored or preset, rather than to any one of them.
+
+- [`6bdf48b`](https://github.com/kimjh96/flemo/commit/6bdf48b5077e87543541d8b43ef6f3b1c1faafaf) Drive a flight's position through registered properties, so it stays on the thread its size is on. WebKit runs a `translate` on the compositor even where the same keyframe animates a `width`, which left a line of type's position running ahead of its own size and reading as the text arriving late. Where the properties cannot be registered the position goes back to `left` and `top`.
+
+- [`0cede61`](https://github.com/kimjh96/flemo/commit/0cede6143cb6db6ade0ffd476fd510477b8fe25d) Bound a parked screen's opacity by the composite rather than by eye. A park is drawn over its cover, so the most it can move a pixel is its opacity times the two colours' distance, and an eight-bit composite steps at 1/255 — under that it cannot move one whatever it is drawn over. At 0.02 it was five steps, and a tab switch parks a whole screen for the length of the hold: reported on iOS Safari as the next tab showing through before its transition.
+
+- [`f352397`](https://github.com/kimjh96/flemo/commit/f35239705bd12d133886c5459e8861147100d4cc) Stop reading a fractional layer layout as a scale. `offsetWidth` is rounded and the painted box is not, so a stage sized by `aspect-ratio` against a viewport that is not a round number inflated every staged rect by up to half a pixel, and the flight stepped that far at the landing.
+
+- [`ddb6d02`](https://github.com/kimjh96/flemo/commit/ddb6d02d1d28317726c1b51a7632f6bc2ac57aa8) Hold a text morph to one line for the length of its flight. The flying element is the arrival's tree, so it re-wrapped at every width between the two ends under rules nothing chose for the widths in between: a cell's meta line broke after its middle dot at the small end of a push and unwrapped four frames later.
+
+- [`52078fb`](https://github.com/kimjh96/flemo/commit/52078fb80623140a62ed98d0185baff33502001f) Move a flight's position from `left` and `top` onto `translate`, keeping the size on layout. Blink paints text at a layout position on whole CSS pixels, so a line of type travelling by its box stepped a full pixel at a time while every layout measurement of it reported a smooth curve. The size still animates, so the words still re-typeset on the way.
+
 ## 2.2.0
 
 ### Minor Changes

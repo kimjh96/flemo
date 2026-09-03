@@ -1,5 +1,14 @@
 # @flemo/web
 
+## 0.11.3
+
+### Patch Changes
+
+- Updated dependencies ([`7594fca`](https://github.com/kimjh96/flemo/commit/7594fca26e2351cd2f4c80e258d403dc7593fedb), [`ba00e4b`](https://github.com/kimjh96/flemo/commit/ba00e4ba3f3023dbc7cfb7b1d10a5b147c228bc3), [`702fec3`](https://github.com/kimjh96/flemo/commit/702fec3aab535e1c89c5932f704fed2a252ac5f3), [`ba123f1`](https://github.com/kimjh96/flemo/commit/ba123f1d3b9364e279627455c4dbf1ad594eb86a), [`a477e51`](https://github.com/kimjh96/flemo/commit/a477e510ccdf18730a4a7ce4b86df3b6c80f9d66), [`ddb6d02`](https://github.com/kimjh96/flemo/commit/ddb6d02d1d28317726c1b51a7632f6bc2ac57aa8), [`8a8b56d`](https://github.com/kimjh96/flemo/commit/8a8b56dfc3e1cd83ae1d5e547f2307f714c277e6), [`6bdf48b`](https://github.com/kimjh96/flemo/commit/6bdf48b5077e87543541d8b43ef6f3b1c1faafaf), [`0cede61`](https://github.com/kimjh96/flemo/commit/0cede6143cb6db6ade0ffd476fd510477b8fe25d), [`f352397`](https://github.com/kimjh96/flemo/commit/f35239705bd12d133886c5459e8861147100d4cc), [`ddb6d02`](https://github.com/kimjh96/flemo/commit/ddb6d02d1d28317726c1b51a7632f6bc2ac57aa8), [`52078fb`](https://github.com/kimjh96/flemo/commit/52078fb80623140a62ed98d0185baff33502001f)):
+  - @flemo/core@2.2.1
+  - @flemo/devtools@0.4.0
+  - @flemo/react@2.2.1
+
 ## 0.11.2
 
 ### Patch Changes
