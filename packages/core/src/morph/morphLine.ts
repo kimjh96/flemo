@@ -24,6 +24,11 @@
 // `MorphSnapshot.singleLine`), because clipping anything else would hide
 // content the flight is supposed to be carrying.
 
+import type { AnimationOptions } from "@transition/cssTypes";
+import { invertEasing } from "@transition/cubicBezier";
+
+import { faceHeight, faceHeightAt, faceRatios, faceSteps, type FaceRatios } from "@morph/morphFace";
+
 /** The properties the hold writes, so a caller can reason about what it costs. */
 export const LINE_HOLD = {
   whiteSpace: "nowrap",
@@ -144,3 +149,118 @@ export const leadingBias = (from: LeadingEnd, to: LeadingEnd): number => {
 };
 
 export default holdOneLine;
+
+// A LINE-HEIGHT THAT CLIMBS THE SAME STAIRS THE FACE DOES.
+//
+// The bias above puts the two ENDS of a flight inside one step of the grid, and
+// where the face height is continuous that is the whole story. Where it is
+// quantised (see morphFace) it is not: between the ends the half-leading is a
+// smooth line minus a staircase, which is a sawtooth, and it crosses whatever
+// grid the engine renders leading on several times per flight. Device-reported
+// on desktop Chrome as a tremor with a nudge at the end.
+//
+// So the line-height is emitted as its own staircase instead, holding the
+// half-leading at ONE value for the whole flight: the value the arrival rests
+// at, which is what makes the landing exact. The departure's own leading may
+// differ by up to half a pixel, and that difference lands on the first frame,
+// under a ghost that is still fully opaque.
+//
+// Simulated against the layout's own face heights at 61 points across the
+// playground's title flight: eleven steps today, none with this.
+
+export interface LeadingEndType {
+  fontSize: number | null;
+  lineHeight: number | null;
+  /** The face height the engine actually reported for this end. */
+  textHeight: number | null;
+}
+
+export interface LeadingStop {
+  /** Percent of the flight, 0 to 100. */
+  at: number;
+  lineHeight: number;
+}
+
+/** How close a prediction has to be to what was measured to be believed. */
+const EXACT = 1e-6;
+
+// The stairs a pair climbs never change while the face does not, and the
+// bisection that finds them is the only part of a type morph that is not
+// arithmetic. Measured at about 4ms for a first flight and nothing after it.
+const stopCache = new Map<string, LeadingStop[] | null>();
+
+/**
+ * The line-height stops that hold a type morph's leading still, or null.
+ *
+ * Null wherever the correction cannot be justified: a face whose metrics cannot
+ * be read, an end that was never measured, a flight whose type does not change
+ * size, and — the one that matters — a prediction that does not reproduce what
+ * the engine actually reported at BOTH ends. That last is what stands in for a
+ * browser check: an engine that does not quantise its face heights fails it at
+ * every size, and is left alone.
+ */
+export const leadingStops = (
+  from: LeadingEndType,
+  to: LeadingEndType,
+  font: { family: string; weight: string | number; style: string } | null,
+  ease: AnimationOptions["ease"]
+): LeadingStop[] | null => {
+  if (!font) return null;
+  if (from.fontSize === null || to.fontSize === null) return null;
+  if (from.lineHeight === null || to.lineHeight === null) return null;
+  if (from.textHeight === null || to.textHeight === null) return null;
+  if (Math.abs(from.fontSize - to.fontSize) < EXACT) return null;
+
+  const key = `${font.style}|${font.weight}|${font.family}|${from.fontSize}|${to.fontSize}|${from.lineHeight}|${to.lineHeight}|${from.textHeight}|${to.textHeight}|${JSON.stringify(ease ?? null)}`;
+  const cached = stopCache.get(key);
+  if (cached !== undefined) return cached;
+  const built = buildStops(from as MeasuredEnd, to as MeasuredEnd, font, ease);
+  stopCache.set(key, built);
+  return built;
+};
+
+/** The same two ends, with everything the caller has already checked for. */
+interface MeasuredEnd {
+  fontSize: number;
+  lineHeight: number;
+  textHeight: number;
+}
+
+const buildStops = (
+  from: MeasuredEnd,
+  to: MeasuredEnd,
+  font: { family: string; weight: string | number; style: string },
+  ease: AnimationOptions["ease"]
+): LeadingStop[] | null => {
+  const ratios = faceRatios(font);
+  if (!ratios) return null;
+  // THE MEASUREMENT IS THE AUTHORITY. A predicted face height that does not
+  // reproduce both ends is a prediction about the wrong engine.
+  if (!reproduces(from, ratios) || !reproduces(to, ratios)) return null;
+
+  // The leading the arrival RESTS at, which every stop is built to preserve.
+  const leading = to.lineHeight - to.textHeight;
+  const invert = invertEasing(ease);
+  const span = to.fontSize - from.fontSize;
+  const stops: LeadingStop[] = [{ at: 0, lineHeight: from.textHeight + leading }];
+  for (const step of faceSteps(from.fontSize, to.fontSize, ratios, (size) =>
+    faceHeight(size, font)
+  )) {
+    // Font size interpolates with the eased progress, so the TIME a step is met
+    // is the time at which the ease has travelled that far.
+    const at = invert((step.size - from.fontSize) / span) * 100;
+    /* v8 ignore next -- faceSteps returns only sizes strictly inside the range,
+       so a stop cannot land on either end. */
+    if (at <= 0 || at >= 100) continue;
+    stops.push({ at, lineHeight: step.height + leading });
+  }
+  // The last stop is the arrival's own line-height by construction, so the
+  // landing restores exactly what the flight ended on.
+  stops.push({ at: 100, lineHeight: to.lineHeight });
+  return stops.length > 2 ? stops : null;
+};
+
+const reproduces = (end: LeadingEndType, ratios: FaceRatios): boolean =>
+  end.fontSize !== null &&
+  end.textHeight !== null &&
+  Math.abs(faceHeightAt(end.fontSize, ratios) - end.textHeight) < EXACT;

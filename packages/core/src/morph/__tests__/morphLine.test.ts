@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { captureMorphSnapshot, isSingleLine } from "@morph/morphGeometry";
-import { holdOneLine, holdsOneLine, leadingBias, LINE_HOLD } from "@morph/morphLine";
+import { holdOneLine, holdsOneLine, leadingBias, leadingStops, LINE_HOLD } from "@morph/morphLine";
 
 const setRect = (element: HTMLElement, width: number, height: number) => {
   element.getBoundingClientRect = () =>
@@ -339,5 +339,199 @@ describe("captureMorphSnapshot type metrics", () => {
     withChild.appendChild(document.createElement("b"));
 
     expect(captureMorphSnapshot(withChild).textHeight).toBeNull();
+  });
+});
+
+// A LINE-HEIGHT THAT CLIMBS THE SAME STAIRS THE FACE DOES.
+//
+// The bias above puts the two ENDS of a flight inside one step of the grid.
+// Between them the half-leading is a smooth line minus a staircase, which is a
+// sawtooth, and on Blink it crosses the grid several times per flight. Device
+// numbers, desktop Chrome, the playground's title: `2 -> 1.5 -> 1 -> 1.5` in one
+// flight, and the last of those is what reads as the type being nudged down a
+// moment after it lands.
+describe("leadingStops", () => {
+  const FONT = { family: "Test Sans", weight: 800, style: "normal" };
+  // A face that rounds each half of its height, the way Blink's does.
+  const stub = (ascent: number, descent: number) => {
+    const context = {
+      font: "",
+      measureText: () => {
+        const size = Number.parseFloat(
+          context.font.split(" ").find((part) => part.endsWith("px")) ?? "0"
+        );
+        return {
+          fontBoundingBoxAscent: Math.round(size * ascent),
+          fontBoundingBoxDescent: Math.round(size * descent)
+        };
+      }
+    };
+    return vi
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockImplementation(() => context as unknown as CanvasRenderingContext2D);
+  };
+  const height = (size: number, a = 0.95, d = 0.25) => Math.round(size * a) + Math.round(size * d);
+  const end = (fontSize: number, lineHeight: number, a = 0.95, d = 0.25) => ({
+    fontSize,
+    lineHeight,
+    textHeight: height(fontSize, a, d)
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("holds the leading at the arrival's own value for the whole flight", () => {
+    stub(0.95, 0.25);
+    const from = end(14, 20);
+    const to = end(24, 32);
+
+    const stops = leadingStops(from, to, { ...FONT, family: "Hold Sans" }, undefined)!;
+
+    expect(stops).not.toBeNull();
+    const leading = to.lineHeight - to.textHeight;
+    for (const stop of stops) {
+      // Every stop is a face height the flight passes through plus one fixed
+      // leading, which is what makes the rendered half-leading a constant.
+      const face = stop.lineHeight - leading;
+      expect(face).toBe(Math.round(face));
+      expect(face).toBeGreaterThanOrEqual(height(14));
+      expect(face).toBeLessThanOrEqual(height(24));
+    }
+    // And they climb, one step at a time, exactly as the face does.
+    expect(stops.map((s) => s.lineHeight)).toEqual(
+      [...stops.map((s) => s.lineHeight)].sort((a, b) => a - b)
+    );
+  });
+
+  it("lands on the arrival's authored line-height, so the landing is exact", () => {
+    stub(0.95, 0.25);
+
+    const stops = leadingStops(
+      end(14, 20),
+      end(24, 32),
+      { ...FONT, family: "Land Sans" },
+      undefined
+    )!;
+
+    expect(stops[stops.length - 1]).toEqual({ at: 100, lineHeight: 32 });
+  });
+
+  it("stands down where the face height does not step", () => {
+    // An engine that reports a continuous face height has no staircase to
+    // climb, and its leading already holds still. This is what stands in for a
+    // browser check: the prediction simply fails to reproduce the ends.
+    stub(0.95, 0.25);
+    const smooth = (fontSize: number, lineHeight: number) => ({
+      fontSize,
+      lineHeight,
+      textHeight: fontSize * 1.2
+    });
+
+    expect(
+      leadingStops(smooth(14, 20), smooth(24, 32), { ...FONT, family: "Smooth Sans" }, undefined)
+    ).toBeNull();
+  });
+
+  it("stands down for type that does not change size", () => {
+    stub(0.95, 0.25);
+
+    expect(
+      leadingStops(end(24, 32), end(24, 34), { ...FONT, family: "Same Sans" }, undefined)
+    ).toBeNull();
+  });
+
+  it("stands down where an end was never measured, and where there is no face", () => {
+    stub(0.95, 0.25);
+
+    expect(
+      leadingStops(
+        { fontSize: null, lineHeight: 20, textHeight: 17 },
+        end(24, 32),
+        { ...FONT, family: "Partial Sans" },
+        undefined
+      )
+    ).toBeNull();
+    expect(
+      leadingStops(
+        { fontSize: 14, lineHeight: null, textHeight: 17 },
+        end(24, 32),
+        { ...FONT, family: "Partial Sans" },
+        undefined
+      )
+    ).toBeNull();
+    expect(
+      leadingStops(
+        { fontSize: 14, lineHeight: 20, textHeight: null },
+        end(24, 32),
+        { ...FONT, family: "Partial Sans" },
+        undefined
+      )
+    ).toBeNull();
+    expect(leadingStops(end(14, 20), end(24, 32), null, undefined)).toBeNull();
+  });
+
+  it("places each stop at the TIME the ease reaches it, not at its share of the range", () => {
+    // Font size travels with the eased progress, so a step two-thirds of the
+    // way through the sizes is met long before two-thirds of the flight under
+    // a curve that opens fast.
+    stub(0.95, 0.25);
+
+    const eased = leadingStops(
+      end(14, 20),
+      end(24, 32),
+      { ...FONT, family: "Eased Sans" },
+      [0.32, 0.72, 0, 1]
+    )!;
+    const linear = leadingStops(
+      end(14, 20),
+      end(24, 32),
+      { ...FONT, family: "Linear Sans" },
+      [0, 0, 1, 1]
+    )!;
+
+    expect(eased.length).toBe(linear.length);
+    // The same stops, met earlier: an ease that front-loads its travel reaches
+    // every size sooner than a straight line does.
+    expect(eased[1]!.at).toBeLessThan(linear[1]!.at);
+  });
+
+  it("stands down where the face steps nowhere inside the flight", () => {
+    // Both ends reproduce, so the engine is one that quantises — but a range
+    // this narrow crosses no boundary, and a staircase with no stairs is just
+    // the line-height the flight already had.
+    stub(0.95, 0.25);
+
+    expect(
+      leadingStops(end(20.2, 27), end(20.4, 27.2), { ...FONT, family: "Narrow Sans" }, undefined)
+    ).toBeNull();
+  });
+
+  it("drops a step that falls outside the flight's own window", () => {
+    // A boundary the ease reaches only at the very ends is already carried by
+    // the stops that bracket it.
+    stub(0.95, 0.25);
+    const stops = leadingStops(
+      end(14, 20),
+      end(24, 32),
+      { ...FONT, family: "Edge Sans" },
+      undefined
+    )!;
+
+    for (const stop of stops.slice(1, -1)) {
+      expect(stop.at).toBeGreaterThan(0);
+      expect(stop.at).toBeLessThan(100);
+    }
+  });
+
+  it("remembers a pair's stairs rather than bisecting them twice", () => {
+    const context = stub(0.95, 0.25);
+    const args = [end(14, 20), end(24, 32), { ...FONT, family: "Cached Sans" }, undefined] as const;
+
+    leadingStops(...args);
+    const first = context.mock.calls.length;
+    leadingStops(...args);
+
+    expect(context.mock.calls.length).toBe(first);
   });
 });

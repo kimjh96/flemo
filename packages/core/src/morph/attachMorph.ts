@@ -41,7 +41,7 @@ import {
 import { buildCameraKeyframes, buildMorphKeyframes, contentDecls } from "@morph/morphKeyframes";
 
 import { resolveMorphLayer } from "@morph/morphLayer";
-import { holdOneLine, holdsOneLine, leadingBias } from "@morph/morphLine";
+import { holdOneLine, holdsOneLine, leadingBias, leadingStops } from "@morph/morphLine";
 import { paintTravel } from "@morph/morphPaint";
 
 import { IDENTITY_POSE, resolvePose } from "@morph/morphPose";
@@ -275,16 +275,26 @@ interface TypeFace {
   leadOffset: number | null;
 }
 
-const typeTravel = (from: TypeFace, to: TypeFace) => {
+const typeTravel = (
+  from: TypeFace,
+  to: TypeFace,
+  font: { family: string; weight: string | number; style: string } | null,
+  ease: AnimationOptions["ease"]
+) => {
   const fontSize = channel(from.fontSize, to.fontSize, 0.5);
   const leading = channel(from.lineHeight, to.lineHeight, 0.25);
+  // THE STAIRCASE FIRST, where the engine's face height turns out to climb one.
+  // It holds the rendered leading at ONE value for the whole flight, which is
+  // strictly more than the bias below can do, so the bias stands aside for it.
+  const stairs = fontSize ? leadingStops(from, to, font, ease) : null;
   // Owed only where the rendered half-leading MOVES, which is a leading that
   // interpolates or a size that does underneath one that does not. Both ends
   // take the same amount, so what the flight travels is unchanged and only the
   // pixel of half-leading it renders in moves (see morphLine).
-  const bias = fontSize || leading ? leadingBias(from, to) : 0;
+  const bias = stairs === null && (fontSize || leading) ? leadingBias(from, to) : 0;
   return {
     fontSize,
+    leading: stairs,
     // A variable font takes every weight between; a static family snaps to the
     // faces it has. Both are better than starting at the destination's.
     fontWeight: channel(from.fontWeight, to.fontWeight, 1),
@@ -519,7 +529,19 @@ const startFlight = (
       ? isSingleLine(entry.restSize.height, side.lineHeight, side.fontSize)
       : side.singleLine;
   const crossFade = clamp01(transition.crossFade ?? 0.55);
-  const type = typeTravel(captured.snapshot, side);
+  // The face the flight wears. Its height is what the leading is measured
+  // against, and on Blink it is quantised; the ratios come off a canvas rather
+  // than a layout probe, once per face for the session (see morphFace).
+  const face =
+    typeof getComputedStyle === "function"
+      ? (() => {
+          const cs = getComputedStyle(entry.element);
+          return cs.fontFamily
+            ? { family: cs.fontFamily, weight: cs.fontWeight, style: cs.fontStyle }
+            : null;
+        })()
+      : null;
+  const type = typeTravel(captured.snapshot, side, face, ease);
   // Everything else the two ends paint differently, from the table rather than
   // from a branch per property (see morphPaint). `radius: false` is how a morph
   // transition opts one out — the `text` preset does, because type has no
@@ -622,6 +644,7 @@ const startFlight = (
     letterSpacing: type.letterSpacing,
     wordSpacing: type.wordSpacing,
     lineHeight: type.lineHeight,
+    leading: type.leading,
     // The arrival fades only if the author gave it an entry pose to fade from.
     // The presets do not: the arrival is opaque and the ghost dissolves on top
     // of it, because fading both bleeds the background through the pair.
@@ -787,6 +810,7 @@ const startFlight = (
       letterSpacing: type.letterSpacing,
       wordSpacing: type.wordSpacing,
       lineHeight: type.lineHeight,
+      leading: type.leading,
       aspectRatio: reshapes
         ? { from: captured.snapshot.aspectRatio!, to: side.aspectRatio! }
         : null,

@@ -143,6 +143,71 @@ describe("buildMorphKeyframes", () => {
     });
   });
 
+  // A LEADING THAT DOES NOT DRIFT.
+  //
+  // The line-height rides its own animation because it needs its own timing:
+  // each stop HOLDS until the next, which is what a staircase is, and one
+  // keyframe cannot hold a channel while easing the rest.
+  describe("a line-height staircase", () => {
+    const stairs = [
+      { at: 0, lineHeight: 20 },
+      { at: 40, lineHeight: 25 },
+      { at: 100, lineHeight: 32 }
+    ];
+    const built = () =>
+      buildMorphKeyframes({
+        id: "1s",
+        travel,
+        lineHeight: { from: 20, to: 32 },
+        leading: stairs,
+        fade: null,
+        paint: []
+      });
+
+    it("rides its own animation, holding each value until the next", () => {
+      const { rules, animation } = built();
+      const lead = rules.find((rule) => rule.includes("-lead"))!;
+
+      expect(lead).toContain("0.0000% {");
+      expect(lead).toContain("line-height: 20px;");
+      expect(lead).toContain("line-height: 32px;");
+      expect(lead).toContain("animation-timing-function: steps(1, end);");
+      expect(animation).toContain("flemo-morph-1s-lead");
+    });
+
+    it("runs linear, because the stops already carry the flight's curve", () => {
+      // They sit where the ease reaches each face height; easing between them
+      // again would move them off it.
+      expect(built().animation).toContain("flemo-morph-1s-lead 0.400s linear");
+    });
+
+    it("takes the channel off the geometry keyframe, so the two cannot both author it", () => {
+      const geometry = built().rules.find((rule) => rule.includes("-travel"))!;
+
+      expect(geometry).not.toContain("line-height");
+    });
+
+    it("leaves the geometry keyframe alone where there are no stairs to climb", () => {
+      const plain = buildMorphKeyframes({
+        id: "1t",
+        travel,
+        lineHeight: { from: 20, to: 32 },
+        leading: null,
+        fade: null,
+        paint: []
+      });
+
+      expect(plain.rules.find((rule) => rule.includes("-travel"))).toContain("line-height: 20px;");
+      expect(plain.rules.some((rule) => rule.includes("-lead"))).toBe(false);
+    });
+
+    it("is the main thread's work, and says so", () => {
+      // A line-height is not something a compositor can run, so a set carrying
+      // one cannot be accelerated and anything registered with it must know.
+      expect(built().geometryAccelerated).toBe(false);
+    });
+  });
+
   it("gives the fade and the corner their own clocks", () => {
     // Different windows on purpose: the cross-fade has to be over while the two
     // sides still overlap, the corner has to track the scale for the whole

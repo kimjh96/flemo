@@ -108,6 +108,16 @@ export const buildMorphKeyframes = (input: {
   box?: { from: MorphRect; to: MorphRect } | null;
   /** Type morphs by growing, not by being scaled: px at each end. */
   fontSize?: { from: number; to: number } | null;
+  /**
+   * The line-height as a STAIRCASE, holding the leading still for the flight.
+   *
+   * Supersedes `lineHeight` where it is given: the two cannot both author the
+   * property, and the staircase is the one that keeps the glyphs from stepping
+   * inside the box (see morphLine). It rides its own animation because it needs
+   * its own timing — each stop HOLDS until the next, which is what a staircase
+   * is, and the geometry keyframe cannot hold one channel while easing the rest.
+   */
+  leading?: { at: number; lineHeight: number }[] | null;
   /** Type's other two dimensions, so it re-typesets rather than merely re-sizing. */
   fontWeight?: { from: number; to: number } | null;
   letterSpacing?: { from: number; to: number } | null;
@@ -182,6 +192,7 @@ export const buildMorphKeyframes = (input: {
     margin,
     size,
     clip,
+    leading,
     pinned = false
   } = input;
   const rules: string[] = [];
@@ -194,6 +205,7 @@ export const buildMorphKeyframes = (input: {
   const toParts: string[] = [];
   // Anything but the transform takes the whole keyframe off the compositor, so
   // a set carrying any of it is the main thread's already and needs no pinning.
+  const staircase = leading && leading.length > 1 ? leading : null;
   const layoutBound = Boolean(
     box ||
     fontSize ||
@@ -259,7 +271,7 @@ export const buildMorphKeyframes = (input: {
       `    word-spacing: ${px(wordSpacing.from)};`,
       `    word-spacing: ${px(wordSpacing.to)};`
     );
-  if (lineHeight)
+  if (lineHeight && !staircase)
     pushSize(`    line-height: ${px(lineHeight.from)};`, `    line-height: ${px(lineHeight.to)};`);
   if (aspectRatio)
     pushSize(`    aspect-ratio: ${aspectRatio.from};`, `    aspect-ratio: ${aspectRatio.to};`);
@@ -290,6 +302,23 @@ export const buildMorphKeyframes = (input: {
       const fadeStart = (travel.start + (fade.delay ?? 0)).toFixed(3);
       animations.push(`${fadeName} ${fade.duration.toFixed(3)}s ${easing} ${fadeStart}s both`);
     }
+  }
+
+  if (staircase) {
+    const leadName = `flemo-morph-${id}-lead`;
+    // `steps(1, end)` on every stop is what makes this a staircase rather than
+    // a ramp: each value is held for its whole interval and changes at the
+    // instant the face height it matches does.
+    const blocks = staircase
+      .map(
+        (stop) =>
+          `  ${stop.at.toFixed(4)}% {\n    line-height: ${px(stop.lineHeight)};\n    animation-timing-function: steps(1, end);\n  }`
+      )
+      .join("\n");
+    rules.push(`@keyframes ${leadName} {\n${blocks}\n}`);
+    // Linear, because the stops already carry the flight's easing in WHERE they
+    // sit; easing between them again would move them.
+    animations.push(`${leadName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
   }
 
   if (paint.length > 0) {
