@@ -13,7 +13,8 @@ import {
   PINNED_BOX,
   PINNED_BOX_HEIGHT,
   PINNED_TRACK,
-  pinnedBoxDecls,
+  onRuler,
+  pinnedBoxDeclsOnRuler,
   pinnedTrackDecl,
   pinnedTrackFixDecl,
   PINNED_TRAVEL,
@@ -59,7 +60,7 @@ const insetCss = (inset: MorphClipInset): string =>
 const boxBlock = (rect: MorphRect, moved: boolean, sized: boolean) =>
   `${moved ? "" : `    left: ${px(rect.x)};\n    top: ${px(rect.y)};\n`}${
     sized
-      ? pinnedBoxDecls(rect.width, rect.height)
+      ? pinnedBoxDeclsOnRuler(rect.width, rect.height)
       : `    width: ${px(rect.width)};\n    height: ${px(rect.height)};`
   }`;
 
@@ -199,6 +200,17 @@ export const buildMorphKeyframes = (input: {
    * being laid out.
    */
   box?: { from: MorphRect; to: MorphRect } | null;
+  /**
+   * Whether the two ends lay their CONTENTS out in the same places, measured.
+   *
+   * A box animates for real wherever this is false, because something inside
+   * has a different place at the two ends and only a layout per frame can take
+   * it there. Where it is true the subtree is the same picture at every size on
+   * the way, so the box is laid out ONCE and the near edge is cut back with a
+   * clip instead (see the reveal below). It is measured rather than inferred
+   * from the box's shape: a shape says nothing about a consumer's subtree.
+   */
+  contentsHold?: boolean;
   /** Type morphs by growing, not by being scaled: px at each end. */
   fontSize?: { from: number; to: number } | null;
   /**
@@ -348,6 +360,7 @@ export const buildMorphKeyframes = (input: {
     margin,
     size,
     clip,
+    contentsHold = false,
     radius,
     leading,
     leadStart,
@@ -451,44 +464,57 @@ export const buildMorphKeyframes = (input: {
   );
   // A BOX WHOSE SIZE ANIMATES IS RE-RASTERED, AND THE RASTER SHIMMERS.
   //
-  // TRIED AND REVERTED: deleting this and letting the size animate for real,
-  // on the reading that the shimmer was the far edge arriving as a sum. The sum
-  // was real and is fixed above, and it was not this: with the edge anchored
-  // and the width animating, the icon's LAYOUT x held at 307.500 on every one
-  // of twenty-three frames and it still trembled on glass. Layout is not paint.
-  // What moves is the raster of a subtree whose container is a different size
-  // every frame, and no arithmetic on the box can settle that.
-  //
-  // Which is also why the precondition below is about the BOX and not about the
-  // contents: this runtime cannot know whether a consumer's subtree would
-  // reflow, so it only takes this path where the box's own picture is provably
-  // the same one — same height, same far edge, no clip of its own.
-  //
   // Animating the size is what makes a morph a growth rather than a stretch:
-  // the subtree lays itself out at every width on the way, which is the only
-  // way text can re-wrap into its new shape. It is also a full layout and a
-  // fresh raster of that subtree on every frame, and a raster that lands on a
-  // different sub-pixel each time SHIMMERS. Device-read on a consumer's pill,
-  // its icon alternated between two positions 1.25 device pixels apart, frame
-  // after frame, for the whole flight and past the landing; holding the box at
-  // one size stopped it dead.
+  // the subtree lays itself out at every size on the way, which is the only way
+  // text can re-wrap into its new shape. It is also a full layout and a fresh
+  // raster of that subtree on every frame, and WebKit re-snaps the backing to
+  // the device grid each time, so the contents are carried a device pixel back
+  // and forth for the whole flight whether they needed to move or not.
   //
-  // Where the two ends share an edge and differ only in WIDTH, nothing inside
-  // needs a second layout: the wider end already contains the narrower one's
-  // picture. So the box is held at the wider size, laid out and rastered once,
-  // and the narrower end is a CLIP over it. The visible rectangle is the same
-  // one the size animation drew, and the contents never move inside it.
+  // TRIED AND FALSIFIED, in this order, all four on a consumer's phone: letting
+  // the size animate for real; stepping it so it changes five times instead of
+  // every frame; stepping it onto the DEVICE grid so every value is one the
+  // display can draw; and approaching the engine's ruler from one side so the
+  // backing cannot cut to the pixel before. The tremble followed the NUMBER of
+  // size changes every time and no arithmetic on the value removed it. Freezing
+  // the size stopped it dead on every run.
+  //
+  // Which is the answer, because the per-frame layout was buying NOTHING here.
+  // Measured across a flight, every descendant of the pill held one position
+  // for all of its frames and only the box's own near edge moved: the contents
+  // are right-aligned, the box grows leftward, and what grows is empty space.
+  //
+  // So the flight asks, rather than guesses: `contentsHold` lays the arrival
+  // out at both of its sizes and compares where every child and every line of
+  // text falls from the corner the flight anchors on (see morphContents). Where
+  // they agree, the
+  // box is laid out ONCE at the size that contains both ends and the near edge
+  // is cut back with a clip — the same picture, drawn once. Where they disagree
+  // the size animates for real, because something inside genuinely has to be
+  // somewhere else, and that layout is the honest price of it.
   const holdsAt = (from: number, to: number) => Math.abs(from - to) < 0.05;
   const reveal =
     box &&
-    rightHeld &&
+    contentsHold &&
+    moving &&
     !clip &&
-    holdsAt(box.from.height, box.to.height) &&
-    !holdsAt(box.from.width, box.to.width)
+    !(holdsAt(box.from.width, box.to.width) && holdsAt(box.from.height, box.to.height))
       ? (() => {
+          // The box is laid out at the size that CONTAINS both ends, and each
+          // end is that box with the growth cut back off it. The cut is on the
+          // edges opposite the corner the flight is anchored on, because that
+          // is the corner the box grows away from: a right-held box grows
+          // leftward, everything else grows right and down from where it sits.
           const width = Math.max(box.from.width, box.to.width);
-          const insetOf = (w: number) => ((width - w) / width) * 100;
-          return { width, from: insetOf(box.from.width), to: insetOf(box.to.width) };
+          const height = Math.max(box.from.height, box.to.height);
+          const cut = (rect: MorphRect) => {
+            const across = (((width - rect.width) / width) * 100).toFixed(3);
+            const down = (((height - rect.height) / height) * 100).toFixed(3);
+            const right = rightHeld ? "0.000" : across;
+            const left = rightHeld ? across : "0.000";
+            return `0% ${right}% ${down}% ${left}%`;
+          };
+          return { width, height, from: cut(box.from), to: cut(box.to) };
         })()
       : null;
 
@@ -521,10 +547,11 @@ export const buildMorphKeyframes = (input: {
     toParts.push(pinnedTravelDecls(end.x, end.y));
   }
   if (box) {
-    fromParts.push(
-      boxBlock(reveal ? { ...box.from, width: reveal.width } : box.from, moving, sized)
-    );
-    toParts.push(boxBlock(reveal ? { ...box.to, width: reveal.width } : box.to, moving, sized));
+    // A revealed box is laid out ONCE, at the size that contains both ends, and
+    // the clip below is what changes. Both ends therefore state the same size.
+    const held = reveal ? { ...box.to, width: reveal.width, height: reveal.height } : null;
+    fromParts.push(boxBlock(held ?? box.from, moving, sized));
+    toParts.push(boxBlock(held ?? box.to, moving, sized));
   }
   // A pinned pose is five numbers, which says ONE transform. Where an end
   // composes two — a measured travel with an author's flourish stacked on it —
@@ -592,8 +619,8 @@ export const buildMorphKeyframes = (input: {
     // rectangle sitting over the pill rather than the pill itself.
     const round = radius && radius !== "0px" ? ` round ${radius}` : "";
     pushSize(
-      `    clip-path: inset(0% 0% 0% ${reveal.from.toFixed(3)}%${round});`,
-      `    clip-path: inset(0% 0% 0% ${reveal.to.toFixed(3)}%${round});`
+      `    clip-path: inset(${reveal.from}${round});`,
+      `    clip-path: inset(${reveal.to}${round});`
     );
   }
   if (fromParts.length > 0) {
@@ -697,7 +724,7 @@ export const buildMorphKeyframes = (input: {
     // flight a pixel above the line it was flying from.
     translate: moving ? PINNED_TRAVEL : null,
     size: sized ? { width: PINNED_BOX, height: PINNED_BOX_HEIGHT } : null,
-    heldEdge: moving && rightHeld && box ? box.to.x + box.to.width : null,
+    heldEdge: moving && rightHeld && box ? onRuler(box.to.x + box.to.width) : null,
     letterSpacing: tracking ? PINNED_TRACK : null
   };
 };

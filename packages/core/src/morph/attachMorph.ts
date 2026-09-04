@@ -29,6 +29,7 @@ import {
 import { intoLayerSpace, preserveAnimations } from "@dom/staging";
 
 import { clipTravel, visibleInset } from "@morph/morphClip";
+import { contentsHoldAcrossBox } from "@morph/morphContents";
 import {
   captureMorphSnapshot,
   isSingleLine,
@@ -799,6 +800,19 @@ const startFlight = (
       ease
     },
     box: { from: origin, to: destination },
+    // Asked once, here, because this is the last moment the element is still in
+    // its own layout and the answer decides which channel the size travels on.
+    // Measured from the corner the flight will anchor on: a box grows away from
+    // that corner, and a child that never moved reads as having travelled the
+    // whole growth if it is measured from any other one.
+    contentsHold: contentsHoldAcrossBox(entry.element, origin, destination, {
+      x:
+        Math.abs(origin.x + origin.width - (destination.x + destination.width)) < 0.05 &&
+        Math.abs(origin.x - destination.x) >= 0.05
+          ? "right"
+          : "left",
+      y: "top"
+    }),
     clip: edgeClip,
     // The corner the arrival wears, so a reveal cuts the same shape the box has.
     radius:

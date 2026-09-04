@@ -288,8 +288,8 @@ describe("attachMorph", () => {
       expect(travel).not.toContain("from {");
       // The flat stop is the from-pose and the last stop is still the
       // destination: the head holds the opening, it does not replace it.
-      expect(travel).toContain("clip-path: inset(0% 0% 0% 29.496%);");
-      expect(travel).toContain("clip-path: inset(0% 0% 0% 0.000%);");
+      expect(travel).toContain("--flemo-box-w: 98px;");
+      expect(travel).toContain("--flemo-box-w: 139px;");
     } finally {
       if (platform) Object.defineProperty(navigator, "platform", platform);
       if (touch) Object.defineProperty(navigator, "maxTouchPoints", touch);
@@ -1112,14 +1112,13 @@ describe("attachMorph", () => {
     expect(wide.style.left).toBe("calc(380px - var(--flemo-box-w))");
     const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
     expect(travel).toContain("--flemo-move-x: 0px;");
-    // A BOX THAT ONLY GETS WIDER IS REVEALED, NOT RE-LAID-OUT. Held at the
-    // wider size for the whole flight, and the narrower end is a clip over it:
-    // 80 of 160 is half the box, so the flight opens at a 50% left inset. A
-    // held width also makes the placement above a constant.
+    // And the size travels for real, because nothing here PROVED that it need
+    // not: a box is only held where the arrival's own subtree has been measured
+    // to land in the same places at both widths (see morphContents). Unproven
+    // is the same as moving, and moving is laid out.
     expect(travel).toContain("--flemo-box-w: 160px");
-    expect(travel).not.toContain("--flemo-box-w: 80px");
-    expect(travel).toContain("clip-path: inset(0% 0% 0% 50.000%)");
-    expect(travel).toContain("clip-path: inset(0% 0% 0% 0.000%)");
+    expect(travel).toContain("--flemo-box-w: 80px");
+    expect(travel).not.toContain("clip-path");
   });
 
   it("keeps the ordinary travel where the two ends do not agree on an edge", () => {

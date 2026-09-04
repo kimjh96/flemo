@@ -225,6 +225,29 @@ export const PINNED_BOX_HEIGHT = `var(${BOX.h})`;
 export const pinnedBoxDecls = (width: number, height: number, indent = "    "): string =>
   `${indent}${BOX.w}: ${round(width)}px;\n${indent}${BOX.h}: ${round(height)}px;`;
 
+// THE ENGINE'S RULER IS 1/64 OF A PIXEL, AND IT CUTS DOWN ONTO IT.
+//
+// A length that reaches layout becomes a LayoutUnit, and it is TRUNCATED onto
+// that ruler rather than rounded to it, so a value printed at three decimals
+// arrives up to a tick below what it says. A held box reaches its far edge as
+// `left` and `width` read off the same channel, and two independent truncations
+// leave that edge a tick short on the frames where the value falls between
+// rulings and exact on the frames where it does not: measured on a consumer's
+// pill, 366.0000, 365.9844, 365.9844, 366.0000, with every right-aligned thing
+// inside it following, frame after frame, for the whole flight.
+//
+// Printed ON the ruler, at the six decimals a 64th needs, both truncations are
+// exact and the edge is one number again.
+export const RULER = 1 / 64;
+
+export const onRuler = (value: number) => Math.round(value / RULER) * RULER;
+
+/** On the ruler, at the six decimals a 64th needs, and no zeros beyond it. */
+const exact = (value: number) => onRuler(value).toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+
+export const pinnedBoxDeclsOnRuler = (width: number, height: number, indent = "    "): string =>
+  `${indent}${BOX.w}: ${exact(width)}px;\n${indent}${BOX.h}: ${exact(height)}px;`;
+
 // The two halves of a type morph's tracking. The author's travels on the
 // flight's own curve; the correction that keeps the glyphs from drifting apart
 // holds and steps (see morphLine). One property, two clocks, the same way the

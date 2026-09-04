@@ -15,6 +15,71 @@ const travel: MorphTravel = {
 };
 
 describe("buildMorphKeyframes", () => {
+  const rect = (x: number, width: number): MorphRect => ({ x, y: 10, width, height: 32 });
+  const growing: MorphTravel = { ...travel, from: IDENTITY_POSE };
+
+  it("holds a box whose contents were MEASURED not to move, and clips it instead", () => {
+    // The narrower end is a clip over the wider one: 80 of 160 is half the box,
+    // so the flight opens at a 50% left inset and closes at none. One layout,
+    // one raster, and the same picture at every size on the way.
+    const { rules } = buildMorphKeyframes({
+      id: "9i",
+      travel: growing,
+      box: { from: rect(300, 80), to: rect(220, 160) },
+      contentsHold: true,
+      fade: null,
+      paint: [],
+      pinned: true,
+      travelPinned: true
+    });
+    const travelRule = rules.join("\n");
+    expect(travelRule).toContain("--flemo-box-w: 160px");
+    expect(travelRule).not.toContain("--flemo-box-w: 80px");
+    expect(travelRule).toContain("clip-path: inset(0% 0.000% 0.000% 50.000%)");
+    expect(travelRule).toContain("clip-path: inset(0% 0.000% 0.000% 0.000%)");
+  });
+
+  it("cuts a LEFT-anchored growth from the edges it grows towards", () => {
+    // Two ends that share a LEFT edge: the box grows rightward and downward
+    // from where it sits, so the cut is on the right and the bottom. The same
+    // one layout, on a corner the old shape test could not reach at all.
+    const { rules } = buildMorphKeyframes({
+      id: "9k",
+      travel: growing,
+      box: {
+        from: { x: 220, y: 10, width: 80, height: 16 },
+        to: { x: 220, y: 10, width: 160, height: 32 }
+      },
+      contentsHold: true,
+      fade: null,
+      paint: [],
+      pinned: true,
+      travelPinned: true
+    });
+    const travelRule = rules.join("\n");
+    expect(travelRule).toContain("--flemo-box-w: 160px");
+    expect(travelRule).not.toContain("--flemo-box-w: 80px");
+    expect(travelRule).toContain("clip-path: inset(0% 50.000% 50.000% 0.000%)");
+    expect(travelRule).toContain("clip-path: inset(0% 0.000% 0.000% 0.000%)");
+  });
+
+  it("lays the box out at every size where the contents were not proven still", () => {
+    const { rules } = buildMorphKeyframes({
+      id: "9j",
+      travel: growing,
+      box: { from: rect(300, 80), to: rect(220, 160) },
+      contentsHold: false,
+      fade: null,
+      paint: [],
+      pinned: true,
+      travelPinned: true
+    });
+    const travelRule = rules.join("\n");
+    expect(travelRule).toContain("--flemo-box-w: 160px");
+    expect(travelRule).toContain("--flemo-box-w: 80px");
+    expect(travelRule).not.toContain("clip-path");
+  });
+
   it("keeps the geometry keyframe to transform and nothing else", () => {
     // The rule the whole shape of this module follows: a keyframe listing a
     // property the compositor cannot animate drops that WHOLE animation to the
