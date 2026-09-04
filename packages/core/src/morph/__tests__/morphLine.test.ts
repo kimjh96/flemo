@@ -483,6 +483,61 @@ describe("leadingStops", () => {
     expect(leadingStops(end(14, 20), end(24, 32), null, undefined)).toBeNull();
   });
 
+  it("finds every boundary the engine actually steps at, wherever the ratio says it is", () => {
+    // Device-read on an iPhone: the ascent of an 11.55px face stepped where
+    // the per-em ratio put the boundary at 11.87. An aim bisected around the
+    // wrong place finds nothing, and a dropped stop lands its whole step on
+    // the endpoint, one frame before the landing — the poster grid's meta
+    // line dropping a CSS pixel on every zoomed pop. So the stops are found by
+    // bisecting the flight itself, and a face whose rounding drifts off its
+    // own ratio changes nothing.
+    const drifted = (size: number) => ({
+      fontBoundingBoxAscent: Math.round(size * 0.9689 + 0.31),
+      fontBoundingBoxDescent: Math.round(size * 0.27 - 0.12)
+    });
+    const context = {
+      font: "",
+      measureText: () => {
+        const size = Number.parseFloat(
+          context.font.split(" ").find((part) => part.endsWith("px")) ?? "0"
+        );
+        return drifted(size);
+      }
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      () => context as unknown as CanvasRenderingContext2D
+    );
+    const measured = (fontSize: number, lineHeight: number) => {
+      const parts = drifted(fontSize);
+      return {
+        fontSize,
+        lineHeight,
+        textHeight: parts.fontBoundingBoxAscent + parts.fontBoundingBoxDescent
+      };
+    };
+
+    const stops = leadingStops(
+      measured(14, 20),
+      measured(11, 16),
+      { ...FONT, family: "Drift Sans" },
+      [0.4, 0, 0.2, 1]
+    )!;
+
+    expect(stops).not.toBeNull();
+    // The arrival's face is on glass BEFORE the endpoint stop: its last real
+    // boundary is mid-flight, so the stop before 100% already wears the
+    // arrival's line-height and the landing has no step left to take.
+    const last = stops[stops.length - 1]!;
+    const before = stops[stops.length - 2]!;
+    expect(last.at).toBe(100);
+    expect(before.lineHeight).toBe(last.lineHeight);
+    expect(before.ascent).toBe(last.ascent);
+    expect(before.at).toBeLessThan(100);
+    // And every face height between the two ends has a stop of its own.
+    const faces = stops.map((stop) => stop.lineHeight);
+    expect(new Set(faces).size).toBeGreaterThanOrEqual(4);
+  });
+
   it("places each stop at the TIME the ease reaches it, not at its share of the range", () => {
     // Font size travels with the eased progress, so a step two-thirds of the
     // way through the sizes is met long before two-thirds of the flight under
