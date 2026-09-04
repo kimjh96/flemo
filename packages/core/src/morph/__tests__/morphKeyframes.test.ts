@@ -569,8 +569,11 @@ describe("buildCameraKeyframes", () => {
       accelerated: true
     });
 
-    expect(settling.rules[0]).toMatch(/from \{\n {4}transform: translate/);
-    expect(settling.rules[0]).toContain("to {\n    transform: none;");
+    expect(settling.rules[0]).toMatch(/0% \{\n {4}transform: translate/);
+    // And it ARRIVES a frame early, like every other channel: a camera whose
+    // last painted frame is a sliver short of its endpoint releases that
+    // sliver of zoom on the landing frame, moving the whole screen by it.
+    expect(settling.rules[0]).toContain("95.833%, 100% {\n    transform: none;");
   });
 
   // A CAMERA IS ONLY RIGHT WHILE IT AGREES WITH WHAT IT CARRIES.

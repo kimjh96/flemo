@@ -899,10 +899,23 @@ export const buildCameraKeyframes = (input: {
     return `    transform: ${atRest ? "none" : `translate(${px(pose.x)}, ${px(pose.y)}) scale(${uniform})`};`;
   };
   const name = `flemo-morph-${id}-camera`;
+  // THE CAMERA ARRIVES BEFORE IT LANDS, like every other channel (see
+  // `arrived`). Its last painted frame is otherwise a fraction short of its
+  // endpoint, and a camera's fraction is a SCALE: the whole screen holds a
+  // sliver of zoom to the end and releases it on the landing frame, moving
+  // everything by that sliver times its distance from the origin. Device-read
+  // on the poster grid's pop: the meta line dropped a CSS pixel while the row
+  // below rose two thirds of one, on the same frame, in opposite directions —
+  // one screen scale correcting, not two elements moving.
+  const arrived = span > 0 ? Math.max(0, 100 - (100 * (1 / 60)) / span) : 100;
+  const landing =
+    arrived >= 99.999
+      ? `  100% {\n${stop(settling)}\n  }`
+      : `  ${arrived.toFixed(3)}%, 100% {\n${stop(settling)}\n  }`;
   const rules = [
     head > 0
-      ? `@keyframes ${name} {\n  0%, ${headPct.toFixed(3)}% {\n${stop(!settling)}\n  }\n  100% {\n${stop(settling)}\n  }\n}`
-      : `@keyframes ${name} {\n  from {\n${stop(!settling)}\n  }\n  to {\n${stop(settling)}\n  }\n}`,
+      ? `@keyframes ${name} {\n  0%, ${headPct.toFixed(3)}% {\n${stop(!settling)}\n  }\n${landing}\n}`
+      : `@keyframes ${name} {\n  0% {\n${stop(!settling)}\n  }\n${landing}\n}`,
     `${selector} {\n${accelerated ? "" : `  transform: ${PINNED_POSE_TRANSFORM} !important;\n`}  animation-name: ${name} !important;\n  animation-duration: ${span.toFixed(3)}s !important;\n  animation-timing-function: ${easingToCss(ease)} !important;\n  animation-delay: ${delay.toFixed(3)}s !important;\n  animation-fill-mode: both !important;\n}`
   ];
   return { rules, name };
