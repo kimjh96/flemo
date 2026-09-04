@@ -122,6 +122,20 @@ export interface MorphKeyframeSet {
    */
   size: { width: string; height: string } | null;
   /**
+   * The width the box is HELD at for the whole flight, or null.
+   *
+   * The viewport x of a far edge both ends agree on, when there is one.
+   *
+   * The element is placed FROM it — `left: calc(<edge>px - var(--flemo-box-w))`
+   * — so the edge is derived from the very channel the width animates on and
+   * the two round together. Reached as position + size instead, the engine
+   * rounds each to its own layout unit and their sum oscillates: measured on a
+   * consumer's pill, 366.000 with the anchor against 365.985 ± 0.015 without,
+   * reversing six times in twenty-three frames, and every right-aligned thing
+   * inside it followed.
+   */
+  heldEdge: number | null;
+  /**
    * The `transform` the caller must set on the element, or null.
    *
    * Non-null only for a PINNED set, whose keyframes animate the pose's
@@ -243,12 +257,32 @@ export const buildMorphKeyframes = (input: {
    * to preserve.
    */
   clip?: { from: MorphClipInset; to: MorphClipInset } | null;
+  /**
+   * The corner the box wears, so a clip that reveals it cuts a rounded shape
+   * rather than a square one (see the reveal below).
+   */
+  radius?: string | null;
   fade: {
     from: TransitionTarget | null;
     to: TransitionTarget | null;
     duration: number;
     /** Seconds to hold the from-pose before the fade runs, on top of `travel.start`. */
     delay?: number;
+    /**
+     * The curve, where the flight's own is not the right one.
+     *
+     * A HAND-OVER IS A STEP, NOT A RAMP. Two opacity ramps crossing never
+     * compose back to what they replaced: at the midpoint of a 1-to-0 against a
+     * 0-to-1, alpha compositing leaves 1 - (1 - 0.5) * 0.5 = 0.75 of the pair,
+     * and the engines do not even sample the two on the same phase. Device-read
+     * on a consumer's tab switch: the copy at 0.48 against the arrival at 0.33,
+     * two frames of a washed-out box mid-travel — read as a blink.
+     *
+     * A step at the same instant on both sides has no such midpoint. Both are
+     * pure functions of one timeline, so every frame that renders at all
+     * renders exactly one of them, and a missed frame cannot land between.
+     */
+    easing?: string;
   } | null;
   /**
    * Everything the two ends paint differently — corner, surface, border,
@@ -296,6 +330,7 @@ export const buildMorphKeyframes = (input: {
     margin,
     size,
     clip,
+    radius,
     leading,
     leadStart,
     lift,
@@ -359,6 +394,71 @@ export const buildMorphKeyframes = (input: {
   // The box's size goes through the channel wherever the keyframe is already
   // animating custom properties, which is the case WebKit drops it in.
   const sized = Boolean(box) && (moving || Boolean(tracking));
+  // AN EDGE THAT DOES NOT MOVE MUST NOT BE A SUM.
+  //
+  // A box that travels carries its position on one channel and its size on
+  // another, and the engine rounds each to its own layout unit. The far edge
+  // is their SUM, so it oscillates by that unit even when both ends agree on
+  // where it is: measured on a consumer's pill whose two ends share a right
+  // edge at 369px, the edge ran 369, 368.987, 368.999, 368.996, 369 frame
+  // after frame, and every right-aligned thing inside it followed. Both
+  // engines, the same 1/64px.
+  //
+  // Where the two ends DO agree on an edge, the travel does not have to reach
+  // it through a sum: the element is anchored on that edge and only its size
+  // is animated, so the edge is one value and cannot disagree with itself.
+  const holds = (from: number, to: number) => Math.abs(from - to) < 0.05;
+  const rightHeld = Boolean(
+    box &&
+    solo &&
+    !fromPoses[0] &&
+    !toPoses[0] &&
+    holds(box.from.x + box.from.width, box.to.x + box.to.width) &&
+    !holds(box.from.x, box.to.x)
+  );
+  // A BOX WHOSE SIZE ANIMATES IS RE-RASTERED, AND THE RASTER SHIMMERS.
+  //
+  // TRIED AND REVERTED: deleting this and letting the size animate for real,
+  // on the reading that the shimmer was the far edge arriving as a sum. The sum
+  // was real and is fixed above, and it was not this: with the edge anchored
+  // and the width animating, the icon's LAYOUT x held at 307.500 on every one
+  // of twenty-three frames and it still trembled on glass. Layout is not paint.
+  // What moves is the raster of a subtree whose container is a different size
+  // every frame, and no arithmetic on the box can settle that.
+  //
+  // Which is also why the precondition below is about the BOX and not about the
+  // contents: this runtime cannot know whether a consumer's subtree would
+  // reflow, so it only takes this path where the box's own picture is provably
+  // the same one — same height, same far edge, no clip of its own.
+  //
+  // Animating the size is what makes a morph a growth rather than a stretch:
+  // the subtree lays itself out at every width on the way, which is the only
+  // way text can re-wrap into its new shape. It is also a full layout and a
+  // fresh raster of that subtree on every frame, and a raster that lands on a
+  // different sub-pixel each time SHIMMERS. Device-read on a consumer's pill,
+  // its icon alternated between two positions 1.25 device pixels apart, frame
+  // after frame, for the whole flight and past the landing; holding the box at
+  // one size stopped it dead.
+  //
+  // Where the two ends share an edge and differ only in WIDTH, nothing inside
+  // needs a second layout: the wider end already contains the narrower one's
+  // picture. So the box is held at the wider size, laid out and rastered once,
+  // and the narrower end is a CLIP over it. The visible rectangle is the same
+  // one the size animation drew, and the contents never move inside it.
+  const holdsAt = (from: number, to: number) => Math.abs(from - to) < 0.05;
+  const reveal =
+    box &&
+    rightHeld &&
+    !clip &&
+    holdsAt(box.from.height, box.to.height) &&
+    !holdsAt(box.from.width, box.to.width)
+      ? (() => {
+          const width = Math.max(box.from.width, box.to.width);
+          const insetOf = (w: number) => ((width - w) / width) * 100;
+          return { width, from: insetOf(box.from.width), to: insetOf(box.to.width) };
+        })()
+      : null;
+
   if (moving) {
     // The element RESTS at its destination and is carried back to where it
     // started, so the position it is laid out at never moves.
@@ -370,7 +470,7 @@ export const buildMorphKeyframes = (input: {
       const pose = poses[0];
       const rect = box ? (side === "from" ? box.from : box.to) : null;
       return {
-        x: (rect ? rect.x - box!.to.x : 0) + (pose ? pose.x : 0),
+        x: rightHeld ? (pose ? pose.x : 0) : (rect ? rect.x - box!.to.x : 0) + (pose ? pose.x : 0),
         y: (rect ? rect.y - box!.to.y : 0) + (pose ? pose.y : 0) + ascent
       };
     };
@@ -388,8 +488,10 @@ export const buildMorphKeyframes = (input: {
     toParts.push(pinnedTravelDecls(end.x, end.y));
   }
   if (box) {
-    fromParts.push(boxBlock(box.from, moving, sized));
-    toParts.push(boxBlock(box.to, moving, sized));
+    fromParts.push(
+      boxBlock(reveal ? { ...box.from, width: reveal.width } : box.from, moving, sized)
+    );
+    toParts.push(boxBlock(reveal ? { ...box.to, width: reveal.width } : box.to, moving, sized));
   }
   // A pinned pose is five numbers, which says ONE transform. Where an end
   // composes two — a measured travel with an author's flourish stacked on it —
@@ -451,11 +553,19 @@ export const buildMorphKeyframes = (input: {
   }
   if (clip)
     pushSize(`    clip-path: ${insetCss(clip.from)};`, `    clip-path: ${insetCss(clip.to)};`);
-  if (fromParts.length > 0) {
-    rules.push(
-      `@keyframes ${geometryName} {\n  from {\n${fromParts.join("\n")}\n  }\n  to {\n${toParts.join("\n")}\n  }\n}`
+  else if (reveal) {
+    // ROUND, or the reveal is a square cut across a rounded box: the left
+    // corner disappears for the whole flight and what grows reads as a plain
+    // rectangle sitting over the pill rather than the pill itself.
+    const round = radius && radius !== "0px" ? ` round ${radius}` : "";
+    pushSize(
+      `    clip-path: inset(0% 0% 0% ${reveal.from.toFixed(3)}%${round});`,
+      `    clip-path: inset(0% 0% 0% ${reveal.to.toFixed(3)}%${round});`
     );
-    animations.push(`${geometryName} ${travel.duration.toFixed(3)}s ${easing} ${start}s both`);
+  }
+  if (fromParts.length > 0) {
+    rules.push(held(geometryName, fromParts.join("\n"), toParts.join("\n")));
+    animations.push(`${geometryName} ${clock} ${easing} ${start}s both`);
     clockName = geometryName;
   }
 
@@ -550,6 +660,7 @@ export const buildMorphKeyframes = (input: {
     // flight a pixel above the line it was flying from.
     translate: moving ? PINNED_TRAVEL : null,
     size: sized ? { width: PINNED_BOX, height: PINNED_BOX_HEIGHT } : null,
+    heldEdge: moving && rightHeld && box ? box.to.x + box.to.width : null,
     letterSpacing: tracking ? PINNED_TRACK : null
   };
 };

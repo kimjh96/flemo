@@ -52,7 +52,7 @@ import {
 } from "@morph/morphLine";
 import { paintTravel } from "@morph/morphPaint";
 
-import { IDENTITY_POSE, resolvePose } from "@morph/morphPose";
+import { BOX_WIDTH_PROPERTY, IDENTITY_POSE, resolvePose } from "@morph/morphPose";
 
 import { ensurePinnedPoses, insertMorphRules } from "@morph/morphSheet";
 import { headSeconds, resolveMorphSide } from "@morph/morphSide";
@@ -1185,7 +1185,27 @@ const startFlight = (
   // STARTS when it does not. The emitter decides which, and says so by handing
   // back a `translate` for the element to wear.
   const laidOutAt = arriving.translate ? destination : origin;
-  entry.element.style.left = `${laidOutAt.x}px`;
+  // PLACED SO THE FAR EDGE FALLS WHERE IT BELONGS, still from the LEFT.
+  //
+  // A held box has a fixed width, so putting its left edge where the far edge
+  // asks for it fixes that edge exactly, with no sum of two animated lengths to
+  // oscillate. It must not be anchored on the layer's RIGHT instead: the layer
+  // is the Router's box, and that box CHANGES WIDTH mid-flight whenever the two
+  // mounted screens take the page's scrollbar away and give it back. Anything
+  // hung from its right edge rides that. Device-read on a consumer's pill, it
+  // drifted 7px out over the flight and snapped back on landing.
+  //
+  // AND THE HELD EDGE IS NOT A SUM. Where the two ends agree on a far edge, the
+  // element is placed FROM that edge: `left` is derived from the very channel
+  // the width animates on, so the two round together and the edge is the one
+  // number both frames were measured to share. Reaching it as position + size
+  // instead let the engine round each to its own layout unit and the edge ran
+  // 369, 368.987, 368.999, 368.996 — every right-aligned thing inside it
+  // following, on both engines, at 1/64px.
+  entry.element.style.left =
+    arriving.heldEdge === null
+      ? `${laidOutAt.x}px`
+      : `calc(${arriving.heldEdge}px - var(${BOX_WIDTH_PROPERTY}))`;
   entry.element.style.top = `${laidOutAt.y}px`;
   // NO INLINE BOX. The travel keyframe carries `width`/`height` at both ends
   // and runs `both`, so it already states the box for every frame of the

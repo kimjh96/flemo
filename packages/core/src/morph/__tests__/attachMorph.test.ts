@@ -963,6 +963,60 @@ describe("attachMorph", () => {
     expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.PARK);
   });
 
+  // AN EDGE THAT DOES NOT MOVE MUST NOT BE A SUM.
+  //
+  // A far edge reached as position PLUS size oscillates by a layout unit, and
+  // everything aligned to it follows: measured on a consumer's pill whose ends
+  // share a right edge at 369px, the edge ran 369, 368.987, 368.999, 368.996
+  // frame after frame in both engines.
+  it("places a held box from the edge itself, so the edge is never a sum", () => {
+    const gallery = makeScreen("layout", true);
+    const chip = makeMorph(gallery, [300, 10, 80, 32]);
+    attachMorph(chip, { layoutId: "pill-1", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    // Same right edge (380), a different left one.
+    const wide = makeMorph(detail, [220, 10, 160, 32]);
+    attachMorph(wide, { layoutId: "pill-1", navigateStore: store });
+
+    // Never from the layer's right: the layer is the Router's box and that box
+    // changes width mid-flight when the two mounted screens take the page's
+    // scrollbar away and give it back. From the EDGE, through the same channel
+    // the width animates on, so the two round together — reached as position +
+    // size it ran 366.000 ± 0.015, reversing six times in twenty-three frames.
+    expect(wide.style.right).toBe("");
+    expect(wide.style.left).toBe("calc(380px - var(--flemo-box-w))");
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
+    expect(travel).toContain("--flemo-move-x: 0px;");
+    // A BOX THAT ONLY GETS WIDER IS REVEALED, NOT RE-LAID-OUT. Held at the
+    // wider size for the whole flight, and the narrower end is a clip over it:
+    // 80 of 160 is half the box, so the flight opens at a 50% left inset. A
+    // held width also makes the placement above a constant.
+    expect(travel).toContain("--flemo-box-w: 160px");
+    expect(travel).not.toContain("--flemo-box-w: 80px");
+    expect(travel).toContain("clip-path: inset(0% 0% 0% 50.000%)");
+    expect(travel).toContain("clip-path: inset(0% 0% 0% 0.000%)");
+  });
+
+  it("keeps the ordinary travel where the two ends do not agree on an edge", () => {
+    const gallery = makeScreen("layout", true);
+    const chip = makeMorph(gallery, [300, 10, 80, 32]);
+    attachMorph(chip, { layoutId: "pill-2", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const wide = makeMorph(detail, [220, 10, 150, 32]);
+    attachMorph(wide, { layoutId: "pill-2", navigateStore: store });
+
+    expect(wide.style.right).toBe("");
+    expect(wide.style.left).toBe("220px");
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
+    expect(travel).toContain("--flemo-move-x: 80px;");
+  });
+
   it("pairs a POP the other way round, where the dismissing screen is the active one", () => {
     // Caught on glass, not here: the active flag follows the STACK, not the
     // direction of travel. On a pop the screen being dismissed is still the top

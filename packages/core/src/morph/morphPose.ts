@@ -216,6 +216,8 @@ const TRAVEL = { x: "--flemo-move-x", y: "--flemo-move-y", lift: "--flemo-lift-y
 const BOX = { w: "--flemo-box-w", h: "--flemo-box-h" } as const;
 
 /** The size an element wears while its box is driven through the channel. */
+/** The channel a travelling box carries its width on, for anything placed from it. */
+export const BOX_WIDTH_PROPERTY = BOX.w;
 export const PINNED_BOX = `var(${BOX.w})`;
 export const PINNED_BOX_HEIGHT = `var(${BOX.h})`;
 
