@@ -1886,12 +1886,28 @@ export default function attachMorph(element: HTMLElement, options: AttachMorphOp
   const { layoutId, navigateStore } = options;
   const name = options.name ?? DEFAULT_MORPH_TRANSITION_NAME;
   const scope = ensureScope(navigateStore);
-  const rest = element.getBoundingClientRect();
+  // THE REGISTRATION MEASUREMENT IS FOR A CONTAINER, and only a nested element
+  // has one. Both readers of `restSize` are answering the same question — what
+  // this box is when nothing around it is staged — and for an element with no
+  // morph above it that is simply its staged measurement, which is what both
+  // already fall back to.
+  //
+  // Taken unconditionally it cost a synchronous layout of the whole document,
+  // in a layout effect, in the frame React had just mutated it — the most
+  // expensive possible moment to ask. Device-read on a consumer's tab switch:
+  // one call at 25ms after the landing and one at 9ms at the tap, on a
+  // navigation with nothing nested in it at all, and repeated for every render
+  // of every morph on the page. The nested test is a DOM walk (the binding
+  // renders the attribute, so it is there before any effect runs) and costs
+  // nothing.
+  const nested = element.parentElement?.closest(MORPH_SELECTOR) ?? null;
+  const rest = nested ? element.getBoundingClientRect() : null;
   const entry: MorphEntry = {
     element,
     layoutId: String(layoutId),
     name,
-    restSize: rest.width > 0 && rest.height > 0 ? { width: rest.width, height: rest.height } : null
+    restSize:
+      rest && rest.width > 0 && rest.height > 0 ? { width: rest.width, height: rest.height } : null
   };
 
   scope.entries.set(element, entry);
