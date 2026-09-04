@@ -14,6 +14,7 @@ import {
   attrSelector,
   MORPH_ATTR,
   MORPH_CAMERA_ATTR,
+  MORPH_LAYER_ATTR,
   MORPH_GHOST_ATTR,
   MORPH_NAME_ATTR,
   MORPH_ROLE,
@@ -393,11 +394,46 @@ const typeTravel = (
     // for their other half. The emitter refuses it where the set writes a
     // transform of its own for it to fight with.
     lift: stairs,
+    // THE ARRIVAL RENDERS WHAT IT RESTS AT, WHATEVER THE FLIGHT NEEDED.
+    //
+    // The bias holds the rendered half-leading off a grid line so it cannot
+    // step while the size grows under it, and it was carried at BOTH ends on
+    // the reading that a value inside the arrival's own grid step renders as
+    // the arrival does. A device says otherwise: read off a consumer's phone at
+    // the landing, the last painted frame of a meta line stood at a leading of
+    // 17px and the line rests at 16px, and the words dropped 1.14px the instant
+    // the flight let go. The whole correction had bought a mid-flight step and
+    // paid for it with a step at the landing, which is the worse of the two
+    // because everything else has stopped by then.
+    //
+    // So the bias is owed at the DEPARTURE, where it keeps the first frame on
+    // the line the departure drew, and it is nothing at the arrival, which is
+    // the one value the landing has to restore. Same shape as what the baseline
+    // is owed at the start, and for the same reason.
+    // A LEADING THAT IS NOT A CHANNEL IS A BY-PRODUCT OF THE SIZE.
+    //
+    // Written as a factor, which is how nearly every design system writes it,
+    // the rendered leading is the size times that factor ROUNDED TO A WHOLE
+    // PIXEL. So a size that animates re-rounds it on every frame, and where the
+    // product lands near a half pixel the leading crosses a whole one somewhere
+    // in the flight. Device-read on a consumer's phone: the last painted frame
+    // of a meta line stood at a size of 11.0006px, its leading rounded to 17px,
+    // and the moment the flight let go the size became 11.0000, the leading
+    // became 16px and the words dropped 1.03px. 11 x 1.5 is 16.5, and the ease
+    // spends its last frames within a thousandth of that boundary.
+    //
+    // So wherever the size travels, the leading travels with it as a channel of
+    // its own, in pixels, from the one the departure rested at to the one the
+    // arrival rests at. It is then the animation that says where the line is,
+    // not a rounding of something else, and the last frame is the resting value
+    // because that is what the keyframe says.
     lineHeight: leading
-      ? { from: leading.from + bias, to: leading.to + bias }
+      ? { from: leading.from + bias, to: leading.to }
       : bias !== 0 && to.lineHeight !== null
-        ? { from: to.lineHeight + bias, to: to.lineHeight + bias }
-        : null
+        ? { from: to.lineHeight + bias, to: to.lineHeight }
+        : fontSize && from.lineHeight !== null && to.lineHeight !== null
+          ? { from: from.lineHeight, to: to.lineHeight }
+          : null
   };
 };
 
@@ -668,18 +704,40 @@ const startFlight = (
       ? isSingleLine(entry.restSize.height, side.lineHeight, side.fontSize)
       : side.singleLine;
   const crossFade = clamp01(transition.crossFade ?? 0.55);
+  // READ BEFORE ANYTHING IS WRITTEN.
+  //
+  // The parts are held at the width they were laid out at, and reading that
+  // width after the flight has begun staging is a forced layout in the frame
+  // that can least afford one. Both readings this flight needs are taken here,
+  // together, before a single style is written.
+  const unpinParts =
+    Math.abs(origin.width - destination.width) >= 0.05 ? pinPartWidths(entry.element) : null;
+
+  // ONE STYLE READ, NOT THREE.
+  //
+  // A computed style is LIVE: every property taken off it flushes whatever
+  // style the page owes, and a flight was asking three separate times, in the
+  // frame the tap has just mutated. That frame is the one nothing has moved in
+  // yet, and it is where a flight's whole cost lands: measured on a consumer's
+  // app it ran 87ms against 17ms for every frame after it, and building the
+  // keyframes was 14ms of it. Read once, copied into plain values here, the
+  // flush happens once.
+  const own = typeof getComputedStyle === "function" ? getComputedStyle(entry.element) : null;
+  const ownStyle = own
+    ? {
+        fontFamily: own.fontFamily,
+        fontWeight: own.fontWeight,
+        fontStyle: own.fontStyle,
+        borderRadius: own.borderRadius,
+        inherited: INHERITED.map((property) => [property, inheritedValue(own, property)] as const)
+      }
+    : null;
   // The face the flight wears. Its height is what the leading is measured
   // against, and on Blink it is quantised; the ratios come off a canvas rather
   // than a layout probe, once per face for the session (see morphFace).
-  const face =
-    typeof getComputedStyle === "function"
-      ? (() => {
-          const cs = getComputedStyle(entry.element);
-          return cs.fontFamily
-            ? { family: cs.fontFamily, weight: cs.fontWeight, style: cs.fontStyle }
-            : null;
-        })()
-      : null;
+  const face = ownStyle?.fontFamily
+    ? { family: ownStyle.fontFamily, weight: ownStyle.fontWeight, style: ownStyle.fontStyle }
+    : null;
   // The words themselves, where the element holds nothing but words: the
   // correction is measured on the text that is actually being typeset, and a
   // field per JSX expression leaves that text in SEVERAL nodes rather than one.
@@ -789,6 +847,15 @@ const startFlight = (
   const handingOver =
     !carrying && captured.element.isConnected && captured.element !== entry.element;
 
+  // TEMPORARY DIAGNOSTIC: what the first frame of a flight costs. Remove.
+  const contentsHold = contentsHoldAcrossBox(entry.element, origin, destination, {
+    x:
+      Math.abs(origin.x + origin.width - (destination.x + destination.width)) < 0.05 &&
+      Math.abs(origin.x - destination.x) >= 0.05
+        ? "right"
+        : "left",
+    y: "top"
+  });
   const arriving = buildMorphKeyframes({
     id: `${id}i`,
     travel: {
@@ -806,20 +873,10 @@ const startFlight = (
     // Measured from the corner the flight will anchor on: a box grows away from
     // that corner, and a child that never moved reads as having travelled the
     // whole growth if it is measured from any other one.
-    contentsHold: contentsHoldAcrossBox(entry.element, origin, destination, {
-      x:
-        Math.abs(origin.x + origin.width - (destination.x + destination.width)) < 0.05 &&
-        Math.abs(origin.x - destination.x) >= 0.05
-          ? "right"
-          : "left",
-      y: "top"
-    }),
+    contentsHold,
     clip: edgeClip,
     // The corner the arrival wears, so a reveal cuts the same shape the box has.
-    radius:
-      typeof getComputedStyle === "function"
-        ? getComputedStyle(entry.element).borderRadius || null
-        : null,
+    radius: ownStyle?.borderRadius || null,
     // The spacing travels too. Without it the arrival wears its OWN padding
     // from the first frame, so the contents it is handing over from flinch in
     // or out by the difference at the exact moment of the tap.
@@ -1070,7 +1127,10 @@ const startFlight = (
       if (inlineNested === null) entry.element.removeAttribute("style");
       else entry.element.setAttribute("style", inlineNested);
       entry.element.setAttribute(MORPH_ATTR, "");
-      disposeNested();
+      // Off the landing frame, for the reason the container's rules are (see
+      // `disposeOnce`): a nested pair is one of many landing together.
+      if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => disposeNested());
+      else disposeNested();
       scope.flights.delete(entry.layoutId);
     };
     function onGrown(event: AnimationEvent) {
@@ -1228,9 +1288,6 @@ const startFlight = (
     cameraScreen.setAttribute(MORPH_CAMERA_ATTR, `${id}c`);
   }
 
-  const computedBefore =
-    typeof getComputedStyle === "function" ? getComputedStyle(entry.element) : null;
-
   // Hold the element's PLACE with a COPY OF IT, not with a box the size of it.
   //
   // The screen it leaves has to lay out exactly as it will at rest, or the
@@ -1271,18 +1328,13 @@ const startFlight = (
   home.insertBefore(standIn, entry.element);
 
   const inline = entry.element.getAttribute("style");
-  const computed = computedBefore;
-  const inherited = computed
-    ? INHERITED.map((property) => [property, inheritedValue(computed, property)] as const)
-    : [];
+  // Taken from the single read above, and taken BEFORE any of this frame's
+  // mutations, which is also the moment these values are true.
+  const inherited = ownStyle?.inherited ?? [];
 
-  // Read here, while the element is still in the layout it will REST at, so
-  // what the parts are held to is the width they land on rather than one of the
-  // sizes the box is about to pass through.
-  const unpinParts =
-    Math.abs(origin.width - destination.width) >= 0.05 ? pinPartWidths(entry.element) : null;
-
-  preserveAnimations(entry.element, () => layer.appendChild(entry.element));
+  // What the staging had to carry is what the landing will have to carry, so
+  // the landing does not ask again (see preserveAnimations).
+  const carried = preserveAnimations(entry.element, () => layer.appendChild(entry.element));
   for (const [property, value] of inherited) entry.element.style[property] = value;
   entry.element.style.position = "absolute";
   // Laid out where it LANDS, and carried back to where it started by the
@@ -1468,12 +1520,25 @@ const startFlight = (
   // snaps the whole background back while that screen is still on glass.
   let unwatchResidue: (() => void) | null = null;
   let disposed = false;
+  // DROPPING THE RULES IS NOT PART OF THE LANDING.
+  //
+  // Taking a flight's keyframes out of the document invalidates style for
+  // everything in it, and a flight lands with every one of its participants
+  // doing that in the same frame as the re-parenting and the style restore.
+  // Measured on the reference grid, the frame the flight landed on ran 76ms:
+  // four frames of nothing, on the one frame where everything else has stopped
+  // and the eye is looking straight at it. The words were in exactly the right
+  // place, which is why every measurement of a rectangle called it clean.
+  //
+  // The rules are dead the moment the animation is off the element, so they are
+  // dropped on the NEXT frame, when the landing is already on glass.
   const disposeOnce = () => {
     /* v8 ignore next -- the landing and the residue release can both reach it,
        and dropping a flight's rules twice would take the next flight's. */
     if (disposed) return;
     disposed = true;
-    disposeRules();
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => disposeRules());
+    else disposeRules();
   };
   const release = () => {
     unwatchResidue?.();
@@ -1582,9 +1647,10 @@ const startFlight = (
     unpinParts?.();
     if (inline === null) entry.element.removeAttribute("style");
     else entry.element.setAttribute("style", inline);
-    if (home.isConnected)
-      preserveAnimations(entry.element, () => standIn.replaceWith(entry.element));
-    else entry.element.remove();
+    if (home.isConnected) {
+      if (carried > 0) preserveAnimations(entry.element, () => standIn.replaceWith(entry.element));
+      else standIn.replaceWith(entry.element);
+    } else entry.element.remove();
     standIn.remove();
     entry.element.setAttribute(MORPH_ATTR, "");
 
@@ -2002,14 +2068,29 @@ export default function attachMorph(element: HTMLElement, options: AttachMorphOp
   // of every morph on the page. The nested test is a DOM walk (the binding
   // renders the attribute, so it is there before any effect runs) and costs
   // nothing.
+  // THE REGISTRATION MEASUREMENT IS FOR A CONTAINER, and only a nested element
+  // has one.
+  //
+  // AN ELEMENT IN FLIGHT IS NOT AN ELEMENT AT REST. This answers "what is this
+  // box when nothing around it is staged", and a registration that lands while
+  // the element is in the flight layer answers with the box the flight is
+  // holding it at. Cached, every later flight then ends on it: read off a
+  // consumer's phone, a grid cell's title flew with its box pinned at 31px and
+  // rested at 20px, so the landing dropped it eleven pixels and took the line
+  // under it down too. A re-registration mid-flight keeps what was measured at
+  // rest instead.
   const nested = element.parentElement?.closest(MORPH_SELECTOR) ?? null;
-  const rest = nested ? element.getBoundingClientRect() : null;
+  const staged = element.closest(`[${MORPH_LAYER_ATTR}]`) !== null;
+  const previous = scope.entries.get(element)?.restSize ?? null;
+  const rest = nested && !staged ? element.getBoundingClientRect() : null;
   const entry: MorphEntry = {
     element,
     layoutId: String(layoutId),
     name,
     restSize:
-      rest && rest.width > 0 && rest.height > 0 ? { width: rest.width, height: rest.height } : null
+      rest && rest.width > 0 && rest.height > 0
+        ? { width: rest.width, height: rest.height }
+        : previous
   };
 
   scope.entries.set(element, entry);

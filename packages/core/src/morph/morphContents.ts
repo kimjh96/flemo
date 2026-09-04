@@ -105,6 +105,18 @@ const places = (root: Element, anchor: MorphAnchor): number[] | null => {
  * flight will pass through. The copy is laid out beside the original and taken
  * straight back out, so nothing on the page moves to answer this.
  */
+/**
+ * ASKED ONCE PER SHAPE, NOT ONCE PER FLIGHT.
+ *
+ * The answer is a fact about a subtree at two sizes, and the same pair flies the
+ * same two sizes every time a consumer taps the same card. Laying a copy out
+ * twice is two forced layouts, and they happen in the FIRST frame of the
+ * flight, which already carries the arriving screen's whole commit: measured on
+ * a consumer's app, that frame ran 57ms against 15ms for every frame after it,
+ * and nothing moves until it ends.
+ */
+const answered = new WeakMap<Element, Map<string, boolean>>();
+
 export const contentsHoldAcrossBox = (
   element: HTMLElement,
   from: { width: number; height: number },
@@ -115,6 +127,10 @@ export const contentsHoldAcrossBox = (
   if (!parent || !element.isConnected) return false;
   if (Math.abs(from.width - to.width) < TICK && Math.abs(from.height - to.height) < TICK)
     return false;
+  const shape = `${from.width.toFixed(1)}x${from.height.toFixed(1)}>${to.width.toFixed(1)}x${to.height.toFixed(1)}|${anchor.x}${anchor.y}`;
+  const known = answered.get(element);
+  const remembered = known?.get(shape);
+  if (remembered !== undefined) return remembered;
   const probe = element.cloneNode(true) as HTMLElement;
   probe.setAttribute("aria-hidden", "true");
   probe.style.position = "absolute";
@@ -139,10 +155,17 @@ export const contentsHoldAcrossBox = (
   } finally {
     probe.remove();
   }
-  if (before === null || after === null) return false;
   // Nothing inside to compare is not proof that nothing moves: an empty box
   // that changes size has no contents, and a subtree this could not walk has
   // contents it did not see.
-  if (before.length === 0 || before.length !== after.length) return false;
-  return before.every((value, index) => Math.abs(value - after[index]!) <= TICK);
+  const holds =
+    before !== null &&
+    after !== null &&
+    before.length > 0 &&
+    before.length === after.length &&
+    before.every((value, index) => Math.abs(value - after[index]!) <= TICK);
+  const seen = known ?? new Map<string, boolean>();
+  seen.set(shape, holds);
+  answered.set(element, seen);
+  return holds;
 };

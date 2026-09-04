@@ -154,15 +154,24 @@ export interface PreserveAnimationsOptions {
  * Runs `move` — the re-parent — and carries the subtree's animation clocks
  * across it.
  */
+/**
+ * Move an element without restarting the animations inside it.
+ *
+ * Returns HOW MANY it had to carry, because asking is the expensive half: each
+ * `getAnimations({ subtree: true })` forces a style recalculation, and a flight
+ * lands with every one of its participants asking twice in the same frame.
+ * Measured on the reference grid, that frame ran 75ms. A caller that already
+ * knows the answer is zero can skip the question entirely.
+ */
 export function preserveAnimations(
   root: Element,
   move: () => void,
   options: PreserveAnimationsOptions = {}
-): void {
+): number {
   const includeRoot = options.includeRoot ?? false;
   const saved = collect(root, includeRoot);
   move();
-  if (saved.size === 0 || typeof root.getAnimations !== "function") return;
+  if (saved.size === 0 || typeof root.getAnimations !== "function") return saved.size;
 
   const index = indexOf(root);
   for (const animation of root.getAnimations({ subtree: true })) {
@@ -181,4 +190,5 @@ export function preserveAnimations(
       // Restarting is the wrong result but not a broken one, so it stands.
     }
   }
+  return saved.size;
 }

@@ -272,6 +272,29 @@ const stopCache = new Map<string, LeadingStop[] | null>();
  * browser check: an engine that does not quantise its face heights fails it at
  * every size, and is left alone.
  */
+// EVERY ONE OF THESE IS A PURE FUNCTION OF A FACE AND TWO SIZES.
+//
+// They are also the expensive half of building a flight: both search, and both
+// ask a canvas for a measurement at every step of the search. That work lands in
+// the FIRST frame of a flight, the one frame nothing has moved yet: measured on
+// a consumer's app, that frame ran 81ms against 15ms for every frame after it,
+// and 21ms of it was here. The same card flies the same two sizes every time it
+// is tapped, so the answer is worked out once and kept.
+const remembered = new Map<string, unknown>();
+
+const recall = <T>(key: string, work: () => T): T => {
+  if (remembered.has(key)) return remembered.get(key) as T;
+  const answer = work();
+  // A page has a handful of faces and a handful of size pairs; a cap keeps a
+  // pathological one from growing without end.
+  if (remembered.size > 512) remembered.clear();
+  remembered.set(key, answer);
+  return answer;
+};
+
+const faceKey = (font: { family: string; weight: string | number; style: string } | null) =>
+  font ? `${font.family}|${font.weight}|${font.style}` : "none";
+
 export const leadingStops = (
   from: LeadingEndType,
   to: LeadingEndType,
@@ -283,7 +306,19 @@ export const leadingStops = (
   if (from.lineHeight === null || to.lineHeight === null) return null;
   if (from.textHeight === null || to.textHeight === null) return null;
   if (Math.abs(from.fontSize - to.fontSize) < EXACT) return null;
+  return recall(
+    `lead|${faceKey(font)}|${from.fontSize},${from.lineHeight},${from.textHeight}` +
+      `>${to.fontSize},${to.lineHeight},${to.textHeight}|${String(ease)}`,
+    () => leadingStopsFor(from, to, font, ease)
+  );
+};
 
+const leadingStopsFor = (
+  from: LeadingEndType,
+  to: LeadingEndType,
+  font: { family: string; weight: string | number; style: string },
+  ease: AnimationOptions["ease"]
+): LeadingStop[] | null => {
   const key = `${font.style}|${font.weight}|${font.family}|${from.fontSize}|${to.fontSize}|${from.lineHeight}|${to.lineHeight}|${from.textHeight}|${to.textHeight}|${JSON.stringify(ease ?? null)}`;
   const cached = stopCache.get(key);
   if (cached !== undefined) return cached;
@@ -493,6 +528,20 @@ export const trackStops = (
   ease: AnimationOptions["ease"]
 ): TrackStop[] | null => {
   if (!font) return null;
+  if (from.fontSize === null || to.fontSize === null) return null;
+  return recall(
+    `track|${faceKey(font)}|${text.length}:${text.slice(0, 24)}|${from.fontSize}>${to.fontSize}|${String(ease)}`,
+    () => trackStopsFor(text, from, to, font, ease)
+  );
+};
+
+const trackStopsFor = (
+  text: string,
+  from: { fontSize: number | null },
+  to: { fontSize: number | null },
+  font: { family: string; weight: string | number; style: string },
+  ease: AnimationOptions["ease"]
+): TrackStop[] | null => {
   if (from.fontSize === null || to.fontSize === null) return null;
   if (Math.abs(from.fontSize - to.fontSize) < EXACT) return null;
   // One glyph has no gap to spread a correction over, and nothing accumulates

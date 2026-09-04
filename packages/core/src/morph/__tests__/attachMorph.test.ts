@@ -370,7 +370,8 @@ describe("attachMorph", () => {
     // the main thread's work already. Pinning is for the parts a compositor
     // could otherwise run away with while the rest of the flight waits.
     expect(nestedRule).toContain("width:");
-    expect(nestedRule).toMatch(/to \{[^}]*--flemo-move-x: 0px;/);
+    // The arrival's stop carries to 100%, one frame early (see `arrived`).
+    expect(nestedRule).toMatch(/%, 100% \{[^}]*--flemo-move-x: 0px;/);
     expect(nestedRule).not.toContain("transform:");
     // SIZE is the other half of the same correction. Riding sizes the child
     // through the container's width interpolation, and a container that is
@@ -1334,7 +1335,7 @@ describe("attachMorph", () => {
     expect(thumbnail.getAttribute(MORPH_ATTR)).toBe("");
   });
 
-  it("holds the departure cut until the navigation ends, not until the travel does", () => {
+  it("holds the departure cut until the navigation ends, not until the travel does", async () => {
     // Caught on glass under `none`: the screens have no motion of their own, so
     // their span is set by whatever else the author gave them — a <Part>'s
     // choreography — and it outlasted the flight. Lifting the cut at the
@@ -1379,6 +1380,9 @@ describe("attachMorph", () => {
 
     flipTo("COMPLETED");
     expect(thumbnail.style.animation).toBe("");
+    // The rules are dropped on the frame AFTER the landing, so the landing
+    // itself carries only the restore (see `disposeOnce`).
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
     expect(dropped.length).toBeGreaterThan(0);
   });
 
@@ -1669,7 +1673,8 @@ describe("attachMorph", () => {
 
     const rule = inserted.find((r) => /flemo-morph-\d+i-paint/.test(r))!;
     expect(rule).toContain("border-radius: 12px / 6px");
-    expect(rule).not.toContain("%");
+    // The corner itself carries no percentage; the keyframe's own stops do.
+    expect(rule.replace(/^\s*[\d.]+%(, 100%)? \{$/gm, "")).not.toContain("%");
   });
 
   it("leaves a non-length radius component alone as well", () => {

@@ -27,6 +27,21 @@ import type { MorphRect } from "@morph/morphGeometry";
 
 const px = (value: number) => `${Math.round(value * 100) / 100}px`;
 
+// A TYPE LENGTH ROUNDED IS A LINE ON THE WRONG PIXEL.
+//
+// Two decimals is enough for a box, whose edge the eye reads at the pixel it
+// lands on. It is not enough for a face: a leading given as a FACTOR resolves
+// against the size and is then rounded to a whole pixel, so a size that is a
+// hair off puts the leading on the other side of a half-pixel and the whole
+// line moves a pixel. Device-read on a consumer's phone, at a landing: the same
+// element, the same family, a size reported as 11.00 at both ends, and a
+// leading of 17px on the flight's last frame against 16px at rest, with nothing
+// inline and no parent changing. 11 x 1.5 is 16.5, and the flight was standing
+// on the wrong side of it.
+//
+// Printed at the precision the value actually has, both ends resolve the same.
+const typePx = (value: number) => `${Number.parseFloat(value.toFixed(6)).toString()}px`;
+
 const insetCss = (inset: MorphClipInset): string =>
   `inset(${inset.top.toFixed(2)}% ${inset.right.toFixed(2)}% ${inset.bottom.toFixed(2)}% ${inset.left.toFixed(2)}%)`;
 
@@ -384,10 +399,31 @@ export const buildMorphKeyframes = (input: {
   const at = (pct: number): number =>
     head > 0 ? headPct + (pct / 100) * (travel.duration / span) * 100 : pct;
   /** Two-stop keyframes, with the flat lead-in in front where there is one. */
-  const held = (name: string, fromBlock: string, toBlock: string): string =>
-    head > 0
-      ? `@keyframes ${name} {\n  0%, ${headPct.toFixed(3)}% {\n${fromBlock}\n  }\n  100% {\n${toBlock}\n  }\n}`
-      : `@keyframes ${name} {\n  from {\n${fromBlock}\n  }\n  to {\n${toBlock}\n  }\n}`;
+  // A FLIGHT HAS TO ARRIVE BEFORE IT LANDS.
+  //
+  // The last frame a flight is painted on is not its 100%: the animation ends
+  // between that frame and the next, so the last thing on glass is the curve a
+  // fraction short of its destination. For a box that is a sub-pixel nobody can
+  // see. For TYPE it is a whole pixel, because a face's ascent is quantised and
+  // a size a thousandth short of its resting value snaps to the grid line
+  // above: device-read at a landing, the last painted frame carried a size of
+  // 11.0006px against a resting 11.0000, and the words sat 1.03px high until
+  // the flight let go.
+  //
+  // So the destination is reached ONE FRAME EARLY and held there. The last
+  // frame on glass is then the resting state itself and the landing changes
+  // nothing. What is given up is the last sixtieth of a second of an ease that
+  // is already flat there.
+  const arrived = span > 0 ? Math.max(0, 100 - (100 * (1 / 60)) / span) : 100;
+  const held = (name: string, fromBlock: string, toBlock: string): string => {
+    const landing =
+      arrived >= 99.999
+        ? `  100% {\n${toBlock}\n  }`
+        : `  ${arrived.toFixed(3)}%, 100% {\n${toBlock}\n  }`;
+    return head > 0
+      ? `@keyframes ${name} {\n  0%, ${headPct.toFixed(3)}% {\n${fromBlock}\n  }\n${landing}\n}`
+      : `@keyframes ${name} {\n  0% {\n${fromBlock}\n  }\n${landing}\n}`;
+  };
   const geometryName = `flemo-morph-${id}-travel`;
   const fromParts: string[] = [];
   const toParts: string[] = [];
@@ -579,7 +615,7 @@ export const buildMorphKeyframes = (input: {
     }
   }
   if (fontSize)
-    pushSize(`    font-size: ${px(fontSize.from)};`, `    font-size: ${px(fontSize.to)};`);
+    pushSize(`    font-size: ${typePx(fontSize.from)};`, `    font-size: ${typePx(fontSize.to)};`);
   if (fontWeight)
     pushSize(
       `    font-weight: ${Math.round(fontWeight.from)};`,
@@ -602,7 +638,10 @@ export const buildMorphKeyframes = (input: {
       `    word-spacing: ${px(wordSpacing.to)};`
     );
   if (lineHeight && !staircase)
-    pushSize(`    line-height: ${px(lineHeight.from)};`, `    line-height: ${px(lineHeight.to)};`);
+    pushSize(
+      `    line-height: ${typePx(lineHeight.from)};`,
+      `    line-height: ${typePx(lineHeight.to)};`
+    );
   if (aspectRatio)
     pushSize(`    aspect-ratio: ${aspectRatio.from};`, `    aspect-ratio: ${aspectRatio.to};`);
   if (padding) pushSize(`    padding: ${padding.from};`, `    padding: ${padding.to};`);
@@ -648,13 +687,33 @@ export const buildMorphKeyframes = (input: {
 
   if (staircase) {
     const leadName = `flemo-morph-${id}-lead`;
+    // A STOP AT THE VERY END IS A STEP THE LANDING TAKES, NOT THE FLIGHT.
+    //
+    // Each stop is held by `steps(1, end)` until the next one, so a final stop
+    // sitting at 100% is never painted while the flight runs: the value before
+    // it stands on glass right up to the last frame and the arrival's own value
+    // appears for the first time at the instant the animation lets go. The
+    // staircase exists to stop the leading stepping, and that placement moves
+    // one of its steps to the worst moment there is, when everything else has
+    // already stopped. Read off a consumer's phone, keyframe by keyframe: a
+    // meta line's stops ran 20px, 19px, 17px, and then 16px AT 100%, and the
+    // words dropped 1.03px on the landing frame.
+    //
+    // So the last stop is brought forward by a frame. The arrival's leading is
+    // then on glass before the flight ends, and the landing changes nothing.
+    const lastFrame = span > 0 ? Math.max(0, 100 - (100 * (1 / 60)) / span) : 100;
+    const stops = staircase.map((stop, index) =>
+      index === staircase.length - 1
+        ? { ...stop, at: Math.min(at(stop.at), lastFrame) }
+        : { ...stop, at: at(stop.at) }
+    );
     // `steps(1, end)` on every stop is what makes this a staircase rather than
     // a ramp: each value is held for its whole interval and changes at the
     // instant the face height it matches does.
-    const blocks = staircase
+    const blocks = stops
       .map(
         (stop) =>
-          `  ${at(stop.at).toFixed(4)}% {\n    line-height: ${px(stop.lineHeight)};\n    animation-timing-function: steps(1, end);\n  }`
+          `  ${stop.at.toFixed(4)}% {\n    line-height: ${typePx(stop.lineHeight)};\n    animation-timing-function: steps(1, end);\n  }`
       )
       .join("\n");
     rules.push(`@keyframes ${leadName} {\n${blocks}\n}`);
@@ -668,11 +727,16 @@ export const buildMorphKeyframes = (input: {
     // `steps(1, end)` on every stop is what makes this a staircase rather than
     // a ramp: each value is held for its whole interval and changes at the
     // instant the face height it matches does.
+    // Brought forward by a frame at the end, for the reason the leading's is:
+    // a stop at 100% is a step the LANDING takes. This one carries the ascent's
+    // cancellation, so the step it hides there is the whole baseline: measured
+    // on a consumer's phone, a line alone in an unchanged parent, its own box
+    // the same size at both ends, arrived exactly 1.00px low every time.
     const blocks = lifting
-      .map(
-        (stop) =>
-          `  ${at(stop.at).toFixed(4)}% {\n${pinnedLiftDecl(stop.ascent)}\n    animation-timing-function: steps(1, end);\n  }`
-      )
+      .map((stop, index) => {
+        const stopAt = index === lifting.length - 1 ? Math.min(at(stop.at), arrived) : at(stop.at);
+        return `  ${stopAt.toFixed(4)}% {\n${pinnedLiftDecl(stop.ascent)}\n    animation-timing-function: steps(1, end);\n  }`;
+      })
       .join("\n");
     rules.push(`@keyframes ${liftName} {\n${blocks}\n}`);
     animations.push(`${liftName} ${clock} linear ${start}s both`);
@@ -685,7 +749,10 @@ export const buildMorphKeyframes = (input: {
     // sample until the next one leaves the whole climb between them on the
     // glass. Same stops, same bytes, a third of the worst frame's error.
     const blocks = tracking
-      .map((stop) => `  ${at(stop.at).toFixed(4)}% {\n${pinnedTrackFixDecl(stop.fix)}\n  }`)
+      .map((stop, index, all) => {
+        const stopAt = index === all.length - 1 ? Math.min(at(stop.at), arrived) : at(stop.at);
+        return `  ${stopAt.toFixed(4)}% {\n${pinnedTrackFixDecl(stop.fix)}\n  }`;
+      })
       .join("\n");
     rules.push(`@keyframes ${trackName} {\n${blocks}\n}`);
     animations.push(`${trackName} ${clock} linear ${start}s both`);

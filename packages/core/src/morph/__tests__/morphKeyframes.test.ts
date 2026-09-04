@@ -166,7 +166,8 @@ describe("buildMorphKeyframes", () => {
       // that omitted a channel would interpolate it from the registered initial
       // value rather than holding it.
       const geometry = pin().rules.find((rule) => rule.includes("-travel"))!;
-      const to = geometry.slice(geometry.indexOf("to {"));
+      // The arrival's stop is the one that carries to 100% (see `arrived`).
+      const to = geometry.slice(geometry.indexOf("%, 100% {"));
 
       for (const axis of ["x", "y", "sx", "sy", "r"]) expect(to).toContain(`--flemo-pose-${axis}:`);
     });
@@ -409,8 +410,11 @@ describe("buildMorphKeyframes", () => {
     });
 
     expect(rules).toHaveLength(1);
-    expect(rules[0]).toContain("from {");
-    expect(rules[0]).toContain("to {");
+    // The destination is stated at its own stop AND held to the end: the last
+    // frame a flight is painted on is not its 100%, and for type a hair short
+    // of the resting size is a whole pixel of ascent (see `arrived`).
+    expect(rules[0]).toContain("0% {");
+    expect(rules[0]).toContain("%, 100% {");
     expect(rules[0]).toContain("translate3d(-100px, 200px, 0) scale(0.25, 0.5)");
     expect(rules[0]).toContain("transform: none");
     expect(animation).toContain("cubic-bezier(0.32, 0.72, 0, 1)");
