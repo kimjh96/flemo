@@ -251,11 +251,16 @@ const closestScreen = (element: HTMLElement): HTMLElement | null =>
 //              active on the element itself wherever it can (it knows, from the
 //              enclosing Screen, what structure cannot tell), so the element IS
 //              its own answer; anything unstamped falls back to the walk.
-//   PHYSICAL — whose transform displaces the measured rect, which is only ever
-//              a screen the element is genuinely INSIDE. An element that
-//              declares a different Router than the screen above it is chrome
-//              sitting over someone else's screen: that screen's pose is not
-//              its pose, and undoing it would aim the travel a screen away.
+//   PHYSICAL — which screen this end is ON, for the parts of a flight that act
+//              on a whole screen (the camera). An element declaring a different
+//              Router than the screen above it is chrome sitting over someone
+//              else's screen, and that screen is not its to drive.
+//
+// DISPLACEMENT IS NOT ONE OF THE TWO. What a measurement is wearing is a
+// property of the BOXES above it, not of any Router, and the transition puts
+// its from-pose on whatever its selector names — a layer slot as readily as a
+// screen. morphSide takes every ancestor pose back off, which needs neither of
+// these answers.
 const owningScreen = (element: HTMLElement): HTMLElement | null =>
   element.hasAttribute(STATUS_ATTR) && element.hasAttribute(ACTIVE_ATTR)
     ? element
@@ -563,7 +568,7 @@ const startFlight = (
           screenEase: carrying.ease
         };
       })()
-    : resolveMorphSide(entry.element, owner, screen, enterVariant);
+    : resolveMorphSide(entry.element, owner, enterVariant);
   if (side.rect.width <= 0 || side.rect.height <= 0) {
     return;
   }
@@ -1588,19 +1593,7 @@ const measurePartnerNow = (
     if (candidate.layoutId !== entry.layoutId) continue;
     if (!isFlightPartner(candidate.element, status, gesture)) continue;
     const partnerOwner = owningScreen(candidate.element);
-    const partnerScreen = physicalScreen(candidate.element);
-    // Nothing to read at all — already in the flight layer, with no owner of
-    // its own: what it is wearing IS where it is, and there is no screen pose
-    // to undo.
-    if (!partnerOwner && !partnerScreen) {
-      return { snapshot: captureMorphSnapshot(candidate.element), element: candidate.element };
-    }
-    const side = resolveMorphSide(
-      candidate.element,
-      partnerOwner,
-      partnerScreen,
-      flightVariants(status).exit
-    );
+    const side = resolveMorphSide(candidate.element, partnerOwner, flightVariants(status).exit);
     return {
       snapshot: {
         rect: side.rect,

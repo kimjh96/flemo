@@ -1088,14 +1088,26 @@ describe("attachMorph", () => {
     expect(leaving.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.EXIT);
   });
 
-  it("does not undo the pose of a screen the bar is merely sitting over", () => {
+  it("undoes the pose of the screen a bar is measured inside, whoever owns it", () => {
+    // BELONGING AND DISPLACEMENT ARE TWO QUESTIONS.
+    //
     // A nested Router's bar hangs under the ENCLOSING screen, which belongs to
-    // another Router and is not part of this flight. Reading its transform as
-    // this end's displacement aimed the travel a screen away.
+    // another Router and has no say over this flight's clock — that much the
+    // owner answers, and declines. But `closest` walks the DOM, so a screen it
+    // finds is one this element is genuinely INSIDE, and an ancestor's
+    // transform displaces every rect measured under it whoever it belongs to.
+    // Treating the foreign Router as "not my pose" left the arrival measured
+    // with the transition's from-pose still on it and never taken off: the
+    // flight was placed a whole shift out and snapped back at the landing.
+    // Device-read on a consumer's tab switch, 4.28px — exactly the 1% that
+    // transition slides by, and it went away when the slide was turned off.
+    //
+    // The two ends are measured at DIFFERENT MOMENTS — the departure when the
+    // status flips, the arrival when the flight is staged — and the enclosing
+    // screen takes its from-pose between them. So the rects here are what a
+    // browser would actually report at each of those moments.
     const outer = makeScreen("cupertino", true);
     outer.setAttribute(ROUTER_ATTR, "outer");
-    outer.style.transform = "translate3d(400px, 0, 0)";
-    setRect(outer, 400, 0, 400, 800);
 
     const leaving = makeMorph(makeBar(outer, "IDLE", true), [300, 10, 80, 32]);
     stamp(leaving, "REPLACING", true, "inner");
@@ -1104,15 +1116,23 @@ describe("attachMorph", () => {
     flipTo("REPLACING");
     stamp(leaving, "REPLACING", false, "inner");
 
-    const arriving = makeMorph(makeBar(outer, "REPLACING", true), [220, 10, 160, 32]);
+    // The enclosing screen puts its from-pose on, and everything under it is
+    // painted 400px along from here.
+    outer.style.transform = "translate3d(400px, 0, 0)";
+    setRect(outer, 400, 0, 400, 800);
+
+    // Deliberately NOT sharing a right edge with the departure, so this stays a
+    // test of where the travel is measured rather than of the far-edge anchor.
+    const arriving = makeMorph(makeBar(outer, "REPLACING", true), [620, 10, 150, 32]);
     stamp(arriving, "REPLACING", true, "inner");
     attachMorph(arriving, { layoutId: "header-actions", navigateStore: store });
 
-    // Measured where they are, not shifted back by the outer screen's 400px.
-    const travel = inserted.find((rule) => rule.includes("-travel"))!;
+    // Both ends carried back out of the 400px into rest space, so the travel is
+    // the 80px between them and not the 480 a raw reading would have made it.
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
     expect(travel).toContain("--flemo-move-x: 80px;");
     expect(travel).toContain("--flemo-box-w: 80px");
-    expect(travel).toContain("--flemo-box-w: 160px");
+    expect(travel).toContain("--flemo-box-w: 150px");
   });
 
   it("lands: the travel's end takes every trace of the flight with it", () => {
