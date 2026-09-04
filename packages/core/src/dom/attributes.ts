@@ -105,6 +105,22 @@ export const DECORATOR_ATTR = "data-flemo-decorator";
 /** The decorator definition's name, for its own compiled rules. */
 export const DECORATOR_NAME_ATTR = "data-flemo-decorator-name";
 
+/**
+ * The screen a decorator belongs to, on every copy of it.
+ *
+ * A decorator is not one element. A screen with a `<Layer>` slot renders its
+ * dim TWICE — once in its own container, once portalled into the layer host so
+ * the dim also covers what the overlay carried out of the screen — and the
+ * copy is the one that paints on top. Everything that has to reach "this
+ * screen's dim" was reaching the in-container one by a ref or an own-child
+ * query, so the copy, which is what the eye is on, was reached by nothing: a
+ * swipe drove the original under it while the visible one stood still.
+ *
+ * The id is the screen's, so a lookup names the OWNER rather than a position,
+ * and finds however many copies that owner rendered.
+ */
+export const DECORATOR_OWNER_ATTR = "data-flemo-decorator-owner";
+
 // ── Layers (consumer overlays that had to leave the screen) ─────────────────
 // A moving screen is a containing block for `position: fixed` descendants AND
 // a stacking context around all of them, while the shared bars are siblings
@@ -434,6 +450,7 @@ export const FLEMO_ATTRIBUTES = [
   BAR_SPACER_ATTR,
   DECORATOR_ATTR,
   DECORATOR_NAME_ATTR,
+  DECORATOR_OWNER_ATTR,
   LAYER_HOST_ATTR,
   LAYER_OWNER_ATTR,
   LAYER_SLOT_ATTR,

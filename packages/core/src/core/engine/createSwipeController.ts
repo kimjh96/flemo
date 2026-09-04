@@ -20,6 +20,7 @@ import {
   BAR_ID_ATTR,
   BAR_ID_TYPE_ATTR,
   DECORATOR_ATTR,
+  DECORATOR_OWNER_ATTR,
   PART_HOME_ATTR,
   PART_NAME_ATTR,
   SCREEN_ATTR,
@@ -149,7 +150,11 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   // Its matched-bar parts while they are up in the part layer.
   let stagedDragParts: StagedBarParts | null = null;
   // The riders this gesture moves itself, for the authors who wrote no hooks.
+  // TWO SETS, BECAUSE THEY BECOME AVAILABLE AT DIFFERENT MOMENTS. A bar part
+  // has to be lifted out of the covered screen before it can be driven; a dim
+  // is found on the scope and is never lifted out of anything.
   let riderSwipe: RiderSwipe | null = null;
+  let decoratorSwipe: RiderSwipe | null = null;
   let ridingBars: { current: HTMLElement[]; prev: HTMLElement[] } = { current: [], prev: [] };
   // The subset of the ride lists that is a SHARED BAR, and the screen box those
   // bars must travel. A bar's own box is shorter than its screen's, so a drag
@@ -499,16 +504,28 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   // no-op once they have taken.
   const armDragRiders = () => {
     // The finger may already be gone; a drag that ended owns nothing.
-    if (!swipeActive || stagedDragParts) return;
+    if (!swipeActive) return;
+
+    // THE DIM WAITED ON A BAR IT HAS NOTHING TO DO WITH.
+    //
+    // Arming used to be one step behind one gate: stage the covered side's bar
+    // parts, and if that took, drive everything. `stageBarParts` declines when
+    // there are no parts to lift — which is every screen with no shared bar —
+    // so on those the step never ran and the decorator, found on the scope and
+    // lifted out of nothing, sat still for the whole drag while the screens
+    // followed the finger. Two readiness conditions cannot share one gate.
+    if (!decoratorSwipe) decoratorSwipe = beginRiderSwipe(collectDecoratorRiders());
+
+    if (stagedDragParts) return;
     // The drag is a flight the engine never sees: the navigate status stays
     // COMPLETED, so nothing else stages the covered side's bar parts and they
     // would cross-fade underneath the screen the finger is moving.
     stageDragParts();
     if (!stagedDragParts) return;
     // Nor does anything else MOVE them. The compiled rules key on a status no
-    // drag ever sets, so a part or a dim that declared only a pose sat still
-    // while the screens followed the finger.
-    riderSwipe = beginRiderSwipe(collectRiders());
+    // drag ever sets, so a part that declared only a pose sat still while the
+    // screens followed the finger.
+    riderSwipe = beginRiderSwipe(collectPartRiders());
   };
 
   // The riders this gesture drives ITSELF: the ones that declared a pose and no
@@ -519,7 +536,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   // A swipe-back is a POP, so the dragged screen's riders take the active side
   // of POPPING and the screen returning underneath takes the passive one — the
   // same two variants the landing flight would run.
-  const collectRiders = (): RiderMotion[] => {
+  const collectPartRiders = (): RiderMotion[] => {
     const transition = config.getTransition();
     const riders: RiderMotion[] = [];
 
@@ -537,18 +554,53 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     for (const element of partEls.current) addPart(element, true);
     for (const element of partEls.prev) addPart(element, false);
 
-    const decoratorDef = config.getDecorator();
-    if (decoratorDef && !decoratorDef.onSwipe && !decoratorDef.onSwipeStart) {
-      const clock = resolveDecoratorClock(transition, decoratorDef);
-      const addDecorator = (element: HTMLElement | null, active: boolean) => {
-        if (!element) return;
-        const motion = resolveVariantMotion(clock, `POPPING-${active}` as TransitionVariant);
-        if (motion) riders.push({ element, motion });
-      };
-      addDecorator(config.getElements().decorator ?? null, true);
-      addDecorator(prevDecorator, false);
-    }
+    return riders;
+  };
 
+  /**
+   * The decorators, on the same terms and on their own clock.
+   *
+   * Split out because they are ready the moment the gesture is: unlike a bar
+   * part, a dim is where the binding rendered it and the drag never moves it.
+   */
+  /**
+   * Every copy of one screen's decorator.
+   *
+   * A screen with a `<Layer>` slot renders its dim twice, and the second copy
+   * is portalled OUT of the container so it can cover what the overlay carried
+   * out with it — which also puts it above the original in paint order. An
+   * own-child query finds the one underneath; the eye is on the other. Device-
+   * read on a consumer's swipe back: the ridden dim tracked the finger
+   * perfectly at 0.90 → 0.64 while the copy on top of it held still, so every
+   * number said healthy and the glass showed nothing.
+   */
+  const decoratorsOf = (screen: HTMLElement | null): HTMLElement[] => {
+    const owner = screen?.getAttribute(SCREEN_ATTR);
+    if (!owner) return [];
+    return Array.from(
+      document.querySelectorAll<HTMLElement>(
+        attrSelector(DECORATOR_ATTR) + attrValueSelector(DECORATOR_OWNER_ATTR, owner)
+      )
+    );
+  };
+
+  const collectDecoratorRiders = (): RiderMotion[] => {
+    const transition = config.getTransition();
+    const decoratorDef = config.getDecorator();
+    if (!decoratorDef || decoratorDef.onSwipe || decoratorDef.onSwipeStart) return [];
+    const clock = resolveDecoratorClock(transition, decoratorDef);
+    const riders: RiderMotion[] = [];
+    const addDecorator = (element: HTMLElement | null, active: boolean) => {
+      if (!element) return;
+      const motion = resolveVariantMotion(clock, `POPPING-${active}` as TransitionVariant);
+      if (motion) riders.push({ element, motion });
+    };
+    const { scope, decorator } = config.getElements();
+    // The handle first, the owner query as the fallback: a screen renders its
+    // dim into the layer host when it has a `<Layer>` slot, and then it is not
+    // where a position-based lookup would go looking.
+    addDecorator(decorator ?? decoratorsOf(scope)[0] ?? null, true);
+    addDecorator(prevDecorator ?? decoratorsOf(prevScreen)[0] ?? null, false);
     return riders;
   };
 
@@ -643,7 +695,15 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       (screenContainer?.previousElementSibling as HTMLElement | null) ?? null;
     prevContainer = prevScreenContainer;
     prevScreen = ownChild(prevScreenContainer, attrSelector(SCREEN_ATTR));
-    prevDecorator = ownChild(prevScreenContainer, attrSelector(DECORATOR_ATTR));
+    // BY OWNER, not by position. A screen with a `<Layer>` slot renders its dim
+    // out into the layer host so it can cover what the overlay carried out, and
+    // then it is not a child of this container at all — an own-child query
+    // answers null and the decorator hook, handed null, writes nothing. The
+    // own-child read stays as the cheap first answer for the ordinary screen.
+    prevDecorator =
+      ownChild(prevScreenContainer, attrSelector(DECORATOR_ATTR)) ??
+      decoratorsOf(prevScreen)[0] ??
+      null;
 
     if (!prevScreen) {
       isTouchPrevented = false;
@@ -724,6 +784,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       releaseDragParts();
       riderSwipe?.settle(false, 0);
       riderSwipe = null;
+      decoratorSwipe?.settle(false, 0);
+      decoratorSwipe = null;
     }
   };
 
@@ -975,6 +1037,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         armDragRiders();
         // The same span everything else reads, in the 0-1 form the scrub takes.
         riderSwipe?.scrub(gestureProgress / 100);
+        decoratorSwipe?.scrub(gestureProgress / 100);
       }
     });
     // The morph runtime already took this number, in its own 0-1 form, and has
@@ -1095,6 +1158,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       // everything the gesture was carrying lands together.
       riderSwipe?.settle(committed, seconds);
       riderSwipe = null;
+      decoratorSwipe?.settle(committed, seconds);
+      decoratorSwipe = null;
     };
 
     const gestureScaled = <T extends typeof animateInline>(

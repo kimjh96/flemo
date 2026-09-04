@@ -10,6 +10,7 @@ import {
   BAR_ATTR,
   BAR_RIDING_ATTR,
   DECORATOR_ATTR,
+  DECORATOR_OWNER_ATTR,
   PART_HOME_ATTR,
   PART_NAME_ATTR,
   PART_STAND_IN_ATTR,
@@ -110,7 +111,7 @@ const stubLayout = (element: HTMLElement) => {
 
 let restoreLayout: (() => void) | undefined;
 
-function buildDom(options: { nestScope?: boolean } = {}) {
+function buildDom(options: { nestScope?: boolean; noBar?: boolean; dimInHost?: boolean } = {}) {
   const root = document.createElement("div");
 
   const prevScreenContainer = document.createElement("div");
@@ -120,6 +121,7 @@ function buildDom(options: { nestScope?: boolean } = {}) {
   prevScope.appendChild(prevPart);
   const prevDecorator = document.createElement("div");
   prevDecorator.setAttribute(DECORATOR_ATTR, "");
+  prevDecorator.setAttribute(DECORATOR_OWNER_ATTR, "prev-1");
   stubAnimate(prevDecorator);
   // The covered screen's matched bar. Its part is what the drag stages, and
   // nothing else in the gesture arms until that staging has taken.
@@ -129,7 +131,12 @@ function buildDom(options: { nestScope?: boolean } = {}) {
   const barPart = part(POSE_ONLY);
   prevBar.appendChild(barPart);
   restoreLayout = stubLayout(barPart);
-  prevScreenContainer.append(prevScope, prevDecorator, prevBar);
+  // A screen renders its dim in its own container, or out in the layer host
+  // when it has a `<Layer>` slot — never both.
+  prevScreenContainer.append(prevScope);
+  if (!options.dimInHost) prevScreenContainer.appendChild(prevDecorator);
+  // Most screens have no shared bar at all, which is a case of its own.
+  if (!options.noBar) prevScreenContainer.appendChild(prevBar);
 
   const screenContainer = document.createElement("div");
   const scope = document.createElement("div");
@@ -149,10 +156,12 @@ function buildDom(options: { nestScope?: boolean } = {}) {
 
   const decorator = document.createElement("div");
   decorator.setAttribute(DECORATOR_ATTR, "");
+  decorator.setAttribute(DECORATOR_OWNER_ATTR, "top-1");
   stubAnimate(decorator);
 
   const layer = document.createElement("div");
 
+  if (options.dimInHost) layer.appendChild(prevDecorator);
   root.append(prevScreenContainer, screenContainer, layer);
   document.body.appendChild(root);
 
@@ -274,6 +283,41 @@ describe("createSwipeController drag riders", () => {
     await flush();
 
     expect(rides(dom.decorator)).toBe(true);
+    expect(rides(dom.prevDecorator)).toBe(true);
+  });
+
+  it("carries the decorators of a screen that has no shared bar at all", async () => {
+    // THE DIM IS NOT A BAR PART, AND NEVER WAITED ON ONE.
+    //
+    // Arming used to happen in one step, behind the covered side's bar-part
+    // staging: lift the parts, and if that took, drive everything. A screen
+    // with no bar has no parts to lift, so the staging declined every frame and
+    // the step never ran — and the dim, which is found on the scope and is
+    // never lifted out of anything, sat still for the whole drag while the
+    // screens followed the finger. Most screens have no shared bar.
+    dom.root.remove();
+    dom = buildDom({ noBar: true });
+    const controller = createSwipeController(buildConfig({ getDecorator: poseDecorator }));
+    drag(controller);
+    await flush();
+
+    expect(rides(dom.decorator)).toBe(true);
+    expect(rides(dom.prevDecorator)).toBe(true);
+  });
+
+  it("finds a dim that was rendered out into the layer host", async () => {
+    // A screen with a `<Layer>` slot renders its decorator into the layer host
+    // rather than its own container, so it can also cover what the overlay
+    // carried out of the screen. A position-based lookup goes looking in the
+    // container and answers null — and a gesture handed null moves nothing,
+    // which is what left the dim standing still for a whole drag while the
+    // screens followed the finger.
+    dom.root.remove();
+    dom = buildDom({ dimInHost: true });
+    const controller = createSwipeController(buildConfig({ getDecorator: poseDecorator }));
+    drag(controller);
+    await flush();
+
     expect(rides(dom.prevDecorator)).toBe(true);
   });
 
