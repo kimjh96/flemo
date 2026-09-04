@@ -1374,17 +1374,53 @@ const startFlight = (
     };
   };
 
-  // The layer is outside the screen, so the compiled hold rule cannot reach the
-  // element through it. Mirroring the arriving screen's hold attribute puts the
-  // element back under the same pause, which is what keeps a morph starting on
-  // the same frame as the screen carrying it instead of on a clock of its own.
+  // ONE FLIGHT, ONE START.
+  //
+  // The layer is outside the screens, so the compiled hold rule cannot reach
+  // the element through them. Mirroring a hold onto the layer puts the element
+  // back under the same pause, which is what keeps a morph starting on the same
+  // frame as the choreography around it instead of on a clock of its own.
+  //
+  // EVERY screen this flight belongs to, not just the one whose transform
+  // displaces it. A flight has two ends and they are not held alike: measured
+  // on a consumer's tab switch, the displacing screen read RELEASED while the
+  // other end sat at `park-under` for 90ms, so the layer mirrored `false` and
+  // the morph ran alone. By the time the bar's parts started their cross-fade
+  // the button had already travelled 42% of its flight, which is the whole
+  // transition arriving in two pieces.
+  //
+  // A hold is a pause, so the strongest one wins: while ANY end is still held,
+  // the flight has not been let go.
+  //
+  // The hold is written on the box that CARRIES a screen, which is not the
+  // element a flight names as its owner: an end resolves to the scope it was
+  // declared in, and the pause sits on an ancestor of that. So each end is
+  // asked for the nearest hold above it, which is the one that applies to where
+  // the element came from, and a nested Router's flight finds its own rather
+  // than the outer screen's (which is IDLE and holds nothing).
+  // NEVER THE LAYER ITSELF. An end already in the air has the layer as its
+  // nearest hold, and the layer is what this WRITES: observing it would make
+  // every write its own next mutation, which is a page that stops answering.
+  const holdSources = [owner, screen, owningScreen(partner)]
+    .map((element) => element?.closest<HTMLElement>(attrSelector(ANIM_HOLD_ATTR)) ?? null)
+    .filter(
+      (element, index, all): element is HTMLElement =>
+        element !== null &&
+        element !== layer &&
+        !layer.contains(element) &&
+        all.indexOf(element) === index
+    );
   const mirrorHold = () => {
-    layer.setAttribute(ANIM_HOLD_ATTR, screen?.getAttribute(ANIM_HOLD_ATTR) ?? ANIM_HOLD.RELEASED);
+    const held = holdSources
+      .map((element) => element.getAttribute(ANIM_HOLD_ATTR))
+      .find((value) => value !== null && value !== ANIM_HOLD.RELEASED);
+    layer.setAttribute(ANIM_HOLD_ATTR, held ?? ANIM_HOLD.RELEASED);
   };
   mirrorHold();
   const holdWatch =
     typeof MutationObserver === "function" ? new MutationObserver(mirrorHold) : null;
-  if (screen) holdWatch?.observe(screen, { attributes: true, attributeFilter: [ANIM_HOLD_ATTR] });
+  for (const element of holdSources)
+    holdWatch?.observe(element, { attributes: true, attributeFilter: [ANIM_HOLD_ATTR] });
 
   let landed = false;
   const finish = () => {

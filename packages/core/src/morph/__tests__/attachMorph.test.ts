@@ -918,6 +918,51 @@ describe("attachMorph", () => {
     expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.HELD);
   });
 
+  // ONE FLIGHT, ONE START.
+  //
+  // A flight has two ends and they are not held alike. Reading only the end
+  // whose transform displaces it let the layer mirror RELEASED while the other
+  // end was still parked, so the morph ran alone: measured on a consumer's tab
+  // switch, the button had travelled 42% of its flight before the bar's parts
+  // started their cross-fade.
+  it("holds the flight while EITHER of its ends is held", () => {
+    const gallery = makeScreen("layout", true);
+    gallery.setAttribute(ANIM_HOLD_ATTR, ANIM_HOLD.PARK_UNDER);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-9", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    // The arriving side is already released; the departing side is not.
+    const detail = makeScreen("layout", true);
+    detail.setAttribute(ANIM_HOLD_ATTR, ANIM_HOLD.RELEASED);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-9", navigateStore: store });
+
+    expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.PARK_UNDER);
+  });
+
+  // The hold is written on the box that CARRIES a screen, and an end resolves
+  // to the scope it was declared in. A nested Router's flight therefore has to
+  // look UP for its pause rather than at the element it named.
+  it("reads the hold from the nearest box above the end, not from the end itself", () => {
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-10", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const carrier = document.createElement("div");
+    carrier.setAttribute(ANIM_HOLD_ATTR, ANIM_HOLD.PARK);
+    document.body.appendChild(carrier);
+    const detail = makeScreen("layout", true);
+    carrier.appendChild(detail);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-10", navigateStore: store });
+
+    expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.PARK);
+  });
+
   it("pairs a POP the other way round, where the dismissing screen is the active one", () => {
     // Caught on glass, not here: the active flag follows the STACK, not the
     // direction of travel. On a pop the screen being dismissed is still the top
