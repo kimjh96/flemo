@@ -87,14 +87,24 @@ function Morph({ ref, layoutId, name, as = "div", style, children, ...props }: M
   // lets a screen that was never frozen (a shallow-freeze session, a live
   // previous screen) still take its side of a pop, since nothing else would
   // tell the runtime the flight had begun.
+  // Whether this element is inside a screen at all — see the note below.
+  const owns = !!navigateStore;
+
   useLayoutEffect(() => {
     const element = elementRef.current;
     /* v8 ignore next -- the ref is set in the same commit the effect runs in;
        the guard is for a consumer rendering `as` into something React does not
        give a node for. */
     if (!element) return;
-    return attachMorph(element, { layoutId, name, navigateStore: store });
-  }, [layoutId, name, store, status, isActive]);
+    return attachMorph(element, {
+      layoutId,
+      name,
+      navigateStore: store,
+      // Handed over rather than stamped: the runtime writes it onto the element
+      // only where the DOM cannot answer for it (see AttachMorphOptions).
+      ownership: owns ? { status, active: isActive } : null
+    });
+  }, [layoutId, name, owns, store, status, isActive]);
 
   // WHICH FLIGHT THIS ELEMENT IS ON, said out loud.
   //
@@ -117,13 +127,10 @@ function Morph({ ref, layoutId, name, as = "div", style, children, ...props }: M
   // rule is what pairs it today. Stamping a status and an active flag there
   // would answer a question it does not have, and on a pop the answer would be
   // "arriving".
-  const owns = !!navigateStore;
   const ownership = owns
     ? {
         "data-flemo-transition": transitionName,
-        "data-flemo-router": screenRouterId ?? nearestRouterId ?? undefined,
-        "data-flemo-status": status,
-        "data-flemo-active": isActive ? "true" : "false"
+        "data-flemo-router": screenRouterId ?? nearestRouterId ?? undefined
       }
     : null;
 

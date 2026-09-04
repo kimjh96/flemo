@@ -101,6 +101,15 @@ export interface AttachMorphOptions {
   name?: MorphTransitionName;
   /** The navigate store of the Router scope this element belongs to. */
   navigateStore: NavigateStoreApi;
+  /**
+   * Which side of which flight this end is on, from the binding.
+   *
+   * Only ever needed where the DOM cannot answer: a shared bar is rendered
+   * outside the screen scope it belongs to, so walking up from a morph in one
+   * leaves the screen entirely or lands on an enclosing Router's. Everything
+   * written inside a screen is answered by the walk and needs none of this.
+   */
+  ownership?: { status: NavigateStatus; active: boolean } | null;
 }
 
 interface MorphEntry {
@@ -1982,6 +1991,37 @@ export default function attachMorph(element: HTMLElement, options: AttachMorphOp
   scope.entries.set(element, entry);
   if (!element.hasAttribute(MORPH_ATTR)) element.setAttribute(MORPH_ATTR, "");
   element.setAttribute(MORPH_NAME_ATTR, String(name));
+
+  // OWNERSHIP IS WRITTEN WHERE IT IS READ, WHICH IS ALMOST NOWHERE.
+  //
+  // The status and the active flag are how this runtime tells which side of a
+  // flight an end is on, and for anything inside a screen the screen already
+  // says both. The binding used to stamp them on EVERY morph, which meant every
+  // morph on the page had two attributes rewritten on every navigation — and an
+  // attribute write invalidates that element's style. Device-read on the
+  // playground's zoom bench, whose list carries thirty-three of them: the pop's
+  // camera juddered as it converged, and it stopped the moment the two writes
+  // did. A morph in a shared bar is one element, which is why nothing showed
+  // there.
+  //
+  // So they are written only where the walk cannot answer, and taken off again
+  // if it can: an element that moves into a screen of its own Router must not
+  // keep a stale answer that outranks it.
+  const enclosing = closestScreen(element);
+  const ownRouter = element.getAttribute(ROUTER_ATTR);
+  const answered =
+    enclosing !== null && (ownRouter === null || ownRouter === enclosing.getAttribute(ROUTER_ATTR));
+  if (!answered) {
+    // Only where the walk cannot answer, and only what the caller gave: an
+    // element already carrying its own answer keeps it.
+    if (options.ownership) {
+      element.setAttribute(STATUS_ATTR, options.ownership.status);
+      element.setAttribute(ACTIVE_ATTR, options.ownership.active ? "true" : "false");
+    }
+  } else if (element.hasAttribute(STATUS_ATTR)) {
+    element.removeAttribute(STATUS_ATTR);
+    element.removeAttribute(ACTIVE_ATTR);
+  }
 
   evaluate(scope, navigateStore, entry);
 
