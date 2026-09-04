@@ -125,6 +125,8 @@ interface MorphFlight {
   element: HTMLElement;
   duration: number;
   start: number;
+  /** The flat lead-in inside `start`, so a nested set bakes the same one. */
+  head: number;
   ease: AnimationOptions["ease"];
   /**
    * Put the landing's safety net away, and set it again.
@@ -622,7 +624,8 @@ const startFlight = (
     side.screenMoves && side.screenEase
       ? side.screenEase
       : (enterMotion.options.ease ?? side.screenEase);
-  const start = carrying ? carrying.start : (enterMotion.options.delay ?? 0) + headSeconds(status);
+  const head = carrying ? carrying.head : headSeconds(status);
+  const start = carrying ? carrying.start : (enterMotion.options.delay ?? 0) + head;
 
   prepareLayer(layer);
   const destination = intoLayerSpace(side.rect, layer);
@@ -751,10 +754,16 @@ const startFlight = (
       authoredTo: resolvePose(enterMotion.to, box) ?? IDENTITY_POSE,
       duration: flightDuration,
       start,
+      head,
       ease
     },
     box: { from: origin, to: destination },
     clip: edgeClip,
+    // The corner the arrival wears, so a reveal cuts the same shape the box has.
+    radius:
+      typeof getComputedStyle === "function"
+        ? getComputedStyle(entry.element).borderRadius || null
+        : null,
     // The spacing travels too. Without it the arrival wears its OWN padding
     // from the first frame, so the contents it is handing over from flinch in
     // or out by the difference at the exact moment of the tap.
@@ -1017,6 +1026,7 @@ const startFlight = (
       element: entry.element,
       duration: flightDuration,
       start,
+      head,
       ease,
       suspendBackstop: () => clearTimeout(nestedBackstop),
       armBackstop: (seconds: number) => {
@@ -1057,13 +1067,20 @@ const startFlight = (
           authoredTo: IDENTITY_POSE,
           duration: flightDuration,
           start,
+          head,
           ease
         },
         // The copy is clipped exactly as the departure was, releasing (or
         // gathering) with the flight, so it too emerges from under the chrome
         // rather than popping whole over it.
         clip: edgeClip,
-        fade: { from: { opacity: 1 }, to: { opacity: 0 }, duration: flightDuration * crossFade },
+        fade:
+          crossFade > 0
+            ? { from: { opacity: 1 }, to: { opacity: 0 }, duration: flightDuration * crossFade }
+            : // The other half of the step: the copy goes at the same instant
+              // the arrival lands, on the same clock, so the pair is never
+              // half-and-half on any frame that reaches the glass.
+              { from: { opacity: 1 }, to: { opacity: 0 }, duration: CUT_SECONDS, easing: CUT_STEP },
         // The GHOST is a copy of the departure and never re-lays itself out, so
         // it holds the departure's own paint for its whole (short) life.
         paint: [],
@@ -1102,6 +1119,7 @@ const startFlight = (
           settling,
           duration: flightDuration,
           start,
+          head,
           ease,
           selector: attrValueSelector(MORPH_CAMERA_ATTR, `${id}c`),
           // The camera is the largest part of all: it carries a whole screen.
@@ -1522,6 +1540,7 @@ const startFlight = (
     element: entry.element,
     duration: flightDuration,
     start,
+    head,
     ease,
     suspendBackstop: () => clearTimeout(backstop),
     armBackstop: (seconds: number) => {

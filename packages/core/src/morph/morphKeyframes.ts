@@ -85,6 +85,24 @@ export interface MorphTravel {
   duration: number;
   /** Seconds from the release, platform head included. */
   start: number;
+  /**
+   * The platform's flat lead-in, ALREADY COUNTED IN `start`.
+   *
+   * A HEAD IS NOT A DELAY. Waiting it out as a delay leaves the animation
+   * uncommitted until the instant it must move, so a first frame that arrives
+   * late arrives PARTWAY THROUGH — the curve is entered wherever the clock
+   * says and everything before that is never drawn. Given here, the same
+   * seconds are baked into the keyframes as a flat stop instead: the animation
+   * is running and still, a late first frame lands inside the lead-in, and the
+   * curve plays from 0. The screens have ridden it this way since the head was
+   * invented; this is the flight riding it the same way.
+   *
+   * Painted frames off a consumer's phone, 60fps: the first frame the box was
+   * drawn on was already 67% of the way through its travel. The computed value
+   * ramped correctly throughout, which is why every main-thread probe called it
+   * healthy.
+   */
+  head?: number;
   ease: AnimationOptions["ease"];
 }
 
@@ -341,7 +359,22 @@ export const buildMorphKeyframes = (input: {
   const rules: string[] = [];
   const animations: string[] = [];
   const easing = easingToCss(travel.ease);
-  const start = travel.start.toFixed(3);
+  // The head is spent inside the animation, not in front of it: the same
+  // seconds, the same first moment of motion, the same landing — the delay
+  // gives them back and the keyframes hold them.
+  const head = Math.max(0, Math.min(travel.head ?? 0, travel.start));
+  const span = travel.duration + head;
+  const headPct = head > 0 ? (head / span) * 100 : 0;
+  const clock = `${span.toFixed(3)}s`;
+  const start = (travel.start - head).toFixed(3);
+  /** A percentage of the travel, restated as a percentage of head-plus-travel. */
+  const at = (pct: number): number =>
+    head > 0 ? headPct + (pct / 100) * (travel.duration / span) * 100 : pct;
+  /** Two-stop keyframes, with the flat lead-in in front where there is one. */
+  const held = (name: string, fromBlock: string, toBlock: string): string =>
+    head > 0
+      ? `@keyframes ${name} {\n  0%, ${headPct.toFixed(3)}% {\n${fromBlock}\n  }\n  100% {\n${toBlock}\n  }\n}`
+      : `@keyframes ${name} {\n  from {\n${fromBlock}\n  }\n  to {\n${toBlock}\n  }\n}`;
   const geometryName = `flemo-morph-${id}-travel`;
   const fromParts: string[] = [];
   const toParts: string[] = [];
@@ -577,8 +610,12 @@ export const buildMorphKeyframes = (input: {
       rules.push(
         `@keyframes ${fadeName} {\n  from {\n${declsToBlock(fromDecls)}\n  }\n  to {\n${declsToBlock(toDecls)}\n  }\n}`
       );
+      // Against `travel.start`, which the head does not move: a cut lands on
+      // the frame the box starts moving whether or not a lead-in precedes it.
       const fadeStart = (travel.start + (fade.delay ?? 0)).toFixed(3);
-      animations.push(`${fadeName} ${fade.duration.toFixed(3)}s ${easing} ${fadeStart}s both`);
+      animations.push(
+        `${fadeName} ${fade.duration.toFixed(3)}s ${fade.easing ?? easing} ${fadeStart}s both`
+      );
     }
   }
 
@@ -590,13 +627,13 @@ export const buildMorphKeyframes = (input: {
     const blocks = staircase
       .map(
         (stop) =>
-          `  ${stop.at.toFixed(4)}% {\n    line-height: ${px(stop.lineHeight)};\n    animation-timing-function: steps(1, end);\n  }`
+          `  ${at(stop.at).toFixed(4)}% {\n    line-height: ${px(stop.lineHeight)};\n    animation-timing-function: steps(1, end);\n  }`
       )
       .join("\n");
     rules.push(`@keyframes ${leadName} {\n${blocks}\n}`);
     // Linear, because the stops already carry the flight's easing in WHERE they
     // sit; easing between them again would move them.
-    animations.push(`${leadName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
+    animations.push(`${leadName} ${clock} linear ${start}s both`);
   }
 
   if (lifting) {
@@ -607,11 +644,11 @@ export const buildMorphKeyframes = (input: {
     const blocks = lifting
       .map(
         (stop) =>
-          `  ${stop.at.toFixed(4)}% {\n${pinnedLiftDecl(stop.ascent)}\n    animation-timing-function: steps(1, end);\n  }`
+          `  ${at(stop.at).toFixed(4)}% {\n${pinnedLiftDecl(stop.ascent)}\n    animation-timing-function: steps(1, end);\n  }`
       )
       .join("\n");
     rules.push(`@keyframes ${liftName} {\n${blocks}\n}`);
-    animations.push(`${liftName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
+    animations.push(`${liftName} ${clock} linear ${start}s both`);
   }
 
   if (tracking) {
@@ -621,18 +658,18 @@ export const buildMorphKeyframes = (input: {
     // sample until the next one leaves the whole climb between them on the
     // glass. Same stops, same bytes, a third of the worst frame's error.
     const blocks = tracking
-      .map((stop) => `  ${stop.at.toFixed(4)}% {\n${pinnedTrackFixDecl(stop.fix)}\n  }`)
+      .map((stop) => `  ${at(stop.at).toFixed(4)}% {\n${pinnedTrackFixDecl(stop.fix)}\n  }`)
       .join("\n");
     rules.push(`@keyframes ${trackName} {\n${blocks}\n}`);
-    animations.push(`${trackName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
+    animations.push(`${trackName} ${clock} linear ${start}s both`);
   }
 
   if (paint.length > 0) {
     const paintName = `flemo-morph-${id}-paint`;
     const from = paint.map((channel) => `    ${channel.property}: ${channel.from};`).join("\n");
     const to = paint.map((channel) => `    ${channel.property}: ${channel.to};`).join("\n");
-    rules.push(`@keyframes ${paintName} {\n  from {\n${from}\n  }\n  to {\n${to}\n  }\n}`);
-    animations.push(`${paintName} ${travel.duration.toFixed(3)}s ${easing} ${start}s both`);
+    rules.push(held(paintName, from, to));
+    animations.push(`${paintName} ${clock} ${easing} ${start}s both`);
     // It runs the flight's full length, so it is a sound clock for a side whose
     // only change is a colour or a corner. The fade is not: it is over while
     // the two sides are still on top of each other, which is most of a flight
@@ -726,6 +763,8 @@ export const buildCameraKeyframes = (input: {
   settling: boolean;
   duration: number;
   start: number;
+  /** The flight's flat lead-in, baked here too: the camera is one of its parts. */
+  head?: number;
   ease: AnimationOptions["ease"];
   selector: string;
   /**
@@ -738,6 +777,12 @@ export const buildCameraKeyframes = (input: {
   accelerated: boolean;
 }): { rules: string[]; name: string } => {
   const { id, origin, small, big, settling, duration, start, ease, selector, accelerated } = input;
+  // Same trade the element makes: the head is spent inside the animation, so a
+  // late first frame lands in the lead-in rather than partway down the curve.
+  const head = Math.max(0, Math.min(input.head ?? 0, start));
+  const span = duration + head;
+  const headPct = head > 0 ? (head / span) * 100 : 0;
+  const delay = start - head;
   const scale = small.width > 0 ? big.width / small.width : 1;
   const centre = (rect: MorphRect) => ({
     x: rect.x + rect.width / 2,
@@ -761,8 +806,10 @@ export const buildCameraKeyframes = (input: {
   };
   const name = `flemo-morph-${id}-camera`;
   const rules = [
-    `@keyframes ${name} {\n  from {\n${stop(!settling)}\n  }\n  to {\n${stop(settling)}\n  }\n}`,
-    `${selector} {\n${accelerated ? "" : `  transform: ${PINNED_POSE_TRANSFORM} !important;\n`}  animation-name: ${name} !important;\n  animation-duration: ${duration.toFixed(3)}s !important;\n  animation-timing-function: ${easingToCss(ease)} !important;\n  animation-delay: ${start.toFixed(3)}s !important;\n  animation-fill-mode: both !important;\n}`
+    head > 0
+      ? `@keyframes ${name} {\n  0%, ${headPct.toFixed(3)}% {\n${stop(!settling)}\n  }\n  100% {\n${stop(settling)}\n  }\n}`
+      : `@keyframes ${name} {\n  from {\n${stop(!settling)}\n  }\n  to {\n${stop(settling)}\n  }\n}`,
+    `${selector} {\n${accelerated ? "" : `  transform: ${PINNED_POSE_TRANSFORM} !important;\n`}  animation-name: ${name} !important;\n  animation-duration: ${span.toFixed(3)}s !important;\n  animation-timing-function: ${easingToCss(ease)} !important;\n  animation-delay: ${delay.toFixed(3)}s !important;\n  animation-fill-mode: both !important;\n}`
   ];
   return { rules, name };
 };
