@@ -51,9 +51,12 @@ export const headSeconds = (status: NavigateStatus): number => {
   // carrying it while every push after it was aligned. Same predicates, same
   // answer, no ordering to lose.
   const { governedHead, headMs } = resolveHeadKit(status);
-  // The governed kit's flat head is counted twice: its keyframes carry the
-  // head, and the engine's own deadlines ride it as well.
-  return governedHead ? (headMs * 2) / 1000 : headMs / 1000;
+  // The governed kit's flat head is counted twice where the flight SLIDES: its
+  // keyframes carry the head and its rule shifts the delay by another. A
+  // REPLACE is not a slide and its rule shifts nothing, so counting two there
+  // put the morph a whole head behind the screen it belongs to.
+  const slides = status === "PUSHING" || status === "POPPING";
+  return governedHead && slides ? (headMs * 2) / 1000 : headMs / 1000;
 };
 
 export interface MorphSide {
