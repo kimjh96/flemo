@@ -393,6 +393,20 @@ const typeTravel = (
 // One frame at 60Hz: long enough to be an animation, short enough to read as
 // the cut it is.
 const CUT_SECONDS = 1 / 60;
+// A cut is a STEP: the value is the from-pose for every instant before the
+// hand-over and the to-pose for every instant from it on, with nothing in
+// between for a frame to land on. See the fade's `easing` in morphKeyframes.
+const CUT_STEP = "steps(1, start)";
+// AND A HELD ARRIVAL IS NOT A TRANSPARENT ONE.
+//
+// An element at opacity 0 paints nothing, so there is no raster for the step to
+// promote and the frame it fires on can reach the glass with nothing on it:
+// device-read on a consumer's tab switch, one wholly blank frame between the
+// copy going and the arrival arriving, in one direction only. The engine's
+// compositor warm-up is the same fact from the other side and settles on the
+// same number — 0.006 of anything composites under one quantization step, and
+// this one is under an opaque copy for every frame it applies to.
+const HELD_OPACITY = 0.006;
 
 // What a morph runs for when the screen transition it rides has no duration to
 // lend it (`none`).
@@ -746,6 +760,24 @@ const startFlight = (
   // Where they cannot be registered it goes back to `left` and `top`.
   const travelPinned = ensurePinnedPoses();
 
+  // WHAT PAINTS DURING THE HEAD IS THE DEPARTURE.
+  //
+  // The head is the flat lead-in the governed tier bakes into every screen's
+  // keyframes: the flight is staged, warm and running, and nothing has moved
+  // yet. What belongs on glass for those milliseconds is what was on glass
+  // before the tap. The arrival does not qualify — it is the destination's
+  // contents at the departure's size — and the only reason it was allowed to
+  // paint there is that the GHOST, a copy of the departure, sits on top of it.
+  //
+  // So the two facts are one fact: a flight hands over, and until it starts
+  // moving the hand-over has not happened. Where there is a partner to hand
+  // over from there is a ghost to paint it, and the arrival waits its turn.
+  // A nested arrival is not covered by a ghost of its own — its container's
+  // ghost carries it — so it is not one of the two facts, and holding it back
+  // would only punch a hole in the copy that is already painting it.
+  const handingOver =
+    !carrying && captured.element.isConnected && captured.element !== entry.element;
+
   const arriving = buildMorphKeyframes({
     id: `${id}i`,
     travel: {
@@ -790,7 +822,21 @@ const startFlight = (
     fade:
       contentDecls(enterMotion.from).length > 0
         ? { from: enterMotion.from, to: enterMotion.to, duration: flightDuration * crossFade }
-        : null,
+        : handingOver && head > 0 && crossFade === 0
+          ? // No entry pose, so the arrival is opaque for its whole flight and
+            // the ghost dissolves on top of it. It still may not paint BEFORE
+            // the flight moves: under a ghost that is only as opaque as its own
+            // content, an arrival showing through is the departure's words and
+            // the destination's words printed over each other for the length of
+            // the head. A step at `start` costs nothing where the ghost is
+            // solid and is the whole difference where it is not.
+            {
+              from: { opacity: HELD_OPACITY },
+              to: { opacity: 1 },
+              duration: CUT_SECONDS,
+              easing: CUT_STEP
+            }
+          : null,
     paint
   });
 
@@ -1050,8 +1096,22 @@ const startFlight = (
   //
   // Nested morphs get none of this: their container's ghost already carries
   // them, and a second copy inside it would be the same pixels twice.
+  //
+  // A ZERO CROSS-FADE IS A CUT, NOT AN ABSENCE. `crossFade` says how long the
+  // hand-over takes; asking for none of it asked for no ghost at all, and the
+  // flight then had nothing to show for its head but the arrival — the very
+  // void this copy exists to fill. Device-read on a consumer's tab switch: the
+  // pill swapped its label and its inner button jumped 25px the instant the
+  // flight was staged, then sat there until the head ran out and the box began
+  // to move. The copy is made either way now, and a zero cross-fade cuts it at
+  // the moment the box starts moving, which is where a cut belongs.
+  // With no head there is nothing to cover, and a copy made anyway would only
+  // put one frame of the departure's own words over the arrival's before
+  // cutting — which is how a ghost made unconditionally doubled the type on
+  // every text morph in Chrome. A zero cross-fade earns its copy from the
+  // head alone, and no head is no copy.
   const ghost =
-    crossFade > 0 && partner.isConnected ? (partner.cloneNode(true) as HTMLElement) : null;
+    handingOver && (crossFade > 0 || head > 0) ? (partner.cloneNode(true) as HTMLElement) : null;
   const ghostSet = ghost
     ? buildMorphKeyframes({
         id: `${id}g`,
@@ -1316,9 +1376,18 @@ const startFlight = (
     // real thing. What the copy is for is the content with no counterpart on
     // the other side: it holds that content in the arrangement it was captured
     // in and fades it out. So it keeps its box and paints nothing itself.
-    ghost.style.background = "none";
-    ghost.style.boxShadow = "none";
-    ghost.style.borderColor = "transparent";
+    //
+    // UNLESS IT IS ALONE. Under a cut there is no arrival underneath for the
+    // length of the head — that is the point of the hold — so "already being
+    // drawn" is false and stripping the surface leaves the box a hole: two
+    // frames of the departure's words on bare page, measured on a consumer's
+    // tab switch as the pill's background blinking out. The copy paints
+    // exactly what nothing else is painting, which under a cut is all of it.
+    if (crossFade > 0) {
+      ghost.style.background = "none";
+      ghost.style.boxShadow = "none";
+      ghost.style.borderColor = "transparent";
+    }
     for (const [property, value] of inherited) ghost.style[property] = value;
     ghost.style.position = "absolute";
     ghost.style.left = `${origin.x}px`;
