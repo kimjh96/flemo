@@ -57,6 +57,7 @@ import { BOX_WIDTH_PROPERTY, IDENTITY_POSE, resolvePose } from "@morph/morphPose
 
 import { ensurePinnedPoses, insertMorphRules } from "@morph/morphSheet";
 import { headSeconds, resolveMorphSide } from "@morph/morphSide";
+import { pinPartWidths } from "@morph/pinParts";
 
 import { morphTransitionMap } from "@transition/morphTransition/morphTransition";
 import {
@@ -1275,6 +1276,12 @@ const startFlight = (
     ? INHERITED.map((property) => [property, inheritedValue(computed, property)] as const)
     : [];
 
+  // Read here, while the element is still in the layout it will REST at, so
+  // what the parts are held to is the width they land on rather than one of the
+  // sizes the box is about to pass through.
+  const unpinParts =
+    Math.abs(origin.width - destination.width) >= 0.05 ? pinPartWidths(entry.element) : null;
+
   preserveAnimations(entry.element, () => layer.appendChild(entry.element));
   for (const [property, value] of inherited) entry.element.style[property] = value;
   entry.element.style.position = "absolute";
@@ -1569,7 +1576,10 @@ const startFlight = (
     layer.removeAttribute(ANIM_HOLD_ATTR);
 
     // Home again, and exactly as it was: the element carries no trace of the
-    // flight, so what the consumer laid out is what remains.
+    // flight, so what the consumer laid out is what remains. The parts are
+    // their own elements and carry their own inline style, so they are let go
+    // of separately.
+    unpinParts?.();
     if (inline === null) entry.element.removeAttribute("style");
     else entry.element.setAttribute("style", inline);
     if (home.isConnected)
