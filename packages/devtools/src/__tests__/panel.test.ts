@@ -991,4 +991,59 @@ describe("attachDevtoolsPanel — shared elements, tripwires and input", () => {
     button().click();
     expect(marks).toEqual(["A", "B", null]);
   });
+
+  it("renders the new sections of a bare flight with dashes instead of crashing", () => {
+    mount({
+      recorder: stub(() =>
+        report({
+          verdict: undefined,
+          preconditions: undefined,
+          flights: [{ id: "flight-1", morphs: {}, tripwires: [], input: {} }]
+        })
+      ),
+      initialOpen: true
+    });
+    vi.advanceTimersByTime(400);
+    const detail = find(".detail").textContent ?? "";
+    expect(detail).toContain("shared elements");
+    expect(detail).toContain("what drove it");
+    expect(detail).toContain("none observed");
+    expect(detail).toContain("clean");
+    expect(detail).not.toContain("tripwires (one-frame events)");
+  });
+
+  it("renders a flight whose shared elements are all present and clean", () => {
+    mount({
+      recorder: stub(() =>
+        report({
+          flights: [
+            flight({
+              morphs: {
+                registered: 2,
+                pairable: ["hero"],
+                flew: ["hero"],
+                skipped: [],
+                camera: false,
+                ghosts: 0,
+                strandedRoles: 0,
+                strandedStandIns: 0,
+                strandedGhosts: 0,
+                leakedSheetRules: 0,
+                layerResidue: 0,
+                duplicatedKeys: []
+              },
+              input: { trusted: 2, synthetic: 0, pointerTypes: ["touch"] }
+            })
+          ]
+        })
+      ),
+      initialOpen: true
+    });
+    vi.advanceTimersByTime(400);
+    const detail = find(".detail").textContent ?? "";
+    expect(detail).toContain("did not flynone");
+    expect(detail).toContain("residue at restclean");
+    expect(detail).toContain("touch");
+    expect(find(".detail").querySelectorAll(".v.bad")).toHaveLength(0);
+  });
 });

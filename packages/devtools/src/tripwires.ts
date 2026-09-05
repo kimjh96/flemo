@@ -152,7 +152,9 @@ export const attachTripwires = (options: TripwireOptions): TripwireHandle => {
       for (const sample of seen) {
         if (sample.trusted) trusted += 1;
         else synthetic += 1;
-        if (sample.pointerType !== "") pointerTypes.add(sample.pointerType);
+        // Never empty: `onPointer` falls back to the event's own type when the
+        // browser reports no pointer type, and an event type is never blank.
+        pointerTypes.add(sample.pointerType);
       }
       return { trusted, synthetic, pointerTypes: [...pointerTypes].sort() };
     }

@@ -107,4 +107,25 @@ describe("carrying a trace across a page load", () => {
     expect(() => clearTrace()).not.toThrow();
     removeItem.mockRestore();
   });
+
+  it("survives a document with no session storage to reach at all", () => {
+    const original = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      get() {
+        throw new Error("partitioned");
+      }
+    });
+    try {
+      expect(loadTrace("3")).toBeNull();
+      expect(() => saveTrace([flight("flight-1")], "3")).not.toThrow();
+    } finally {
+      if (original) Object.defineProperty(globalThis, "sessionStorage", original);
+    }
+  });
+
+  it("drops a payload that parses to nothing", () => {
+    sessionStorage.setItem(TRACE_KEY, "null");
+    expect(loadTrace("3")).toBeNull();
+  });
 });

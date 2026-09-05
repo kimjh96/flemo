@@ -316,4 +316,13 @@ describe("what drove the session", () => {
     expect(realInput?.status).toBe("violated");
     expect(report.verdict[0]).toContain("NOT EVIDENCE");
   });
+
+  it("remembers an override that was set at attach and cleared since", () => {
+    sessionStorage.setItem("flemo:sixty", "on");
+    attach();
+    sessionStorage.removeItem("flemo:sixty");
+
+    const active = Object.keys(handle!.report().overrides.active);
+    expect(active.some((key) => key.includes("since cleared"))).toBe(true);
+  });
 });

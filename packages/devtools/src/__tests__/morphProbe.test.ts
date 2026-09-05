@@ -241,4 +241,18 @@ describe("residue at rest", () => {
   it("reads no rules at all when there is no sheet", () => {
     expect(morphSheetRuleCount()).toBe(0);
   });
+
+  it("reads no rules from a sheet the document cannot open", () => {
+    const style = document.createElement("style");
+    style.setAttribute("data-flemo-morph-sheet", "");
+    Object.defineProperty(style, "sheet", {
+      get() {
+        // What a cross-origin (or mid-teardown) sheet does on access.
+        throw new Error("SecurityError");
+      }
+    });
+    document.head.appendChild(style);
+    expect(morphSheetRuleCount()).toBe(0);
+    style.remove();
+  });
 });

@@ -274,4 +274,83 @@ describe("the on-device readout", () => {
     expect(css).not.toContain("@keyframes");
     expect(/(^|[^-])transition\s*:/.test(css)).toBe(false);
   });
+
+  // A REPORT WHOSE SHAPE HAS MOVED must not take the readout down. Every field
+  // here is read as possibly-absent for the same reason the panel's are: the
+  // schema grows, and an instrument that throws on a missing key is worse than
+  // no instrument on the device where it is hardest to replace.
+  it("renders a flight with nothing in it rather than throwing", () => {
+    hud = attachDevtoolsHud({
+      recorder: recorder(
+        () =>
+          ({
+            flights: [{ id: "flight-1" }]
+          }) as unknown as FlemoReport
+      ),
+      initialExpanded: true
+    });
+    const text = box().textContent ?? "";
+    expect(text).toContain("frames  n0");
+    expect(text).toContain("motion  stall 0ms tail 0 start +?ms");
+    expect(text).toContain("hold    none rel -ms");
+    expect(box().getAttribute("data-alarm")).toBe("false");
+  });
+
+  it("renders an empty report rather than throwing", () => {
+    hud = attachDevtoolsHud({
+      recorder: recorder(() => ({}) as unknown as FlemoReport),
+      initialExpanded: true
+    });
+    expect(box().textContent).toContain("no flight yet");
+    expect(box().textContent).toContain("rAF 0ms");
+  });
+
+  it("says nothing about input or shared elements a flight did not carry", () => {
+    hud = attachDevtoolsHud({
+      recorder: recorder(
+        () =>
+          ({
+            flights: [
+              {
+                id: "flight-1",
+                kind: "PUSH",
+                durationMs: 100,
+                morphs: { pairable: [], flew: [], skipped: [], camera: false }
+              }
+            ]
+          }) as unknown as FlemoReport
+      ),
+      initialExpanded: true
+    });
+    const text = box().textContent ?? "";
+    expect(text).not.toContain("morph  ");
+    expect(text).not.toContain("input  ");
+  });
+
+  it("carries the armed bucket on the line it shows", () => {
+    hud = attachDevtoolsHud({
+      recorder: recorder(() => report({ flights: [flight({ bucket: "B" })] }))
+    });
+    expect(box().textContent).toContain("[B]");
+  });
+
+  it("takes down a recorder it attached itself", () => {
+    // No recorder handed in and no window.flemo to adopt: the readout owns one.
+    hud = attachDevtoolsHud();
+    hud.detach();
+    hud = null;
+    expect((window as unknown as { flemo?: unknown }).flemo).toBeUndefined();
+  });
+
+  it("is inert where there is no document to mount into", () => {
+    const original = globalThis.document;
+    // @ts-expect-error deliberately removing the global for this case
+    delete globalThis.document;
+    try {
+      const inert = attachDevtoolsHud();
+      expect(() => inert.detach()).not.toThrow();
+    } finally {
+      globalThis.document = original;
+    }
+  });
 });
