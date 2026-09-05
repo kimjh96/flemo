@@ -302,7 +302,7 @@ to bring one back — all of these did.
 
 ## 6. Who resolves a flight — "never a double resolution"
 
-A flight's navigation task (`TaskManger`) is resolved by exactly ONE live path; every
+A flight's navigation task (`TaskManager`) is resolved by exactly ONE live path; every
 other path is a backstop that is a no-op once the task settled (`resolveTask` ignores
 non-current ids, and every resolver captures `flooredTaskId` at arm time so a stale
 resolver can never cut a NEWER flight).
@@ -324,7 +324,7 @@ resolver can never cut a NEWER flight).
 4. **Liveness floor** — `max(motionSpan, participantSpan) + 1500ms` timeout resolving
    the captured task id: the guarantee that a rapid storm orphaning the element can
    never deadlock the serial task queue.
-5. **Task gate backstop** (`TaskManger.anchorGate` / `markGateHeld`) — the last resort;
+5. **Task gate backstop** (`TaskManager.anchorGate` / `markGateHeld`) — the last resort;
    re-arms while the hold is on so a long entering-commit block can't fire it into a
    transition-less cut, and is anchored with the choreography's own span so long
    authored motions are never truncated.

@@ -10,7 +10,7 @@
 // its published typings, so declare the single field the gate reads.
 declare const process: { env?: { NODE_ENV?: string } } | undefined;
 
-export function isDevEnvironment(): boolean {
+function isDevEnvironment(): boolean {
   return typeof process !== "undefined" && process?.env?.NODE_ENV !== "production";
 }
 

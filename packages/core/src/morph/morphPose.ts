@@ -238,7 +238,7 @@ export const pinnedBoxDecls = (width: number, height: number, indent = "    "): 
 //
 // Printed ON the ruler, at the six decimals a 64th needs, both truncations are
 // exact and the edge is one number again.
-export const RULER = 1 / 64;
+const RULER = 1 / 64;
 
 export const onRuler = (value: number) => Math.round(value / RULER) * RULER;
 

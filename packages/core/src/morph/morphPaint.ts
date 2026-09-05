@@ -46,7 +46,7 @@ export interface PaintChannel {
 // trades exactness there for the flex/grid case morphs actually hit.)
 const zeroNormal = (value: string): string => (value === "normal" ? "0px" : value);
 
-export const PAINT_CHANNELS: readonly PaintChannel[] = [
+const PAINT_CHANNELS: readonly PaintChannel[] = [
   // The corner. It used to be parsed to a single number because the old
   // implementation had to divide it by a scale; nothing is scaled any more, so
   // the computed value travels as it is — which also means a percentage, a

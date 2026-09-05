@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import TaskManger from "@core/TaskManger";
+import TaskManager from "@core/TaskManager";
 
 import createTransition from "@transition/createTransition";
 import { transitionMap } from "@transition/transition";
@@ -55,7 +55,7 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
       setDragStatus: vi.fn(),
       setReplaceTransitionStatus: vi.fn()
     };
-    resolveSpy = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
+    resolveSpy = vi.spyOn(TaskManager, "resolveTask").mockResolvedValue(true);
     scope = document.createElement("div");
     document.body.appendChild(scope);
     NAV.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
@@ -255,7 +255,7 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
     // one, which is the case the arming deliberately skips.
     NAV.userAgentData = { brands: [{ brand: "Chromium", version: "120" }] };
     const pending = vi
-      .spyOn(TaskManger, "pendingTaskIds", "get")
+      .spyOn(TaskManager, "pendingTaskIds", "get")
       .mockReturnValue(["task-sixty", "task-other"]);
     drive();
     runWindow();

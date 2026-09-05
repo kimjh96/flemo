@@ -37,7 +37,7 @@ export function animHoldKey(input: AnimHoldInput): string | null {
 // a blank shell with late content pop-in (reads as flicker/double-render on
 // real apps). Children commit with the screen again; a heavy mount block now
 // DELAYS the transition start instead of losing the window, because the task
-// gate re-arms until the hold releases (TaskManger.armBackstop + the
+// gate re-arms until the hold releases (TaskManager.armBackstop + the
 // motion-anchored condition in the navigation/step controllers).
 
 export const ANIM_HOLD_RELEASE_BACKSTOP_MS = 300;
@@ -45,7 +45,7 @@ export const ANIM_HOLD_RELEASE_BACKSTOP_MS = 300;
 // How long the release will wait on image decodes at most. Decoding is
 // off-main-thread and usually a few ms; the cap only matters for pathological
 // screens and keeps the hold bounded well inside the backstop.
-export const ANIM_HOLD_DECODE_CAP_MS = 150;
+const ANIM_HOLD_DECODE_CAP_MS = 150;
 
 // How many images the decode wait considers. A transition reveals roughly a
 // viewport's worth of content; decoding an unbounded list would waste the cap
@@ -55,7 +55,7 @@ const DECODE_IMAGE_LIMIT = 20;
 // The scope's images that are LOADED but possibly discarded-decoded: an
 // incomplete image would make decode() wait on the network, which neither the
 // hold nor an eager warm-up should ever do.
-export function collectDecodableImages(scope: HTMLElement): HTMLImageElement[] {
+function collectDecodableImages(scope: HTMLElement): HTMLImageElement[] {
   return Array.from(scope.querySelectorAll("img"))
     .filter((image) => image.complete && typeof image.decode === "function")
     .slice(0, DECODE_IMAGE_LIMIT);

@@ -1,4 +1,4 @@
-import { BROWSER_HISTORY_LANE } from "@core/TaskManger";
+import { BROWSER_HISTORY_LANE } from "@core/TaskManager";
 
 // The browser-history surface flemo's navigation engine depends on, behind one
 // injectable seam. The default is the real `window.history` / `popstate` /

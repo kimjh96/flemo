@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { BROWSER_HISTORY_LANE } from "@core/TaskManger";
+import { BROWSER_HISTORY_LANE } from "@core/TaskManager";
 
 import createBrowserHistoryDriver, {
   type HistoryDriver,

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import TaskManger from "@core/TaskManger";
+import TaskManager from "@core/TaskManager";
 
 import { animationName } from "@transition/compileTransitionStyles";
 import createTransition from "@transition/createTransition";
@@ -91,7 +91,7 @@ describe("replace suspended-mount cut", () => {
       setDragStatus: vi.fn(),
       setReplaceTransitionStatus: vi.fn()
     };
-    resolveSpy = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
+    resolveSpy = vi.spyOn(TaskManager, "resolveTask").mockResolvedValue(true);
   });
 
   afterEach(() => {

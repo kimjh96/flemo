@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import TaskManger from "@core/TaskManger";
+import TaskManager from "@core/TaskManager";
 
 import type { NavigateStatus } from "@navigate/store";
 
@@ -23,9 +23,9 @@ import { SKIP_ANIMATION_ATTR } from "@core/engine/types";
 // try to disarm them all. What makes that safe is two properties, and this
 // suite pins both:
 //
-//   1. `TaskManger.resolveTask` settles a given id at most once — a later call
+//   1. `TaskManager.resolveTask` settles a given id at most once — a later call
 //      naming an already-settled task returns false and does nothing. That
-//      half is TaskManger's own contract and is pinned in its suite
+//      half is TaskManager's own contract and is pinned in its suite
 //      ("resolveTask returns false for an already-completed task").
 //   2. Every resolver names the id it CAPTURED at arm time, never whatever is
 //      current when its timer happens to fire. That half is the ENGINE's, and
@@ -104,7 +104,7 @@ const driveFlight = (taskId: string, status: NavigateStatus = "PUSHING") => {
 beforeEach(() => {
   vi.useFakeTimers();
   transitionMap.set(NAME as never, slide());
-  resolveSpy = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
+  resolveSpy = vi.spyOn(TaskManager, "resolveTask").mockResolvedValue(true);
   scope = document.createElement("div");
   Object.defineProperty(scope, "clientWidth", { value: 390, configurable: true });
   Object.defineProperty(scope, "clientHeight", { value: 800, configurable: true });

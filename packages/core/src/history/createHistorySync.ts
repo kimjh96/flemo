@@ -1,4 +1,4 @@
-import TaskManager, { TRANSITION_GATE_BACKSTOP_MS } from "@core/TaskManger";
+import TaskManager, { TRANSITION_GATE_BACKSTOP_MS } from "@core/TaskManager";
 
 import { navigationLane } from "@history/historyDriver";
 

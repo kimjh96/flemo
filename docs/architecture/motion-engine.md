@@ -137,13 +137,13 @@ PR #259, merged 2026-08-17, fixed this by explicitly clearing `transform` and `o
 
 ## Single-resolution contract
 
-Exactly one live path resolves a flight's `TaskManger` navigation task. `resolveTask` ignores noncurrent IDs. Every resolver captures `flooredTaskId` when armed so stale work cannot resolve a newer flight.
+Exactly one live path resolves a flight's `TaskManager` navigation task. `resolveTask` ignores noncurrent IDs. Every resolver captures `flooredTaskId` when armed so stale work cannot resolve a newer flight.
 
 1. `animationend` is wired from the first transitional render for every driver and accepts the `-lpm` name. It cannot fire while hold pauses animation. Player `animation: none` suppression prevents it throughout player flights.
 2. Player `onComplete`, supplied as `resolvePresented` to `joinPlayer`, fires after every track finishes on the capped clock or reaches the player cut. On diagnostic handoff, the remainder animation's `finish` event resolves; compiled animation remains suppressed.
 3. The compiled perceptual cut detaches `animationend` before calling `resolvePresented`.
 4. WebKit `animationcancel` recovery uses `wireCancelResume` to rejoin the original timeline up to `RESUME_BUDGET = 4` times per task ID, not per effect. If no signal arrives, the watchdog replays once from `from` and resolves. Recovery disarms wall-clock cut and early landing because presentation has shifted.
 5. The liveness floor resolves the captured task ID after `max(motionSpan, participantSpan) + 1500ms`, preventing a rapid storm that orphans an element from deadlocking the serial queue.
-6. `TaskManger.anchorGate` and `markGateHeld` are the final backstop. They rearm while hold remains active so a long entering commit cannot cause a transition-less cut, and use the choreography span so long authored motion is not truncated.
+6. `TaskManager.anchorGate` and `markGateHeld` are the final backstop. They rearm while hold remains active so a long entering commit cannot cause a transition-less cut, and use the choreography span so long authored motion is not truncated.
 
 Resolution targets the live queue, so duplicate resolution can finish its deferred two-rAF landing-clear and choreography chain after the next task starts, cutting that newer navigation. This appeared in campaign R19-v3 as a fast-back pop reaching COMPLETED at about 90 ms with no motion. Any new completion path must capture and resolve its own task ID or be provably suppressed while another path is live.

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import TaskManger from "@core/TaskManger";
+import TaskManager from "@core/TaskManager";
 
 import { transitionMap } from "@transition/transition";
 
@@ -289,7 +289,7 @@ describe("compiled-tier routing", () => {
     Object.defineProperty(navigator, "platform", { value: "iPhone", configurable: true });
     Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
     const pending = vi
-      .spyOn(TaskManger, "pendingTaskIds", "get")
+      .spyOn(TaskManager, "pendingTaskIds", "get")
       .mockReturnValue(["task-touch", "task-queued"]);
     try {
       const scope = document.createElement("div");

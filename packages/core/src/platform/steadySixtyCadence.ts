@@ -55,7 +55,7 @@ import { detectBlinkEngine } from "@platform/engineProbes";
 // the player's own cadence feed (it reports only high-refresh CANDIDATES —
 // a mid-band median from its longer, noisier stream must not reset the
 // streak the probe windows built).
-export const HIGH_REFRESH_MAX_INTERVAL_MS = 12;
+const HIGH_REFRESH_MAX_INTERVAL_MS = 12;
 // The steady-60 acceptance window: 14ms (~71Hz — generous headroom over an
 // honest 16.7ms median) to 22ms (~45Hz — a momentarily loaded 60Hz panel
 // still qualifies; a 30Hz governor's 33ms never does).

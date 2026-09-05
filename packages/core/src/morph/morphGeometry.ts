@@ -101,7 +101,7 @@ export interface MorphSnapshot {
   leadOffset: number | null;
 }
 
-export const rectCentre = (rect: MorphRect): PosePoint => ({
+const rectCentre = (rect: MorphRect): PosePoint => ({
   x: rect.x + rect.width / 2,
   y: rect.y + rect.height / 2
 });
