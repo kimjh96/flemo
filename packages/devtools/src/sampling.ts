@@ -1,12 +1,8 @@
 import { LONG_GAP_MS } from "./anomalies";
 
-import type {
-  FlightDriver,
-  FlightKind,
-  FramePhaseStats,
-  FrameSampleStats,
-  PlayerGapStats
-} from "./types";
+import type { DriverEvidence } from "./frameProbe";
+
+import type { FlightDriver, FlightKind, FramePhaseStats, FrameSampleStats } from "./types";
 
 // Pure helpers over sampled flight data. Kept free of DOM access so anomaly
 // pipelines are testable with synthetic inputs.
@@ -56,28 +52,17 @@ export const computeFrameStats = (
   };
 };
 
-export const computePlayerGapStats = (gaps: readonly number[]): PlayerGapStats | null => {
-  if (gaps.length === 0) return null;
-  return {
-    maxMs: round1(Math.max(...gaps)),
-    over30Count: gaps.filter((gap) => gap >= LONG_GAP_MS).length
-  };
-};
-
-/** Driver evidence gathered by the rAF sampler during a flight. */
-export interface DriverEvidence {
-  /** A running CSSAnimation named flemo-* was observed on a participant. */
-  compiledAnimation: boolean;
-  /** A participant carried inline `animation` suppression (player stake). */
-  playerSuppression: boolean;
-  /** Inline transform/opacity advanced between sampled frames. */
-  playerAdvance: boolean;
-}
-
+/**
+ * Which tier drove the flight.
+ *
+ * The library compiles every animation, so `inline` never comes from flemo:
+ * it means SOMETHING ELSE was writing frames onto a participant, which is
+ * worth knowing and is why the signature is still watched for.
+ */
 export const classifyDriver = (evidence: DriverEvidence): FlightDriver => {
-  const player = evidence.playerSuppression || evidence.playerAdvance;
-  if (player && evidence.compiledAnimation) return "mixed";
-  if (player) return "player";
+  const inline = evidence.inlineSuppression || evidence.inlineAdvance;
+  if (inline && evidence.compiledAnimation) return "mixed";
+  if (inline) return "inline";
   if (evidence.compiledAnimation) return "compiled";
   return "unknown";
 };

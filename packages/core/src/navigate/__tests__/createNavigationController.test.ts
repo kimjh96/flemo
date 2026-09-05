@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import TaskManager from "@core/TaskManger";
+import TaskManager from "@core/TaskManager";
 
 import createHistoryStore, { type History } from "@history/store";
 

@@ -36,7 +36,6 @@ afterEach(() => {
   sessionStorage.clear();
   localStorage.clear();
   delete (window as unknown as { flemo?: unknown }).flemo;
-  delete (window as unknown as { __flemoPlayerGaps?: number[] }).__flemoPlayerGaps;
 });
 
 const mountScreen = () => {

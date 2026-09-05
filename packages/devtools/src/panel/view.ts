@@ -45,6 +45,15 @@ const line = (parent: Element, text: string, className = "li"): void => {
  */
 export const renderChips = (node: Element, report: FlemoReport | null): void => {
   clear(node);
+  // The verdict first, then the preconditions it rests on. A number read
+  // without them is what this package exists to stop happening.
+  for (const sentence of report?.verdict ?? []) {
+    node.appendChild(el("span", "chip lead", formatText(sentence)));
+  }
+  for (const check of report?.preconditions ?? []) {
+    if (check?.status !== "violated") continue;
+    node.appendChild(el("span", "chip bad", `${check.id}: ${formatText(check.detail)}`));
+  }
   for (const warning of report?.overrides?.warnings ?? []) {
     node.appendChild(el("span", "chip warn", formatText(warning)));
   }
@@ -177,15 +186,6 @@ export const renderFlightDetail = (node: Element, flight: FlightRecord | null): 
   const frames = section(node, "frames");
   renderPhase(frames, "held (absorbed)", flight.frameSamples?.held);
   renderPhase(frames, "released (visible)", flight.frameSamples?.released);
-  if (flight.playerGaps) {
-    kv(
-      frames,
-      "player mirror",
-      `max ${formatGapMs(flight.playerGaps.maxMs)} · >30ms ×${formatCount(
-        flight.playerGaps.over30Count
-      )}`
-    );
-  }
   const series = releasedGapSeries(flight.frameSamples);
   if (series) frames.appendChild(sparkline(series));
 
@@ -216,6 +216,79 @@ export const renderFlightDetail = (node: Element, flight: FlightRecord | null): 
     reasserted === null || reasserted === undefined ? "no" : formatMs(reasserted),
     typeof reasserted === "number" ? "bad" : undefined
   );
+  // The status flip and the first moving frame are different moments, and on a
+  // phone the distance between them has measured 90-165ms. Reported, not
+  // judged: that gap belongs to the commit and the present, not the transition.
+  kv(
+    motion,
+    "first animation",
+    flight.motion?.firstAnimationAtMs === null || flight.motion?.firstAnimationAtMs === undefined
+      ? "not observed"
+      : `+${formatMs(flight.motion.firstAnimationAtMs)} after t0`
+  );
+
+  // Shared elements. A pair that never flew is silent everywhere else on the
+  // page: no error, no attribute, no animation — the element simply appears
+  // where it belongs, which looks exactly like a navigation without one.
+  const morphs = flight.morphs;
+  if (morphs) {
+    const shared = section(node, "shared elements");
+    kv(shared, "registered", formatCount(morphs.registered));
+    kv(
+      shared,
+      "pairable / flew",
+      `${formatCount(morphs.pairable?.length)} · ${formatCount(morphs.flew?.length)}`
+    );
+    const skipped = morphs.skipped ?? [];
+    kv(
+      shared,
+      "did not fly",
+      skipped.length === 0 ? "none" : skipped.join(", "),
+      skipped.length > 0 ? "bad" : undefined
+    );
+    const duplicated = morphs.duplicatedKeys ?? [];
+    if (duplicated.length > 0)
+      kv(shared, "duplicate keys in one screen", duplicated.join(", "), "bad");
+    kv(shared, "camera", formatBool(morphs.camera));
+    kv(shared, "ghosts", formatCount(morphs.ghosts));
+    const residue =
+      (morphs.strandedRoles ?? 0) +
+      (morphs.strandedStandIns ?? 0) +
+      (morphs.strandedGhosts ?? 0) +
+      (morphs.layerResidue ?? 0) +
+      (morphs.leakedSheetRules ?? 0);
+    kv(
+      shared,
+      "residue at rest",
+      residue === 0
+        ? "clean"
+        : `${formatCount(morphs.strandedRoles)} roles · ${formatCount(morphs.strandedStandIns)} stand-ins · ` +
+            `${formatCount(morphs.strandedGhosts)} ghosts · ${formatCount(morphs.layerResidue)} in layer · ` +
+            `${formatCount(morphs.leakedSheetRules)} rules`,
+      residue > 0 ? "bad" : undefined
+    );
+  }
+
+  // Tripwires are REPORTED events, not sampled ones: they cannot miss the
+  // single frame they describe, which is why they get their own region.
+  const hits = flight.tripwires ?? [];
+  if (hits.length > 0) {
+    const tripwires = section(node, "tripwires (one-frame events)");
+    for (const hit of hits)
+      line(tripwires, `+${formatMs(hit.atMs)} ${hit.kind}: ${hit.detail}`, "li bad");
+  }
+
+  const input = flight.input;
+  if (input) {
+    const drove = section(node, "what drove it");
+    kv(
+      drove,
+      "input",
+      `${formatCount(input.trusted)} trusted · ${formatCount(input.synthetic)} synthetic`,
+      input.synthetic > 0 ? "bad" : undefined
+    );
+    kv(drove, "pointer types", input.pointerTypes?.join(", ") || "none observed");
+  }
 
   // A still-loading image completing mid-flight decodes on the moving layer:
   // glass-measured at one skipped present per decode, which is why the engine

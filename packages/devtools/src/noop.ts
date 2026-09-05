@@ -26,19 +26,25 @@
 
 // Type-only imports: erased at build, so naming ./panel here does NOT put the
 // panel back in the production graph.
+import type { DevtoolsHudHandle, DevtoolsHudOptions } from "./hud";
 import type { DevtoolsPanelHandle, DevtoolsPanelOptions } from "./panel";
 import type { FlemoReport, FlightRecorderHandle, FlightRecorderOptions } from "./types";
 
 export * from "./anomalies";
 export * from "./blindSpots";
+export * from "./buckets";
 export * from "./environment";
+export * from "./judging";
 export * from "./overrides";
+export * from "./persistence";
+export * from "./preconditions";
 export * from "./sampling";
+export * from "./verdict";
 
 // Duplicated rather than re-exported from recorder.ts, which would put the
 // recorder back in the graph and leave its removal to the optimizer.
 // `noop.test.ts` asserts the two stay equal.
-export const REPORT_SCHEMA_VERSION = "2";
+export const REPORT_SCHEMA_VERSION = "3";
 
 const INERT_NOTE =
   "@flemo/devtools resolved to its production entry: nothing was recorded. " +
@@ -63,6 +69,7 @@ const noop = () => {};
 const inertReport = (): FlemoReport => ({
   generatedAt: new Date().toISOString(),
   version: "inert",
+  verdict: [INERT_NOTE],
   environment: {
     userAgent: "",
     uaBrands: null,
@@ -74,12 +81,17 @@ const inertReport = (): FlemoReport => ({
     viewport: { width: 0, height: 0 },
     visualViewportScale: null,
     rafCadence: { medianGapMs: null, sampleCount: 0 },
+    hardwareConcurrency: 0,
     reducedMotion: false,
+    developmentHints: [],
     emulationSuspected: false,
-    observation: { longTasks: false, elementAnimations: false, playerGapMirror: false }
+    observation: { longTasks: false, elementAnimations: false, animationEvents: false }
   },
+  preconditions: [],
   overrides: { active: {}, warnings: [INERT_NOTE] },
   flights: [],
+  comparison: [],
+  previousSession: null,
   anomalies: [INERT_NOTE],
   blindSpots: [],
   judgingProtocol: [INERT_NOTE]
@@ -87,16 +99,24 @@ const inertReport = (): FlemoReport => ({
 
 export const attachFlightRecorder = (_options?: FlightRecorderOptions): FlightRecorderHandle => ({
   detach: noop,
-  report: inertReport
+  report: inertReport,
+  mark: () => null
 });
 
 export const attachDevtoolsPanel = (_options?: DevtoolsPanelOptions): DevtoolsPanelHandle => ({
   detach: noop
 });
 
+export const attachDevtoolsHud = (_options?: DevtoolsHudOptions): DevtoolsHudHandle => ({
+  detach: noop
+});
+
 export type { FlemoGlobal } from "./recorder";
+export type { DevtoolsHudHandle, DevtoolsHudOptions } from "./hud";
 export type { DevtoolsPanelHandle, DevtoolsPanelOptions } from "./panel";
+export type { DriverEvidence } from "./frameProbe";
 export type {
+  BucketSummary,
   EnvironmentFingerprint,
   FlemoReport,
   FlightDriver,
@@ -109,10 +129,17 @@ export type {
   FlightTimestamp,
   FramePhaseStats,
   FrameSampleStats,
+  ImageActivity,
+  InputEvidence,
   LandingAudit,
   LongTaskSpan,
+  MorphActivity,
+  MotionProgress,
   ObservationCapabilities,
   OverridesSection,
-  PlayerGapStats,
+  Precondition,
+  PreconditionStatus,
+  PreviousSession,
+  TripwireHit,
   UaBrand
 } from "./types";

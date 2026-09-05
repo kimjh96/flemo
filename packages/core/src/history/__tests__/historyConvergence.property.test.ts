@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import TaskManager from "@core/TaskManger";
+import TaskManager from "@core/TaskManager";
 
 import createHistorySync from "@history/createHistorySync";
 import type { HistoryDriver, HistoryNavEvent } from "@history/historyDriver";

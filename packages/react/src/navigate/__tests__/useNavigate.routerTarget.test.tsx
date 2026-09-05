@@ -5,7 +5,7 @@ import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TaskManger, type FlemoStores } from "@flemo/core";
+import { TaskManager, type FlemoStores } from "@flemo/core";
 
 import useNavigate from "@navigate/useNavigate";
 
@@ -61,7 +61,7 @@ const startManualGateSweeper = () => {
   const sweeper = (async () => {
     while (sweeping) {
       await new Promise((resolve) => setTimeout(resolve, 8));
-      await TaskManger.resolveAllPending();
+      await TaskManager.resolveAllPending();
     }
   })();
   return async () => {

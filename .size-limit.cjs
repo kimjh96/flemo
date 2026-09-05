@@ -83,12 +83,13 @@ module.exports = [
     // when introspecting.
     ignore: ["react", "react-dom", "@flemo/core"]
   },
-  // @flemo/devtools ships two independent entry points out of one bundle, so
+  // @flemo/devtools ships three independent entry points out of one bundle, so
   // it is budgeted per named export (`import` makes size-limit tree-shake the
   // entry down to that export's reachable graph) rather than per file. The
-  // split exists because the two are adopted separately: a consumer wiring up
-  // the recorder for a bug report must not pay for the visual panel, and the
-  // panel's growth must not eat the recorder's headroom.
+  // split exists because the three are adopted separately: a consumer wiring up
+  // the recorder for a bug report must not pay for the visual panel, the
+  // panel's growth must not eat the recorder's headroom, and the readout is the
+  // one that goes to a phone.
   {
     name: "@flemo/devtools (recorder)",
     path: "packages/devtools/dist/index.mjs",
@@ -98,10 +99,36 @@ module.exports = [
     // net — pose/clock progress sampling, hold re-assert detection, the
     // orphaned-hold and mid-flight image audits, and the judging protocol —
     // took it to 9.2 KB, which is deliberate: those are the signatures the
-    // 2026-08 campaign's defects would return through. Re-based to 12 KB so
-    // the ~25% headroom convention holds again; a dependency creeping in
-    // would still blow straight through it.
-    limit: "12 KB",
+    // 2026-08 campaign's defects would return through.
+    //
+    // 15.3 kB after the 2026-09-06 rework, and every KB of it answers a
+    // question that used to be answered by building a private tracer and
+    // deleting it afterwards:
+    //
+    //   the morph probe      did the two ends of a shared element pair, and
+    //                        what did the landing leave behind
+    //   the tripwires        the browser's own report of the one-frame events
+    //                        (a cancelled animation, an `animationend` with no
+    //                        elapsed time) that no sampler can catch
+    //   the preconditions    the observable half of the judging protocol, so a
+    //                        clean number from an invalid session says so
+    //   the verdict          the session read back in sentences
+    //   buckets + the trace  the A/B ladder, and flights that survive a reload
+    //
+    // Re-based to 19 KB, the ~25% headroom convention; a dependency creeping
+    // in would still blow straight through it.
+    limit: "19 KB",
+    gzip: true
+  },
+  {
+    name: "@flemo/devtools (hud)",
+    path: "packages/devtools/dist/index.mjs",
+    import: "{ attachDevtoolsHud }",
+    // The on-device readout PLUS the recorder it falls back to attaching, so
+    // this is the real cost of shipping numbers to a phone. The readout's own
+    // share is about 2 KB: a shadow host, one stylesheet with no animation in
+    // it, and the line formatter. Budgeted with the usual headroom.
+    limit: "22 KB",
     gzip: true
   },
   {
@@ -110,11 +137,13 @@ module.exports = [
     import: "{ attachDevtoolsPanel }",
     // The visual panel: shadow-root shell, stylesheet, flight list/detail
     // renderers — PLUS the recorder, which the panel falls back to attaching
-    // itself, so this number is the real cost of `attachDevtoolsPanel` alone
-    // (measured 13.5 KB, of which ~9 KB is the shared recorder). Budgeted
-    // with ~25% headroom; this is a dev-only surface, but it is still shipped
-    // code and a stray charting dependency should trip the gate.
-    limit: "17 KB",
+    // itself, so this number is the real cost of `attachDevtoolsPanel` alone.
+    // 20.7 kB after the 2026-09-06 rework: the recorder's own growth above,
+    // plus the verdict and precondition chips and the shared-element,
+    // tripwire and input sections in the detail pane. Budgeted with ~20%
+    // headroom; this is a dev-only surface, but it is still shipped code and a
+    // stray charting dependency should trip the gate.
+    limit: "25 KB",
     gzip: true
   }
 ];

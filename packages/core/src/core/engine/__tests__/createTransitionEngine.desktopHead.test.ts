@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import TaskManger from "@core/TaskManger";
+import TaskManager from "@core/TaskManager";
 
 import createTransition from "@transition/createTransition";
 import { transitionMap } from "@transition/transition";
@@ -71,7 +71,7 @@ describe("desktop flat head", () => {
       setDragStatus: vi.fn(),
       setReplaceTransitionStatus: vi.fn()
     };
-    resolveSpy = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
+    resolveSpy = vi.spyOn(TaskManager, "resolveTask").mockResolvedValue(true);
     scope = document.createElement("div");
     document.body.appendChild(scope);
     anchorCalls.atRelease = 0;

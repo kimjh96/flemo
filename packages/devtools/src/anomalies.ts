@@ -4,8 +4,9 @@ import type {
   ImageActivity,
   LandingAudit,
   LongTaskSpan,
+  MorphActivity,
   MotionProgress,
-  PlayerGapStats
+  TripwireHit
 } from "./types";
 
 // Anomaly derivation — PURE functions over plain data, so every rule is unit
@@ -33,7 +34,6 @@ export interface FlightAnomalyInput {
   t1Ms: number;
   driver: FlightDriver;
   frameSamples: FrameSampleStats;
-  playerGaps: PlayerGapStats | null;
   /** Long tasks intersecting the RELEASED (visible-motion) phase. */
   longTasks: LongTaskSpan[];
   /** Long tasks fully absorbed by the hold phase (informational only). */
@@ -43,22 +43,17 @@ export interface FlightAnomalyInput {
   landing: LandingAudit;
   motion: MotionProgress;
   images: ImageActivity;
+  morphs: MorphActivity;
+  tripwires: TripwireHit[];
 }
 
 export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
   const anomalies: string[] = [];
-  const { t0Ms, driver, frameSamples, playerGaps, longTasks, holdLongTasks, landing } = input;
+  const { t0Ms, driver, frameSamples, longTasks, holdLongTasks, landing } = input;
   // The visible motion starts at the hold release, not the status flip —
   // the engine absorbs heavy commits INTO the hold on purpose, so both the
   // opening window and the gap rules key on the released phase.
   const visibleStartMs = t0Ms + (input.releasedAtMs ?? 0);
-
-  if (playerGaps && playerGaps.over30Count > 0) {
-    anomalies.push(
-      `player frame gap up to ${playerGaps.maxMs}ms ×${playerGaps.over30Count} during flight ` +
-        "(the rAF player missed frames — convergence jank on this navigation)"
-    );
-  }
 
   if (frameSamples.released.over30Count > 0) {
     const suffix =
@@ -167,6 +162,56 @@ export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
     anomalies.push(
       `transitional status stuck >${STUCK_STATUS_MS / 1000}s: ${landing.stuckStatuses.join(", ")} ` +
         "(navigation queue lock or missed animationend — later navigations will be swallowed)"
+    );
+  }
+
+  // The morph rules. A shared element that does not pair produces no error and
+  // no animation: the element simply appears where it belongs, which is why
+  // every one of these needs saying out loud.
+  const { morphs, tripwires } = input;
+
+  for (const hit of tripwires) {
+    anomalies.push(`tripwire ${hit.kind} at +${hit.atMs}ms: ${hit.detail}`);
+  }
+
+  if (morphs.skipped.length > 0) {
+    anomalies.push(
+      `shared element(s) did not fly: ${morphs.skipped.join(", ")} ` +
+        `(${morphs.pairable.length} pairable key(s), ${morphs.flew.length} flew) — both ends were ` +
+        "registered on two different screens and neither was stamped with a flight role, so the " +
+        "pair was never made"
+    );
+  }
+
+  if (morphs.duplicatedKeys.length > 0) {
+    anomalies.push(
+      `pairing key(s) used twice inside one screen: ${morphs.duplicatedKeys.join(", ")} ` +
+        "(two ends under one screen are not a pair, so one of them can never fly — this is in " +
+        "the consuming app)"
+    );
+  }
+
+  if (morphs.strandedRoles > 0) {
+    anomalies.push(
+      `${morphs.strandedRoles} morph element(s) still carry a flight role at rest (the stranded ` +
+        "participant class: a role that outlives its flight stays in the layer and poisons the " +
+        "NEXT pairing, which is how one interrupted gesture turned into every later pop losing " +
+        "its camera)"
+    );
+  }
+
+  if (morphs.strandedStandIns > 0 || morphs.strandedGhosts > 0 || morphs.layerResidue > 0) {
+    anomalies.push(
+      `morph residue at rest: ${morphs.strandedStandIns} stand-in(s), ${morphs.strandedGhosts} ` +
+        `ghost(s), ${morphs.layerResidue} element(s) left in a flight layer (a stand-in is a ` +
+        "hole in the layout and a layer element is a corpse the next flight will pair against)"
+    );
+  }
+
+  if (morphs.leakedSheetRules > 0) {
+    anomalies.push(
+      `${morphs.leakedSheetRules} morph keyframe rule(s) were left in the per-flight sheet ` +
+        "(a flight that never landed keeps its keyframes; they accumulate for the life of the page)"
     );
   }
 

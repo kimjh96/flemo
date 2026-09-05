@@ -1,8 +1,10 @@
 // Core primitives
 // `TaskManger` is the historical (misspelled) name — kept for compatibility;
 // `TaskManager` is the same singleton under the correct spelling. New code
-// should import `TaskManager`.
-export { default as TaskManger, default as TaskManager } from "@core/TaskManger";
+// should import `TaskManager`. The module itself now carries the correct
+// spelling too: the file was the last place the typo survived, and a name
+// nobody can grep for is a name that gets re-invented.
+export { default as TaskManger, default as TaskManager } from "@core/TaskManager";
 
 // History
 export {
@@ -220,11 +222,15 @@ export {
   LAYER_OWNER_ATTR,
   LAYER_SLOT_ATTR,
   MORPH_ATTR,
+  MORPH_CAMERA_ATTR,
+  MORPH_GHOST_ATTR,
+  MORPH_ID_ATTR,
   MORPH_LAYER_ATTR,
   MORPH_NAME_ATTR,
   MORPH_ROLE,
   MORPH_SLOT_ATTR,
   MORPH_SHEET_ATTR,
+  MORPH_STAND_IN_ATTR,
   PARK_HEAD_ATTR,
   PART_HOME_ATTR,
   PART_LAYER_ATTR,

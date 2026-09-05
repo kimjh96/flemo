@@ -738,7 +738,7 @@ function ScreenMotion({
   // Children mount synchronously with the screen again; the anim-hold anchors
   // the motion to their painted first frame, and a long mount block delays the
   // start instead of losing the window (the transition gate re-arms until the
-  // hold releases — see TaskManger.armBackstop / setMotionAnchoredTaskId).
+  // hold releases — see TaskManager.armBackstop / setMotionAnchoredTaskId).
 
   // Four-state hold attribute. "park" pre-positions a COVERED entering screen
   // (pop) at its destination so its tiles rasterize during the hold;

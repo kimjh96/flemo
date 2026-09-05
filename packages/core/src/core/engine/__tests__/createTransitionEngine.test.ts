@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import TaskManger from "@core/TaskManger";
+import TaskManager from "@core/TaskManager";
 
 import { trackInlineWrite } from "@transition/animateInline";
 import createTransition from "@transition/createTransition";
@@ -59,7 +59,7 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
       setDragStatus: vi.fn(),
       setReplaceTransitionStatus: vi.fn()
     };
-    resolveSpy = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
+    resolveSpy = vi.spyOn(TaskManager, "resolveTask").mockResolvedValue(true);
     scope = newDiv();
   });
 
@@ -263,7 +263,7 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
   });
 
   it("anchors the task gate with the authored motion span (a long motion is never cut)", () => {
-    const anchorSpy = vi.spyOn(TaskManger, "anchorGate").mockImplementation(() => {});
+    const anchorSpy = vi.spyOn(TaskManager, "anchorGate").mockImplementation(() => {});
     const dispose = drive({ status: "PUSHING" });
     // engine-test: 0.3s active motion → anchored window = span + recovery margin.
     expect(anchorSpy).toHaveBeenCalledWith("task-1", 300 + 1500);

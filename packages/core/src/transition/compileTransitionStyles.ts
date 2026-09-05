@@ -553,7 +553,7 @@ export const decoratorAnimationName = (
 // watchdog replayed the transition (the second run is visible on the glass, and
 // device-traced: the park keyframe ended at 912ms and started over at 1179ms)
 // and the navigation took 1959ms where the desktop tier took 780ms.
-export const HEAD_SUFFIXES = {
+const HEAD_SUFFIXES = {
   governed: "gov",
   desktop: "deskhead",
   creep: "govcreep",

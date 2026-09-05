@@ -1,4 +1,4 @@
-import TaskManger from "@core/TaskManger";
+import TaskManager from "@core/TaskManager";
 
 import { clearInlineAnimation } from "@transition/animateInline";
 import {
@@ -286,7 +286,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (!detectBlinkEngine()) return;
       const taskId = deps.getTransitionTaskId();
       if (!taskId) return;
-      if (TaskManger.pendingTaskIds.some((id) => id !== taskId)) return;
+      if (TaskManager.pendingTaskIds.some((id) => id !== taskId)) return;
       armDisplayIntervalProbe();
     };
 
@@ -579,7 +579,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // can never cut a newer flight — exactly what the flooredTaskId capture
       // was for (see its comment above).
       if (flooredTaskId) {
-        void TaskManger.resolveTask(flooredTaskId);
+        void TaskManager.resolveTask(flooredTaskId);
         // The task is settling — drop its resume-budget entry so the map only
         // ever holds the handful of genuinely in-flight tasks.
         activeResumeCounts.delete(flooredTaskId);
@@ -712,13 +712,13 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           if (!animHoldReleased) {
             // Wait for the release commit; this effect re-runs with
             // animHoldReleased=true and arms the span then.
-            if (flooredTaskId) TaskManger.markGateHeld(flooredTaskId);
+            if (flooredTaskId) TaskManager.markGateHeld(flooredTaskId);
             return noop;
           }
           const spanMs = participantSpanMs + 50;
           // Anchor with the choreography's own span so the gate can never cut
-          // an authored motion (see TaskManger.anchorGate).
-          if (flooredTaskId) TaskManger.anchorGate(flooredTaskId, spanMs + GATE_MOTION_MARGIN_MS);
+          // an authored motion (see TaskManager.anchorGate).
+          if (flooredTaskId) TaskManager.anchorGate(flooredTaskId, spanMs + GATE_MOTION_MARGIN_MS);
           const spanTimer = setTimeout(resolve, spanMs);
           return () => clearTimeout(spanTimer);
         }
@@ -737,7 +737,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // transition-less cut"). While the hold is still on, the backstop re-arms
     // instead of firing; the release anchors a FRESH window so a late-starting
     // transition always gets its full motion span. Both calls are idempotent
-    // and safe pre-park (TaskManger keeps the phase until the task settles).
+    // and safe pre-park (TaskManager keeps the phase until the task settles).
     const activeMotion = resolveVariantMotion(currentTransition, variantKey);
 
     if (flooredTaskId) {
@@ -750,12 +750,12 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // (variantHasAnimation subsumes resolveVariantMotion's gate — see the
         // liveness floor below).
         const motionMs = (activeMotion!.delay + activeMotion!.duration) * 1000;
-        TaskManger.anchorGate(
+        TaskManager.anchorGate(
           flooredTaskId,
           Math.max(motionMs, participantSpanMs) + GATE_MOTION_MARGIN_MS
         );
       } else {
-        TaskManger.markGateHeld(flooredTaskId);
+        TaskManager.markGateHeld(flooredTaskId);
       }
     }
     // HOW THIS FLIGHT IS FLOWN — one decision, resolved once (see
@@ -1068,7 +1068,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // longer than its screen), plus the recovery margin.
     const settleMs = Math.max(motionSpanMs, participantSpanMs) + 1500;
     const floor = flooredTaskId
-      ? setTimeout(() => void TaskManger.resolveTask(flooredTaskId), settleMs)
+      ? setTimeout(() => void TaskManager.resolveTask(flooredTaskId), settleMs)
       : undefined;
 
     // Every participant of this STATUS with a registered motion — the passive

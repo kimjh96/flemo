@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TaskManger } from "@flemo/core";
+import { TaskManager } from "@flemo/core";
 
 import useNavigate from "@navigate/useNavigate";
 
@@ -20,7 +20,7 @@ declare module "@Route" {
   }
 }
 
-// Each useNavigate call lives inside `TaskManger.addTask({ control: { manual:
+// Each useNavigate call lives inside `TaskManager.addTask({ control: { manual:
 // true } })`. The task pauses in MANUAL_PENDING until something calls
 // resolveTask. ScreenMotion does that from `animationend` at runtime. In
 // jsdom there's no animation, so a background sweeper repeatedly calls
@@ -30,7 +30,7 @@ const startManualGateSweeper = () => {
   const sweeper = (async () => {
     while (sweeping) {
       await new Promise((r) => setTimeout(r, 8));
-      await TaskManger.resolveAllPending();
+      await TaskManager.resolveAllPending();
     }
   })();
   return async () => {

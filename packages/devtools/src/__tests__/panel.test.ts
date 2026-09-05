@@ -66,7 +66,8 @@ const report = (over: Record<string, unknown> = {}): FlemoReport =>
 
 const stub = (read: () => FlemoReport): FlightRecorderHandle => ({
   report: read,
-  detach: () => {}
+  detach: () => {},
+  mark: () => null
 });
 
 let panel: DevtoolsPanelHandle | null = null;
@@ -88,6 +89,13 @@ const find = (selector: string): HTMLElement => {
   if (!(node instanceof HTMLElement)) throw new Error(`missing ${selector}`);
   return node;
 };
+
+// BY LABEL, NOT BY POSITION. The header grew an A/B button and every index in
+// this file moved with it; a label survives the next one too.
+const actButton = (label: string): HTMLButtonElement | undefined =>
+  Array.from(shadow().querySelectorAll<HTMLButtonElement>(".act")).find(
+    (button) => button.textContent === label
+  );
 
 const rows = (): HTMLElement[] => Array.from(shadow().querySelectorAll(".row"));
 const texts = (selector: string): string[] =>
@@ -219,7 +227,7 @@ describe("attachDevtoolsPanel — toggle and list", () => {
     find(".toggle").click();
     expect(find(".panel").hidden).toBe(true);
     find(".toggle").click();
-    find(".act").parentElement?.querySelectorAll("button")[1]?.click(); // Close
+    actButton("Close")?.click();
     expect(find(".panel").hidden).toBe(true);
   });
 
@@ -355,8 +363,7 @@ describe("attachDevtoolsPanel — header", () => {
   it("detaches from the header button", () => {
     mount({ recorder: stub(() => report()), initialOpen: true });
     vi.advanceTimersByTime(400);
-    const buttons = Array.from(shadow().querySelectorAll<HTMLButtonElement>(".act"));
-    buttons[2]?.click(); // Detach
+    actButton("Detach")?.click();
     expect(document.querySelector("[data-flemo-devtools-panel]")).toBeNull();
     panel = null;
   });
@@ -375,7 +382,7 @@ describe("attachDevtoolsPanel — copy report JSON", () => {
     setExecCommand(undefined);
   });
 
-  const copyButton = () => Array.from(shadow().querySelectorAll<HTMLButtonElement>(".act"))[0];
+  const copyButton = () => actButton("Copy report JSON") ?? actButton("Copied ✓")!;
 
   it("writes the report through the async clipboard and restores its label", async () => {
     const writeText = vi.fn(() => Promise.resolve());
@@ -694,7 +701,6 @@ describe("attachDevtoolsPanel — flight detail", () => {
           flights: [
             flight({
               routerId: "root",
-              playerGaps: { maxMs: 42.3, over30Count: 1 },
               longTasks: [{ startMs: 1200, durationMs: 180 }],
               holdLongTasks: [{ startMs: 900, durationMs: 60 }],
               landing: {
@@ -722,7 +728,6 @@ describe("attachDevtoolsPanel — flight detail", () => {
     expect(detail).toContain("7 frames · median 18.1ms · max 45ms · >30ms ×1");
     // over30Count absent on the released phase: the segment is simply omitted.
     expect(detail).toContain("4 frames · median 16.7ms · max 33ms");
-    expect(detail).toContain("max 42.3ms");
     expect(detail).toContain("1200ms + 180ms");
     expect(detail).toContain("900ms + 60ms (absorbed by hold)");
     expect(detail).toContain("screen[0] transform=translateX(10px)");
@@ -864,5 +869,196 @@ describe("panel DOM helpers", () => {
     const svg = svgEl("svg", { viewBox: "0 0 1 1" });
     expect(svg.namespaceURI).toBe("http://www.w3.org/2000/svg");
     expect(svg.getAttribute("viewBox")).toBe("0 0 1 1");
+  });
+});
+
+// THE SECTIONS THAT ANSWER "did the shared elements fly", "what did the
+// browser report in a single frame", and "what actually drove this".
+describe("attachDevtoolsPanel — shared elements, tripwires and input", () => {
+  const rich = () =>
+    report({
+      verdict: ["NOT EVIDENCE: 1 judging precondition(s) failed — build-mode."],
+      preconditions: [
+        { id: "build-mode", status: "violated", detail: "development-server globals are present" },
+        { id: "display-cadence", status: "ok", detail: "60Hz" }
+      ],
+      flights: [
+        flight({
+          motion: {
+            sampledFrames: 20,
+            stalledFrames: 0,
+            longestStallMs: 0,
+            pausedAfterRelease: false,
+            holdReassertedAtMs: null,
+            tailFrames: 3,
+            firstAnimationAtMs: 22
+          },
+          morphs: {
+            registered: 4,
+            pairable: ["hero", "title"],
+            flew: ["hero"],
+            skipped: ["title"],
+            camera: true,
+            ghosts: 1,
+            strandedRoles: 1,
+            strandedStandIns: 0,
+            strandedGhosts: 0,
+            leakedSheetRules: 2,
+            layerResidue: 3,
+            duplicatedKeys: ["card"]
+          },
+          tripwires: [
+            { kind: "animation-cancel", atMs: 41.2, detail: "flemo-screen-x was CANCELLED" }
+          ],
+          input: { trusted: 0, synthetic: 2, pointerTypes: ["mouse"] }
+        })
+      ]
+    });
+
+  it("leads the header with the verdict and the failed preconditions", () => {
+    mount({ recorder: stub(rich), initialOpen: true });
+    vi.advanceTimersByTime(400);
+    const chips = texts(".chip");
+    expect(chips[0]).toContain("NOT EVIDENCE");
+    expect(chips.some((chip) => chip.startsWith("build-mode:"))).toBe(true);
+    // An `ok` precondition is not a chip: the header is for what is wrong.
+    expect(chips.some((chip) => chip.startsWith("display-cadence"))).toBe(false);
+  });
+
+  it("names the shared elements that did not fly, and the residue they left", () => {
+    mount({ recorder: stub(rich), initialOpen: true });
+    vi.advanceTimersByTime(400);
+    const detail = find(".detail").textContent ?? "";
+    expect(detail).toContain("shared elements");
+    expect(detail).toContain("did not fly");
+    expect(detail).toContain("title");
+    expect(detail).toContain("duplicate keys in one screen");
+    expect(detail).toContain("1 roles");
+    expect(detail).toContain("3 in layer");
+    expect(detail).toContain("2 rules");
+  });
+
+  it("renders a tripwire with the offset the browser reported it at", () => {
+    mount({ recorder: stub(rich), initialOpen: true });
+    vi.advanceTimersByTime(400);
+    const detail = find(".detail").textContent ?? "";
+    expect(detail).toContain("tripwires (one-frame events)");
+    expect(detail).toContain("+41ms animation-cancel");
+  });
+
+  it("shows what drove the navigation, and marks a synthetic one", () => {
+    mount({ recorder: stub(rich), initialOpen: true });
+    vi.advanceTimersByTime(400);
+    const detail = find(".detail").textContent ?? "";
+    expect(detail).toContain("what drove it");
+    expect(detail).toContain("2 synthetic");
+    expect(detail).toContain("mouse");
+    expect(find(".detail").querySelectorAll(".v.bad").length).toBeGreaterThan(0);
+  });
+
+  it("reports when the first keyframe started, and says so when none did", () => {
+    mount({ recorder: stub(rich), initialOpen: true });
+    vi.advanceTimersByTime(400);
+    expect(find(".detail").textContent).toContain("+22ms after t0");
+  });
+
+  it("says nothing about shared elements on a flight that had none", () => {
+    mount({ recorder: stub(() => report({ flights: [flight()] })), initialOpen: true });
+    vi.advanceTimersByTime(400);
+    const detail = find(".detail").textContent ?? "";
+    expect(detail).toContain("not observed");
+    expect(detail).not.toContain("tripwires (one-frame events)");
+  });
+
+  it("arms a comparison bucket from the header and cycles it back off", () => {
+    const marks: (string | null)[] = [];
+    mount({
+      recorder: {
+        ...stub(() => report()),
+        mark: (bucket: string | null) => {
+          marks.push(bucket);
+          return bucket;
+        }
+      } as never,
+      initialOpen: true,
+      buckets: ["A", "B"]
+    });
+    vi.advanceTimersByTime(400);
+    const button = () => actButton("A/B: off") ?? actButton("A/B: A") ?? actButton("A/B: B")!;
+    button().click();
+    expect(button().textContent).toBe("A/B: A");
+    button().click();
+    button().click();
+    expect(marks).toEqual(["A", "B", null]);
+  });
+
+  it("renders the new sections of a bare flight with dashes instead of crashing", () => {
+    mount({
+      recorder: stub(() =>
+        report({
+          verdict: undefined,
+          preconditions: undefined,
+          flights: [{ id: "flight-1", morphs: {}, tripwires: [], input: {} }]
+        })
+      ),
+      initialOpen: true
+    });
+    vi.advanceTimersByTime(400);
+    const detail = find(".detail").textContent ?? "";
+    expect(detail).toContain("shared elements");
+    expect(detail).toContain("what drove it");
+    expect(detail).toContain("none observed");
+    expect(detail).toContain("clean");
+    expect(detail).not.toContain("tripwires (one-frame events)");
+  });
+
+  it("renders a flight whose shared elements are all present and clean", () => {
+    mount({
+      recorder: stub(() =>
+        report({
+          flights: [
+            flight({
+              morphs: {
+                registered: 2,
+                pairable: ["hero"],
+                flew: ["hero"],
+                skipped: [],
+                camera: false,
+                ghosts: 0,
+                strandedRoles: 0,
+                strandedStandIns: 0,
+                strandedGhosts: 0,
+                leakedSheetRules: 0,
+                layerResidue: 0,
+                duplicatedKeys: []
+              },
+              input: { trusted: 2, synthetic: 0, pointerTypes: ["touch"] }
+            })
+          ]
+        })
+      ),
+      initialOpen: true
+    });
+    vi.advanceTimersByTime(400);
+    const detail = find(".detail").textContent ?? "";
+    expect(detail).toContain("did not flynone");
+    expect(detail).toContain("residue at restclean");
+    expect(detail).toContain("touch");
+    expect(find(".detail").querySelectorAll(".v.bad")).toHaveLength(0);
+  });
+
+  // An older recorder on the page has no `mark`. The panel reads it anyway and
+  // its A/B button simply does nothing, rather than throwing on click.
+  it("adopts a window.flemo that predates comparison buckets", () => {
+    (window as unknown as { flemo: unknown }).flemo = {
+      __flemoDevtools: true,
+      report: () => report()
+    };
+    mount({ initialOpen: true });
+    vi.advanceTimersByTime(400);
+    const button = actButton("A/B: off");
+    expect(button).toBeDefined();
+    expect(() => button?.click()).not.toThrow();
+    expect(actButton("A/B: A")).toBeDefined();
   });
 });

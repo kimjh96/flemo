@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import TaskManger from "@core/TaskManger";
+import TaskManager from "@core/TaskManager";
 
 import { animationName } from "@transition/compileTransitionStyles";
 
@@ -721,13 +721,13 @@ describe("createTransitionEngine branches", () => {
     // listener that only knows the base name never resolves the flight, and
     // the restart watchdog replays the whole transition — glass-visible on
     // desktop Safari as a second fade after a tab REPLACE (2026-08-20).
-    const TaskManger = (await import("@core/TaskManger")).default;
+    const TaskManager = (await import("@core/TaskManager")).default;
 
     for (const suffix of ["", "-gov", "-deskhead"]) {
       const { scope } = elements();
       const d = { ...deps(), getTransitionTaskId: vi.fn(() => `task-head${suffix}`) };
       const engine = createTransitionEngine(d);
-      const resolved = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
+      const resolved = vi.spyOn(TaskManager, "resolveTask").mockResolvedValue(true);
 
       transitionMap.set(
         "branches-head" as never,
@@ -783,11 +783,11 @@ describe("createTransitionEngine gate-phase reporting", () => {
   // The gate backstop's clock starts at the park; the engine must report the
   // hold ("motion not started — don't snap") and the release ("motion starting
   // — fresh window") so a long entering-commit block delays the transition
-  // instead of losing it. See TaskManger.markGateHeld / anchorGate.
+  // instead of losing it. See TaskManager.markGateHeld / anchorGate.
   it("reports HELD before the hold releases and ANCHORS on release", async () => {
-    const TaskManger = (await import("@core/TaskManger")).default;
-    const held = vi.spyOn(TaskManger, "markGateHeld");
-    const anchored = vi.spyOn(TaskManger, "anchorGate");
+    const TaskManager = (await import("@core/TaskManager")).default;
+    const held = vi.spyOn(TaskManager, "markGateHeld");
+    const anchored = vi.spyOn(TaskManager, "anchorGate");
     const { scope } = elements();
     const d = { ...deps(), getTransitionTaskId: vi.fn(() => "task-gate-1") };
     const engine = createTransitionEngine(d);
@@ -942,8 +942,8 @@ describe("createTransitionEngine gate-phase reporting", () => {
     // Each screen sits in its own wrapper div — the two screens of ONE
     // flight share no parentElement. The boundary is the explicit
     // data-flemo-router marker, not DOM structure.
-    const TaskManger = (await import("@core/TaskManger")).default;
-    const anchored = vi.spyOn(TaskManger, "anchorGate");
+    const TaskManager = (await import("@core/TaskManager")).default;
+    const anchored = vi.spyOn(TaskManager, "anchorGate");
     const { partTransitionMap } = await import("@transition/partTransition/partTransition");
     const createPartTransition = (await import("@transition/partTransition/createPartTransition"))
       .default;
@@ -1022,8 +1022,8 @@ describe("createTransitionEngine gate-phase reporting", () => {
     // A 3s custom dim over a 0.7s screen: every flight deadline must span
     // the decorator too — it joins the shared player like any participant,
     // and a screen-only span would cut it at ~23%.
-    const TaskManger = (await import("@core/TaskManger")).default;
-    const anchored = vi.spyOn(TaskManger, "anchorGate");
+    const TaskManager = (await import("@core/TaskManager")).default;
+    const anchored = vi.spyOn(TaskManager, "anchorGate");
     const { transitionMap } = await import("@transition/transition");
     const { decoratorMap } = await import("@transition/decorator/decorator");
     const createDecorator = (await import("@transition/decorator/createDecorator")).default;
@@ -1101,7 +1101,7 @@ describe("the perceptual cut and a PRESENT decorator", () => {
     try {
       await withDecorator({ opacity: 0.5 }, (scope, decorator, taskId) => {
         const resolveSpy = vi
-          .spyOn(TaskManger, "resolveTask")
+          .spyOn(TaskManager, "resolveTask")
           .mockImplementation(() => Promise.resolve(true));
         const d = { ...deps(), getTransitionTaskId: vi.fn(() => taskId as never) };
         const cleanup = createTransitionEngine(d).driveScreenLifecycle({
@@ -1130,7 +1130,7 @@ describe("the perceptual cut and a PRESENT decorator", () => {
       // A filter is outside the band math entirely: one veto is enough.
       await withDecorator({ filter: "blur(4px)" }, (scope, decorator, taskId) => {
         const resolveSpy = vi
-          .spyOn(TaskManger, "resolveTask")
+          .spyOn(TaskManager, "resolveTask")
           .mockImplementation(() => Promise.resolve(true));
         const d = { ...deps(), getTransitionTaskId: vi.fn(() => taskId as never) };
         const cleanup = createTransitionEngine(d).driveScreenLifecycle({
@@ -1160,8 +1160,8 @@ describe("reveal-shaped transitions (active no-op, passive animated)", () => {
   // the passive variant's motion, armed at the hold release.
   it("spans the passive exit instead of resolving on a microtask", async () => {
     vi.useFakeTimers();
-    const TaskManger = (await import("@core/TaskManger")).default;
-    const resolveSpy = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
+    const TaskManager = (await import("@core/TaskManager")).default;
+    const resolveSpy = vi.spyOn(TaskManager, "resolveTask").mockResolvedValue(true);
     transitionMap.set(
       "reveal-branch" as never,
       createTransition({
@@ -1241,7 +1241,7 @@ describe("perceptual completion cut", () => {
       Object.defineProperty(scope, "clientHeight", { value: 720, configurable: true });
       document.body.appendChild(scope);
       const resolveSpy = vi
-        .spyOn(TaskManger, "resolveTask")
+        .spyOn(TaskManager, "resolveTask")
         .mockImplementation(() => Promise.resolve(true));
       const d = deps();
       d.getTransitionTaskId.mockReturnValue("cut-task" as never);
@@ -1291,8 +1291,8 @@ describe("reveal-path gate branches", () => {
     });
 
   it("a variant pair with no animation on either side resolves on a microtask", async () => {
-    const TaskManger = (await import("@core/TaskManger")).default;
-    const resolveSpy = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
+    const TaskManager = (await import("@core/TaskManager")).default;
+    const resolveSpy = vi.spyOn(TaskManager, "resolveTask").mockResolvedValue(true);
     transitionMap.set(
       "rest-pair" as never,
       createTransition({
@@ -1321,9 +1321,9 @@ describe("reveal-path gate branches", () => {
   });
 
   it("a reveal-shaped flight with NO task neither marks nor anchors the gate", async () => {
-    const TaskManger = (await import("@core/TaskManger")).default;
-    const heldSpy = vi.spyOn(TaskManger, "markGateHeld");
-    const anchorSpy = vi.spyOn(TaskManger, "anchorGate");
+    const TaskManager = (await import("@core/TaskManager")).default;
+    const heldSpy = vi.spyOn(TaskManager, "markGateHeld");
+    const anchorSpy = vi.spyOn(TaskManager, "anchorGate");
     transitionMap.set(
       "reveal-taskless" as never,
       createTransition({
@@ -1500,7 +1500,7 @@ describe("perceptual cut with participating parts", () => {
       // An unregistered part contributes nothing and must not veto.
       mountPart(scope, "unregistered-part");
       const resolveSpy = vi
-        .spyOn(TaskManger, "resolveTask")
+        .spyOn(TaskManager, "resolveTask")
         .mockImplementation(() => Promise.resolve(true));
       const d = deps();
       d.getTransitionTaskId.mockReturnValue("part-cut" as never);
@@ -1548,7 +1548,7 @@ describe("perceptual cut with participating parts", () => {
       const scope = cutScope();
       mountPart(scope, "scaling-part");
       const resolveSpy = vi
-        .spyOn(TaskManger, "resolveTask")
+        .spyOn(TaskManager, "resolveTask")
         .mockImplementation(() => Promise.resolve(true));
       const d = deps();
       d.getTransitionTaskId.mockReturnValue("part-veto" as never);
@@ -1605,9 +1605,9 @@ describe("choreography-span deferral", () => {
       part.setAttribute("data-flemo-active", "false");
       scope.appendChild(part);
       const resolveSpy = vi
-        .spyOn(TaskManger, "resolveTask")
+        .spyOn(TaskManager, "resolveTask")
         .mockImplementation(() => Promise.resolve(true));
-      const anchorSpy = vi.spyOn(TaskManger, "anchorGate");
+      const anchorSpy = vi.spyOn(TaskManager, "anchorGate");
       const d = deps();
       d.getTransitionTaskId.mockReturnValue("marathon-task" as never);
       const engine = createTransitionEngine(d);
@@ -1682,7 +1682,7 @@ describe("choreography-span deferral", () => {
       part.setAttribute("data-flemo-active", "false");
       scope.appendChild(part);
       const resolveSpy = vi
-        .spyOn(TaskManger, "resolveTask")
+        .spyOn(TaskManager, "resolveTask")
         .mockImplementation(() => Promise.resolve(true));
       const d = deps();
       d.getTransitionTaskId.mockReturnValue("defer-task" as never);

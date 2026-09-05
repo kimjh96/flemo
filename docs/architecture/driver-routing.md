@@ -6,7 +6,7 @@ Verbatim-accurate from `createTransitionEngine.ts` (`joinPlayer`, `forceCompiled
 
 0. **Pin surfaced, unconditionally.** `driverPolicy.pinnedDriver()` is called once at `joinPlayer` entry _before any routing_, purely so the force-pin console warning fires even on paths that short-circuit below — "a forgotten pin must never run silently". (This call does not route; the pin's routing effects are noted per gate.)
 
-1. **Chain gate (Blink only).** `detectBlinkEngine() && TaskManger.pendingTaskIds.some(id => id !== taskId)` → **compiled**. A replay chain (rapid back/forward storm) rides the compositor on Blink, where queued mount commits stall a main-thread player while the compositor glides. On non-Blink, chains ride the _player_ — the compiled clock there is stamped a whole pipeline before first glass and a chained flight born into a heavy commit is swallowed wholesale (device-video'd: chained pop as a one-frame swap).
+1. **Chain gate (Blink only).** `detectBlinkEngine() && TaskManager.pendingTaskIds.some(id => id !== taskId)` → **compiled**. A replay chain (rapid back/forward storm) rides the compositor on Blink, where queued mount commits stall a main-thread player while the compositor glides. On non-Blink, chains ride the _player_ — the compiled clock there is stamped a whole pipeline before first glass and a chained flight born into a heavy commit is swallowed wholesale (device-video'd: chained pop as a one-frame swap).
 
 2. **Blink compiled gate.** On Blink, unless `pinnedDriver() === "raf"`, ANY of:
    - `navigator.maxTouchPoints === 0` (**desktop Blink — unconditional**, not cadence-measured: an adaptive ProMotion panel idles at 60Hz, so a load-time probe lies per-session),

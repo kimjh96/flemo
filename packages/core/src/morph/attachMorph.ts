@@ -16,6 +16,7 @@ import {
   MORPH_CAMERA_ATTR,
   MORPH_LAYER_ATTR,
   MORPH_GHOST_ATTR,
+  MORPH_ID_ATTR,
   MORPH_NAME_ATTR,
   MORPH_ROLE,
   MORPH_SLOT_ATTR,
@@ -1333,6 +1334,7 @@ const startFlight = (
     // id breaks the page it was copied from — label associations, form
     // submissions, and every query a consumer's own tests make.
     node.removeAttribute(MORPH_ATTR);
+    node.removeAttribute(MORPH_ID_ATTR);
     node.removeAttribute(MORPH_NAME_ATTR);
     node.removeAttribute(MORPH_SLOT_ATTR);
     node.removeAttribute(PART_NAME_ATTR);
@@ -1464,6 +1466,7 @@ const startFlight = (
       // belonged to the declined flight, not to the ghost.
       if (node !== ghost && node.hasAttribute(MORPH_ATTR)) node.style.opacity = "0";
       node.removeAttribute(MORPH_ATTR);
+      node.removeAttribute(MORPH_ID_ATTR);
       node.removeAttribute(MORPH_NAME_ATTR);
       // A part carries its own status, so the copy would run the departing
       // screen's choreography a second time — an entrance replaying inside an
@@ -2186,7 +2189,18 @@ export default function attachMorph(element: HTMLElement, options: AttachMorphOp
 
   scope.entries.set(element, entry);
   if (!element.hasAttribute(MORPH_ATTR)) element.setAttribute(MORPH_ATTR, "");
-  element.setAttribute(MORPH_NAME_ATTR, String(name));
+  // WRITTEN ONLY WHEN THEY CHANGE, for the reason the ownership note below
+  // gives: a morph is re-registered on every status change, so an
+  // unconditional write is one style invalidation per morph per navigation —
+  // thirty-three of them on the playground's zoom bench, where exactly this
+  // cost was device-read as judder. The value is a constant per element in
+  // every real binding, so the comparison replaces the write outright.
+  const nameValue = String(name);
+  if (element.getAttribute(MORPH_NAME_ATTR) !== nameValue)
+    element.setAttribute(MORPH_NAME_ATTR, nameValue);
+  // The pairing key, so the pair is observable from outside the runtime.
+  if (element.getAttribute(MORPH_ID_ATTR) !== entry.layoutId)
+    element.setAttribute(MORPH_ID_ATTR, entry.layoutId);
 
   // OWNERSHIP IS WRITTEN WHERE IT IS READ, WHICH IS ALMOST NOWHERE.
   //

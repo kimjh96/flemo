@@ -25,7 +25,6 @@ const cleanFlight = (): FlightAnomalyInput => ({
     held: phase({ count: 0, medianGapMs: 0, maxGapMs: 0 }),
     released: phase()
   },
-  playerGaps: null,
   longTasks: [],
   holdLongTasks: [],
   releasedAtMs: null,
@@ -41,7 +40,8 @@ const cleanFlight = (): FlightAnomalyInput => ({
     longestStallMs: 0,
     tailFrames: 0,
     pausedAfterRelease: false,
-    holdReassertedAtMs: null
+    holdReassertedAtMs: null,
+    firstAnimationAtMs: 4
   },
   images: {
     loadingAtStart: 0,
@@ -49,21 +49,27 @@ const cleanFlight = (): FlightAnomalyInput => ({
     completedDuringFlight: 0,
     heldDuringFlight: 0,
     completedUnheld: 0
-  }
+  },
+  morphs: {
+    registered: 0,
+    pairable: [],
+    flew: [],
+    skipped: [],
+    camera: false,
+    ghosts: 0,
+    strandedRoles: 0,
+    strandedStandIns: 0,
+    strandedGhosts: 0,
+    leakedSheetRules: 0,
+    layerResidue: 0,
+    duplicatedKeys: []
+  },
+  tripwires: []
 });
 
 describe("deriveFlightAnomalies", () => {
   it("returns no anomalies for a clean compiled flight", () => {
     expect(deriveFlightAnomalies(cleanFlight())).toEqual([]);
-  });
-
-  it("flags player frame gaps with count and max", () => {
-    const anomalies = deriveFlightAnomalies({
-      ...cleanFlight(),
-      driver: "player",
-      playerGaps: { maxMs: 42, over30Count: 3 }
-    });
-    expect(anomalies.some((entry) => entry.includes("player frame gap up to 42ms ×3"))).toBe(true);
   });
 
   it("flags released-phase main-thread rAF gaps, softened for compiled flights", () => {
@@ -83,11 +89,11 @@ describe("deriveFlightAnomalies", () => {
     expect(line).toContain("can still present cleanly");
   });
 
-  it("does not soften main-thread gaps for player flights", () => {
+  it("does not soften main-thread gaps for an inline-driven flight", () => {
     const base = cleanFlight();
     const anomalies = deriveFlightAnomalies({
       ...base,
-      driver: "player",
+      driver: "inline",
       frameSamples: {
         ...base.frameSamples,
         maxGapMs: 55,
@@ -271,5 +277,84 @@ describe("closing tail", () => {
     const flight = cleanFlight();
     flight.motion = { ...flight.motion, stalledFrames: 3, longestStallMs: 50, tailFrames: 0 };
     expect(deriveFlightAnomalies(flight).join(" ")).toContain("stalled");
+  });
+});
+
+// THE MORPH RULES. A shared element that does not pair is silent everywhere
+// else on the page, so every one of these has to be said out loud.
+describe("deriveFlightAnomalies: shared elements", () => {
+  const withMorphs = (over: Partial<FlightAnomalyInput["morphs"]>): string[] => {
+    const base = cleanFlight();
+    return deriveFlightAnomalies({ ...base, morphs: { ...base.morphs, ...over } });
+  };
+
+  it("names the keys that were pairable and never flew", () => {
+    const anomalies = withMorphs({
+      registered: 4,
+      pairable: ["hero", "title"],
+      flew: ["hero"],
+      skipped: ["title"]
+    });
+    const line = anomalies.find((entry) => entry.includes("did not fly"));
+    expect(line).toContain("title");
+    expect(line).toContain("2 pairable key(s), 1 flew");
+  });
+
+  it("says nothing when every pairable key flew", () => {
+    expect(withMorphs({ registered: 2, pairable: ["hero"], flew: ["hero"], skipped: [] })).toEqual(
+      []
+    );
+  });
+
+  it("puts a duplicated key on the consuming app, not on the runtime", () => {
+    const line = withMorphs({ duplicatedKeys: ["card"] }).find((entry) =>
+      entry.includes("used twice inside one screen")
+    );
+    expect(line).toContain("card");
+    expect(line).toContain("consuming app");
+  });
+
+  it("flags a role that outlived its flight as the stranded-participant class", () => {
+    const line = withMorphs({ strandedRoles: 2 }).find((entry) =>
+      entry.includes("flight role at rest")
+    );
+    expect(line).toContain("poisons the NEXT pairing");
+  });
+
+  it("flags residue left in the layout and in the layer", () => {
+    const line = withMorphs({ strandedStandIns: 1, layerResidue: 3 }).find((entry) =>
+      entry.includes("morph residue at rest")
+    );
+    expect(line).toContain("1 stand-in(s)");
+    expect(line).toContain("3 element(s) left in a flight layer");
+  });
+
+  it("flags keyframe rules a flight never dropped", () => {
+    expect(
+      withMorphs({ leakedSheetRules: 6 }).some((entry) =>
+        entry.includes("6 morph keyframe rule(s)")
+      )
+    ).toBe(true);
+  });
+});
+
+// TRIPWIRES are reported by the browser, not sampled, so they are surfaced
+// verbatim with the offset they landed at.
+describe("deriveFlightAnomalies: tripwires", () => {
+  it("carries every hit through with its offset", () => {
+    const base = cleanFlight();
+    const anomalies = deriveFlightAnomalies({
+      ...base,
+      tripwires: [
+        {
+          kind: "animation-cancel",
+          atMs: 41.2,
+          detail: "flemo-screen-cupertino-POPPING-true was CANCELLED"
+        },
+        { kind: "zero-length-animation-end", atMs: 0.4, detail: "elapsedTime 0" }
+      ]
+    });
+    expect(anomalies[0]).toContain("tripwire animation-cancel at +41.2ms");
+    expect(anomalies[1]).toContain("tripwire zero-length-animation-end at +0.4ms");
   });
 });

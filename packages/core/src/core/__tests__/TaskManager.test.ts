@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
-import TaskManger from "@core/TaskManger";
+import TaskManager from "@core/TaskManager";
 
 // The TaskManager is exported as a process-wide singleton. Each test below
 // awaits its own addTask promise(s) and uses fresh execute fns, so state
 // doesn't leak between tests despite the shared instance.
 
-describe("TaskManger: basic execution", () => {
+describe("TaskManager: basic execution", () => {
   it("runs execute and resolves with success + result", async () => {
     const execute = vi.fn(async () => "ok");
-    const outcome = await TaskManger.addTask(execute);
+    const outcome = await TaskManager.addTask(execute);
 
     expect(execute).toHaveBeenCalledTimes(1);
     expect(outcome.success).toBe(true);
@@ -19,28 +19,28 @@ describe("TaskManger: basic execution", () => {
 
   it("respects a caller-provided task id", async () => {
     const id = `test-${Math.random().toString(36).slice(2)}`;
-    const outcome = await TaskManger.addTask(async () => 1, { id });
+    const outcome = await TaskManager.addTask(async () => 1, { id });
     expect(outcome.taskId).toBe(id);
   });
 
   it("waits options.delay before executing", async () => {
     const start = Date.now();
-    await TaskManger.addTask(async () => "delayed", { delay: 80 });
+    await TaskManager.addTask(async () => "delayed", { delay: 80 });
     expect(Date.now() - start).toBeGreaterThanOrEqual(70);
   });
 });
 
-describe("TaskManger: FIFO ordering", () => {
+describe("TaskManager: FIFO ordering", () => {
   it("processes sequentially in arrival order", async () => {
     const log: number[] = [];
-    const p1 = TaskManger.addTask(async () => {
+    const p1 = TaskManager.addTask(async () => {
       await new Promise((r) => setTimeout(r, 20));
       log.push(1);
     });
-    const p2 = TaskManger.addTask(async () => {
+    const p2 = TaskManager.addTask(async () => {
       log.push(2);
     });
-    const p3 = TaskManger.addTask(async () => {
+    const p3 = TaskManager.addTask(async () => {
       log.push(3);
     });
 
@@ -49,12 +49,12 @@ describe("TaskManger: FIFO ordering", () => {
   });
 });
 
-describe("TaskManger: manual control", () => {
+describe("TaskManager: manual control", () => {
   it("stays MANUAL_PENDING until resolveTask is called", async () => {
     let pendingResolved = false;
     const id = `manual-${Math.random().toString(36).slice(2)}`;
 
-    const pending = TaskManger.addTask(async () => "produced", {
+    const pending = TaskManager.addTask(async () => "produced", {
       id,
       control: { manual: true }
     }).then((outcome) => {
@@ -66,7 +66,7 @@ describe("TaskManger: manual control", () => {
     await new Promise((r) => setTimeout(r, 30));
     expect(pendingResolved).toBe(false);
 
-    const accepted = await TaskManger.resolveTask(id);
+    const accepted = await TaskManager.resolveTask(id);
     expect(accepted).toBe(true);
 
     const outcome = await pending;
@@ -75,19 +75,19 @@ describe("TaskManger: manual control", () => {
   });
 
   it("resolveTask returns false for unknown task ids", async () => {
-    expect(await TaskManger.resolveTask("does-not-exist")).toBe(false);
+    expect(await TaskManager.resolveTask("does-not-exist")).toBe(false);
   });
 
   it("resolveTask returns false for an already-completed task", async () => {
-    const outcome = await TaskManger.addTask(async () => 1);
-    expect(await TaskManger.resolveTask(outcome.taskId!)).toBe(false);
+    const outcome = await TaskManager.addTask(async () => 1);
+    expect(await TaskManager.resolveTask(outcome.taskId!)).toBe(false);
   });
 
   it("control.condition blocks until the condition flips, then resolveTask can clear it", async () => {
     let allowResolve = false;
     const id = `cond-${Math.random().toString(36).slice(2)}`;
 
-    const pending = TaskManger.addTask(async () => "with-cond", {
+    const pending = TaskManager.addTask(async () => "with-cond", {
       id,
       control: {
         manual: true,
@@ -96,10 +96,10 @@ describe("TaskManger: manual control", () => {
     });
 
     await new Promise((r) => setTimeout(r, 30));
-    expect(await TaskManger.resolveTask(id)).toBe(false);
+    expect(await TaskManager.resolveTask(id)).toBe(false);
 
     allowResolve = true;
-    expect(await TaskManger.resolveTask(id)).toBe(true);
+    expect(await TaskManager.resolveTask(id)).toBe(true);
 
     const outcome = await pending;
     expect(outcome.success).toBe(true);
@@ -107,13 +107,13 @@ describe("TaskManger: manual control", () => {
   });
 });
 
-describe("TaskManger: condition control (non-manual)", () => {
+describe("TaskManager: condition control (non-manual)", () => {
   it("parks a task whose condition is not yet met, then resolveAllPending releases it", async () => {
     let conditionMet = false;
     const order: string[] = [];
 
     const pending = (async () => {
-      const { result } = await TaskManger.addTask(
+      const { result } = await TaskManager.addTask(
         async () => {
           order.push("ran");
           return async () => order.push("completed");
@@ -128,7 +128,7 @@ describe("TaskManger: condition control (non-manual)", () => {
     expect(order).toEqual(["ran"]);
 
     conditionMet = true;
-    await TaskManger.resolveAllPending();
+    await TaskManager.resolveAllPending();
     await pending;
 
     expect(order).toEqual(["ran", "completed"]);
@@ -136,7 +136,7 @@ describe("TaskManger: condition control (non-manual)", () => {
 
   it("passes straight through when the condition is already met", async () => {
     const order: string[] = [];
-    const { result } = await TaskManger.addTask(
+    const { result } = await TaskManager.addTask(
       async () => {
         order.push("ran");
         return async () => order.push("completed");
@@ -149,13 +149,13 @@ describe("TaskManger: condition control (non-manual)", () => {
   });
 });
 
-describe("TaskManger: signal control", () => {
+describe("TaskManager: signal control", () => {
   it("stays SIGNAL_PENDING until emitSignal fires the matching signal", async () => {
     const id = `sig-${Math.random().toString(36).slice(2)}`;
     const signalName = `signal-${Math.random().toString(36).slice(2)}`;
     let pendingResolved = false;
 
-    const pending = TaskManger.addTask(async () => "via-signal", {
+    const pending = TaskManager.addTask(async () => "via-signal", {
       id,
       control: { signal: signalName }
     }).then((outcome) => {
@@ -166,7 +166,7 @@ describe("TaskManger: signal control", () => {
     await new Promise((r) => setTimeout(r, 30));
     expect(pendingResolved).toBe(false);
 
-    TaskManger.emitSignal(signalName);
+    TaskManager.emitSignal(signalName);
 
     const outcome = await pending;
     expect(outcome.success).toBe(true);
@@ -174,11 +174,11 @@ describe("TaskManger: signal control", () => {
   });
 
   it("emitSignal on an unknown signal is a no-op", () => {
-    expect(() => TaskManger.emitSignal("nothing-listens-here")).not.toThrow();
+    expect(() => TaskManager.emitSignal("nothing-listens-here")).not.toThrow();
   });
 });
 
-describe("TaskManger: stress", () => {
+describe("TaskManager: stress", () => {
   // These don't measure performance, they pin invariants under load. The
   // singleton TaskManager has to stay deterministic when callers fan out
   // dozens-to-hundreds of pushes, mix in failures, or interleave manual /
@@ -189,7 +189,7 @@ describe("TaskManger: stress", () => {
     const N = 200;
     const log: number[] = [];
     const promises = Array.from({ length: N }, (_, i) =>
-      TaskManger.addTask(async () => {
+      TaskManager.addTask(async () => {
         log.push(i);
       })
     );
@@ -205,13 +205,13 @@ describe("TaskManger: stress", () => {
 
     const promises = Array.from({ length: N }, (_, i) => {
       if (i % 10 === 9) {
-        return TaskManger.addTask(async () => {
+        return TaskManager.addTask(async () => {
           throw new Error(`fail-${i}`);
         }).catch(() => {
           failed.push(i);
         });
       }
-      return TaskManger.addTask(async () => {
+      return TaskManager.addTask(async () => {
         succeeded.push(i);
       });
     });
@@ -226,7 +226,7 @@ describe("TaskManger: stress", () => {
     const log: number[] = [];
     const manualId = `stress-manual-${Math.random().toString(36).slice(2)}`;
 
-    const manualPromise = TaskManger.addTask(
+    const manualPromise = TaskManager.addTask(
       async () => {
         log.push(-1);
         return "m";
@@ -235,7 +235,7 @@ describe("TaskManger: stress", () => {
     );
 
     const tail = Array.from({ length: 50 }, (_, i) =>
-      TaskManger.addTask(async () => {
+      TaskManager.addTask(async () => {
         log.push(i);
       })
     );
@@ -246,7 +246,7 @@ describe("TaskManger: stress", () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(log).toEqual([-1]);
 
-    const resolved = await TaskManger.resolveTask(manualId);
+    const resolved = await TaskManager.resolveTask(manualId);
     expect(resolved).toBe(true);
 
     await manualPromise;
@@ -259,7 +259,7 @@ describe("TaskManger: stress", () => {
     const N = 15;
     const prefix = `sig-${Math.random().toString(36).slice(2)}`;
     const taskPromises = Array.from({ length: N }, (_, i) =>
-      TaskManger.addTask(async () => i, {
+      TaskManager.addTask(async () => i, {
         id: `stress-${prefix}-${i}`,
         control: { signal: `${prefix}-${i}` }
       })
@@ -274,7 +274,7 @@ describe("TaskManger: stress", () => {
     const sweeper = (async () => {
       while (sweeping) {
         for (let i = 0; i < N; i++) {
-          TaskManger.emitSignal(`${prefix}-${i}`);
+          TaskManager.emitSignal(`${prefix}-${i}`);
         }
         await new Promise((r) => setTimeout(r, 30));
       }
@@ -302,7 +302,7 @@ describe("TaskManger: stress", () => {
       const kind = i % 12;
       if (kind === 3) {
         promises.push(
-          TaskManger.addTask(async () => `m-${i}`, {
+          TaskManager.addTask(async () => `m-${i}`, {
             control: { manual: true }
           }).then(() => {
             settled.push(`m-${i}`);
@@ -312,7 +312,7 @@ describe("TaskManger: stress", () => {
       }
       if (kind === 7) {
         promises.push(
-          TaskManger.addTask(async () => {
+          TaskManager.addTask(async () => {
             throw new Error(`fail-${i}`);
           }).catch(() => {
             settled.push(`f-${i}`);
@@ -321,7 +321,7 @@ describe("TaskManger: stress", () => {
         continue;
       }
       promises.push(
-        TaskManger.addTask(async () => i).then(() => {
+        TaskManager.addTask(async () => i).then(() => {
           settled.push(`i-${i}`);
         })
       );
@@ -331,7 +331,7 @@ describe("TaskManger: stress", () => {
     const sweeper = (async () => {
       while (sweeping) {
         await new Promise((r) => setTimeout(r, 15));
-        await TaskManger.resolveAllPending();
+        await TaskManager.resolveAllPending();
       }
     })();
 
@@ -343,10 +343,10 @@ describe("TaskManger: stress", () => {
   });
 });
 
-describe("TaskManger: failure paths", () => {
+describe("TaskManager: failure paths", () => {
   it("rejects when execute throws and invokes the rollback hook", async () => {
     const rollback = vi.fn(async () => undefined);
-    const failure = TaskManger.addTask(
+    const failure = TaskManager.addTask(
       async () => {
         throw new Error("boom");
       },
@@ -359,7 +359,7 @@ describe("TaskManger: failure paths", () => {
 
   it("rejects when validate() returns false (execute is never called)", async () => {
     const execute = vi.fn(async () => "should-not-run");
-    const failure = TaskManger.addTask(execute, {
+    const failure = TaskManager.addTask(execute, {
       validate: async () => false
     });
 
@@ -368,9 +368,9 @@ describe("TaskManger: failure paths", () => {
   });
 });
 
-describe("TaskManger: abort handling", () => {
+describe("TaskManager: abort handling", () => {
   it("aborting the controller during execute still resolves successfully (result is undefined)", async () => {
-    const outcome = await TaskManger.addTask(async (controller) => {
+    const outcome = await TaskManager.addTask(async (controller) => {
       controller.abort();
       return "would-have-been";
     });
@@ -380,22 +380,22 @@ describe("TaskManger: abort handling", () => {
   });
 });
 
-describe("TaskManger: pre-resolve delay (control.delay)", () => {
+describe("TaskManager: pre-resolve delay (control.delay)", () => {
   it("waits control.delay milliseconds after execute before resolving", async () => {
     const start = Date.now();
-    await TaskManger.addTask(async () => "done", {
+    await TaskManager.addTask(async () => "done", {
       control: { delay: 80 }
     });
     expect(Date.now() - start).toBeGreaterThanOrEqual(70);
   });
 });
 
-describe("TaskManger: gate backstop (control.maxLifetimeMs)", () => {
+describe("TaskManager: gate backstop (control.maxLifetimeMs)", () => {
   it("force-resolves a parked manual task whose resolve signal never arrives", async () => {
     const start = Date.now();
     // Nobody calls resolveTask — the lost-animationend scenario. Without the
     // backstop this await would hang forever and deadlock the serial queue.
-    const outcome = await TaskManger.addTask(async () => "gated", {
+    const outcome = await TaskManager.addTask(async () => "gated", {
       control: { manual: true, maxLifetimeMs: 120 }
     });
 
@@ -405,35 +405,35 @@ describe("TaskManger: gate backstop (control.maxLifetimeMs)", () => {
   });
 
   it("a normal resolve clears the backstop (no double resolution afterwards)", async () => {
-    const id = TaskManger.generateTaskId();
-    const pending = TaskManger.addTask(async () => "gated", {
+    const id = TaskManager.generateTaskId();
+    const pending = TaskManager.addTask(async () => "gated", {
       id,
       control: { manual: true, maxLifetimeMs: 150 }
     });
     // Resolve promptly, then wait past the lifetime: the timer must be gone.
     await new Promise((resolve) => setTimeout(resolve, 20));
-    await TaskManger.resolveTask(id);
+    await TaskManager.resolveTask(id);
     const outcome = await pending;
     expect(outcome.result).toBe("gated");
 
     await new Promise((resolve) => setTimeout(resolve, 200));
     // A second (backstop) resolution attempt on a completed task is a no-op.
-    expect(await TaskManger.resolveTask(id)).toBe(false);
+    expect(await TaskManager.resolveTask(id)).toBe(false);
   });
 });
 
-describe("TaskManger: gate phases (markGateHeld / anchorGate)", () => {
+describe("TaskManager: gate phases (markGateHeld / anchorGate)", () => {
   it("a HELD gate re-arms past its window instead of force-resolving", async () => {
-    const id = TaskManger.generateTaskId();
+    const id = TaskManager.generateTaskId();
     const resolvedAt: number[] = [];
     const start = Date.now();
-    const pending = TaskManger.addTask(async () => "held", {
+    const pending = TaskManager.addTask(async () => "held", {
       id,
       control: { manual: true, maxLifetimeMs: 80 }
     });
     // The engine saw a hold whose motion has not started (a long entering
     // commit is still blocking). The 80ms backstop must NOT snap the task.
-    TaskManger.markGateHeld(id);
+    TaskManager.markGateHeld(id);
 
     await new Promise((resolve) => setTimeout(resolve, 120));
     // Past the first window: still parked (re-armed, not force-resolved).
@@ -442,20 +442,20 @@ describe("TaskManger: gate phases (markGateHeld / anchorGate)", () => {
 
     // The hold releases — motion starts on a FRESH window, then resolves
     // normally (animationend in production; explicit here).
-    TaskManger.anchorGate(id);
-    await TaskManger.resolveTask(id);
+    TaskManager.anchorGate(id);
+    await TaskManager.resolveTask(id);
     const outcome = await pending;
     expect(outcome.result).toBe("held");
   });
 
   it("a held gate that never anchors still force-resolves at the re-arm bound", async () => {
-    const id = TaskManger.generateTaskId();
+    const id = TaskManager.generateTaskId();
     const start = Date.now();
-    const pending = TaskManger.addTask(async () => "wedged", {
+    const pending = TaskManager.addTask(async () => "wedged", {
       id,
       control: { manual: true, maxLifetimeMs: 60 }
     });
-    TaskManger.markGateHeld(id);
+    TaskManager.markGateHeld(id);
 
     // Nobody ever anchors or resolves (zone torn down while held). The bound
     // (1 + MAX_HELD_GATE_REARMS windows) must still free the serial queue.
@@ -467,17 +467,17 @@ describe("TaskManger: gate phases (markGateHeld / anchorGate)", () => {
   });
 
   it("anchoring restarts the gate with a full window from the motion start", async () => {
-    const id = TaskManger.generateTaskId();
+    const id = TaskManager.generateTaskId();
     const events: string[] = [];
-    const pending = TaskManger.addTask(async () => "anchored", {
+    const pending = TaskManager.addTask(async () => "anchored", {
       id,
       control: { manual: true, maxLifetimeMs: 100 }
     });
-    TaskManger.markGateHeld(id);
+    TaskManager.markGateHeld(id);
     // Release lands 70ms after the park: the original window had 30ms left,
     // but the anchor must grant a fresh 100ms from HERE.
     await new Promise((resolve) => setTimeout(resolve, 70));
-    TaskManger.anchorGate(id);
+    TaskManager.anchorGate(id);
     void pending.then(() => events.push("resolved"));
 
     await new Promise((resolve) => setTimeout(resolve, 60));
@@ -492,17 +492,17 @@ describe("TaskManger: gate phases (markGateHeld / anchorGate)", () => {
   });
 
   it("an anchored motion span extends the gate past the configured default", async () => {
-    const id = TaskManger.generateTaskId();
+    const id = TaskManager.generateTaskId();
     const events: string[] = [];
-    const pending = TaskManger.addTask(async () => "long-motion", {
+    const pending = TaskManager.addTask(async () => "long-motion", {
       id,
       control: { manual: true, maxLifetimeMs: 80 }
     });
-    TaskManger.markGateHeld(id);
+    TaskManager.markGateHeld(id);
     // A 3s-authored motion anchors with its own span: the 80ms default must
     // not cut it — the gate default assumed no transition outlives it and
     // silently snapped longer authored motions to rest.
-    TaskManger.anchorGate(id, 250);
+    TaskManager.anchorGate(id, 250);
     void pending.then(() => events.push("resolved"));
 
     await new Promise((resolve) => setTimeout(resolve, 150));
@@ -515,15 +515,15 @@ describe("TaskManger: gate phases (markGateHeld / anchorGate)", () => {
   });
 
   it("anchorGate is idempotent: repeated anchors cannot extend the gate", async () => {
-    const id = TaskManger.generateTaskId();
-    const pending = TaskManger.addTask(async () => "once", {
+    const id = TaskManager.generateTaskId();
+    const pending = TaskManager.addTask(async () => "once", {
       id,
       control: { manual: true, maxLifetimeMs: 80 }
     });
-    TaskManger.anchorGate(id);
+    TaskManager.anchorGate(id);
     const start = Date.now();
     // Spam anchors while the window runs down — none may restart it.
-    const spam = setInterval(() => TaskManger.anchorGate(id), 20);
+    const spam = setInterval(() => TaskManager.anchorGate(id), 20);
     const outcome = await pending;
     clearInterval(spam);
     expect(outcome.success).toBe(true);
@@ -531,13 +531,13 @@ describe("TaskManger: gate phases (markGateHeld / anchorGate)", () => {
   });
 
   it("markGateHeld never downgrades an anchored gate", async () => {
-    const id = TaskManger.generateTaskId();
-    const pending = TaskManger.addTask(async () => "no-downgrade", {
+    const id = TaskManager.generateTaskId();
+    const pending = TaskManager.addTask(async () => "no-downgrade", {
       id,
       control: { manual: true, maxLifetimeMs: 60 }
     });
-    TaskManger.anchorGate(id);
-    TaskManger.markGateHeld(id);
+    TaskManager.anchorGate(id);
+    TaskManager.markGateHeld(id);
     // Anchored stays anchored: the backstop fires at the (single) fresh
     // window instead of deferring as held.
     const start = Date.now();
@@ -547,21 +547,21 @@ describe("TaskManger: gate phases (markGateHeld / anchorGate)", () => {
   });
 
   it("a settled task's phase is pruned: a reused id starts unreported", async () => {
-    const id = TaskManger.generateTaskId();
-    const first = TaskManger.addTask(async () => "first", {
+    const id = TaskManager.generateTaskId();
+    const first = TaskManager.addTask(async () => "first", {
       id,
       control: { manual: true, maxLifetimeMs: 60 }
     });
-    TaskManger.markGateHeld(id);
-    TaskManger.anchorGate(id);
-    await TaskManger.resolveTask(id);
+    TaskManager.markGateHeld(id);
+    TaskManager.anchorGate(id);
+    await TaskManager.resolveTask(id);
     await first;
 
     // Phase reports for ids without a live task are kept (a report may land
     // before the park) — but a SETTLED task's phase must be gone, so this
     // fresh park force-resolves on its first window like any unreported gate.
     const start = Date.now();
-    const second = await TaskManger.addTask(async () => "second", {
+    const second = await TaskManager.addTask(async () => "second", {
       id: `${id}-next`,
       control: { manual: true, maxLifetimeMs: 60 }
     });
@@ -583,7 +583,7 @@ describe("TaskManger: gate phases (markGateHeld / anchorGate)", () => {
 // single-back control. No long task — not one script doing too much, one frame
 // asked to commit two flights. Device-reported on a Galaxy Z Flip 4 as a single
 // hitch on a fast double back. After the split: 22-28ms, and not every run.
-describe("TaskManger: the queue hands over on a frame boundary", () => {
+describe("TaskManager: the queue hands over on a frame boundary", () => {
   /**
    * A queued task only goes through the WAKE path when something is genuinely
    * pending ahead of it — a waiter added to an empty queue resolves on the spot
@@ -593,14 +593,14 @@ describe("TaskManger: the queue hands over on a frame boundary", () => {
   const queueBehindAPendingTask = () => {
     const id = `frame-${Math.random().toString(36).slice(2)}`;
     const order: string[] = [];
-    const held = TaskManger.addTask(
+    const held = TaskManager.addTask(
       async () => {
         order.push("held");
         return "held";
       },
       { id, control: { manual: true } }
     );
-    const queued = TaskManger.addTask(async () => {
+    const queued = TaskManager.addTask(async () => {
       order.push("queued");
       return "queued";
     });
@@ -620,7 +620,7 @@ describe("TaskManger: the queue hands over on a frame boundary", () => {
       const { id, order, held, queued } = queueBehindAPendingTask();
       await new Promise((r) => setTimeout(r, 30));
 
-      await TaskManger.resolveTask(id);
+      await TaskManager.resolveTask(id);
       await held;
       await new Promise((r) => setTimeout(r, 30));
 
@@ -653,7 +653,7 @@ describe("TaskManger: the queue hands over on a frame boundary", () => {
       await new Promise((r) => setTimeout(r, 30));
 
       const started = Date.now();
-      await TaskManger.resolveTask(id);
+      await TaskManager.resolveTask(id);
       await Promise.all([held, queued]);
 
       expect(order).toEqual(["held", "queued"]);
@@ -676,15 +676,15 @@ describe("TaskManger: the queue hands over on a frame boundary", () => {
 // flight in 58-67ms while they were idle and in 246-868ms while one was
 // mid-flight. These tests pin that a lane still serializes itself and no longer
 // serializes against anyone else.
-describe("TaskManger: serial lanes", () => {
+describe("TaskManager: serial lanes", () => {
   // A task that parks its gate open until the test resolves it, which is the
   // shape a transition-gated navigation takes.
   const parked = (id: string, scope?: string) =>
-    TaskManger.addTask(async () => id, { id, scope, control: { manual: true } });
+    TaskManager.addTask(async () => id, { id, scope, control: { manual: true } });
 
   it("still serializes two tasks in the same lane", async () => {
     const order: string[] = [];
-    const first = TaskManger.addTask(
+    const first = TaskManager.addTask(
       async () => {
         order.push("first-start");
         await new Promise((resolve) => setTimeout(resolve, 40));
@@ -692,7 +692,7 @@ describe("TaskManger: serial lanes", () => {
       },
       { scope: "lane-a" }
     );
-    const second = TaskManger.addTask(
+    const second = TaskManager.addTask(
       async () => {
         order.push("second-start");
       },
@@ -710,11 +710,11 @@ describe("TaskManger: serial lanes", () => {
     const blocking = parked("lane-b-parked", "lane-b");
 
     // The other lane must run to completion regardless.
-    const free = await TaskManger.addTask(async () => "ran", { scope: "lane-c" });
+    const free = await TaskManager.addTask(async () => "ran", { scope: "lane-c" });
     expect(free.success).toBe(true);
     expect(free.result).toBe("ran");
 
-    await TaskManger.resolveTask("lane-b-parked");
+    await TaskManager.resolveTask("lane-b-parked");
     await blocking;
   });
 
@@ -722,14 +722,14 @@ describe("TaskManger: serial lanes", () => {
     const blocking = parked("browser-parked");
     const order: string[] = [];
 
-    const queued = TaskManger.addTask(async () => {
+    const queued = TaskManager.addTask(async () => {
       order.push("queued");
     });
 
     await new Promise((resolve) => setTimeout(resolve, 60));
     expect(order).toEqual([]); // still behind the open gate, as it always was
 
-    await TaskManger.resolveTask("browser-parked");
+    await TaskManager.resolveTask("browser-parked");
     await blocking;
     await queued;
     expect(order).toEqual(["queued"]);

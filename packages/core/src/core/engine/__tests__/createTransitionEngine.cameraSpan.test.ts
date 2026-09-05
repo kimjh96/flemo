@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import TaskManger from "@core/TaskManger";
+import TaskManager from "@core/TaskManager";
 
 import createTransition from "@transition/createTransition";
 import { transitionMap } from "@transition/transition";
@@ -29,8 +29,8 @@ const cameraAnimation = (animationName: string | undefined, delay: number, durat
 describe("a still screen paired with a morph camera spans the camera's motion", () => {
   it("defers completion to the camera's span when the screen's own transition is motionless", async () => {
     vi.useFakeTimers();
-    const resolveSpy = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
-    const anchored = vi.spyOn(TaskManger, "anchorGate");
+    const resolveSpy = vi.spyOn(TaskManager, "resolveTask").mockResolvedValue(true);
+    const anchored = vi.spyOn(TaskManager, "anchorGate");
 
     // A `zoom`-shaped transition: the screen stands still (enter/exit animate
     // nothing) while the camera carrying it does the motion.

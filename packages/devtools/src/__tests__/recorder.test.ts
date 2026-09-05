@@ -30,7 +30,6 @@ afterEach(() => {
   sessionStorage.clear();
   localStorage.clear();
   delete (window as unknown as { flemo?: unknown }).flemo;
-  delete (window as unknown as { __flemoPlayerGaps?: number[] }).__flemoPlayerGaps;
 });
 
 const mountScreen = () => {
@@ -66,7 +65,7 @@ describe("attachFlightRecorder", () => {
     const recorder = attach();
     expect((window as unknown as { flemo: unknown }).flemo).toBe(foreign);
     // The handle still works without the global.
-    expect(recorder.report().version).toBe("2");
+    expect(recorder.report().version).toBe("3");
     recorder.detach();
     expect((window as unknown as { flemo: unknown }).flemo).toBe(foreign);
   });
@@ -79,7 +78,7 @@ describe("attachFlightRecorder", () => {
   it("produces a JSON-serializable, self-describing report shape", () => {
     const recorder = attach();
     const report = recorder.report();
-    expect(report.version).toBe("2");
+    expect(report.version).toBe("3");
     expect(report.blindSpots.length).toBeGreaterThanOrEqual(4);
     expect(report.flights).toEqual([]);
     expect(report.overrides).toEqual({ active: {}, warnings: [] });
@@ -112,13 +111,15 @@ describe("attachFlightRecorder", () => {
     expect(flight.landing.offViewportAtRest).toBe(false);
   });
 
-  it("classifies the player signature and flags residual inline pose at landing", async () => {
+  it("classifies a foreign inline driver and flags residual inline pose at landing", async () => {
     const screen = mountScreen();
     attach();
     await settle();
 
-    // Player DOM signature: inline `animation` suppression + advancing
-    // inline transform (what a per-frame writer leaves each frame).
+    // The inline DOM signature: `animation` suppression plus an advancing
+    // inline transform, which is what a per-frame writer leaves. flemo
+    // compiles every animation, so seeing this means something ELSE is
+    // driving the screen.
     screen.style.animation = "none";
     screen.setAttribute("data-flemo-status", "PUSHING");
     screen.setAttribute("data-flemo-active", "true");
@@ -137,7 +138,7 @@ describe("attachFlightRecorder", () => {
     const report = handle!.report();
     expect(report.flights).toHaveLength(1);
     const flight = report.flights[0];
-    expect(flight.driver).toBe("player");
+    expect(flight.driver).toBe("inline");
     expect(
       flight.landing.residualInlineTransforms.some((entry) =>
         entry.includes("translate3d(100%, 0px, 0px)")
@@ -177,27 +178,20 @@ describe("attachFlightRecorder", () => {
     );
   });
 
-  it("summarizes the player gap mirror growth during the flight", async () => {
+  it("reads a pop's kind off the status it was recorded from", async () => {
     const screen = mountScreen();
-    (window as unknown as { __flemoPlayerGaps: number[] }).__flemoPlayerGaps = [12.0];
     attach();
     await settle();
 
     screen.setAttribute("data-flemo-status", "POPPING");
     screen.setAttribute("data-flemo-active", "true");
     await settle();
-    (window as unknown as { __flemoPlayerGaps: number[] }).__flemoPlayerGaps.push(16.7, 42.3);
     await frames(2);
     screen.setAttribute("data-flemo-status", "COMPLETED");
     await settle();
     await frames(3);
 
-    const flight = handle!.report().flights[0];
-    expect(flight.kind).toBe("POP");
-    expect(flight.playerGaps).toEqual({ maxMs: 42.3, over30Count: 1 });
-    expect(flight.anomalies.some((entry) => entry.includes("player frame gap up to 42.3ms"))).toBe(
-      true
-    );
+    expect(handle!.report().flights[0].kind).toBe("POP");
   });
 
   it("names a persisted retired key as inert residue", () => {

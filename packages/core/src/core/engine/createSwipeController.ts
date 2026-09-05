@@ -224,6 +224,37 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   let startX = 0;
   let startY = 0;
 
+  // HOW FAR THE GESTURE HAS CARRIED THE SCREEN, which is not how far the
+  // finger has moved.
+  //
+  // A drag only ever starts in the POSITIVE direction of its axis (see the
+  // intent gate in pointerMove), and every handler clamps its screen at rest
+  // — cupertino writes `Math.max(0, dragX)` — so the moment the finger goes
+  // back past where the drag began, the screen stops and the raw offset keeps
+  // growing in the other direction. Read through an `Math.abs`, as both the
+  // reported progress and the release clock used to be, that growth reads as
+  // TRAVEL: the dim went on lifting off a screen that was standing still, and
+  // a release there told the settle the trip was nearly done, so a commit
+  // crossed the whole screen in the time left for its last few pixels.
+  // Reported from a device as "the overlay does not follow the drag, and then
+  // it vanishes with no transition", after dragging left and right and letting
+  // go in the middle.
+  //
+  // The same clamp answers the other end: a finger dragged past the screen's
+  // own width would otherwise make `span - travelled` negative, and the
+  // remaining distance grow again on the way out.
+  //
+  // It lives here, in the controller, for the reason `gestureProgress` does:
+  // the controller is the only party that knows the box being dragged, so it
+  // is the only one that can answer this for every transition at once.
+  // `span` is positive by construction at both call sites: each resolves the
+  // dragged box and falls back to the viewport axis when it has no layout yet,
+  // and neither path can be reached without a pointer event (so without a
+  // window). Clamping unconditionally is therefore the whole rule, with no
+  // arm that only a server render could take.
+  const gestureTravel = (offsetOnAxis: number, span: number): number =>
+    Math.min(span, Math.max(0, offsetOnAxis));
+
   const buildSwipeInfo = (event: PointerEvent) => ({
     point: { x: event.clientX, y: event.clientY },
     offset: {
@@ -996,7 +1027,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
           ? window.innerHeight
           : window.innerWidth);
     /* v8 ignore stop */
-    const dragged = Math.abs(dragAxis === "y" ? info.offset.y : info.offset.x);
+    const dragged = gestureTravel(dragAxis === "y" ? info.offset.y : info.offset.x, dragSpan);
     // THE GESTURE'S PROGRESS, 0-100, which is what a decorator's and a part's
     // hooks are documented to receive ("the drag `progress` (0-100)").
     //
@@ -1052,6 +1083,21 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     if (!transition.swipeDirection || !swipeActive) return;
 
     flushPendingFollow();
+    // MEASURE THE FINGER WHERE IT LET GO, not where it last moved.
+    //
+    // The velocity window only ever advanced on `pointermove`, so a gesture
+    // that was carried across and then HELD STILL before lifting handed the
+    // release the speed it had before it stopped — and the settle, whose
+    // length divides by that number, landed a standing screen at flick speed.
+    // Folding the release point into the same window costs one sample and
+    // decays the speed by exactly the time the finger rested, which is the
+    // honest answer for a gesture that ended in a hold and unchanged for one
+    // that ended in a flick.
+    //
+    // Not for a forced cancel: the browser took the pointer away and its final
+    // sample is noise, which is the same reason that path builds a neutral
+    // info below.
+    if (!forceCancel) updateSwipeVelocity(event);
     swipeActive = false;
     releaseNativeDrag();
     const { scope, decorator } = config.getElements();
@@ -1115,10 +1161,15 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const box = scope?.getBoundingClientRect();
     const span =
       (axis === "y" ? box?.height : box?.width) ||
+      /* v8 ignore start -- the same SSR-safety the drag's own span keeps
+         above, and the same proof: no window means no pointer event to have
+         started a gesture, so nothing can reach this arm. Marked here too
+         because the release is where that note said this copy lives. */
       (typeof window === "undefined" ? 0 : axis === "y" ? window.innerHeight : window.innerWidth);
+    /* v8 ignore stop */
     const offsetOnAxis = axis === "y" ? settleOffset.y : settleOffset.x;
     const velocityOnAxis = axis === "y" ? swipeInfo.velocity.y : swipeInfo.velocity.x;
-    const travelled = Math.abs(offsetOnAxis);
+    const travelled = gestureTravel(offsetOnAxis, span);
     const speed = Math.abs(velocityOnAxis);
     // Does the finger still HELP? A completion always travels the way the
     // finger went, so it never reverses. A cancel walks back — a reversal
@@ -1130,11 +1181,11 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // short floor it was supposed to escape). Only a deliberate flick back
     // counts.
     const TOWARD_REST_MIN_PX_PER_S = 300;
-    const travelSign = Math.sign(offsetOnAxis);
+    // The gesture's own direction is always positive on its axis, so "heading
+    // back" is simply a negative velocity — and a screen the gesture has
+    // carried nowhere has no way home to be carried along.
     const fingerHeadingBack =
-      travelSign !== 0 &&
-      Math.sign(velocityOnAxis) === -travelSign &&
-      speed >= TOWARD_REST_MIN_PX_PER_S;
+      travelled > 0 && velocityOnAxis < 0 && speed >= TOWARD_REST_MIN_PX_PER_S;
     // Read at WRITE time, not now: a handler reports its verdict through
     // `onStart` before it animates (every preset does), and until it does the
     // conservative reading is the cancel — the distance back to rest.

@@ -3,7 +3,7 @@ import { createElement, type PropsWithChildren, type ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { TaskManger } from "@flemo/core";
+import { TaskManager } from "@flemo/core";
 
 import useStep from "@navigate/useStep";
 
@@ -79,7 +79,7 @@ describe("useStep from chrome (no routePath)", () => {
     expect(window.history.state?.step).toBe(true);
     expect(result.current.step).toEqual({ menu: true });
 
-    await TaskManger.resolveAllPending();
+    await TaskManager.resolveAllPending();
   });
 
   it("clears the step when a traversal lands on a non-step frame", async () => {

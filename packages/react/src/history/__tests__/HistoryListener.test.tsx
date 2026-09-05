@@ -1,7 +1,7 @@
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { markSelfInducedPop, TaskManger } from "@flemo/core";
+import { markSelfInducedPop, TaskManager } from "@flemo/core";
 
 import HistoryListener from "@history/HistoryListener";
 
@@ -34,7 +34,7 @@ const fireSweeper = () => {
   const loop = (async () => {
     while (sweeping) {
       await new Promise((r) => setTimeout(r, 8));
-      await TaskManger.resolveAllPending();
+      await TaskManager.resolveAllPending();
     }
   })();
   return async () => {

@@ -96,6 +96,38 @@ export const sampleRafCadence = (
     requestAnimationFrame(step);
   });
 
+/**
+ * Development-server globals. Each of these is installed by a dev server or a
+ * framework's development runtime and by nothing else, so finding one means the
+ * page under measurement is NOT the program that ships: unminified, double-
+ * invoking, hot-reload instrumented, and in some frameworks re-rendering on a
+ * socket message. A day of "regression ladder" measurements in this project
+ * turned out to be measuring exactly this.
+ */
+const DEVELOPMENT_GLOBALS: readonly string[] = [
+  "__vite_plugin_react_preamble_installed__",
+  "__vite__",
+  "__NEXT_HMR_CB",
+  "__NEXT_HMR_LATENCY_CB",
+  "__webpack_hot_middleware_reporter__",
+  "webpackHotUpdate",
+  "__REACT_REFRESH_RUNTIME__",
+  "$RefreshReg$"
+];
+
+export const developmentHints = (): string[] => {
+  if (typeof window === "undefined") return [];
+  const found: string[] = [];
+  for (const name of DEVELOPMENT_GLOBALS) {
+    try {
+      if ((window as unknown as Record<string, unknown>)[name] !== undefined) found.push(name);
+    } catch {
+      // A getter that throws is not evidence either way.
+    }
+  }
+  return found;
+};
+
 const longTaskObservable = (): boolean => {
   try {
     return (
@@ -108,10 +140,14 @@ const longTaskObservable = (): boolean => {
   }
 };
 
-export const captureEnvironment = (rafCadence: {
-  medianGapMs: number | null;
-  sampleCount: number;
-}): EnvironmentFingerprint => {
+export const captureEnvironment = (
+  rafCadence: {
+    medianGapMs: number | null;
+    sampleCount: number;
+  },
+  /** Whether the tripwires have seen a flemo animation event (see types). */
+  animationEvents = false
+): EnvironmentFingerprint => {
   const nav = typeof navigator !== "undefined" ? navigator : null;
   const win = typeof window !== "undefined" ? window : null;
   let reducedMotion = false;
@@ -127,6 +163,7 @@ export const captureEnvironment = (rafCadence: {
     platform: nav?.platform ?? "",
     maxTouchPoints: nav?.maxTouchPoints ?? 0,
     devicePixelRatio: win?.devicePixelRatio ?? 1,
+    hardwareConcurrency: nav?.hardwareConcurrency ?? 0,
     screen: {
       width: win?.screen?.width ?? 0,
       height: win?.screen?.height ?? 0
@@ -138,15 +175,14 @@ export const captureEnvironment = (rafCadence: {
     visualViewportScale: win?.visualViewport?.scale ?? null,
     rafCadence,
     reducedMotion,
+    developmentHints: developmentHints(),
     emulationSuspected: isEmulationSuspected(),
     observation: {
       longTasks: longTaskObservable(),
       elementAnimations:
         typeof Element !== "undefined" &&
         typeof (Element.prototype as { getAnimations?: unknown }).getAnimations === "function",
-      playerGapMirror: Array.isArray(
-        (win as unknown as { __flemoPlayerGaps?: unknown } | null)?.__flemoPlayerGaps
-      )
+      animationEvents
     }
   };
 };
