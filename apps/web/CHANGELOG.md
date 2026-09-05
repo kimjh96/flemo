@@ -1,5 +1,11 @@
 # @flemo/web
 
+## 0.11.5
+
+### Patch Changes
+
+- [`04a881d`](https://github.com/kimjh96/flemo/commit/04a881d542523cb7305ddf11c024177d88f5528b) Rework the Showcase page as a card grid: drop the app screenshots, give each app a self-contained card with its identity row, pitch, "how it uses flemo" note, languages, and store links, and close the grid with an invitation tile for the next app.
+
 ## 0.11.4
 
 ### Patch Changes
