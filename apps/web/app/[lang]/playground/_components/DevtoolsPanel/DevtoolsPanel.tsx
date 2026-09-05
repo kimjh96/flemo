@@ -34,21 +34,33 @@ import { useEffect } from "react";
 // The package's `production` export condition resolves to `noop.mjs`, so a
 // production build carries none of this and judging a production build with the
 // panel wired costs nothing.
+//
+// THE READOUT IS MOUNTED TOO, and it is the half that matters on a phone. A
+// device has no console, and every device round in this project's history began
+// by hand-building a box that prints numbers on the screen and deleting it when
+// the round was over. `attachDevtoolsHud` is that box, kept: one line the user
+// can photograph, a tap for the detail, a long press to cycle the A/B bucket.
+// It repaints only between flights and its stylesheet carries no animation, so
+// it cannot become the artifact it is measuring.
 function DevtoolsPanel() {
   useEffect(() => {
-    let detach: (() => void) | undefined;
+    let detachPanel: (() => void) | undefined;
+    let detachHud: (() => void) | undefined;
     let cancelled = false;
 
     // Imported lazily so the recorder never enters the server bundle and never
     // delays the page's own first paint.
-    void import("@flemo/devtools").then(({ attachDevtoolsPanel }) => {
+    void import("@flemo/devtools").then(({ attachDevtoolsPanel, attachDevtoolsHud }) => {
       if (cancelled) return;
-      detach = attachDevtoolsPanel({ position: "bottom-left" }).detach;
+      detachPanel = attachDevtoolsPanel({ position: "bottom-left" }).detach;
+      // Top, so it never sits over the stage's own landing area.
+      detachHud = attachDevtoolsHud({ position: "top" }).detach;
     });
 
     return () => {
       cancelled = true;
-      detach?.();
+      detachHud?.();
+      detachPanel?.();
     };
   }, []);
 
