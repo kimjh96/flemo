@@ -58,7 +58,15 @@ module.exports = [
     // that climbs the face's own staircase, and the ascent carried backwards
     // on the box so the baseline comes out smooth. Re-based to 22 KB, the
     // ~15% headroom this entry has always kept.
-    limit: "22 KB",
+    //
+    // 22.3 kB after the 2026-09 camera/interrupt campaign, all of it
+    // device-justified: the flight itself bisected to find every face boundary
+    // (the ratio-aimed stops missed iOS's real ones), the camera arrived one
+    // frame early and spanned the task so a still-screen zoom completes when it
+    // lands, a fast pop paired against its snapshot before the leaving screen
+    // re-rendered, and a stranded or corpse flight was swept from the layer
+    // before the next pop could pair against it. Re-based to 26 KB.
+    limit: "26 KB",
     gzip: true
   },
   {
