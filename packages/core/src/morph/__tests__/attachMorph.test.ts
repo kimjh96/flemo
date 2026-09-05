@@ -7,6 +7,7 @@ import {
   ANIM_HOLD,
   ANIM_HOLD_ATTR,
   MORPH_ATTR,
+  MORPH_LAYER_ATTR,
   MORPH_ROLE,
   PART_NAME_ATTR,
   ROUTER_ATTR,
@@ -2762,5 +2763,237 @@ describe("attachMorph", () => {
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
 
     expect(hero.style.animation).toBe(first);
+  });
+
+  it("carries a plain leading value where the size grows but nothing steps it", () => {
+    // The size moves and the two ends already share a leading, but the host
+    // reports no face height, so there is no staircase and no bias to carry.
+    // The line-height is then held at the value both ends rest on: the honest
+    // by-product of a size that grows under a leading that does not.
+    // A face of its own, so the session's face-metric cache (shared with the
+    // tests that stub a range) cannot hand this pair a measured face height and
+    // divert it onto the bias branch.
+    const gallery = makeScreen("layout", true);
+    const label = makeMorph(gallery, [20, 0, 119, 20]);
+    label.textContent = "Thu 20:00";
+    label.style.fontFamily = "Meta6 Face";
+    label.style.fontSize = "11px";
+    label.style.lineHeight = "20px";
+    attachMorph(label, { layoutId: "meta-6", name: "text", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const meta = makeMorph(detail, [16, 0, 314, 20]);
+    meta.textContent = "Thu 20:00";
+    meta.style.fontFamily = "Meta6 Face";
+    meta.style.fontSize = "14px";
+    meta.style.lineHeight = "20px";
+    attachMorph(meta, { layoutId: "meta-6", name: "text", navigateStore: store });
+
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
+    expect(travel).toContain("font-size: 11px");
+    expect(travel).toContain("font-size: 14px");
+    expect(travel).toContain("line-height: 20px");
+  });
+
+  it("disposes a landed nested pair inline where there is no animation frame", async () => {
+    // The frame the pair lands on is not guaranteed to have `requestAnimationFrame`
+    // — a host without one still has to drop the nested rules at the landing.
+    const raf = globalThis.requestAnimationFrame;
+    (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame = undefined;
+    try {
+      const gallery = makeScreen("layout", true);
+      const card = makeMorph(gallery, [20, 600, 160, 160]);
+      const label = makeMorph(card, [28, 730, 140, 20]);
+      label.style.fontSize = "14px";
+      attachMorph(card, { layoutId: "card-6", navigateStore: store });
+      attachMorph(label, { layoutId: "title-6", name: "text", navigateStore: store });
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("layout", true);
+      const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+      const heading = makeMorph(bigCard, [16, 260, 360, 32]);
+      heading.style.fontSize = "24px";
+      attachMorph(bigCard, { layoutId: "card-6", navigateStore: store });
+      attachMorph(heading, { layoutId: "title-6", name: "text", navigateStore: store });
+      await Promise.resolve();
+
+      const nestedName = /flemo-morph-\d+n-(?:travel|paint)/.exec(heading.style.animation)![0];
+      const real = animationEndEvent(nestedName);
+      Object.defineProperty(real, "elapsedTime", { value: 0.4 });
+      heading.dispatchEvent(real);
+
+      expect(heading.getAttribute(MORPH_ATTR)).toBe("");
+    } finally {
+      globalThis.requestAnimationFrame = raf;
+    }
+  });
+
+  it("drops a landed flight's rules inline where there is no animation frame", () => {
+    // The residue release runs the flight's own `disposeOnce`; with no
+    // `requestAnimationFrame` to defer to, the rules are dropped on the spot.
+    const raf = globalThis.requestAnimationFrame;
+    (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame = undefined;
+    try {
+      const gallery = makeScreen("layout", true);
+      const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+      attachMorph(thumbnail, { layoutId: "photo-6", navigateStore: store });
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("layout", true);
+      const hero = makeMorph(detail, [0, 0, 400, 300]);
+      attachMorph(hero, { layoutId: "photo-6", navigateStore: store });
+
+      // The navigation has already ended, so the landing releases the residue
+      // synchronously rather than holding it for a later flip.
+      store.getState().setStatus("COMPLETED");
+      const travelName = /flemo-morph-\d+i-travel/.exec(hero.style.animation)![0];
+      hero.dispatchEvent(animationEndEvent(travelName));
+
+      expect(hero.parentElement).toBe(detail);
+      expect(thumbnail.getAttribute(MORPH_ATTR)).toBe("");
+    } finally {
+      globalThis.requestAnimationFrame = raf;
+    }
+  });
+
+  it("carries a landing element's own animations home", () => {
+    // A consumer's animation running inside the flyer must keep its clock across
+    // the landing re-parent rather than restart a beat after the flight settles.
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    const spinner = makeMorph(hero, [0, 0, 20, 20]);
+    const anim = {
+      animationName: "spin",
+      currentTime: 120,
+      effect: { target: spinner } as unknown as KeyframeEffect
+    } as unknown as Animation;
+    hero.getAnimations = () => [anim];
+    attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
+
+    const travelName = /flemo-morph-\d+i-travel/.exec(hero.style.animation)![0];
+    hero.dispatchEvent(animationEndEvent(travelName));
+
+    expect(hero.parentElement).toBe(detail);
+  });
+
+  it("pairs with a role-bearing partner still resting in its screen", () => {
+    // A partner mid-trade wears its role but has not left its screen. It is a
+    // real partner, not a corpse: what identifies it is where it is, not the
+    // absence of a role.
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+    // Registered only now, so there is no snapshot and the arrival measures the
+    // partner where it stands.
+    thumbnail.setAttribute(MORPH_ATTR, MORPH_ROLE.EXIT);
+    attachMorph(thumbnail, { layoutId: "photo-7", navigateStore: store });
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-7", navigateStore: store });
+
+    expect(inserted.find((rule) => rule.includes("i-travel"))).toContain("--flemo-move-x: 20px;");
+  });
+
+  it("declines a corpse in the layer that no live flight is holding", () => {
+    // A role-bearing element stranded in the layer with its flight already gone
+    // is a corpse. Pairing against it swallows the camera on every later pop, so
+    // it is no partner at all.
+    layer.setAttribute(MORPH_LAYER_ATTR, "");
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+    layer.appendChild(thumbnail);
+    thumbnail.setAttribute(MORPH_ATTR, MORPH_ROLE.ENTER);
+    attachMorph(thumbnail, { layoutId: "photo-8", navigateStore: store });
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-8", navigateStore: store });
+
+    expect(inserted.some((rule) => rule.includes("i-travel"))).toBe(false);
+    expect(hero.parentElement).toBe(detail);
+  });
+
+  it("pairs with the in-air element a live flight still holds", () => {
+    // The other side of the corpse rule: a role-bearing element in the layer
+    // whose flight the map still knows is a live partner. A re-registration
+    // under a new key while it flies is exactly what the binding does.
+    layer.setAttribute(MORPH_LAYER_ATTR, "");
+    const gallery = makeScreen("layout", true);
+    const thumbZ = makeMorph(gallery, [10, 500, 60, 60]);
+    const thumbA = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbZ, { layoutId: "flight-z", navigateStore: store });
+    attachMorph(thumbA, { layoutId: "flight-a", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const heroZ = makeMorph(detail, [0, 0, 300, 200]);
+    const heroA = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(heroZ, { layoutId: "flight-z", navigateStore: store });
+    attachMorph(heroA, { layoutId: "flight-a", navigateStore: store });
+    // Both are in the air; flight-z was booked before flight-a.
+    expect(heroZ.parentElement).toBe(layer);
+    expect(heroA.parentElement).toBe(layer);
+
+    // heroA is re-registered under a new key while still flying under the old.
+    attachMorph(heroA, { layoutId: "flight-b", navigateStore: store });
+
+    // A fresh arrival for that key pairs with heroA: the search passes flight-z
+    // (a different element) before it reaches the flight that still holds heroA.
+    const heroB = makeMorph(detail, [40, 40, 200, 200]);
+    attachMorph(heroB, { layoutId: "flight-b", navigateStore: store });
+
+    expect(heroB.parentElement).toBe(layer);
+  });
+
+  it("stamps the caller's ownership where the walk cannot place the element", () => {
+    // A shared bar lives outside the screen scope it belongs to, so the DOM walk
+    // finds no screen to read its side from and the binding supplies it.
+    const arriving = document.createElement("div");
+    document.body.appendChild(arriving);
+    attachMorph(arriving, {
+      layoutId: "bar-arrive",
+      navigateStore: store,
+      ownership: { status: "PUSHING", active: true }
+    });
+    expect(arriving.getAttribute(STATUS_ATTR)).toBe("PUSHING");
+    expect(arriving.getAttribute(ACTIVE_ATTR)).toBe("true");
+
+    const leaving = document.createElement("div");
+    document.body.appendChild(leaving);
+    attachMorph(leaving, {
+      layoutId: "bar-leave",
+      navigateStore: store,
+      ownership: { status: "PUSHING", active: false }
+    });
+    expect(leaving.getAttribute(ACTIVE_ATTR)).toBe("false");
+  });
+
+  it("strips a stale ownership once the walk can place the element", () => {
+    // An element that moves into a screen of its own must not keep an answer
+    // that outranks what the screen now says.
+    const gallery = makeScreen("layout", true);
+    const label = makeMorph(gallery, [20, 600, 80, 80]);
+    label.setAttribute(STATUS_ATTR, "PUSHING");
+    label.setAttribute(ACTIVE_ATTR, "true");
+    attachMorph(label, { layoutId: "photo-own", navigateStore: store });
+
+    expect(label.hasAttribute(STATUS_ATTR)).toBe(false);
+    expect(label.hasAttribute(ACTIVE_ATTR)).toBe(false);
   });
 });

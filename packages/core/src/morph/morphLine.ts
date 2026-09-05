@@ -291,8 +291,11 @@ const recall = <T>(key: string, work: () => T): T => {
   return answer;
 };
 
-const faceKey = (font: { family: string; weight: string | number; style: string } | null) =>
-  font ? `${font.family}|${font.weight}|${font.style}` : "none";
+const faceKey = (font: { family: string; weight: string | number; style: string } | null) => {
+  /* v8 ignore next -- both callers refuse a null font before keying on it. */
+  if (!font) return "none";
+  return `${font.family}|${font.weight}|${font.style}`;
+};
 
 export const leadingStops = (
   from: LeadingEndType,
@@ -561,6 +564,7 @@ const trackStopsFor = (
   font: { family: string; weight: string | number; style: string },
   ease: AnimationOptions["ease"]
 ): TrackStop[] | null => {
+  /* v8 ignore next -- trackStops already refused a null end; this re-check only narrows the type. */
   if (from.fontSize === null || to.fontSize === null) return null;
   if (Math.abs(from.fontSize - to.fontSize) < EXACT) return null;
   // One glyph has no gap to spread a correction over, and nothing accumulates

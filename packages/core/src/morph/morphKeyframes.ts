@@ -565,7 +565,9 @@ export const buildMorphKeyframes = (input: {
       const pose = poses[0];
       const rect = box ? (side === "from" ? box.from : box.to) : null;
       return {
-        x: rightHeld ? (pose ? pose.x : 0) : (rect ? rect.x - box!.to.x : 0) + (pose ? pose.x : 0),
+        // A right-held box carries no pose (see `rightHeld`, which requires
+        // both ends' poses to be absent), so its only x offset is zero.
+        x: rightHeld ? 0 : (rect ? rect.x - box!.to.x : 0) + (pose ? pose.x : 0),
         y: (rect ? rect.y - box!.to.y : 0) + (pose ? pose.y : 0) + ascent
       };
     };

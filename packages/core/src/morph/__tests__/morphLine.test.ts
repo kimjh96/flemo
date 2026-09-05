@@ -693,6 +693,32 @@ describe("leadingStops", () => {
 
     expect(context.mock.calls.length).toBe(first);
   });
+
+  it("clears its memo once it grows past its cap, then leans on the per-pair cache", () => {
+    // The outer memo is capped so a pathological page cannot grow it without
+    // end; when it clears, a pair's stairs are still held in the per-pair cache
+    // underneath it, so recomputing a known pair does not bisect it again.
+    const context = stub(0.95, 0.25);
+    const args = [end(14, 20), end(24, 32), { ...FONT, family: "Recall Sans" }, undefined] as const;
+
+    // Prime both the outer memo and the per-pair stop cache for this pair.
+    const primed = leadingStops(...args)!;
+    expect(primed).not.toBeNull();
+
+    // Flood the shared memo past its 512 cap with distinct pairs. The miss that
+    // crosses the cap clears the memo, evicting the primed pair with it.
+    for (let i = 0; i < 520; i += 1) {
+      leadingStops(end(14, 20), end(24, 32), { ...FONT, family: `Flood ${i}` }, undefined);
+    }
+    const bisected = context.mock.calls.length;
+
+    // The memo no longer answers for our pair, so leadingStops recomputes — but
+    // its own stopCache still holds the stairs, so no canvas is asked again.
+    const again = leadingStops(...args)!;
+
+    expect(again).toEqual(primed);
+    expect(context.mock.calls.length).toBe(bisected);
+  });
 });
 
 // A RUN THAT DOES NOT DRIFT APART.

@@ -4,6 +4,7 @@ import { contentsHoldAcrossBox, type MorphAnchor } from "@morph/morphContents";
 
 const RIGHT: MorphAnchor = { x: "right", y: "top" };
 const LEFT: MorphAnchor = { x: "left", y: "top" };
+const BOTTOM: MorphAnchor = { x: "right", y: "bottom" };
 
 const own = Element.prototype.getBoundingClientRect;
 
@@ -100,6 +101,39 @@ describe("contentsHoldAcrossBox", () => {
     const box = mount(`<span data-from-right="10"></span>`);
     expect(
       contentsHoldAcrossBox(box, { width: 98, height: 40 }, { width: 98, height: 40 }, RIGHT)
+    ).toBe(false);
+  });
+
+  it("measures each child's distance from a bottom-anchored corner", () => {
+    // A bottom-left/right growth is read from the bottom edge, the same way a
+    // top growth is read from the top: the vertical distance a child keeps from
+    // the corner the flight holds, not from the corner it grows toward.
+    const box = mount(`<span data-from-right="30"></span><span data-from-right="10"></span>`);
+    expect(
+      contentsHoldAcrossBox(box, { width: 98, height: 40 }, { width: 139, height: 40 }, BOTTOM)
+    ).toBe(true);
+  });
+
+  it("gives up on a subtree too large to walk", () => {
+    const many = Array.from({ length: 300 }, () => `<span data-from-right="10"></span>`).join("");
+    expect(
+      contentsHoldAcrossBox(
+        mount(many),
+        { width: 98, height: 40 },
+        { width: 139, height: 40 },
+        RIGHT
+      )
+    ).toBe(false);
+  });
+
+  it("skips whitespace, and stops where a text label cannot be measured", () => {
+    // A text label might re-wrap, so a text node whose range cannot be measured
+    // leaves the subtree unproven; the walk gives up there and does not vouch
+    // for anything after it. Whitespace between elements is not a label and is
+    // skipped, not measured.
+    const box = mount(`<span>hi</span><span data-from-right="10"></span> `);
+    expect(
+      contentsHoldAcrossBox(box, { width: 98, height: 40 }, { width: 139, height: 40 }, RIGHT)
     ).toBe(false);
   });
 });

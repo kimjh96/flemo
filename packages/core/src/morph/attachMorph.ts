@@ -1988,6 +1988,8 @@ const evaluate = (
 // the ghost's own subtree), so nothing legitimately in the layer wears a role
 // except an element a LIVE flight is holding, which the map still knows.
 const sweepLayerCorpses = (scope: MorphScope, layer: HTMLElement | null): void => {
+  /* v8 ignore next -- both callers pass `resolveMorphLayer`, which yields null
+     only under SSR; in a browser it always resolves or creates a layer. */
   if (!layer) return;
   const live = new Set<HTMLElement>([...scope.flights.values()].map((flight) => flight.element));
   for (const node of layer.querySelectorAll<HTMLElement>(MORPH_SELECTOR)) {

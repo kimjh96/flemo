@@ -4,6 +4,7 @@ import {
   composePosesToCss,
   IDENTITY_POSE,
   interpolatePose,
+  pinnedBoxDecls,
   poseIsIdentity,
   poseToCss,
   resolveLength,
@@ -127,6 +128,18 @@ describe("poseToCss", () => {
     expect(composePosesToCss([ride, travel, IDENTITY_POSE])).toBe(
       "translate3d(-400px, 0px, 0) translate3d(20px, 30px, 0) scale(0.5, 0.5)"
     );
+  });
+});
+
+describe("pinnedBoxDecls", () => {
+  it("writes both box channels, rounded, at the default indent", () => {
+    expect(pinnedBoxDecls(100.4567, 50)).toBe(
+      "    --flemo-box-w: 100.457px;\n    --flemo-box-h: 50px;"
+    );
+  });
+
+  it("honours a caller's indent", () => {
+    expect(pinnedBoxDecls(100, 50, "  ")).toBe("  --flemo-box-w: 100px;\n  --flemo-box-h: 50px;");
   });
 });
 

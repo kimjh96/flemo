@@ -74,7 +74,7 @@ const places = (root: Element, anchor: MorphAnchor): number[] | null => {
     // both ends while the lines inside it break somewhere else entirely. So the
     // text itself is measured, by the line boxes it actually occupies.
     for (const child of node.childNodes) {
-      if (child.nodeType !== 3 || whitespace.test(child.nodeValue ?? "")) continue;
+      if (child.nodeType !== 3 || whitespace.test((child as Text).data)) continue;
       const range = node.ownerDocument.createRange();
       if (typeof range.getClientRects !== "function") {
         // A text node this cannot measure is a text node that might re-wrap, so
