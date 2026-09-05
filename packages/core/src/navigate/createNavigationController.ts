@@ -443,6 +443,21 @@ export default function createNavigationController(deps: NavigationControllerDep
     resolveSteps: (index: number, histories: History[]) => number,
     transitionName?: TransitionName
   ) => {
+    // HARD GUARD, the same one push and replace carry (user policy 2026-08-13:
+    // input landing while a transition is in flight is IGNORED — the first tap
+    // wins). Pop never had it, and the click gate only covers PUSHING and
+    // REPLACING screens, so a back tapped during a pop reached here and QUEUED
+    // behind the running flight. The queued pop then ran against a half-cleaned
+    // stack the moment its predecessor resolved: no snapshot, no pair, no
+    // camera — a zoomed pop cutting to rest with the texts blinking through a
+    // bare cross-fade. Reproduced by tapping back mid-pop on the poster grid;
+    // reported as the camera intermittently swallowed on repeated zoomed
+    // push/pop cycles.
+    const { status } = stores.navigate.getState();
+    if (status !== "COMPLETED" && status !== "IDLE") {
+      return;
+    }
+
     const id = TaskManager.generateTaskId();
 
     (

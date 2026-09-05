@@ -192,6 +192,10 @@ function ScreenMotion({
   // over the shared bars on every flight whether an overlay exists or not.
   const layerSlotsRef = useRef<Set<HTMLElement>>(new Set());
   const [hasLayerSlot, setHasLayerSlot] = useState(false);
+  // Whether this screen's dim is rendered out in the layer host rather than in
+  // its own container. Exactly one of the two, never both (see the note beside
+  // the render).
+  const decoratorGoesOut = hasLayerSlot;
   const registerSlot = useCallback((element: HTMLElement | null) => {
     const slots = layerSlotsRef.current;
     if (element) slots.add(element);
@@ -400,6 +404,19 @@ function ScreenMotion({
       // A drag that pairs nothing costs nothing: the handle reports itself
       // inactive and every call after that is a no-op.
       onDragStart: () => {
+        // A HANDLE STILL HERE IS AN ORPHANED GESTURE.
+        //
+        // `onDragSettle` nulls this ref, so a non-null handle at the start of a
+        // new drag means the last drag's settle never ran — its screen was torn
+        // down mid-gesture, the OS took the pointer, capture was lost. Its morph
+        // flights are still staged, held at zero with their backstops suspended
+        // (see beginMorphSwipe), so nothing will ever land them: they sit in the
+        // flight layer wearing their role, and every pop after reads them as a
+        // partner already in the air and pairs against the corpse instead of the
+        // grid — no camera, the text blinking, until reload. Device-reported on
+        // the poster grid, tab-flipping between cards. Cancelling the orphan
+        // lands its flights home before the new gesture stages.
+        morphSwipeRef.current?.settle(false, 0);
         morphSwipeRef.current = beginMorphSwipe(stores.navigate, "POPPING");
       },
       onDragProgress: (progress) => {
@@ -1240,7 +1257,24 @@ function ScreenMotion({
           {sharedBottomBar}
         </div>
       )}
-      {decorator && <ScreenDecorator ref={decoratorRef} data-flemo-anim-hold={holdAttr} />}
+      {/*
+        ONE DIM, WHEREVER IT HAS TO LIVE.
+
+        The copy below leaves the container so it can also cover what a <Layer>
+        carried out — and the host it lands in is z-index 100000, above the
+        container's own children, so it covers the screen as well. Rendering
+        both then paints the dim TWICE: two 10% blacks compose to 19%, not 10%,
+        and the decorator's own comment puts the native band at 0.07-0.10.
+        Measured on a consumer's swipe back, both dims at 0.59: the glass read
+        226/255 where one layer is 240.
+
+        It is also two elements where every handle — the ref, an own-child
+        query, a decorator hook's single argument — reaches one. So there is one
+        element, and it is rendered where it is needed.
+      */}
+      {decorator && !decoratorGoesOut && (
+        <ScreenDecorator ref={decoratorRef} data-flemo-anim-hold={holdAttr} />
+      )}
       {/*
         THE DIM, FOLLOWED OUT.
 
@@ -1262,9 +1296,13 @@ function ScreenMotion({
         dim the odd one after, which is what keeps the pair adjacent no matter
         how many screens have overlays open.
       */}
-      {decorator && hasLayerSlot && layerHostTarget
+      {decorator && decoratorGoesOut && layerHostTarget
         ? createPortal(
-            <ScreenDecorator data-flemo-anim-hold={holdAttr} style={{ zIndex: zIndex * 2 + 1 }} />,
+            <ScreenDecorator
+              ref={decoratorRef}
+              data-flemo-anim-hold={holdAttr}
+              style={{ zIndex: zIndex * 2 + 1 }}
+            />,
             layerHostTarget
           )
         : null}

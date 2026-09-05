@@ -96,6 +96,51 @@ describe("resolveMorphSide", () => {
     expect(side.screenDuration).toBeGreaterThan(0);
   });
 
+  it("takes off every ancestor pose, whatever kind of box is wearing it", () => {
+    // The transition puts its from-pose on whatever its selector list names,
+    // and a flight is staged in the middle of that. Device-read on a consumer's
+    // tab switch: the only transformed box above the morph at staging was a
+    // layer SLOT, with every screen above it at identity — so a rule that asks
+    // one kind of box found nothing to undo and left the arrival a whole 1%
+    // out, which it snapped back at the landing.
+    const screen = screenWith("cupertino");
+    const slot = document.createElement("div");
+    slot.style.transform = "translate3d(40px, 0, 0)";
+    slot.getBoundingClientRect = () =>
+      ({
+        x: 40,
+        y: 0,
+        left: 40,
+        top: 0,
+        width: 200,
+        height: 100,
+        right: 240,
+        bottom: 100
+      }) as DOMRect;
+    screen.appendChild(slot);
+    const element = document.createElement("div");
+    slot.appendChild(element);
+    element.getBoundingClientRect = () =>
+      ({
+        x: 140,
+        y: 10,
+        left: 140,
+        top: 10,
+        width: 60,
+        height: 20,
+        right: 200,
+        bottom: 30
+      }) as DOMRect;
+
+    // Painted at 140 under a box carrying 40, so it rests at 100.
+    expect(resolveMorphSide(element, screen, "PUSHING-true").rect).toMatchObject({
+      x: 100,
+      y: 10,
+      width: 60,
+      height: 20
+    });
+  });
+
   it("takes the rect as measured for a variant that animates nothing", () => {
     // A rest variant has no motion to read a duration or a displacement from.
     const screen = screenWith("cupertino");

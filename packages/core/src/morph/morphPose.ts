@@ -190,6 +190,64 @@ const PINNED = {
 // painting a transform gives it.
 const TRAVEL = { x: "--flemo-move-x", y: "--flemo-move-y", lift: "--flemo-lift-y" } as const;
 
+// A BOX THAT ANIMATES ITS OWN SIZE MUST NOT WRITE IT DIRECTLY.
+//
+// WebKit drops an animated `width` on an element that is ALSO animating a
+// custom property: the property interpolates, the size holds its first keyframe
+// and jumps to its last on the landing frame. Reported from a consumer's tab
+// switch as a pill whose contents were clipped for the whole flight and snapped
+// open at the end. Measured on that page, an element carrying the same classes:
+//
+//   width in the keyframe, beside a custom property   1 distinct value
+//   width read from a registered property             8 distinct values
+//
+// The same shape of loss was measured on the other side of this a release ago,
+// with a literal `transform` beside an animated `width`: whatever WebKit
+// decides to run the keyframe as, the layout half stops being applied. The
+// properties it drops are the ones the box is made of (`width`, `height`,
+// `padding`, `border-radius`, `left`); `font-size`, `letter-spacing`, `opacity`
+// and `transform` in the same keyframe are untouched. Blink animates all of
+// them either way.
+//
+// So the box's size is driven the way its position already is: the keyframe
+// animates registered lengths, the element wears the `var()`s, and the engine
+// only ever has custom properties to interpolate. That is the same discipline
+// for the same reason, and it costs two registrations.
+const BOX = { w: "--flemo-box-w", h: "--flemo-box-h" } as const;
+
+/** The size an element wears while its box is driven through the channel. */
+/** The channel a travelling box carries its width on, for anything placed from it. */
+export const BOX_WIDTH_PROPERTY = BOX.w;
+export const PINNED_BOX = `var(${BOX.w})`;
+export const PINNED_BOX_HEIGHT = `var(${BOX.h})`;
+
+/** One end of a pinned box, as the keyframe declarations that drive it. */
+export const pinnedBoxDecls = (width: number, height: number, indent = "    "): string =>
+  `${indent}${BOX.w}: ${round(width)}px;\n${indent}${BOX.h}: ${round(height)}px;`;
+
+// THE ENGINE'S RULER IS 1/64 OF A PIXEL, AND IT CUTS DOWN ONTO IT.
+//
+// A length that reaches layout becomes a LayoutUnit, and it is TRUNCATED onto
+// that ruler rather than rounded to it, so a value printed at three decimals
+// arrives up to a tick below what it says. A held box reaches its far edge as
+// `left` and `width` read off the same channel, and two independent truncations
+// leave that edge a tick short on the frames where the value falls between
+// rulings and exact on the frames where it does not: measured on a consumer's
+// pill, 366.0000, 365.9844, 365.9844, 366.0000, with every right-aligned thing
+// inside it following, frame after frame, for the whole flight.
+//
+// Printed ON the ruler, at the six decimals a 64th needs, both truncations are
+// exact and the edge is one number again.
+export const RULER = 1 / 64;
+
+export const onRuler = (value: number) => Math.round(value / RULER) * RULER;
+
+/** On the ruler, at the six decimals a 64th needs, and no zeros beyond it. */
+const exact = (value: number) => onRuler(value).toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+
+export const pinnedBoxDeclsOnRuler = (width: number, height: number, indent = "    "): string =>
+  `${indent}${BOX.w}: ${exact(width)}px;\n${indent}${BOX.h}: ${exact(height)}px;`;
+
 // The two halves of a type morph's tracking. The author's travels on the
 // flight's own curve; the correction that keeps the glyphs from drifting apart
 // holds and steps (see morphLine). One property, two clocks, the same way the
@@ -250,6 +308,8 @@ export const PINNED_POSE_PROPERTY_RULES = [
   `@property ${TRAVEL.x} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${TRAVEL.y} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${TRAVEL.lift} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
+  `@property ${BOX.w} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
+  `@property ${BOX.h} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${TRACK.authored} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${TRACK.fix} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,
   `@property ${PINNED.x} {\n  syntax: "<length>";\n  inherits: false;\n  initial-value: 0px;\n}`,

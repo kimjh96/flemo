@@ -819,6 +819,27 @@ const compileVariantBlock = (
   // derived from a measured latency instead, so it must cover that latency once:
   // a second head there is pure added lateness, which is the very complaint the
   // head exists to answer.
+  // A PART RIDES THE SAME HEAD ITS SCREEN DOES, AND RIDES IT THE SAME WAY.
+  //
+  // A head is not a delay. A delay leaves the animation uncommitted until the
+  // instant it must move, so a first frame that arrives late arrives PARTWAY
+  // THROUGH: the curve is entered at whatever the clock says, and everything
+  // before that is never drawn. A baked head is the opposite — the animation is
+  // running and flat, so a late first frame lands inside the lead-in and the
+  // curve still plays from 0. That is the whole reason the head exists, and
+  // screens have had it since it was invented.
+  //
+  // Parts rode a gated LITERAL delay instead, on the reasoning that they keep
+  // their own keyframes and only need the screen's timing. They do keep their
+  // own keyframes — this gives them a second set with the head in front, which
+  // is what the screens already had — and the relative timing is unchanged: the
+  // same head, the same delay rule, the same total.
+  //
+  // Painted frames off a consumer's phone, 60fps: the departing title went from
+  // full ink to none between two consecutive frames, and the arriving one came
+  // in at 92% of its fade on the first frame it was drawn at all. The computed
+  // opacity ramped correctly the whole time, which is why every main-thread
+  // probe called it healthy.
   const headBlock = (
     attribute: string,
     suffix: string,
@@ -826,7 +847,6 @@ const compileVariantBlock = (
     shiftDelay: boolean,
     target: RideTarget = screenTarget
   ): string => {
-    if (scope === "part") return "";
     if (headS <= 0 || duration <= 0) return "";
     if (authoredFromDecls.length === 0 && authoredToDecls.length === 0) return "";
     const total = duration + headS;
@@ -841,19 +861,6 @@ const compileVariantBlock = (
       `\n@keyframes ${kf} {\n  0%, ${headPct}% {\n${declsToBlock(fromDecls).replace(/^/gm, "  ")}\n  }\n  100% {\n${declsToBlock(toDecls).replace(/^/gm, "  ")}\n  }\n}\n` +
       `${gatedSelector} {\n  animation-name: ${kf};\n  animation-duration: ${total.toFixed(3)}s;\n  animation-delay: ${(shiftDelay ? delay + headS : delay).toFixed(3)}s;\n}`
     );
-  };
-  // Parts keep their own keyframes but ride the same head via a gated
-  // LITERAL delay so the choreography's relative timing to the screens is
-  // preserved on the governed tier.
-  const partDelayBlock = (attribute: string, headS: number): string => {
-    if (scope !== "part") return "";
-    if (headS <= 0 || duration <= 0) return "";
-    const gate = (extra = "") =>
-      selector
-        .split(",\n")
-        .map((one) => `:root[${attribute}]${extra} ${one}`)
-        .join(",\n");
-    return `\n${gate()} {\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`;
   };
   // The CREEP head (`:root[data-flemo-governed][data-flemo-creep]`).
   //
@@ -871,13 +878,32 @@ const compileVariantBlock = (
   // changes on every frame of the head, so the compositor is already carrying
   // this animation when the real motion begins. Measured: drops at the boundary
   // fell from 78% of pushes to 33%.
+  // THE SECOND HEAD BELONGS TO THE SLIDE, NOT TO EVERY FLIGHT.
+  //
+  // The governed tier's delay shift was dialed against a SLIDING flight, which
+  // is what `governedSlide` names: a push or a pop. A REPLACE never gets that
+  // treatment anywhere else in the engine, and shifting its delay as well only
+  // makes it wait a second head for a slide it is not doing. Device-read on a
+  // consumer's tab switch: 444ms after the tap before anything moved, of which
+  // 360 was two `REPLACING` heads back to back.
+  const slides = variant.startsWith("PUSHING") || variant.startsWith("POPPING");
+  // TRIED AND REVERTED: zeroing the opening head for a REPLACE.
+  //
+  // A replace does not slide, so the head looked like pure stillness: 180ms in
+  // which the flight sat still with the arriving element already showing its
+  // destination's contents at the departure's size (device-read on a
+  // consumer's tab switch). Removing it made the transition SWALLOW on the
+  // same device, which is exactly what this value was dialed to close. The
+  // head is load-bearing for a replace too; what shows during it is a separate
+  // problem and has to be fixed where it is caused.
+  const openingHead = (v: string): number => headForVariant(v);
   const creepHeadBlockFor = (target: RideTarget = screenTarget) => {
     // A part variant returns before this block, and every head-carrying variant
     // has a duration — the guards mirror headBlock's so a future caller cannot
     // walk into a malformed keyframe.
     /* v8 ignore next */
     if (scope === "part") return "";
-    const headS = headForVariant(variant);
+    const headS = openingHead(variant);
     /* v8 ignore next */
     if (headS <= 0 || duration <= 0) return "";
     /* v8 ignore next -- same guard as headBlock's: a variant with nothing to
@@ -902,7 +928,7 @@ const compileVariantBlock = (
       .join(",\n");
     return (
       `\n@keyframes ${kf} {\n  0% {\n${declsToBlock(target.fromDecls).replace(/^/gm, "  ")}\n  }\n  ${headPct}% {\n${declsToBlock(creepDecls).replace(/^/gm, "  ")}\n  }\n  100% {\n${declsToBlock(target.toDecls).replace(/^/gm, "  ")}\n  }\n}\n` +
-      `${gatedSelector} {\n  animation-name: ${kf};\n  animation-duration: ${total.toFixed(3)}s;\n  animation-delay: ${(delay + headS).toFixed(3)}s;\n}`
+      `${gatedSelector} {\n  animation-name: ${kf};\n  animation-duration: ${total.toFixed(3)}s;\n  animation-delay: ${(slides ? delay + headS : delay).toFixed(3)}s;\n}`
     );
   };
   // Part delays are scope === "part" only, so they collapse to "" on the bar
@@ -910,17 +936,9 @@ const compileVariantBlock = (
   // emitted: governed head, governed part delay, creep head, desktop head,
   // desktop part delay.
   const headsFor = (target: RideTarget = screenTarget) =>
-    headBlock(GOVERNED_ATTR, HEAD_SUFFIXES.governed, headForVariant(variant), true, target) +
-    partDelayBlock(GOVERNED_ATTR, headForVariant(variant)) +
+    headBlock(GOVERNED_ATTR, HEAD_SUFFIXES.governed, openingHead(variant), slides, target) +
     creepHeadBlockFor(target) +
-    headBlock(
-      DESK_HEAD_ATTR,
-      HEAD_SUFFIXES.desktop,
-      desktopHeadForVariant(variant),
-      false,
-      target
-    ) +
-    partDelayBlock(DESK_HEAD_ATTR, desktopHeadForVariant(variant));
+    headBlock(DESK_HEAD_ATTR, HEAD_SUFFIXES.desktop, desktopHeadForVariant(variant), false, target);
 
   // `will-change` is scoped to the variant-active rule (PUSHING/POPPING/...)
   // and lists exactly the properties this variant writes, whatever the
@@ -1176,7 +1194,15 @@ const compileVariantBlock = (
   // rule as `headsFor`: a head that holds an entering screen away from its park
   // has this defect, and how long it holds it only decides how visible it is.
   const parkHeadsFor = () =>
-    parkHeadBlock(GOVERNED_ATTR, HEAD_SUFFIXES.governedPark, headForVariant(variant), true) +
+    // WHICHEVER HEAD ITS SIBLING WAITS, this one waits too. The park block is
+    // the fourth emitter of the same head and the last to be told that a
+    // REPLACE does not shift: with the other three on `slides` and this one
+    // pinned to a shift, the parked arrival sat a whole head behind the screen
+    // it is crossing with. Measured on a consumer's tab switch: the departure
+    // finished its fade at 330ms and the arrival began its own at 360ms, so the
+    // cross-fade the author wrote as one 150ms dissolve played as two, with a
+    // hole between them — read as the transition being swallowed.
+    parkHeadBlock(GOVERNED_ATTR, HEAD_SUFFIXES.governedPark, headForVariant(variant), slides) +
     parkHeadBlock(DESK_HEAD_ATTR, HEAD_SUFFIXES.desktopPark, desktopHeadForVariant(variant), false);
 
   // The bar's corrected copy carries the same heads for the same reason the
@@ -1299,6 +1325,13 @@ export const compileTransitionStyles = (
   // the callers hand this in as a Map's `.values()` iterator.
   const partList = [...partTransitions];
 
+  // The by-name clock for each part, kept so the pair pass below can tell when a
+  // (transition x part) rule would say exactly what the by-name rule already
+  // says — a part that authored its OWN duration and delay resolves to the same
+  // clock under every transition, so its higher-specificity twin is pure weight
+  // on the sheet the browser re-matches on every navigation.
+  const byNameClocks = new Map<string, ReturnType<typeof resolvePartClock>>();
+
   for (const partTransition of partList) {
     const name = partTransition.name;
     // Normalized, not inherited: this is the rule a part with no transition
@@ -1306,6 +1339,7 @@ export const compileTransitionStyles = (
     // through the same resolver is what keeps the optional shape from reaching
     // the emitter.
     const byName = resolvePartClock(null, partTransition);
+    byNameClocks.set(name, byName);
 
     for (const variant of DECORATOR_VARIANTS) {
       const variantValue = byName.variants[variant];
@@ -1336,12 +1370,30 @@ export const compileTransitionStyles = (
   for (const transition of transitionList) {
     for (const part of partList) {
       const resolved = resolvePartClock(transition, part);
+      const byName = byNameClocks.get(part.name);
       const selectorBuilder = (_: string, pairVariant: TransitionVariant) =>
         partPairSelector(transition.name, part.name, pairVariant);
 
       for (const variant of DECORATOR_VARIANTS) {
         const variantValue = resolved.variants[variant];
         const fromKey = FROM_VARIANT[variant];
+
+        // The pair rule differs from the by-name rule ONLY in its clock: the
+        // pose (value, initial, from) comes off the same part. So when the
+        // resolved duration and delay match the by-name pass's, this rule is a
+        // byte-for-byte-bodied twin of one already emitted, distinguished only
+        // by a more specific selector that selects the same declarations. Drop
+        // it: the by-name rule matches the part under this transition just the
+        // same, and every dropped twin is rules the browser no longer re-matches
+        // on the navigation frame (see the sheet-recalc cost above).
+        const byNameValue = byName?.variants[variant];
+        if (
+          byNameValue &&
+          byNameValue.options?.duration === variantValue.options?.duration &&
+          byNameValue.options?.delay === variantValue.options?.delay
+        ) {
+          continue;
+        }
 
         if (fromKey === "self") {
           blocks.push(compileRestBlock(selectorBuilder, part.name, variant, variantValue));

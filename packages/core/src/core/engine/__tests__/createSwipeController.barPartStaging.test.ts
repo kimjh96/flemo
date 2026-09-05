@@ -213,6 +213,42 @@ describe("createSwipeController shared-bar part staging", () => {
     expect(atCommit).toEqual({ staged: 0, inBar: 1 });
   });
 
+  it("stages the covered side's parts once, not again on the next frame", async () => {
+    // Arming runs on every progress frame the transition reports. Once the
+    // parts are up in the layer, a later frame must find them already staged
+    // and do nothing more — not lift a second copy or plant a second stand-in.
+    const controller = createSwipeController(
+      buildConfig(false, {
+        getTransition: () =>
+          ({
+            name: "swipe-part-staging-test",
+            initial: { x: "100%" },
+            variants: fullVariants({ x: 0 }, { duration: 0.3 }),
+            swipeDirection: "x",
+            onSwipeStart: vi.fn(async () => true),
+            // Reporting progress is what drives arming on each moved frame.
+            onSwipe: vi.fn((_e, _info, ctx: { onProgress: (triggered: boolean) => void }) =>
+              ctx.onProgress(true)
+            ),
+            onSwipeEnd: vi.fn(async () => false)
+          }) as unknown as Transition
+      })
+    );
+    drag(controller);
+    await flush();
+    expect(dom.prevPart.parentElement).toBe(dom.layer);
+    const standIns = dom.prevBar.querySelectorAll(`[${PART_STAND_IN_ATTR}]`).length;
+
+    // A further frame of the same drag reports progress and drives arming
+    // again while the parts are already staged.
+    controller.pointerMove(event({ clientX: 80, clientY: 100 }));
+    await flush();
+
+    expect(dom.prevPart.parentElement).toBe(dom.layer);
+    expect(dom.layer.querySelectorAll(`[${PART_NAME_ATTR}]`).length).toBe(1);
+    expect(dom.prevBar.querySelectorAll(`[${PART_STAND_IN_ATTR}]`).length).toBe(standIns);
+  });
+
   it("brings the part home when the drag is cancelled", async () => {
     const controller = createSwipeController(buildConfig(false));
     drag(controller);

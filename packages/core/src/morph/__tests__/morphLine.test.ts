@@ -483,6 +483,61 @@ describe("leadingStops", () => {
     expect(leadingStops(end(14, 20), end(24, 32), null, undefined)).toBeNull();
   });
 
+  it("finds every boundary the engine actually steps at, wherever the ratio says it is", () => {
+    // Device-read on an iPhone: the ascent of an 11.55px face stepped where
+    // the per-em ratio put the boundary at 11.87. An aim bisected around the
+    // wrong place finds nothing, and a dropped stop lands its whole step on
+    // the endpoint, one frame before the landing — the poster grid's meta
+    // line dropping a CSS pixel on every zoomed pop. So the stops are found by
+    // bisecting the flight itself, and a face whose rounding drifts off its
+    // own ratio changes nothing.
+    const drifted = (size: number) => ({
+      fontBoundingBoxAscent: Math.round(size * 0.9689 + 0.31),
+      fontBoundingBoxDescent: Math.round(size * 0.27 - 0.12)
+    });
+    const context = {
+      font: "",
+      measureText: () => {
+        const size = Number.parseFloat(
+          context.font.split(" ").find((part) => part.endsWith("px")) ?? "0"
+        );
+        return drifted(size);
+      }
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      () => context as unknown as CanvasRenderingContext2D
+    );
+    const measured = (fontSize: number, lineHeight: number) => {
+      const parts = drifted(fontSize);
+      return {
+        fontSize,
+        lineHeight,
+        textHeight: parts.fontBoundingBoxAscent + parts.fontBoundingBoxDescent
+      };
+    };
+
+    const stops = leadingStops(
+      measured(14, 20),
+      measured(11, 16),
+      { ...FONT, family: "Drift Sans" },
+      [0.4, 0, 0.2, 1]
+    )!;
+
+    expect(stops).not.toBeNull();
+    // The arrival's face is on glass BEFORE the endpoint stop: its last real
+    // boundary is mid-flight, so the stop before 100% already wears the
+    // arrival's line-height and the landing has no step left to take.
+    const last = stops[stops.length - 1]!;
+    const before = stops[stops.length - 2]!;
+    expect(last.at).toBe(100);
+    expect(before.lineHeight).toBe(last.lineHeight);
+    expect(before.ascent).toBe(last.ascent);
+    expect(before.at).toBeLessThan(100);
+    // And every face height between the two ends has a stop of its own.
+    const faces = stops.map((stop) => stop.lineHeight);
+    expect(new Set(faces).size).toBeGreaterThanOrEqual(4);
+  });
+
   it("places each stop at the TIME the ease reaches it, not at its share of the range", () => {
     // Font size travels with the eased progress, so a step two-thirds of the
     // way through the sizes is met long before two-thirds of the flight under
@@ -502,10 +557,18 @@ describe("leadingStops", () => {
       [0, 0, 1, 1]
     )!;
 
-    expect(eased.length).toBe(linear.length);
-    // The same stops, met earlier: an ease that front-loads its travel reaches
-    // every size sooner than a straight line does.
+    // Met earlier: an ease that front-loads its travel reaches every size
+    // sooner than a straight line does.
     expect(eased[1]!.at).toBeLessThan(linear[1]!.at);
+    // And thinned harder: the front-loaded ease packs boundaries into the
+    // opening frames, where two steps in one frame is a jump the eye reads as
+    // a shimmer, so those merge — a linear travel spreads them out and keeps
+    // more. No two kept interior steps land closer than a frame.
+    expect(eased.length).toBeLessThanOrEqual(linear.length);
+    const FRAME = 100 / 15;
+    for (let i = 2; i < eased.length - 1; i += 1) {
+      expect(eased[i]!.at - eased[i - 1]!.at).toBeGreaterThanOrEqual(FRAME - 1e-6);
+    }
   });
 
   it("stands down where the face steps nowhere inside the flight", () => {
@@ -629,6 +692,32 @@ describe("leadingStops", () => {
     leadingStops(...args);
 
     expect(context.mock.calls.length).toBe(first);
+  });
+
+  it("clears its memo once it grows past its cap, then leans on the per-pair cache", () => {
+    // The outer memo is capped so a pathological page cannot grow it without
+    // end; when it clears, a pair's stairs are still held in the per-pair cache
+    // underneath it, so recomputing a known pair does not bisect it again.
+    const context = stub(0.95, 0.25);
+    const args = [end(14, 20), end(24, 32), { ...FONT, family: "Recall Sans" }, undefined] as const;
+
+    // Prime both the outer memo and the per-pair stop cache for this pair.
+    const primed = leadingStops(...args)!;
+    expect(primed).not.toBeNull();
+
+    // Flood the shared memo past its 512 cap with distinct pairs. The miss that
+    // crosses the cap clears the memo, evicting the primed pair with it.
+    for (let i = 0; i < 520; i += 1) {
+      leadingStops(end(14, 20), end(24, 32), { ...FONT, family: `Flood ${i}` }, undefined);
+    }
+    const bisected = context.mock.calls.length;
+
+    // The memo no longer answers for our pair, so leadingStops recomputes — but
+    // its own stopCache still holds the stairs, so no canvas is asked again.
+    const again = leadingStops(...args)!;
+
+    expect(again).toEqual(primed);
+    expect(context.mock.calls.length).toBe(bisected);
   });
 });
 

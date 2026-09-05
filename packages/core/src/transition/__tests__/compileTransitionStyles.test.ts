@@ -235,7 +235,7 @@ describe("compileTransitionStyles", () => {
     expect(partOnly).not.toContain("-govcreep");
   });
 
-  it("rides parts on the desktop head with a gated literal delay", () => {
+  it("rides parts on the head the same way screens do, with keyframes", () => {
     const css = compileTransitionStyles(
       [],
       [],
@@ -253,12 +253,27 @@ describe("compileTransitionStyles", () => {
     const rules = deskHeadRules(css);
     expect(rules.length).toBeGreaterThan(0);
     for (const rule of rules) {
-      // Parts never get a head of their own — they ride the screen's by delay,
-      // so the choreography's relative timing to the screens survives.
+      // A HEAD IS NOT A DELAY. A delay leaves the animation uncommitted until
+      // the instant it must move, so a late first frame enters the curve
+      // partway and everything before it is never drawn. Painted frames off a
+      // phone: the arriving title came in at 92% of its fade on the first frame
+      // it appeared. The flat lead-in has to be in the keyframes, exactly as it
+      // is for the screen this part rides.
+      expect(rule).toContain("animation-name:");
+      expect(rule).toContain("animation-duration:");
       expect(rule).toContain("animation-delay:");
-      expect(rule).not.toContain("animation-name:");
+      // The easing and the fill still come from the part's own base rule.
       expect(rule).not.toContain("animation-timing-function");
     }
+    // The lead-in is flat and is the head's own length: a 0.033s desktop head
+    // in front of a 0.4s fade is 7.621% of the 0.433s total.
+    const headed = css
+      .split("@keyframes ")
+      .find((block) =>
+        block.startsWith(`${animationName("part", "test-title-fade", "PUSHING-true")}-deskhead`)
+      )!;
+    expect(headed).toContain("0%, 7.621% {\n    opacity: 0;");
+    expect(headed).toContain("100% {\n    opacity: 1;");
   });
 
   it("keeps part easing authored — no LPM ease var outside the screen scope", () => {
@@ -1165,6 +1180,38 @@ describe("compileTransitionStyles bar transitions", () => {
       expect(block).toContain("animation: none");
       // Destination = the enter target (x: 0).
       expect(block).toContain("transform: none");
+    });
+
+    it("starts every governed emitter of a replace on one clock", () => {
+      // Four rules carry the same head: the screen's, the creep variant's, the
+      // part delay's, and the parked arrival's. A replace does not slide, so it
+      // shifts none of them — and the park rule was the last to be told. With it
+      // alone still shifted, the arriving screen began its fade a whole head
+      // after the departure had finished its own, and the one dissolve the
+      // author wrote played as two with a hole between them. Device-read on a
+      // consumer's tab switch: departure done at 330ms, arrival begun at 360ms.
+      const css = compileTransitionStyles([shove], []);
+      const delayAfter = (keyframeName: string): string => {
+        const at = css.indexOf(`animation-name: ${keyframeName};`);
+        expect(at).toBeGreaterThan(-1);
+        const rest = css.slice(at, css.indexOf("}", at));
+        return /animation-delay: ([\d.]+)s/.exec(rest)![1];
+      };
+      const replace = [
+        "flemo-screen-custom-slide-fade-REPLACING-true-gov",
+        "flemo-screen-custom-slide-fade-REPLACING-true-govcreep",
+        "flemo-screen-custom-slide-fade-REPLACING-true-govpark"
+      ].map(delayAfter);
+      expect(replace).toEqual(["0.000", "0.000", "0.000"]);
+      // A push DOES slide, and there all four still shift by their head — the
+      // rule is the variant, not the emitter.
+      const push = [
+        "flemo-screen-custom-slide-fade-PUSHING-true-gov",
+        "flemo-screen-custom-slide-fade-PUSHING-true-govcreep",
+        "flemo-screen-custom-slide-fade-PUSHING-true-govpark"
+      ].map(delayAfter);
+      expect(new Set(push).size).toBe(1);
+      expect(push[0]).not.toBe("0.000");
     });
 
     it("never emits park-under for a pop variant (the leaving screen is visible)", () => {

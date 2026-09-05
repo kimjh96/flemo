@@ -10,7 +10,11 @@ import {
   PINNED_POSE_TRANSFORM,
   pinnedPoseDecls,
   pinnedLiftDecl,
+  PINNED_BOX,
+  PINNED_BOX_HEIGHT,
   PINNED_TRACK,
+  onRuler,
+  pinnedBoxDeclsOnRuler,
   pinnedTrackDecl,
   pinnedTrackFixDecl,
   PINNED_TRAVEL,
@@ -22,6 +26,21 @@ import type { MorphClipInset } from "@morph/morphClip";
 import type { MorphRect } from "@morph/morphGeometry";
 
 const px = (value: number) => `${Math.round(value * 100) / 100}px`;
+
+// A TYPE LENGTH ROUNDED IS A LINE ON THE WRONG PIXEL.
+//
+// Two decimals is enough for a box, whose edge the eye reads at the pixel it
+// lands on. It is not enough for a face: a leading given as a FACTOR resolves
+// against the size and is then rounded to a whole pixel, so a size that is a
+// hair off puts the leading on the other side of a half-pixel and the whole
+// line moves a pixel. Device-read on a consumer's phone, at a landing: the same
+// element, the same family, a size reported as 11.00 at both ends, and a
+// leading of 17px on the flight's last frame against 16px at rest, with nothing
+// inline and no parent changing. 11 x 1.5 is 16.5, and the flight was standing
+// on the wrong side of it.
+//
+// Printed at the precision the value actually has, both ends resolve the same.
+const typePx = (value: number) => `${Number.parseFloat(value.toFixed(6)).toString()}px`;
 
 const insetCss = (inset: MorphClipInset): string =>
   `inset(${inset.top.toFixed(2)}% ${inset.right.toFixed(2)}% ${inset.bottom.toFixed(2)}% ${inset.left.toFixed(2)}%)`;
@@ -51,8 +70,14 @@ const insetCss = (inset: MorphClipInset): string =>
 //
 // `translate` rather than `transform`, so an author's pose keeps `transform`
 // to itself and the two compose instead of overwriting one another.
-const boxBlock = (rect: MorphRect, moved: boolean) =>
-  `${moved ? "" : `    left: ${px(rect.x)};\n    top: ${px(rect.y)};\n`}    width: ${px(rect.width)};\n    height: ${px(rect.height)};`;
+// `sized` writes the box's own size through the channel instead of the
+// property, which is what keeps WebKit from dropping it (see morphPose).
+const boxBlock = (rect: MorphRect, moved: boolean, sized: boolean) =>
+  `${moved ? "" : `    left: ${px(rect.x)};\n    top: ${px(rect.y)};\n`}${
+    sized
+      ? pinnedBoxDeclsOnRuler(rect.width, rect.height)
+      : `    width: ${px(rect.width)};\n    height: ${px(rect.height)};`
+  }`;
 
 const declsToBlock = (decls: { property: string; value: string }[]): string =>
   decls.map((decl) => `    ${decl.property}: ${decl.value};`).join("\n");
@@ -76,6 +101,24 @@ export interface MorphTravel {
   duration: number;
   /** Seconds from the release, platform head included. */
   start: number;
+  /**
+   * The platform's flat lead-in, ALREADY COUNTED IN `start`.
+   *
+   * A HEAD IS NOT A DELAY. Waiting it out as a delay leaves the animation
+   * uncommitted until the instant it must move, so a first frame that arrives
+   * late arrives PARTWAY THROUGH — the curve is entered wherever the clock
+   * says and everything before that is never drawn. Given here, the same
+   * seconds are baked into the keyframes as a flat stop instead: the animation
+   * is running and still, a late first frame lands inside the lead-in, and the
+   * curve plays from 0. The screens have ridden it this way since the head was
+   * invented; this is the flight riding it the same way.
+   *
+   * Painted frames off a consumer's phone, 60fps: the first frame the box was
+   * drawn on was already 67% of the way through its travel. The computed value
+   * ramped correctly throughout, which is why every main-thread probe called it
+   * healthy.
+   */
+  head?: number;
   ease: AnimationOptions["ease"];
 }
 
@@ -105,6 +148,27 @@ export interface MorphKeyframeSet {
    * is what keeps its position on the same thread as its size.
    */
   translate: string | null;
+  /**
+   * The `width` and `height` the caller must set on the element, or null.
+   *
+   * Non-null where the box's size is driven through registered properties,
+   * which is what keeps an engine from dropping it (see morphPose).
+   */
+  size: { width: string; height: string } | null;
+  /**
+   * The width the box is HELD at for the whole flight, or null.
+   *
+   * The viewport x of a far edge both ends agree on, when there is one.
+   *
+   * The element is placed FROM it — `left: calc(<edge>px - var(--flemo-box-w))`
+   * — so the edge is derived from the very channel the width animates on and
+   * the two round together. Reached as position + size instead, the engine
+   * rounds each to its own layout unit and their sum oscillates: measured on a
+   * consumer's pill, 366.000 with the anchor against 365.985 ± 0.015 without,
+   * reversing six times in twenty-three frames, and every right-aligned thing
+   * inside it followed.
+   */
+  heldEdge: number | null;
   /**
    * The `transform` the caller must set on the element, or null.
    *
@@ -151,6 +215,17 @@ export const buildMorphKeyframes = (input: {
    * being laid out.
    */
   box?: { from: MorphRect; to: MorphRect } | null;
+  /**
+   * Whether the two ends lay their CONTENTS out in the same places, measured.
+   *
+   * A box animates for real wherever this is false, because something inside
+   * has a different place at the two ends and only a layout per frame can take
+   * it there. Where it is true the subtree is the same picture at every size on
+   * the way, so the box is laid out ONCE and the near edge is cut back with a
+   * clip instead (see the reveal below). It is measured rather than inferred
+   * from the box's shape: a shape says nothing about a consumer's subtree.
+   */
+  contentsHold?: boolean;
   /** Type morphs by growing, not by being scaled: px at each end. */
   fontSize?: { from: number; to: number } | null;
   /**
@@ -227,12 +302,32 @@ export const buildMorphKeyframes = (input: {
    * to preserve.
    */
   clip?: { from: MorphClipInset; to: MorphClipInset } | null;
+  /**
+   * The corner the box wears, so a clip that reveals it cuts a rounded shape
+   * rather than a square one (see the reveal below).
+   */
+  radius?: string | null;
   fade: {
     from: TransitionTarget | null;
     to: TransitionTarget | null;
     duration: number;
     /** Seconds to hold the from-pose before the fade runs, on top of `travel.start`. */
     delay?: number;
+    /**
+     * The curve, where the flight's own is not the right one.
+     *
+     * A HAND-OVER IS A STEP, NOT A RAMP. Two opacity ramps crossing never
+     * compose back to what they replaced: at the midpoint of a 1-to-0 against a
+     * 0-to-1, alpha compositing leaves 1 - (1 - 0.5) * 0.5 = 0.75 of the pair,
+     * and the engines do not even sample the two on the same phase. Device-read
+     * on a consumer's tab switch: the copy at 0.48 against the arrival at 0.33,
+     * two frames of a washed-out box mid-travel — read as a blink.
+     *
+     * A step at the same instant on both sides has no such midpoint. Both are
+     * pure functions of one timeline, so every frame that renders at all
+     * renders exactly one of them, and a missed frame cannot land between.
+     */
+    easing?: string;
   } | null;
   /**
    * Everything the two ends paint differently — corner, surface, border,
@@ -280,6 +375,8 @@ export const buildMorphKeyframes = (input: {
     margin,
     size,
     clip,
+    contentsHold = false,
+    radius,
     leading,
     leadStart,
     lift,
@@ -290,7 +387,43 @@ export const buildMorphKeyframes = (input: {
   const rules: string[] = [];
   const animations: string[] = [];
   const easing = easingToCss(travel.ease);
-  const start = travel.start.toFixed(3);
+  // The head is spent inside the animation, not in front of it: the same
+  // seconds, the same first moment of motion, the same landing — the delay
+  // gives them back and the keyframes hold them.
+  const head = Math.max(0, Math.min(travel.head ?? 0, travel.start));
+  const span = travel.duration + head;
+  const headPct = head > 0 ? (head / span) * 100 : 0;
+  const clock = `${span.toFixed(3)}s`;
+  const start = (travel.start - head).toFixed(3);
+  /** A percentage of the travel, restated as a percentage of head-plus-travel. */
+  const at = (pct: number): number =>
+    head > 0 ? headPct + (pct / 100) * (travel.duration / span) * 100 : pct;
+  /** Two-stop keyframes, with the flat lead-in in front where there is one. */
+  // A FLIGHT HAS TO ARRIVE BEFORE IT LANDS.
+  //
+  // The last frame a flight is painted on is not its 100%: the animation ends
+  // between that frame and the next, so the last thing on glass is the curve a
+  // fraction short of its destination. For a box that is a sub-pixel nobody can
+  // see. For TYPE it is a whole pixel, because a face's ascent is quantised and
+  // a size a thousandth short of its resting value snaps to the grid line
+  // above: device-read at a landing, the last painted frame carried a size of
+  // 11.0006px against a resting 11.0000, and the words sat 1.03px high until
+  // the flight let go.
+  //
+  // So the destination is reached ONE FRAME EARLY and held there. The last
+  // frame on glass is then the resting state itself and the landing changes
+  // nothing. What is given up is the last sixtieth of a second of an ease that
+  // is already flat there.
+  const arrived = span > 0 ? Math.max(0, 100 - (100 * (1 / 60)) / span) : 100;
+  const held = (name: string, fromBlock: string, toBlock: string): string => {
+    const landing =
+      arrived >= 99.999
+        ? `  100% {\n${toBlock}\n  }`
+        : `  ${arrived.toFixed(3)}%, 100% {\n${toBlock}\n  }`;
+    return head > 0
+      ? `@keyframes ${name} {\n  0%, ${headPct.toFixed(3)}% {\n${fromBlock}\n  }\n${landing}\n}`
+      : `@keyframes ${name} {\n  0% {\n${fromBlock}\n  }\n${landing}\n}`;
+  };
   const geometryName = `flemo-morph-${id}-travel`;
   const fromParts: string[] = [];
   const toParts: string[] = [];
@@ -340,6 +473,87 @@ export const buildMorphKeyframes = (input: {
   // The tracking correction needs the property to itself, which it gets by
   // carrying the author's own tracking alongside it on the same `calc`.
   const tracking = travelPinned && track && track.length > 1 ? track : null;
+  // The box's size goes through the channel wherever the keyframe is already
+  // animating custom properties, which is the case WebKit drops it in.
+  const sized = Boolean(box) && (moving || Boolean(tracking));
+  // AN EDGE THAT DOES NOT MOVE MUST NOT BE A SUM.
+  //
+  // A box that travels carries its position on one channel and its size on
+  // another, and the engine rounds each to its own layout unit. The far edge
+  // is their SUM, so it oscillates by that unit even when both ends agree on
+  // where it is: measured on a consumer's pill whose two ends share a right
+  // edge at 369px, the edge ran 369, 368.987, 368.999, 368.996, 369 frame
+  // after frame, and every right-aligned thing inside it followed. Both
+  // engines, the same 1/64px.
+  //
+  // Where the two ends DO agree on an edge, the travel does not have to reach
+  // it through a sum: the element is anchored on that edge and only its size
+  // is animated, so the edge is one value and cannot disagree with itself.
+  const holds = (from: number, to: number) => Math.abs(from - to) < 0.05;
+  const rightHeld = Boolean(
+    box &&
+    solo &&
+    !fromPoses[0] &&
+    !toPoses[0] &&
+    holds(box.from.x + box.from.width, box.to.x + box.to.width) &&
+    !holds(box.from.x, box.to.x)
+  );
+  // A BOX WHOSE SIZE ANIMATES IS RE-RASTERED, AND THE RASTER SHIMMERS.
+  //
+  // Animating the size is what makes a morph a growth rather than a stretch:
+  // the subtree lays itself out at every size on the way, which is the only way
+  // text can re-wrap into its new shape. It is also a full layout and a fresh
+  // raster of that subtree on every frame, and WebKit re-snaps the backing to
+  // the device grid each time, so the contents are carried a device pixel back
+  // and forth for the whole flight whether they needed to move or not.
+  //
+  // TRIED AND FALSIFIED, in this order, all four on a consumer's phone: letting
+  // the size animate for real; stepping it so it changes five times instead of
+  // every frame; stepping it onto the DEVICE grid so every value is one the
+  // display can draw; and approaching the engine's ruler from one side so the
+  // backing cannot cut to the pixel before. The tremble followed the NUMBER of
+  // size changes every time and no arithmetic on the value removed it. Freezing
+  // the size stopped it dead on every run.
+  //
+  // Which is the answer, because the per-frame layout was buying NOTHING here.
+  // Measured across a flight, every descendant of the pill held one position
+  // for all of its frames and only the box's own near edge moved: the contents
+  // are right-aligned, the box grows leftward, and what grows is empty space.
+  //
+  // So the flight asks, rather than guesses: `contentsHold` lays the arrival
+  // out at both of its sizes and compares where every child and every line of
+  // text falls from the corner the flight anchors on (see morphContents). Where
+  // they agree, the
+  // box is laid out ONCE at the size that contains both ends and the near edge
+  // is cut back with a clip — the same picture, drawn once. Where they disagree
+  // the size animates for real, because something inside genuinely has to be
+  // somewhere else, and that layout is the honest price of it.
+  const holdsAt = (from: number, to: number) => Math.abs(from - to) < 0.05;
+  const reveal =
+    box &&
+    contentsHold &&
+    moving &&
+    !clip &&
+    !(holdsAt(box.from.width, box.to.width) && holdsAt(box.from.height, box.to.height))
+      ? (() => {
+          // The box is laid out at the size that CONTAINS both ends, and each
+          // end is that box with the growth cut back off it. The cut is on the
+          // edges opposite the corner the flight is anchored on, because that
+          // is the corner the box grows away from: a right-held box grows
+          // leftward, everything else grows right and down from where it sits.
+          const width = Math.max(box.from.width, box.to.width);
+          const height = Math.max(box.from.height, box.to.height);
+          const cut = (rect: MorphRect) => {
+            const across = (((width - rect.width) / width) * 100).toFixed(3);
+            const down = (((height - rect.height) / height) * 100).toFixed(3);
+            const right = rightHeld ? "0.000" : across;
+            const left = rightHeld ? across : "0.000";
+            return `0% ${right}% ${down}% ${left}%`;
+          };
+          return { width, height, from: cut(box.from), to: cut(box.to) };
+        })()
+      : null;
+
   if (moving) {
     // The element RESTS at its destination and is carried back to where it
     // started, so the position it is laid out at never moves.
@@ -351,7 +565,9 @@ export const buildMorphKeyframes = (input: {
       const pose = poses[0];
       const rect = box ? (side === "from" ? box.from : box.to) : null;
       return {
-        x: (rect ? rect.x - box!.to.x : 0) + (pose ? pose.x : 0),
+        // A right-held box carries no pose (see `rightHeld`, which requires
+        // both ends' poses to be absent), so its only x offset is zero.
+        x: rightHeld ? 0 : (rect ? rect.x - box!.to.x : 0) + (pose ? pose.x : 0),
         y: (rect ? rect.y - box!.to.y : 0) + (pose ? pose.y : 0) + ascent
       };
     };
@@ -369,8 +585,11 @@ export const buildMorphKeyframes = (input: {
     toParts.push(pinnedTravelDecls(end.x, end.y));
   }
   if (box) {
-    fromParts.push(boxBlock(box.from, moving));
-    toParts.push(boxBlock(box.to, moving));
+    // A revealed box is laid out ONCE, at the size that contains both ends, and
+    // the clip below is what changes. Both ends therefore state the same size.
+    const held = reveal ? { ...box.to, width: reveal.width, height: reveal.height } : null;
+    fromParts.push(boxBlock(held ?? box.from, moving, sized));
+    toParts.push(boxBlock(held ?? box.to, moving, sized));
   }
   // A pinned pose is five numbers, which says ONE transform. Where an end
   // composes two — a measured travel with an author's flourish stacked on it —
@@ -398,7 +617,7 @@ export const buildMorphKeyframes = (input: {
     }
   }
   if (fontSize)
-    pushSize(`    font-size: ${px(fontSize.from)};`, `    font-size: ${px(fontSize.to)};`);
+    pushSize(`    font-size: ${typePx(fontSize.from)};`, `    font-size: ${typePx(fontSize.to)};`);
   if (fontWeight)
     pushSize(
       `    font-weight: ${Math.round(fontWeight.from)};`,
@@ -421,7 +640,10 @@ export const buildMorphKeyframes = (input: {
       `    word-spacing: ${px(wordSpacing.to)};`
     );
   if (lineHeight && !staircase)
-    pushSize(`    line-height: ${px(lineHeight.from)};`, `    line-height: ${px(lineHeight.to)};`);
+    pushSize(
+      `    line-height: ${typePx(lineHeight.from)};`,
+      `    line-height: ${typePx(lineHeight.to)};`
+    );
   if (aspectRatio)
     pushSize(`    aspect-ratio: ${aspectRatio.from};`, `    aspect-ratio: ${aspectRatio.to};`);
   if (padding) pushSize(`    padding: ${padding.from};`, `    padding: ${padding.to};`);
@@ -432,11 +654,19 @@ export const buildMorphKeyframes = (input: {
   }
   if (clip)
     pushSize(`    clip-path: ${insetCss(clip.from)};`, `    clip-path: ${insetCss(clip.to)};`);
-  if (fromParts.length > 0) {
-    rules.push(
-      `@keyframes ${geometryName} {\n  from {\n${fromParts.join("\n")}\n  }\n  to {\n${toParts.join("\n")}\n  }\n}`
+  else if (reveal) {
+    // ROUND, or the reveal is a square cut across a rounded box: the left
+    // corner disappears for the whole flight and what grows reads as a plain
+    // rectangle sitting over the pill rather than the pill itself.
+    const round = radius && radius !== "0px" ? ` round ${radius}` : "";
+    pushSize(
+      `    clip-path: inset(${reveal.from}${round});`,
+      `    clip-path: inset(${reveal.to}${round});`
     );
-    animations.push(`${geometryName} ${travel.duration.toFixed(3)}s ${easing} ${start}s both`);
+  }
+  if (fromParts.length > 0) {
+    rules.push(held(geometryName, fromParts.join("\n"), toParts.join("\n")));
+    animations.push(`${geometryName} ${clock} ${easing} ${start}s both`);
     clockName = geometryName;
   }
 
@@ -448,26 +678,50 @@ export const buildMorphKeyframes = (input: {
       rules.push(
         `@keyframes ${fadeName} {\n  from {\n${declsToBlock(fromDecls)}\n  }\n  to {\n${declsToBlock(toDecls)}\n  }\n}`
       );
+      // Against `travel.start`, which the head does not move: a cut lands on
+      // the frame the box starts moving whether or not a lead-in precedes it.
       const fadeStart = (travel.start + (fade.delay ?? 0)).toFixed(3);
-      animations.push(`${fadeName} ${fade.duration.toFixed(3)}s ${easing} ${fadeStart}s both`);
+      animations.push(
+        `${fadeName} ${fade.duration.toFixed(3)}s ${fade.easing ?? easing} ${fadeStart}s both`
+      );
     }
   }
 
   if (staircase) {
     const leadName = `flemo-morph-${id}-lead`;
+    // A STOP AT THE VERY END IS A STEP THE LANDING TAKES, NOT THE FLIGHT.
+    //
+    // Each stop is held by `steps(1, end)` until the next one, so a final stop
+    // sitting at 100% is never painted while the flight runs: the value before
+    // it stands on glass right up to the last frame and the arrival's own value
+    // appears for the first time at the instant the animation lets go. The
+    // staircase exists to stop the leading stepping, and that placement moves
+    // one of its steps to the worst moment there is, when everything else has
+    // already stopped. Read off a consumer's phone, keyframe by keyframe: a
+    // meta line's stops ran 20px, 19px, 17px, and then 16px AT 100%, and the
+    // words dropped 1.03px on the landing frame.
+    //
+    // So the last stop is brought forward by a frame. The arrival's leading is
+    // then on glass before the flight ends, and the landing changes nothing.
+    const lastFrame = span > 0 ? Math.max(0, 100 - (100 * (1 / 60)) / span) : 100;
+    const stops = staircase.map((stop, index) =>
+      index === staircase.length - 1
+        ? { ...stop, at: Math.min(at(stop.at), lastFrame) }
+        : { ...stop, at: at(stop.at) }
+    );
     // `steps(1, end)` on every stop is what makes this a staircase rather than
     // a ramp: each value is held for its whole interval and changes at the
     // instant the face height it matches does.
-    const blocks = staircase
+    const blocks = stops
       .map(
         (stop) =>
-          `  ${stop.at.toFixed(4)}% {\n    line-height: ${px(stop.lineHeight)};\n    animation-timing-function: steps(1, end);\n  }`
+          `  ${stop.at.toFixed(4)}% {\n    line-height: ${typePx(stop.lineHeight)};\n    animation-timing-function: steps(1, end);\n  }`
       )
       .join("\n");
     rules.push(`@keyframes ${leadName} {\n${blocks}\n}`);
     // Linear, because the stops already carry the flight's easing in WHERE they
     // sit; easing between them again would move them.
-    animations.push(`${leadName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
+    animations.push(`${leadName} ${clock} linear ${start}s both`);
   }
 
   if (lifting) {
@@ -475,14 +729,19 @@ export const buildMorphKeyframes = (input: {
     // `steps(1, end)` on every stop is what makes this a staircase rather than
     // a ramp: each value is held for its whole interval and changes at the
     // instant the face height it matches does.
+    // Brought forward by a frame at the end, for the reason the leading's is:
+    // a stop at 100% is a step the LANDING takes. This one carries the ascent's
+    // cancellation, so the step it hides there is the whole baseline: measured
+    // on a consumer's phone, a line alone in an unchanged parent, its own box
+    // the same size at both ends, arrived exactly 1.00px low every time.
     const blocks = lifting
-      .map(
-        (stop) =>
-          `  ${stop.at.toFixed(4)}% {\n${pinnedLiftDecl(stop.ascent)}\n    animation-timing-function: steps(1, end);\n  }`
-      )
+      .map((stop, index) => {
+        const stopAt = index === lifting.length - 1 ? Math.min(at(stop.at), arrived) : at(stop.at);
+        return `  ${stopAt.toFixed(4)}% {\n${pinnedLiftDecl(stop.ascent)}\n    animation-timing-function: steps(1, end);\n  }`;
+      })
       .join("\n");
     rules.push(`@keyframes ${liftName} {\n${blocks}\n}`);
-    animations.push(`${liftName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
+    animations.push(`${liftName} ${clock} linear ${start}s both`);
   }
 
   if (tracking) {
@@ -492,18 +751,21 @@ export const buildMorphKeyframes = (input: {
     // sample until the next one leaves the whole climb between them on the
     // glass. Same stops, same bytes, a third of the worst frame's error.
     const blocks = tracking
-      .map((stop) => `  ${stop.at.toFixed(4)}% {\n${pinnedTrackFixDecl(stop.fix)}\n  }`)
+      .map((stop, index, all) => {
+        const stopAt = index === all.length - 1 ? Math.min(at(stop.at), arrived) : at(stop.at);
+        return `  ${stopAt.toFixed(4)}% {\n${pinnedTrackFixDecl(stop.fix)}\n  }`;
+      })
       .join("\n");
     rules.push(`@keyframes ${trackName} {\n${blocks}\n}`);
-    animations.push(`${trackName} ${travel.duration.toFixed(3)}s linear ${start}s both`);
+    animations.push(`${trackName} ${clock} linear ${start}s both`);
   }
 
   if (paint.length > 0) {
     const paintName = `flemo-morph-${id}-paint`;
     const from = paint.map((channel) => `    ${channel.property}: ${channel.from};`).join("\n");
     const to = paint.map((channel) => `    ${channel.property}: ${channel.to};`).join("\n");
-    rules.push(`@keyframes ${paintName} {\n  from {\n${from}\n  }\n  to {\n${to}\n  }\n}`);
-    animations.push(`${paintName} ${travel.duration.toFixed(3)}s ${easing} ${start}s both`);
+    rules.push(held(paintName, from, to));
+    animations.push(`${paintName} ${clock} ${easing} ${start}s both`);
     // It runs the flight's full length, so it is a sound clock for a side whose
     // only change is a colour or a corner. The fade is not: it is over while
     // the two sides are still on top of each other, which is most of a flight
@@ -530,6 +792,8 @@ export const buildMorphKeyframes = (input: {
     // transform is made of. Measured on the poster grid: its title began every
     // flight a pixel above the line it was flying from.
     translate: moving ? PINNED_TRAVEL : null,
+    size: sized ? { width: PINNED_BOX, height: PINNED_BOX_HEIGHT } : null,
+    heldEdge: moving && rightHeld && box ? onRuler(box.to.x + box.to.width) : null,
     letterSpacing: tracking ? PINNED_TRACK : null
   };
 };
@@ -595,6 +859,8 @@ export const buildCameraKeyframes = (input: {
   settling: boolean;
   duration: number;
   start: number;
+  /** The flight's flat lead-in, baked here too: the camera is one of its parts. */
+  head?: number;
   ease: AnimationOptions["ease"];
   selector: string;
   /**
@@ -607,6 +873,12 @@ export const buildCameraKeyframes = (input: {
   accelerated: boolean;
 }): { rules: string[]; name: string } => {
   const { id, origin, small, big, settling, duration, start, ease, selector, accelerated } = input;
+  // Same trade the element makes: the head is spent inside the animation, so a
+  // late first frame lands in the lead-in rather than partway down the curve.
+  const head = Math.max(0, Math.min(input.head ?? 0, start));
+  const span = duration + head;
+  const headPct = head > 0 ? (head / span) * 100 : 0;
+  const delay = start - head;
   const scale = small.width > 0 ? big.width / small.width : 1;
   const centre = (rect: MorphRect) => ({
     x: rect.x + rect.width / 2,
@@ -629,9 +901,24 @@ export const buildCameraKeyframes = (input: {
     return `    transform: ${atRest ? "none" : `translate(${px(pose.x)}, ${px(pose.y)}) scale(${uniform})`};`;
   };
   const name = `flemo-morph-${id}-camera`;
+  // THE CAMERA ARRIVES BEFORE IT LANDS, like every other channel (see
+  // `arrived`). Its last painted frame is otherwise a fraction short of its
+  // endpoint, and a camera's fraction is a SCALE: the whole screen holds a
+  // sliver of zoom to the end and releases it on the landing frame, moving
+  // everything by that sliver times its distance from the origin. Device-read
+  // on the poster grid's pop: the meta line dropped a CSS pixel while the row
+  // below rose two thirds of one, on the same frame, in opposite directions —
+  // one screen scale correcting, not two elements moving.
+  const arrived = span > 0 ? Math.max(0, 100 - (100 * (1 / 60)) / span) : 100;
+  const landing =
+    arrived >= 99.999
+      ? `  100% {\n${stop(settling)}\n  }`
+      : `  ${arrived.toFixed(3)}%, 100% {\n${stop(settling)}\n  }`;
   const rules = [
-    `@keyframes ${name} {\n  from {\n${stop(!settling)}\n  }\n  to {\n${stop(settling)}\n  }\n}`,
-    `${selector} {\n${accelerated ? "" : `  transform: ${PINNED_POSE_TRANSFORM} !important;\n`}  animation-name: ${name} !important;\n  animation-duration: ${duration.toFixed(3)}s !important;\n  animation-timing-function: ${easingToCss(ease)} !important;\n  animation-delay: ${start.toFixed(3)}s !important;\n  animation-fill-mode: both !important;\n}`
+    head > 0
+      ? `@keyframes ${name} {\n  0%, ${headPct.toFixed(3)}% {\n${stop(!settling)}\n  }\n${landing}\n}`
+      : `@keyframes ${name} {\n  0% {\n${stop(!settling)}\n  }\n${landing}\n}`,
+    `${selector} {\n${accelerated ? "" : `  transform: ${PINNED_POSE_TRANSFORM} !important;\n`}  animation-name: ${name} !important;\n  animation-duration: ${span.toFixed(3)}s !important;\n  animation-timing-function: ${easingToCss(ease)} !important;\n  animation-delay: ${delay.toFixed(3)}s !important;\n  animation-fill-mode: both !important;\n}`
   ];
   return { rules, name };
 };

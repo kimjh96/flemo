@@ -15,6 +15,71 @@ const travel: MorphTravel = {
 };
 
 describe("buildMorphKeyframes", () => {
+  const rect = (x: number, width: number): MorphRect => ({ x, y: 10, width, height: 32 });
+  const growing: MorphTravel = { ...travel, from: IDENTITY_POSE };
+
+  it("holds a box whose contents were MEASURED not to move, and clips it instead", () => {
+    // The narrower end is a clip over the wider one: 80 of 160 is half the box,
+    // so the flight opens at a 50% left inset and closes at none. One layout,
+    // one raster, and the same picture at every size on the way.
+    const { rules } = buildMorphKeyframes({
+      id: "9i",
+      travel: growing,
+      box: { from: rect(300, 80), to: rect(220, 160) },
+      contentsHold: true,
+      fade: null,
+      paint: [],
+      pinned: true,
+      travelPinned: true
+    });
+    const travelRule = rules.join("\n");
+    expect(travelRule).toContain("--flemo-box-w: 160px");
+    expect(travelRule).not.toContain("--flemo-box-w: 80px");
+    expect(travelRule).toContain("clip-path: inset(0% 0.000% 0.000% 50.000%)");
+    expect(travelRule).toContain("clip-path: inset(0% 0.000% 0.000% 0.000%)");
+  });
+
+  it("cuts a LEFT-anchored growth from the edges it grows towards", () => {
+    // Two ends that share a LEFT edge: the box grows rightward and downward
+    // from where it sits, so the cut is on the right and the bottom. The same
+    // one layout, on a corner the old shape test could not reach at all.
+    const { rules } = buildMorphKeyframes({
+      id: "9k",
+      travel: growing,
+      box: {
+        from: { x: 220, y: 10, width: 80, height: 16 },
+        to: { x: 220, y: 10, width: 160, height: 32 }
+      },
+      contentsHold: true,
+      fade: null,
+      paint: [],
+      pinned: true,
+      travelPinned: true
+    });
+    const travelRule = rules.join("\n");
+    expect(travelRule).toContain("--flemo-box-w: 160px");
+    expect(travelRule).not.toContain("--flemo-box-w: 80px");
+    expect(travelRule).toContain("clip-path: inset(0% 50.000% 50.000% 0.000%)");
+    expect(travelRule).toContain("clip-path: inset(0% 0.000% 0.000% 0.000%)");
+  });
+
+  it("lays the box out at every size where the contents were not proven still", () => {
+    const { rules } = buildMorphKeyframes({
+      id: "9j",
+      travel: growing,
+      box: { from: rect(300, 80), to: rect(220, 160) },
+      contentsHold: false,
+      fade: null,
+      paint: [],
+      pinned: true,
+      travelPinned: true
+    });
+    const travelRule = rules.join("\n");
+    expect(travelRule).toContain("--flemo-box-w: 160px");
+    expect(travelRule).toContain("--flemo-box-w: 80px");
+    expect(travelRule).not.toContain("clip-path");
+  });
+
   it("keeps the geometry keyframe to transform and nothing else", () => {
     // The rule the whole shape of this module follows: a keyframe listing a
     // property the compositor cannot animate drops that WHOLE animation to the
@@ -101,7 +166,8 @@ describe("buildMorphKeyframes", () => {
       // that omitted a channel would interpolate it from the registered initial
       // value rather than holding it.
       const geometry = pin().rules.find((rule) => rule.includes("-travel"))!;
-      const to = geometry.slice(geometry.indexOf("to {"));
+      // The arrival's stop is the one that carries to 100% (see `arrived`).
+      const to = geometry.slice(geometry.indexOf("%, 100% {"));
 
       for (const axis of ["x", "y", "sx", "sy", "r"]) expect(to).toContain(`--flemo-pose-${axis}:`);
     });
@@ -344,8 +410,11 @@ describe("buildMorphKeyframes", () => {
     });
 
     expect(rules).toHaveLength(1);
-    expect(rules[0]).toContain("from {");
-    expect(rules[0]).toContain("to {");
+    // The destination is stated at its own stop AND held to the end: the last
+    // frame a flight is painted on is not its 100%, and for type a hair short
+    // of the resting size is a whole pixel of ascent (see `arrived`).
+    expect(rules[0]).toContain("0% {");
+    expect(rules[0]).toContain("%, 100% {");
     expect(rules[0]).toContain("translate3d(-100px, 200px, 0) scale(0.25, 0.5)");
     expect(rules[0]).toContain("transform: none");
     expect(animation).toContain("cubic-bezier(0.32, 0.72, 0, 1)");
@@ -386,6 +455,74 @@ describe("buildMorphKeyframes", () => {
     });
 
     expect(rules).toHaveLength(1);
+  });
+
+  it("bakes a head into the keyframes, restating every stop over head-plus-travel", () => {
+    // A HEAD IS NOT A DELAY: the seconds are held as a flat lead-in inside the
+    // animation instead. A head of 0.1 on a 0.5s span is 20% of it, so a stop
+    // asked for at 0% is restated at 20% and the geometry keyframe holds its
+    // from-pose flat until there.
+    const { rules } = buildMorphKeyframes({
+      id: "hd",
+      travel: { ...travel, start: 0.2, head: 0.1 },
+      lineHeight: { from: 20, to: 32 },
+      leading: [
+        { at: 0, lineHeight: 20 },
+        { at: 100, lineHeight: 32 }
+      ],
+      fade: null,
+      paint: []
+    });
+
+    expect(rules.find((rule) => rule.includes("-travel"))).toContain("0%, 20.000% {");
+    expect(rules.find((rule) => rule.includes("-lead"))).toContain("20.0000% {");
+  });
+
+  it("collapses the landing to a bare 100% stop when the flight has no span", () => {
+    // With no duration and no head the span is zero, so `arrived` and the
+    // staircase's last-frame both fall back to 100%: there is no frame to reach
+    // the destination one early on, and the landing is a single 100% stop.
+    const { rules } = buildMorphKeyframes({
+      id: "z0",
+      travel: { ...travel, duration: 0 },
+      lineHeight: { from: 20, to: 32 },
+      leading: [
+        { at: 0, lineHeight: 20 },
+        { at: 100, lineHeight: 32 }
+      ],
+      fade: null,
+      paint: []
+    });
+
+    const geometry = rules.find((rule) => rule.includes("-travel"))!;
+    expect(geometry).toContain("100% {");
+    expect(geometry).not.toContain("%, 100% {");
+    // The staircase's final stop is capped at the same 100% fallback.
+    expect(rules.find((rule) => rule.includes("-lead"))).toContain("100.0000% {");
+  });
+
+  it("evaluates the height when the width holds, and rounds the reveal to the corner", () => {
+    // The two ends share a width and a left edge but grow in height, so the
+    // reveal is still cut — on the BOTTOM — rather than the box animating for
+    // real, and a corner rounds the cut so it tracks a rounded box.
+    const { rules } = buildMorphKeyframes({
+      id: "rv",
+      travel: growing,
+      box: {
+        from: { x: 0, y: 0, width: 100, height: 40 },
+        to: { x: 0, y: 0, width: 100, height: 80 }
+      },
+      contentsHold: true,
+      radius: "12px",
+      fade: null,
+      paint: [],
+      pinned: true,
+      travelPinned: true
+    });
+
+    const travelRule = rules.join("\n");
+    expect(travelRule).toContain("clip-path: inset(0% 0.000% 50.000% 0.000% round 12px)");
+    expect(travelRule).toContain("clip-path: inset(0% 0.000% 0.000% 0.000% round 12px)");
   });
 });
 
@@ -486,6 +623,46 @@ describe("buildCameraKeyframes", () => {
     expect(camera({ x: 0, y: 0, width: 0, height: 100 }).rules[0]).toContain("scale(1)");
   });
 
+  it("bakes the flight's head into the camera as a flat lead-in", () => {
+    // The camera is one of the flight's parts and rides the head the same way:
+    // a head of 0.1 on a 0.5s span holds the start pose flat through 20%.
+    const { rules } = buildCameraKeyframes({
+      id: "hc",
+      origin: { x: 0, y: 0 },
+      small: { x: 100, y: 200, width: 100, height: 100 },
+      big: { x: 0, y: 0, width: 400, height: 800 },
+      settling: false,
+      duration: 0.4,
+      start: 0.2,
+      head: 0.1,
+      ease: undefined,
+      selector: "[data-flemo-screen]",
+      accelerated: true
+    });
+
+    expect(rules[0]).toContain("0%, 20.000% {");
+  });
+
+  it("collapses to a single 100% stop when the zoom has no duration", () => {
+    // Span zero: `arrived` falls back to 100, so there is no frame to release
+    // the sliver of zoom one early and the landing is a bare 100% stop.
+    const { rules } = buildCameraKeyframes({
+      id: "z0c",
+      origin: { x: 0, y: 0 },
+      small: { x: 100, y: 200, width: 100, height: 100 },
+      big: { x: 0, y: 0, width: 400, height: 800 },
+      settling: false,
+      duration: 0,
+      start: 0,
+      ease: undefined,
+      selector: "[data-flemo-screen]",
+      accelerated: true
+    });
+
+    expect(rules[0]).toContain("100% {");
+    expect(rules[0]).not.toContain("%, 100% {");
+  });
+
   it("starts zoomed and settles when the screen it rides is the one arriving", () => {
     const settling = buildCameraKeyframes({
       id: "10i",
@@ -500,8 +677,11 @@ describe("buildCameraKeyframes", () => {
       accelerated: true
     });
 
-    expect(settling.rules[0]).toMatch(/from \{\n {4}transform: translate/);
-    expect(settling.rules[0]).toContain("to {\n    transform: none;");
+    expect(settling.rules[0]).toMatch(/0% \{\n {4}transform: translate/);
+    // And it ARRIVES a frame early, like every other channel: a camera whose
+    // last painted frame is a sliver short of its endpoint releases that
+    // sliver of zoom on the landing frame, moving the whole screen by it.
+    expect(settling.rules[0]).toContain("95.833%, 100% {\n    transform: none;");
   });
 
   // A CAMERA IS ONLY RIGHT WHILE IT AGREES WITH WHAT IT CARRIES.
@@ -674,5 +854,54 @@ describe("buildMorphKeyframes() move channel", () => {
     // untouched: the last stop is the arrival's own line.
     expect(rule).toContain("--flemo-move-y: 13px");
     expect(rule).toContain("--flemo-move-y: 14px");
+  });
+});
+
+// A BOX THAT ANIMATES ITS OWN SIZE MUST NOT WRITE IT DIRECTLY.
+describe("buildMorphKeyframes() box size", () => {
+  const box = {
+    from: { x: 0, y: 0, width: 80, height: 80 } as MorphRect,
+    to: { x: 0, y: 0, width: 400, height: 300 } as MorphRect
+  };
+
+  it("drives the size through the channel wherever the keyframe animates properties", () => {
+    // WebKit drops an animated `width` on an element that is also animating a
+    // custom property. Reading the size from a registered length instead gives
+    // the engine nothing but custom properties to interpolate.
+    const built = buildMorphKeyframes({
+      id: "8b",
+      travel,
+      fade: null,
+      paint: [],
+      travelPinned: true,
+      box
+    });
+
+    expect(built.size).toEqual({ width: "var(--flemo-box-w)", height: "var(--flemo-box-h)" });
+    const rule = built.rules.find((r) => r.startsWith("@keyframes flemo-morph-8b-travel"))!;
+    expect(rule).toContain("--flemo-box-w: 80px");
+    expect(rule).toContain("--flemo-box-h: 300px");
+    expect(rule).not.toContain("width: 80px");
+  });
+
+  it("writes the size plainly where the keyframe animates nothing else through a property", () => {
+    const built = buildMorphKeyframes({
+      id: "9b",
+      travel,
+      fade: null,
+      paint: [],
+      box
+    });
+
+    expect(built.size).toBeNull();
+    const rule = built.rules.find((r) => r.startsWith("@keyframes flemo-morph-9b-travel"))!;
+    expect(rule).toContain("width: 80px");
+    expect(rule).not.toContain("--flemo-box-w");
+  });
+
+  it("has no size to wear where there is no box", () => {
+    expect(
+      buildMorphKeyframes({ id: "10b", travel, fade: null, paint: [], travelPinned: true }).size
+    ).toBeNull();
   });
 });

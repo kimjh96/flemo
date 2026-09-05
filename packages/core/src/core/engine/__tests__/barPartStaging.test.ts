@@ -5,10 +5,14 @@ import { stageBarParts, PART_LAYER_LEVEL } from "@core/engine/barPartStaging";
 import {
   ANIM_HOLD,
   ANIM_HOLD_ATTR,
+  BAR_ATTR,
+  BAR_ID_ATTR,
+  BAR_ID_TYPE_ATTR,
   BAR_RIDING_ATTR,
   PART_HOME_ATTR,
   PART_NAME_ATTR,
   PART_STAND_IN_ATTR,
+  ROUTER_ATTR,
   SCREEN_ATTR
 } from "@dom/attributes";
 
@@ -82,6 +86,10 @@ beforeEach(() => {
   document.body.appendChild(scope);
 
   bar = document.createElement("div");
+  bar.setAttribute(BAR_ATTR, "app");
+  bar.setAttribute(BAR_ID_ATTR, "home");
+  bar.setAttribute(BAR_ID_TYPE_ATTR, "string");
+  bar.setAttribute(ROUTER_ATTR, "r1");
   // Matched with the partner's bar: it hands over rather than rides.
   bar.setAttribute(BAR_RIDING_ATTR, "false");
   document.body.appendChild(bar);
@@ -182,6 +190,43 @@ describe("stageBarParts", () => {
     // There is no second copy to cross-fade with, and lifting its parts out of
     // the motion carrying them would strand them mid-air.
     bar.setAttribute(BAR_RIDING_ATTR, "true");
+
+    expect(stage()).toBeNull();
+    expect(part.parentElement).toBe(bar);
+  });
+
+  // A HANDOVER IS A FACT ABOUT THE DOM, NOT A FLAG THAT SETTLES LATER.
+  //
+  // The binding computes `bar-riding` from the partner's registration, which is
+  // a store write from an effect: on the commit that starts the flight the
+  // covered bar still reads `riding`. Waiting for it moved a part two painted
+  // frames into the flight, and an engine that rebuilds the layer of a live
+  // element it re-parents shows that as a blink.
+  const partnerBar = (attrs: Record<string, string>) => {
+    const other = document.createElement("div");
+    other.setAttribute(BAR_ATTR, "app");
+    other.setAttribute(BAR_ID_ATTR, "home");
+    other.setAttribute(BAR_ID_TYPE_ATTR, "string");
+    other.setAttribute(ROUTER_ATTR, "r1");
+    for (const [name, value] of Object.entries(attrs)) other.setAttribute(name, value);
+    document.body.appendChild(other);
+    return other;
+  };
+
+  it("stages a bar the DOM already shows a partner for, before the flag settles", () => {
+    bar.setAttribute(BAR_RIDING_ATTR, "true");
+    partnerBar({});
+
+    expect(stage()).not.toBeNull();
+    expect(part.parentElement).toBe(layer);
+  });
+
+  it("asks for a partner of the same kind, id and Router, and nothing else", () => {
+    bar.setAttribute(BAR_RIDING_ATTR, "true");
+    partnerBar({ [ROUTER_ATTR]: "r2" });
+    partnerBar({ [BAR_ATTR]: "nav" });
+    partnerBar({ [BAR_ID_ATTR]: "elsewhere" });
+    partnerBar({ [BAR_ID_TYPE_ATTR]: "number" });
 
     expect(stage()).toBeNull();
     expect(part.parentElement).toBe(bar);

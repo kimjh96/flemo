@@ -28,7 +28,6 @@ import type { AnimationOptions } from "@transition/cssTypes";
 import { invertEasing, resolveEasing } from "@transition/cubicBezier";
 
 import {
-  faceAims,
   faceGrids,
   faceParts,
   faceRatios,
@@ -272,6 +271,32 @@ const stopCache = new Map<string, LeadingStop[] | null>();
  * browser check: an engine that does not quantise its face heights fails it at
  * every size, and is left alone.
  */
+// EVERY ONE OF THESE IS A PURE FUNCTION OF A FACE AND TWO SIZES.
+//
+// They are also the expensive half of building a flight: both search, and both
+// ask a canvas for a measurement at every step of the search. That work lands in
+// the FIRST frame of a flight, the one frame nothing has moved yet: measured on
+// a consumer's app, that frame ran 81ms against 15ms for every frame after it,
+// and 21ms of it was here. The same card flies the same two sizes every time it
+// is tapped, so the answer is worked out once and kept.
+const remembered = new Map<string, unknown>();
+
+const recall = <T>(key: string, work: () => T): T => {
+  if (remembered.has(key)) return remembered.get(key) as T;
+  const answer = work();
+  // A page has a handful of faces and a handful of size pairs; a cap keeps a
+  // pathological one from growing without end.
+  if (remembered.size > 512) remembered.clear();
+  remembered.set(key, answer);
+  return answer;
+};
+
+const faceKey = (font: { family: string; weight: string | number; style: string } | null) => {
+  /* v8 ignore next -- both callers refuse a null font before keying on it. */
+  if (!font) return "none";
+  return `${font.family}|${font.weight}|${font.style}`;
+};
+
 export const leadingStops = (
   from: LeadingEndType,
   to: LeadingEndType,
@@ -283,7 +308,19 @@ export const leadingStops = (
   if (from.lineHeight === null || to.lineHeight === null) return null;
   if (from.textHeight === null || to.textHeight === null) return null;
   if (Math.abs(from.fontSize - to.fontSize) < EXACT) return null;
+  return recall(
+    `lead|${faceKey(font)}|${from.fontSize},${from.lineHeight},${from.textHeight}` +
+      `>${to.fontSize},${to.lineHeight},${to.textHeight}|${String(ease)}`,
+    () => leadingStopsFor(from, to, font, ease)
+  );
+};
 
+const leadingStopsFor = (
+  from: LeadingEndType,
+  to: LeadingEndType,
+  font: { family: string; weight: string | number; style: string },
+  ease: AnimationOptions["ease"]
+): LeadingStop[] | null => {
   const key = `${font.style}|${font.weight}|${font.family}|${from.fontSize}|${to.fontSize}|${from.lineHeight}|${to.lineHeight}|${from.textHeight}|${to.textHeight}|${JSON.stringify(ease ?? null)}`;
   const cached = stopCache.get(key);
   if (cached !== undefined) return cached;
@@ -329,7 +366,6 @@ const buildStops = (
 
   // The leading the arrival RESTS at, which every stop is built to preserve.
   const leading = to.lineHeight - to.textHeight;
-  const invert = invertEasing(ease);
   const curve = resolveEasing(ease);
   const span = to.fontSize - from.fontSize;
   // A STEP IS PINNED IN TIME, NOT IN SIZE.
@@ -345,64 +381,85 @@ const buildStops = (
   const stops: LeadingStop[] = [
     { at: 0, lineHeight: from.textHeight + leading, ascent: ends[0].ascent }
   ];
-  // Each aim is searched between its NEIGHBOURS, never in a window of its own
-  // size. An ease that opens fast packs several steps into a hundredth of the
-  // flight, and a fixed window there swallows the ones after the first: three
-  // half-pixel jumps came back the moment one was tried.
-  const aims = faceAims(from.fontSize, to.fontSize, ratios, scale).map((aim) =>
-    invert((aim - from.fontSize) / span)
-  );
-  let floor = 0;
-  for (let i = 0; i < aims.length; i += 1) {
-    const here = aims[i]!;
-    const before = i > 0 ? (aims[i - 1]! + here) / 2 : 0;
-    const after = i < aims.length - 1 ? (here + aims[i + 1]!) / 2 : 1;
-    const at = settle(Math.max(floor, before), after, face);
-    if (at === null) continue;
-    const parts = face(at);
-    /* v8 ignore next -- `settle` only returns a time it measured. */
-    if (parts === null) continue;
-    floor = at;
-    // A stop landing on either end is harmless: the endpoint pushed after this
-    // loop is written later and is the one the flight ends on.
-    stops.push({
-      at: at * 100,
-      lineHeight: parts.ascent + parts.descent + leading,
-      ascent: parts.ascent
-    });
+  // EVERY BOUNDARY IS FOUND BY BISECTION, NONE BY ARITHMETIC.
+  //
+  // The aims used to come from the face's per-em ratios — predict where
+  // `size * ratio` crosses the grid, then bisect a window around each. The
+  // engine's rounding does not follow that arithmetic everywhere: device-read
+  // on an iPhone, the ascent of an 11.55px face stepped where the ratio put
+  // the boundary at 11.87, so the window bisected around the wrong place,
+  // found nothing, and DROPPED the stop. A dropped stop does not disappear —
+  // its whole step lands on the endpoint, one frame before the landing, where
+  // the eye reads it as the flight being nudged a pixel at the end. That was
+  // the poster grid's meta line dropping a CSS pixel on every zoomed pop.
+  //
+  // So the flight's whole span is searched instead: the face is monotone in
+  // size and the size monotone in time, so a segment whose two ends share a
+  // face holds no boundary, and one whose ends differ is split until every
+  // boundary is pinned to TIME. The canvas answers a handful more questions
+  // than the aimed search asked, once per face and size pair, and misses
+  // nothing the layout will actually do.
+  const explore = (lo: number, hi: number, below: FaceParts, above: FaceParts): void => {
+    if (sameFace(below, above)) return;
+    if (hi - lo <= TIME) {
+      // One boundary (or several closer together than a fifteenth of a frame,
+      // which no painted frame can land between): one stop, wearing the face
+      // the flight steps onto.
+      stops.push({
+        at: hi * 100,
+        lineHeight: above.ascent + above.descent + leading,
+        ascent: above.ascent
+      });
+      return;
+    }
+    const mid = (lo + hi) / 2;
+    const here = face(mid);
+    /* v8 ignore next -- the grid check above already proved the face answers. */
+    if (here === null) return;
+    explore(lo, mid, below, here);
+    explore(mid, hi, here, above);
+  };
+  explore(0, 1, ends[0], ends[1]);
+
+  // TWO STEPS IN ONE FRAME IS A JUMP, NOT A STAIRCASE.
+  //
+  // Every boundary is a step where the LINE-HEIGHT (a paint) and the LIFT (a
+  // transform) must move together to hold the baseline still; where they land
+  // a frame apart the baseline blips, and the eye reads a run of blips as a
+  // shimmer. A fast-opening ease packs several boundaries into the first few
+  // frames — device-read on the poster grid's title, thirteen steps with five
+  // inside the opening sixth of the flight, two of them four milliseconds
+  // apart — so those frames each carry two or three steps and each step is its
+  // own chance to blip. Thinning boundaries that fall closer together than a
+  // frame keeps the staircase (the leading still never drifts more than the
+  // half-pixel one skipped step is worth) while cutting the count of moments
+  // the two channels can disagree. The FIRST and the LAST boundary are always
+  // kept: the last is the one whose omission dropped the meta line at the
+  // landing.
+  //
+  // A frame as a fraction of the flight is not known here (the duration lives
+  // with the caller), so the floor is the shortest a shipped morph runs, ~0.25s
+  // — one frame is a fifteenth of it — which keeps every step a real morph can
+  // show one frame apart and merges only the ones no frame could separate.
+  const FRAME_FRACTION = 100 / 15;
+  const thinned: LeadingStop[] = [];
+  for (let i = 1; i < stops.length; i += 1) {
+    const stop = stops[i]!;
+    const last = i === stops.length - 1;
+    const kept = thinned[thinned.length - 1];
+    if (!last && kept && stop.at - kept.at < FRAME_FRACTION) continue;
+    thinned.push(stop);
   }
+  const kept = [stops[0]!, ...thinned];
+
   // The last stop is the arrival's own line-height by construction, so the
   // landing restores exactly what the flight ended on.
-  stops.push({ at: 100, lineHeight: to.lineHeight, ascent: ends[1].ascent });
-  return stops.length > 2 ? stops : null;
+  kept.push({ at: 100, lineHeight: to.lineHeight, ascent: ends[1].ascent });
+  return kept.length > 2 ? kept : null;
 };
 
 const matches = (parts: FaceParts, measured: number): boolean =>
   Math.abs(parts.ascent + parts.descent - measured) < EXACT;
-
-/** The time at which the face first changes inside `[lo, hi]`, or null. */
-const settle = (
-  lo: number,
-  hi: number,
-  face: (progress: number) => FaceParts | null
-): number | null => {
-  let low = Math.max(0, lo);
-  // Clamped rather than guarded: a bracket that has already been passed
-  // collapses to a point, and a point cannot differ from itself.
-  let high = Math.max(low, Math.min(1, hi));
-  const before = face(low);
-  const after = face(high);
-  if (before === null || after === null || sameFace(before, after)) return null;
-  while (high - low > TIME) {
-    const mid = (low + high) / 2;
-    const here = face(mid);
-    /* v8 ignore next -- the guard above already refused a face with no metrics. */
-    if (here === null) return null;
-    if (sameFace(here, before)) low = mid;
-    else high = mid;
-  }
-  return high;
-};
 
 // A RUN THAT DOES NOT DRIFT APART.
 //
@@ -493,6 +550,21 @@ export const trackStops = (
   ease: AnimationOptions["ease"]
 ): TrackStop[] | null => {
   if (!font) return null;
+  if (from.fontSize === null || to.fontSize === null) return null;
+  return recall(
+    `track|${faceKey(font)}|${text.length}:${text.slice(0, 24)}|${from.fontSize}>${to.fontSize}|${String(ease)}`,
+    () => trackStopsFor(text, from, to, font, ease)
+  );
+};
+
+const trackStopsFor = (
+  text: string,
+  from: { fontSize: number | null },
+  to: { fontSize: number | null },
+  font: { family: string; weight: string | number; style: string },
+  ease: AnimationOptions["ease"]
+): TrackStop[] | null => {
+  /* v8 ignore next -- trackStops already refused a null end; this re-check only narrows the type. */
   if (from.fontSize === null || to.fontSize === null) return null;
   if (Math.abs(from.fontSize - to.fontSize) < EXACT) return null;
   // One glyph has no gap to spread a correction over, and nothing accumulates

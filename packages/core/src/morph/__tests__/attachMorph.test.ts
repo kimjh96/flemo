@@ -7,8 +7,10 @@ import {
   ANIM_HOLD,
   ANIM_HOLD_ATTR,
   MORPH_ATTR,
+  MORPH_LAYER_ATTR,
   MORPH_ROLE,
   PART_NAME_ATTR,
+  ROUTER_ATTR,
   SCREEN_ATTR,
   STATUS_ATTR,
   TRANSITION_ATTR
@@ -120,11 +122,11 @@ describe("attachMorph", () => {
 
     // Its BOX travels, from the partner's to its own — not a scale, which
     // would stretch everything inside it.
-    const travel = inserted.find((rule) => rule.includes("-travel"))!;
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
     expect(travel).toContain("--flemo-move-x: 20px;");
     expect(travel).toContain("--flemo-move-y: 600px;");
-    expect(travel).toContain("width: 400px");
-    expect(travel).toContain("height: 300px");
+    expect(travel).toContain("--flemo-box-w: 400px");
+    expect(travel).toContain("--flemo-box-h: 300px");
     expect(hero.style.animation).toContain("flemo-morph-");
     expect(hero.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.ENTER);
     expect(thumbnail.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.EXIT);
@@ -172,6 +174,128 @@ describe("attachMorph", () => {
     // The departure goes in one frame, at the moment the arrival takes over.
     expect(thumbnail.style.animation).toContain("-fade 0.017s");
     expect(thumbnail.style.animation).toContain("0.000s both");
+  });
+
+  it("paints the departure through the head, not the arrival", () => {
+    // The head is the flat lead-in the compiled tiers bake in: the flight is
+    // staged and running and nothing has moved yet. A zero cross-fade used to
+    // mean no ghost at all, so for the length of the head the only thing on
+    // glass was the arrival — the destination's contents at the departure's
+    // size — and the swap the author asked to be instant happened a head early.
+    // The desktop head kit, which is what puts a head on a replace: a Mac
+    // WebKit session with no touch surface.
+    const platform = Object.getOwnPropertyDescriptor(navigator, "platform");
+    const touch = Object.getOwnPropertyDescriptor(navigator, "maxTouchPoints");
+    Object.defineProperty(navigator, "platform", { value: "MacIntel", configurable: true });
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 0, configurable: true });
+    morphTransitionMap.set(
+      "cutting" as never,
+      createMorphTransition({
+        name: "cutting" as never,
+        initial: {},
+        idle: { value: { opacity: 1 }, options: { duration: 0 } },
+        enter: { value: { opacity: 1 }, options: { duration: 0.18 } },
+        exit: { value: { opacity: 0 }, options: { duration: 0.18 } },
+        options: { crossFade: 0, radius: true }
+      })
+    );
+    try {
+      const summary = makeScreen("layout", true);
+      const pill = makeMorph(summary, [298, 24, 98, 40]);
+      pill.textContent = "summary";
+      attachMorph(pill, { layoutId: "pill", name: "cutting" as never, navigateStore: store });
+      flipTo("REPLACING");
+      summary.setAttribute(ACTIVE_ATTR, "false");
+
+      const calendar = makeScreen("layout", true);
+      const wide = makeMorph(calendar, [257, 24, 139, 40]);
+      wide.textContent = "calendar";
+      attachMorph(wide, { layoutId: "pill", name: "cutting" as never, navigateStore: store });
+
+      // A copy of the departure flies, and it is the departure's own content.
+      const ghost = [...layer.children].find((child) => child !== wide) as HTMLElement;
+      expect(ghost.textContent).toBe("summary");
+      // The desktop head for a replace is 33ms, and both ends of the hand-over
+      // step at its end: the copy cuts out as the arrival cuts in, so exactly
+      // one of them is ever on glass and the swap lands on the frame the box
+      // starts moving.
+      // And it is a STEP on both sides, not two ramps crossing: every frame
+      // that renders shows exactly one of the pair.
+      expect(ghost.style.animation).toContain("-fade 0.017s steps(1, start) 0.033s both");
+      expect(wide.style.animation).toContain("-fade 0.017s steps(1, start) 0.033s both");
+      // Held, not transparent: an arrival that paints nothing has no raster for
+      // the step to promote, and the frame it fires on lands blank.
+      const fade = inserted.find((rule) => rule.includes("-fade") && rule.includes("opacity: 1"))!;
+      expect(fade).toMatch(/from \{\s*opacity: 0\.006;/);
+      expect(fade).toMatch(/to \{\s*opacity: 1;/);
+    } finally {
+      morphTransitionMap.delete("cutting" as never);
+      if (platform) Object.defineProperty(navigator, "platform", platform);
+      if (touch) Object.defineProperty(navigator, "maxTouchPoints", touch);
+      else delete (navigator as { maxTouchPoints?: number }).maxTouchPoints;
+    }
+  });
+
+  it("does not force a layout for a morph with no container to be staged inside", () => {
+    // Registration runs in a layout effect, in the frame React has just mutated
+    // the DOM, so a measurement here is a synchronous layout of the whole page
+    // at the most expensive moment there is — and it is repeated for every
+    // render of every morph. The value it produces is only ever read to beat a
+    // STAGED CONTAINER, so an element with none has nothing to learn from it.
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 80, 80]);
+    const solo = vi.spyOn(card, "getBoundingClientRect");
+    attachMorph(card, { layoutId: "solo", navigateStore: store });
+    expect(solo).not.toHaveBeenCalled();
+
+    // A nested one still pays it: its own staged measurement is taken inside a
+    // container already at its from-box, so it would end the interpolation on
+    // the wrong size.
+    const label = makeMorph(card, [28, 610, 60, 20]);
+    const inside = vi.spyOn(label, "getBoundingClientRect");
+    attachMorph(label, { layoutId: "nested", navigateStore: store });
+    expect(inside).toHaveBeenCalled();
+  });
+
+  it("spends the head inside the travel, not in front of it", () => {
+    // A head waited out as a DELAY leaves the animation uncommitted until the
+    // instant it must move, so a first frame that lands late lands partway down
+    // the curve and the opening is never drawn. Painted frames off a phone at
+    // 60fps: the first frame the box appeared on was already 67% through its
+    // travel. Baked as a flat stop, the same seconds hold the from-pose while
+    // the animation is already running, and a late frame lands inside them.
+    const platform = Object.getOwnPropertyDescriptor(navigator, "platform");
+    const touch = Object.getOwnPropertyDescriptor(navigator, "maxTouchPoints");
+    Object.defineProperty(navigator, "platform", { value: "MacIntel", configurable: true });
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 0, configurable: true });
+    try {
+      const summary = makeScreen("layout", true);
+      const pill = makeMorph(summary, [298, 24, 98, 40]);
+      attachMorph(pill, { layoutId: "headed", navigateStore: store });
+      flipTo("REPLACING");
+      summary.setAttribute(ACTIVE_ATTR, "false");
+
+      const calendar = makeScreen("layout", true);
+      const wide = makeMorph(calendar, [257, 24, 139, 40]);
+      attachMorph(wide, { layoutId: "headed", navigateStore: store });
+
+      // `layout` runs at 0.4s and the desktop head for a replace is 33ms, so
+      // the animation is 0.433s long, starts at 0, and holds its from-pose for
+      // the first 7.621% of it — the head's own length.
+      expect(wide.style.animation).toContain("-travel 0.433s");
+      expect(wide.style.animation).toContain("0.000s both");
+      const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
+      expect(travel).toContain("0%, 7.621% {");
+      expect(travel).not.toContain("from {");
+      // The flat stop is the from-pose and the last stop is still the
+      // destination: the head holds the opening, it does not replace it.
+      expect(travel).toContain("--flemo-box-w: 98px;");
+      expect(travel).toContain("--flemo-box-w: 139px;");
+    } finally {
+      if (platform) Object.defineProperty(navigator, "platform", platform);
+      if (touch) Object.defineProperty(navigator, "maxTouchPoints", touch);
+      else delete (navigator as { maxTouchPoints?: number }).maxTouchPoints;
+    }
   });
 
   it("pins a nested pair that only travels, so it cannot outrun its container", async () => {
@@ -247,7 +371,8 @@ describe("attachMorph", () => {
     // the main thread's work already. Pinning is for the parts a compositor
     // could otherwise run away with while the rest of the flight waits.
     expect(nestedRule).toContain("width:");
-    expect(nestedRule).toMatch(/to \{[^}]*--flemo-move-x: 0px;/);
+    // The arrival's stop carries to 100%, one frame early (see `arrived`).
+    expect(nestedRule).toMatch(/%, 100% \{[^}]*--flemo-move-x: 0px;/);
     expect(nestedRule).not.toContain("transform:");
     // SIZE is the other half of the same correction. Riding sizes the child
     // through the container's width interpolation, and a container that is
@@ -305,7 +430,7 @@ describe("attachMorph", () => {
     // Both ends read a half-leading of exactly 1, which is the boundary an
     // interpolation can only approach, so both ends take the same pixel of
     // leading and the flight renders on the step the landing will.
-    const travel = inserted.find((rule) => rule.includes("-travel"))!;
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
     expect(travel).toContain("line-height: 21px");
   });
 
@@ -760,7 +885,7 @@ describe("attachMorph", () => {
     heading.style.fontSize = "24px";
     attachMorph(heading, { layoutId: "title-1", name: "text", navigateStore: store });
 
-    const travel = inserted.find((rule) => rule.includes("-travel"))!;
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
     expect(travel).toContain("font-size: 14px");
     expect(travel).toContain("font-size: 24px");
   });
@@ -831,12 +956,17 @@ describe("attachMorph", () => {
     expect(hero.parentElement).toBe(layer);
     expect(hero.style.position).toBe("absolute");
     expect(hero.style.left).toBe("0px");
-    expect(hero.style.width).toBe("80px");
-    const travel = inserted.find((rule) => rule.includes("-travel"))!;
+    // The box's SIZE is the keyframe's alone. What the element wears inline is
+    // the channel that keyframe writes, never a copy of the value: a duplicate
+    // only has to win once to strand the element at its departure size, and a
+    // `var()` cannot, because there is only one value and the keyframe owns it.
+    expect(hero.style.width).toBe("var(--flemo-box-w)");
+    expect(hero.style.height).toBe("var(--flemo-box-h)");
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
     expect(travel).toContain("--flemo-move-x: 20px;");
     expect(travel).toContain("--flemo-move-y: 600px;");
-    expect(travel).toContain("width: 80px");
-    expect(travel).toContain("width: 400px");
+    expect(travel).toContain("--flemo-box-w: 80px");
+    expect(travel).toContain("--flemo-box-w: 400px");
     // And its place is held by a copy of it, so nothing reflows while it is
     // away (see the stand-in test above).
     expect(home.querySelector("[data-flemo-morph-stand-in]")).not.toBeNull();
@@ -859,9 +989,13 @@ describe("attachMorph", () => {
     hero.style.minHeight = "100%";
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
 
-    expect(hero.style.height).toBe("80px");
     expect(hero.style.minHeight).toBe("0px");
     expect(hero.style.maxHeight).toBe("none");
+    // The clamps go; the box's own size is read from the channel.
+    expect(hero.style.height).toBe("var(--flemo-box-h)");
+    const grow = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
+    expect(grow).toContain("--flemo-box-h: 80px");
+    expect(grow).toContain("--flemo-box-h: 800px");
 
     hero.dispatchEvent(animationEndEvent(/flemo-morph-\d+i-travel/.exec(hero.style.animation)![0]));
     expect(hero.style.minHeight).toBe("100%");
@@ -908,6 +1042,104 @@ describe("attachMorph", () => {
     expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.HELD);
   });
 
+  // ONE FLIGHT, ONE START.
+  //
+  // A flight has two ends and they are not held alike. Reading only the end
+  // whose transform displaces it let the layer mirror RELEASED while the other
+  // end was still parked, so the morph ran alone: measured on a consumer's tab
+  // switch, the button had travelled 42% of its flight before the bar's parts
+  // started their cross-fade.
+  it("holds the flight while EITHER of its ends is held", () => {
+    const gallery = makeScreen("layout", true);
+    gallery.setAttribute(ANIM_HOLD_ATTR, ANIM_HOLD.PARK_UNDER);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-9", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    // The arriving side is already released; the departing side is not.
+    const detail = makeScreen("layout", true);
+    detail.setAttribute(ANIM_HOLD_ATTR, ANIM_HOLD.RELEASED);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-9", navigateStore: store });
+
+    expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.PARK_UNDER);
+  });
+
+  // The hold is written on the box that CARRIES a screen, and an end resolves
+  // to the scope it was declared in. A nested Router's flight therefore has to
+  // look UP for its pause rather than at the element it named.
+  it("reads the hold from the nearest box above the end, not from the end itself", () => {
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-10", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const carrier = document.createElement("div");
+    carrier.setAttribute(ANIM_HOLD_ATTR, ANIM_HOLD.PARK);
+    document.body.appendChild(carrier);
+    const detail = makeScreen("layout", true);
+    carrier.appendChild(detail);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-10", navigateStore: store });
+
+    expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.PARK);
+  });
+
+  // AN EDGE THAT DOES NOT MOVE MUST NOT BE A SUM.
+  //
+  // A far edge reached as position PLUS size oscillates by a layout unit, and
+  // everything aligned to it follows: measured on a consumer's pill whose ends
+  // share a right edge at 369px, the edge ran 369, 368.987, 368.999, 368.996
+  // frame after frame in both engines.
+  it("places a held box from the edge itself, so the edge is never a sum", () => {
+    const gallery = makeScreen("layout", true);
+    const chip = makeMorph(gallery, [300, 10, 80, 32]);
+    attachMorph(chip, { layoutId: "pill-1", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    // Same right edge (380), a different left one.
+    const wide = makeMorph(detail, [220, 10, 160, 32]);
+    attachMorph(wide, { layoutId: "pill-1", navigateStore: store });
+
+    // Never from the layer's right: the layer is the Router's box and that box
+    // changes width mid-flight when the two mounted screens take the page's
+    // scrollbar away and give it back. From the EDGE, through the same channel
+    // the width animates on, so the two round together — reached as position +
+    // size it ran 366.000 ± 0.015, reversing six times in twenty-three frames.
+    expect(wide.style.right).toBe("");
+    expect(wide.style.left).toBe("calc(380px - var(--flemo-box-w))");
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
+    expect(travel).toContain("--flemo-move-x: 0px;");
+    // And the size travels for real, because nothing here PROVED that it need
+    // not: a box is only held where the arrival's own subtree has been measured
+    // to land in the same places at both widths (see morphContents). Unproven
+    // is the same as moving, and moving is laid out.
+    expect(travel).toContain("--flemo-box-w: 160px");
+    expect(travel).toContain("--flemo-box-w: 80px");
+    expect(travel).not.toContain("clip-path");
+  });
+
+  it("keeps the ordinary travel where the two ends do not agree on an edge", () => {
+    const gallery = makeScreen("layout", true);
+    const chip = makeMorph(gallery, [300, 10, 80, 32]);
+    attachMorph(chip, { layoutId: "pill-2", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const wide = makeMorph(detail, [220, 10, 150, 32]);
+    attachMorph(wide, { layoutId: "pill-2", navigateStore: store });
+
+    expect(wide.style.right).toBe("");
+    expect(wide.style.left).toBe("220px");
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
+    expect(travel).toContain("--flemo-move-x: 80px;");
+  });
+
   it("pairs a POP the other way round, where the dismissing screen is the active one", () => {
     // Caught on glass, not here: the active flag follows the STACK, not the
     // direction of travel. On a pop the screen being dismissed is still the top
@@ -929,9 +1161,39 @@ describe("attachMorph", () => {
     expect(hero.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.EXIT);
     // Travelling the other way: the box starts at the big cover's and ends at
     // the small one's.
-    const travel = inserted.find((rule) => rule.includes("-travel"))!;
-    expect(travel).toContain("width: 400px");
-    expect(travel).toContain("width: 80px");
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
+    expect(travel).toContain("--flemo-box-w: 400px");
+    expect(travel).toContain("--flemo-box-w: 80px");
+  });
+
+  it("pairs against a snapshot whose leaving screen has not flipped transitional yet", () => {
+    // A fast pop's container caught this: the arriving side's effect commits
+    // before the leaving screen re-renders, so the partner — remembered only in
+    // the snapshot, its live entry already disposed by the unmount — sits on a
+    // screen still reading COMPLETED. Judged as a live entry it fails the
+    // transitional gate and the pair is refused: the container never flies, its
+    // camera never runs, and its children fly on their own as bare morphs. A
+    // snapshot was the partner when it was captured, so its not-yet-flipped
+    // status is tolerated.
+    const library = makeScreen("layout", false);
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
+
+    // The flip snapshots the detail's hero, then the leaving screen's status
+    // lags back to COMPLETED before the arrival evaluates.
+    flipTo("POPPING");
+    detail.setAttribute(STATUS_ATTR, "COMPLETED");
+
+    const thumbnail = makeMorph(library, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+
+    // The pair still forms from the snapshot: the arrival flies its box from
+    // the remembered big cover to its own small one.
+    expect(thumbnail.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.ENTER);
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
+    expect(travel).toContain("--flemo-box-w: 400px");
+    expect(travel).toContain("--flemo-box-w: 80px");
   });
 
   it("lets only the arriving side drive the flight", () => {
@@ -982,6 +1244,104 @@ describe("attachMorph", () => {
     expect(mini.style.animation).toContain("-fade");
   });
 
+  // A SHARED BAR is rendered as a sibling of the screen scope it belongs to, so
+  // walking up from a morph inside one leaves that screen entirely — and in a
+  // nested Router it lands on the ENCLOSING screen, which both ends share. The
+  // side of the flight therefore cannot come from structure; the binding stamps
+  // it on the element, and these two cover the shapes that broke.
+  const makeBar = (host: HTMLElement, status: NavigateStatus, active: boolean) => {
+    // The scope div carries the protocol; the bar is its SIBLING, inside a
+    // container that carries nothing. That is the binding's own shape.
+    const container = document.createElement("div");
+    host.appendChild(container);
+    const scope = document.createElement("div");
+    scope.setAttribute(SCREEN_ATTR, "");
+    scope.setAttribute(TRANSITION_ATTR, "layout");
+    scope.setAttribute(STATUS_ATTR, status);
+    scope.setAttribute(ACTIVE_ATTR, active ? "true" : "false");
+    setRect(scope, 0, 0, 400, 800);
+    container.appendChild(scope);
+    const bar = document.createElement("div");
+    container.appendChild(bar);
+    return bar;
+  };
+
+  const stamp = (
+    element: HTMLElement,
+    status: NavigateStatus,
+    active: boolean,
+    routerId: string
+  ) => {
+    element.setAttribute(TRANSITION_ATTR, "layout");
+    element.setAttribute(ROUTER_ATTR, routerId);
+    element.setAttribute(STATUS_ATTR, status);
+    element.setAttribute(ACTIVE_ATTR, active ? "true" : "false");
+  };
+
+  it("pairs two ends that both live in shared bars, with no screen between them", () => {
+    const leaving = makeMorph(makeBar(document.body, "IDLE", true), [300, 10, 80, 32]);
+    stamp(leaving, "REPLACING", true, "inner");
+    attachMorph(leaving, { layoutId: "header-actions", navigateStore: store });
+
+    flipTo("REPLACING");
+    stamp(leaving, "REPLACING", false, "inner");
+
+    const arriving = makeMorph(makeBar(document.body, "REPLACING", true), [220, 10, 160, 32]);
+    stamp(arriving, "REPLACING", true, "inner");
+    attachMorph(arriving, { layoutId: "header-actions", navigateStore: store });
+
+    expect(arriving.style.animation).toContain("-travel");
+    expect(arriving.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.ENTER);
+    expect(leaving.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.EXIT);
+  });
+
+  it("undoes the pose of the screen a bar is measured inside, whoever owns it", () => {
+    // BELONGING AND DISPLACEMENT ARE TWO QUESTIONS.
+    //
+    // A nested Router's bar hangs under the ENCLOSING screen, which belongs to
+    // another Router and has no say over this flight's clock — that much the
+    // owner answers, and declines. But `closest` walks the DOM, so a screen it
+    // finds is one this element is genuinely INSIDE, and an ancestor's
+    // transform displaces every rect measured under it whoever it belongs to.
+    // Treating the foreign Router as "not my pose" left the arrival measured
+    // with the transition's from-pose still on it and never taken off: the
+    // flight was placed a whole shift out and snapped back at the landing.
+    // Device-read on a consumer's tab switch, 4.28px — exactly the 1% that
+    // transition slides by, and it went away when the slide was turned off.
+    //
+    // The two ends are measured at DIFFERENT MOMENTS — the departure when the
+    // status flips, the arrival when the flight is staged — and the enclosing
+    // screen takes its from-pose between them. So the rects here are what a
+    // browser would actually report at each of those moments.
+    const outer = makeScreen("cupertino", true);
+    outer.setAttribute(ROUTER_ATTR, "outer");
+
+    const leaving = makeMorph(makeBar(outer, "IDLE", true), [300, 10, 80, 32]);
+    stamp(leaving, "REPLACING", true, "inner");
+    attachMorph(leaving, { layoutId: "header-actions", navigateStore: store });
+
+    flipTo("REPLACING");
+    stamp(leaving, "REPLACING", false, "inner");
+
+    // The enclosing screen puts its from-pose on, and everything under it is
+    // painted 400px along from here.
+    outer.style.transform = "translate3d(400px, 0, 0)";
+    setRect(outer, 400, 0, 400, 800);
+
+    // Deliberately NOT sharing a right edge with the departure, so this stays a
+    // test of where the travel is measured rather than of the far-edge anchor.
+    const arriving = makeMorph(makeBar(outer, "REPLACING", true), [620, 10, 150, 32]);
+    stamp(arriving, "REPLACING", true, "inner");
+    attachMorph(arriving, { layoutId: "header-actions", navigateStore: store });
+
+    // Both ends carried back out of the 400px into rest space, so the travel is
+    // the 80px between them and not the 480 a raw reading would have made it.
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
+    expect(travel).toContain("--flemo-move-x: 80px;");
+    expect(travel).toContain("--flemo-box-w: 80px");
+    expect(travel).toContain("--flemo-box-w: 150px");
+  });
+
   it("lands: the travel's end takes every trace of the flight with it", () => {
     const gallery = makeScreen("layout", true);
     const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
@@ -1006,7 +1366,7 @@ describe("attachMorph", () => {
     expect(thumbnail.getAttribute(MORPH_ATTR)).toBe("");
   });
 
-  it("holds the departure cut until the navigation ends, not until the travel does", () => {
+  it("holds the departure cut until the navigation ends, not until the travel does", async () => {
     // Caught on glass under `none`: the screens have no motion of their own, so
     // their span is set by whatever else the author gave them — a <Part>'s
     // choreography — and it outlasted the flight. Lifting the cut at the
@@ -1051,6 +1411,9 @@ describe("attachMorph", () => {
 
     flipTo("COMPLETED");
     expect(thumbnail.style.animation).toBe("");
+    // The rules are dropped on the frame AFTER the landing, so the landing
+    // itself carries only the restore (see `disposeOnce`).
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
     expect(dropped.length).toBeGreaterThan(0);
   });
 
@@ -1110,11 +1473,11 @@ describe("attachMorph", () => {
     const hero = makeMorph(detail, [0, 0, 400, 300]);
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
 
-    const travel = inserted.find((rule) => rule.includes("-travel"));
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
     expect(travel).toBeDefined();
     expect(travel).toContain("--flemo-move-x: 20px;");
     expect(travel).toContain("--flemo-move-y: 600px;");
-    expect(travel).toContain("width: 400px");
+    expect(travel).toContain("--flemo-box-w: 400px");
     expect(hero.parentElement).toBe(layer);
   });
 
@@ -1197,12 +1560,12 @@ describe("attachMorph", () => {
     attachMorph(hero, { layoutId: "photo-1", name: "zoom", navigateStore: store });
 
     const registrations = inserted.filter((rule) => rule.startsWith("@property"));
-    expect(registrations).toHaveLength(10);
+    expect(registrations).toHaveLength(12);
 
     const second = makeMorph(detail, [0, 0, 400, 300]);
     attachMorph(second, { layoutId: "photo-2", name: "zoom", navigateStore: store });
 
-    expect(inserted.filter((rule) => rule.startsWith("@property"))).toHaveLength(10);
+    expect(inserted.filter((rule) => rule.startsWith("@property"))).toHaveLength(12);
   });
 
   it("leaves the camera literal where those properties cannot be registered", () => {
@@ -1341,7 +1704,8 @@ describe("attachMorph", () => {
 
     const rule = inserted.find((r) => /flemo-morph-\d+i-paint/.test(r))!;
     expect(rule).toContain("border-radius: 12px / 6px");
-    expect(rule).not.toContain("%");
+    // The corner itself carries no percentage; the keyframe's own stops do.
+    expect(rule.replace(/^\s*[\d.]+%(, 100%)? \{$/gm, "")).not.toContain("%");
   });
 
   it("leaves a non-length radius component alone as well", () => {
@@ -1491,7 +1855,7 @@ describe("attachMorph", () => {
     expect(surface).toContain("background-color: rgb(247, 248, 250)");
     expect(surface).toContain("background-color: rgb(255, 255, 255)");
     // Its own animation: the travel keyframe must stay on the compositor.
-    const travel = inserted.find((rule) => rule.includes("-travel"))!;
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
     expect(travel).not.toContain("background");
   });
 
@@ -1890,6 +2254,32 @@ describe("attachMorph", () => {
     expect(hero.parentElement).toBe(layer);
   });
 
+  it("sweeps a corpse left in the layer at the next navigation", () => {
+    // An interrupted storm (a tab switch tearing the home screen down while a
+    // card's nested morphs are still in the air) strands a role-bearing element
+    // in the layer: connected, still `enter`, its flight already gone from the
+    // map. `isFlightPartner` reads any role-bearing element as a partner already
+    // in the air, so a corpse pairs against every later pop instead of the grid
+    // — no camera, the texts blinking — until the next navigation clears it.
+    const corpse = document.createElement("div");
+    corpse.setAttribute(MORPH_ATTR, MORPH_ROLE.ENTER);
+    corpse.setAttribute("data-flemo-morph-name", "layout");
+    layer.appendChild(corpse);
+    // A role-less element the layer legitimately holds (a ghost drops its role
+    // at birth) must survive.
+    const ghost = document.createElement("div");
+    layer.appendChild(ghost);
+
+    // Any navigation's capture sweeps the layer first.
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+    flipTo("PUSHING");
+
+    expect(corpse.isConnected).toBe(false);
+    expect(ghost.isConnected).toBe(true);
+  });
+
   it("fades the arrival in when the author gave it a pose to fade from", () => {
     // The presets do not: the arrival is opaque and the ghost dissolves on top
     // of it, because fading both bleeds the background through the pair. An
@@ -1926,7 +2316,7 @@ describe("attachMorph", () => {
       expect(hero.style.animation).toContain("-travel 0.500s");
       expect(hero.style.animation).toContain("0.050s both");
       expect(hero.style.animation).toContain("-fade 0.125s");
-      const travel = inserted.find((rule) => rule.includes("-travel"))!;
+      const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
       expect(travel).toContain("--flemo-move-x: 60px;");
     } finally {
       morphTransitionMap.delete("fading" as never);
@@ -1965,7 +2355,7 @@ describe("attachMorph", () => {
         navigateStore: store
       });
 
-      const travel = inserted.find((rule) => rule.includes("-travel"))!;
+      const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
       expect(travel).toContain("--flemo-move-x: 20px;");
       expect(travel).not.toContain("translate3d");
     } finally {
@@ -2035,7 +2425,7 @@ describe("attachMorph", () => {
     const hero = makeMorph(detail, [0, 0, 400, 300]);
     attachMorph(hero, { layoutId: "photo-8", navigateStore: store });
 
-    const travel = inserted.find((rule) => rule.includes("-travel"))!;
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
     expect(travel).toContain("--flemo-move-x: 20px;");
     expect(travel).not.toContain("Infinity");
   });
@@ -2056,7 +2446,9 @@ describe("attachMorph", () => {
     try {
       attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
       expect(hero.parentElement).toBe(layer);
-      expect(inserted.find((rule) => rule.includes("-travel"))).toContain("width: 400px");
+      expect(inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n")).toContain(
+        "--flemo-box-w: 400px"
+      );
     } finally {
       vi.unstubAllGlobals();
     }
@@ -2078,7 +2470,7 @@ describe("attachMorph", () => {
     const hero = makeMorph(detail, [0, 0, 400, 300]);
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
 
-    const travel = inserted.find((rule) => rule.includes("-travel"))!;
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
     expect(travel).toContain("--flemo-move-x: 20px;");
     expect(travel).not.toContain("Infinity");
   });
@@ -2371,5 +2763,237 @@ describe("attachMorph", () => {
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
 
     expect(hero.style.animation).toBe(first);
+  });
+
+  it("carries a plain leading value where the size grows but nothing steps it", () => {
+    // The size moves and the two ends already share a leading, but the host
+    // reports no face height, so there is no staircase and no bias to carry.
+    // The line-height is then held at the value both ends rest on: the honest
+    // by-product of a size that grows under a leading that does not.
+    // A face of its own, so the session's face-metric cache (shared with the
+    // tests that stub a range) cannot hand this pair a measured face height and
+    // divert it onto the bias branch.
+    const gallery = makeScreen("layout", true);
+    const label = makeMorph(gallery, [20, 0, 119, 20]);
+    label.textContent = "Thu 20:00";
+    label.style.fontFamily = "Meta6 Face";
+    label.style.fontSize = "11px";
+    label.style.lineHeight = "20px";
+    attachMorph(label, { layoutId: "meta-6", name: "text", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const meta = makeMorph(detail, [16, 0, 314, 20]);
+    meta.textContent = "Thu 20:00";
+    meta.style.fontFamily = "Meta6 Face";
+    meta.style.fontSize = "14px";
+    meta.style.lineHeight = "20px";
+    attachMorph(meta, { layoutId: "meta-6", name: "text", navigateStore: store });
+
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
+    expect(travel).toContain("font-size: 11px");
+    expect(travel).toContain("font-size: 14px");
+    expect(travel).toContain("line-height: 20px");
+  });
+
+  it("disposes a landed nested pair inline where there is no animation frame", async () => {
+    // The frame the pair lands on is not guaranteed to have `requestAnimationFrame`
+    // — a host without one still has to drop the nested rules at the landing.
+    const raf = globalThis.requestAnimationFrame;
+    (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame = undefined;
+    try {
+      const gallery = makeScreen("layout", true);
+      const card = makeMorph(gallery, [20, 600, 160, 160]);
+      const label = makeMorph(card, [28, 730, 140, 20]);
+      label.style.fontSize = "14px";
+      attachMorph(card, { layoutId: "card-6", navigateStore: store });
+      attachMorph(label, { layoutId: "title-6", name: "text", navigateStore: store });
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("layout", true);
+      const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+      const heading = makeMorph(bigCard, [16, 260, 360, 32]);
+      heading.style.fontSize = "24px";
+      attachMorph(bigCard, { layoutId: "card-6", navigateStore: store });
+      attachMorph(heading, { layoutId: "title-6", name: "text", navigateStore: store });
+      await Promise.resolve();
+
+      const nestedName = /flemo-morph-\d+n-(?:travel|paint)/.exec(heading.style.animation)![0];
+      const real = animationEndEvent(nestedName);
+      Object.defineProperty(real, "elapsedTime", { value: 0.4 });
+      heading.dispatchEvent(real);
+
+      expect(heading.getAttribute(MORPH_ATTR)).toBe("");
+    } finally {
+      globalThis.requestAnimationFrame = raf;
+    }
+  });
+
+  it("drops a landed flight's rules inline where there is no animation frame", () => {
+    // The residue release runs the flight's own `disposeOnce`; with no
+    // `requestAnimationFrame` to defer to, the rules are dropped on the spot.
+    const raf = globalThis.requestAnimationFrame;
+    (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame = undefined;
+    try {
+      const gallery = makeScreen("layout", true);
+      const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+      attachMorph(thumbnail, { layoutId: "photo-6", navigateStore: store });
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("layout", true);
+      const hero = makeMorph(detail, [0, 0, 400, 300]);
+      attachMorph(hero, { layoutId: "photo-6", navigateStore: store });
+
+      // The navigation has already ended, so the landing releases the residue
+      // synchronously rather than holding it for a later flip.
+      store.getState().setStatus("COMPLETED");
+      const travelName = /flemo-morph-\d+i-travel/.exec(hero.style.animation)![0];
+      hero.dispatchEvent(animationEndEvent(travelName));
+
+      expect(hero.parentElement).toBe(detail);
+      expect(thumbnail.getAttribute(MORPH_ATTR)).toBe("");
+    } finally {
+      globalThis.requestAnimationFrame = raf;
+    }
+  });
+
+  it("carries a landing element's own animations home", () => {
+    // A consumer's animation running inside the flyer must keep its clock across
+    // the landing re-parent rather than restart a beat after the flight settles.
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    const spinner = makeMorph(hero, [0, 0, 20, 20]);
+    const anim = {
+      animationName: "spin",
+      currentTime: 120,
+      effect: { target: spinner } as unknown as KeyframeEffect
+    } as unknown as Animation;
+    hero.getAnimations = () => [anim];
+    attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
+
+    const travelName = /flemo-morph-\d+i-travel/.exec(hero.style.animation)![0];
+    hero.dispatchEvent(animationEndEvent(travelName));
+
+    expect(hero.parentElement).toBe(detail);
+  });
+
+  it("pairs with a role-bearing partner still resting in its screen", () => {
+    // A partner mid-trade wears its role but has not left its screen. It is a
+    // real partner, not a corpse: what identifies it is where it is, not the
+    // absence of a role.
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+    // Registered only now, so there is no snapshot and the arrival measures the
+    // partner where it stands.
+    thumbnail.setAttribute(MORPH_ATTR, MORPH_ROLE.EXIT);
+    attachMorph(thumbnail, { layoutId: "photo-7", navigateStore: store });
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-7", navigateStore: store });
+
+    expect(inserted.find((rule) => rule.includes("i-travel"))).toContain("--flemo-move-x: 20px;");
+  });
+
+  it("declines a corpse in the layer that no live flight is holding", () => {
+    // A role-bearing element stranded in the layer with its flight already gone
+    // is a corpse. Pairing against it swallows the camera on every later pop, so
+    // it is no partner at all.
+    layer.setAttribute(MORPH_LAYER_ATTR, "");
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+    layer.appendChild(thumbnail);
+    thumbnail.setAttribute(MORPH_ATTR, MORPH_ROLE.ENTER);
+    attachMorph(thumbnail, { layoutId: "photo-8", navigateStore: store });
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-8", navigateStore: store });
+
+    expect(inserted.some((rule) => rule.includes("i-travel"))).toBe(false);
+    expect(hero.parentElement).toBe(detail);
+  });
+
+  it("pairs with the in-air element a live flight still holds", () => {
+    // The other side of the corpse rule: a role-bearing element in the layer
+    // whose flight the map still knows is a live partner. A re-registration
+    // under a new key while it flies is exactly what the binding does.
+    layer.setAttribute(MORPH_LAYER_ATTR, "");
+    const gallery = makeScreen("layout", true);
+    const thumbZ = makeMorph(gallery, [10, 500, 60, 60]);
+    const thumbA = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbZ, { layoutId: "flight-z", navigateStore: store });
+    attachMorph(thumbA, { layoutId: "flight-a", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const heroZ = makeMorph(detail, [0, 0, 300, 200]);
+    const heroA = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(heroZ, { layoutId: "flight-z", navigateStore: store });
+    attachMorph(heroA, { layoutId: "flight-a", navigateStore: store });
+    // Both are in the air; flight-z was booked before flight-a.
+    expect(heroZ.parentElement).toBe(layer);
+    expect(heroA.parentElement).toBe(layer);
+
+    // heroA is re-registered under a new key while still flying under the old.
+    attachMorph(heroA, { layoutId: "flight-b", navigateStore: store });
+
+    // A fresh arrival for that key pairs with heroA: the search passes flight-z
+    // (a different element) before it reaches the flight that still holds heroA.
+    const heroB = makeMorph(detail, [40, 40, 200, 200]);
+    attachMorph(heroB, { layoutId: "flight-b", navigateStore: store });
+
+    expect(heroB.parentElement).toBe(layer);
+  });
+
+  it("stamps the caller's ownership where the walk cannot place the element", () => {
+    // A shared bar lives outside the screen scope it belongs to, so the DOM walk
+    // finds no screen to read its side from and the binding supplies it.
+    const arriving = document.createElement("div");
+    document.body.appendChild(arriving);
+    attachMorph(arriving, {
+      layoutId: "bar-arrive",
+      navigateStore: store,
+      ownership: { status: "PUSHING", active: true }
+    });
+    expect(arriving.getAttribute(STATUS_ATTR)).toBe("PUSHING");
+    expect(arriving.getAttribute(ACTIVE_ATTR)).toBe("true");
+
+    const leaving = document.createElement("div");
+    document.body.appendChild(leaving);
+    attachMorph(leaving, {
+      layoutId: "bar-leave",
+      navigateStore: store,
+      ownership: { status: "PUSHING", active: false }
+    });
+    expect(leaving.getAttribute(ACTIVE_ATTR)).toBe("false");
+  });
+
+  it("strips a stale ownership once the walk can place the element", () => {
+    // An element that moves into a screen of its own must not keep an answer
+    // that outranks what the screen now says.
+    const gallery = makeScreen("layout", true);
+    const label = makeMorph(gallery, [20, 600, 80, 80]);
+    label.setAttribute(STATUS_ATTR, "PUSHING");
+    label.setAttribute(ACTIVE_ATTR, "true");
+    attachMorph(label, { layoutId: "photo-own", navigateStore: store });
+
+    expect(label.hasAttribute(STATUS_ATTR)).toBe(false);
+    expect(label.hasAttribute(ACTIVE_ATTR)).toBe(false);
   });
 });

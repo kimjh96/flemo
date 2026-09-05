@@ -3,10 +3,14 @@ import {
   ANIM_HOLD,
   ANIM_HOLD_ATTR,
   attrSelector,
+  BAR_ATTR,
+  BAR_ID_ATTR,
+  BAR_ID_TYPE_ATTR,
   BAR_RIDING_ATTR,
   PART_HOME_ATTR,
   PART_NAME_ATTR,
   PART_STAND_IN_ATTR,
+  ROUTER_ATTR,
   SCREEN_ATTR
 } from "@dom/attributes";
 
@@ -131,15 +135,53 @@ const prepareLayer = (layer: HTMLElement): void => {
   layer.style.zIndex = String(PART_LAYER_LEVEL);
 };
 
-// The parts of the bars this screen hands over rather than carries. A RIDING bar
-// travels with its screen because the partner does not own it — there is no
-// second copy to cross-fade with, and lifting its parts out of the motion
-// carrying them would strand them mid-air.
+// A HANDOVER IS A FACT ABOUT THE DOM, NOT A FLAG THAT SETTLES LATER.
+//
+// A RIDING bar travels with its screen because the partner does not own it:
+// there is no second copy to cross-fade with, and lifting its parts out of the
+// motion carrying them would strand them mid-air. So only a HANDED-OVER bar's
+// parts are staged, and the binding renders exactly that as `bar-riding`.
+//
+// It cannot be read from that attribute here. The binding computes it from the
+// partner's REGISTRATION, and a registration is a store write from an effect:
+// on the commit that starts the flight the covered bar still reads `riding`,
+// and it settles one render later. Staging waited for that, so it moved a part
+// that two frames had already been painted with, and WebKit rebuilds the layer
+// of a live element it re-parents. Reported from a consumer's tab switch as the
+// header's mark blinking out and back before its partner faded in; measured on
+// the same switch, the lift landed 39ms and two painted frames after the status
+// flip.
+//
+// The same question has an answer that is already true in that first commit:
+// both bars are in the tree, so a partner's copy is one the DOM can be asked
+// for. A bar is handed over when another bar in this Router carries the same
+// kind and the same id and belongs to a different screen — which is what the
+// binding's own matcher means by a match, read from where it has already
+// landed rather than from where it is about to be published.
+const handedOver = (bar: HTMLElement): boolean => {
+  const router = bar.getAttribute(ROUTER_ATTR);
+  const kind = bar.getAttribute(BAR_ATTR);
+  const id = bar.getAttribute(BAR_ID_ATTR);
+  const idType = bar.getAttribute(BAR_ID_TYPE_ATTR);
+  for (const other of document.querySelectorAll<HTMLElement>(attrSelector(BAR_ATTR))) {
+    if (other === bar) continue;
+    if (other.getAttribute(ROUTER_ATTR) !== router) continue;
+    if (other.getAttribute(BAR_ATTR) !== kind) continue;
+    if (other.getAttribute(BAR_ID_ATTR) !== id) continue;
+    if (other.getAttribute(BAR_ID_TYPE_ATTR) !== idType) continue;
+    return true;
+  }
+  return false;
+};
+
+// The parts of the bars this screen hands over rather than carries.
 const matchedBarParts = (bars: StageBarPartsInput["bars"]): HTMLElement[] => {
   const parts: HTMLElement[] = [];
   for (const bar of bars) {
     if (!bar) continue;
-    if (bar.getAttribute(BAR_RIDING_ATTR) !== "false") continue;
+    // The attribute is trusted where it has already settled to a handover, and
+    // the DOM answers for the commit where it has not.
+    if (bar.getAttribute(BAR_RIDING_ATTR) !== "false" && !handedOver(bar)) continue;
     parts.push(...bar.querySelectorAll<HTMLElement>(attrSelector(PART_NAME_ATTR)));
   }
   return parts;

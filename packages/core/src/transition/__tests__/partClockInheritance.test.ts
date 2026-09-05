@@ -131,13 +131,29 @@ describe("a part's clock comes from the flight", () => {
     });
     const css = compileTransitionStyles([screen("clock-c", 0.7)], [], [authored]);
 
+    // A part that authored its OWN length resolves to the same clock under every
+    // transition, so its by-name rule already carries 0.12s and the
+    // (transition x part) twin would say exactly the same thing — it is dropped
+    // rather than re-emitted per transition (that repetition is what inflated the
+    // compiled sheet the browser re-matches on every navigation). The authored
+    // length is left alone all the same: the by-name rule carries it, and no
+    // rule anywhere overrides it with the screen's 0.7s.
+    expect(
+      ruleFor(
+        css,
+        '[data-flemo-part-name="authored"]' +
+          '[data-flemo-status="PUSHING"][data-flemo-active="true"]'
+      )
+    ).toContain("0.12s");
+    // The redundant twin is gone: no (transition x part) rule is emitted for a
+    // part whose clock does not change under the transition.
     expect(
       ruleFor(
         css,
         '[data-flemo-transition="clock-c"][data-flemo-part-name="authored"]' +
           '[data-flemo-status="PUSHING"][data-flemo-active="true"]'
       )
-    ).toContain("0.12s");
+    ).toBeUndefined();
   });
 
   it("keeps an authored zero as the snap the author asked for", () => {

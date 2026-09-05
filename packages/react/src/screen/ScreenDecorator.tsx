@@ -7,7 +7,7 @@ import useScreen from "@screen/useScreen";
 import useNavigateStore from "@stores/useNavigateStore";
 
 function ScreenDecorator({ ref, style, ...props }: ComponentPropsWithRef<"div">) {
-  const { isActive, isPrev, transitionName } = useScreen();
+  const { id, isActive, isPrev, transitionName } = useScreen();
 
   const scopeRef = useRef<HTMLDivElement | null>(null);
 
@@ -31,6 +31,10 @@ function ScreenDecorator({ ref, style, ...props }: ComponentPropsWithRef<"div">)
       ref={scopeRef}
       data-flemo-decorator
       data-flemo-decorator-name={decorator.name}
+      // Both copies of a screen's dim carry the same owner, so anything that
+      // has to reach "this screen's decorator" reaches all of it (see
+      // DECORATOR_OWNER_ATTR).
+      data-flemo-decorator-owner={id}
       // The transition too, because a decorator's compiled rules belong to the
       // PAIR: its clock is this transition's, so the same decorator named by a
       // second transition of a different length compiles to a second rule set

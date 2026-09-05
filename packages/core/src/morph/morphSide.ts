@@ -51,9 +51,12 @@ export const headSeconds = (status: NavigateStatus): number => {
   // carrying it while every push after it was aligned. Same predicates, same
   // answer, no ordering to lose.
   const { governedHead, headMs } = resolveHeadKit(status);
-  // The governed kit's flat head is counted twice: its keyframes carry the
-  // head, and the engine's own deadlines ride it as well.
-  return governedHead ? (headMs * 2) / 1000 : headMs / 1000;
+  // The governed kit's flat head is counted twice where the flight SLIDES: its
+  // keyframes carry the head and its rule shifts the delay by another. A
+  // REPLACE is not a slide and its rule shifts nothing, so counting two there
+  // put the morph a whole head behind the screen it belongs to.
+  const slides = status === "PUSHING" || status === "POPPING";
+  return governedHead && slides ? (headMs * 2) / 1000 : headMs / 1000;
 };
 
 export interface MorphSide {
@@ -99,15 +102,71 @@ export interface MorphSide {
  * The screen is read from the DOM PROTOCOL — its transition name is an
  * attribute — rather than from a store, so a morph works the same for any
  * binding and needs nothing threaded through from the consumer's tree.
+ *
+ * TWO SCREENS, BECAUSE THEY ARE TWO DIFFERENT QUESTIONS.
+ *
+ * `owner` answers WHICH FLIGHT this end is part of, and therefore how long it
+ * runs. `screen` answers WHOSE TRANSFORM the measured rect is displaced by, and
+ * therefore what has to be undone to get back to rest space.
+ *
+ * For an ordinary screen descendant they are the same element and nothing here
+ * changes. They come apart for shared chrome: a shared bar is rendered OUTSIDE
+ * the screen scope it belongs to, so the nearest `[data-flemo-screen]` above it
+ * is some other Router's screen — one that is not moving, and whose pose it
+ * would be wrong to undo. That end still has a clock (its own, stamped by the
+ * binding), so reading the two off one element answered one question with the
+ * other's evidence.
  */
+/**
+ * The rect with EVERY ancestor transform taken back off it.
+ *
+ * Rest space is not "the measurement minus one named box's pose". A flight is
+ * staged in the middle of a transition, and the transition puts its from-pose
+ * on whatever its selector list names — the screen, the layer host, the layer
+ * SLOT, a riding shared bar. Any of those can be the thing standing between the
+ * element and the page, and a rect measured under it is displaced whichever it
+ * is. Asking one kind of box answers the question only when that kind happens
+ * to be the one carrying the pose.
+ *
+ * Device-read on a consumer's tab switch: at the frame the flight was staged
+ * the only transformed box above the pill was a `[data-flemo-layer-slot]`, and
+ * every screen above it read identity. The arrival was placed a whole 1% out
+ * and snapped back at the landing.
+ *
+ * Nearest first, because each step's centre is read from a rect that still
+ * carries everything above it — so the two are in the same space at every step.
+ */
+const untransformAncestors = (rect: MorphRect, element: HTMLElement): MorphRect => {
+  let out = rect;
+  for (
+    let node = element.parentElement;
+    node && node !== document.documentElement;
+    node = node.parentElement
+  ) {
+    const pose = readElementPose(node);
+    if (pose.x === 0 && pose.y === 0 && pose.scaleX === 1 && pose.scaleY === 1) continue;
+    const painted = node.getBoundingClientRect();
+    const centre = untransformedCentre(
+      { x: painted.left, y: painted.top, width: painted.width, height: painted.height },
+      pose
+    );
+    out = untransformRect(out, pose, centre);
+  }
+  return out;
+};
+
 export const resolveMorphSide = (
   element: HTMLElement,
-  screen: HTMLElement,
+  owner: HTMLElement | null,
   variant: TransitionVariant
 ): MorphSide => {
   const snapshot = captureMorphSnapshot(element);
+  // Taken off before anything else looks at it: a pose the element is wearing
+  // is not a property of which transition resolved, so a side that resolves
+  // none is displaced in exactly the same way as one that does.
+  const rect = untransformAncestors(snapshot.rect, element);
   const inert: MorphSide = {
-    rect: snapshot.rect,
+    rect,
     fontSize: snapshot.fontSize,
     fontWeight: snapshot.fontWeight,
     letterSpacing: snapshot.letterSpacing,
@@ -129,26 +188,15 @@ export const resolveMorphSide = (
   // is keyed by the augmentable TransitionName union, which a consumer's own
   // transitions widen. The lookup is the validation: an unregistered name
   // simply resolves to nothing and the rect is taken as measured.
-  const transitionName = screen.getAttribute(TRANSITION_ATTR) as TransitionName | null;
+  const transitionName = owner?.getAttribute(TRANSITION_ATTR) as TransitionName | null | undefined;
   const transition = transitionName ? transitionMap.get(transitionName) : undefined;
   if (!transition) return inert;
 
   const motion = resolveVariantMotion(transition, variant);
   if (!motion) return inert;
 
-  // What the screen is WEARING, not what its variant says it should be: the
-  // destination park rules hold an entering screen at its destination rather
-  // than its from-pose, and correcting for a displacement that is not there
-  // puts the arrival a screen away from anything.
-  const pose = readElementPose(screen);
-  const painted = screen.getBoundingClientRect();
-  const centre = untransformedCentre(
-    { x: painted.left, y: painted.top, width: painted.width, height: painted.height },
-    pose
-  );
-
   return {
-    rect: untransformRect(snapshot.rect, pose, centre),
+    rect,
     fontSize: snapshot.fontSize,
     fontWeight: snapshot.fontWeight,
     letterSpacing: snapshot.letterSpacing,
