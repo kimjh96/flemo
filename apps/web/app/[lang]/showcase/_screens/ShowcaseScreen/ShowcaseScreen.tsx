@@ -4,12 +4,15 @@ import { Screen } from "@flemo/react";
 
 import ShowcaseAppCard from "./ShowcaseAppCard";
 import { showcaseApps } from "./showcaseApps";
+import ShowcaseSubmitCard from "./ShowcaseSubmitCard";
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
-// The Showcase peer: real production apps shipping flemo, reusing the showcase
-// data + card so the content stays in one place. shiflo (the flagship) renders
-// with its real App Store screenshots and the "how it uses flemo" copy.
+const SUBMIT_URL = "https://github.com/kimjh96/flemo/issues/new";
+
+// The Showcase peer: real production apps shipping flemo, laid out as a card
+// grid. The showcase data and the card live next to each other so the content
+// stays in one place; shiflo (the flagship) carries the "how it uses flemo" copy.
 function ShowcaseScreen() {
   const lang = useShellLang();
   const t = getDict(lang).showcase;
@@ -17,7 +20,7 @@ function ShowcaseScreen() {
   return (
     <Screen hideStatusBar hideSystemNavigationBar backgroundColor="transparent">
       <div className="h-full overflow-y-auto">
-        <div className="mx-auto flex max-w-[1240px] flex-col gap-10 px-6 pt-24 pb-20 lg:pt-28 lg:pb-28">
+        <div className="mx-auto flex max-w-[1080px] flex-col gap-10 px-6 pt-24 pb-20 lg:pt-28 lg:pb-28">
           <div className="flex flex-col items-start gap-4">
             <span className="text-[13px] font-bold tracking-[0.08em] text-[var(--color-text-primary)] uppercase">
               {t.kicker}
@@ -30,7 +33,7 @@ function ShowcaseScreen() {
             </p>
           </div>
 
-          <div className="flex flex-col gap-8">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             {showcaseApps.map((app) => {
               const copy = t.apps[app.id];
               return (
@@ -44,10 +47,6 @@ function ShowcaseScreen() {
                   languagesLabel={t.languagesLabel}
                   languages={app.languages.map((code) => t.languageNames[code])}
                   logo={app.logo}
-                  screenshots={app.screenshots.map((src, index) => ({
-                    src,
-                    alt: `${copy.name} ${index + 1}`
-                  }))}
                   appStore={
                     app.appStoreUrl ? { label: t.appStore, href: app.appStoreUrl } : undefined
                   }
@@ -57,6 +56,13 @@ function ShowcaseScreen() {
                 />
               );
             })}
+
+            <ShowcaseSubmitCard
+              title={t.submit.title}
+              body={t.submit.body}
+              cta={t.submit.cta}
+              href={SUBMIT_URL}
+            />
           </div>
         </div>
       </div>

@@ -108,6 +108,11 @@ export const dict = {
       languageNames: { ko: "Korean" },
       appStore: "App Store",
       playStore: "Google Play",
+      submit: {
+        title: "Shipping with flemo?",
+        body: "Tell us about your app and it can sit right here.",
+        cta: "Add your app"
+      },
       apps: {
         shiflo: {
           name: "shiflo",
@@ -210,6 +215,11 @@ export const dict = {
       languageNames: { ko: "한국어" },
       appStore: "App Store",
       playStore: "Google Play",
+      submit: {
+        title: "flemo로 만들고 계신가요?",
+        body: "앱을 알려 주시면 이 자리에 함께 소개할게요.",
+        cta: "앱 등록하기"
+      },
       apps: {
         shiflo: {
           name: "시플로",
