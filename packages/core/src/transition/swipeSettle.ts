@@ -113,6 +113,36 @@ export const MIN_LAUNCH_SLOPE = 0.5;
 // at 2.25x its average — the same defect the commit had, at a quarter the size.
 export const MIN_REVERSAL_SECONDS = 0.28;
 
+/**
+ * The fastest a landing may cross the screen, as a multiple of the AUTHORED
+ * motion's own average speed.
+ *
+ * `MIN_SETTLE_SECONDS` is a floor on TIME, and time is the wrong unit for the
+ * thing it is protecting against. What reads as a cut is not a short landing,
+ * it is a fast one: 120ms is generous for the last twenty pixels and a
+ * teleport for a whole screen. A flick that reports several thousand px/s —
+ * which a coalesced pointer stream does for any quick finger — drove the
+ * by-speed term under that floor with almost the entire screen still to
+ * cross, and the screen was simply gone. Device-reported as "when the swipe is
+ * too fast it just vanishes with no transition".
+ *
+ * So the floor scales with what is left to travel: a release may outrun the
+ * authored motion, because the finger genuinely was faster, but not without
+ * limit. At 3x, a full-width cupertino landing bottoms out near 0.21s against
+ * its authored 0.7s — brisk, continuous with the gesture, and still
+ * unmistakably motion. Expressed against the author's own clock and span
+ * rather than as pixels per second, so it means the same thing on any screen
+ * and under any transition.
+ *
+ * THE NUMBER IS A CEILING ON THE ARTIFACT, NOT ON THE FINGER. A human flick
+ * tops out around six or seven screen-widths a second; the readings that
+ * produced the defect were several times that, which is a coalesced pointer
+ * pair over a 4ms gap rather than a hand. 3x leaves every honoured release in
+ * the device-judged table above exactly where it was — the fastest of them
+ * departs at 2.8x — and only clips what no finger did.
+ */
+export const MAX_RELEASE_SPEEDUP = 3;
+
 export interface SwipeSettleInput {
   // Distance still to travel when the finger lets go, in px.
   remainingPx: number;
@@ -205,7 +235,12 @@ export const swipeSettleSeconds = ({
   const bySpeed =
     !reversing && speed > 0 ? (RELEASE_LAUNCH_SLOPE * remaining) / speed : Number.POSITIVE_INFINITY;
   const chosen = Math.min(byDistance, bySpeed);
-  return Math.min(authoredSeconds, Math.max(minSeconds, chosen));
+  // The floor is whichever is longer: the flat one that keeps a short landing
+  // watchable, and the one that keeps a LONG landing from becoming a cut (see
+  // MAX_RELEASE_SPEEDUP). Both stay under the authored ceiling by
+  // construction, so a release still never outlasts the button-driven motion.
+  const speedFloor = (authoredSeconds * remainingFraction) / MAX_RELEASE_SPEEDUP;
+  return Math.min(authoredSeconds, Math.max(Math.max(minSeconds, speedFloor), chosen));
 };
 
 /**
