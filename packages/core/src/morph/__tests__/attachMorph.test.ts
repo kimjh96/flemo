@@ -1165,6 +1165,36 @@ describe("attachMorph", () => {
     expect(travel).toContain("--flemo-box-w: 80px");
   });
 
+  it("pairs against a snapshot whose leaving screen has not flipped transitional yet", () => {
+    // A fast pop's container caught this: the arriving side's effect commits
+    // before the leaving screen re-renders, so the partner — remembered only in
+    // the snapshot, its live entry already disposed by the unmount — sits on a
+    // screen still reading COMPLETED. Judged as a live entry it fails the
+    // transitional gate and the pair is refused: the container never flies, its
+    // camera never runs, and its children fly on their own as bare morphs. A
+    // snapshot was the partner when it was captured, so its not-yet-flipped
+    // status is tolerated.
+    const library = makeScreen("layout", false);
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
+
+    // The flip snapshots the detail's hero, then the leaving screen's status
+    // lags back to COMPLETED before the arrival evaluates.
+    flipTo("POPPING");
+    detail.setAttribute(STATUS_ATTR, "COMPLETED");
+
+    const thumbnail = makeMorph(library, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+
+    // The pair still forms from the snapshot: the arrival flies its box from
+    // the remembered big cover to its own small one.
+    expect(thumbnail.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.ENTER);
+    const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
+    expect(travel).toContain("--flemo-box-w: 400px");
+    expect(travel).toContain("--flemo-box-w: 80px");
+  });
+
   it("lets only the arriving side drive the flight", () => {
     const gallery = makeScreen("layout", true);
     const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);

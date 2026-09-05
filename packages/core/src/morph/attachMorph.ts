@@ -1753,7 +1753,21 @@ const isFlightPartner = (
   // drag has no such flip: the screens sit at rest under the finger. What still
   // holds is the side test, which is the half that identifies the pair, so that
   // is what a gesture is checked on.
-  gesture = false
+  gesture = false,
+  // A SNAPSHOT ELEMENT WAS ALREADY JUDGED THE PARTNER when it was captured.
+  //
+  // The snapshot is taken at the status flip from the side being LEFT, so it is
+  // the partner by construction. By the time the arriving side evaluates, that
+  // element is mid-unmount: its screen's status attribute may not have flipped
+  // to the transitional value yet (React commits the arriving effect before the
+  // leaving screen re-renders), and the transitional gate below then rejects a
+  // partner that is genuinely leaving. Device-read on the poster grid: a fast
+  // pop's container `card-` found its detail twin only in the snapshot, the twin
+  // still on a COMPLETED screen, so the gate said "not a partner" — the
+  // container never flew, its camera never ran, and its children flew on their
+  // own as bare type morphs. The side test still holds, so the pair is still
+  // identified; only the not-yet-flipped status is tolerated.
+  fromSnapshot = false
 ): boolean => {
   if (!element.isConnected) return false;
   // ALREADY IN THE AIR — BUT ONLY IF A LIVE FLIGHT IS HOLDING IT.
@@ -1776,7 +1790,12 @@ const isFlightPartner = (
   }
   const screen = owningScreen(element);
   if (!screen) return true;
-  if (!gesture && !isTransitional(screen.getAttribute(STATUS_ATTR) as NavigateStatus)) return false;
+  if (
+    !gesture &&
+    !fromSnapshot &&
+    !isTransitional(screen.getAttribute(STATUS_ATTR) as NavigateStatus)
+  )
+    return false;
   return screen.getAttribute(ACTIVE_ATTR) !== arrivingActive(status);
 };
 
@@ -1933,7 +1952,7 @@ const evaluate = (
   const captured =
     snapshot &&
     snapshot.element !== entry.element &&
-    isFlightPartner(snapshot.element, status, scope, gesture)
+    isFlightPartner(snapshot.element, status, scope, gesture, true)
       ? snapshot
       : measurePartnerNow(scope, entry, status, gesture);
   if (!captured) {
