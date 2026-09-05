@@ -1,5 +1,6 @@
 "use client";
 
+import { FlemoDevtools } from "@flemo/devtools/react";
 import { Route, Router, Slot } from "@flemo/react";
 
 import { useShellLocaleGetter } from "@/app/[lang]/_providers/ShellIntlProvider";
@@ -43,6 +44,21 @@ function ShellRouter({ initPath }: ShellRouterProps) {
       defaultTransitionName="shared-axis-forward"
       transitions={[sharedAxisForward, sharedAxisBackward, docsEnter]}
     >
+      {/*
+        OUTSIDE THE <Slot>, so it outlives every screen.
+
+        It used to render inside PlaygroundScreen, which meant it existed only
+        while that one screen was mounted: navigate to Docs and the recorder
+        went with it, taking the flights of every other route on this site with
+        it too. Those are exactly the flights worth watching here, since the
+        docs entry and the header's own navigations are what past rounds
+        measured.
+
+        Unconditional, because `@flemo/devtools/react` resolves to a component
+        that renders null and imports nothing in a production build. There is
+        no guard to get wrong; `e2e/devtools-production.spec.ts` is what says so.
+      */}
+      <FlemoDevtools />
       {/* The header overlays the content (absolute, z-40), so screens scroll
           UNDER its frosted glass, real glassmorphism, no seam. */}
       <div className="relative h-[100dvh] overflow-hidden bg-[var(--color-bg)]">

@@ -17,16 +17,21 @@ import { waitForNavIdle } from "./helpers/flemo";
 // guard is wrapped around it — `NEXT_PUBLIC_*` is only substituted when it is
 // SET, so an unset flag folds nothing away.
 //
-// The playground mounts `<FlemoDevtools />` unconditionally, which is the whole
-// point of the component: there is no guard for a consumer to get wrong, and
-// this test is what says so.
+// The shell mounts `<FlemoDevtools />` unconditionally and outside the <Slot>,
+// which is the whole point of the component: there is no guard for a consumer
+// to get wrong, and this test is what says so.
 test.describe("devtools in a production build", () => {
-  test("the playground mounts no devtools surface", async ({ page }) => {
-    await page.goto("/en/playground");
+  test("the shell mounts no devtools surface, on any route", async ({ page }) => {
+    await page.goto("/en");
     await waitForNavIdle(page);
     // Give a lazy import every chance to land before concluding it did not.
     await page.waitForTimeout(1500);
 
+    expect(await page.locator("[data-flemo-devtools-panel]").count()).toBe(0);
+
+    await page.goto("/en/playground");
+    await waitForNavIdle(page);
+    await page.waitForTimeout(1500);
     expect(await page.locator("[data-flemo-devtools-panel]").count()).toBe(0);
   });
 
