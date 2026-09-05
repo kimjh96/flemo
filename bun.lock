@@ -17,7 +17,7 @@
     },
     "apps/web": {
       "name": "@flemo/web",
-      "version": "0.11.1",
+      "version": "0.11.5",
       "dependencies": {
         "@flemo/core": "workspace:*",
         "@flemo/devtools": "workspace:*",
@@ -45,7 +45,7 @@
     },
     "packages/core": {
       "name": "@flemo/core",
-      "version": "2.1.0",
+      "version": "2.2.2",
       "dependencies": {
         "path-to-regexp": "^8.4.2",
         "zustand": "^5.0.15",
@@ -66,20 +66,30 @@
     },
     "packages/devtools": {
       "name": "@flemo/devtools",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "devDependencies": {
         "@flemo/core": "workspace:*",
         "@flemo/eslint-config": "workspace:*",
         "@flemo/tsconfig": "workspace:*",
+        "@testing-library/react": "^16.3.3",
         "@types/node": "^24.13.1",
+        "@types/react": "^19.2.18",
         "@vitest/coverage-v8": "^4.1.11",
         "eslint": "^9.39.5",
         "jsdom": "^29.1.1",
+        "react": "^19.2.8",
+        "react-dom": "^19.2.8",
         "typescript": "^6.0.3",
         "vite": "^8.2.2",
         "vite-plugin-dts": "^5.0.3",
         "vitest": "^4.1.11",
       },
+      "peerDependencies": {
+        "react": "^19.2.8",
+      },
+      "optionalPeers": [
+        "react",
+      ],
     },
     "packages/eslint-config": {
       "name": "@flemo/eslint-config",
@@ -101,7 +111,7 @@
     },
     "packages/react": {
       "name": "@flemo/react",
-      "version": "2.1.0",
+      "version": "2.2.2",
       "dependencies": {
         "@flemo/core": "workspace:*",
         "path-to-regexp": "^8.4.2",

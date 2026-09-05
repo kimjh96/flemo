@@ -1,7 +1,7 @@
 {
   "name": "@flemo/devtools",
   "version": "0.4.0",
-  "description": "Zero-config flight recorder for flemo screen transitions: captures per-flight driver routing, frame pacing, long tasks, landing residues, active debug overrides, and environment/observation-trap fingerprints into one JSON report readable by humans and coding agents.",
+  "description": "Zero-config flight recorder, on-device readout and visual panel for flemo screen transitions: captures per-flight driver routing, frame pacing, long tasks, shared-element pairing, landing residues and judging preconditions into one JSON report readable by humans and coding agents.",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -34,9 +34,9 @@
   "homepage": "https://flemo.dev",
   "license": "MIT",
   "scripts": {
-    "build": "vite build && DEVTOOLS_ENTRY=noop vite build",
-    "watch": "vite build --watch",
-    "dev": "vite build --watch",
+    "build": "rm -rf dist && vite build && DEVTOOLS_ENTRY=noop vite build && DEVTOOLS_ENTRY=react vite build && DEVTOOLS_ENTRY=reactNoop vite build",
+    "watch": "vite build --watch & DEVTOOLS_ENTRY=noop vite build --watch & DEVTOOLS_ENTRY=react vite build --watch & DEVTOOLS_ENTRY=reactNoop vite build --watch & wait",
+    "dev": "vite build --watch & DEVTOOLS_ENTRY=noop vite build --watch & DEVTOOLS_ENTRY=react vite build --watch & DEVTOOLS_ENTRY=reactNoop vite build --watch & wait",
     "lint": "eslint \"**/*.{js,mjs,ts,jsx,tsx,mts}\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -48,10 +48,14 @@
     "@flemo/core": "workspace:*",
     "@flemo/eslint-config": "workspace:*",
     "@flemo/tsconfig": "workspace:*",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^24.13.1",
+    "@types/react": "^19.2.18",
     "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^9.39.5",
     "jsdom": "^29.1.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "typescript": "^6.0.3",
     "vite": "^8.2.2",
     "vite-plugin-dts": "^5.0.3",
@@ -67,10 +71,24 @@
       "production": "./dist/noop.mjs",
       "default": "./dist/index.mjs"
     },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "development": "./dist/react.mjs",
+      "production": "./dist/reactNoop.mjs",
+      "default": "./dist/react.mjs"
+    },
     "./force": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.mjs"
     },
     "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   }
 }
