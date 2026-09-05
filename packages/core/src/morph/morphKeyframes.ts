@@ -734,12 +734,30 @@ export const buildMorphKeyframes = (input: {
     // cancellation, so the step it hides there is the whole baseline: measured
     // on a consumer's phone, a line alone in an unchanged parent, its own box
     // the same size at both ends, arrived exactly 1.00px low every time.
-    const blocks = lifting
-      .map((stop, index) => {
-        const stopAt = index === lifting.length - 1 ? Math.min(at(stop.at), arrived) : at(stop.at);
-        return `  ${stopAt.toFixed(4)}% {\n${pinnedLiftDecl(stop.ascent)}\n    animation-timing-function: steps(1, end);\n  }`;
-      })
-      .join("\n");
+    // HOLD THE FIRST ASCENT FLAT THROUGH THE HEAD, the same as the geometry
+    // keyframe does with `held()`. The move channel bakes the first ascent into
+    // its position and holds it flat for the whole lead-in (see `rise` above);
+    // the staircase is what takes it back off, and its first stop sits at
+    // `at(0)` — the head's END, not its start. With no stop at 0% the lift ramps
+    // from its registered 0 up to that first stop across the head, so for the
+    // length of the lead-in the ascent the move channel added is NOT cancelled,
+    // and the line sits a whole ascent low and climbs into place. Device-read on
+    // a text morph: the title began ~13px below where it was flying from and
+    // slid up over the head. A 0% stop holding the first ascent, stepped like
+    // the rest, makes the cancellation whole from the first frame.
+    const headHold =
+      headPct > 0
+        ? `  0% {\n${pinnedLiftDecl(lifting[0]!.ascent)}\n    animation-timing-function: steps(1, end);\n  }\n`
+        : "";
+    const blocks =
+      headHold +
+      lifting
+        .map((stop, index) => {
+          const stopAt =
+            index === lifting.length - 1 ? Math.min(at(stop.at), arrived) : at(stop.at);
+          return `  ${stopAt.toFixed(4)}% {\n${pinnedLiftDecl(stop.ascent)}\n    animation-timing-function: steps(1, end);\n  }`;
+        })
+        .join("\n");
     rules.push(`@keyframes ${liftName} {\n${blocks}\n}`);
     animations.push(`${liftName} ${clock} linear ${start}s both`);
   }

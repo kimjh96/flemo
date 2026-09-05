@@ -772,6 +772,37 @@ describe("attachMorph", () => {
     expect(layer.querySelector("[data-flemo-morph-ghost]")).toBeNull();
   });
 
+  it("clothes the ghost in the DEPARTURE's inherited values, not the arrival's", () => {
+    // The copy is the departure hoisted to the layer, so it loses what it
+    // inherited from the screen it left and has to be re-clothed. It once took
+    // the ARRIVAL's inherited list — shared with the arriving element — so the
+    // departing words wore the destination's face: the copy's letter-spacing
+    // came out at the heading's tight value, not the label's, and the title
+    // read a pixel narrow for the whole hand-over (device-measured on the
+    // poster grid, the visible copy at -0.48 against the label's -0.176). The
+    // copy must wear the DEPARTURE's inherited values.
+    const gallery = makeScreen("layout", true);
+    const label = makeMorph(gallery, [20, 600, 80, 20]);
+    label.textContent = "Hue & Cry";
+    label.style.letterSpacing = "5px";
+    attachMorph(label, { layoutId: "ls-pair", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const heading = makeMorph(detail, [0, 0, 300, 60]);
+    heading.textContent = "Hue & Cry";
+    heading.style.letterSpacing = "1px";
+    attachMorph(heading, { layoutId: "ls-pair", navigateStore: store });
+
+    const ghost = layer.querySelector<HTMLElement>("[data-flemo-morph-ghost]")!;
+    expect(ghost).not.toBeNull();
+    // The copy wears the DEPARTURE's 5px, not the arrival's 1px.
+    expect(ghost.style.letterSpacing).toBe("5px");
+    // And the arriving element wears its own.
+    expect(heading.style.letterSpacing).toBe("1px");
+  });
+
   it("grows a NESTED morph's type on its container's clock", async () => {
     // Two bugs met here and neither was visible in a still frame: a nested
     // morph asked for a screen ancestor it can no longer have (its container

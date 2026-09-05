@@ -1195,6 +1195,30 @@ const startFlight = (
   // head alone, and no head is no copy.
   const ghost =
     handingOver && (crossFade > 0 || head > 0) ? (partner.cloneNode(true) as HTMLElement) : null;
+  // THE COPY TAKES THE DEPARTURE'S INHERITED VALUES, NOT THE ARRIVAL'S.
+  //
+  // Hoisted to the layer, the copy loses what it inherited from the screen it
+  // left, exactly as the arriving element does (see `inherited`). But it is the
+  // DEPARTURE, so it must be re-clothed in the DEPARTURE's inherited values.
+  // Stamping the arrival's here — which the copy did, sharing the arrival's
+  // list — dressed the departing words in the destination's face: the copy's
+  // letter-spacing came out at the heading's tight value against the label's,
+  // and the words read a pixel narrow at the tap, in the arriving colour, for
+  // the whole hand-over. Read from the partner while it still sits in the tree
+  // it is about to leave, so its inherited values are the ones on glass.
+  const partnerStyle =
+    ghost && typeof getComputedStyle === "function" ? getComputedStyle(partner) : null;
+  // The copy replicates the departure EXACTLY, so it takes the raw computed
+  // values rather than the ratio `inheritedValue` derives for line-height. That
+  // ratio exists to keep a DESCENDANT's leading proportional as the arriving
+  // element's font animates (see `inheritedValue`); the copy's font never
+  // animates, so translating its absolute leading back to a ratio only rounds
+  // it, and the rounded value sat the departing subtitle a pixel high — the
+  // "raised at the start" reported once the title was fixed. The absolute
+  // length is what the departure actually rendered, so the copy matches it.
+  const ghostInherited = partnerStyle
+    ? INHERITED.map((property) => [property, partnerStyle[property]] as const)
+    : [];
   const ghostSet = ghost
     ? buildMorphKeyframes({
         id: `${id}g`,
@@ -1469,7 +1493,7 @@ const startFlight = (
       ghost.style.boxShadow = "none";
       ghost.style.borderColor = "transparent";
     }
-    for (const [property, value] of inherited) ghost.style[property] = value;
+    for (const [property, value] of ghostInherited) ghost.style[property] = value;
     ghost.style.position = "absolute";
     ghost.style.left = `${origin.x}px`;
     ghost.style.top = `${origin.y}px`;

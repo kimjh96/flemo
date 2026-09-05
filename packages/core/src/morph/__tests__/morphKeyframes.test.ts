@@ -308,6 +308,39 @@ describe("buildMorphKeyframes", () => {
       expect(lifted.animation).toContain("flemo-morph-1u-lift");
     });
 
+    it("holds the first ascent flat through the head, the same as the geometry", () => {
+      // The move channel bakes the first ascent into the position and holds it
+      // flat for the whole lead-in; the staircase takes it back off, and its
+      // first stop sits at the head's END (`at(0)`), not its start. Without a 0%
+      // stop the lift ramps up from zero across the head, so the ascent is
+      // uncancelled for the length of the lead-in and the line sits a whole
+      // ascent low before the flight moves. A 0% stop equal to the first, still
+      // stepped, makes the cancellation whole from the first frame.
+      const lifted = buildMorphKeyframes({
+        id: "1uh",
+        travel: { ...plain, start: 0.2, head: 0.1 },
+        box: {
+          from: { x: 0, y: 100, width: 10, height: 10 },
+          to: { x: 0, y: 300, width: 20, height: 20 }
+        },
+        lineHeight: { from: 20, to: 32 },
+        leading: stairs,
+        lift: [
+          { at: 0, ascent: 13 },
+          { at: 40, ascent: 16 },
+          { at: 100, ascent: 23 }
+        ],
+        travelPinned: true,
+        fade: null,
+        paint: []
+      });
+      const rise = lifted.rules.find((rule) => rule.includes("-lift"))!;
+      // A 0% stop holds the first ascent (-13) through the head, stepped.
+      expect(rise).toMatch(
+        /@keyframes[^{]*\{\s*0% \{\s*--flemo-lift-y: -13px;\s*animation-timing-function: steps\(1, end\);/
+      );
+    });
+
     it("refuses to lift a set with no box to cancel against", () => {
       // A nested pair rides its container and has no box channel of its own, so
       // there is nowhere to send the box up by the amount the transform takes
