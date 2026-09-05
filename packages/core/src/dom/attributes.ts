@@ -247,6 +247,23 @@ export const MORPH_ROLE = {
 export const MORPH_NAME_ATTR = "data-flemo-morph-name";
 
 /**
+ * The PAIRING KEY (`layoutId`), written out so the pairing is observable.
+ *
+ * The runtime keeps the key in its own registry and never needed it in the DOM,
+ * which made the single most common morph failure — two ends that never paired
+ * — invisible to everything outside the runtime: the element simply does not
+ * fly, and nothing on the page says why. Four separate investigations began by
+ * rebuilding a private tracer to answer "did these two find each other".
+ *
+ * With the key on the element, an inspector (and `@flemo/devtools`) can group
+ * the ends itself and report a pairable set that never flew. Written once and
+ * only when it changes — a morph is re-registered on every status change, and
+ * an attribute write invalidates that element's style (see the ownership note
+ * in attachMorph, where two such writes were device-measured as judder).
+ */
+export const MORPH_ID_ATTR = "data-flemo-morph-id";
+
+/**
  * The per-Router FLIGHT LAYER: the box a shared element is staged in while it
  * travels. Rendered by the binding (a Router knows which box bounds its
  * screens); the morph runtime moves the element in at the start of a flight and
@@ -461,6 +478,7 @@ export const FLEMO_ATTRIBUTES = [
   MORPH_ATTR,
   MORPH_CAMERA_ATTR,
   MORPH_GHOST_ATTR,
+  MORPH_ID_ATTR,
   MORPH_LAYER_ATTR,
   MORPH_NAME_ATTR,
   MORPH_SLOT_ATTR,
