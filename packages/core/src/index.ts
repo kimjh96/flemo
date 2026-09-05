@@ -60,6 +60,7 @@ export {
 // Router-scope store bundle (one per Router mount; adopted when hosted above).
 export {
   default as createRouterScope,
+  adoptEntryIdentity,
   type FlemoStores,
   type CreateRouterScopeInput
 } from "@core/createRouterScope";

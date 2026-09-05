@@ -105,6 +105,22 @@ export interface CreateRouterScopeInput {
   // root (an app teardown is final), memory (isolated), and hosted scopes.
   persistKey?: string;
   // The key this Router's frames live under in `history.state` (the binding's
+  // Defer the entry-identity adoption below to the binding.
+  //
+  // THE FIRST CLIENT RENDER HAS TO BE THE SERVER'S RENDER. The adoption reads
+  // `window.history.state`, which the server cannot see, and this function runs
+  // inside the store's initializer — which for a hydrating tree is the one
+  // render that must agree with the server. `history.state` survives a reload,
+  // so any refresh on a page that had pushed left the client seeding a
+  // generated id where the server had written "root", and React does not patch
+  // a mismatched attribute: the DOM kept "root" while the store believed the
+  // other, the engine and the document disagreeing about which screen this is
+  // for the life of the page.
+  //
+  // A binding that hydrates therefore seeds without adopting and calls
+  // `adoptEntryIdentity` once hydration is over. Nothing else changes: a scope
+  // created later on the client still adopts here, in the same render.
+  deferEntryAdoption?: boolean;
   // router key; the same string a nested Router uses as persistKey). Lets the
   // seed adopt the identity RECORDED for its entry and the sync replay the
   // zone's missed traversals.
@@ -156,7 +172,7 @@ export default function createRouterScope(input: CreateRouterScopeInput): FlemoS
   // passed", skipping their screens. The recorded frame pins the seed to the
   // crossing entry, and the sync then replays the missed events in order.
   const recordedFrame =
-    input.routerKey && !isServer()
+    input.routerKey && !isServer() && !input.deferEntryAdoption
       ? (readRecordedFrame(input.routerKey, pathname) as {
           id?: string;
           index?: number;
@@ -165,7 +181,7 @@ export default function createRouterScope(input: CreateRouterScopeInput): FlemoS
       : null;
   const presentFrame =
     recordedFrame ??
-    (browserDriver && !isServer()
+    (browserDriver && !isServer() && !input.deferEntryAdoption
       ? (browserDriver.readState() as {
           id?: string;
           index?: number;
@@ -243,4 +259,56 @@ export default function createRouterScope(input: CreateRouterScopeInput): FlemoS
   }
 
   return scope;
+}
+
+/**
+ * Adopt the identity of the browser entry this scope was seeded on, after the
+ * fact — the deferred half of `deferEntryAdoption`.
+ *
+ * A binding that hydrates calls this once hydration is over, and the store's
+ * root frame stops being the generic "root" and becomes the entry it is
+ * actually sitting on. That matters for exactly the reason the construction
+ * path adopts at all: a traversal back onto this entry has to match it by id
+ * rather than collide with every other scope's "root".
+ *
+ * Every guard below is a refusal to overwrite something real:
+ *
+ *   - a scope that already navigated has a stack this is not the seed of, and
+ *     rewriting its first frame's id would rename an entry the user has since
+ *     left,
+ *   - a seed that is no longer "root" was adopted already (a re-run, a strict
+ *     mode double effect),
+ *   - a memory scope has no browser entry to adopt, and
+ *   - an entry with no frame of its own has no identity to take.
+ */
+export function adoptEntryIdentity(scope: FlemoStores): void {
+  if (isServer() || scope.memory) return;
+
+  const { histories, index } = scope.history.getState();
+  if (index !== 0 || histories.length !== 1) return;
+  const seed = histories[0];
+  if (!seed || seed.id !== "root") return;
+
+  const recorded = scope.routerKey
+    ? (readRecordedFrame(scope.routerKey, seed.pathname) as {
+        id?: string;
+        index?: number;
+        params?: object;
+      } | null)
+    : null;
+  const present =
+    recorded ??
+    (scope.driver.readState() as { id?: string; index?: number; params?: object } | null);
+  if (!present?.id || present.id === seed.id) return;
+
+  scope.history.setState({
+    histories: [
+      {
+        ...seed,
+        id: present.id,
+        params: present.params ?? seed.params,
+        frameIndex: present.index ?? 0
+      }
+    ]
+  });
 }
