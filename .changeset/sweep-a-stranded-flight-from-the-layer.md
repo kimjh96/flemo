@@ -2,4 +2,4 @@
 "@flemo/core": patch
 ---
 
-Sweep a role-bearing element left stranded in the flight layer at the start of every navigation. An interrupted storm (a tab switch tearing a screen down mid-flight) could leave a hoisted morph in the layer forever, and because a role-bearing element reads as a partner already in the air, it swallowed the camera and blinked the text on every pop after it.
+Never pair a pop against a morph left stranded in the flight layer, and sweep such corpses at the start of every navigation. An interrupted storm (a tab switch tearing a screen down mid-flight) could leave a hoisted morph in the layer with its role still set; a role-bearing element with no owning screen read as a partner already in the air, so every subsequent pop paired against it instead of the grid, swallowing the camera and blinking the text until reload.

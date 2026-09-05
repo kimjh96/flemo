@@ -1745,6 +1745,7 @@ const startFlight = (
 const isFlightPartner = (
   element: HTMLElement,
   status: NavigateStatus,
+  scope: MorphScope,
   // A GESTURE has no navigation behind it. The status requirement below exists
   // to stop a pair forming across screens that are merely stacked — two entries
   // of the same route deep in a stack, say — and for a flight driven by a
@@ -1755,11 +1756,24 @@ const isFlightPartner = (
   gesture = false
 ): boolean => {
   if (!element.isConnected) return false;
-  // ALREADY IN THE AIR. An element a previous flight hoisted into the layer is
-  // a real partner — a pop interrupting a push flies the very card the push
-  // was carrying — and it is no longer under any screen to be judged by. The
-  // role attribute is only ever set on a staged element, so it says so exactly.
-  if (element.getAttribute(MORPH_ATTR)) return true;
+  // ALREADY IN THE AIR — BUT ONLY IF A LIVE FLIGHT IS HOLDING IT.
+  //
+  // An element a flight hoisted into the layer is a real partner while that
+  // flight lives — a pop interrupting a push flies the very card the push was
+  // carrying. A CORPSE looks identical: an interrupted storm (a tab switch
+  // tearing a screen down mid-flight) strands a hoisted element in the layer,
+  // still wearing its role, its flight already gone. It has no owning screen to
+  // be judged by, so the `!screen` fall-through below would call it a partner —
+  // and then every pop after it pairs against the corpse instead of the grid,
+  // swallowing the camera and blinking the text until reload. So a role-bearing
+  // element in the layer is a partner only if the map still knows its flight;
+  // otherwise it is a corpse and no partner at all. A role-bearing element still
+  // in its screen (an EXIT side mid-trade) is untouched by this.
+  if (element.getAttribute(MORPH_ATTR)) {
+    if (element.closest(attrSelector(MORPH_LAYER_ATTR)) === null) return true;
+    for (const flight of scope.flights.values()) if (flight.element === element) return true;
+    return false;
+  }
   const screen = owningScreen(element);
   if (!screen) return true;
   if (!gesture && !isTransitional(screen.getAttribute(STATUS_ATTR) as NavigateStatus)) return false;
@@ -1798,7 +1812,7 @@ const measurePartnerNow = (
   for (const candidate of scope.entries.values()) {
     if (candidate.element === entry.element) continue;
     if (candidate.layoutId !== entry.layoutId) continue;
-    if (!isFlightPartner(candidate.element, status, gesture)) continue;
+    if (!isFlightPartner(candidate.element, status, scope, gesture)) continue;
     const partnerOwner = owningScreen(candidate.element);
     const side = resolveMorphSide(candidate.element, partnerOwner, flightVariants(status).exit);
     return {
@@ -1919,7 +1933,7 @@ const evaluate = (
   const captured =
     snapshot &&
     snapshot.element !== entry.element &&
-    isFlightPartner(snapshot.element, status, gesture)
+    isFlightPartner(snapshot.element, status, scope, gesture)
       ? snapshot
       : measurePartnerNow(scope, entry, status, gesture);
   if (!captured) {
