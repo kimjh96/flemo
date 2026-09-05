@@ -36,7 +36,19 @@ module.exports = [
     // below says all of it came from that half: the face-metric reader, the
     // grid the engine snaps a line to, and the two staircases that hold a
     // growing line of type still. Re-based to 52 KB.
-    limit: "52 KB",
+    //
+    // 52.01 kB on 2026-09-06, ten bytes over, and the ten bytes are not the
+    // story: 51.82 kB had already been sitting at 99.7% of the budget, so the
+    // gate was going to trip on whatever landed next. What landed was
+    // `adoptEntryIdentity` — the deferred half of the entry-identity adoption,
+    // which a hydrating binding calls once its first render is safely past, so
+    // that render can emit the "root" the server wrote instead of an id read
+    // out of `history.state` the server never saw.
+    //
+    // Re-based to 56 KB, which restores the ~7% headroom the 48.4 -> 52 step
+    // took. A gate with no room left is a gate that reports the next commit
+    // rather than the next regression.
+    limit: "56 KB",
     gzip: true
   },
   // The morph runtime, measured as its own reachable graph. It is a real
