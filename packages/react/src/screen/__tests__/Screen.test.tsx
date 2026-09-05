@@ -548,7 +548,7 @@ describe("Screen", () => {
     // perceived double render on real apps). Children must be present in the
     // very first commit; the anim-hold anchors the motion to their paint, and
     // a heavy commit delays the start instead of losing the window (the task
-    // gate re-arms while held — see TaskManger.markGateHeld / anchorGate).
+    // gate re-arms while held — see TaskManager.markGateHeld / anchorGate).
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
     stores.history.setState({ index: 0, histories: [] });
 

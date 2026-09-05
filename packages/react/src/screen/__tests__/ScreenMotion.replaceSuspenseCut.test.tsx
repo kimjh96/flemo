@@ -2,7 +2,7 @@ import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  TaskManger,
+  TaskManager,
   createTransition,
   registerTransitionDefinitions,
   type History,
@@ -133,7 +133,7 @@ describe("ScreenMotion depth-1 replace: suspended-mount single-frame cut", () =>
       return frames.length;
     });
     vi.spyOn(globalThis, "cancelAnimationFrame").mockImplementation(() => {});
-    resolveSpy = vi.spyOn(TaskManger, "resolveTask").mockResolvedValue(true);
+    resolveSpy = vi.spyOn(TaskManager, "resolveTask").mockResolvedValue(true);
   });
 
   afterEach(() => {

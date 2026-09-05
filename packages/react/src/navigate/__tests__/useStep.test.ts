@@ -3,7 +3,7 @@ import { createElement, type PropsWithChildren, type ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { TaskManger } from "@flemo/core";
+import { TaskManager } from "@flemo/core";
 
 import useStep from "@navigate/useStep";
 
@@ -63,11 +63,11 @@ function buildHarness(routePath: string, dispatch: HarnessProps["dispatch"]) {
   return Harness;
 }
 
-// Resolve any leftover manual-task in the TaskManger so the next test's
+// Resolve any leftover manual-task in the TaskManager so the next test's
 // task queue starts clean. ScreenMotion would call this via `animationend`
 // at runtime; in jsdom there's no animation, so we sweep here.
-const drainTaskManger = async () => {
-  await TaskManger.resolveAllPending();
+const drainTaskManager = async () => {
+  await TaskManager.resolveAllPending();
 };
 
 // The screen-pop branch of popStep enqueues a `manual: true` task that pauses in
@@ -79,7 +79,7 @@ const startManualGateSweeper = () => {
   const sweeper = (async () => {
     while (sweeping) {
       await new Promise((r) => setTimeout(r, 8));
-      await TaskManger.resolveAllPending();
+      await TaskManager.resolveAllPending();
     }
   })();
   return async () => {
@@ -109,7 +109,7 @@ const resetStores = () => {
 
 beforeEach(resetStores);
 afterEach(async () => {
-  await drainTaskManger();
+  await drainTaskManager();
 });
 
 describe("useStep: pushStep", () => {
