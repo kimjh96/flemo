@@ -7,6 +7,7 @@ import {
   useInsertionEffect,
   useLayoutEffect,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type PropsWithChildren,
   type ReactElement,
@@ -14,6 +15,7 @@ import {
 } from "react";
 
 import {
+  adoptEntryIdentity,
   createBrowserHistoryDriver,
   createRouterScope,
   seedRouterEntry,
@@ -122,6 +124,15 @@ interface RouterProps {
 // useLayoutEffect warns when rendered on the server; the server never needs the
 // flip anyway (scopes start alive), so fall back to useEffect there.
 const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+// The three arguments of the hydration probe below. `useSyncExternalStore`
+// calls the server snapshot on the server and on the HYDRATION render, and the
+// client snapshot on every render after it, which is exactly the question
+// "is this the render that has to match the server HTML". Nothing ever
+// notifies, so the subscribe is a no-op that returns its own unsubscribe.
+const subscribeToNothing = () => () => {};
+const notHydrating = () => false;
+const isHydrating = () => true;
 
 // Publishes the Router's live configuration — the state it keeps OUTSIDE React
 // (its scope-chain node), where descendants read it imperatively. Two
@@ -282,6 +293,16 @@ function Router({
       ? location.slice(queryIndex)
       : "";
 
+  // AM I HYDRATING? React calls `getServerSnapshot` on the server AND on the
+  // hydration render, and `getSnapshot` on every render after it, so this reads
+  // true for exactly the one render that has to agree with the server HTML.
+  // Nothing subscribes: the value flips because React re-renders past
+  // hydration, not because a store changed.
+  const hydrating = useSyncExternalStore(subscribeToNothing, notHydrating, isHydrating);
+  // Captured with the scope, in the same render, so the effect below knows
+  // whether the adoption it is responsible for was actually deferred.
+  const [deferredAdoption] = useState(hydrating);
+
   // Create (or adopt) the request-scoped store bundle once per mount. The
   // seeding / driver / guard logic is @flemo/core's createRouterScope (because
   // the seed is the store's *initial* state, zustand hands it to React as the
@@ -296,6 +317,12 @@ function Router({
       memory: useMemory,
       browserDriver,
       hostedScope: hostedStores,
+      // The entry's identity comes from `history.state`, which the server
+      // cannot see. Adopting it during a hydration render puts a generated id
+      // where the server wrote "root", and React does not patch a mismatched
+      // attribute — so it is taken one commit later instead (see the effect
+      // below).
+      deferEntryAdoption: hydrating,
       routerKey: isHosted ? undefined : routerKey,
       zoneEntryId: isNested && !isHosted ? parentScreen.id || undefined : undefined,
       // A NESTED browser Router persists its scope across destroy/re-create,
@@ -401,6 +428,15 @@ function Router({
   // (@runtime/flemoRuntime); this effect only decides that a mounted Router is
   // when an app wants it. Nested Routers share one runtime.
   useEffect(() => startFlemoRuntime(), []);
+
+  // The deferred half of the adoption above, taken in the layout phase so it
+  // lands before the entry is stamped below and before anything is painted.
+  // A no-op unless this mount actually deferred it, and a no-op again once the
+  // scope has navigated or already adopted (see adoptEntryIdentity).
+  useIsomorphicLayoutEffect(() => {
+    if (!deferredAdoption) return;
+    adoptEntryIdentity(stores);
+  }, [deferredAdoption, stores]);
 
   useEffect(() => {
     // Stamp this Router's identity onto the entry it mounted on: seed its keyed
