@@ -5,6 +5,7 @@ export {
   deriveFlightAnomalies,
   deriveReportAnomalies,
   LONG_GAP_MS,
+  STALL_MS,
   STUCK_STATUS_MS,
   OPENING_WINDOW_LEAD_MS,
   OPENING_WINDOW_TAIL_MS,
@@ -13,16 +14,31 @@ export {
 export type { FlightAnomalyInput, ReportAnomalyInput } from "./anomalies";
 
 export { BLIND_SPOTS } from "./blindSpots";
+export { JUDGING_PROTOCOL } from "./judging";
+
+export { summariseBuckets } from "./buckets";
 
 export { attachDevtoolsPanel } from "./panel";
 export type { DevtoolsPanelHandle, DevtoolsPanelOptions } from "./panel";
 
+export { attachDevtoolsHud } from "./hud";
+export type { DevtoolsHudHandle, DevtoolsHudOptions } from "./hud";
+
 export {
   captureEnvironment,
   detectEngine,
+  developmentHints,
   isEmulationSuspected,
   sampleRafCadence
 } from "./environment";
+
+export { derivePreconditions } from "./preconditions";
+export type { PreconditionInput } from "./preconditions";
+
+export { deriveVerdict } from "./verdict";
+export type { VerdictInput } from "./verdict";
+
+export { clearTrace, loadTrace, saveTrace, TRACE_KEY } from "./persistence";
 
 export {
   CORE_FLAGS,
@@ -40,13 +56,13 @@ export {
   classifyDriver,
   computeFrameStats,
   computePhaseStats,
-  computePlayerGapStats,
   kindFromStatus,
   parseTranslateX
 } from "./sampling";
-export type { DriverEvidence } from "./sampling";
+export type { DriverEvidence } from "./frameProbe";
 
 export type {
+  BucketSummary,
   EnvironmentFingerprint,
   FlemoReport,
   FlightDriver,
@@ -59,10 +75,17 @@ export type {
   FlightTimestamp,
   FramePhaseStats,
   FrameSampleStats,
+  ImageActivity,
+  InputEvidence,
   LandingAudit,
   LongTaskSpan,
+  MorphActivity,
+  MotionProgress,
   ObservationCapabilities,
   OverridesSection,
-  PlayerGapStats,
+  Precondition,
+  PreconditionStatus,
+  PreviousSession,
+  TripwireHit,
   UaBrand
 } from "./types";

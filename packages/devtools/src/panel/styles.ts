@@ -127,6 +127,15 @@ export const PANEL_CSS = `
   max-width: 100%;
   overflow-wrap: anywhere;
 }
+/* The verdict reads as prose, not as a tag: it is a sentence about the whole
+   session and it is the first thing anybody should read. */
+.chip.lead {
+  border-color: var(--fg);
+  color: var(--fg);
+  white-space: normal;
+  max-width: 100%;
+  line-height: 1.5;
+}
 .chip.warn { border-color: var(--warn); color: var(--warn); }
 .chip.bad { border-color: var(--bad); color: var(--bad); }
 .body {

@@ -1,11 +1,3 @@
-import {
-  attrSelector,
-  attrValueSelector,
-  DEVTOOLS_PANEL_ATTR,
-  SCREEN_ATTR,
-  STATUS_ATTR,
-  TRANSITIONAL_STATUSES
-} from "../domProtocol";
 // The visual panel for @flemo/devtools.
 //
 // THE ONE RULE THIS FILE EXISTS TO ENFORCE: the panel must never touch the
@@ -32,13 +24,12 @@ import {
 // perturbs the measurement is worse than no instrument.
 
 import { PANEL_HEIGHT_KEY } from "../overrides";
-import { attachFlightRecorder } from "../recorder";
+import { createShadowHost, flightInProgress, resolveRecorder } from "../surface";
 import { el, setText } from "./dom";
 import { DASH, environmentSummary, flightListSignature } from "./format";
 import { PANEL_CSS } from "./styles";
 import { renderBlindSpots, renderChips, renderFlightDetail, renderFlightList } from "./view";
 
-import type { FlemoGlobal } from "../recorder";
 import type { FlemoReport, FlightRecorderHandle } from "../types";
 
 export interface DevtoolsPanelOptions {
@@ -52,16 +43,13 @@ export interface DevtoolsPanelOptions {
   initialOpen?: boolean;
   /** Corner for the toggle button. Default "bottom-right". */
   position?: "bottom-right" | "bottom-left";
+  /** Labels the A/B button cycles through. Default ["A", "B"]. */
+  buckets?: string[];
 }
 
 export interface DevtoolsPanelHandle {
   detach: () => void;
 }
-
-/** Any screen mid-transition: while this matches, the panel stays frozen. */
-const IN_FLIGHT_SELECTOR = TRANSITIONAL_STATUSES.map(
-  (status) => attrSelector(SCREEN_ATTR) + attrValueSelector(STATUS_ATTR, status)
-).join(",");
 
 /** ~3 refreshes/second while open — fast enough to feel live, far below the
  *  frame budget, and irrelevant anyway since refreshes never run in flight. */
@@ -88,42 +76,10 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
   if (typeof document === "undefined") return { detach: NOOP };
 
   // --- recorder --------------------------------------------------------
-  let ownsRecorder = false;
-  let recorder: FlightRecorderHandle;
-  const installed = (window as unknown as { flemo?: Partial<FlemoGlobal> }).flemo;
-  if (options.recorder) {
-    recorder = options.recorder;
-  } else if (installed?.__flemoDevtools === true && typeof installed.report === "function") {
-    // Someone else's recorder (usually the playground's): read it, never
-    // detach it.
-    recorder = { report: installed.report, detach: NOOP };
-  } else {
-    // attachFlightRecorder is idempotent, so this adopts an already-attached
-    // recorder that simply didn't install the global — and then takes it down
-    // on detach(). Pass `recorder` explicitly to keep ownership.
-    recorder = attachFlightRecorder();
-    ownsRecorder = true;
-  }
+  const { recorder, ownsRecorder } = resolveRecorder(options.recorder);
 
   // --- shell (built once) ----------------------------------------------
-  const host = el("div");
-  host.setAttribute(DEVTOOLS_PANEL_ATTR, "");
-  // Zero-size fixed host: it participates in no layout, and its fixed
-  // children position against the viewport. It carries no data-flemo-screen
-  // attributes, so the recorder never sees the panel as a participant.
-  host.style.position = "fixed";
-  host.style.top = "0";
-  host.style.left = "0";
-  host.style.width = "0";
-  host.style.height = "0";
-  host.style.zIndex = "2147483000";
-
-  const shadow = host.attachShadow({ mode: "open" });
-  const style = el("style");
-  style.textContent = PANEL_CSS;
-  shadow.appendChild(style);
-  const root = el("div", "root");
-  shadow.appendChild(root);
+  const { host, root } = createShadowHost(PANEL_CSS);
 
   const toggle = el("button", "toggle");
   toggle.type = "button";
@@ -149,9 +105,15 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
   closeButton.type = "button";
   const detachButton = el("button", "act", "Detach");
   detachButton.type = "button";
+  // The A/B ladder, armed from the panel. Every flight recorded from here on
+  // carries the label, and `comparison` in the report does the arithmetic that
+  // used to be done by hand off a console — where it twice went wrong.
+  const bucketButton = el("button", "act", "A/B: off");
+  bucketButton.type = "button";
   const chips = el("div", "chips");
   head.appendChild(environment);
   head.appendChild(el("div", "spacer"));
+  head.appendChild(bucketButton);
   head.appendChild(copyButton);
   head.appendChild(closeButton);
   head.appendChild(detachButton);
@@ -184,6 +146,8 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
   let blindRendered = false;
   let timer = 0;
   let copyTimer = 0;
+  let bucketIndex = -1;
+  const buckets = options.buckets && options.buckets.length > 0 ? options.buckets : ["A", "B"];
 
   const clampHeight = (value: number): number =>
     Math.min(Math.max(value, MIN_HEIGHT), Math.max(MIN_HEIGHT, window.innerHeight * 0.9));
@@ -210,8 +174,6 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
 
   let height = clampHeight(readStoredHeight() ?? window.innerHeight * 0.4);
   panel.style.height = `${Math.round(height)}px`;
-
-  const flightInProgress = (): boolean => document.querySelector(IN_FLIGHT_SELECTOR) !== null;
 
   const readReport = (): FlemoReport | null => {
     try {
@@ -317,6 +279,14 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
   toggle.addEventListener("click", () => setOpen(!open));
   closeButton.addEventListener("click", () => setOpen(false));
   detachButton.addEventListener("click", () => detach());
+  bucketButton.addEventListener("click", () => {
+    bucketIndex = bucketIndex + 1 >= buckets.length ? -1 : bucketIndex + 1;
+    const label = bucketIndex === -1 ? null : buckets[bucketIndex];
+    recorder.mark(label);
+    setText(bucketButton, `A/B: ${label ?? "off"}`);
+    chipSignature = "";
+    requestRender();
+  });
 
   const markCopied = (): void => {
     if (detached) return;

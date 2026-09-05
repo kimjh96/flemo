@@ -4,7 +4,6 @@ import {
   classifyDriver,
   computeFrameStats,
   computePhaseStats,
-  computePlayerGapStats,
   kindFromStatus,
   parseTranslateX
 } from "../sampling";
@@ -53,41 +52,30 @@ describe("computeFrameStats", () => {
   });
 });
 
-describe("computePlayerGapStats", () => {
-  it("returns null when the player mirror did not grow", () => {
-    expect(computePlayerGapStats([])).toBeNull();
-  });
-
-  it("summarizes max and over-30 count", () => {
-    expect(computePlayerGapStats([16.7, 42.1, 16.7, 31.0])).toEqual({
-      maxMs: 42.1,
-      over30Count: 2
-    });
-  });
-});
-
 describe("classifyDriver", () => {
-  it("classifies inline suppression + advance as player", () => {
+  // The library compiles every animation, so this signature never comes from
+  // flemo: it means something ELSE is writing frames onto a participant.
+  it("classifies inline suppression + advance as inline", () => {
     expect(
-      classifyDriver({ compiledAnimation: false, playerSuppression: true, playerAdvance: true })
-    ).toBe("player");
+      classifyDriver({ compiledAnimation: false, inlineSuppression: true, inlineAdvance: true })
+    ).toBe("inline");
   });
 
   it("classifies a running flemo-* CSSAnimation as compiled", () => {
     expect(
-      classifyDriver({ compiledAnimation: true, playerSuppression: false, playerAdvance: false })
+      classifyDriver({ compiledAnimation: true, inlineSuppression: false, inlineAdvance: false })
     ).toBe("compiled");
   });
 
   it("classifies both signatures as mixed", () => {
     expect(
-      classifyDriver({ compiledAnimation: true, playerSuppression: true, playerAdvance: false })
+      classifyDriver({ compiledAnimation: true, inlineSuppression: true, inlineAdvance: false })
     ).toBe("mixed");
   });
 
   it("classifies no signature as unknown", () => {
     expect(
-      classifyDriver({ compiledAnimation: false, playerSuppression: false, playerAdvance: false })
+      classifyDriver({ compiledAnimation: false, inlineSuppression: false, inlineAdvance: false })
     ).toBe("unknown");
   });
 });
