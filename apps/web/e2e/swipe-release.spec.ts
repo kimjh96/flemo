@@ -230,4 +230,83 @@ test.describe("a swipe release continues the gesture", () => {
     // The landing may be quick; it may not be a cut.
     expect(result.peakStep).toBeLessThan(box.width / 3);
   });
+
+  // AND ONCE WITH A FINGER.
+  //
+  // Everything above drives a mouse, and this repository has already shipped a
+  // build whose touch path was broken outright while every automated layer
+  // passed green: every probe used a pointer that gets no implicit capture and
+  // never reaches the gesture machinery a phone does. This case exists to close
+  // that hole, so it dispatches real touch events through CDP.
+  //
+  // WHAT IT PROVES AND WHAT IT DOES NOT. It proves the touch path drives a
+  // drag, brings the screen home when the finger does, and lands as motion. It
+  // is NOT the A/B for the dim: run against a build with the clamp removed,
+  // this gesture still reads a full dim at rest, so unlike the mouse case above
+  // it does not fail on the defect. Both assertions are true invariants and
+  // both are kept; only the mouse case is evidence that the clamp is what makes
+  // them true.
+  //
+  // THE MID-GESTURE ASSERTION IS NOT DECORATION. Without it, this case passed
+  // in a context with no touch points at all: the events went nowhere, the
+  // screen never moved, and "at rest with a full dim" was true for the wrong
+  // reason. A probe that cannot fail is worse than no probe.
+  test("the dim reads the screen under a real finger too", async ({ page, browserName }, info) => {
+    test.skip(browserName !== "chromium", "touch dispatch goes through CDP");
+    test.skip(info.project.use.hasTouch !== true, "needs a context with touch points");
+    const stage = await enterCupertinoDetail(page);
+    test.skip(stage === null, "no pushed screen on this bench");
+    const box = stage!;
+    await startSampling(page, box.id);
+
+    const cdp = await page.context().newCDPSession(page);
+    const y = box.y + box.height / 2;
+    const finger = (type: "touchStart" | "touchMove" | "touchEnd", dx: number) =>
+      cdp.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints:
+          type === "touchEnd"
+            ? []
+            : [{ x: Math.max(1, box.x + dx), y, id: 1, radiusX: 12, radiusY: 12, force: 1 }]
+      });
+    const screenX = () =>
+      page.evaluate((screenId) => {
+        const screen = document.querySelector<HTMLElement>(`[data-flemo-screen="${screenId}"]`);
+        return screen ? new DOMMatrixReadOnly(getComputedStyle(screen).transform).m41 : null;
+      }, box.id);
+
+    await finger("touchStart", box.width * 0.2);
+    for (let dx = box.width * 0.25; dx <= box.width * 0.7; dx += 12) {
+      await finger("touchMove", dx);
+      await page.waitForTimeout(16);
+    }
+
+    // The finger is carrying the screen: without this the rest of the case can
+    // pass on a build where nothing happened at all.
+    expect(await screenX()).toBeGreaterThan(box.width * 0.2);
+
+    for (let dx = box.width * 0.7; dx >= 10; dx -= 20) {
+      await finger("touchMove", dx);
+      await page.waitForTimeout(16);
+    }
+
+    const atRest = await page.evaluate(() => {
+      const samples = (
+        window as unknown as { __flemoSwipeSamples: { x: number | null; dim: number | null }[] }
+      ).__flemoSwipeSamples;
+      return samples[samples.length - 1];
+    });
+    // Back behind where it began, so the screen is home and the dim over the
+    // screen underneath is still full. True on both sides of the fix here (see
+    // the note above); the mouse case is the one that discriminates.
+    expect(Math.abs(atRest.x ?? 0)).toBeLessThan(2);
+    expect(atRest.dim ?? 0).toBeGreaterThan(0.9);
+
+    await finger("touchEnd", 10);
+    await page.waitForTimeout(1200);
+
+    const result = await readSamples(page);
+    expect(result.movingFrames).toBeGreaterThan(3);
+    expect(result.peakStep).toBeLessThan(box.width / 4);
+  });
 });
