@@ -1935,7 +1935,40 @@ const evaluate = (
 // it: the store has flipped, but nothing has re-rendered, so the screens still
 // wear their resting poses. Waiting until the arriving element mounts would be
 // too late — by then its partner is already dressed for the flight.
-const capture = (scope: MorphScope): void => {
+// A HOISTED ELEMENT LEFT IN THE LAYER POISONS EVERY FLIGHT AFTER IT.
+//
+// A flight hoists its element into the layer, stamps it with a role, and on
+// landing clears the role and carries it home. An interrupted storm can take
+// that landing away: a tab switch (REPLACING) tears down the home screen while
+// a card's nested morphs are still in the air, so their `finish` runs against a
+// home that is gone and their elements strand in the layer — connected, still
+// wearing `enter`, their flight already dropped from the map. Device-read on
+// the poster grid, tab-flipping between cards: the artwork, the name and the
+// date of the just-popped card sat in the layer at IDLE, and because
+// `isFlightPartner` reads any role-bearing element as "a partner already in the
+// air", every subsequent pop paired against the corpse instead of the grid —
+// no camera, the texts blinking through a bare cross-fade, on every pop from
+// then on.
+//
+// So each navigation sweeps the scope's layer first: a role-bearing element in
+// it whose flight is no longer live is a corpse — the standIn left in the
+// screen and the ghost both drop their roles at birth (see the clone above and
+// the ghost's own subtree), so nothing legitimately in the layer wears a role
+// except an element a LIVE flight is holding, which the map still knows.
+const sweepLayerCorpses = (scope: MorphScope, layer: HTMLElement | null): void => {
+  if (!layer) return;
+  const live = new Set<HTMLElement>([...scope.flights.values()].map((flight) => flight.element));
+  for (const node of layer.querySelectorAll<HTMLElement>(MORPH_SELECTOR)) {
+    if (!node.getAttribute(MORPH_ATTR) || live.has(node)) continue;
+    // A cut or a camera this corpse was still holding goes with it.
+    scope.residue.get(node)?.();
+    scope.residue.delete(node);
+    node.remove();
+  }
+};
+
+const capture = (scope: MorphScope, layer: HTMLElement | null): void => {
+  sweepLayerCorpses(scope, layer);
   // Snapshots outlive the flight that took them, which is what lets an
   // interrupted navigation continue from where the eye last had the element.
   // They must not outlive the ELEMENT: a stack walked twice would otherwise
@@ -1978,7 +2011,7 @@ export const stageHeldFlights = (
   status: NavigateStatus
 ): MorphFlight[] => {
   const scope = ensureScope(store);
-  capture(scope);
+  capture(scope, resolveMorphLayer(store));
   for (const entry of [...scope.entries.values()]) {
     if (!entry.element.isConnected) continue;
     evaluate(scope, store, entry, false, status);
@@ -2036,7 +2069,7 @@ const ensureScope = (store: NavigateStoreApi): MorphScope => {
     // air is still in the air, so an interrupted navigation continues from
     // where the eye last had the element rather than from where it would have
     // landed.
-    capture(scope);
+    capture(scope, resolveMorphLayer(store));
     for (const flight of [...scope.flights.values()]) flight.finish();
   });
   scopes.set(store, scope);

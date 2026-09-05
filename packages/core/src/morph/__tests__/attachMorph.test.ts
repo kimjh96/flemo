@@ -2223,6 +2223,32 @@ describe("attachMorph", () => {
     expect(hero.parentElement).toBe(layer);
   });
 
+  it("sweeps a corpse left in the layer at the next navigation", () => {
+    // An interrupted storm (a tab switch tearing the home screen down while a
+    // card's nested morphs are still in the air) strands a role-bearing element
+    // in the layer: connected, still `enter`, its flight already gone from the
+    // map. `isFlightPartner` reads any role-bearing element as a partner already
+    // in the air, so a corpse pairs against every later pop instead of the grid
+    // — no camera, the texts blinking — until the next navigation clears it.
+    const corpse = document.createElement("div");
+    corpse.setAttribute(MORPH_ATTR, MORPH_ROLE.ENTER);
+    corpse.setAttribute("data-flemo-morph-name", "layout");
+    layer.appendChild(corpse);
+    // A role-less element the layer legitimately holds (a ghost drops its role
+    // at birth) must survive.
+    const ghost = document.createElement("div");
+    layer.appendChild(ghost);
+
+    // Any navigation's capture sweeps the layer first.
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
+    flipTo("PUSHING");
+
+    expect(corpse.isConnected).toBe(false);
+    expect(ghost.isConnected).toBe(true);
+  });
+
   it("fades the arrival in when the author gave it a pose to fade from", () => {
     // The presets do not: the arrival is opaque and the ghost dissolves on top
     // of it, because fading both bleeds the background through the pair. An
