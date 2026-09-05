@@ -24,7 +24,7 @@ Unless `installGlobal: false` or the name is already owned, the recorder install
 copy(JSON.stringify(window.flemo.report(), null, 2));
 ```
 
-Use `/playground?devtools=on` to enable the playground recorder. `flemo:devtools` persists in `sessionStorage`; `?devtools=off` disables it. `attachFlightRecorder()` is idempotent while attached and returns an inert handle during SSR.
+Use `/playground?devtools=on` to enable the playground recorder and its surfaces. `flemo:devtools` persists in `sessionStorage`; `?devtools=off` disables it. Armed, the playground imports `@flemo/devtools/force`, and that is the part worth copying: a plain import of this package resolves to the inert production entry, so an instrument wired the ordinary way exists only in the builds whose numbers the judging protocol below says do not count. `attachFlightRecorder()` is idempotent while attached and returns an inert handle during SSR.
 
 ## Production safety
 
