@@ -121,10 +121,20 @@ const detailLines = (report: FlemoReport | null, flight: FlightRecord | undefine
   );
   const morphs = flight.morphs;
   if (morphs && (morphs.pairable.length > 0 || morphs.flew.length > 0)) {
+    // COUNT WHAT FLEW, and name only what did not.
+    //
+    // This read `flew/pairable` for one round on a device and printed "3/0",
+    // which looks like a failure and is not one: `pairable` only groups the
+    // ends still sitting in their screens, and a pair the runtime had already
+    // staged is proved by its role rather than by that grouping. A denominator
+    // that is legitimately smaller than its numerator is a line nobody can
+    // read on a phone.
     lines.push(
-      `morph   ${morphs.flew.length}/${morphs.pairable.length} flew` +
+      `morph   ${morphs.flew.length} flew` +
         (morphs.camera ? " cam" : "") +
-        (morphs.skipped.length > 0 ? `  SKIPPED ${morphs.skipped.join(",")}` : "")
+        (morphs.skipped.length > 0
+          ? `  SKIPPED ${morphs.skipped.length} (${morphs.skipped.join(",")})`
+          : "")
     );
   }
   const input = flight.input;

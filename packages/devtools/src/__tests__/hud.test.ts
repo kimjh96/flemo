@@ -154,7 +154,7 @@ describe("the on-device readout", () => {
     expect(text).toContain("frames  n18");
     expect(text).toContain("motion  stall 0ms tail 3 start +22ms");
     expect(text).toContain("hold    park rel 118ms");
-    expect(text).toContain("morph   1/1 flew cam");
+    expect(text).toContain("morph   1 flew cam");
     expect(text).toContain("input   touch");
   });
 
@@ -173,7 +173,7 @@ describe("the on-device readout", () => {
       initialExpanded: true
     });
     const text = box().textContent ?? "";
-    expect(text).toContain("SKIPPED hero");
+    expect(text).toContain("SKIPPED 1 (hero)");
     expect(text).toContain("! shared element(s) did not fly");
   });
 
@@ -352,5 +352,27 @@ describe("the on-device readout", () => {
     } finally {
       globalThis.document = original;
     }
+  });
+
+  // A pair the runtime had already staged when the flight opened is proved by
+  // its role, not by the grouping of ends still sitting in their screens, so
+  // the count of what FLEW can exceed that grouping. Printed as a fraction it
+  // read "3/0" on a device, which looks like a failure and is not one.
+  it("counts what flew without a denominator that can be smaller", () => {
+    hud = attachDevtoolsHud({
+      recorder: recorder(() =>
+        report({
+          flights: [
+            flight({
+              morphs: { ...flight().morphs, pairable: [], flew: ["a", "b", "c"] }
+            })
+          ]
+        })
+      ),
+      initialExpanded: true
+    });
+    const text = box().textContent ?? "";
+    expect(text).toContain("morph   3 flew");
+    expect(text).not.toContain("/0");
   });
 });
