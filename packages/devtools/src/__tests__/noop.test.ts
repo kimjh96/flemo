@@ -59,13 +59,20 @@ describe("production entry", () => {
     // as "clean run" to whoever receives it.
     expect(report.anomalies.join(" ")).toContain("production entry");
     expect(() => handle.detach()).not.toThrow();
+    // Every method on the handle, not just the two a reader thinks of. A
+    // function this file forgets to stub is a TypeError that only ever happens
+    // in production, which is the exact failure the whole entry exists to
+    // remove — so each one is called here.
+    expect(handle.mark("A")).toBeNull();
   });
 
-  it("attaches no panel and touches no DOM", () => {
+  it("attaches no panel and no readout, and touches no DOM", () => {
     const before = document.body.innerHTML;
     const panel = inert.attachDevtoolsPanel();
+    const hud = inert.attachDevtoolsHud();
     expect(document.body.innerHTML).toBe(before);
     expect(() => panel.detach()).not.toThrow();
+    expect(() => hud.detach()).not.toThrow();
   });
 
   it("keeps the pure analysis helpers real, not stubbed", () => {
