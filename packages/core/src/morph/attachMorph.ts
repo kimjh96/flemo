@@ -847,7 +847,6 @@ const startFlight = (
   const handingOver =
     !carrying && captured.element.isConnected && captured.element !== entry.element;
 
-  // TEMPORARY DIAGNOSTIC: what the first frame of a flight costs. Remove.
   const contentsHold = contentsHoldAcrossBox(entry.element, origin, destination, {
     x:
       Math.abs(origin.x + origin.width - (destination.x + destination.width)) < 0.05 &&
