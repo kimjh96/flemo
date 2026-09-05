@@ -404,6 +404,19 @@ function ScreenMotion({
       // A drag that pairs nothing costs nothing: the handle reports itself
       // inactive and every call after that is a no-op.
       onDragStart: () => {
+        // A HANDLE STILL HERE IS AN ORPHANED GESTURE.
+        //
+        // `onDragSettle` nulls this ref, so a non-null handle at the start of a
+        // new drag means the last drag's settle never ran — its screen was torn
+        // down mid-gesture, the OS took the pointer, capture was lost. Its morph
+        // flights are still staged, held at zero with their backstops suspended
+        // (see beginMorphSwipe), so nothing will ever land them: they sit in the
+        // flight layer wearing their role, and every pop after reads them as a
+        // partner already in the air and pairs against the corpse instead of the
+        // grid — no camera, the text blinking, until reload. Device-reported on
+        // the poster grid, tab-flipping between cards. Cancelling the orphan
+        // lands its flights home before the new gesture stages.
+        morphSwipeRef.current?.settle(false, 0);
         morphSwipeRef.current = beginMorphSwipe(stores.navigate, "POPPING");
       },
       onDragProgress: (progress) => {
