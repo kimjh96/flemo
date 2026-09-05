@@ -175,4 +175,51 @@ describe("the entry-identity adoption", () => {
     adoptEntryIdentity(scope);
     expect(scope.history.getState().histories[0].id).toBe("root");
   });
+
+  // A HOSTED scope carries no router key, so its frames live bare in the entry
+  // rather than under a key. The adoption has to reach them the same way.
+  it("reads the bare entry when the scope has no router key", () => {
+    window.history.replaceState({ id: RESTORED, index: 4, params: { b: "2" } }, "", "/");
+    const scope = createRouterScope({
+      routePaths: ["/"],
+      pathname: "/",
+      search: "",
+      defaultTransitionName: "none",
+      memory: false,
+      browserDriver: createBrowserHistoryDriver(),
+      hostedScope: null,
+      deferEntryAdoption: true
+    });
+
+    adoptEntryIdentity(scope);
+
+    const seed = scope.history.getState().histories[0];
+    expect(seed.id).toBe(RESTORED);
+    expect(seed.frameIndex).toBe(4);
+  });
+
+  // A frame written by an older build, or by a host that only stamped an id,
+  // carries neither params nor an index. Neither may come through as undefined.
+  it("keeps the seed's own params and browser position when the frame omits them", () => {
+    window.history.replaceState({ [ROUTER_KEY]: { id: RESTORED } }, "", "/");
+    const scope = createRouterScope({
+      routePaths: ["/"],
+      pathname: "/",
+      search: "",
+      defaultTransitionName: "none",
+      memory: false,
+      browserDriver: createBrowserHistoryDriver(ROUTER_KEY),
+      hostedScope: null,
+      routerKey: ROUTER_KEY,
+      deferEntryAdoption: true
+    });
+    const before = scope.history.getState().histories[0].params;
+
+    adoptEntryIdentity(scope);
+
+    const seed = scope.history.getState().histories[0];
+    expect(seed.id).toBe(RESTORED);
+    expect(seed.params).toBe(before);
+    expect(seed.frameIndex).toBe(0);
+  });
 });
