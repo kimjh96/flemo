@@ -11,6 +11,8 @@ import ScreenContext, { type ScreenContextProps } from "@screen/ScreenContext";
 import { createTestStores } from "@stores/__tests__/testUtils";
 import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 
+import RouterIdContext from "../../RouterIdContext";
+
 // The component itself is twenty lines; what is worth pinning is that it keeps
 // the runtime's CONTRACT — registered before paint, re-registered on every
 // status change — because everything a morph does depends on those two moments.
@@ -213,6 +215,41 @@ describe("Morph", () => {
     expect(element.getAttribute("data-flemo-transition")).toBe("layout");
     expect(element.getAttribute("data-flemo-status")).toBe("IDLE");
     expect(element.getAttribute("data-flemo-active")).toBe("true");
+  });
+
+  it("falls back to the nearest Router when the screen carries no id of its own", () => {
+    // A morph inside a screen may not know its own Router id (the screen scope
+    // never set one), but it still belongs to a flight: the nearest enclosing
+    // Router answers. Same protocol <Part> renders — the enclosing screen wins
+    // when it has an id, the nearest Router when it does not.
+    const { getByTestId } = render(
+      <StoreContext.Provider value={stores}>
+        <RouterIdContext.Provider value="router-2">
+          <ScreenContext.Provider value={{ ...base, navigateStore: stores.navigate }}>
+            <Morph layoutId="photo-1" data-testid="thumb" />
+          </ScreenContext.Provider>
+        </RouterIdContext.Provider>
+      </StoreContext.Provider>
+    );
+
+    const element = getByTestId("thumb");
+    expect(element.getAttribute("data-flemo-router")).toBe("router-2");
+  });
+
+  it("omits the Router id when neither the screen nor any ancestor Router has one", () => {
+    // A morph inside a screen whose Router renders no id (a root Router carries
+    // no container) and with no enclosing Router above it stamps no
+    // data-flemo-router at all — the chain falls through to undefined.
+    const { getByTestId } = render(
+      <StoreContext.Provider value={stores}>
+        <ScreenContext.Provider value={{ ...base, navigateStore: stores.navigate }}>
+          <Morph layoutId="photo-1" data-testid="thumb" />
+        </ScreenContext.Provider>
+      </StoreContext.Provider>
+    );
+
+    const element = getByTestId("thumb");
+    expect(element.hasAttribute("data-flemo-router")).toBe(false);
   });
 
   it("says nothing when it is not in a screen at all", () => {
