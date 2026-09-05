@@ -4,7 +4,8 @@ import {
   captureEnvironment,
   detectEngine,
   isEmulationSuspected,
-  sampleRafCadence
+  sampleRafCadence,
+  developmentHints
 } from "../environment";
 
 import type { UaBrand } from "../types";
@@ -232,5 +233,26 @@ describe("captureEnvironment", () => {
     );
     const environment = captureEnvironment({ medianGapMs: null, sampleCount: 0 });
     expect(environment.observation.longTasks).toBe(false);
+  });
+});
+
+describe("developmentHints", () => {
+  // A development build is a different program: unminified, double-invoking,
+  // hot-reload instrumented. A day of ladder measurements in this project
+  // turned out to be measuring exactly that, so the report names it.
+  it("names a development-server global when one is installed", () => {
+    (window as unknown as Record<string, unknown>).__NEXT_HMR_CB = () => {};
+    try {
+      expect(developmentHints()).toContain("__NEXT_HMR_CB");
+      expect(captureEnvironment({ medianGapMs: null, sampleCount: 0 }).developmentHints).toContain(
+        "__NEXT_HMR_CB"
+      );
+    } finally {
+      delete (window as unknown as Record<string, unknown>).__NEXT_HMR_CB;
+    }
+  });
+
+  it("finds none on a page that ships no dev runtime", () => {
+    expect(developmentHints()).toEqual([]);
   });
 });

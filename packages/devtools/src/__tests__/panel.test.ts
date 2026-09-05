@@ -1046,4 +1046,19 @@ describe("attachDevtoolsPanel — shared elements, tripwires and input", () => {
     expect(detail).toContain("touch");
     expect(find(".detail").querySelectorAll(".v.bad")).toHaveLength(0);
   });
+
+  // An older recorder on the page has no `mark`. The panel reads it anyway and
+  // its A/B button simply does nothing, rather than throwing on click.
+  it("adopts a window.flemo that predates comparison buckets", () => {
+    (window as unknown as { flemo: unknown }).flemo = {
+      __flemoDevtools: true,
+      report: () => report()
+    };
+    mount({ initialOpen: true });
+    vi.advanceTimersByTime(400);
+    const button = actButton("A/B: off");
+    expect(button).toBeDefined();
+    expect(() => button?.click()).not.toThrow();
+    expect(actButton("A/B: A")).toBeDefined();
+  });
 });

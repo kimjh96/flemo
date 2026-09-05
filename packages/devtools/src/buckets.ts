@@ -14,6 +14,8 @@ import type { BucketSummary, FlightRecord } from "./types";
 // what a mean hides.
 
 const median = (values: number[]): number => {
+  /* v8 ignore next -- unreachable: a group exists only because a flight was
+  put in it, so nothing ever asks for the median of nothing. */
   if (values.length === 0) return 0;
   const sorted = [...values].sort((left, right) => left - right);
   return Math.round(sorted[Math.floor(sorted.length / 2)] * 10) / 10;

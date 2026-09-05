@@ -219,4 +219,13 @@ describe("the observable half of the judging protocol", () => {
     expect(reduced.status).toBe("violated");
     expect(reduced.detail).toContain("not the motion being judged");
   });
+
+  it("says the pointer type was unreported rather than printing an empty list", () => {
+    const input = check(
+      derive({ input: { trusted: 3, synthetic: 0, pointerTypes: [] } }),
+      "real-input"
+    );
+    expect(input.status).toBe("ok");
+    expect(input.detail).toContain("type unreported");
+  });
 });

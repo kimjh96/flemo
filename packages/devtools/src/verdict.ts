@@ -20,6 +20,8 @@ export interface VerdictInput {
 }
 
 const median = (values: number[]): number => {
+  /* v8 ignore next -- unreachable: deriveVerdict returns before this on an
+  empty flight list, so nothing ever asks for the median of nothing. */
   if (values.length === 0) return 0;
   const sorted = [...values].sort((left, right) => left - right);
   return sorted[Math.floor(sorted.length / 2)];

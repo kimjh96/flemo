@@ -280,6 +280,25 @@ describe("the trace across a page load", () => {
   // RULE ONE OF persistence.ts: never write during a flight. sessionStorage is
   // synchronous main-thread I/O, and a JSON serialization of the whole buffer
   // inside a transition is exactly the long task this package exists to find.
+  it("writes the trace on its own timer once the page is idle", async () => {
+    vi.useFakeTimers();
+    try {
+      const a = mountScreen("a");
+      attach();
+      // One closed flight, then nothing in the air: the tick may write.
+      a.setAttribute("data-flemo-status", "POPPING");
+      await Promise.resolve();
+      await Promise.resolve();
+      a.setAttribute("data-flemo-status", "COMPLETED");
+      await Promise.resolve();
+      await Promise.resolve();
+      vi.advanceTimersByTime(10_000);
+      expect(loadTrace("3")?.flights.length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("lets its own timer run while a flight is in the air, and writes nothing", async () => {
     vi.useFakeTimers();
     try {

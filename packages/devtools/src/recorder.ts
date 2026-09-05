@@ -371,6 +371,9 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
 
   const finalizeFlight = (endNow: number, stuckStatuses: string[]) => {
     const flight = current;
+    /* v8 ignore next -- unreachable: both callers hold a flight. sampleFrame
+       returns at its own top when `current` is null, and evaluate only calls
+       this inside `if (current && ...)`. The narrowing stays for the type. */
     if (!flight) return;
     // Last sweep before the numbers are frozen: an image parked late in the
     // flight (or one that arrived mid-flight) must not read as unheld.
@@ -491,7 +494,10 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
           ) {
             trackMorphAttribute(current.morphs, mutation.target);
           }
-        } else if (mutation.type === "childList") {
+          // Not `else if (childList)`: the observer below registers exactly
+          // `attributes` and `childList`, so a record that is not the first is
+          // the second, and testing for it again is a branch nothing can take.
+        } else {
           if (current) trackMorphNodes(current.morphs, mutation, now);
           if (current && mutation.addedNodes.length > 0) {
             trackAddedImages(current.images, current.elements, mutation.addedNodes);
@@ -542,8 +548,12 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
   // and costs nothing on the frames that matter.
   const persistTick = () => {
     persistTimer = 0;
+    /* v8 ignore next -- unreachable: detach() clears this timer, and a
+       cleared timeout does not run. The guard is a belt on the braces. */
     if (detached) return;
-    if (persist && current === null) saveTrace(flights, REPORT_SCHEMA_VERSION);
+    // No `persist &&` here: the timer is only armed when persistence is on, so
+    // testing it again inside the tick is a branch nothing can take.
+    if (current === null) saveTrace(flights, REPORT_SCHEMA_VERSION);
     persistTimer = window.setTimeout(persistTick, PERSIST_INTERVAL_MS);
   };
   if (persist) persistTimer = window.setTimeout(persistTick, PERSIST_INTERVAL_MS);

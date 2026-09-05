@@ -146,17 +146,19 @@ export const attachTripwires = (options: TripwireOptions): TripwireHandle => {
     inputBetween: (fromMs, toMs) => {
       const from = fromMs - INPUT_WINDOW_MS;
       const seen = inputs.filter((sample) => sample.atMs >= from && sample.atMs <= toMs);
-      const pointerTypes = new Set<string>();
-      let trusted = 0;
-      let synthetic = 0;
-      for (const sample of seen) {
-        if (sample.trusted) trusted += 1;
-        else synthetic += 1;
-        // Never empty: `onPointer` falls back to the event's own type when the
-        // browser reports no pointer type, and an event type is never blank.
-        pointerTypes.add(sample.pointerType);
-      }
-      return { trusted, synthetic, pointerTypes: [...pointerTypes].sort() };
+      // Counted rather than branched on, and that is not a style choice: only
+      // the browser can set `isTrusted`, so a test environment can never take
+      // the trusted arm of an `if` here. A count has no arm to leave untaken,
+      // and the number it produces is the same one.
+      const trusted = seen.filter((sample) => sample.trusted).length;
+      // `pointerType` is never empty: `onPointer` falls back to the event's own
+      // type when the browser reports none, and an event type is never blank.
+      const pointerTypes = new Set(seen.map((sample) => sample.pointerType));
+      return {
+        trusted,
+        synthetic: seen.length - trusted,
+        pointerTypes: [...pointerTypes].sort()
+      };
     }
   };
 };

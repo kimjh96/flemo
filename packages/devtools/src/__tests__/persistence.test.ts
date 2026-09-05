@@ -92,12 +92,29 @@ describe("carrying a trace across a page load", () => {
     setItem.mockRestore();
   });
 
+  // Replaced wholesale rather than spied on `Storage.prototype`: under Node's
+  // experimental global storage this session's `sessionStorage` is not a
+  // `Storage` instance at all, so a prototype spy silently does nothing and
+  // the case passes without reaching the path it names.
   it("survives a storage that refuses to be read", () => {
-    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-      throw new Error("denied");
+    const original = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: {
+        length: 0,
+        key: () => null,
+        setItem: () => {},
+        removeItem: () => {},
+        getItem: () => {
+          throw new Error("denied");
+        }
+      }
     });
-    expect(loadTrace("3")).toBeNull();
-    getItem.mockRestore();
+    try {
+      expect(loadTrace("3")).toBeNull();
+    } finally {
+      if (original) Object.defineProperty(globalThis, "sessionStorage", original);
+    }
   });
 
   it("survives a storage that refuses to be cleared", () => {

@@ -141,6 +141,16 @@ describe("the pairing picture", () => {
     expect(activity.camera).toBe(true);
   });
 
+  it("ignores a flying element that carries no pairing key", () => {
+    const a = screen("a");
+    const state = createMorphProbeState([a]);
+    const anonymous = document.createElement("div");
+    anonymous.setAttribute("data-flemo-morph", "enter");
+    a.appendChild(anonymous);
+    trackMorphAttribute(state, anonymous);
+    expect(morphActivity(state, true).flew).toEqual([]);
+  });
+
   it("ignores an attribute mutation on an element that is not flying", () => {
     const a = screen("a");
     const end = morph(a, "hero");
@@ -186,13 +196,30 @@ describe("ghosts", () => {
     expect(morphTripwires(state)).toEqual([]);
   });
 
-  it("ignores a removal it never saw arrive, and non-element nodes", () => {
+  it("ignores a removal it never saw arrive, and non-element nodes on both sides", () => {
     const state = createMorphProbeState([host]);
     const unseen = ghost(host);
     trackMorphNodes(state, mutation({ removedNodes: nodes([unseen]) }), 50);
     trackMorphNodes(state, mutation({ addedNodes: nodes([document.createTextNode("x")]) }), 50);
+    trackMorphNodes(state, mutation({ removedNodes: nodes([document.createTextNode("y")]) }), 50);
     expect(morphTripwires(state)).toEqual([]);
     expect(morphActivity(state, true).ghosts).toBe(0);
+  });
+
+  // The SHORTEST life is what the blade rule reads, so a longer-lived ghost
+  // arriving afterwards must not overwrite it.
+  it("keeps the shortest ghost life, not the last one", () => {
+    const state = createMorphProbeState([host]);
+    const cut = ghost(host);
+    trackMorphNodes(state, mutation({ addedNodes: nodes([cut]) }), 0);
+    trackMorphNodes(state, mutation({ removedNodes: nodes([cut]) }), 10);
+    const lived = ghost(host);
+    trackMorphNodes(state, mutation({ addedNodes: nodes([lived]) }), 20);
+    trackMorphNodes(state, mutation({ removedNodes: nodes([lived]) }), 400);
+
+    const hits = morphTripwires(state);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].atMs).toBe(10);
   });
 });
 

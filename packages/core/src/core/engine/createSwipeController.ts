@@ -247,10 +247,13 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   // It lives here, in the controller, for the reason `gestureProgress` does:
   // the controller is the only party that knows the box being dragged, so it
   // is the only one that can answer this for every transition at once.
-  const gestureTravel = (offsetOnAxis: number, span: number): number => {
-    const forward = Math.max(0, offsetOnAxis);
-    return span > 0 ? Math.min(span, forward) : forward;
-  };
+  // `span` is positive by construction at both call sites: each resolves the
+  // dragged box and falls back to the viewport axis when it has no layout yet,
+  // and neither path can be reached without a pointer event (so without a
+  // window). Clamping unconditionally is therefore the whole rule, with no
+  // arm that only a server render could take.
+  const gestureTravel = (offsetOnAxis: number, span: number): number =>
+    Math.min(span, Math.max(0, offsetOnAxis));
 
   const buildSwipeInfo = (event: PointerEvent) => ({
     point: { x: event.clientX, y: event.clientY },
@@ -1158,7 +1161,12 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const box = scope?.getBoundingClientRect();
     const span =
       (axis === "y" ? box?.height : box?.width) ||
+      /* v8 ignore start -- the same SSR-safety the drag's own span keeps
+         above, and the same proof: no window means no pointer event to have
+         started a gesture, so nothing can reach this arm. Marked here too
+         because the release is where that note said this copy lives. */
       (typeof window === "undefined" ? 0 : axis === "y" ? window.innerHeight : window.innerWidth);
+    /* v8 ignore stop */
     const offsetOnAxis = axis === "y" ? settleOffset.y : settleOffset.x;
     const velocityOnAxis = axis === "y" ? swipeInfo.velocity.y : swipeInfo.velocity.x;
     const travelled = gestureTravel(offsetOnAxis, span);

@@ -63,6 +63,15 @@ describe("animation tripwires", () => {
     expect(hits[0].detail).toContain("without ever running");
   });
 
+  it("describes a target that is not a screen without calling it one", () => {
+    const { hits } = attach();
+    const bar = document.createElement("nav");
+    document.body.appendChild(bar);
+    bar.dispatchEvent(animation("animationcancel", "flemo-bar-cupertino-POPPING-true"));
+    expect(hits[0].detail).toContain("<nav>");
+    expect(hits[0].detail).not.toContain("(screen)");
+  });
+
   it("says nothing about an animationend that ran", () => {
     const { hits } = attach();
     document.dispatchEvent(animation("animationend", "flemo-morph-3-travel", 0.4));

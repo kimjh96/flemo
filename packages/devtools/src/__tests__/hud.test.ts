@@ -375,4 +375,18 @@ describe("the on-device readout", () => {
     expect(text).toContain("morph   3 flew");
     expect(text).not.toContain("/0");
   });
+
+  it("says nothing about a camera on a flight that drove no screen", () => {
+    hud = attachDevtoolsHud({
+      recorder: recorder(() =>
+        report({
+          flights: [flight({ morphs: { ...flight().morphs, camera: false } })]
+        })
+      ),
+      initialExpanded: true
+    });
+    const text = box().textContent ?? "";
+    expect(text).toContain("morph   1 flew");
+    expect(text).not.toContain("cam");
+  });
 });
