@@ -1325,6 +1325,13 @@ export const compileTransitionStyles = (
   // the callers hand this in as a Map's `.values()` iterator.
   const partList = [...partTransitions];
 
+  // The by-name clock for each part, kept so the pair pass below can tell when a
+  // (transition x part) rule would say exactly what the by-name rule already
+  // says — a part that authored its OWN duration and delay resolves to the same
+  // clock under every transition, so its higher-specificity twin is pure weight
+  // on the sheet the browser re-matches on every navigation.
+  const byNameClocks = new Map<string, ReturnType<typeof resolvePartClock>>();
+
   for (const partTransition of partList) {
     const name = partTransition.name;
     // Normalized, not inherited: this is the rule a part with no transition
@@ -1332,6 +1339,7 @@ export const compileTransitionStyles = (
     // through the same resolver is what keeps the optional shape from reaching
     // the emitter.
     const byName = resolvePartClock(null, partTransition);
+    byNameClocks.set(name, byName);
 
     for (const variant of DECORATOR_VARIANTS) {
       const variantValue = byName.variants[variant];
@@ -1362,12 +1370,30 @@ export const compileTransitionStyles = (
   for (const transition of transitionList) {
     for (const part of partList) {
       const resolved = resolvePartClock(transition, part);
+      const byName = byNameClocks.get(part.name);
       const selectorBuilder = (_: string, pairVariant: TransitionVariant) =>
         partPairSelector(transition.name, part.name, pairVariant);
 
       for (const variant of DECORATOR_VARIANTS) {
         const variantValue = resolved.variants[variant];
         const fromKey = FROM_VARIANT[variant];
+
+        // The pair rule differs from the by-name rule ONLY in its clock: the
+        // pose (value, initial, from) comes off the same part. So when the
+        // resolved duration and delay match the by-name pass's, this rule is a
+        // byte-for-byte-bodied twin of one already emitted, distinguished only
+        // by a more specific selector that selects the same declarations. Drop
+        // it: the by-name rule matches the part under this transition just the
+        // same, and every dropped twin is rules the browser no longer re-matches
+        // on the navigation frame (see the sheet-recalc cost above).
+        const byNameValue = byName?.variants[variant];
+        if (
+          byNameValue &&
+          byNameValue.options?.duration === variantValue.options?.duration &&
+          byNameValue.options?.delay === variantValue.options?.delay
+        ) {
+          continue;
+        }
 
         if (fromKey === "self") {
           blocks.push(compileRestBlock(selectorBuilder, part.name, variant, variantValue));
