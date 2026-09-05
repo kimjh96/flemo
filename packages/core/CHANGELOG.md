@@ -1,5 +1,45 @@
 # @flemo/core
 
+## 2.3.0
+
+### Minor Changes
+
+- [`ecf196e`](https://github.com/kimjh96/flemo/commit/ecf196ea1e732834766f68d12623c53b10931d8b) Write a morph's pairing key into the DOM as `data-flemo-morph-id`, and export
+  the morph attribute names (`MORPH_ID_ATTR`, `MORPH_CAMERA_ATTR`,
+  `MORPH_GHOST_ATTR`, `MORPH_STAND_IN_ATTR`) alongside the ones already public.
+  A shared element that fails to pair produces no error, no attribute and no
+  animation, so the single most common morph failure was invisible to everything
+  outside the runtime; with the key on the element an inspector or
+  `@flemo/devtools` can group the two ends itself and report a pair that never
+  flew. Copies the runtime makes (the stand-in and the ghost) drop the key with
+  the rest of their identity.
+
+  The transition name and the pairing key are written only when they change. A
+  morph is re-registered on every status change, and an attribute write
+  invalidates that element's style: the unconditional write was one invalidation
+  per morph per navigation, on the same bench where exactly that cost was
+  device-measured as judder.
+
+### Patch Changes
+
+- [`c5bf427`](https://github.com/kimjh96/flemo/commit/c5bf42734ec7dcc596672b72adb0cbf66d5c327b) Read a swipe's travel off the screen it is dragging instead of off the raw
+  pointer offset. Every handler clamps its screen at rest, so a finger that came
+  back past where the drag began left the screen still while the absolute offset
+  kept growing: the dim went on lifting off a screen that was not moving
+  (measured at opacity 0.28 with the screen at translateX(0)), and a release
+  there told the settle most of the trip was already done, so a commit crossed
+  the whole screen in the time left for its last few pixels. The gesture's travel
+  is now the signed offset along the swipe axis clamped to that screen, which
+  also stops a drag past the end from growing the remaining distance again.
+
+  Two more release-clock corrections ship with it. The finger is now measured at
+  the moment it lets go rather than at its last move, so a gesture carried across
+  and then held still no longer lands at the speed it had before it stopped. And
+  a landing may no longer outrun the authored motion by more than three times its
+  own average speed, which is what turned a fast flick into a cut: the previous
+  floor was a flat 0.12s, generous for the last twenty pixels and a teleport for
+  a whole screen.
+
 ## 2.2.2
 
 ### Patch Changes

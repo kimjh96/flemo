@@ -1,5 +1,28 @@
 # @flemo/web
 
+## 0.11.6
+
+### Patch Changes
+
+- [`c2473b8`](https://github.com/kimjh96/flemo/commit/c2473b81e3986e24599359f70f192ae9149782e5) Arm the devtools on the playground with `?devtools=on` instead of importing
+  them unconditionally, and mount the on-device readout beside the panel so a
+  device round has numbers on the glass instead of a console it does not have.
+  The arming matters more than it looks: a plain import of `@flemo/devtools`
+  resolves to its inert production entry, so wired the ordinary way the panel
+  mounted nowhere in a production build, which is the only build the judging
+  protocol accepts. The choice persists in `flemo:devtools` and `?devtools=off`
+  clears it; a session that never asks loads nothing at all.
+
+  Adds an end-to-end net for the swipe release: the dim has to read the screen
+  rather than the finger when a drag comes back past its start, a committed
+  release has to cross the screen as motion rather than in one frame, and one
+  case drives the whole gesture with real touch events.
+
+- Updated dependencies ([`29ce877`](https://github.com/kimjh96/flemo/commit/29ce877dc9de8115321023dde514e9b5f0861641), [`ecf196e`](https://github.com/kimjh96/flemo/commit/ecf196ea1e732834766f68d12623c53b10931d8b), [`c5bf427`](https://github.com/kimjh96/flemo/commit/c5bf42734ec7dcc596672b72adb0cbf66d5c327b)):
+  - @flemo/devtools@0.5.0
+  - @flemo/core@2.3.0
+  - @flemo/react@2.2.3
+
 ## 0.11.5
 
 ### Patch Changes
