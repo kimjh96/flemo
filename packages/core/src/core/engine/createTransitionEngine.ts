@@ -50,6 +50,7 @@ import {
   CREEP_ATTR,
   DESK_HEAD_ATTR,
   GOVERNED_ATTR,
+  MORPH_CAMERA_ATTR,
   PART_NAME_ATTR
 } from "@dom/attributes";
 import {
@@ -679,6 +680,31 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // lands its final frame before the COMPLETED flip re-renders both
       // screens. The engine watchdogs still net a lost exit animation.
       if (!skipAnimation) {
+        // A MORPH CAMERA carrying this screen IS the visible transition, even
+        // though the screen's own transition animates nothing (a `zoom` morph
+        // pairs with a still screen on purpose — the camera does the motion).
+        // The camera runs on the screen element but is not a `participant` the
+        // engine counts, so without this the task resolves on the still screen's
+        // (absent) clock and flips COMPLETED ~200ms before the camera lands —
+        // two convergence present spikes on WebKit, worse on a pop where the
+        // returning screen is the one being zoomed. Span the camera too: read
+        // its animation off the scope so no morph coupling is needed.
+        const { scope: cameraScope } = getElements();
+        let cameraSpanMs = 0;
+        const cameraEl =
+          cameraScope?.ownerDocument?.querySelector<HTMLElement>(`[${MORPH_CAMERA_ATTR}]`) ?? null;
+        if (cameraEl && typeof cameraEl.getAnimations === "function") {
+          for (const anim of cameraEl.getAnimations()) {
+            const name = (anim as { animationName?: string }).animationName ?? "";
+            if (!name.endsWith("-camera")) continue;
+            const timing = anim.effect?.getTiming?.();
+            cameraSpanMs = Math.max(
+              cameraSpanMs,
+              (Number(timing?.delay) || 0) + (Number(timing?.duration) || 0)
+            );
+          }
+        }
+        participantSpanMs = Math.max(participantSpanMs, cameraSpanMs);
         // Gate on the WHOLE choreography, not just the passive screen: a
         // transition whose screens stand still while a Part or the decorator
         // animates must span that motion too, not resolve on a microtask.
