@@ -417,10 +417,42 @@ const buildStops = (
     explore(mid, hi, here, above);
   };
   explore(0, 1, ends[0], ends[1]);
+
+  // TWO STEPS IN ONE FRAME IS A JUMP, NOT A STAIRCASE.
+  //
+  // Every boundary is a step where the LINE-HEIGHT (a paint) and the LIFT (a
+  // transform) must move together to hold the baseline still; where they land
+  // a frame apart the baseline blips, and the eye reads a run of blips as a
+  // shimmer. A fast-opening ease packs several boundaries into the first few
+  // frames — device-read on the poster grid's title, thirteen steps with five
+  // inside the opening sixth of the flight, two of them four milliseconds
+  // apart — so those frames each carry two or three steps and each step is its
+  // own chance to blip. Thinning boundaries that fall closer together than a
+  // frame keeps the staircase (the leading still never drifts more than the
+  // half-pixel one skipped step is worth) while cutting the count of moments
+  // the two channels can disagree. The FIRST and the LAST boundary are always
+  // kept: the last is the one whose omission dropped the meta line at the
+  // landing.
+  //
+  // A frame as a fraction of the flight is not known here (the duration lives
+  // with the caller), so the floor is the shortest a shipped morph runs, ~0.25s
+  // — one frame is a fifteenth of it — which keeps every step a real morph can
+  // show one frame apart and merges only the ones no frame could separate.
+  const FRAME_FRACTION = 100 / 15;
+  const thinned: LeadingStop[] = [];
+  for (let i = 1; i < stops.length; i += 1) {
+    const stop = stops[i]!;
+    const last = i === stops.length - 1;
+    const kept = thinned[thinned.length - 1];
+    if (!last && kept && stop.at - kept.at < FRAME_FRACTION) continue;
+    thinned.push(stop);
+  }
+  const kept = [stops[0]!, ...thinned];
+
   // The last stop is the arrival's own line-height by construction, so the
   // landing restores exactly what the flight ended on.
-  stops.push({ at: 100, lineHeight: to.lineHeight, ascent: ends[1].ascent });
-  return stops.length > 2 ? stops : null;
+  kept.push({ at: 100, lineHeight: to.lineHeight, ascent: ends[1].ascent });
+  return kept.length > 2 ? kept : null;
 };
 
 const matches = (parts: FaceParts, measured: number): boolean =>

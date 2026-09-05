@@ -557,10 +557,18 @@ describe("leadingStops", () => {
       [0, 0, 1, 1]
     )!;
 
-    expect(eased.length).toBe(linear.length);
-    // The same stops, met earlier: an ease that front-loads its travel reaches
-    // every size sooner than a straight line does.
+    // Met earlier: an ease that front-loads its travel reaches every size
+    // sooner than a straight line does.
     expect(eased[1]!.at).toBeLessThan(linear[1]!.at);
+    // And thinned harder: the front-loaded ease packs boundaries into the
+    // opening frames, where two steps in one frame is a jump the eye reads as
+    // a shimmer, so those merge — a linear travel spreads them out and keeps
+    // more. No two kept interior steps land closer than a frame.
+    expect(eased.length).toBeLessThanOrEqual(linear.length);
+    const FRAME = 100 / 15;
+    for (let i = 2; i < eased.length - 1; i += 1) {
+      expect(eased[i]!.at - eased[i - 1]!.at).toBeGreaterThanOrEqual(FRAME - 1e-6);
+    }
   });
 
   it("stands down where the face steps nowhere inside the flight", () => {
