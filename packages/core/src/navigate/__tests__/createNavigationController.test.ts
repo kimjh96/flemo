@@ -358,6 +358,36 @@ describe("createNavigationController distance options (skip / until / collapse)"
     expect(stores.history.getState().histories).toHaveLength(2);
   });
 
+  it("pop mid-flight is IGNORED — the hard guard, identical to push and replace", async () => {
+    const { stores, controller } = setup();
+    await controller.push("/x");
+    await controller.push("/y");
+    await stopSweeper?.();
+    stopSweeper = null;
+
+    const first = controller.pop();
+    await vi.waitFor(() => {
+      expect(stores.navigate.getState().status).toBe("POPPING");
+    });
+
+    // Pop never carried the guard push and replace have, and the click gate
+    // only covers PUSHING and REPLACING screens — so a back tapped during a
+    // pop QUEUED behind the running flight and ran against a half-cleaned
+    // stack the moment it resolved: no pair, no camera, a zoomed pop cutting
+    // to rest. The first tap wins here too.
+    const second = controller.pop();
+    await second; // resolves immediately: guarded out
+    await vi.waitFor(async () => {
+      await TaskManager.resolveAllPending();
+      expect(stores.navigate.getState().status).toBe("COMPLETED");
+    });
+    await first;
+
+    // One pop happened, not two: the stack lost exactly one screen.
+    expect(stores.history.getState().index).toBe(1);
+    expect(stores.history.getState().histories.at(-1)?.pathname).toBe("/x");
+  });
+
   it("replace { until } with no match is a no-op", async () => {
     const { stores, controller } = setup();
     await buildStack(controller);
