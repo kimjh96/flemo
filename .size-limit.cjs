@@ -144,6 +144,31 @@ module.exports = [
     gzip: true
   },
   {
+    name: "@flemo/devtools (react)",
+    path: "packages/devtools/dist/react.mjs",
+    import: "{ FlemoDevtools }",
+    // The component a consumer actually writes, and everything it mounts: the
+    // recorder, the drawer and the readout. `react` is the consumer's own peer
+    // dependency, so it is not counted here. Measured 21.9 kB, budgeted with
+    // the file's usual ~25% headroom.
+    limit: "27 KB",
+    gzip: true,
+    ignore: ["react"]
+  },
+  {
+    name: "@flemo/devtools (react, production)",
+    path: "packages/devtools/dist/reactNoop.mjs",
+    // WHAT A VISITOR PAYS, and the number this whole shape exists to hold at
+    // zero. `@flemo/devtools/react` resolves here under the production export
+    // condition, so an app can leave <FlemoDevtools /> in its tree and ship it.
+    // A component that renders null and imports nothing is ~120 bytes; a budget
+    // this tight is what turns "the production entry stayed inert" from a
+    // promise into a gate. Devtools reached a public chunk of flemo.dev twice
+    // before this existed.
+    limit: "300 B",
+    gzip: true
+  },
+  {
     name: "@flemo/devtools (panel)",
     path: "packages/devtools/dist/index.mjs",
     import: "{ attachDevtoolsPanel }",

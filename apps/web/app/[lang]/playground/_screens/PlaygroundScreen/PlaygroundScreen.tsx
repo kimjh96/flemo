@@ -7,7 +7,6 @@ import { Screen } from "@flemo/react";
 import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 import { getDict } from "@/lib/i18n";
 
-import DevtoolsPanel from "../../_components/DevtoolsPanel";
 import Stage from "../../_components/Stage";
 
 import TonightRouter from "../../_router/TonightRouter";
@@ -97,7 +96,6 @@ function PlaygroundScreen() {
           </div>
         </div>
       </div>
-      <DevtoolsPanel />
     </Screen>
   );
 }

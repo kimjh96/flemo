@@ -1,10 +1,24 @@
 # @flemo/devtools
 
-Zero-dependency flight recorder, on-device readout and visual panel for [flemo](https://flemo.dev) transitions. It observes existing `data-flemo-*` surfaces, leftover `flemo:*` keys, CSS animation events, pointer events, `MutationObserver`, `PerformanceObserver("longtask")`, and rAF. It imports neither `@flemo/core` nor `@flemo/react` and does not alter measured motion.
+Zero-dependency flight recorder, on-device readout and visual panel, with a one-element React binding for [flemo](https://flemo.dev) transitions. It observes existing `data-flemo-*` surfaces, leftover `flemo:*` keys, CSS animation events, pointer events, `MutationObserver`, `PerformanceObserver("longtask")`, and rAF. It imports neither `@flemo/core` nor `@flemo/react` and does not alter measured motion.
 
 Everything in it is one probe module per question — pacing, motion, images, shared elements, one-frame events, landing residue — behind a small orchestrator. Adding a measurement means adding a probe.
 
-## Quickstart
+## Quickstart (React)
+
+```tsx
+import { FlemoDevtools } from "@flemo/devtools/react";
+
+<FlemoDevtools />;
+```
+
+That is the whole wiring. Leave it in the tree and ship it: under the `production` export condition the same specifier resolves to a component that renders null and imports nothing, so the recorder, the panel and the readout never enter a production graph. There is no flag to remember and nothing to strip before a release.
+
+Props are `recorder`, `hud` (`true`), `panel` (`true`), `hudPosition` (`"top"`), `panelPosition` (`"bottom-left"`), `initialOpen` (`false`) and `buckets` (`["A", "B"]`). `react` is an optional peer dependency, needed only for this entry.
+
+Do not reach for `@flemo/devtools/force` to make the component appear in a production build. The specifier survives whatever guard is wrapped around it, so it puts the real panel back into a public chunk; that is a measured mistake, made twice on this project's own site.
+
+## Quickstart (any framework)
 
 ```ts
 import { attachFlightRecorder } from "@flemo/devtools";
