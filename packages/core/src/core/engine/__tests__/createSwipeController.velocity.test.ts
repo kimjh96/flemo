@@ -68,20 +68,22 @@ describe("the release velocity", () => {
           name: "velocity-test",
           initial: { x: "100%" },
           variants: fullVariants({ x: 0 }, { duration: 0.3 }),
-          swipeDirection: "x",
-          onSwipeStart: vi.fn(async () => true),
-          onSwipe: vi.fn(() => 0),
-          onSwipeEnd: vi.fn(
-            async (
-              _event: unknown,
-              info: { velocity: { x: number } },
-              api: { onStart?: (t: boolean) => void }
-            ) => {
-              seen = info.velocity.x;
-              api.onStart?.(false);
-              return false;
-            }
-          )
+          swipe: {
+            direction: "x",
+            onStart: vi.fn(async () => true),
+            onMove: vi.fn(() => 0),
+            onEnd: vi.fn(
+              async (
+                _event: unknown,
+                info: { velocity: { x: number } },
+                api: { onStart?: (t: boolean) => void }
+              ) => {
+                seen = info.velocity.x;
+                api.onStart?.(false);
+                return false;
+              }
+            )
+          }
         }) as unknown as Transition,
       getDecorator: () => undefined,
       getElements: () => ({

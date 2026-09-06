@@ -286,7 +286,7 @@ export { steadySixtyDesktopProfile } from "@platform/steadySixtyCadence";
 export {
   resolveSwipeOptions,
   DEFAULT_COMMIT_FRACTION,
-  COMMIT_VELOCITY,
+  DEFAULT_COMMIT_VELOCITY,
   type ResolvedSwipe
 } from "@transition/resolveSwipeOptions";
 export type { SwipeOptions } from "@transition/typing";

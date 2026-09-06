@@ -103,21 +103,23 @@ describe("createSwipeController ride offsets", () => {
       name: "ride-test",
       initial: { y: "100%" },
       variants: fullVariants({ x: 0 }, { duration: 0.3 }),
-      swipeDirection: "y",
-      onSwipeStart: async () => true,
-      onSwipe: () => 0,
-      onSwipeEnd: async (
-        _: unknown,
-        __: unknown,
-        { animate, currentScreen }: { animate: SwipeAnimateLike; currentScreen: HTMLElement }
-      ) => {
-        await animate(currentScreen, releaseValue, { duration: 0 });
-        atRelease = {
-          scope: currentScreen.style.transform,
-          bar: dom.topBar.style.transform,
-          layerHost: dom.layerHost.style.transform
-        };
-        return false;
+      swipe: {
+        direction: "y",
+        onStart: async () => true,
+        onMove: () => 0,
+        onEnd: async (
+          _: unknown,
+          __: unknown,
+          { animate, currentScreen }: { animate: SwipeAnimateLike; currentScreen: HTMLElement }
+        ) => {
+          await animate(currentScreen, releaseValue, { duration: 0 });
+          atRelease = {
+            scope: currentScreen.style.transform,
+            bar: dom.topBar.style.transform,
+            layerHost: dom.layerHost.style.transform
+          };
+          return false;
+        }
       }
     } as unknown as Transition;
 

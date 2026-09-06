@@ -1,18 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 
 import resolveSwipeOptions, {
-  COMMIT_VELOCITY,
+  DEFAULT_COMMIT_VELOCITY,
   DEFAULT_COMMIT_FRACTION
 } from "@transition/resolveSwipeOptions";
 
 import type { SwipeInfo, Transition } from "@transition/typing";
 
-// ONE SHAPE, WHICHEVER WAY THE TRANSITION WROTE IT.
+// A DIRECTION IS A COMPLETE SWIPE.
 //
-// `swipe: { direction }` is the surface; the flat `swipeDirection` and its
-// three hooks are what flemo shipped first and still accepts. The point of
-// reconciling them here is that no caller downstream has to know there were
-// two, so these cases pin both readings and the defaults that fill the gaps.
+// A transition states as little as `{ direction }` and every caller downstream
+// gets a complete answer: how far to commit, how fast, where the two sides
+// are. These cases pin the defaults that fill those gaps, and the reading of
+// each option a transition does name.
 
 const transition = (options: Record<string, unknown>) =>
   ({ name: "resolve-test", initial: {}, variants: {}, ...options }) as unknown as Transition;
@@ -33,33 +33,27 @@ describe("resolveSwipeOptions", () => {
     expect(resolveSwipeOptions(transition({ swipe: undefined }))).toBeNull();
   });
 
-  it("reads the nested form and the flat one alike", () => {
+  it("reads the axis the transition declared", () => {
     expect(resolveSwipeOptions(transition({ swipe: { direction: "y" } }))?.direction).toBe("y");
-    expect(resolveSwipeOptions(transition({ swipeDirection: "x" }))?.direction).toBe("x");
+    expect(resolveSwipeOptions(transition({ swipe: { direction: "x" } }))?.direction).toBe("x");
   });
 
-  it("takes the flat hooks for a transition written before the nested form", () => {
-    const onSwipeStart = vi.fn();
-    const onSwipe = vi.fn();
-    const onSwipeEnd = vi.fn();
-    const resolved = resolveSwipeOptions(
-      transition({ swipeDirection: "x", onSwipeStart, onSwipe, onSwipeEnd })
+  it("hands back the hooks the transition wrote, and nothing it did not", () => {
+    const onStart = vi.fn();
+    const onMove = vi.fn();
+    const onEnd = vi.fn();
+    const both = resolveSwipeOptions(
+      transition({ swipe: { direction: "x", onStart, onMove, onEnd } })
     );
 
-    expect(resolved?.onStart).toBe(onSwipeStart);
-    expect(resolved?.onMove).toBe(onSwipe);
-    expect(resolved?.onEnd).toBe(onSwipeEnd);
-  });
+    expect(both?.onStart).toBe(onStart);
+    expect(both?.onMove).toBe(onMove);
+    expect(both?.onEnd).toBe(onEnd);
 
-  it("does not mix the two forms when a transition declares `swipe`", () => {
-    // A transition that moved to the nested form and left a stale flat hook
-    // behind gets the form it wrote, not a merge of the two: a hook it thinks
-    // it removed must not still be driving its drag.
-    const stale = vi.fn();
-    const resolved = resolveSwipeOptions(transition({ swipe: { direction: "x" }, onSwipe: stale }));
-
-    expect(resolved?.onMove).toBeUndefined();
-    expect(resolved?.drivesScreens).toBe(true);
+    const bare = resolveSwipeOptions(transition({ swipe: { direction: "x" } }));
+    expect(bare?.onStart).toBeUndefined();
+    expect(bare?.onMove).toBeUndefined();
+    expect(bare?.onEnd).toBeUndefined();
   });
 
   it("hands the screens back only while the transition drives neither phase", () => {
@@ -155,10 +149,28 @@ describe("resolveSwipeOptions", () => {
     });
   });
 
-  it("keeps the speed half of the verdict out of the transition's hands", () => {
-    // Every preset had written the same 20, so it is a property of "the finger
-    // was still going" rather than of any one transition. A transition that
-    // wants a different rule takes over `onEnd` outright.
-    expect(COMMIT_VELOCITY).toBe(20);
+  describe("the speed a release has to have kept", () => {
+    it("defaults to the 20 every preset wrote for itself", () => {
+      const resolved = resolveSwipeOptions(transition({ swipe: { direction: "x" } }));
+      expect(resolved?.commitVelocity).toBe(DEFAULT_COMMIT_VELOCITY);
+      expect(DEFAULT_COMMIT_VELOCITY).toBe(20);
+    });
+
+    it("takes the transition's own number when it names one", () => {
+      // The reason this is authorable at all: a consumer transition asks for
+      // 300, a fifteen times harder flick, and a declarative drag with no way
+      // to name it would have to take over `onEnd` and lose the scrub for it.
+      const resolved = resolveSwipeOptions(
+        transition({ swipe: { direction: "x", velocity: 300 } })
+      );
+      expect(resolved?.commitVelocity).toBe(300);
+    });
+
+    it("reads a declared zero as zero, not as absent", () => {
+      // `?? DEFAULT` rather than `|| DEFAULT`: 0 means any movement at all
+      // commits, which is a thing a transition may want to say.
+      const resolved = resolveSwipeOptions(transition({ swipe: { direction: "x", velocity: 0 } }));
+      expect(resolved?.commitVelocity).toBe(0);
+    });
   });
 });

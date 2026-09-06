@@ -88,22 +88,24 @@ describe("the release clock", () => {
       name: "release-clock",
       initial: { x: "100%" },
       variants: fullVariants({ x: 0 }, { duration: AUTHORED }),
-      swipeDirection: "x",
-      onSwipeStart: async () => true,
-      onSwipe: () => 0,
-      onSwipeEnd: async (
-        _event: PointerEvent,
-        info: { offset: { x: number } },
-        api: {
-          animate: (t: unknown, v: unknown, o: { duration: number }) => void;
-          currentScreen: HTMLElement;
-          onStart?: (triggered: boolean) => void;
+      swipe: {
+        direction: "x",
+        onStart: async () => true,
+        onMove: () => 0,
+        onEnd: async (
+          _event: PointerEvent,
+          info: { offset: { x: number } },
+          api: {
+            animate: (t: unknown, v: unknown, o: { duration: number }) => void;
+            currentScreen: HTMLElement;
+            onStart?: (triggered: boolean) => void;
+          }
+        ) => {
+          const triggered = info.offset.x > 50;
+          api.onStart?.(triggered);
+          api.animate(api.currentScreen, { x: triggered ? "100%" : 0 }, { duration: AUTHORED });
+          return triggered;
         }
-      ) => {
-        const triggered = info.offset.x > 50;
-        api.onStart?.(triggered);
-        api.animate(api.currentScreen, { x: triggered ? "100%" : 0 }, { duration: AUTHORED });
-        return triggered;
       }
     } as unknown as Transition;
 
@@ -301,22 +303,24 @@ describe("the release clock", () => {
             name: "release-clock-still",
             initial: { x: 0 },
             variants: fullVariants({ x: 0 }, { duration: 0 }),
-            swipeDirection: "x",
-            onSwipeStart: async () => true,
-            onSwipe: () => 0,
-            onSwipeEnd: async (
-              _event: PointerEvent,
-              info: { offset: { x: number } },
-              api: {
-                animate: (t: unknown, v: unknown, o: { duration: number }) => void;
-                currentScreen: HTMLElement;
-                onStart?: (triggered: boolean) => void;
+            swipe: {
+              direction: "x",
+              onStart: async () => true,
+              onMove: () => 0,
+              onEnd: async (
+                _event: PointerEvent,
+                info: { offset: { x: number } },
+                api: {
+                  animate: (t: unknown, v: unknown, o: { duration: number }) => void;
+                  currentScreen: HTMLElement;
+                  onStart?: (triggered: boolean) => void;
+                }
+              ) => {
+                const triggered = info.offset.x > 50;
+                api.onStart?.(triggered);
+                api.animate(api.currentScreen, { x: 0 }, { duration: AUTHORED });
+                return triggered;
               }
-            ) => {
-              const triggered = info.offset.x > 50;
-              api.onStart?.(triggered);
-              api.animate(api.currentScreen, { x: 0 }, { duration: AUTHORED });
-              return triggered;
             }
           }) as unknown as Transition
       };
@@ -444,26 +448,28 @@ describe("the release clock", () => {
           name: "consumer-curve",
           initial: { x: "100%" },
           variants: fullVariants({ x: 0 }, { duration: AUTHORED }),
-          swipeDirection: "x",
-          onSwipeStart: async () => true,
-          onSwipe: () => 0,
-          onSwipeEnd: async (
-            _event: PointerEvent,
-            info: { offset: { x: number } },
-            api: {
-              animate: (t: unknown, v: unknown, o: { duration: number; ease: number[] }) => void;
-              currentScreen: HTMLElement;
-              onStart?: (triggered: boolean) => void;
+          swipe: {
+            direction: "x",
+            onStart: async () => true,
+            onMove: () => 0,
+            onEnd: async (
+              _event: PointerEvent,
+              info: { offset: { x: number } },
+              api: {
+                animate: (t: unknown, v: unknown, o: { duration: number; ease: number[] }) => void;
+                currentScreen: HTMLElement;
+                onStart?: (triggered: boolean) => void;
+              }
+            ) => {
+              const triggered = info.offset.x > 50;
+              api.onStart?.(triggered);
+              api.animate(
+                api.currentScreen,
+                { x: triggered ? "100%" : 0 },
+                { duration: AUTHORED, ease: CONSUMER_EASE }
+              );
+              return triggered;
             }
-          ) => {
-            const triggered = info.offset.x > 50;
-            api.onStart?.(triggered);
-            api.animate(
-              api.currentScreen,
-              { x: triggered ? "100%" : 0 },
-              { duration: AUTHORED, ease: CONSUMER_EASE }
-            );
-            return triggered;
           }
         }) as unknown as Transition
     };

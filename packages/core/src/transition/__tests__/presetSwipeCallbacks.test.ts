@@ -5,8 +5,8 @@ import layoutPreset from "@transition/layout";
 import materialPreset from "@transition/material";
 
 import {
-  COMMIT_VELOCITY,
   DEFAULT_COMMIT_FRACTION,
+  DEFAULT_COMMIT_VELOCITY,
   resolveSwipeOptions
 } from "@transition/resolveSwipeOptions";
 import type { SwipeAnimate, SwipeInfo, Transition } from "@transition/typing";
@@ -128,31 +128,20 @@ describe("material's declared swipe", () => {
   });
 });
 
-describe("a transition written the flat way", () => {
-  // The shape flemo shipped first still resolves, so a consumer's transition
-  // keeps working without being rewritten.
-  it("resolves its direction and hooks through the same reader", () => {
-    const legacy = {
-      swipeDirection: "y",
-      onSwipeStart: async () => true,
-      onSwipe: () => 0,
-      onSwipeEnd: async () => true
-    } as unknown as Transition;
-    const swipe = resolveSwipeOptions(legacy)!;
-
-    expect(swipe.direction).toBe("y");
-    expect(swipe.onMove).toBe(legacy.onSwipe);
-    expect(swipe.onEnd).toBe(legacy.onSwipeEnd);
-    // Having taken the drag over, it keeps the screens.
-    expect(swipe.drivesScreens).toBe(false);
-  });
-
-  it("is not a swipe at all when it names no direction", () => {
+describe("a transition that declares no swipe", () => {
+  it("has no gesture, with nothing to turn off", () => {
     expect(resolveSwipeOptions({} as unknown as Transition)).toBeNull();
   });
+});
 
-  it("shares the speed at which a release navigates however little it travelled", () => {
-    expect(COMMIT_VELOCITY).toBe(20);
+describe("the presets' shared numbers", () => {
+  it("all take the same default commit speed, and none overrides it", () => {
+    // The 20 each of them used to write for itself. It is a default rather
+    // than a law: a consumer transition asks for 300, and a declarative drag
+    // needs somewhere to say so.
+    for (const preset of [cupertinoPreset, materialPreset, layoutPreset]) {
+      expect(swipeOf(preset as unknown as Transition).commitVelocity).toBe(DEFAULT_COMMIT_VELOCITY);
+    }
   });
 });
 

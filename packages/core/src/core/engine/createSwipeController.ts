@@ -1,7 +1,7 @@
 import animateInline, { clearInlineAnimation } from "@transition/animateInline";
 
 import { easeControlPoints } from "@transition/cubicBezier";
-import { COMMIT_VELOCITY, resolveSwipeOptions } from "@transition/resolveSwipeOptions";
+import { resolveSwipeOptions } from "@transition/resolveSwipeOptions";
 import { resolveRideTarget } from "@transition/rideOffset";
 import { reaimReleaseEase, releaseLaunchSlope, swipeSettleSeconds } from "@transition/swipeSettle";
 
@@ -1534,11 +1534,11 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       });
     } else {
       // FLEMO'S OWN VERDICT. Far enough, or still moving when the finger left:
-      // the two halves every preset had written for itself, in one place, with
-      // the distance authorable (`swipe.threshold`) and the speed not (see
-      // COMMIT_VELOCITY).
+      // the two halves every preset had written for itself, in one place, and
+      // both of them the transition's to name (`swipe.threshold`,
+      // `swipe.velocity`) with the presets' own numbers as the defaults.
       handlerTriggered =
-        travelled >= swipe.commitDistance(span) || velocityOnAxis > COMMIT_VELOCITY;
+        travelled >= swipe.commitDistance(span) || velocityOnAxis > swipe.commitVelocity;
       releaseTriggered = forceCancel ? false : handlerTriggered;
       // And its own clock. Nothing writes a screen on this path — the scrub is
       // handed back rather than animated to — so the settle length that the

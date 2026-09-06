@@ -68,10 +68,12 @@ describe("createSwipeController", () => {
       name: "swipe-test",
       initial: { x: "100%" },
       variants: fullVariants({ x: 0 }, { duration: 0.3 }),
-      swipeDirection: "x",
-      onSwipeStart,
-      onSwipe,
-      onSwipeEnd
+      swipe: {
+        direction: "x",
+        onStart: onSwipeStart,
+        onMove: onSwipe,
+        onEnd: onSwipeEnd
+      }
     } as unknown as Transition;
     config = {
       getTransition: () => transition,
@@ -270,7 +272,7 @@ describe("createSwipeController", () => {
   it("abandons intent when the live transition no longer supports swipe", async () => {
     const c = createSwipeController(config);
     c.pointerDown(event({ target: dom.scope }));
-    transition = { ...transition, swipeDirection: undefined } as unknown as Transition;
+    transition = { ...transition, swipe: undefined } as unknown as Transition;
     c.pointerMove(event({ clientX: 40 }));
     await flush();
 

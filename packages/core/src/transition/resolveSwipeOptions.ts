@@ -1,20 +1,20 @@
 import type { SwipeInfo, SwipeOptions, Transition } from "@transition/typing";
 
 /**
- * The swipe a transition declares, in ONE shape, whichever way it wrote it.
+ * The swipe a transition declares, with its defaults filled in.
  *
- * `swipe: { direction }` is the surface; the flat `swipeDirection` and its
- * three hooks are the shape flemo shipped first and still accepts. Reading
- * both at every call site is how the two drift, so they are reconciled once,
- * here, and nothing downstream knows there were two.
- *
- * The defaults live here too, so "a direction is a complete swipe" is a fact
- * about this function rather than a promise made in a doc comment.
+ * A transition states as little as `{ direction }` and every caller downstream
+ * needs a complete answer: how far to commit, how fast, where the two sides
+ * are. Resolving that at each call site is how the defaults drift, so it
+ * happens once, here, and "a direction is a complete swipe" is a fact about
+ * this function rather than a promise made in a doc comment.
  */
 export interface ResolvedSwipe {
   direction: "x" | "y";
   /** How far the gesture must carry the screen to navigate, in px. */
   commitDistance: (span: number) => number;
+  /** How fast the finger must still be going to navigate regardless. */
+  commitVelocity: number;
   /** Where the two sides are along their travel, 0 to 1. */
   progress: (
     info: SwipeInfo,
@@ -46,13 +46,16 @@ export interface ResolvedSwipe {
 export const DEFAULT_COMMIT_FRACTION = 50 / 390;
 
 /**
- * The speed at which a release navigates however little it travelled.
+ * The speed at which a release navigates however little it travelled, unless
+ * the transition names its own.
  *
- * Not authorable, and deliberately: every preset had written the same 20, so
- * it is a property of "the finger was still going" rather than of any one
- * transition. A transition that wants a different rule takes over `onEnd`.
+ * 20 is what all three presets had written for themselves, and it is their
+ * taste rather than a law: a consumer transition asks for 300, a fifteen times
+ * harder flick. Without a way to name it, a declarative drag that wanted a
+ * different number would have to take over `onEnd` and give up the scrub for
+ * it.
  */
-export const COMMIT_VELOCITY = 20;
+export const DEFAULT_COMMIT_VELOCITY = 20;
 
 /**
  * Into 0-1, with NaN read as the start rather than as a hole.
@@ -67,14 +70,11 @@ const clamp01 = (value: number): number =>
 
 export const resolveSwipeOptions = (transition: Transition): ResolvedSwipe | null => {
   const swipe = transition.swipe;
-  const direction = swipe?.direction ?? transition.swipeDirection;
-  if (!direction) return null;
+  if (!swipe) return null;
 
-  const onStart = swipe ? swipe.onStart : transition.onSwipeStart;
-  const onMove = swipe ? swipe.onMove : transition.onSwipe;
-  const onEnd = swipe ? swipe.onEnd : transition.onSwipeEnd;
+  const { direction, onStart, onMove, onEnd } = swipe;
 
-  const threshold = swipe?.threshold;
+  const threshold = swipe.threshold;
   const commitDistance =
     typeof threshold === "function"
       ? threshold
@@ -82,7 +82,7 @@ export const resolveSwipeOptions = (transition: Transition): ResolvedSwipe | nul
         ? () => threshold
         : (span: number) => span * DEFAULT_COMMIT_FRACTION;
 
-  const declared = swipe?.progress;
+  const declared = swipe.progress;
   const progress = (info: SwipeInfo, span: number, travelled: number) => {
     const geometric = span > 0 ? travelled / span : 0;
     const reported = declared?.(info, span);
@@ -96,6 +96,7 @@ export const resolveSwipeOptions = (transition: Transition): ResolvedSwipe | nul
   return {
     direction,
     commitDistance,
+    commitVelocity: swipe.velocity ?? DEFAULT_COMMIT_VELOCITY,
     progress,
     onStart,
     onMove,

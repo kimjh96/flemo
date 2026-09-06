@@ -604,6 +604,11 @@ const EN: DocSection[] = [
                 "How far the gesture must carry the screen before the release navigates, in px. Defaults to 50px on a 390px screen, scaled to the screen it is on"
               ],
               [
+                "`velocity`",
+                "`number`",
+                "How fast the finger must still be going for the release to navigate however little it travelled. Defaults to 20"
+              ],
+              [
                 "`progress`",
                 "`(info, span) => number | { active, passive }`",
                 "Where the two sides are along their travel, 0 to 1. Defaults to how far the screen has been carried over its own width or height. A drag that resists or clamps says so here"
@@ -621,7 +626,7 @@ const EN: DocSection[] = [
               "A transition with no `swipe` has no gesture. There is nothing to switch off",
               "`progress` returns TWO numbers when the two sides walk at different rates. `material` is the case: the screen being pushed away travels its own height and keeps moving as its rubber band stretches, while the screen arriving underneath travels 56px and stops there",
               "The progress flemo computes drives the transition's decorator and every `Part` on both screens, so one gesture moves the whole scene (see the Part page)",
-              "The speed at which a release navigates however little it travelled is not authorable: every preset had written the same rule, so it belongs to the gesture rather than to any one transition"
+              "`threshold` and `velocity` are the two halves of one question: did the gesture earn the navigation by going far enough, or by still moving when the finger left. Either alone commits"
             ]
           },
           {
@@ -678,10 +683,6 @@ const EN: DocSection[] = [
               "`animate(element, target, options?)` writes values to a screen. Pass `{ duration: 0 }` to follow the finger, and a short duration with an `ease` to settle",
               "What it costs: a drag written a value at a time is not an animation as far as the compositor is concerned, so the RELEASE is the first commit of one. Measured on an iPhone at 41 to 49ms of dropped frames, on every release, however slow the gesture was. A declared drag does not pay it"
             ]
-          },
-          {
-            type: "p",
-            text: "The flat `swipeDirection`, `onSwipeStart`, `onSwipe` and `onSwipeEnd` this page used to document still work and are read the same way, so a transition written against them needs no change. New ones should declare `swipe`."
           },
           { type: "h", text: "Decorators" },
           {
@@ -787,7 +788,7 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "Parts take the same three hooks, `onSwipeStart`, `onSwipe`, and `onSwipeEnd`, in a per-element form. Each receives `(triggered, { animate, element, active })`, and `onSwipe` additionally gets the drag `progress` from 0 to 100, the same progress the screen transition reports (see the Transitions page). There is no pointer event and no screens here, just the wrapped `element`, `animate` to write to it, and `active` telling whether it sits on the current top screen (`true`) or the previous screen being revealed (`false`). The rhythm matches the screen hooks: `{ duration: 0 }` in `onSwipe` to follow the finger, and a short settle in `onSwipeEnd` where `triggered` says whether the swipe committed."
+            text: "Parts take their own three hooks, `onSwipeStart`, `onSwipe`, and `onSwipeEnd`, in a per-element form. Each receives `(triggered, { animate, element, active })`, and `onSwipe` additionally gets the drag `progress` from 0 to 100, the same progress the screen transition reports (see the Transitions page). There is no pointer event and no screens here, just the wrapped `element`, `animate` to write to it, and `active` telling whether it sits on the current top screen (`true`) or the previous screen being revealed (`false`). The rhythm is the one a transition's own `onMove` and `onEnd` use: `{ duration: 0 }` in `onSwipe` to follow the finger, and a short settle in `onSwipeEnd` where `triggered` says whether the swipe committed."
           },
           {
             type: "code",
@@ -1615,6 +1616,11 @@ const KO: DocSection[] = [
                 "놓았을 때 넘어가려면 화면을 얼마나 끌고 가야 하는지를 px로 정해요. 기본값은 390px 화면에서의 50px이고, 실제 화면 폭에 맞춰 늘어나요"
               ],
               [
+                "`velocity`",
+                "`number`",
+                "아무리 조금 갔어도 넘어가게 만드는 속도예요. 손가락이 놓이는 순간 이보다 빠르면 넘어가요. 기본값은 20이에요"
+              ],
+              [
                 "`progress`",
                 "`(info, span) => number | { active, passive }`",
                 "두 면이 각자 얼마나 왔는지를 0에서 1로 알려줘요. 기본값은 화면이 자기 폭이나 높이에서 얼마나 끌려왔는가예요. 저항이 있거나 도중에 멈추는 드래그는 여기에 적어요"
@@ -1632,7 +1638,7 @@ const KO: DocSection[] = [
               "`swipe`가 없는 트랜지션은 제스처가 없어요. 따로 꺼야 할 게 없어요",
               "`progress`가 숫자 두 개를 반환하는 건 두 면이 서로 다른 비율로 걷기 때문이에요. `material`이 그 사례예요. 밀려나는 화면은 자기 높이만큼 가야 해서 고무줄이 늘어나는 동안 계속 움직이고, 밑에서 올라오는 화면은 56px에서 도착해 멈춰요",
               "flemo가 계산한 진행도가 그 트랜지션의 데코레이터와 양쪽 화면의 모든 `Part`를 함께 몰아요. 제스처 하나가 장면 전체를 끌어요(Part 페이지 참고)",
-              "아무리 조금 갔어도 넘어가게 만드는 속도 기준은 저자가 못 바꿔요. 프리셋 셋이 전부 같은 규칙을 쓰고 있었으니, 그건 특정 트랜지션이 아니라 제스처의 성질이에요"
+              "`threshold`와 `velocity`는 한 질문의 두 반쪽이에요. 충분히 멀리 갔는가, 아니면 놓는 순간까지 움직이고 있었는가. 둘 중 하나만 넘어도 넘어가요"
             ]
           },
           {
@@ -1686,10 +1692,6 @@ const KO: DocSection[] = [
               "`animate(element, target, options?)`는 화면에 값을 써요. `{ duration: 0 }`을 주면 손가락을 따라가고, 짧은 duration과 `ease`를 주면 착지예요",
               "대가가 있어요. 값을 한 프레임씩 쓰는 드래그는 합성기 입장에서 애니메이션이 아니라서, 놓는 순간이 애니메이션의 첫 커밋이 돼요. 아이폰에서 매 릴리스마다 41~49ms의 프레임 유실로 측정됐고, 제스처가 느려도 똑같았어요. 선언형 드래그는 이 값을 내지 않아요"
             ]
-          },
-          {
-            type: "p",
-            text: "이 페이지가 예전에 설명하던 평면 형태(`swipeDirection`, `onSwipeStart`, `onSwipe`, `onSwipeEnd`)도 같은 방식으로 읽히니 그대로 동작해요. 새로 쓰는 트랜지션은 `swipe`로 적어 주세요."
           },
           { type: "h", text: "데코레이터" },
           {
@@ -1792,7 +1794,7 @@ const KO: DocSection[] = [
           },
           {
             type: "p",
-            text: "파트도 같은 훅 세 개(`onSwipeStart`, `onSwipe`, `onSwipeEnd`)를 요소 단위 형태로 받아요. 각각 `(triggered, { animate, element, active })`를 받고, `onSwipe`엔 0에서 100까지의 드래그 `progress`가 더 붙어요. 화면 트랜지션이 보고하는 바로 그 진행도예요(Transitions 페이지 참고). 여기엔 포인터 이벤트도 화면도 없어요. 감싼 `element`와, 거기에 값을 쓰는 `animate`, 그리고 그 요소가 현재 맨 위 화면에 있는지(`true`) 드러나는 이전 화면에 있는지(`false`)를 알려주는 `active`뿐이에요. 리듬은 화면 훅과 같아요. `onSwipe`에선 `{ duration: 0 }`으로 손가락을 따라가고, `onSwipeEnd`에선 짧게 안착하며 `triggered`가 스와이프 커밋 여부를 알려줘요."
+            text: "파트는 자기 훅 세 개(`onSwipeStart`, `onSwipe`, `onSwipeEnd`)를 요소 단위 형태로 받아요. 각각 `(triggered, { animate, element, active })`를 받고, `onSwipe`엔 0에서 100까지의 드래그 `progress`가 더 붙어요. 화면 트랜지션이 보고하는 바로 그 진행도예요(Transitions 페이지 참고). 여기엔 포인터 이벤트도 화면도 없어요. 감싼 `element`와, 거기에 값을 쓰는 `animate`, 그리고 그 요소가 현재 맨 위 화면에 있는지(`true`) 드러나는 이전 화면에 있는지(`false`)를 알려주는 `active`뿐이에요. 리듬은 트랜지션의 `onMove`·`onEnd`와 같아요. `onSwipe`에선 `{ duration: 0 }`으로 손가락을 따라가고, `onSwipeEnd`에선 짧게 안착하며 `triggered`가 스와이프 커밋 여부를 알려줘요."
           },
           {
             type: "code",

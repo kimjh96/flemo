@@ -65,6 +65,22 @@ export interface SwipeOptions {
    */
   threshold?: number | ((span: number) => number);
   /**
+   * The speed at which a release navigates however little it travelled, in the
+   * units of `SwipeInfo.velocity`.
+   *
+   * The distance half of the verdict asks whether the gesture went far enough;
+   * this asks whether it was still going when the finger left. A flick that
+   * covers 20px and lets go at speed reads as "go", and a slow drag parked
+   * short of `threshold` reads as "come back".
+   *
+   * The default is the 20 all three presets had written for themselves, which
+   * is their taste rather than a law: a consumer transition in this repo's own
+   * app asks for 300, a fifteen times harder flick. Without this a declarative
+   * drag has no way to ask for a different one, and taking over `onEnd` to
+   * carry a single number costs it the scrub.
+   */
+  velocity?: number;
+  /**
    * Where the gesture is along its own travel, 0 to 1, per side.
    *
    * The default is geometric: how far the screen has been carried over its own
@@ -135,12 +151,12 @@ export interface SwipeOptions {
 /**
  * A transition's non-keyframe options.
  *
- * IT USED TO BE A UNION discriminated on `swipeDirection`, so that the hooks
- * could be required alongside it. Every option added to the swipe then had to
- * be declared absent on the other arm as well (`swipeDirection?: never`) or a
- * caller holding the union could not read it without narrowing first, and the
- * padding grew with the surface. One optional object says the same thing —
- * present is a swipe, absent is not — and says it once.
+ * IT USED TO BE A UNION discriminated on a flat `swipeDirection`, with the
+ * three hooks required alongside it. Every option added to the swipe then had
+ * to be declared absent on the other arm as well (`swipeDirection?: never`) or
+ * a caller holding the union could not read it without narrowing first, and
+ * the padding grew with the surface. One optional object says the same thing,
+ * present is a swipe and absent is not, and says it once.
  */
 export type TransitionOptions = {
   decoratorName?: DecoratorName;
@@ -153,19 +169,6 @@ export type TransitionOptions = {
   // take it per transition.
   driver?: "native";
   swipe?: SwipeOptions;
-
-  /**
-   * @deprecated Write `swipe: { direction }` instead. Read through
-   * `resolveSwipeOptions`, which accepts either shape, so a transition
-   * written against this keeps working unchanged.
-   */
-  swipeDirection?: "x" | "y";
-  /** @deprecated Write `swipe: { onStart }` instead. */
-  onSwipeStart?: SwipeOptions["onStart"];
-  /** @deprecated Write `swipe: { onMove }` instead. */
-  onSwipe?: SwipeOptions["onMove"];
-  /** @deprecated Write `swipe: { onEnd }` instead. */
-  onSwipeEnd?: SwipeOptions["onEnd"];
 };
 
 export interface BaseTransition {

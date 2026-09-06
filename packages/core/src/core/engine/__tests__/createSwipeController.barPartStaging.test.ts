@@ -100,9 +100,12 @@ describe("createSwipeController shared-bar part staging", () => {
   let atCommit: { staged: number; inBar: number } | null;
 
   const handlers = (commits: boolean) => ({
-    onSwipeStart: vi.fn(async () => true),
-    onSwipe: vi.fn(() => undefined),
-    onSwipeEnd: vi.fn(async () => commits)
+    swipe: {
+      direction: "x",
+      onStart: vi.fn(async () => true),
+      onMove: vi.fn(() => undefined),
+      onEnd: vi.fn(async () => commits)
+    }
   });
 
   const buildConfig = (
@@ -114,7 +117,6 @@ describe("createSwipeController shared-bar part staging", () => {
         name: "swipe-part-staging-test",
         initial: { x: "100%" },
         variants: fullVariants({ x: 0 }, { duration: 0.3 }),
-        swipeDirection: "x",
         ...handlers(commits)
       }) as unknown as Transition,
     getDecorator: () => undefined,
@@ -224,8 +226,10 @@ describe("createSwipeController shared-bar part staging", () => {
             name: "swipe-part-staging-test",
             initial: { x: "100%" },
             variants: fullVariants({ x: 0 }, { duration: 0.3 }),
-            swipeDirection: "x",
-            onSwipeStart: vi.fn(async () => true),
+            swipe: {
+              direction: "x",
+              onStart: vi.fn(async () => true)
+            },
             // Reporting progress is what drives arming on each moved frame.
             onSwipe: vi.fn((_e, _info, ctx: { onProgress: (triggered: boolean) => void }) =>
               ctx.onProgress(true)

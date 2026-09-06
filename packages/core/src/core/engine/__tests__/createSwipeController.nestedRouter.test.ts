@@ -116,21 +116,23 @@ describe("swipe-back on a screen that hosts a nested Router", () => {
       // layer for the drag, so an empty stub is a shape the runtime cannot be
       // handed — the cast used to hide that.
       variants: fullVariants({ x: 0 }, { duration: 0.3 }),
-      swipeDirection: "x",
-      onSwipeStart: async (
-        _event: PointerEvent,
-        _info: unknown,
-        api: {
-          prevScreen: HTMLElement;
-          onStart: (triggered: boolean) => void;
-        }
-      ) => {
-        seen.prevScreen = api.prevScreen;
-        api.onStart(true);
-        return true;
-      },
-      onSwipe: () => 0,
-      onSwipeEnd: async () => false
+      swipe: {
+        direction: "x",
+        onStart: async (
+          _event: PointerEvent,
+          _info: unknown,
+          api: {
+            prevScreen: HTMLElement;
+            onStart: (triggered: boolean) => void;
+          }
+        ) => {
+          seen.prevScreen = api.prevScreen;
+          api.onStart(true);
+          return true;
+        },
+        onMove: () => 0,
+        onEnd: async () => false
+      }
     } as unknown as Transition;
 
     config = {

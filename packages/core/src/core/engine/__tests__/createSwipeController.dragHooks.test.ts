@@ -60,9 +60,10 @@ describe("createSwipeController drag hooks", () => {
   // A transition written the way EVERY built-in is: it returns `true` and never
   // calls a single one of the callbacks it is handed.
   const silentHandlers = (progressFromReturn: boolean) => ({
-    onSwipeStart: vi.fn(async () => true),
-    onSwipe: vi.fn(() => (progressFromReturn ? 42 : undefined)),
-    onSwipeEnd: vi.fn(async () => true)
+    direction: "x" as const,
+    onStart: vi.fn(async () => true),
+    onMove: vi.fn(() => (progressFromReturn ? 42 : undefined)),
+    onEnd: vi.fn(async () => true)
   });
 
   const buildConfig = (handlers: ReturnType<typeof silentHandlers>): SwipeControllerConfig => ({
@@ -71,8 +72,7 @@ describe("createSwipeController drag hooks", () => {
         name: "drag-hooks-test",
         initial: { x: "100%" },
         variants: fullVariants({ x: 0 }, { duration: 0.3 }),
-        swipeDirection: "x",
-        ...handlers
+        swipe: handlers
       }) as unknown as Transition,
     getDecorator: () => undefined,
     getElements: () => ({
@@ -200,7 +200,9 @@ describe("createSwipeController drag hooks", () => {
       getTransition: () =>
         ({
           ...(config.getTransition() as unknown as Record<string, unknown>),
-          swipeDirection: "y"
+          swipe: {
+            direction: "y"
+          }
         }) as unknown as ReturnType<typeof config.getTransition>
     };
 
@@ -235,7 +237,9 @@ describe("createSwipeController drag hooks", () => {
       getTransition: () =>
         ({
           ...(config.getTransition() as unknown as Record<string, unknown>),
-          swipeDirection: "y"
+          swipe: {
+            direction: "y"
+          }
         }) as unknown as ReturnType<typeof config.getTransition>
     };
 
@@ -257,9 +261,10 @@ describe("createSwipeController drag hooks", () => {
     let releaseHandlerResolved = false;
     let reportedWhileHandlerRan = false;
     const handlers = {
-      onSwipeStart: vi.fn(async () => true),
-      onSwipe: vi.fn(() => 42),
-      onSwipeEnd: vi.fn(
+      direction: "x",
+      onStart: vi.fn(async () => true),
+      onMove: vi.fn(() => 42),
+      onEnd: vi.fn(
         async (
           _e: unknown,
           _i: unknown,
@@ -308,9 +313,10 @@ describe("createSwipeController drag hooks", () => {
     // at 21.8px on a swipe-back.
     let screenSeconds: number | null = null;
     const handlers = {
-      onSwipeStart: vi.fn(async () => true),
-      onSwipe: vi.fn(() => 42),
-      onSwipeEnd: vi.fn(
+      direction: "x",
+      onStart: vi.fn(async () => true),
+      onMove: vi.fn(() => 42),
+      onEnd: vi.fn(
         async (
           _e: unknown,
           _i: unknown,
