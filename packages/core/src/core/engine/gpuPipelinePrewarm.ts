@@ -17,11 +17,11 @@ import { TRANSITIONAL_STATUS_VALUES } from "@navigate/store";
 // the session's first flight has already compiled the pipelines and every
 // recorded flight is clean. Safari never shows it (no Dawn).
 //
-// The interaction-scoped compositor warm (Router) wakes the FRAME PIPELINE —
-// clock and power states — but its 1px solid probe never exercises these
-// pipeline variants, so it cannot front-load the compiles. This module does:
-// once per page, at idle, it mounts an imperceptible host (2% opacity, the
-// compositor warm-up's own trick) carrying the flight's draw shapes — a
+// Waking the FRAME PIPELINE — clock and power states — is a different job and
+// does not front-load these compiles: a solid probe never exercises the
+// pipeline variants a real flight draws. This module does: once per page, at
+// idle, it mounts an imperceptible host (2% opacity) carrying the flight's
+// draw shapes — a
 // textured layer WITH TEXT under a transform animation, and a translucent
 // quad under an opacity animation — runs them for a few frames, and removes
 // everything. Dawn compiles while the app is idle; the first flight then
@@ -54,10 +54,10 @@ const FALLBACK_DELAY_MS = 1200;
 const PROBE_ANIMATION_MS = 120;
 const PROBE_ITERATIONS = 3;
 
-// Invisible, inert, out of flow — the compositor warm-up's contract: the
-// host must PAINT (transparent content compiles nothing and Blink refuses
-// no-visible-change animations), and 2% opacity is imperceptible while still
-// producing real draws of the real pipeline variants.
+// Invisible, inert, out of flow, and yet the host must PAINT: transparent
+// content compiles nothing and Blink refuses no-visible-change animations.
+// 2% opacity is imperceptible while still producing real draws of the real
+// pipeline variants.
 const HOST_STYLE = "position:fixed;top:0;left:0;pointer-events:none;opacity:0.02;";
 const TEXTURED_LAYER_STYLE =
   "width:64px;height:64px;background:#888;color:#000;font-size:10px;" +

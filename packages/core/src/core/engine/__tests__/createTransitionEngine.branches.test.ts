@@ -20,13 +20,6 @@ import { partTransitionMap } from "@transition/partTransition/partTransition";
 // jsdom reads as non-Blink with no touch points, so these suites exercise the
 // COMPILED path — the only motion driver the engine has.
 
-// The warm-up element is session-RESIDENT (see compositorWarmUp.ts): a release
-// stops it forcing frames rather than removing it, so its attribute VALUE, not
-// its presence, is what says a hold is live.
-const WARM_ON = '[data-flemo-warm="on"]';
-const warmAnimationStub = () =>
-  ({ cancel: vi.fn(), pause: vi.fn(), play: vi.fn() }) as unknown as Animation;
-
 const deps = () => ({
   getTransitionTaskId: vi.fn(() => null),
   setDragStatus: vi.fn(),
@@ -1988,82 +1981,6 @@ describe("arrival-hold landing placement", () => {
   });
 });
 
-describe("compositor warm-up settle extension", () => {
-  it("keeps the warm-up forcing frames 400ms past COMPLETED, then idles it", () => {
-    vi.useFakeTimers();
-    const originalAnimate = Element.prototype.animate;
-    Element.prototype.animate = vi.fn(
-      warmAnimationStub
-    ) as unknown as typeof Element.prototype.animate;
-    try {
-      const { scope } = elements();
-      const engine = createTransitionEngine(deps());
-      const drive = (status: string) =>
-        engine.driveScreenLifecycle({
-          getElements: () => ({ scope, decorator: null, bars: [] }),
-          transitionName: "cupertino" as never,
-          prevTransitionName: "cupertino" as never,
-          status: status as never,
-          isActive: true,
-          animHoldReleased: true
-        });
-
-      const cleanupFlight = drive("PUSHING");
-      expect(document.querySelector(WARM_ON)).not.toBeNull();
-      cleanupFlight();
-
-      // COMPLETED: the warm-up must survive the settle window...
-      const cleanupRest = drive("COMPLETED");
-      expect(document.querySelector(WARM_ON)).not.toBeNull();
-      vi.advanceTimersByTime(399);
-      expect(document.querySelector(WARM_ON)).not.toBeNull();
-      // ...and end right after it.
-      vi.advanceTimersByTime(2);
-      expect(document.querySelector(WARM_ON)).toBeNull();
-      cleanupRest();
-    } finally {
-      Element.prototype.animate = originalAnimate;
-      vi.useRealTimers();
-    }
-  });
-
-  it("a new flight inside the settle window keeps the warm-up unbroken", () => {
-    vi.useFakeTimers();
-    const originalAnimate = Element.prototype.animate;
-    Element.prototype.animate = vi.fn(
-      warmAnimationStub
-    ) as unknown as typeof Element.prototype.animate;
-    try {
-      const { scope } = elements();
-      const engine = createTransitionEngine(deps());
-      const drive = (status: string) =>
-        engine.driveScreenLifecycle({
-          getElements: () => ({ scope, decorator: null, bars: [] }),
-          transitionName: "cupertino" as never,
-          prevTransitionName: "cupertino" as never,
-          status: status as never,
-          isActive: true,
-          animHoldReleased: true
-        });
-
-      drive("PUSHING")();
-      drive("COMPLETED")();
-      vi.advanceTimersByTime(200);
-      // Next navigation starts mid-settle: the pending release is cancelled.
-      drive("POPPING")();
-      vi.advanceTimersByTime(1000);
-      expect(document.querySelector(WARM_ON)).not.toBeNull();
-      // Its own COMPLETED starts a fresh settle window.
-      drive("COMPLETED")();
-      vi.advanceTimersByTime(401);
-      expect(document.querySelector(WARM_ON)).toBeNull();
-    } finally {
-      Element.prototype.animate = originalAnimate;
-      vi.useRealTimers();
-    }
-  });
-});
-
 describe("arrival-hold interrupt and SSR landing paths", () => {
   it("an interrupt lands held content immediately, before the new flight's first frame", async () => {
     const { scope } = elements();
@@ -2121,39 +2038,5 @@ describe("arrival-hold interrupt and SSR landing paths", () => {
     } finally {
       globalThis.requestAnimationFrame = originalRaf;
     }
-  });
-});
-
-describe("compositor warm-up without setTimeout", () => {
-  it("releases the warm hold immediately where timers do not exist", () => {
-    const originalAnimate = Element.prototype.animate;
-    Element.prototype.animate = vi.fn(
-      warmAnimationStub
-    ) as unknown as typeof Element.prototype.animate;
-    const { scope } = elements();
-    const engine = createTransitionEngine(deps());
-    const drive = (status: string) =>
-      engine.driveScreenLifecycle({
-        getElements: () => ({ scope, decorator: null, bars: [] }),
-        transitionName: "cupertino" as never,
-        prevTransitionName: "cupertino" as never,
-        status: status as never,
-        isActive: true,
-        animHoldReleased: true
-      });
-    drive("PUSHING")();
-    expect(document.querySelector(WARM_ON)).not.toBeNull();
-
-    const originalSetTimeout = globalThis.setTimeout;
-    // @ts-expect-error simulating an environment without timers for the
-    // release decision only (restored synchronously below).
-    globalThis.setTimeout = undefined;
-    try {
-      drive("COMPLETED")();
-    } finally {
-      globalThis.setTimeout = originalSetTimeout;
-      Element.prototype.animate = originalAnimate;
-    }
-    expect(document.querySelector(WARM_ON)).toBeNull();
   });
 });

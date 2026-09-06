@@ -127,9 +127,9 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   // (decorator, bars, parts, the passive scope) budget per drive-run instead —
   // their counters live and die with the wiring closure.
   const activeResumeCounts = new Map<string, number>();
-  // Every hold this screen owns across drive runs — the compositor warm-up,
-  // the in-flight arrival armor, the warm side's image hold and the settle
-  // timer. See flightHolds.ts; the two callbacks below are this engine's.
+  // Every hold this screen owns across drive runs — the in-flight arrival
+  // armor and the warm side's image hold. See flightHolds.ts; the two
+  // callbacks below are this engine's.
   const holds = createFlightHolds({
     landNow: () => landNow(),
     scheduleLanding: (land) => scheduleLanding(land)

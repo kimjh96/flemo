@@ -2,7 +2,7 @@
 
 The React binding over `@flemo/core`. The split is strict: core owns everything imperative and reusable (task queue, stores, engine, compiled styles, gesture math); this package owns React wiring — rendering the declarative state (data-attributes, inline styles) core's engine reads, and calling core at the right lifecycle moments.
 
-flemo's AMBIENT machinery is NOT this package's to run. `startFlemoRuntime()` (`@flemo/core`) owns the GPU prewarm, the image-decode offload and the interaction compositor warm-up — none of which is React, and all of which a second binding would otherwise reimplement. A Router starts it on mount and releases on unmount; that lifetime decision is the binding's whole share of it.
+flemo's AMBIENT machinery is NOT this package's to run. `startFlemoRuntime()` (`@flemo/core`) owns the GPU prewarm and the image-decode offload — neither of which is React, and both of which a second binding would otherwise reimplement. A Router starts it on mount and releases on unmount; that lifetime decision is the binding's whole share of it.
 
 Per-browser decisions are NOT this package's to make. `resolvePlatformProfile()` (`@flemo/core`) returns every one of them as a named field; this package asks and renders. It calls no engine probe of its own: a grep for `detectBlinkEngine()` in `src/` returns nothing, and it should stay that way. The one input core cannot see is whether a transition authored `driver: "native"`, so that is passed in. Resolve the profile PER DECISION; never hoist one, or a DevTools toggle stops taking effect.
 
@@ -20,7 +20,7 @@ Engine internals live in the engine's own comments — `createTransitionEngine.t
   - Resolution is pure and synchronous, BEFORE any task is queued: the chosen scope's own stores/driver/markSelfInduced/life run the whole navigation, and a dev error lands on the caller's stack instead of an unhandled rejection. Route ownership (`ownsRoute`) is checked per navigation: explicit target → dev throw, implicit target → dev warn (legacy behavior preserved) unless `strictRoutes`. Diagnostics go through `@utils/devDiagnostics`, gated on `process.env.NODE_ENV`, which vite.config.mts deliberately does NOT fold at library-build time.
 - **Hydration**: `data-flemo-router` (the flight-boundary marker the engine scopes `<Part>` collection by) is `useId`-based but withheld until after hydration — useId encodes position from the hydration root, so mismatched server/client roots would surface as a hydration mismatch on the one flemo attribute that reaches DOM.
 - **Liveness**: `stores.life.alive` flips in a LAYOUT effect (a passive effect flushes after the reveal paints; a traversal task in that window would see a visible zone as dead and skip its transition).
-- **Prewarm/offloader effects**: `ensureGpuPipelinePrewarm` (one-shot boot), interaction-scoped `holdCompositorWarm` (renewed ≤2/s while the user interacts, 3s tail), and `ensureImageDecodeOffloader`, gated by the profile's `imageDecodeOffload` on the image rather than the device.
+- **Prewarm/offloader effects**: `ensureGpuPipelinePrewarm` (one-shot boot) and `ensureImageDecodeOffloader`, gated by the profile's `imageDecodeOffload` on the image rather than the device.
 - **Slot**: `findSlotRoutes` walks the static JSX for a `<Slot>`; with one, `children` is persistent chrome and the Slot renders the stack; without, children are routes.
 
 ## ScreenMotion (`src/screen/ScreenMotion.tsx`) — the binding god-file

@@ -66,8 +66,6 @@ The COMPLETED effect force-clears inline residue on the scope, parts, and decora
 
 `layerSettleHold` keeps participant compositor promotions pinned until `LAYER_SETTLE_MS` after the flip and until the flight window is idle, avoiding a full-viewport demotion repaint on convergence frames.
 
-Compositor warm-up begins at the first transitional commit and remains active for `WARM_SETTLE_MS = 400` after COMPLETED to preserve vsync cadence through convergence work.
-
 ## Inline leases
 
 `transition/animateInline.ts` tracks every flemo inline CSS write in a WeakMap as `property → { original, owners: Set<symbol> }`.
@@ -99,7 +97,6 @@ PR #259, merged 2026-08-17, fixed this by explicitly clearing `transform` and `o
 | `imageDecodeOffloader.ts` | Off-main decode-to-scale for oversized images, gated on the image rather than the device. |
 | `flightWindow.ts` | Global nestable flight-in-progress latch. |
 | `layerSettleHold.ts` | Pins promotions and defers demotion until the flight window is idle. |
-| `compositorWarmUp.ts` | Refcounted invisible 48×48 background-position animation that repaints through flight and settle. The element is session-resident; its `on`/`idle` attribute value indicates whether it is forcing frames. |
 | `gpuPipelinePrewarm.ts` | One-shot boot-idle probes that compile Chrome Graphite GPU pipelines before the first flight. |
 | `steadySixtyCadence.ts` | Desktop-profile cadence verdict for settle gating, unpainted image hold, and rest promotion. It does not route drivers; desktop uses compiled motion. |
 | `perceptualSpan.ts` | `perceptualCutMs` and `channelValue` imperceptibility math, shared by the cut and early landing. |

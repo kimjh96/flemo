@@ -450,10 +450,10 @@ const CUT_STEP = "steps(1, start)";
 // An element at opacity 0 paints nothing, so there is no raster for the step to
 // promote and the frame it fires on can reach the glass with nothing on it:
 // device-read on a consumer's tab switch, one wholly blank frame between the
-// copy going and the arrival arriving, in one direction only. The engine's
-// compositor warm-up is the same fact from the other side and settles on the
-// same number — 0.006 of anything composites under one quantization step, and
-// this one is under an opaque copy for every frame it applies to.
+// copy going and the arrival arriving, in one direction only. So the arrival
+// paints, at the smallest opacity that still counts as painting: 0.006 of
+// anything composites under one quantization step, and this one is under an
+// opaque copy for every frame it applies to.
 const HELD_OPACITY = 0.006;
 
 // What a morph runs for when the screen transition it rides has no duration to
