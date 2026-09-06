@@ -50,14 +50,14 @@
     "@flemo/eslint-config": "workspace:*",
     "@flemo/tsconfig": "workspace:*",
     "@types/node": "^24.13.1",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.0",
     "csstype": "^3.2.3",
     "eslint": "^9.39.5",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.1",
     "typescript": "^6.0.3",
     "vite": "^8.2.2",
     "vite-plugin-dts": "^5.1.0",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   },
   "publishConfig": {
     "access": "public"
