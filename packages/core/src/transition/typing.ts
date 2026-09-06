@@ -65,6 +65,26 @@ export interface SwipeOptions {
    */
   threshold?: number | ((span: number) => number);
   /**
+   * Where the drag carries the DRAGGED screen, when that is not where this
+   * transition's pop takes it.
+   *
+   * The drag is this transition's own pop walked by the finger, and for most
+   * transitions that is exactly right. For some it is not: a drag may pull a
+   * screen down that the pop only fades, or dip an opacity the pop takes all
+   * the way to zero. Those differ in SHAPE rather than in rate, so `progress`
+   * cannot express them, and before this the only way to author one was to
+   * take over `onMove` and give up the scrub.
+   *
+   * Only the destination is named. The drag starts where the screen already
+   * is, which is the same pose the pop starts from, so it is read from the
+   * same table (see FROM_VARIANT).
+   *
+   * An empty target means the side does not move at all.
+   */
+  active?: TransitionTarget;
+  /** Where the drag carries the screen underneath. Terms as `active`. */
+  passive?: TransitionTarget;
+  /**
    * The speed at which a release navigates however little it travelled, in the
    * units of `SwipeInfo.velocity`.
    *

@@ -15,6 +15,11 @@ export interface ResolvedSwipe {
   commitDistance: (span: number) => number;
   /** How fast the finger must still be going to navigate regardless. */
   commitVelocity: number;
+  /**
+   * Where the drag itself carries each side, when that is not where the pop
+   * does. `undefined` means walk the pop, which is the case for most.
+   */
+  dragTo: { active: SwipeOptions["active"]; passive: SwipeOptions["passive"] };
   /** Where the two sides are along their travel, 0 to 1. */
   progress: (
     info: SwipeInfo,
@@ -97,6 +102,7 @@ export const resolveSwipeOptions = (transition: Transition): ResolvedSwipe | nul
     direction,
     commitDistance,
     commitVelocity: swipe.velocity ?? DEFAULT_COMMIT_VELOCITY,
+    dragTo: { active: swipe.active, passive: swipe.passive },
     progress,
     onStart,
     onMove,

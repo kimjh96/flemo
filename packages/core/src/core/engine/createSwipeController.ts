@@ -1,12 +1,13 @@
 import animateInline, { clearInlineAnimation } from "@transition/animateInline";
 
+import type { TransitionTarget } from "@transition/cssTypes";
 import { easeControlPoints } from "@transition/cubicBezier";
 import { resolveSwipeOptions } from "@transition/resolveSwipeOptions";
 import { resolveRideTarget } from "@transition/rideOffset";
 import { reaimReleaseEase, releaseLaunchSlope, swipeSettleSeconds } from "@transition/swipeSettle";
 
 import type { BaseTransition, Transition, TransitionVariant } from "@transition/typing";
-import { resolveVariantMotion } from "@transition/variantMotion";
+import { resolveVariantFromValue, resolveVariantMotion } from "@transition/variantMotion";
 
 import findScrollable from "@utils/findScrollable";
 
@@ -588,12 +589,33 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const swipe = swipeOf();
     if (!swipe?.drivesScreens || screenScrub) return;
 
+    // THE DRAG'S OWN DESTINATION, when the transition named one.
+    //
+    // The drag is the pop walked by the finger, and for most transitions that
+    // is exactly right. A drag that goes somewhere ELSE differs in shape
+    // rather than rate, so `progress` cannot express it, and it used to have
+    // to take over `onMove` and lose the scrub for it. Naming the destination
+    // keeps the scrub: the START is unchanged either way, because the screen
+    // is already sitting where the pop would begin.
+    const motionFor = (variant: TransitionVariant, dragTo: TransitionTarget | undefined) => {
+      const pop = resolveVariantMotion(transition, variant);
+      if (!dragTo) return pop;
+      const from = resolveVariantFromValue(transition, variant);
+      // An empty destination is a side that does not move, and a rest variant
+      // has no `from` to move it from.
+      if (from === null || Object.keys(dragTo).length === 0) return null;
+      // The clock is still the pop's: it is the CEILING the release is scaled
+      // against, and a drag that ends elsewhere lands on the same one.
+      return { from, to: dragTo, duration: pop?.duration ?? 0, delay: 0, ease: pop?.ease };
+    };
+
     const collect = (
       screen: HTMLElement,
       bars: HTMLElement[],
-      variant: TransitionVariant
+      variant: TransitionVariant,
+      dragTo: TransitionTarget | undefined
     ): RiderSwipe | null => {
-      const motion = resolveVariantMotion(transition, variant);
+      const motion = motionFor(variant, dragTo);
       if (!motion) return null;
       const riders: RiderMotion[] = [{ element: screen, motion }];
       // A shared bar takes the screen's own values with its percentage axis
@@ -617,8 +639,13 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
 
     // A swipe is always a swipe-BACK, so the dragged screen takes the pop's
     // active side and the screen returning underneath takes its passive one.
-    const active = collect(scope, ridingBars.current, "POPPING-true");
-    const passive = collect(screenUnderneath, ridingBars.prev, "POPPING-false");
+    const active = collect(scope, ridingBars.current, "POPPING-true", swipe.dragTo.active);
+    const passive = collect(
+      screenUnderneath,
+      ridingBars.prev,
+      "POPPING-false",
+      swipe.dragTo.passive
+    );
     // A transition whose pop animates nothing stages nothing, and then owns
     // nothing: `isScrubbed` has to say no, or a shell of nulls would swallow
     // the writes of the one hook such a transition can still be holding.

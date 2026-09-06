@@ -385,6 +385,38 @@ describe("a swipe declared with nothing but a direction", () => {
     expect(dom.scope.style.transform).toBe("");
   });
 
+  it("walks the drag's own destination when the transition names one", async () => {
+    // THE CASE THAT USED TO NEED HOOKS. A drag that goes somewhere other than
+    // the pop differs in SHAPE rather than rate, so `progress` cannot express
+    // it, and before this the only way to author one was to take over `onMove`
+    // and pay the release's first animation commit for the whole gesture.
+    const controller = createSwipeController(
+      buildConfig(declared({ active: { x: "40%" }, passive: {} }))
+    );
+    controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
+    controller.pointerMove(event({ clientX: 40, clientY: 100 }));
+    await flush();
+
+    const staged = ANIMATED.find((entry) => entry.element === dom.scope);
+    // Its own end, not the pop's `100%`.
+    expect(JSON.stringify(staged?.keyframes)).toContain("40%");
+    expect(JSON.stringify(staged?.keyframes)).not.toContain("100%");
+
+    // An empty destination is a side that does not move, and it is not staged
+    // at all rather than staged against a pose it will never reach.
+    expect(ANIMATED.map((entry) => entry.element)).not.toContain(dom.prevScope);
+  });
+
+  it("keeps the pop's destination for a transition that names none", async () => {
+    const controller = createSwipeController(buildConfig(declared()));
+    controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
+    controller.pointerMove(event({ clientX: 40, clientY: 100 }));
+    await flush();
+
+    const staged = ANIMATED.find((entry) => entry.element === dom.scope);
+    expect(JSON.stringify(staged?.keyframes)).toContain("100%");
+  });
+
   it("stands aside for a transition that took the drag over", async () => {
     const onMove = vi.fn(() => 0);
     const controller = createSwipeController(

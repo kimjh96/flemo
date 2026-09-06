@@ -97,17 +97,18 @@ const layout = createTransition({
     // there is no longer a clock to match by hand.
     swipe: {
       direction: "y",
-      // THIS ONE KEEPS ITS HOOKS, and it is the case that shows why the hooks
-      // are not vestigial.
+      // THIS ONE KEEPS ITS HOOKS, and what it needs is narrower than it used
+      // to be.
       //
-      // The declarative drag walks a transition's own pop keyframes, and
-      // layout's pop is a pure fade: `enterBack` is `opacity: 0` and nothing
-      // moves. Its DRAG is not that — the screen is pulled down, with a slight
-      // fade behind it, and only then does the fade take over. The shape
-      // differs, not just the rate, so no progress mapping can express it.
+      // `swipe.active` covers a drag that merely goes somewhere the pop does
+      // not. layout's does more than that: its two properties move at
+      // DIFFERENT RATES within the same side. The opacity is done at 56px
+      // while the y is 56 out of a whole screen height, and the commit then
+      // carries the y the rest of the way while the opacity stays put. One
+      // scrubbed keyframe walked by one progress cannot say both.
       //
-      // So layout drives its own screens, pays the release's first commit, and
-      // is exactly the escape hatch `onMove` exists to be.
+      // So layout drives its own screens, pays the release's first animation
+      // commit, and is what `onMove` exists for.
       onStart: async () => {
         return true;
       },

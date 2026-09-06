@@ -604,6 +604,16 @@ const EN: DocSection[] = [
                 "How far the gesture must carry the screen before the release navigates, in px. Defaults to 50px on a 390px screen, scaled to the screen it is on"
               ],
               [
+                "`active` / `passive`",
+                "`TransitionTarget`",
+                "Where the drag carries each side, when that is not where the pop takes it. Only the destination: the drag starts where the screen already is. An empty target means that side does not move"
+              ],
+              [
+                "`active` / `passive`",
+                "`TransitionTarget`",
+                "드래그가 각 면을 어디로 데려가는지예요. pop이 가는 곳과 다를 때만 적으면 돼요. 도착지만 적어요. 출발은 화면이 이미 있는 자리니까요. 빈 값은 그 면이 움직이지 않는다는 뜻이에요"
+              ],
+              [
                 "`velocity`",
                 "`number`",
                 "How fast the finger must still be going for the release to navigate however little it travelled. Defaults to 20"
@@ -653,7 +663,7 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "A drag whose SHAPE differs from the transition's pop cannot be declared. `layout` is the built-in example: its pop is a pure fade, but its drag pulls the screen down first. Write `onMove` and `onEnd` and the screens are yours for the whole gesture, which is also how a drag that is not an interpolation at all — one that follows the finger in two axes, or shrinks as it goes — is built."
+            text: "A drag that merely ends somewhere the pop does not is declared with `active` and `passive`. What still needs a hook is a drag whose two properties move at DIFFERENT RATES within one side. `layout` is the built-in example: its opacity is done at 56px while its `y` is 56px into a whole screen height, and the commit carries the `y` the rest of the way while the opacity stays put. One scrubbed keyframe walked by one progress cannot say both. Write `onMove` and `onEnd` and the screens are yours for the whole gesture, which is also how a drag that is not an interpolation at all — one that follows the finger in two axes, or shrinks as it goes — is built."
           },
           {
             type: "table",
@@ -1662,7 +1672,7 @@ const KO: DocSection[] = [
           { type: "h", text: "화면을 직접 몰기" },
           {
             type: "p",
-            text: "드래그의 모양 자체가 그 트랜지션의 pop과 다르면 선언으로는 표현할 수 없어요. 내장 `layout`이 그 사례예요. pop은 순수 페이드인데 드래그는 화면을 아래로 당기거든요. `onMove`와 `onEnd`를 적으면 제스처 내내 화면이 저자 것이 돼요. 두 축을 자유롭게 따라가거나 끌면서 작아지는 것처럼, 애초에 보간이 아닌 드래그도 이렇게 만들어요."
+            text: "pop이 가지 않는 곳으로 끝나는 드래그는 `active`와 `passive`로 선언해요. 훅이 여전히 필요한 건 한 면 안에서 두 속성이 서로 다른 속도로 움직이는 드래그예요. 내장 `layout`이 그 사례예요. opacity는 56px에서 이미 끝나는데 `y`는 화면 높이 중 56px밖에 못 갔고, 커밋이 나머지 `y`를 마저 옮기는 동안 opacity는 그대로예요. 스크럽되는 키프레임 하나를 진행도 하나로 걸어서는 둘 다 말할 수 없어요. `onMove`와 `onEnd`를 적으면 제스처 내내 화면이 저자 것이 돼요. 두 축을 자유롭게 따라가거나 끌면서 작아지는 것처럼, 애초에 보간이 아닌 드래그도 이렇게 만들어요."
           },
           {
             type: "table",
