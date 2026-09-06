@@ -34,6 +34,25 @@ export type SwipeAnimate = (
 ) => Promise<void>;
 
 /**
+ * One pose along a drag, and where the drag reaches it.
+ *
+ * A single destination makes every property travel at one rate, because one
+ * progress walks one keyframe. Some drags do not: a screen may finish fading
+ * a third of the way across while it is still sliding out for the rest of it.
+ * Naming the pose at that third is what lets the two rates coexist without
+ * handing the whole drag to a hook.
+ *
+ * `at` is where along the drag this pose is reached, 0 to 1, and the last stop
+ * is the end whether or not it says so. It is spelled `at` rather than
+ * `offset` because `offset` is already a CSS property and `TransitionTarget`
+ * carries the whole CSS vocabulary.
+ */
+export interface SwipeStop {
+  at?: number;
+  value: TransitionTarget;
+}
+
+/**
  * Everything a transition says about its swipe, in one place.
  *
  * WRITING NOTHING BUT A DIRECTION IS A COMPLETE SWIPE. The drag is this
@@ -80,11 +99,13 @@ export interface SwipeOptions {
    * is, which is the same pose the pop starts from, so it is read from the
    * same table (see FROM_VARIANT).
    *
-   * An empty target means the side does not move at all.
+   * An empty target means the side does not move at all. A LIST of stops (see
+   * `SwipeStop`) says the drag passes through poses on the way, which is how
+   * two properties travel at different rates.
    */
-  current?: TransitionTarget;
+  current?: TransitionTarget | readonly SwipeStop[];
   /** Where the drag carries the screen underneath. Terms as `current`. */
-  prev?: TransitionTarget;
+  prev?: TransitionTarget | readonly SwipeStop[];
   /**
    * The speed at which a release navigates however little it travelled, in the
    * units of `SwipeInfo.velocity`.

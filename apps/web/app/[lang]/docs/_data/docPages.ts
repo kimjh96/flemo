@@ -605,13 +605,13 @@ const EN: DocSection[] = [
               ],
               [
                 "`current` / `prev`",
-                "`TransitionTarget`",
-                "Where the drag carries each screen, when that is not where the pop takes it. The same two the hooks are handed as `currentScreen` and `prevScreen`. Only the destination is named: the drag starts where the screen already is. An empty target means that screen does not move"
+                "`TransitionTarget` | `SwipeStop[]`",
+                "Where the drag carries each screen, when that is not where the pop takes it. The same two the hooks are handed as `currentScreen` and `prevScreen`. Only the destination is named: the drag starts where the screen already is. An empty target means that screen does not move, and a list of stops means it passes through poses on the way"
               ],
               [
                 "`current` / `prev`",
-                "`TransitionTarget`",
-                "드래그가 각 화면을 어디로 데려가는지예요. pop이 가는 곳과 다를 때만 적으면 돼요. 훅이 넘겨주는 `currentScreen`·`prevScreen`과 같은 둘이에요. 도착지만 적어요. 출발은 화면이 이미 있는 자리니까요. 빈 값은 그 화면이 안 움직인다는 뜻이에요"
+                "`TransitionTarget` | `SwipeStop[]`",
+                "드래그가 각 화면을 어디로 데려가는지예요. pop이 가는 곳과 다를 때만 적으면 돼요. 훅이 넘겨주는 `currentScreen`·`prevScreen`과 같은 둘이에요. 도착지만 적어요. 출발은 화면이 이미 있는 자리니까요. 빈 값은 그 화면이 안 움직인다는 뜻이고, 스톱 배열을 주면 가는 길에 그 포즈들을 거쳐 가요"
               ],
               [
                 "`velocity`",
@@ -663,7 +663,16 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "No built-in preset writes these any more. `layout`'s gesture is not its pop at all, and it is still declared: the pop is a pure fade, the drag pulls the sheet down and slides it out, and `current` says so. What is left for a hook is a drag whose properties move at DIFFERENT RATES within one screen, because one scrubbed keyframe walked by one progress cannot say two rates. A drag that follows the finger in two axes at once, or one that is not an interpolation between two poses at all, is the other reason. Write `onMove` and `onEnd` and the screens are yours for the whole gesture, which is also how a drag that is not an interpolation at all — one that follows the finger in two axes, or shrinks as it goes — is built."
+            text: "No built-in preset writes these any more, and neither does a drag whose properties travel at different rates. One that has spent its opacity a third of the way across while it keeps sliding for the rest names the pose at that third:"
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'current: [\n  { at: 0.3, value: { x: "30%", opacity: 0 } },\n  { value: { x: "100%", opacity: 0 } }\n]'
+          },
+          {
+            type: "p",
+            text: "`at` is where along the drag the stop is reached, 0 to 1, and the last stop is the end. What is left for a hook is a drag that is not an interpolation between poses at all: one that follows the finger in two axes at once, or shrinks as it is carried about. There is no line to place an arbitrary pose on, so those drive their own screens and pay the release commit for it."
           },
           {
             type: "table",
@@ -1672,7 +1681,16 @@ const KO: DocSection[] = [
           { type: "h", text: "화면을 직접 몰기" },
           {
             type: "p",
-            text: "이제 내장 프리셋 중에 이 훅을 쓰는 건 없어요. `layout`의 제스처는 자기 pop과 아예 다르지만 그래도 선언형이에요. pop은 순수 페이드인데 드래그는 시트를 아래로 당겼다가 미끄러뜨리고, 그걸 `current`가 말해 주거든요. 훅이 남아 있는 건 한 화면 안에서 속성들이 서로 다른 속도로 움직이는 드래그 때문이에요. 스크럽되는 키프레임 하나를 진행도 하나로 걸어서는 두 속도를 말할 수 없으니까요. 두 축을 동시에 따라가거나, 애초에 두 포즈 사이의 보간이 아닌 드래그도 마찬가지예요. `onMove`와 `onEnd`를 적으면 제스처 내내 화면이 저자 것이 돼요. 두 축을 자유롭게 따라가거나 끌면서 작아지는 것처럼, 애초에 보간이 아닌 드래그도 이렇게 만들어요."
+            text: "이제 내장 프리셋 중에 이 훅을 쓰는 건 없고, 한 화면 안에서 속성 속도가 갈리는 드래그도 아니에요. opacity는 폭의 3분의 1에서 다 쓰는데 미끄러지는 건 끝까지 가는 드래그라면, 그 3분의 1 지점의 포즈를 적으면 돼요."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'current: [\n  { at: 0.3, value: { x: "30%", opacity: 0 } },\n  { value: { x: "100%", opacity: 0 } }\n]'
+          },
+          {
+            type: "p",
+            text: "`at`은 드래그의 어디에서 그 포즈에 닿는지예요(0에서 1). 마지막 스톱이 끝이고요. 훅이 남아 있는 건 애초에 포즈 사이의 보간이 아닌 드래그예요. 두 축을 동시에 따라가거나 끌려다니며 작아지는 것처럼요. 임의의 포즈를 올려놓을 선분이 없으니 그런 드래그는 화면을 직접 몰고, 릴리스 커밋 값을 냅니다."
           },
           {
             type: "table",

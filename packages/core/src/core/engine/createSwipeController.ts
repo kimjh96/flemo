@@ -6,8 +6,15 @@ import { resolveSwipeOptions } from "@transition/resolveSwipeOptions";
 import { resolveRideTarget } from "@transition/rideOffset";
 import { reaimReleaseEase, releaseLaunchSlope, swipeSettleSeconds } from "@transition/swipeSettle";
 
-import type { BaseTransition, Transition, TransitionVariant } from "@transition/typing";
-import { resolveVariantFromValue, resolveVariantMotion } from "@transition/variantMotion";
+import type { BaseTransition, SwipeStop, Transition, TransitionVariant } from "@transition/typing";
+import {
+  resolveVariantFromValue,
+  resolveVariantMotion,
+  type MotionTarget
+} from "@transition/variantMotion";
+
+/** What a transition may name as where its drag carries one screen. */
+type DragDestination = TransitionTarget | readonly SwipeStop[] | undefined;
 
 import findScrollable from "@utils/findScrollable";
 
@@ -598,23 +605,41 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // to take over `onMove` and lose the scrub for it. Naming the destination
     // keeps the scrub: the START is unchanged either way, because the screen
     // is already sitting where the pop would begin.
-    const motionFor = (variant: TransitionVariant, dragTo: TransitionTarget | undefined) => {
+    const motionFor = (variant: TransitionVariant, declared: DragDestination) => {
       const pop = resolveVariantMotion(transition, variant);
-      if (!dragTo) return pop;
+      if (!declared) return pop;
       const from = resolveVariantFromValue(transition, variant);
+      // A LIST is the drag passing through poses on its way, which is how two
+      // properties reach their values at different points of one gesture. The
+      // last stop is the end; the rest are handed to the keyframe with where
+      // they sit (see `SwipeStop`).
+      const stops = Array.isArray(declared)
+        ? (declared as readonly SwipeStop[])
+        : [{ value: declared as TransitionTarget }];
+      const last = stops[stops.length - 1];
       // An empty destination is a side that does not move, and a rest variant
-      // has no `from` to move it from.
-      if (from === null || Object.keys(dragTo).length === 0) return null;
+      // has no pose to move it from.
+      if (from === null || !last || Object.keys(last.value).length === 0) return null;
+      const via = stops
+        .slice(0, -1)
+        .map((stop) => ({ at: stop.at ?? 0, value: stop.value as MotionTarget }));
       // The clock is still the pop's: it is the CEILING the release is scaled
       // against, and a drag that ends elsewhere lands on the same one.
-      return { from, to: dragTo, duration: pop?.duration ?? 0, delay: 0, ease: pop?.ease };
+      return {
+        from,
+        to: last.value,
+        via: via.length > 0 ? via : undefined,
+        duration: pop?.duration ?? 0,
+        delay: 0,
+        ease: pop?.ease
+      };
     };
 
     const collect = (
       screen: HTMLElement,
       bars: HTMLElement[],
       variant: TransitionVariant,
-      dragTo: TransitionTarget | undefined
+      dragTo: DragDestination
     ): RiderSwipe | null => {
       const motion = motionFor(variant, dragTo);
       if (!motion) return null;
@@ -630,7 +655,11 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
             ? {
                 ...motion,
                 from: resolveRideTarget(motion.from, rideScreenHeight),
-                to: resolveRideTarget(motion.to, rideScreenHeight)
+                to: resolveRideTarget(motion.to, rideScreenHeight),
+                via: motion.via?.map((stop) => ({
+                  at: stop.at,
+                  value: resolveRideTarget(stop.value, rideScreenHeight)
+                }))
               }
             : motion
         });
