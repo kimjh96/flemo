@@ -32,23 +32,19 @@ Former engine keys are inert, but devtools enumerates them so they are not mista
 
 Use `Object.entries(sessionStorage).filter(([k]) => k.startsWith("flemo:"))` or the recorder report to inspect stored keys. No discovered engine key can affect flight behavior; treat it as archaeology, clear it, and continue.
 
-## 3. `window.__flemoPlayerGaps`
+## 3. There are no `window.__flemo*` globals
 
-This is the only surviving `window.__flemo*` global. `transitionPlayer.ts` mirrors the rolling last 600 rAF-player frame gaps, in milliseconds, at module load. Read it on-device to inspect the player's clock. Readings such as `gap max 42ms / miss 3 per 120` indicate real starvation: roughly two or three dropped frames produce one visible hitch.
-
-`motion-perception.spec.ts` also reads this mirror to detect stalled CI runners. It is populated only while the player drives; compiled-routed sessions produce no data.
+`window.__flemoPlayerGaps` mirrored the rAF motion player's frame gaps. Both the global and `transitionPlayer.ts` were removed when the player was retired, and nothing replaced them: a compiled flight has no main-thread clock to read. Frame evidence now comes from a recording or a screenshot-energy probe, not from a global.
 
 ## 4. E2E helpers (`apps/web/e2e/`)
 
-- `helpers/flemo.ts` provides `activeScreen` and `allScreens` for `data-flemo-*` locators; `waitForNavIdle(page)`, which waits until no screen is PUSHING, POPPING, or REPLACING plus a 150 ms grace period; and `trackConsoleErrors`, which filters network 404 noise. Never use fixed waits with the rAF player: its capped clock can legitimately extend a flight beyond any fixed delay on a stalled runner.
-- `motion-perception.spec.ts` contains player-tier guardrails. `openPlaygroundWithPinnedPlayer` pins the player before app startup:
+- `helpers/flemo.ts` provides `activeScreen` and `allScreens` for `data-flemo-*` locators; `waitForNavIdle(page)`, which waits until no screen is PUSHING, POPPING, or REPLACING plus a 150 ms grace period; and `trackConsoleErrors`, which filters network 404 noise.
+- `swipe-release.spec.ts` and `swipe-declared.spec.ts` drive a real pointer against the compiled CSS and read what the screens and the dim actually carry. They are the nets for defects a unit test cannot see: the relationship between two elements' computed styles at one instant of a gesture, and whether an engine walks the keyframes a declaration assembled.
+- Bound a landing by its own travel rather than by a fraction of the box. A rAF sampler on a slow runner catches the same flight in bigger pieces, so a bound in pixels measures the runner. That mistake failed a probe twice on CI while it passed fourteen times in a row locally.
+- Prove a probe fails before trusting it. Forcing `swipeSettleSeconds` to return 0 turns every release into a cut, which is what the flick case claims to catch.
+- `morph-first-frame.spec.ts` and `devtools-production.spec.ts` cover the morph's opening frame and that the devtools import is inert in a production bundle.
 
-  ```js
-  page.addInitScript(() => sessionStorage.setItem("flemo:motion-driver-force", `raf@${Date.now()}`))
-  ```
-
-  Player-mechanics tests call `test.skip` on WebKit and desktop Chromium because the rAF player is production-only on touch Blink. They run in the `mobile-chromium` Playwright project with Pixel 7 emulation. The #259 guard, “a pinned desktop player lands a re-entry on-screen,” intentionally runs on desktop Chromium. A `css@…` pin test verifies both the pin warning and that the player remained disabled. Since PR #257, CI runs `--project=chromium --project=mobile-chromium`.
-- `perception/heavy-shell.mjs` is a manual motion-energy harness using Playwright video and ffmpeg `tblend`. It measures `{ intermediateFrames, freezeMs }` for the content-first contract across engine, driver pin, transition, and mount-block matrices. Follow its header and run it against `next start`, never a development build.
+CI runs `--project=chromium --project=mobile-chromium`. Running only one of them locally is how a desktop-only failure reaches CI unseen.
 
 ## 5. Observation pitfalls
 

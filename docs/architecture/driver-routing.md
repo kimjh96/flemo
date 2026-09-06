@@ -1,100 +1,65 @@
-# Driver routing — the decision tree
+# Flight routing: which opening a flight gets
 
-Verbatim-accurate from `createTransitionEngine.ts` (`joinPlayer`, `forceCompiledStatus`), `driverPolicy.ts`, `lowPowerCadence.ts`, and `motionDriverKind.ts` on main as of 2026-08-17 (`46a2b00`, post-#259). `joinPlayer` returning **null** means the compiled CSS tier drives; a successful join means the rAF player (numeric or scrub-WAAPI) drives. Every participant of one navigation calls through the same gates with the same transition and status, so a navigation never splits across drivers.
+Accurate from `core/engine/flightRouting.ts` and the platform predicates it reads.
 
-## The gates, in order
+**There is no driver choice left.** Every flight is driven by the compiled CSS animation. The rAF motion player, the demotion strike machinery, the `driver: "player"` pin and the whole `flemo:*` override surface were retired (`f32c2cc`, `28d0377`, `47332c9`, `2be1e05`); a document describing which of two tiers wins is describing a decision that no longer exists.
 
-0. **Pin surfaced, unconditionally.** `driverPolicy.pinnedDriver()` is called once at `joinPlayer` entry _before any routing_, purely so the force-pin console warning fires even on paths that short-circuit below — "a forgotten pin must never run silently". (This call does not route; the pin's routing effects are noted per gate.)
+What is routed now is narrower and is one call: given this browser, this navigation's status and this transition's authored options, **which opening treatment does the flight get, and may the engine touch its clock**. `resolveFlightRouting` answers it once per drive run, reading its probes live so a verdict formed mid-session lands on the next navigation.
 
-1. **Chain gate (Blink only).** `detectBlinkEngine() && TaskManager.pendingTaskIds.some(id => id !== taskId)` → **compiled**. A replay chain (rapid back/forward storm) rides the compositor on Blink, where queued mount commits stall a main-thread player while the compositor glides. On non-Blink, chains ride the _player_ — the compiled clock there is stamped a whole pipeline before first glass and a chained flight born into a heavy commit is swallowed wholesale (device-video'd: chained pop as a one-frame swap).
+## What it is asked
 
-2. **Blink compiled gate.** On Blink, unless `pinnedDriver() === "raf"`, ANY of:
-   - `navigator.maxTouchPoints === 0` (**desktop Blink — unconditional**, not cadence-measured: an adaptive ProMotion panel idles at 60Hz, so a load-time probe lies per-session),
-   - `learnedFrameIntervalMs() < 12` (**high-refresh**: between 90Hz and 120Hz on one side, 60Hz on the other; a 30Hz throttled cadence never qualifies),
-   - `!driverPolicy.playerAllowed()` (**demoted** by the strike machinery, or a `css` pin),
-   - `isLegacyAndroidBlink()` (**legacy Android**, no UA-CH brands — confidently pre-2021 hardware, skips the per-session player probe that janked its first push)
-
-   → **compiled** (+ the display-interval re-probe is armed).
-
-   **The raf pin pierces this whole gate** (`driverPolicy.pinnedDriver() !== "raf" &&` prefixes the condition — as of PR #259, merged 2026-08-17): a pinned session must player-drive everything to be a useful instrument, and it is the only route to the player's per-frame device-pixel snap on desktop. History matters here: the pierce was briefly retired in PR #256 because a pinned desktop re-entry (push→pop→push) left the entering screen at its from-pose (`translateX(100%)`) — a blank viewport. PR #259 proved that blank was NOT a player defect but a COMPLETED-cleanup lease bug (see motion-engine.md section 3), fixed the cleanup (explicit pose-channel strip), added a desktop-chromium e2e guard ("a pinned desktop player lands a re-entry on-screen"), and restored the pierce. **Default desktop routing is unchanged: compiled, always.**
-
-3. **Desktop WebKit gate.** `!Blink && maxTouchPoints === 0 && /Mac/.test(platform)` → **compiled**. macOS Safari caps rAF at 60Hz even on a 120Hz panel, so the player can only ever paint half the display's frames (eye-verified tremor/judder; the css-pinned session cleared it). Desktop-WebKit compiled flights arm the one-shot birth-window start anchor (`armFlightStartAnchorAtRelease`, rewind form only). Real iPhones/iPads — including iPads spoofing a Mac platform — report `maxTouchPoints > 0` and skip this gate; jsdom reports an empty platform and stays on the player for the unit suites.
-
-4. **Touch WebKit status gate** (`forceCompiledStatus`): `!Blink && maxTouchPoints > 0` and
-   - `status === "POPPING" && !readHandoffFlag()`, or
-   - `status === "PUSHING" && readSettleGateFlag() && !readHandoffFlag()`
-
-   → **compiled**. `readSettleGateFlag()` defaults on for touch WebKit (`governedCompiledActive()`), touch Blink, and verified steady-60 desktop Blink — the table in `diagnosticFlags.ts` is the tested source of truth. `governedCompiledActive()` is true for every touch-WebKit session (see gate 5) — so by default both POP and PUSH route compiled here. `flemo:handoff=on` exempts both statuses from _this_ gate (the player+handoff instrument), but note gate 5 below.
-
-5. **Touch WebKit governed-compiled gate.** `!Blink && maxTouchPoints > 0 && governedCompiledActive() && status ∈ {REPLACING, POPPING, PUSHING}` → **compiled** (+ re-probes the LPM cadence per routed flight).
-
-   `governedCompiledActive()` (lowPowerCadence.ts) is today simply _"non-Blink + touch + rAF exists"_ — the governed-compiled treatment (compiled tier + `data-flemo-lpm` flat-head keyframes + settle gate + atomic release flip) was promoted from "detected Low Power Mode only" to the **default for every touch-WebKit flight** (device-confirmed on a 60Hz iPhone with LPM off). Consequences worth knowing:
-   - ALL transitional statuses on touch WebKit route compiled — this gate catches even what gate 4's handoff exemption lets through, so on current main the `flemo:handoff` flag no longer reaches the player on touch WebKit (its remaining effect is inside the player for pinned/`raf` sessions). Several older comments in `joinPlayer` ("TOUCH WebKit keeps the device-verified player, wholesale") predate this promotion — trust the code order, not those paragraphs.
-   - Actual-LPM detection (`lowPowerCadenceActive`) still runs and persists (`flemo:lpm`) but no longer changes routing; the flat-head sizes (`LPM_HEAD_MS` = REPLACING 180 / PUSHING 100 / POPPING 80 ms) apply to every governed flight as _deadline offsets_ + static gated keyframes.
-   - Chained flights are NOT exempted here (the pending-chain guard was removed: navigations serialize at the controller, so a lingering pending task is not a real concurrent flight; the block a chain guard would absorb is handled by the settle gate instead).
-
-6. **Demotion gate.** `!driverPolicy.playerAllowed()` → **compiled**. Covers non-Blink engines with a `css` pin (demotion itself is Blink-only — `demotable` is `detectBlinkEngine()` — because on main-thread-presenting engines "demoting" swaps freeze-and-continue for freeze-and-jump).
-
-7. **Kind gate.** Unless `pinnedDriver() === "raf"`, `classifyTransitionDriver()` is consulted: it returns an authored `driver: "native" | "player"` pin if present, else `"player"` on every engine (the measured fast-mover carve-out is retired; `peakTranslationPxPerFrame` stays exported). `"native"` → **compiled** (with the native-surgery anchors for authored pins). A `raf` pin bypasses this gate — a pinned session must player-drive everything to be a useful instrument.
-
-8. **Join.** The player registry joins scope, riding bars, decorator, and `<Part>`s; a variant neither tier can drive (no WAAPI _and_ not numerically parseable) returns null per-track and the compiled path stays in charge for it.
-
-### Demotion strikes / probation / persistence (`driverPolicy.ts`)
-
-- A player run's gaps are judged at `endRun` against the run's final measured cadence (`max(30ms, 1.8 × frameInterval)`); ≥ 2 long gaps in one run = a _stalled_ run, ≥ `DEMOTION_STRIKES = 2` stalled runs = **demoted** (irreversible within the session) and persisted to `localStorage["flemo:motion-driver"] = "css"`.
-- A persisted demotion is **probation**, not a life sentence: each new session the player gets one probe transition; clean → record cleared (`"raf"` written), stalled → re-demoted from flight one. Non-demotable (non-Blink) policies ignore any persisted record.
-- The `flemo:motion-driver-force` pin (`"css@<epoch-ms>"` / `"raf@<epoch-ms>"`, sessionStorage, 24h TTL, unstamped/stale values removed on sight) bypasses measurement, strikes, and probation in `playerAllowed()`/`pinnedDriver()` — but NOT gates 1–6 above except where noted.
-
-### What each `flemo:*` override does to routing
-
-| Key | Routing effect |
+| Input | Meaning |
 | --- | --- |
-| `flemo:motion-driver-force=raf@<ts>` | `playerAllowed()` true regardless of demotion; **pierces the whole Blink compiled gate (2)** — desktop, high-refresh, demoted, legacy — and bypasses the kind gate (7). Does NOT pierce the chain gate (1), the desktop-WebKit gate (3), or the touch-WebKit gates (4–5). Warned once per session, expires in 24h. |
-| `flemo:motion-driver-force=css@<ts>` | `playerAllowed()` false → gate 6 routes everything compiled. |
-| `flemo:motion-driver` (localStorage) | The learned demotion ledger — production state, never set by hand. |
-| `flemo:handoff=on` | Exempts POP/PUSH from gate 4 and enables the player's anchored-opening handoff (POP-scoped inside the player). On current main, gate 5 still routes touch WebKit compiled, so its practical reach is pinned/`raf` sessions and unit tests. |
-| `flemo:settle-gate=on/off` | Feeds gate 4's PUSH branch and the ScreenMotion release gate. Default = on for touch WebKit, touch Blink, and verified steady-60 desktop Blink; off elsewhere. |
-| `flemo:lpm=1/0` | Session-persisted LPM verdict seed (production state) — affects the cadence machinery, not routing, since the governed treatment no longer keys off it. |
-| `flemo:apply=scrub` | Not routing — forces the scrub-WAAPI application tier for every _player_ track. |
-| `flemo:snap`, `flemo:snapband`, `flemo:handoffms`, `flemo:landing-snap` | Value-application / easing shape only, no tier change (see diagnostics.md). |
+| `status` | `PUSHING` / `POPPING` / `REPLACING` / `COMPLETED` / `IDLE` |
+| `transition` | The authored transition, read only for `driver: "native"` |
+| `skipAnimation` | The scope carries the skip marker for this flight |
+| `hasActiveMotion` | The active variant resolves a motion |
+| `hasAnimation` | The active variant has an authored animation at all |
 
-## Decision tree
+## What it answers
 
-```
-joinPlayer(variant, role):
-  driverPolicy.pinnedDriver()            # surface pin warning, always
-  ├─ no transition task id ──────────────────────────────► compiled
-  ├─ [1] Blink && replay chain pending ──────────────────► compiled
-  ├─ [2] Blink && pin != raf && (desktop(maxTouchPoints==0)
-  │        || learnedInterval < 12ms
-  │        || !playerAllowed()
-  │        || legacyAndroidBlink) ───────────────────────► compiled  (+probe)
-  │                                       (raf pin pierces this whole gate — PR #259)
-  ├─ [3] WebKit && desktop Mac (no touch) ───────────────► compiled  (+birth anchor)
-  ├─ [4] WebKit && touch && forceCompiledStatus(status) ─► compiled
-  │        POP: default (unless flemo:handoff=on)
-  │        PUSH: settle-gate on (default) && !handoff
-  ├─ [5] WebKit && touch && governedCompiledActive()     ─► compiled  (governed head,
-  │        && status ∈ {PUSH,POP,REPLACE}                    data-flemo-lpm, atomic flip)
-  │        governedCompiledActive() == true for ALL touch WebKit today
-  ├─ [6] !playerAllowed() (css pin / demoted) ───────────► compiled
-  ├─ [7] pin != raf && classify() == "native"
-  │        (authored driver:"native" only) ──────────────► compiled  (+native surgery)
-  └─ otherwise ──────────────────────────────────────────► rAF PLAYER
-           per-track: numeric parse ok → inline-write tier
-                      else WAAPI ok    → scrub tier
-                      else             → that track stays compiled
-```
-
-## Worked examples
-
-| Context | Route on current main | Extras riding along |
+| Field | True when | What it turns on |
 | --- | --- | --- |
-| iPhone Safari, normal | Governed **compiled** for PUSH/POP/REPLACE (gates 4+5) | Settle gate on by default, `data-flemo-lpm` flat-head keyframes (180/100/80ms), atomic DOM release flip, NO wall-clock perceptual cut/early landing, no stall watch |
-| iPhone Safari, Low Power Mode | Same governed **compiled** path (routing identical; LPM detection persists `flemo:lpm` but no longer gates) | rAF-capped ~30Hz observers; latency ledger (`flemo:lat`) sizes nothing visual — flat head is static |
-| Pixel 9, Chrome (touch Blink, UA-CH brands) | **Player** — unless the learned interval measures < 12ms (a 120Hz panel actively presenting), which flips it to high-refresh **compiled** with the governed landing easing | Demotion strikes armed; chain gate applies (chains → compiled) |
-| Galaxy Note 9, Samsung Internet (touch Blink, no UA-CH) | **Compiled from flight one** (`isLegacyAndroidBlink`) | Governed head kit (`routedBlinkGoverned` → `data-flemo-lpm` + LPM_HEAD_MS deadlines); image decode offloader auto-on |
-| Desktop Chrome | **Compiled**, unconditionally (gate 2) | Governed landing easing, frame-pacing keepalive rAF (session-permanent once armed), display-interval probe |
-| Desktop Chrome + `flemo:motion-driver-force=raf@…` | **Player** (pin pierces gate 2; PR #259). Pin warning printed once per session; re-entries land on-screen thanks to the COMPLETED pose strip, e2e-guarded on desktop chromium | Player snap instrumentation reachable on desktop again |
-| Desktop Safari | **Compiled** (gate 3) | One-shot birth-window start anchor at release |
-| jsdom / unit suites | **Player** (empty platform skips gate 3; no touch, non-Blink) | This is why unit tests exercise the player by default |
+| `hasDrivableMotion` | not skipped and the active variant resolves | there is motion to drive at all |
+| `nativeSurgeryAllowed` | `driver: "native"` and not Blink | the engine may hold, anchor and re-anchor this flight's clock |
+| `touchGoverned` | non-Blink and touch | the governed compiled tier |
+| `forceCompiled` | non-Blink, touch, and `POPPING`, or `PUSHING` with the settle gate on | stands the wall-clock accelerators down |
+| `governedHead` | `touchGoverned`, or legacy Android Blink, or `forceCompiled` | the flat opening segment baked into the keyframes |
+| `desktopHead` | desktop macOS Safari | that tier's own flat head, with its own lengths and gate attribute |
+| `birthHoldMs` | see the table below | how long the flat head holds |
+| `governedSlide` | `touchGoverned` and `PUSHING` or `POPPING` | stands the wall-clock accelerators down for a slide |
+| `framePacingKeepalive` | has an animation, Blink, and desktop or a measured high-refresh cadence | keeps a frame source alive so Chrome paces its presentation evenly |
+| `creepHead` | `governedHead` on the governed tier | the head's end keyframe carries a translateZ hair, so the value changes across it |
+
+Head lengths, in milliseconds:
+
+| Kit | REPLACING | PUSHING | POPPING |
+| --- | ---: | ---: | ---: |
+| governed (`GOVERNED_HEAD_MS`) | 180 | 100 | 80 |
+| desktop macOS Safari (`DESKTOP_HEAD_MS`) | 33 | 33 | 17 |
+
+The desktop lengths are derived from a 60Hz pipeline, two frames for an entry and one for a pop, rather than inherited from the governed table. Arming the desktop head retires the birth anchor: two interventions on one clock is the pairing the touch tier was built to avoid.
+
+## Why clock surgery is opt in
+
+`nativeSurgeryAllowed` is the one field an author can move, and it is off by default. The first-frame hold, the flight-start anchor and stall re-anchoring all mutate a running animation's timing, and the 2026-08 iPhone falsification series established that on WebKit any such touch costs the accelerated out-of-process path or desyncs its re-sync. The default runs the compiled animation untouched and protects the opening by release scheduling instead. Writing `driver: "native"` takes the main-thread-presentation trade knowingly, and never applies on Blink.
+
+## Why the head kit is extracted
+
+`resolveHeadKit(status)` is a pure function of the platform and the status, with nothing about the flight in it, because the morph runtime needs the same answer at a moment when it cannot get it from the DOM. The head is announced by an attribute on the root, written by the engine in the same commit a morph is staged in, and React runs a descendant's layout effect first. A morph reading the attribute reads the previous flight's answer: right by luck from the second navigation on, and wrong on the first. That is what made a first push run its element 33ms ahead of the screen carrying it while every push after it was aligned.
+
+## The predicates
+
+| Predicate | Source |
+| --- | --- |
+| `detectBlinkEngine()` | `@platform/engineProbes` |
+| touch | `navigator.maxTouchPoints > 0`, and no navigator means no touch surface |
+| `governedCompiledActive()` | non-Blink and touch (`@platform/governedCompiled`) |
+| `isLegacyAndroidBlink()` | no UA-CH brands, so confidently pre-2021 hardware |
+| `isDesktopMacWebKit()` | `@platform/engineProbes` |
+| `settleGateActive()` | governed compiled, or steady-60 desktop Blink, or touch Blink, or desktop macOS Safari |
+| `learnedFrameIntervalMs()` | the measured cadence, against `COMPILED_TIER_MAX_INTERVAL_MS` |
+
+## A known gap, deliberately open
+
+A modern but weak touch Blink device (UA-CH present, so not legacy) used to earn the governed head kit through the demotion machinery, which is gone. The render-settle gate covers the same mount weight from the other side and is default on for touch Blink. Extending the kit to all touch Blink is the obvious next lever and must not be taken blind: the 2026-08-14 round reverted exactly that blanket treatment when fast devices picked up the compiled landing snap.
