@@ -1,3 +1,5 @@
+import type { MorphTransitionOptions } from "@flemo/react";
+
 // Docs content, migrated from the previous MDX docs and refined for the flemo
 // zone. Slugs are shared across locales; copy is localized (Korean in a friendly
 // 해요체). Inline `code` uses backticks. Examples are framework-neutral. No
@@ -15,6 +17,24 @@ export interface DocPage {
   title: string;
   blocks: DocBlock[];
 }
+
+// THE MORPH OPTION TABLE, KEYED BY THE API ITSELF.
+//
+// `Record<keyof MorphTransitionOptions, string>` is the whole point: rename or
+// drop an option in core and this file stops compiling, instead of the table
+// quietly describing something that no longer exists. It already did — `scale`
+// and `anchor` outlived the API they documented, and `crossFade`'s default was
+// a number the runtime had moved on from — which is what a reader hits before
+// anyone else notices.
+//
+// The prose stays hand-written per locale; only the KEYS are held to the type.
+type MorphOptionCopy = Record<keyof MorphTransitionOptions, string>;
+
+const morphOptionRows = (copy: MorphOptionCopy): string[][] =>
+  (Object.keys(copy) as (keyof MorphTransitionOptions)[]).map((option) => [
+    `\`${option}\``,
+    copy[option]
+  ]);
 
 export interface DocSection {
   title: string;
@@ -906,7 +926,7 @@ const EN: DocSection[] = [
               "The source's box is measured the instant the navigation starts, while it is still where you last saw it",
               "It leaves its screen for the flight and returns on landing, so no scroll container, no opaque arrival and no sliding transition can get in the way of the travel",
               "It lands on its real layout box, so the resting frame is pixel-exact by construction",
-              "Its corner radius is carried across, pre-divided by the scale so it reads at its authored size on both ends"
+              "Its corner radius is carried across, interpolated between the two ends' own authored values"
             ]
           },
           {
@@ -945,22 +965,14 @@ const EN: DocSection[] = [
             type: "table",
             headers: ["Option", "What it does"],
             rows: [
-              [
-                "`crossFade`",
-                "Share of the flight over which the two sides hand over (0-1, default 0.12)"
-              ],
-              [
-                "`scale`",
-                "`box` matches the partner per axis; `width` / `height` scale by one ratio and distort nothing; `none` only moves"
-              ],
-              [
-                "`anchor`",
-                "Which point the two boxes share: `centre`, or `start` for left-aligned content"
-              ],
-              [
-                "`radius`",
-                "Interpolate `border-radius` with scale-corrected endpoints (default true)"
-              ],
+              ...morphOptionRows({
+                crossFade:
+                  "Share of the flight over which the copy of the replaced element dissolves into the arrival (0-1, default 0.55). `0` carries no copy and cuts to the arrival's content on the first frame",
+                radius:
+                  "Interpolate `border-radius` across the flight (default true). Nothing is scaled, so the two ends' own values are the whole story",
+                carry:
+                  '`"screen"` moves the whole screen with the element instead of the element alone, which is what makes a card opening into a full view read as the camera moving rather than the card escaping. The built-in `zoom` preset is `shared` plus this'
+              }),
               [
                 "`enter` / `exit`",
                 "The arriving element and the one it replaces, animating at the same time"
@@ -1852,7 +1864,7 @@ const KO: DocSection[] = [
               "이동이 시작되는 순간 출발 요소의 박스를 재요. 사용자가 마지막으로 본 그 자리예요",
               "비행 동안 요소는 자기 화면을 떠났다가 착지할 때 돌아와요. 스크롤 컨테이너도, 불투명한 도착 화면도, 미끄러지는 트랜지션도 이동을 방해할 수 없어요",
               "실제 레이아웃 박스에 착지하므로, 정지 프레임은 구조적으로 픽셀 단위까지 정확해요",
-              "모서리 반경도 함께 옮겨가요. 스케일로 미리 나눠 두어서 양 끝에서 작성한 크기 그대로 보여요"
+              "모서리 반경도 함께 옮겨가요. 양 끝에서 작성한 값 사이를 보간해요"
             ]
           },
           {
@@ -1877,13 +1889,14 @@ const KO: DocSection[] = [
             type: "table",
             headers: ["옵션", "역할"],
             rows: [
-              ["`crossFade`", "두 면이 넘겨받는 구간, 전체 길이 대비 비율(0-1, 기본 0.12)"],
-              [
-                "`scale`",
-                "`box`는 축별로 짝에 맞추고, `width`/`height`는 한 비율로만 키워 왜곡이 없으며, `none`은 이동만"
-              ],
-              ["`anchor`", "두 상자가 겹칠 기준점. `centre`, 좌측 정렬 콘텐츠라면 `start`"],
-              ["`radius`", "스케일 보정된 양 끝값으로 `border-radius` 보간(기본 true)"],
+              ...morphOptionRows({
+                crossFade:
+                  "대체되는 요소의 복사본이 도착 요소로 녹아드는 구간, 전체 길이 대비 비율(0-1, 기본 0.55). `0`이면 복사본을 들지 않고 첫 프레임부터 도착 요소의 내용으로 잘라요",
+                radius:
+                  "비행 내내 `border-radius`를 보간해요(기본 true). 스케일 보정은 없고, 양 끝의 값이 전부예요",
+                carry:
+                  '`"screen"`이면 요소만이 아니라 화면 전체가 함께 움직여요. 카드가 전체 화면으로 열릴 때 카드가 격자에서 도망치는 게 아니라 카메라가 옮겨간 것으로 읽히게 하는 옵션이에요. 빌트인 `zoom` 프리셋이 `shared`에 이걸 더한 것이에요'
+              }),
               ["`enter` / `exit`", "도착 요소와 그것이 대체하는 요소, 동시에 움직여요"],
               ["`options.duration`", "비우면 비행 중인 화면의 길이를 물려받아 화면과 함께 착지해요"]
             ]
