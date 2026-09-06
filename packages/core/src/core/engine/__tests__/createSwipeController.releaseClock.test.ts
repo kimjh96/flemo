@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AnimationOptions, TransitionTarget } from "@transition/cssTypes";
+import { MAX_RELEASE_SPEEDUP } from "@transition/swipeSettle";
 import type { Transition } from "@transition/typing";
 import { TRANSITION_VARIANTS } from "@transition/variantMotion";
 
@@ -354,11 +355,18 @@ describe("the release clock", () => {
   });
 
   it("keeps a flick short instead of stretching it to the authored span", async () => {
-    // Same distance, covered fast: the finger's own speed decides.
+    // Same distance, covered fast: the finger's own speed decides — up to the
+    // ceiling on how far a release may outrun the authored motion. This flick
+    // is past it (window/2 in 40ms), so it lands ON the ceiling rather than on
+    // whatever the pointer pair reported. See MAX_RELEASE_SPEEDUP for why that
+    // ceiling now reaches the speeds a hand produces.
     await release(Math.round(window.innerWidth / 2), 40);
 
+    const travelled = Math.round(window.innerWidth / 2) - 40;
+    const remainingFraction = (window.innerWidth - travelled) / window.innerWidth;
     const fast = secondsOn(dom.scope)!;
-    expect(fast).toBeLessThan(0.2);
+    expect(fast).toBeCloseTo((AUTHORED * remainingFraction) / MAX_RELEASE_SPEEDUP, 3);
+    expect(fast).toBeLessThan(AUTHORED);
   });
 
   it("never exceeds the duration the handler authored", async () => {

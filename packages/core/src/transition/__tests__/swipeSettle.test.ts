@@ -4,6 +4,7 @@ import { cubicBezier } from "@transition/cubicBezier";
 import {
   authoredTailSeconds,
   MIN_LAUNCH_SLOPE,
+  MAX_RELEASE_SPEEDUP,
   MIN_REVERSAL_SECONDS,
   MIN_SETTLE_SECONDS,
   RELEASE_LAUNCH_SLOPE,
@@ -35,11 +36,13 @@ describe("swipeSettleSeconds", () => {
   it("keeps a flick's momentum instead of slowing it to the authored span", () => {
     // 200px left at 2000px/s. The finger would cross it in 0.1s AT A CONSTANT
     // SPEED — but a landing decelerates, so the time it actually needs is
-    // RELEASE_LAUNCH_SLOPE x that. Solving for less is what forced the curve to
-    // open above the finger to arrive on time.
+    // RELEASE_LAUNCH_SLOPE x that, which is 0.16s. That is BELOW the speed
+    // ceiling, so the ceiling is what the release actually gets: 2000px/s is
+    // well past the band a hand covers, and honouring it there is the defect
+    // MAX_RELEASE_SPEEDUP exists to clip (see its note).
     expect(
       swipeSettleSeconds({ ...base, remainingPx: 200, velocityPxPerSecond: 2000 })
-    ).toBeCloseTo(0.16, 5);
+    ).toBeCloseTo((0.7 * (200 / 400)) / MAX_RELEASE_SPEEDUP, 5);
     // A moderate flick still lands between the two terms.
     expect(
       swipeSettleSeconds({ ...base, remainingPx: 300, velocityPxPerSecond: 1000 })
@@ -66,7 +69,7 @@ describe("swipeSettleSeconds", () => {
   it("reads speed and distance sign-agnostically (a y-axis or backward drag)", () => {
     expect(
       swipeSettleSeconds({ ...base, remainingPx: -200, velocityPxPerSecond: -2000 })
-    ).toBeCloseTo(0.16, 5);
+    ).toBeCloseTo((0.7 * (200 / 400)) / MAX_RELEASE_SPEEDUP, 5);
   });
 
   it("falls back to the authored span when the axis has no measurable size", () => {
@@ -161,14 +164,34 @@ describe("the release curve leaves at the speed the finger had", () => {
   };
 
   it("departs at the finger's own speed wherever the gesture can be honoured", () => {
+    // "Wherever" is bounded by the speed ceiling: a release may leave at the
+    // finger's speed up to MAX_RELEASE_SPEEDUP x the authored average, which
+    // on this span and clock is a finger of about 1070 px/s.
     for (const [remaining, velocity] of [
       [270, 800],
-      [240, 1500],
-      [230, 2500],
+      [260, 1000],
       [290, 350]
     ] as const) {
       const { departure } = release(remaining, velocity);
       expect(departure / velocity, `${velocity} px/s`).toBeCloseTo(1, 1);
+    }
+  });
+
+  it("stops honouring the finger at the ceiling, and departs there instead", () => {
+    // Past the ceiling the length is the floor, so the departure is a CONSTANT
+    // — `RELEASE_LAUNCH_SLOPE x MAX_RELEASE_SPEEDUP x` the authored average —
+    // no matter how hard the flick was or how much is left. That constant is
+    // what a swipe now lands at, rather than whatever the pointer stream
+    // happened to report.
+    const ceiling = (RELEASE_LAUNCH_SLOPE * MAX_RELEASE_SPEEDUP * 390) / 0.7;
+    for (const [remaining, velocity] of [
+      [240, 1500],
+      [230, 2500],
+      [300, 6000]
+    ] as const) {
+      const { departure } = release(remaining, velocity);
+      expect(departure, `${velocity} px/s`).toBeCloseTo(ceiling, 0);
+      expect(departure, `${velocity} px/s`).toBeLessThan(velocity);
     }
   });
 
@@ -429,8 +452,11 @@ describe("the distance term follows the authored curve's own tail", () => {
     expect(settle(200, 117)).toBeCloseTo(0.55, 2);
     // Moving, but not fast: the speed term caps it below the tail.
     expect(settle(600, 117)).toBeCloseTo(0.312, 2);
-    // A real flick keeps its momentum, exactly as before.
-    expect(settle(2000, 117)).toBeCloseTo(MIN_SETTLE_SECONDS, 5);
+    // A real flick asks for 0.094s and is given the ceiling instead. It used
+    // to bottom out on MIN_SETTLE_SECONDS, which is a floor on TIME and so let
+    // a whole screen's worth of travel through in the same 0.12s as the last
+    // twenty pixels (see MAX_RELEASE_SPEEDUP).
+    expect(settle(2000, 117)).toBeCloseTo((0.7 * (117 / SPAN)) / MAX_RELEASE_SPEEDUP, 5);
   });
 
   it("does not make a near-complete release sticky", () => {
