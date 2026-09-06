@@ -239,8 +239,7 @@ export {
   ROUTER_ATTR,
   SCREEN_ATTR,
   STATUS_ATTR,
-  TRANSITION_ATTR,
-  WARM_ATTR
+  TRANSITION_ATTR
 } from "@dom/attributes";
 // The STACKING CONTRACT a screen keeps inside its own box: content under its
 // chrome, chrome under an overlay that exists to cover it, and the dim over
@@ -305,10 +304,6 @@ export {
   RIDE_HEIGHT_VAR
 } from "@transition/rideOffset";
 export { default as observeViewportScrollHeight } from "@screen/observeViewportScrollHeight";
-
-// Compositor warm-up (see the module): also pre-armed by the React binding on
-// pointerdown, so a tap's flight starts on an already-spinning compositor.
-export { default as holdCompositorWarm } from "@core/engine/compositorWarmUp";
 
 // One-shot GPU pipeline prewarm (see the module): front-loads Graphite/Dawn
 // pipeline compilation at boot idle so a cold cache's ~100ms GPU stalls never

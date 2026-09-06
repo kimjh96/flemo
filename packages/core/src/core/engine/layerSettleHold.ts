@@ -27,9 +27,8 @@ import { flightWindowActive, onFlightWindowIdle } from "@core/engine/flightWindo
 // length of the flight: inline styles survive the COMPLETED flip's rule
 // un-match, so no demotion happens in that commit at all. The layer is
 // released on its own clock, LAYER_SETTLE_MS after COMPLETED — past the
-// convergence commits, inside the compositor warm-up's settle window (frame
-// production is still forced there), and with the screen fully at rest,
-// where a one-frame repaint presents nothing the eye can catch. A navigation
+// convergence commits, with the screen fully at rest, where a one-frame
+// repaint presents nothing the eye can catch. A navigation
 // starting back into the same element inside the window simply keeps the
 // layer: the pending release is cancelled and the stamp refreshed, so a
 // rapid push/pop pair never pays a demote-repromote round trip.

@@ -5,7 +5,6 @@ import resolveTransition from "@transition/resolveTransition";
 import type { TransitionName } from "@transition/typing";
 
 import createArrivalHold from "@core/engine/arrivalHold";
-import holdCompositorWarm from "@core/engine/compositorWarmUp";
 import { noticeDeviceEmulationOnce } from "@core/engine/emulationNotice";
 import { statusChoreographySpanMs } from "@core/engine/flightParticipants";
 import { beginFlightWindow } from "@core/engine/flightWindow";
@@ -14,12 +13,10 @@ import { beginResponseHold } from "@core/engine/responseHold";
 
 // THE HOLDS ONE SCREEN OWNS.
 //
-// Three pieces of state, and they belong together: the compositor warm-up, the
-// in-flight arrival armor, and the settle timer that outlives COMPLETED. Each
-// spans MANY drive runs — the effect
-// re-runs mid-transition — so none of them can live in a run's closure, and
-// each has to be handed back exactly once when the screen leaves the statuses
-// that justified it.
+// The in-flight arrival armor spans MANY drive runs — the effect re-runs
+// mid-transition — so it cannot live in a run's closure, and it has to be
+// handed back exactly once when the screen leaves the statuses that justified
+// it.
 //
 // They were four `let`s at the top of the engine, mutated from a hundred and
 // eighty lines in the middle of `driveScreenLifecycle`, and nothing else in
@@ -31,15 +28,6 @@ import { beginResponseHold } from "@core/engine/responseHold";
 
 /** Margin over the choreography span before a hold's own backstop fires. */
 const GATE_MOTION_MARGIN_MS = 1500;
-
-// The warm-up outlives COMPLETED by this window. The convergence storm —
-// status-flip commits, the covered screen's freeze, the landing reveal two
-// frames past COMPLETED — lands right AFTER the motion rests, where frame
-// production is back to on-demand; measured on real Chrome (180s of
-// hand-driven journeys) as 17 dropped frames clustered at 400-700ms into
-// 600ms flights with no compositor animation live. Forcing frames through the
-// settle keeps that window on the vsync cadence.
-const WARM_SETTLE_MS = 400;
 
 export interface FlightHoldsDeps {
   /**
@@ -66,21 +54,6 @@ export interface FlightHolds {
 
 export const createFlightHolds = (deps: FlightHoldsDeps): FlightHolds => {
   let releaseArrivalHold: (() => void) | null = null;
-  // This screen's hold on the compositor warm-up (see compositorWarmUp.ts).
-  // Engine-level for the same reason as the arrival hold: the driver effect
-  // re-runs mid-transition, and the warm-up must span those re-runs and end
-  // only when the screen leaves its transitional statuses.
-  let releaseWarm: (() => void) | null = null;
-  // The warm-up outlives COMPLETED by the settle window. The convergence
-  // storm — status-flip commits, the covered screen's freeze, the landing
-  // reveal two frames past COMPLETED — lands right AFTER the motion rests,
-  // where frame production is back to on-demand; measured on the user's own
-  // machine (attached real Chrome, 180s of hand-driven journeys) as 17
-  // dropped frames clustered at 400-700ms into 600ms flights with no
-  // compositor animation live — the convergence tremor. Forcing frames
-  // through the settle keeps that window on the vsync cadence, exactly what
-  // a DevTools Performance recording does when it masks the judder.
-  let warmSettleTimer: ReturnType<typeof setTimeout> | null = null;
 
   const sync = ({
     isTransitional,
@@ -89,33 +62,9 @@ export const createFlightHolds = (deps: FlightHoldsDeps): FlightHolds => {
     transitionName,
     getScope
   }: FlightHoldsInput) => {
-    // Keep the compositor producing frames for as long as this screen is in
-    // motion (opening spin-up) AND through the settle window past COMPLETED
-    // (the convergence storm) — see warmSettleTimer above.
-    if (isTransitional) {
-      // Motion judged under DevTools device emulation chases phantoms — warn
-      // once (see emulationNotice.ts).
-      noticeDeviceEmulationOnce();
-      // A navigation starting inside the settle window keeps the SAME hold:
-      // cancel the pending release without spending it.
-      if (warmSettleTimer) {
-        clearTimeout(warmSettleTimer);
-        warmSettleTimer = null;
-      }
-      if (!releaseWarm) releaseWarm = holdCompositorWarm();
-    }
-    if (!isTransitional && releaseWarm && !warmSettleTimer) {
-      if (typeof setTimeout === "function") {
-        warmSettleTimer = setTimeout(() => {
-          warmSettleTimer = null;
-          releaseWarm?.();
-          releaseWarm = null;
-        }, WARM_SETTLE_MS);
-      } else {
-        releaseWarm();
-        releaseWarm = null;
-      }
-    }
+    // Motion judged under DevTools device emulation chases phantoms — warn
+    // once (see emulationNotice.ts).
+    if (isTransitional) noticeDeviceEmulationOnce();
 
     // No content landing while the screen is in motion: the COLD side of a
     // navigation (freshly-mounted enter on push/replace, unfreezing pop
