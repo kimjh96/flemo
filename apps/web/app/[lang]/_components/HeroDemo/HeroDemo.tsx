@@ -32,7 +32,15 @@ const ROLL_SECONDS = 7;
 //   no phase-zero reset at the landing.
 const rollClock = {
   baseMs: 0,
-  runningSince: Date.now() as number | null,
+  // STARTED BY THE FIRST MOUNT, not by the bundle being parsed.
+  //
+  // `Date.now()` here made the clock run from script evaluation, so by the time
+  // the first layout effect anchored the cards the phase was already tens of
+  // milliseconds in and the anchor moved them off the pose the markup had just
+  // painted. Null means the first `resume()` starts it at zero, which is
+  // exactly the phase the static delays below render, so the anchor is a no-op
+  // on a fresh load and a correction on every later one.
+  runningSince: null as number | null,
   phaseMs() {
     return this.baseMs + (this.runningSince === null ? 0 : Date.now() - this.runningSince);
   },
@@ -49,6 +57,25 @@ const rollClock = {
 const rollDelay = (offsetSeconds: number) =>
   `${-((rollClock.phaseMs() / 1000 + offsetSeconds) % ROLL_SECONDS)}s`;
 
+// THE POSE THE MARKUP ITSELF CARRIES, phase zero, on the server and on the
+// first client render alike.
+//
+// The offset used to be applied only by the layout effect below, on the
+// reasoning that keeping it out of the markup is what keeps SSR phase-free.
+// It does — and it also meant the served HTML gave both cards the SAME
+// animation with the SAME (absent) delay, so both sat at the keyframe's 0%
+// pose: identical transform, identical z-index, stacked exactly on top of each
+// other with the music card, later in DOM order, covering the wallet outright.
+// That is what the browser painted before hydration, and the anchor then threw
+// the music card back to its receded pose in one frame. Reported from a screen
+// recording as the demo flickering and resetting on every refresh.
+//
+// These two values ARE what `rollDelay` returns at phase zero, so nothing has
+// two sources of truth: the markup paints the separated pose immediately, the
+// clock starts at zero on the first mount, and the anchor below agrees with
+// both.
+const PHASE_ZERO_DELAY = (offsetSeconds: number) => `-${offsetSeconds % ROLL_SECONDS}s`;
+
 function HeroDemo({ active }: HeroDemoProps) {
   const [interacting, setInteracting] = useState(false);
   const walletBezelRef = useRef<HTMLDivElement | null>(null);
@@ -60,11 +87,15 @@ function HeroDemo({ active }: HeroDemoProps) {
   const playState = interacting ? "paused" : "running";
   const playing = active && !interacting;
 
-  // Align the CSS animations to the shared clock at mount, at every unfreeze
+  // Re-align the CSS animations to the shared clock at mount, at every unfreeze
   // (Activity re-runs effects), and at every hover release — and ONLY then.
   // While paused nothing may touch the delay: the pose must stand still.
-  // Client-only and pre-paint, so SSR markup stays phase-free and hydration
-  // never mismatches.
+  //
+  // On a fresh load this changes nothing: the clock starts at zero here and the
+  // markup already carries the phase-zero delays, so the pose the browser
+  // painted is the pose it keeps. It earns its place on a RETURN, where the
+  // clock has run on while the screen was frozen and the cards have to
+  // re-anchor to where the roll would have carried them.
   useLayoutEffect(() => {
     if (interacting) {
       rollClock.pause();
@@ -98,6 +129,7 @@ function HeroDemo({ active }: HeroDemoProps) {
           className={BEZEL}
           style={{
             animation: "flemo-card-roll 7s ease-in-out infinite",
+            animationDelay: PHASE_ZERO_DELAY(0),
             animationPlayState: playState
           }}
         >
@@ -110,6 +142,7 @@ function HeroDemo({ active }: HeroDemoProps) {
           className={BEZEL}
           style={{
             animation: "flemo-card-roll 7s ease-in-out infinite",
+            animationDelay: PHASE_ZERO_DELAY(ROLL_SECONDS / 2),
             animationPlayState: playState
           }}
         >
