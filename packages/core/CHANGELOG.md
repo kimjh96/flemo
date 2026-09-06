@@ -1,5 +1,25 @@
 # @flemo/core
 
+## 2.4.0
+
+### Minor Changes
+
+- [`7c906b0`](https://github.com/kimjh96/flemo/commit/7c906b0cc800febcfc0fb4ff92888a779e1152e6) Let a transition name where its drag carries the screens and still write a hook. Declaring `current` or `prev` keeps the screens on the scrub whatever hooks are written beside it, so a gesture that carries a morphing element about needs a hook only for the element and leaves the screens, which are the expensive half of a release, to flemo.
+
+- [`c6ea228`](https://github.com/kimjh96/flemo/commit/c6ea228bc3733cb7c0fb082870ed121a28917356) Let a transition declare its swipe as `swipe: { direction, threshold, velocity, progress, current, prev }` instead of writing three hooks, and drive the declared drag as the transition's own pop keyframes scrubbed by the gesture rather than as a style write per frame. This removes the 41 to 49ms of dropped frames every release used to cost, and moves `layout` onto it as well, so no built-in preset drives its own screens any more. The flat `swipeDirection`, `onSwipeStart`, `onSwipe` and `onSwipeEnd` are removed: move them under `swipe` as `direction`, `onStart`, `onMove` and `onEnd`.
+
+- [`6093c80`](https://github.com/kimjh96/flemo/commit/6093c80659cdb7f002270a90f8bb4305b0bc9628) Let a declared swipe name the poses its drag passes through, as `current`/`prev` stop lists with an `at` between 0 and 1. A drag whose properties reach their values at different points of the gesture no longer has to take over `onMove` and give up the scrub for it.
+
+- [`06730d7`](https://github.com/kimjh96/flemo/commit/06730d7ff919d10c86b434071b41261ce4909977) Give the release to whoever owns the screens. A transition that names `current` or `prev` now has flemo decide whether the gesture committed, settle the clock every participant lands on, and hand its `onEnd` that answer as `triggered`, so a hook written only to land an element of its own no longer has to restate the commit rule. A transition that takes the screens over still decides, as before.
+
+### Patch Changes
+
+- [`bfaa124`](https://github.com/kimjh96/flemo/commit/bfaa12433dd50970300221dd0a612dfa71990b9c) Drive the screens flemo owns on every follow frame, even when the transition's `onMove` never calls `onProgress`. A hook written beside a declared destination owns only what it animates itself, and the screens it never touches were sitting at rest for the whole drag. Re-export `SwipeOptions`, `SwipeStop`, `SwipeInfo`, `DEFAULT_COMMIT_FRACTION` and `DEFAULT_COMMIT_VELOCITY` from `@flemo/react`, which is what a consumer installs.
+
+- [`0a6b473`](https://github.com/kimjh96/flemo/commit/0a6b47375f8ac9409ccca7c4b699d6ef22d5545d) Lower the ceiling on how far a swipe release may outrun the transition it is completing, from three times the authored motion's average speed to 1.2 times. The old value was chosen so that it would sit above any human flick, which meant the finger's own speed decided every release a person can actually make and a brisk one crossed the screen at up to 2.9 times the button-driven pop. Slower releases and every cancel are unchanged; the new value was picked on a device from a ladder of builds differing in nothing else.
+
+- [`3945236`](https://github.com/kimjh96/flemo/commit/394523693914c8bb1643b41cb5eb45d9c93504f1) Resolve the covered screen's decorator at every use instead of once at the start of a swipe, so a dim that the drag's own wake re-mounts into the layer host still follows the finger and still settles. A screen frozen while holding a `<Layer>` overlay used to hand the gesture a handle that left the document a frame later, which left the dim at its full rest value for the whole drag and the whole landing before it cut to zero in one frame.
+
 ## 2.3.1
 
 ### Patch Changes
