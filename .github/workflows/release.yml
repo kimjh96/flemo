@@ -79,13 +79,25 @@ jobs:
       # so renaming or moving this file silently breaks releases with a 404
       # on PUT. npm masks auth failures as 404, so that is the symptom to
       # expect, not a 401.
+      # v2 RENAMED EVERY INPUT AND STOPPED READING THE TOKEN FROM THE ENV.
+      # `github-token` defaults to `${{ github.token }}`, so an App token left
+      # in `env: GITHUB_TOKEN` is not picked up and is silently replaced by
+      # the default one. That is the exact failure the token step above
+      # exists to avoid: PRs opened with the default token do not trigger
+      # downstream workflows, and the Version PR sits on "Expected — waiting
+      # for status to be reported" for Verify and E2E forever. Pass it HERE.
+      #
+      # Release commits and tags now go through the GitHub API rather than
+      # the Git CLI (`push-with-git-cli` defaults to false), so they are
+      # signed with GitHub's GPG key and attributed to the App that owns the
+      # token. `create-github-releases` and `push-git-tags` both default to
+      # true, which is what v1 did, so releases and tags are unchanged.
       - name: Create release PR or publish
         id: changesets
-        uses: changesets/action@63a615b9cd06ba9a3e6d13796c7fbcb080a60a0b # v1
+        uses: changesets/action@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
         with:
-          publish: pnpm release
-          version: pnpm version-packages
-          commit: "chore(release): version packages"
-          title: "chore(release): version packages"
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          github-token: ${{ steps.app-token.outputs.token }}
+          publish-script: pnpm release
+          version-script: pnpm version-packages
+          commit-message: "chore(release): version packages"
+          pr-title: "chore(release): version packages"
