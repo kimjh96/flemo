@@ -73,6 +73,24 @@ const rehomeDim = (dom: ReturnType<typeof buildDom>) => {
   return hostDim;
 };
 
+/** A WAAPI stub that records which elements the controller staged against. */
+const stubAnimateInto = (element: HTMLElement, staged: HTMLElement[]) => {
+  element.animate = ((keyframes: Keyframe[], options: KeyframeAnimationOptions) => {
+    staged.push(element);
+    return {
+      currentTime: 0,
+      startTime: 0,
+      playbackRate: 1,
+      timeline: { currentTime: 0 },
+      pause: vi.fn(),
+      play: vi.fn(),
+      cancel: vi.fn(),
+      addEventListener: vi.fn(),
+      effect: { getKeyframes: () => keyframes, getTiming: () => options }
+    } as unknown as Animation;
+  }) as HTMLElement["animate"];
+};
+
 const event = (over: Partial<PointerEvent> & { target?: EventTarget }) =>
   ({ clientX: 0, clientY: 0, timeStamp: 0, pointerId: 1, ...over }) as unknown as PointerEvent;
 
@@ -103,6 +121,15 @@ describe("createSwipeController decorator replacement", () => {
           { opacity: triggered ? 0 : 1 },
           { duration: 0.3 }
         )
+    }) as unknown as ReturnType<SwipeControllerConfig["getDecorator"]>;
+
+  // A dim written the other way: poses only, so the controller stages and
+  // scrubs the animations itself.
+  const poseDecorator = () =>
+    ({
+      name: "pose-only-dim",
+      initial: { opacity: 0 },
+      variants: fullVariants({ opacity: 1 }, { duration: 0.3 })
     }) as unknown as ReturnType<SwipeControllerConfig["getDecorator"]>;
 
   const buildConfig = (overrides: Partial<SwipeControllerConfig> = {}): SwipeControllerConfig => ({
@@ -221,53 +248,45 @@ describe("createSwipeController decorator replacement", () => {
     expect(settled[0]!.transition).toContain("opacity");
   });
 
+  it("leaves a pose-only dim that is still in the document staged once", async () => {
+    // The other side of the re-stage below: a rider that is fine must be left
+    // alone. Re-staging one every follow frame would rebuild its animation from
+    // zero on each of them, which is a dim that never moves by another route.
+    const staged: HTMLElement[] = [];
+    stubAnimateInto(dom.containerDim, staged);
+
+    const controller = createSwipeController(buildConfig({ getDecorator: poseDecorator }));
+    controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
+    controller.pointerMove(event({ clientX: 40, clientY: 100 }));
+    await flush();
+    controller.pointerMove(event({ clientX: 80, clientY: 100 }));
+    await flush();
+    controller.pointerMove(event({ clientX: 120, clientY: 100 }));
+    await flush();
+
+    expect(staged.filter((element) => element === dom.containerDim)).toHaveLength(1);
+  });
+
   it("re-stages a pose-only dim the wake replaced", async () => {
     // The other half of the same hazard: a decorator with no hooks is driven by
     // the controller's own rider animations, and an animation does not follow
     // its element out of the document.
-    const animations: { element: HTMLElement; animation: Animation }[] = [];
-    const stubAnimate = (element: HTMLElement) => {
-      element.animate = ((keyframes: Keyframe[], options: KeyframeAnimationOptions) => {
-        const animation = {
-          currentTime: 0,
-          startTime: 0,
-          playbackRate: 1,
-          timeline: { currentTime: 0 },
-          pause: vi.fn(),
-          play: vi.fn(),
-          cancel: vi.fn(),
-          addEventListener: vi.fn(),
-          effect: { getKeyframes: () => keyframes, getTiming: () => options }
-        } as unknown as Animation;
-        animations.push({ element, animation });
-        return animation;
-      }) as HTMLElement["animate"];
-    };
-    stubAnimate(dom.containerDim);
+    const staged: HTMLElement[] = [];
+    stubAnimateInto(dom.containerDim, staged);
 
-    const controller = createSwipeController(
-      buildConfig({
-        getDecorator: () =>
-          ({
-            name: "pose-only-dim",
-            initial: { opacity: 0 },
-            variants: fullVariants({ opacity: 1 }, { duration: 0.3 })
-          }) as unknown as ReturnType<SwipeControllerConfig["getDecorator"]>
-      })
-    );
+    const controller = createSwipeController(buildConfig({ getDecorator: poseDecorator }));
     controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
     controller.pointerMove(event({ clientX: 40, clientY: 100 }));
     await flush();
 
-    const stagedFirst = animations.length;
-    expect(stagedFirst).toBeGreaterThan(0);
+    expect(staged).toContain(dom.containerDim);
 
     const hostDim = rehomeDim(dom);
-    stubAnimate(hostDim);
+    stubAnimateInto(hostDim, staged);
 
     controller.pointerMove(event({ clientX: 120, clientY: 100 }));
     await flush();
 
-    expect(animations.some((entry) => entry.element === hostDim)).toBe(true);
+    expect(staged).toContain(hostDim);
   });
 });
