@@ -105,7 +105,7 @@ PR #259, merged 2026-08-17, fixed this by explicitly clearing `transform` and `o
 | `perceptualSpan.ts` | `perceptualCutMs` and `channelValue` imperceptibility math, shared by the cut and early landing. |
 | `nativeStallAnchor.ts` | Main-thread-presenting native-clock correction: birth-window `startTime` rewind, authored-native first-frame pause/play, and authored-pin continuous stall watching. |
 | `emulationNotice.ts` | Once-per-session warning for DevTools device emulation, whose scaled surface fabricates shimmer. |
-| `createSwipeController.ts` | Framework-neutral swipe back: 8 px intent slop, 3:1 axis arbitration before ownership, drag-follow writes, cancellation-safe `settleScrub`, bar mirroring, 6 px release tap slop, and shared layer promotion. |
+| `createSwipeController.ts` | Framework-neutral swipe back: 8 px intent slop, 3:1 axis arbitration before ownership, the declared drag staged as scrubbed animations on the screens and the bars riding them, inline mirroring for a transition that drives its own screens, 6 px release tap slop, and shared layer promotion. Whoever owns the screens owns the release. |
 | `types.ts` | Minimal `TransitionEngineDeps` interface and `SKIP_ANIMATION_ATTR`. |
 
 ### Related modules outside `engine/`
@@ -114,8 +114,9 @@ PR #259, merged 2026-08-17, fixed this by explicitly clearing `transform` and `o
 | --- | --- |
 | `screen/animStartAnchor.ts` | `animHoldKey`, `scheduleAnimHoldRelease`, decode readiness, render-settle gating, and `createAnimHoldCoordinator`. |
 | `screen/pendingNetwork.ts` | In-flight request accounting that distinguishes loading from completed work without consumer declarations. |
-| `transition/settleScrub.ts` | Swipe-settle paused single-keyframe WAAPI driven by shared main-thread `currentTime`; `takeover()` transfers participant ownership to navigation. |
-| `transition/variantMotion.ts` | `resolveVariantMotion`, the single source for variant `{from, to, duration, delay, ease}` values. |
+| `transition/gestureScrub.ts` | Staging, scrubbing and settling the paused animations a gesture drives, for the screens, the bars, the dim and the parts alike. |
+| `transition/variantMotion.ts` | `resolveVariantMotion`, the single source for variant `{from, to, via, duration, delay, ease}` values. |
+| `transition/resolveSwipeOptions.ts` | The swipe a transition declares, with its defaults filled in, so nothing downstream resolves them twice. |
 | `transition/animateInline.ts` | Inline leases and imperative swipe writes. |
 | `transition/compileTransitionStyles.ts` | Keyframe compiler, promotion scoping, hold and arrival rules, and LPM `-lpm` flat-head keyframes using `LPM_HEAD_MS` 180/100/80 behind `:root[data-flemo-lpm]`. Uses only `translate3d`; 2D transforms pixel-snap-stutter on Blink. Timing must remain literal because `calc(var())` animation timing demotes WebKit fades to the main thread. |
 | `transition/enteringInitialStyle.ts` | Inline `from` pose for the entering screen's first styled frame; subject to the PR #259 lease invariant. |

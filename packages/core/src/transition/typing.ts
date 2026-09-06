@@ -34,6 +34,25 @@ export type SwipeAnimate = (
 ) => Promise<void>;
 
 /**
+ * One pose along a drag, and where the drag reaches it.
+ *
+ * A single destination makes every property travel at one rate, because one
+ * progress walks one keyframe. Some drags do not: a screen may finish fading
+ * a third of the way across while it is still sliding out for the rest of it.
+ * Naming the pose at that third is what lets the two rates coexist without
+ * handing the whole drag to a hook.
+ *
+ * `at` is where along the drag this pose is reached, 0 to 1, and the last stop
+ * is the end whether or not it says so. It is spelled `at` rather than
+ * `offset` because `offset` is already a CSS property and `TransitionTarget`
+ * carries the whole CSS vocabulary.
+ */
+export interface SwipeStop {
+  at?: number;
+  value: TransitionTarget;
+}
+
+/**
  * Everything a transition says about its swipe, in one place.
  *
  * WRITING NOTHING BUT A DIRECTION IS A COMPLETE SWIPE. The drag is this
@@ -80,11 +99,13 @@ export interface SwipeOptions {
    * is, which is the same pose the pop starts from, so it is read from the
    * same table (see FROM_VARIANT).
    *
-   * An empty target means the side does not move at all.
+   * An empty target means the side does not move at all. A LIST of stops (see
+   * `SwipeStop`) says the drag passes through poses on the way, which is how
+   * two properties travel at different rates.
    */
-  current?: TransitionTarget;
+  current?: TransitionTarget | readonly SwipeStop[];
   /** Where the drag carries the screen underneath. Terms as `current`. */
-  prev?: TransitionTarget;
+  prev?: TransitionTarget | readonly SwipeStop[];
   /**
    * The speed at which a release navigates however little it travelled, in the
    * units of `SwipeInfo.velocity`.
@@ -160,7 +181,17 @@ export interface SwipeOptions {
       onProgress?: (triggered: boolean, progress?: number) => void;
     }
   ) => number;
-  /** Land the screens yourself. Taking this over has the same terms as `onMove`. */
+  /**
+   * Land what the drag was carrying. Same terms as `onMove`.
+   *
+   * WHOEVER OWNS THE SCREENS OWNS THE VERDICT. A transition that took them
+   * over answers the commit question here, and its answer is the navigation's.
+   * One written beside a declared destination is told the answer instead: it
+   * arrives as `triggered`, the clock every participant lands on is already
+   * settled, and whatever this returns is not read — so a hook that only wants
+   * to land an element of its own does not have to restate a rule it has no
+   * opinion about.
+   */
   onEnd?: (
     event: PointerEvent,
     info: SwipeInfo,
@@ -168,9 +199,11 @@ export interface SwipeOptions {
       animate: SwipeAnimate;
       currentScreen: HTMLDivElement;
       prevScreen: HTMLDivElement;
+      /** The verdict, when flemo owns the screens and has already decided. */
+      triggered?: boolean;
       onStart?: (triggered: boolean) => void;
     }
-  ) => Promise<boolean>;
+  ) => Promise<boolean | void>;
 }
 
 /**

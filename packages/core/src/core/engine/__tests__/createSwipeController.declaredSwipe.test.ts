@@ -407,6 +407,111 @@ describe("a swipe declared with nothing but a direction", () => {
     expect(ANIMATED.map((entry) => entry.element)).not.toContain(dom.prevScope);
   });
 
+  it("passes through the stops a drag names, so two properties can differ", async () => {
+    // THE LAST THING THAT NEEDED A HOOK. One progress walks one keyframe, so a
+    // single destination makes every property travel at one rate. A drag whose
+    // opacity is spent a third of the way across while it keeps sliding for
+    // the rest says where that third is, and the two rates coexist.
+    const controller = createSwipeController(
+      buildConfig(
+        declared({
+          current: [
+            { at: 0.3, value: { x: "30%", opacity: 0 } },
+            { value: { x: "100%", opacity: 0 } }
+          ],
+          prev: {}
+        })
+      )
+    );
+    controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
+    controller.pointerMove(event({ clientX: 40, clientY: 100 }));
+    await flush();
+
+    const staged = ANIMATED.find((entry) => entry.element === dom.scope);
+    expect(staged?.keyframes).toHaveLength(3);
+    // Only the stop is placed; the ends are where WAAPI already puts them.
+    expect(staged?.keyframes[0]!.offset).toBeUndefined();
+    expect(staged?.keyframes[1]!.offset).toBe(0.3);
+    expect(staged?.keyframes[2]!.offset).toBeUndefined();
+    // The opacity is done at the stop and holds; the transform keeps going.
+    expect(staged?.keyframes[1]!.opacity).toBe("0");
+    expect(staged?.keyframes[2]!.opacity).toBe("0");
+    expect(JSON.stringify(staged?.keyframes[1])).toContain("30%");
+    expect(JSON.stringify(staged?.keyframes[2])).toContain("100%");
+  });
+
+  it("takes the last stop as the landed pose, not the first", async () => {
+    const controller = createSwipeController(
+      buildConfig(
+        declared({
+          current: [{ at: 0.3, value: { x: "30%" } }, { value: { x: "80%" } }],
+          prev: {}
+        })
+      )
+    );
+    await drag(controller, [200, 300]);
+    controller.pointerUp(event({ clientX: 300, clientY: 100 }));
+    await flush();
+
+    // The pose written inline on the commit is where the drag ENDS.
+    expect(dom.scope.style.transform).toContain("80%");
+  });
+
+  it("carries the stops onto the bars riding that screen", async () => {
+    // A bar that rides a screen has to pass through the SAME poses it does,
+    // resolved against the screen's box rather than its own: a bar left on the
+    // two ends while its screen goes via a third pose is the drift this whole
+    // staging exists to make impossible.
+    const controller = createSwipeController(
+      buildConfig(
+        declared({
+          prev: [{ at: 0.4, value: { y: "40%" } }, { value: { y: 0 } }]
+        })
+      )
+    );
+    controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
+    controller.pointerMove(event({ clientX: 40, clientY: 100 }));
+    await flush();
+
+    const bar = ANIMATED.find((entry) => entry.element === dom.prevBar);
+    expect(bar?.keyframes).toHaveLength(3);
+    expect(bar?.keyframes[1]!.offset).toBe(0.4);
+  });
+
+  it("spaces a stop that names no place, as a keyframe does", async () => {
+    const controller = createSwipeController(
+      buildConfig(
+        declared({ current: [{ value: { x: "20%" } }, { value: { x: "100%" } }], prev: {} })
+      )
+    );
+    controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
+    controller.pointerMove(event({ clientX: 40, clientY: 100 }));
+    await flush();
+
+    const staged = ANIMATED.find((entry) => entry.element === dom.scope);
+    // Placed at zero rather than left undefined, so a stop is never silently
+    // moved by how many others happen to be beside it.
+    expect(staged?.keyframes[1]!.offset).toBe(0);
+  });
+
+  it("stages a drag whose pop animates nothing, on a clock of zero", async () => {
+    // The destination is the drag's, and the pop has none to lend a duration.
+    const stationary = {
+      name: "declared-swipe-no-pop-clock",
+      initial: {},
+      variants: fullVariants({}),
+      swipe: { direction: "x", current: { x: "100%" } }
+    } as unknown as Transition;
+
+    const controller = createSwipeController(buildConfig(stationary));
+    controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
+    controller.pointerMove(event({ clientX: 40, clientY: 100 }));
+    await flush();
+
+    // Nothing is staged: a rider with no duration has no clock to scrub.
+    expect(ANIMATED).toHaveLength(0);
+  });
+
   it("keeps the pop's destination for a transition that names none", async () => {
     const controller = createSwipeController(buildConfig(declared()));
     controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
@@ -415,6 +520,131 @@ describe("a swipe declared with nothing but a direction", () => {
 
     const staged = ANIMATED.find((entry) => entry.element === dom.scope);
     expect(JSON.stringify(staged?.keyframes)).toContain("100%");
+  });
+
+  it("keeps the screens for a transition that named them and still writes a hook", async () => {
+    // THE COMPOSITION HOOKS EXIST FOR. A gesture that carries a morphing
+    // element about freely needs a hook for the element, and no reason to hand
+    // over the screens for it — they are the expensive half, two full-screen
+    // layers, and the release's cost is measured in what the main thread was
+    // holding.
+    const loose = document.createElement("div");
+    dom.screenContainer.appendChild(loose);
+    stubAnimate(loose);
+
+    const controller = createSwipeController(
+      buildConfig(
+        declared({
+          current: { x: "100%" },
+          prev: {},
+          onMove: (
+            _event: PointerEvent,
+            _info: unknown,
+            { animate }: { animate: (el: HTMLElement, value: unknown, o: unknown) => void }
+          ) => {
+            // The element the author is carrying, and a screen they are not.
+            animate(loose, { x: 12 }, { duration: 0 });
+            animate(dom.scope, { x: 999 }, { duration: 0 });
+            return 0;
+          }
+        })
+      )
+    );
+    await drag(controller, [120, 200]);
+
+    // The screens stayed on the scrub, so the hook's write to one was refused.
+    expect(ANIMATED.map((entry) => entry.element)).toContain(dom.scope);
+    expect(dom.scope.style.transform).toBe("");
+    // And everything else it animated went through untouched.
+    expect(loose.style.transform).toContain("12");
+  });
+
+  it("decides the release itself when it owns the screens, and tells the hook", async () => {
+    // WHOEVER OWNS THE SCREENS OWNS THE RELEASE. A hook written beside a
+    // declared destination is there to land something of its own, and asking
+    // it to answer the commit question as well means restating a rule it has
+    // no opinion about — the fixture that first wrote one had to import
+    // flemo's own constants to repeat them.
+    const back = vi.fn();
+    const seen: (boolean | undefined)[] = [];
+    const controller = createSwipeController({
+      ...buildConfig(
+        declared({
+          current: { x: "100%" },
+          prev: {},
+          onEnd: async (
+            _event: PointerEvent,
+            _info: unknown,
+            { triggered }: { triggered?: boolean }
+          ) => {
+            seen.push(triggered);
+            // Deliberately answering the opposite, and deliberately ignored.
+            return false;
+          }
+        })
+      ),
+      back
+    });
+    await drag(controller, [200, 300]);
+    controller.pointerUp(event({ clientX: 300, clientY: 100 }));
+    await flush();
+
+    // The gesture carried the screen across, so flemo committed it, and the
+    // hook was handed that answer rather than asked for one.
+    expect(seen).toEqual([true]);
+    expect(back).toHaveBeenCalledTimes(1);
+  });
+
+  it("lands the decorator once when a hook reports a verdict flemo already applied", async () => {
+    // A hook may call `onStart` out of habit, or because it was written before
+    // flemo owned the release. Applying twice would drive the dim and the
+    // parts through their landing a second time, on top of themselves.
+    const onSwipeEnd = vi.fn();
+    const base = buildConfig(
+      declared({
+        current: { x: "100%" },
+        prev: {},
+        onEnd: async (
+          _event: PointerEvent,
+          _info: unknown,
+          { onStart }: { onStart?: (triggered: boolean) => void }
+        ) => {
+          onStart?.(true);
+          onStart?.(false);
+        }
+      })
+    );
+    const controller = createSwipeController({
+      ...base,
+      getDecorator: () =>
+        ({
+          name: "declared-swipe-dim",
+          initial: { opacity: 0 },
+          variants: fullVariants({ opacity: 1 }),
+          onSwipeStart: vi.fn(),
+          onSwipeEnd
+        }) as unknown as ReturnType<SwipeControllerConfig["getDecorator"]>
+    });
+    await drag(controller, [200, 300]);
+    controller.pointerUp(event({ clientX: 300, clientY: 100 }));
+    await flush();
+
+    expect(onSwipeEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it("still lets a transition that took the screens decide", async () => {
+    // The other half of the same rule: no destination named, so the hook owns
+    // the screens and its answer is the navigation's.
+    const back = vi.fn();
+    const controller = createSwipeController({
+      ...buildConfig(declared({ onMove: () => 0, onEnd: async () => false })),
+      back
+    });
+    await drag(controller, [200, 300]);
+    controller.pointerUp(event({ clientX: 300, clientY: 100 }));
+    await flush();
+
+    expect(back).not.toHaveBeenCalled();
   });
 
   it("stands aside for a transition that took the drag over", async () => {

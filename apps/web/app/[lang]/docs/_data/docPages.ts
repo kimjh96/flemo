@@ -605,13 +605,8 @@ const EN: DocSection[] = [
               ],
               [
                 "`current` / `prev`",
-                "`TransitionTarget`",
-                "Where the drag carries each screen, when that is not where the pop takes it. The same two the hooks are handed as `currentScreen` and `prevScreen`. Only the destination is named: the drag starts where the screen already is. An empty target means that screen does not move"
-              ],
-              [
-                "`current` / `prev`",
-                "`TransitionTarget`",
-                "드래그가 각 화면을 어디로 데려가는지예요. pop이 가는 곳과 다를 때만 적으면 돼요. 훅이 넘겨주는 `currentScreen`·`prevScreen`과 같은 둘이에요. 도착지만 적어요. 출발은 화면이 이미 있는 자리니까요. 빈 값은 그 화면이 안 움직인다는 뜻이에요"
+                "`TransitionTarget` | `SwipeStop[]`",
+                "Where the drag carries each screen, when that is not where the pop takes it. The same two the hooks are handed as `currentScreen` and `prevScreen`. Only the destination is named: the drag starts where the screen already is. An empty target means that screen does not move, and a list of stops means it passes through poses on the way"
               ],
               [
                 "`velocity`",
@@ -626,7 +621,7 @@ const EN: DocSection[] = [
               [
                 "`onStart` / `onMove` / `onEnd`",
                 "hooks",
-                "Take the drag over yourself. Writing `onMove` or `onEnd` makes the screens yours for that phase, and flemo stops driving them"
+                "Drive the drag yourself. Writing `onMove` or `onEnd` takes the screens over, UNLESS you also named `current` or `prev`, in which case flemo keeps the screens, decides the release and hands your `onEnd` the verdict as `triggered`"
               ]
             ]
           },
@@ -663,7 +658,24 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "No built-in preset writes these any more. `layout`'s gesture is not its pop at all, and it is still declared: the pop is a pure fade, the drag pulls the sheet down and slides it out, and `current` says so. What is left for a hook is a drag whose properties move at DIFFERENT RATES within one screen, because one scrubbed keyframe walked by one progress cannot say two rates. A drag that follows the finger in two axes at once, or one that is not an interpolation between two poses at all, is the other reason. Write `onMove` and `onEnd` and the screens are yours for the whole gesture, which is also how a drag that is not an interpolation at all — one that follows the finger in two axes, or shrinks as it goes — is built."
+            text: "No built-in preset writes these any more, and neither does a drag whose properties travel at different rates. One that has spent its opacity a third of the way across while it keeps sliding for the rest names the pose at that third:"
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'current: [\n  { at: 0.3, value: { x: "30%", opacity: 0 } },\n  { value: { x: "100%", opacity: 0 } }\n]'
+          },
+          {
+            type: "p",
+            text: "`at` is where along the drag the stop is reached, 0 to 1, and the last stop is the end. What is left for a hook is a drag that is not an interpolation between poses at all: one that follows the finger in two axes at once, or carries an element about freely."
+          },
+          {
+            type: "p",
+            text: "The two compose. Naming `current` or `prev` claims the screens whatever hook you also write, so a gesture that carries a morphing element can have a hook for the element and leave the screens to flemo. That matters for more than tidiness: the release's cost is paid on whatever the main thread was holding through the drag, and the screens are two full-screen layers."
+          },
+          {
+            type: "p",
+            text: "WHOEVER OWNS THE SCREENS OWNS THE RELEASE. With a destination named, flemo decides whether the gesture committed, settles the clock every participant lands on, and hands your `onEnd` the answer as `triggered` — so a hook that only wants to land something of its own never restates a rule it has no opinion about, and what it returns is not read. A hook written with no destination beside it takes the screens, and with them the verdict, which is what a drag that moves the screens themselves to arbitrary places has to do."
           },
           {
             type: "table",
@@ -1626,6 +1638,11 @@ const KO: DocSection[] = [
                 "놓았을 때 넘어가려면 화면을 얼마나 끌고 가야 하는지를 px로 정해요. 기본값은 390px 화면에서의 50px이고, 실제 화면 폭에 맞춰 늘어나요"
               ],
               [
+                "`current` / `prev`",
+                "`TransitionTarget` | `SwipeStop[]`",
+                "드래그가 각 화면을 어디로 데려가는지예요. pop이 가는 곳과 다를 때만 적으면 돼요. 훅이 넘겨주는 `currentScreen`·`prevScreen`과 같은 둘이에요. 도착지만 적어요. 출발은 화면이 이미 있는 자리니까요. 빈 값은 그 화면이 안 움직인다는 뜻이고, 스톱 배열을 주면 가는 길에 그 포즈들을 거쳐 가요"
+              ],
+              [
                 "`velocity`",
                 "`number`",
                 "아무리 조금 갔어도 넘어가게 만드는 속도예요. 손가락이 놓이는 순간 이보다 빠르면 넘어가요. 기본값은 20이에요"
@@ -1638,7 +1655,7 @@ const KO: DocSection[] = [
               [
                 "`onStart` / `onMove` / `onEnd`",
                 "훅",
-                "드래그를 직접 몰아요. `onMove`나 `onEnd`를 적으면 그 국면 동안 화면은 저자 것이 되고 flemo는 손을 떼요"
+                "드래그를 직접 몰아요. `onMove`나 `onEnd`를 적으면 화면이 저자 것이 되는데, `current`나 `prev`를 같이 적었다면 화면도 릴리스 판정도 flemo가 맡고 `onEnd`엔 그 판정이 `triggered`로 넘어와요"
               ]
             ]
           },
@@ -1672,7 +1689,24 @@ const KO: DocSection[] = [
           { type: "h", text: "화면을 직접 몰기" },
           {
             type: "p",
-            text: "이제 내장 프리셋 중에 이 훅을 쓰는 건 없어요. `layout`의 제스처는 자기 pop과 아예 다르지만 그래도 선언형이에요. pop은 순수 페이드인데 드래그는 시트를 아래로 당겼다가 미끄러뜨리고, 그걸 `current`가 말해 주거든요. 훅이 남아 있는 건 한 화면 안에서 속성들이 서로 다른 속도로 움직이는 드래그 때문이에요. 스크럽되는 키프레임 하나를 진행도 하나로 걸어서는 두 속도를 말할 수 없으니까요. 두 축을 동시에 따라가거나, 애초에 두 포즈 사이의 보간이 아닌 드래그도 마찬가지예요. `onMove`와 `onEnd`를 적으면 제스처 내내 화면이 저자 것이 돼요. 두 축을 자유롭게 따라가거나 끌면서 작아지는 것처럼, 애초에 보간이 아닌 드래그도 이렇게 만들어요."
+            text: "이제 내장 프리셋 중에 이 훅을 쓰는 건 없고, 한 화면 안에서 속성 속도가 갈리는 드래그도 아니에요. opacity는 폭의 3분의 1에서 다 쓰는데 미끄러지는 건 끝까지 가는 드래그라면, 그 3분의 1 지점의 포즈를 적으면 돼요."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'current: [\n  { at: 0.3, value: { x: "30%", opacity: 0 } },\n  { value: { x: "100%", opacity: 0 } }\n]'
+          },
+          {
+            type: "p",
+            text: "`at`은 드래그의 어디에서 그 포즈에 닿는지예요(0에서 1). 마지막 스톱이 끝이고요. 훅이 남아 있는 건 애초에 포즈 사이의 보간이 아닌 드래그예요. 두 축을 동시에 따라가거나, 요소를 자유롭게 끌고 다니는 것처럼요."
+          },
+          {
+            type: "p",
+            text: "둘은 같이 쓸 수 있어요. `current`나 `prev`를 적으면 훅을 같이 써도 화면은 flemo 것이라, 모핑 요소를 끌고 다니는 제스처는 요소에만 훅을 쓰고 화면은 맡겨 두면 돼요. 이게 단정함의 문제만은 아니에요. 릴리스 비용은 드래그 내내 메인 스레드가 쥐고 있던 것에 붙는데, 화면은 전체 화면 레이어 두 장이거든요."
+          },
+          {
+            type: "p",
+            text: "화면을 가진 쪽이 릴리스도 가집니다. 도착지를 적었다면 넘어갈지 말지도 flemo가 정하고, 모두가 함께 착지할 시계도 flemo가 정하고, `onEnd`엔 그 답이 `triggered`로 넘어와요. 그래서 자기 요소만 착지시키려는 훅은 의견도 없는 규칙을 다시 쓸 필요가 없고, 무엇을 반환하든 읽히지 않아요. 도착지 없이 훅만 적으면 화면과 함께 판정도 가져갑니다. 화면 자체를 임의의 자리로 옮기는 드래그는 그래야 하고요."
           },
           {
             type: "table",

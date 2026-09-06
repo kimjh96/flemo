@@ -289,7 +289,7 @@ export {
   DEFAULT_COMMIT_VELOCITY,
   type ResolvedSwipe
 } from "@transition/resolveSwipeOptions";
-export type { SwipeOptions } from "@transition/typing";
+export type { SwipeOptions, SwipeStop } from "@transition/typing";
 export {
   swipeSettleSeconds,
   MIN_SETTLE_SECONDS,

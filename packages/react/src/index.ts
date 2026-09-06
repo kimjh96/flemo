@@ -49,7 +49,13 @@ export {
   createMorphTransition,
   createRawMorphTransition,
   morphTransitionMap,
-  createBrowserHistoryDriver
+  createBrowserHistoryDriver,
+  // The two halves of the release verdict flemo applies when a transition
+  // names neither. An author who takes over `onEnd` to land something of its
+  // own, and does not want to invent a different rule for the gesture while
+  // it is there, reads them from here.
+  DEFAULT_COMMIT_FRACTION,
+  DEFAULT_COMMIT_VELOCITY
 } from "@flemo/core";
 
 export type {
@@ -64,5 +70,8 @@ export type {
   RegisterMorphTransition,
   MorphTransitionOptions,
   HistoryDriver,
-  HistoryNavEvent
+  HistoryNavEvent,
+  SwipeInfo,
+  SwipeOptions,
+  SwipeStop
 } from "@flemo/core";
