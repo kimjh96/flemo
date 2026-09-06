@@ -55,4 +55,54 @@ describe("createPartTransition", () => {
     // exit: the previously-behind screen returning to active on pop.
     expect(t.variants["POPPING-false"]).toBe(exit);
   });
+
+  it("holds idle on the dismissing side when `dismiss` is omitted", () => {
+    const idle = v({ opacity: 1 });
+    const t = createPartTransition({
+      name: "title-fade",
+      initial: { opacity: 0 },
+      idle,
+      enter: v({ opacity: 0 }),
+      exit: v({ opacity: 1 })
+    });
+
+    // The pre-`dismiss` behaviour, pinned: a part authored without the slot maps
+    // exactly as it did before, so adding it broke nothing already published.
+    expect(t.variants["POPPING-true"]).toBe(idle);
+  });
+
+  it("routes `dismiss` to POPPING-true and leaves every other variant alone", () => {
+    const idle = v({ opacity: 1 });
+    const enter = v({ opacity: 0 });
+    const exit = v({ opacity: 1 });
+    const dismiss = v({ opacity: 0 }, 0.12);
+    const t = createPartTransition({
+      name: "title-fade",
+      initial: { opacity: 0 },
+      idle,
+      enter,
+      exit,
+      dismiss
+    });
+
+    // The screen being popped OFF the stack. It is the ACTIVE side, because
+    // `data-flemo-active` follows the stack rather than the direction of travel.
+    expect(t.variants["POPPING-true"]).toBe(dismiss);
+
+    // `dismiss` owns one slot and only that slot: the idle-fed variants that are
+    // not POPPING-true keep pointing at `idle`.
+    for (const variant of [
+      "IDLE-true",
+      "IDLE-false",
+      "PUSHING-true",
+      "REPLACING-true",
+      "COMPLETED-true"
+    ] as const) {
+      expect(t.variants[variant]).toBe(idle);
+    }
+    for (const variant of ["PUSHING-false", "REPLACING-false", "COMPLETED-false"] as const) {
+      expect(t.variants[variant]).toBe(enter);
+    }
+    expect(t.variants["POPPING-false"]).toBe(exit);
+  });
 });
