@@ -1,5 +1,5 @@
 ---
-"@flemo/core": major
+"@flemo/core": minor
 ---
 
 Remove the compositor warm-up. A hidden element animated `background-position`, a
@@ -17,4 +17,8 @@ founding measurement was taken under DevTools mobile emulation, which the engine
 itself warns is a source of phantom motion.
 
 `holdCompositorWarm()` and `WARM_ATTR` are no longer exported, and the
-`data-flemo-warm` element no longer exists. Delete any selector that targets it.
+`data-flemo-warm` element no longer exists. Nothing a consumer authors changes shape:
+both names were engine machinery, the attribute published only so that a consumer or a
+devtools build could recognise flemo's own scratch element rather than mistake it for
+app content, and there is no longer an element to recognise. Delete any selector that
+targets it.
