@@ -82,10 +82,12 @@ describe("createSwipeController gesture paths", () => {
           name: "swipe-gesture-test",
           initial: { x: "100%" },
           variants: fullVariants({ x: 0 }, { duration: 0.3 }),
-          swipeDirection: direction,
-          onSwipeStart,
-          onSwipe: vi.fn(() => 0),
-          onSwipeEnd: vi.fn(async () => false)
+          swipe: {
+            direction: direction,
+            onStart: onSwipeStart,
+            onMove: vi.fn(() => 0),
+            onEnd: vi.fn(async () => false)
+          }
         }) as unknown as Transition,
       getDecorator: () => undefined,
       getElements: () => ({
@@ -258,10 +260,11 @@ describe("createSwipeController gesture paths", () => {
 
   it("never commits a cancelled pointer stream", async () => {
     config = buildConfig("x");
-    const onSwipeEnd = vi.fn(async (..._args: unknown[]) => true);
+    const onEnd = vi.fn(async (..._args: unknown[]) => true);
     const back = vi.fn();
     const transition = config.getTransition();
-    config.getTransition = () => ({ ...transition, onSwipeEnd }) as Transition;
+    config.getTransition = () =>
+      ({ ...transition, swipe: { ...transition.swipe, onEnd } }) as Transition;
     config.back = back;
     const c = createSwipeController(config);
 
@@ -271,8 +274,8 @@ describe("createSwipeController gesture paths", () => {
     c.pointerCancel(event({ clientX: 160 }));
     await flush();
 
-    expect(onSwipeEnd).toHaveBeenCalledTimes(1);
-    expect(onSwipeEnd.mock.calls[0]?.[1]).toEqual(
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(onEnd.mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({
         offset: { x: 0, y: 0 },
         velocity: { x: 0, y: 0 }

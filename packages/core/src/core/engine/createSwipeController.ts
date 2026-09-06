@@ -1,11 +1,13 @@
 import animateInline, { clearInlineAnimation } from "@transition/animateInline";
 
+import type { TransitionTarget } from "@transition/cssTypes";
 import { easeControlPoints } from "@transition/cubicBezier";
+import { resolveSwipeOptions } from "@transition/resolveSwipeOptions";
 import { resolveRideTarget } from "@transition/rideOffset";
 import { reaimReleaseEase, releaseLaunchSlope, swipeSettleSeconds } from "@transition/swipeSettle";
 
 import type { BaseTransition, Transition, TransitionVariant } from "@transition/typing";
-import { resolveVariantMotion } from "@transition/variantMotion";
+import { resolveVariantFromValue, resolveVariantMotion } from "@transition/variantMotion";
 
 import findScrollable from "@utils/findScrollable";
 
@@ -155,6 +157,11 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   // is found on the scope and is never lifted out of anything.
   let riderSwipe: RiderSwipe | null = null;
   let decoratorSwipe: RiderSwipe | null = null;
+  // The screens and the bars riding them, when the transition opted into the
+  // scrub. Two sets because the two sides walk at their own rate (see
+  // `SwipeOptions.progress`). `current` is the screen under the finger, which
+  // is the POPPING-true side; `prev` is the one coming out from under it.
+  let screenScrub: { current: RiderSwipe | null; prev: RiderSwipe | null } | null = null;
   let ridingBars: { current: HTMLElement[]; prev: HTMLElement[] } = { current: [], prev: [] };
   // The subset of the ride lists that is a SHARED BAR, and the screen box those
   // bars must travel. A bar's own box is shorter than its screen's, so a drag
@@ -252,6 +259,9 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   // and neither path can be reached without a pointer event (so without a
   // window). Clamping unconditionally is therefore the whole rule, with no
   // arm that only a server render could take.
+  /** This transition's swipe, in one shape whichever way it was written. */
+  const swipeOf = () => resolveSwipeOptions(config.getTransition());
+
   const gestureTravel = (offsetOnAxis: number, span: number): number =>
     Math.min(span, Math.max(0, offsetOnAxis));
 
@@ -344,6 +354,11 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   // trailed by a frame). Two ride lists because cupertino / material animate
   // both the current and the previous screen per tick.
   const animateSwipe: typeof animateInline = (target, value, options) => {
+    // The scrub owns the screens and their bars for the whole gesture, so the
+    // handler's own writes to them are not applied: two drivers on one
+    // transform is how the bar drifts from the screen it rides. Everything
+    // else the handler animates still goes through untouched.
+    if (isScrubbed(target)) return Promise.resolve();
     const result = animateInline(target, value, options, layerOwner);
     // A shared bar takes the same values with its percentage y resolved against
     // the screen box; every other rider takes them verbatim.
@@ -549,6 +564,113 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   const releaseDragParts = () => {
     stagedDragParts?.release();
     stagedDragParts = null;
+  };
+
+  /**
+   * THE SCREENS THEMSELVES, ON THE MODEL EVERYTHING ELSE ALREADY USES.
+   *
+   * A `<Part>`, the dim and a morph are staged when the finger lands and moved
+   * by the gesture (see gestureScrub). The screens were the exception: their
+   * drag was a style write per frame, so the compositor had no animation for
+   * them until the RELEASE started one — and that first commit is the cost
+   * this exists to remove (see `SwipeOptions` in the transition's own types
+   * for the device measurement that named it).
+   *
+   * Staged only for a transition that opted in, because it makes the drag this
+   * transition's pop keyframes walked by progress: a drag whose SHAPE differs
+   * from its pop cannot be expressed this way, and the ones that differ only
+   * in RATE express that through `swipe.progress` instead.
+   *
+   * The riding bars are staged in the SAME call, from the same variants, so
+   * they cannot drift from the screen they ride: the desync that shows up when
+   * only the screens move to the compositor is what a split would guarantee.
+   */
+  const stageScreenScrub = (scope: HTMLElement, screenUnderneath: HTMLElement) => {
+    const transition = config.getTransition();
+    const swipe = swipeOf();
+    if (!swipe?.drivesScreens || screenScrub) return;
+
+    // THE DRAG'S OWN DESTINATION, when the transition named one.
+    //
+    // The drag is the pop walked by the finger, and for most transitions that
+    // is exactly right. A drag that goes somewhere ELSE differs in shape
+    // rather than rate, so `progress` cannot express it, and it used to have
+    // to take over `onMove` and lose the scrub for it. Naming the destination
+    // keeps the scrub: the START is unchanged either way, because the screen
+    // is already sitting where the pop would begin.
+    const motionFor = (variant: TransitionVariant, dragTo: TransitionTarget | undefined) => {
+      const pop = resolveVariantMotion(transition, variant);
+      if (!dragTo) return pop;
+      const from = resolveVariantFromValue(transition, variant);
+      // An empty destination is a side that does not move, and a rest variant
+      // has no `from` to move it from.
+      if (from === null || Object.keys(dragTo).length === 0) return null;
+      // The clock is still the pop's: it is the CEILING the release is scaled
+      // against, and a drag that ends elsewhere lands on the same one.
+      return { from, to: dragTo, duration: pop?.duration ?? 0, delay: 0, ease: pop?.ease };
+    };
+
+    const collect = (
+      screen: HTMLElement,
+      bars: HTMLElement[],
+      variant: TransitionVariant,
+      dragTo: TransitionTarget | undefined
+    ): RiderSwipe | null => {
+      const motion = motionFor(variant, dragTo);
+      if (!motion) return null;
+      const riders: RiderMotion[] = [{ element: screen, motion }];
+      // A shared bar takes the screen's own values with its percentage axis
+      // resolved against the SCREEN box: the bar is shorter than the screen it
+      // rides, so `y: "100%"` means two different distances on the two (see
+      // rideOffset.ts). Everything else takes them verbatim.
+      for (const bar of bars) {
+        riders.push({
+          element: bar,
+          motion: ridingBarSet.has(bar)
+            ? {
+                ...motion,
+                from: resolveRideTarget(motion.from, rideScreenHeight),
+                to: resolveRideTarget(motion.to, rideScreenHeight)
+              }
+            : motion
+        });
+      }
+      return beginRiderSwipe(riders, { writer: layerOwner });
+    };
+
+    // A swipe is always a swipe-BACK, so the screen under the finger takes the
+    // pop's active side and the one returning underneath takes its passive one.
+    const current = collect(scope, ridingBars.current, "POPPING-true", swipe.dragTo.current);
+    const prev = collect(screenUnderneath, ridingBars.prev, "POPPING-false", swipe.dragTo.prev);
+    // A transition whose pop animates nothing stages nothing, and then owns
+    // nothing: `isScrubbed` has to say no, or a shell of nulls would swallow
+    // the writes of the one hook such a transition can still be holding.
+    screenScrub = current || prev ? { current, prev } : null;
+  };
+
+  /** Whether this element's drag is owned by the scrub rather than by a write. */
+  const isScrubbed = (target: HTMLElement | null): boolean => {
+    if (!screenScrub || !target) return false;
+    return (
+      target === config.getElements().scope ||
+      target === prevScreen ||
+      ridingBars.current.includes(target) ||
+      ridingBars.prev.includes(target)
+    );
+  };
+
+  /**
+   * Hand the screens back. Both sides land on the one clock the release
+   * computed, so the screens, their bars, the dim and the parts arrive
+   * together, and the returned promise is what the commit waits on.
+   */
+  const releaseScreenScrub = (commit: boolean, seconds: number): Promise<void> => {
+    const landings = [
+      screenScrub?.current?.settle(commit, seconds),
+      screenScrub?.prev?.settle(commit, seconds)
+    ].filter((landing): landing is Promise<void> => landing !== undefined);
+    screenScrub = null;
+    return Promise.all(landings).then(() => undefined);
   };
 
   // Lift and arm the covered side's riders, once the screen they belong to can
@@ -776,8 +898,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   };
 
   const beginSwipe = async (event: PointerEvent) => {
-    const transition = config.getTransition();
-    if (!transition.swipeDirection || config.getViewportScrollHeight() > 10) {
+    const swipe = swipeOf();
+    if (!swipe || config.getViewportScrollHeight() > 10) {
       isTouchPrevented = false;
       return;
     }
@@ -824,23 +946,29 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     velocityTrail = [{ t: event.timeStamp, x: event.clientX, y: event.clientY }];
     scope.setPointerCapture(event.pointerId);
     captureRidingBars(prevScreenContainer, scope);
+    stageScreenScrub(scope, prevScreen);
     capturePartTransitions(prevScreenContainer);
     holdDragLayers();
 
     const decoratorDef = config.getDecorator();
-    const isTriggered = await transition.onSwipeStart(event, buildSwipeInfo(event), {
-      animate: animateSwipe,
-      currentScreen: scope as HTMLDivElement,
-      prevScreen: prevScreen as HTMLDivElement,
-      onStart: (triggered) => {
-        decoratorDef?.onSwipeStart?.(triggered, {
-          animate: animateInline,
-          currentDecorator: decorator as HTMLDivElement,
-          prevDecorator: resolvePrevDecorator() as HTMLDivElement
+    // A transition that declares no `onStart` lets every gesture that got this
+    // far begin: the controller has already established the axis, the slop and
+    // the readiness, and there is nothing left for a default to decide.
+    const isTriggered = !swipe.onStart
+      ? true
+      : await swipe.onStart(event, buildSwipeInfo(event), {
+          animate: animateSwipe,
+          currentScreen: scope as HTMLDivElement,
+          prevScreen: prevScreen as HTMLDivElement,
+          onStart: (triggered) => {
+            decoratorDef?.onSwipeStart?.(triggered, {
+              animate: animateInline,
+              currentDecorator: decorator as HTMLDivElement,
+              prevDecorator: resolvePrevDecorator() as HTMLDivElement
+            });
+            drivePartTransitions("start", triggered, 0);
+          }
         });
-        drivePartTransitions("start", triggered, 0);
-      }
-    });
 
     if (isTriggered && !forceCancelRequested) {
       config.setDragStatus("PENDING");
@@ -878,6 +1006,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       releaseDragLayers();
       releasePartTransitions();
       releaseDragParts();
+      releaseScreenScrub(false, 0);
       riderSwipe?.settle(false, 0);
       riderSwipe = null;
       decoratorSwipe?.settle(false, 0);
@@ -1057,13 +1186,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   };
 
   const continueSwipe = (event: PointerEvent) => {
-    const transition = config.getTransition();
-    if (
-      !transition.swipeDirection ||
-      !swipeActive ||
-      swipeStartPromise ||
-      config.getViewportScrollHeight() > 10
-    )
+    const swipe = swipeOf();
+    if (!swipe || !swipeActive || swipeStartPromise || config.getViewportScrollHeight() > 10)
       return;
 
     const { scope, decorator } = config.getElements();
@@ -1079,7 +1203,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // moves and the release has to rush the rest. The screen being dragged is
     // the span that matters, which is the same one the release already scales
     // by below.
-    const dragAxis = transition.swipeDirection;
+    const dragAxis = swipe.direction;
     const dragBox = scope?.getBoundingClientRect();
     const dragSpan =
       (dragAxis === "y" ? dragBox?.height : dragBox?.width) ||
@@ -1115,27 +1239,43 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const gestureProgress =
       dragSpan > 0 ? Math.max(0, Math.min(100, (dragged / dragSpan) * 100)) : 0;
 
-    transition.onSwipe(event, info, {
-      animate: animateSwipe,
-      currentScreen: scope as HTMLDivElement,
-      prevScreen: prevScreen as HTMLDivElement,
-      // `triggered` is the handler's to report; the progress is not. See
-      // gestureProgress above.
-      onProgress: (triggered) => {
-        decoratorDef?.onSwipe?.(triggered, gestureProgress, {
-          animate: animateInline,
-          currentDecorator: decorator as HTMLDivElement,
-          prevDecorator: resolvePrevDecorator() as HTMLDivElement
-        });
-        drivePartTransitions("swipe", triggered, gestureProgress);
-        // Until it takes: the screen these belong to is revealed by the drag
-        // itself, and the frame that lands on is not ours to predict.
-        armDragRiders();
-        // The same span everything else reads, in the 0-1 form the scrub takes.
-        riderSwipe?.scrub(gestureProgress / 100);
-        decoratorSwipe?.scrub(gestureProgress / 100);
-      }
-    });
+    // EVERYTHING THE GESTURE CARRIES, on every follow frame, whether or not
+    // this transition wrote a hook. It used to hang off the handler's own
+    // `onProgress`, which meant a transition that never called it drove
+    // nothing — and every built-in one never called it.
+    const follow = (triggered: boolean) => {
+      decoratorDef?.onSwipe?.(triggered, gestureProgress, {
+        animate: animateInline,
+        currentDecorator: decorator as HTMLDivElement,
+        prevDecorator: resolvePrevDecorator() as HTMLDivElement
+      });
+      const screens = swipe.progress(info, dragSpan, dragged);
+      screenScrub?.current?.scrub(screens.current);
+      screenScrub?.prev?.scrub(screens.prev);
+      drivePartTransitions("swipe", triggered, gestureProgress);
+      // Until it takes: the screen these belong to is revealed by the drag
+      // itself, and the frame that lands on is not ours to predict.
+      armDragRiders();
+      // The same span everything else reads, in the 0-1 form the scrub takes.
+      riderSwipe?.scrub(gestureProgress / 100);
+      decoratorSwipe?.scrub(gestureProgress / 100);
+    };
+
+    if (swipe.onMove) {
+      swipe.onMove(event, info, {
+        animate: animateSwipe,
+        currentScreen: scope as HTMLDivElement,
+        prevScreen: prevScreen as HTMLDivElement,
+        // `triggered` is the handler's to report; the progress is not. See
+        // gestureProgress above.
+        onProgress: follow
+      });
+    } else {
+      // A drag flemo owns is a drag in progress: there is nothing for a
+      // verdict to be false about until the finger lets go.
+      follow(true);
+    }
+
     // The morph runtime already took this number, in its own 0-1 form, and has
     // done since the contained-Router case was found. Everything the gesture
     // drives now reads the same span.
@@ -1145,7 +1285,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   const endSwipe = async (event: PointerEvent, forceCancel = false) => {
     if (swipeStartPromise) await swipeStartPromise;
     const transition = config.getTransition();
-    if (!transition.swipeDirection || !swipeActive) return;
+    const swipe = swipeOf();
+    if (!swipe || !swipeActive) return;
 
     flushPendingFollow();
     // MEASURE THE FINGER WHERE IT LET GO, not where it last moved.
@@ -1222,7 +1363,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // hooks, its decorator's, and its parts' — rather than in any preset, so a
     // transition written tomorrow gets it without asking, and one that wants
     // a flat clock still names its own ceiling.
-    const axis = transition.swipeDirection;
+    const axis = swipe.direction;
     const box = scope?.getBoundingClientRect();
     const span =
       (axis === "y" ? box?.height : box?.width) ||
@@ -1259,6 +1400,10 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // drives lands with them rather than on a clock of its own.
     let settleSeconds: number | null = null;
     let settleReported = false;
+    // Resolves when the staged screens have finished their landing. A
+    // navigation committed before that removes the screen while it is still
+    // flying, and it vanishes instead of leaving.
+    let screensLanded: Promise<void> | null = null;
     // Reported the MOMENT the release is decided, not after the handler's own
     // settle resolves. A handler awaits its screen animations — cupertino
     // awaits every one of them — so anything hung off that await sits frozen
@@ -1272,6 +1417,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       config.onDragSettle?.(committed, seconds);
       // The riders settle on the SAME number the morph and the screens do, so
       // everything the gesture was carrying lands together.
+      screensLanded = releaseScreenScrub(committed, seconds);
       riderSwipe?.settle(committed, seconds);
       riderSwipe = null;
       decoratorSwipe?.settle(committed, seconds);
@@ -1387,28 +1533,61 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       : gestureScaled((target, value, options) =>
           animateInline(target, value, options, layerOwner)
         );
-    const handlerTriggered = await transition.onSwipeEnd(event, swipeInfo, {
-      animate: animateForEnd,
-      currentScreen: scope as HTMLDivElement,
-      prevScreen: prevScreen as HTMLDivElement,
-      onStart: (triggered) => {
-        const settledTrigger = forceCancel ? false : triggered;
-        // The verdict decides what is LEFT to travel, so the release clock
-        // reads it from here on.
-        releaseTriggered = settledTrigger;
-        decoratorDef?.onSwipeEnd?.(settledTrigger, {
-          animate: animateDecoratorForEnd,
-          currentDecorator: decorator as HTMLDivElement,
-          prevDecorator: resolvePrevDecorator() as HTMLDivElement
-        });
-        drivePartTransitions("end", settledTrigger, 0, animatePartForEnd);
-      }
-    });
+    // The release's own work, run once the verdict is known: the decorator and
+    // the parts land on the same clock the screens do, and the clock itself is
+    // read from the verdict (what is LEFT to travel depends on it).
+    const applyRelease = (triggered: boolean) => {
+      const settledTrigger = forceCancel ? false : triggered;
+      releaseTriggered = settledTrigger;
+      decoratorDef?.onSwipeEnd?.(settledTrigger, {
+        animate: animateDecoratorForEnd,
+        currentDecorator: decorator as HTMLDivElement,
+        prevDecorator: resolvePrevDecorator() as HTMLDivElement
+      });
+      drivePartTransitions("end", settledTrigger, 0, animatePartForEnd);
+    };
+
+    let handlerTriggered: boolean;
+    if (swipe.onEnd) {
+      handlerTriggered = await swipe.onEnd(event, swipeInfo, {
+        animate: animateForEnd,
+        currentScreen: scope as HTMLDivElement,
+        prevScreen: prevScreen as HTMLDivElement,
+        onStart: applyRelease
+      });
+    } else {
+      // FLEMO'S OWN VERDICT. Far enough, or still moving when the finger left:
+      // the two halves every preset had written for itself, in one place, and
+      // both of them the transition's to name (`swipe.threshold`,
+      // `swipe.velocity`) with the presets' own numbers as the defaults.
+      handlerTriggered =
+        travelled >= swipe.commitDistance(span) || velocityOnAxis > swipe.commitVelocity;
+      releaseTriggered = forceCancel ? false : handlerTriggered;
+      // And its own clock. Nothing writes a screen on this path — the scrub is
+      // handed back rather than animated to — so the settle length that the
+      // decorator, the parts and the scrub all share is computed here instead
+      // of falling out of the first screen write.
+      settleSeconds = tapLike
+        ? 0
+        : swipeSettleSeconds({
+            remainingPx: releaseTriggered ? span - travelled : travelled,
+            spanPx: span,
+            velocityPxPerSecond: speed,
+            authoredSeconds: screenReleaseMotion?.duration ?? 0,
+            authoredEase: screenReleaseMotion ? easeControlPoints(screenReleaseMotion.ease) : null,
+            reversing: !releaseTriggered && !fingerHeadingBack
+          });
+      applyRelease(handlerTriggered);
+    }
     const isTriggered = !forceCancel && handlerTriggered;
     // A tap-like release wrote everything at zero duration and never reached
     // the scaler above, so there is no settle to share: whatever the binding
     // drives lands at once too.
     reportSettle(isTriggered, tapLike ? 0 : (settleSeconds ?? 0));
+    // A transition that wrote its own `onEnd` already awaited its screens
+    // inside it; one flemo drives has its landing here, and the commit waits
+    // on it exactly the same way.
+    if (screensLanded) await screensLanded;
 
     if (isTriggered) {
       // The swipe already animated the screen out. Suppress the upcoming
@@ -1533,7 +1712,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       return;
     }
 
-    const swipeDirection = config.getTransition().swipeDirection;
+    const swipeDirection = swipeOf()?.direction;
     if (!swipeDirection) {
       shouldStartDrag = false;
       return;

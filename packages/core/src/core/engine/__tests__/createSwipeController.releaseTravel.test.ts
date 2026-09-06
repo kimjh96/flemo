@@ -98,40 +98,42 @@ describe("the gesture's travel", () => {
       name: "travel-clock",
       initial: { x: "100%" },
       variants: fullVariants({ x: 0 }, { duration: AUTHORED, ease: EASE }),
-      swipeDirection: "x",
-      onSwipeStart: async () => true,
-      onSwipe: (
-        _event: PointerEvent,
-        info: { offset: { x: number } },
-        api: {
-          animate: (t: unknown, v: unknown, o: { duration: number }) => void;
-          currentScreen: HTMLElement;
-          onProgress?: (t: boolean) => void;
+      swipe: {
+        direction: "x",
+        onStart: async () => true,
+        onMove: (
+          _event: PointerEvent,
+          info: { offset: { x: number } },
+          api: {
+            animate: (t: unknown, v: unknown, o: { duration: number }) => void;
+            currentScreen: HTMLElement;
+            onProgress?: (t: boolean) => void;
+          }
+        ) => {
+          api.onProgress?.(true);
+          clampedX.push(Math.max(0, info.offset.x));
+          api.animate(api.currentScreen, { x: Math.max(0, info.offset.x) }, { duration: 0 });
+          return 0;
+        },
+        onEnd: async (
+          _event: PointerEvent,
+          info: { offset: { x: number }; velocity: { x: number } },
+          api: {
+            animate: (t: unknown, v: unknown, o: { duration: number; ease?: unknown }) => void;
+            currentScreen: HTMLElement;
+            onStart?: (triggered: boolean) => void;
+          }
+        ) => {
+          // Cupertino's own rule: a flick commits whatever the offset says.
+          const triggered = info.offset.x > 50 || info.velocity.x > 20;
+          api.onStart?.(triggered);
+          api.animate(
+            api.currentScreen,
+            { x: triggered ? "100%" : 0 },
+            { duration: AUTHORED, ease: EASE }
+          );
+          return triggered;
         }
-      ) => {
-        api.onProgress?.(true);
-        clampedX.push(Math.max(0, info.offset.x));
-        api.animate(api.currentScreen, { x: Math.max(0, info.offset.x) }, { duration: 0 });
-        return 0;
-      },
-      onSwipeEnd: async (
-        _event: PointerEvent,
-        info: { offset: { x: number }; velocity: { x: number } },
-        api: {
-          animate: (t: unknown, v: unknown, o: { duration: number; ease?: unknown }) => void;
-          currentScreen: HTMLElement;
-          onStart?: (triggered: boolean) => void;
-        }
-      ) => {
-        // Cupertino's own rule: a flick commits whatever the offset says.
-        const triggered = info.offset.x > 50 || info.velocity.x > 20;
-        api.onStart?.(triggered);
-        api.animate(
-          api.currentScreen,
-          { x: triggered ? "100%" : 0 },
-          { duration: AUTHORED, ease: EASE }
-        );
-        return triggered;
       }
     } as unknown as Transition;
 

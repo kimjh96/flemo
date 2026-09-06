@@ -207,10 +207,12 @@ describe("createSwipeController drag riders", () => {
         name: "drag-riders-test",
         initial: { x: "100%" },
         variants: fullVariants({ x: 0 }, { duration: 0.3 }),
-        swipeDirection: "x",
-        onSwipeStart: vi.fn(async () => true),
-        onSwipe: vi.fn(() => undefined),
-        onSwipeEnd: vi.fn(async () => false)
+        swipe: {
+          direction: "x",
+          onStart: vi.fn(async () => true),
+          onMove: vi.fn(() => undefined),
+          onEnd: vi.fn(async () => false)
+        }
       }) as unknown as Transition,
     getDecorator: () => undefined,
     getElements: () => ({

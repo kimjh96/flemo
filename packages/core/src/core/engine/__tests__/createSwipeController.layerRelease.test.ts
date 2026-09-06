@@ -66,22 +66,24 @@ describe("the drag layer holds", () => {
       // single target promotes nothing and this file would assert on a layer
       // that was never taken. `initial` above is the second one.
       variants: fullVariants({ x: "0%" }, { duration: 0.3 }),
-      swipeDirection: "x",
-      onSwipeStart: async () => true,
-      onSwipe: () => 0,
-      onSwipeEnd: async (
-        _event: PointerEvent,
-        info: { offset: { x: number } },
-        api: {
-          animate: (t: unknown, v: unknown, o: { duration: number }) => void;
-          currentScreen: HTMLElement;
-          onStart?: (triggered: boolean) => void;
+      swipe: {
+        direction: "x",
+        onStart: async () => true,
+        onMove: () => 0,
+        onEnd: async (
+          _event: PointerEvent,
+          info: { offset: { x: number } },
+          api: {
+            animate: (t: unknown, v: unknown, o: { duration: number }) => void;
+            currentScreen: HTMLElement;
+            onStart?: (triggered: boolean) => void;
+          }
+        ) => {
+          const triggered = info.offset.x > 50;
+          api.onStart?.(triggered);
+          api.animate(api.currentScreen, { x: triggered ? "100%" : 0 }, { duration: 0.3 });
+          return triggered;
         }
-      ) => {
-        const triggered = info.offset.x > 50;
-        api.onStart?.(triggered);
-        api.animate(api.currentScreen, { x: triggered ? "100%" : 0 }, { duration: 0.3 });
-        return triggered;
       }
     } as unknown as Transition;
 

@@ -17,7 +17,7 @@ describe("transition presets", () => {
   it("cupertino has the expected name + transform-based shape", () => {
     expect(cupertino.name).toBe("cupertino");
     expect(cupertino.initial).toEqual({ x: "100%" });
-    expect(cupertino.swipeDirection).toBe("x");
+    expect(cupertino.swipe?.direction).toBe("x");
     expect(cupertino.decoratorName).toBe("overlay");
   });
 

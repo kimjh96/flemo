@@ -1,13 +1,5 @@
 import createTransition from "@transition/createTransition";
 
-const linear = (value: number, from: [number, number], to: [number, number]) => {
-  const [fromMin, fromMax] = from;
-  const [toMin, toMax] = to;
-  if (fromMax === fromMin) return toMin;
-  const t = (value - fromMin) / (fromMax - fromMin);
-  return toMin + t * (toMax - toMin);
-};
-
 // ONE screen moves at a time, and it is always the one arriving or leaving.
 //
 // Two earlier shapes were wrong on glass. `0.97 → 1` was not a fade at all:
@@ -27,6 +19,20 @@ const linear = (value: number, from: [number, number], to: [number, number]) => 
 // to read as travel.
 const DURATION = 0.4;
 const FADE: [number, number, number, number] = [0.2, 0.9, 0.3, 1];
+
+// How far the drag has actually pulled, for a finger that has gone `dragY`.
+// One for one up to PULL, then a square-root falloff: the sheet keeps giving
+// but tells you it has run out. The same curve material uses, for the same
+// reason.
+const PULL = 56;
+const RESIST_OVER = 160;
+const RESIST_MAX = 12;
+
+const pull = (dragY: number): number => {
+  const followed = Math.max(0, Math.min(PULL, dragY));
+  const over = Math.max(0, dragY - PULL);
+  return followed + Math.sqrt(Math.min(1, over / RESIST_OVER)) * RESIST_MAX;
+};
 
 const layout = createTransition({
   name: "layout",
@@ -95,67 +101,42 @@ const layout = createTransition({
     //
     // A consumer who wants one names it: `createDecorator` is public, and
     // there is no longer a clock to match by hand.
-    swipeDirection: "y",
-    onSwipeStart: async () => {
-      return true;
-    },
-    onSwipe: (_, info, { animate, currentScreen, onProgress }) => {
-      const { offset } = info;
-      const dragY = offset.y;
-      const clamped = Math.max(0, Math.min(56, dragY));
-      const opacity = linear(clamped, [0, 56], [1, 0.96]);
-      const extra = Math.max(0, dragY - 56);
-      const extraRatio = Math.min(1, extra / 160);
-      const resistedExtra = Math.sqrt(extraRatio) * 12;
-      const finalY = Math.max(0, clamped + resistedExtra);
-      const progress = Math.min(56, finalY);
-
-      onProgress?.(true);
-
-      animate(
-        currentScreen,
-        {
-          y: finalY,
-          opacity
-        },
-        {
-          duration: 0
-        }
-      );
-
-      return progress;
-    },
-    onSwipeEnd: async (_, info, { animate, currentScreen, prevScreen, onStart }) => {
-      const { offset, velocity } = info;
-      const dragY = offset.y;
-      const isTriggered = dragY > 56 || velocity.y > 20;
-
-      onStart?.(isTriggered);
-
-      await Promise.all([
-        animate(
-          currentScreen,
-          {
-            y: isTriggered ? "100%" : 0,
-            opacity: isTriggered ? 0.96 : 1
-          },
-          {
-            duration: 0.3
-          }
-        ),
-        animate(
-          prevScreen,
-          {
-            y: 0,
-            opacity: isTriggered ? 1 : 0.97
-          },
-          {
-            duration: 0.3
-          }
-        )
-      ]);
-
-      return isTriggered;
+    swipe: {
+      direction: "y",
+      // 56px, the pull this sheet is built around: where letting go means
+      // going rather than coming back.
+      threshold: PULL,
+      /**
+       * THE DRAG IS NOT THIS TRANSITION'S POP, so it names where it goes.
+       *
+       * layout's pop is a pure fade and nothing moves. Its gesture is the
+       * other thing entirely: the sheet is pulled down and, if it is let go,
+       * slides out. Declaring that destination is what keeps the whole drag on
+       * the scrub instead of writing the two screens a frame at a time and
+       * paying for the release's first animation commit.
+       *
+       * The screen underneath holds through the gesture exactly as it holds
+       * through the pop, so it names an empty destination and is not staged.
+       */
+      current: { y: "100%", opacity: 0.96 },
+      prev: {},
+      /**
+       * The rubber band, and the only place it lives.
+       *
+       * The band is on the FINGER, not on the screen: the sheet follows one
+       * for one to `PULL` and resists past it, and dividing that by the
+       * screen's own height is where the sheet has reached along the slide it
+       * would finish on a commit.
+       *
+       * The fade rides that same number rather than finishing at `PULL` as it
+       * did when this was written by hand. At the pull point that is 0.997
+       * against the 0.96 it used to be, which is under four percentage points
+       * of opacity and does not survive being looked for.
+       */
+      progress: (info, span) => {
+        const pulled = pull(info.offset.y);
+        return { current: span > 0 ? pulled / span : 0, prev: 0 };
+      }
     }
   }
 });

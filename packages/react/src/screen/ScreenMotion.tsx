@@ -32,6 +32,7 @@ import {
   publishRideBox,
   resolvePartLayer,
   resolvePlatformProfile,
+  resolveSwipeOptions,
   resolveTransition,
   sharedBarsMatch,
   type AnimHoldCoordinator,
@@ -168,7 +169,11 @@ function ScreenMotion({
   }
 
   const currentTransition = resolveTransition(transitionName);
-  const { initial, swipeDirection, decoratorName } = currentTransition;
+  const { initial, decoratorName } = currentTransition;
+  // Through the resolver, because a transition may declare its swipe either
+  // way (see resolveSwipeOptions): reading `swipeDirection` directly would
+  // miss every transition written as `swipe: { direction }`.
+  const swipeDirection = resolveSwipeOptions(currentTransition)?.direction;
   const decorator = decoratorMap.get(decoratorName!);
 
   const { viewportScrollHeight } = useViewportScrollHeight();
@@ -369,7 +374,7 @@ function ScreenMotion({
           env.isActive &&
           env.status === "COMPLETED" &&
           env.dragStatus === "IDLE" &&
-          !!env.transition.swipeDirection &&
+          !!resolveSwipeOptions(env.transition) &&
           env.viewportScrollHeight < 10
         );
       },

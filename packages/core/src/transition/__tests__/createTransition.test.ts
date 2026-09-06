@@ -95,10 +95,11 @@ describe("createTransition", () => {
     expect(t.variants["POPPING-false"]).toBe(exitBack);
   });
 
-  it("options spread onto the transition (decoratorName + swipe-handler triplet)", () => {
-    const onSwipeStart = async () => true;
-    const onSwipe = () => 0;
-    const onSwipeEnd = async () => false;
+  it("options spread onto the transition (decoratorName + the declared swipe)", () => {
+    const onStart = async () => true;
+    const onMove = () => 0;
+    const onEnd = async () => false;
+    const swipe = { direction: "x" as const, threshold: 40, velocity: 300, onStart, onMove, onEnd };
     const t = createTransition({
       name: "ct-options-spread",
       initial: { x: "100%" },
@@ -107,18 +108,14 @@ describe("createTransition", () => {
       enterBack: makeVariant({ x: "100%" }),
       exit: makeVariant({ x: -100 }),
       exitBack: makeVariant({ x: 0 }),
-      options: { decoratorName: "overlay", swipeDirection: "x", onSwipeStart, onSwipe, onSwipeEnd }
+      options: { decoratorName: "overlay", swipe }
     });
     expect(t.decoratorName).toBe("overlay");
-    // Narrow the union by witnessing `swipeDirection`, then the swipe-handler
-    // properties become directly accessible on `t`.
-    if (t.swipeDirection === "x") {
-      expect(t.onSwipeStart).toBe(onSwipeStart);
-      expect(t.onSwipe).toBe(onSwipe);
-      expect(t.onSwipeEnd).toBe(onSwipeEnd);
-    } else {
-      throw new Error("Expected swipeDirection to be 'x'");
-    }
+    // One object, carried across whole. It used to be four sibling keys, and
+    // the union they discriminated is why reading them needed a witness first.
+    expect(t.swipe).toBe(swipe);
+    expect(t.swipe?.direction).toBe("x");
+    expect(t.swipe?.onMove).toBe(onMove);
   });
 
   it("emits all 10 variant keys (5 statuses × 2 active flags)", () => {

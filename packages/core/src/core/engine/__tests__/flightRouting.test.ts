@@ -242,7 +242,7 @@ describe("the governed head kit on touch Blink", () => {
     setEnv(over);
     return resolveFlightRouting({
       status: "PUSHING",
-      transition: { swipeDirection: "x" } as never,
+      transition: { swipe: { direction: "x" } } as never,
       skipAnimation: false,
       hasActiveMotion: true,
       hasAnimation: true

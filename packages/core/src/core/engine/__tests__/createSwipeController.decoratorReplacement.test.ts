@@ -138,17 +138,19 @@ describe("createSwipeController decorator replacement", () => {
         name: "decorator-replacement-test",
         initial: { x: "100%" },
         variants: fullVariants({ x: 0 }, { duration: 0.3 }),
-        swipeDirection: "x",
-        onSwipeStart: vi.fn(async () => true),
-        onSwipe: vi.fn((_: unknown, __: unknown, { onProgress }: { onProgress?: () => void }) =>
-          onProgress?.()
-        ),
-        onSwipeEnd: vi.fn(
-          async (_: unknown, __: unknown, { onStart }: { onStart?: (t: boolean) => void }) => {
-            onStart?.(false);
-            return false;
-          }
-        )
+        swipe: {
+          direction: "x",
+          onStart: vi.fn(async () => true),
+          onMove: vi.fn((_: unknown, __: unknown, { onProgress }: { onProgress?: () => void }) =>
+            onProgress?.()
+          ),
+          onEnd: vi.fn(
+            async (_: unknown, __: unknown, { onStart }: { onStart?: (t: boolean) => void }) => {
+              onStart?.(false);
+              return false;
+            }
+          )
+        }
       }) as unknown as Transition,
     getDecorator: hookDecorator,
     getElements: () => ({

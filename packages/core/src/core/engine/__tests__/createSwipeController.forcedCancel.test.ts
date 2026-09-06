@@ -77,23 +77,25 @@ describe("a cancelled swipe", () => {
       name: "forced-cancel",
       initial: { x: "100%" },
       variants: fullVariants({ x: 0 }, { duration: AUTHORED }),
-      swipeDirection: "x",
-      onSwipeStart: async () => true,
-      onSwipe: () => 0,
-      onSwipeEnd: async (
-        _event: PointerEvent,
-        info: { offset: { x: number } },
-        api: {
-          animate: (t: unknown, v: unknown, o: { duration: number }) => void;
-          currentScreen: HTMLElement;
-          onStart?: (triggered: boolean) => void;
+      swipe: {
+        direction: "x",
+        onStart: async () => true,
+        onMove: () => 0,
+        onEnd: async (
+          _event: PointerEvent,
+          info: { offset: { x: number } },
+          api: {
+            animate: (t: unknown, v: unknown, o: { duration: number }) => void;
+            currentScreen: HTMLElement;
+            onStart?: (triggered: boolean) => void;
+          }
+        ) => {
+          handlerSawOffset = info.offset.x;
+          const triggered = info.offset.x > 50;
+          api.onStart?.(triggered);
+          api.animate(api.currentScreen, { x: triggered ? "100%" : 0 }, { duration: AUTHORED });
+          return triggered;
         }
-      ) => {
-        handlerSawOffset = info.offset.x;
-        const triggered = info.offset.x > 50;
-        api.onStart?.(triggered);
-        api.animate(api.currentScreen, { x: triggered ? "100%" : 0 }, { duration: AUTHORED });
-        return triggered;
       }
     } as unknown as Transition;
 

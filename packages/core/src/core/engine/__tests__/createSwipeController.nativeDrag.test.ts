@@ -74,10 +74,12 @@ describe("a gesture and the browser's own drag", () => {
       name: "native-drag",
       initial: { x: "100%" },
       variants: fullVariants({ x: 0 }, { duration: 0.35 }),
-      swipeDirection: "x",
-      onSwipeStart: async () => true,
-      onSwipe: () => 0,
-      onSwipeEnd: async () => false
+      swipe: {
+        direction: "x",
+        onStart: async () => true,
+        onMove: () => 0,
+        onEnd: async () => false
+      }
     } as unknown as Transition;
 
     config = {

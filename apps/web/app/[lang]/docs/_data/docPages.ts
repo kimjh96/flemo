@@ -591,24 +591,96 @@ const EN: DocSection[] = [
           { type: "h", text: "Swipe" },
           {
             type: "p",
-            text: 'Any transition, preset or custom, becomes gesture-driven by setting `swipeDirection` (`"x"` or `"y"`) and three handlers in `options`. During the drag the handlers own the screens: flemo hands them the pointer data and both screen elements, and they move the screens, report progress, and decide the outcome. The built-in cupertino edge swipe-back is exactly this wiring.'
+            text: "Any transition, preset or custom, becomes gesture-driven by declaring `swipe: { direction }` in `options`. That is the whole declaration: the drag walks the transition's own pop keyframes at the finger, the release decides on how far it travelled and how fast it left, and the landing runs on a clock flemo computes from what is left. The built-in cupertino swipe-back is one line."
+          },
+          {
+            type: "table",
+            headers: ["Option", "Type", "Role"],
+            rows: [
+              ["`direction`", '`"x"` | `"y"`', "Required. The axis the gesture travels"],
+              [
+                "`threshold`",
+                "`number` | `(span) => number`",
+                "How far the gesture must carry the screen before the release navigates, in px. Defaults to 50px on a 390px screen, scaled to the screen it is on"
+              ],
+              [
+                "`current` / `prev`",
+                "`TransitionTarget`",
+                "Where the drag carries each screen, when that is not where the pop takes it. The same two the hooks are handed as `currentScreen` and `prevScreen`. Only the destination is named: the drag starts where the screen already is. An empty target means that screen does not move"
+              ],
+              [
+                "`current` / `prev`",
+                "`TransitionTarget`",
+                "드래그가 각 화면을 어디로 데려가는지예요. pop이 가는 곳과 다를 때만 적으면 돼요. 훅이 넘겨주는 `currentScreen`·`prevScreen`과 같은 둘이에요. 도착지만 적어요. 출발은 화면이 이미 있는 자리니까요. 빈 값은 그 화면이 안 움직인다는 뜻이에요"
+              ],
+              [
+                "`velocity`",
+                "`number`",
+                "How fast the finger must still be going for the release to navigate however little it travelled. Defaults to 20"
+              ],
+              [
+                "`progress`",
+                "`(info, span) => number | { current, prev }`",
+                "Where the two sides are along their travel, 0 to 1. Defaults to how far the screen has been carried over its own width or height. A drag that resists or clamps says so here"
+              ],
+              [
+                "`onStart` / `onMove` / `onEnd`",
+                "hooks",
+                "Take the drag over yourself. Writing `onMove` or `onEnd` makes the screens yours for that phase, and flemo stops driving them"
+              ]
+            ]
+          },
+          {
+            type: "list",
+            items: [
+              "A transition with no `swipe` has no gesture. There is nothing to switch off",
+              "`progress` returns TWO numbers, one per screen, when the two walk at different rates. `material` is the case: the screen being pushed away travels its own height and keeps moving as its rubber band stretches, while the screen arriving underneath travels 56px and stops there",
+              "The progress flemo computes drives the transition's decorator and every `Part` on both screens, so one gesture moves the whole scene (see the Part page)",
+              "`threshold` and `velocity` are the two halves of one question: did the gesture earn the navigation by going far enough, or by still moving when the finger left. Either alone commits"
+            ]
+          },
+          {
+            type: "p",
+            text: "This is cupertino's actual `options` block. Its drag was always its own pop walked at the finger, so declaring it is the whole of it."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'const cupertino = createTransition({\n  name: "cupertino",\n  // ...phases\n  options: {\n    decoratorName: "overlay",\n    swipe: {\n      direction: "x"\n    }\n  }\n});'
+          },
+          {
+            type: "p",
+            text: "material needs one number more. Its pull resists past 56px instead of following the finger on, and its two sides walk at different rates, so both go in `progress` while the keyframes stay declared above."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'const PULL = 56;\n\nconst pull = (dragY: number) => {\n  const followed = Math.max(0, Math.min(PULL, dragY));\n  const over = Math.max(0, dragY - PULL);\n  return followed + Math.sqrt(Math.min(1, over / 160)) * 12;\n};\n\noptions: {\n  swipe: {\n    direction: "y",\n    threshold: PULL,\n    progress: (info, span) => {\n      const pulled = pull(info.offset.y);\n      return {\n        current: span > 0 ? pulled / span : 0,\n        prev: Math.min(PULL, pulled) / PULL\n      };\n    }\n  }\n}'
+          },
+          {
+            type: "h",
+            text: "Driving the screens yourself"
+          },
+          {
+            type: "p",
+            text: "No built-in preset writes these any more. `layout`'s gesture is not its pop at all, and it is still declared: the pop is a pure fade, the drag pulls the sheet down and slides it out, and `current` says so. What is left for a hook is a drag whose properties move at DIFFERENT RATES within one screen, because one scrubbed keyframe walked by one progress cannot say two rates. A drag that follows the finger in two axes at once, or one that is not an interpolation between two poses at all, is the other reason. Write `onMove` and `onEnd` and the screens are yours for the whole gesture, which is also how a drag that is not an interpolation at all — one that follows the finger in two axes, or shrinks as it goes — is built."
           },
           {
             type: "table",
             headers: ["Hook", "Signature", "Role"],
             rows: [
               [
-                "`onSwipeStart`",
+                "`onStart`",
                 "`(event, info, { animate, currentScreen, prevScreen, onStart })`",
-                "Accept or ignore the gesture: return `true` to begin the swipe, `false` to leave the drag alone"
+                "Accept or ignore the gesture: return `true` to begin the swipe, `false` to leave the drag alone. Costs nothing else, so it composes with the declared drag"
               ],
               [
-                "`onSwipe`",
+                "`onMove`",
                 "`(event, info, { animate, currentScreen, prevScreen, onProgress })`",
-                "Fires every drag frame. Move both screens, compute a progress from 0 to 100, report it through `onProgress`, and return it"
+                "Fires every drag frame. Move both screens yourself. Taking this over stops flemo driving them"
               ],
               [
-                "`onSwipeEnd`",
+                "`onEnd`",
                 "`(event, info, { animate, currentScreen, prevScreen, onStart })`",
                 "Decide the commit from `info.offset` and `info.velocity`, relay the verdict through `onStart`, settle both screens, and return the verdict"
               ]
@@ -619,18 +691,8 @@ const EN: DocSection[] = [
             items: [
               "`info` is `{ point, offset, velocity, delta }`, each an `{ x, y }` pair",
               "`animate(element, target, options?)` writes values to a screen. Pass `{ duration: 0 }` to follow the finger, and a short duration with an `ease` to settle",
-              "The `progress` you report through `onProgress` is what drives the transition's decorator and every `Part` on both screens, so one gesture moves the whole scene (see the Part page)",
-              "Return `true` from `onSwipeEnd` and flemo completes the back navigation without replaying the pop animation, since the swipe already played it. Return `false` and everything returns to rest"
+              "What it costs: a drag written a value at a time is not an animation as far as the compositor is concerned, so the RELEASE is the first commit of one. Measured on an iPhone at 41 to 49ms of dropped frames, on every release, however slow the gesture was. A declared drag does not pay it"
             ]
-          },
-          {
-            type: "p",
-            text: "This is cupertino's actual `options` block. The `linear` helper maps the drag offset onto a 0 to 100 progress, and the three handlers do the rest."
-          },
-          {
-            type: "code",
-            lang: "ts",
-            code: 'const linear = (value: number, from: [number, number], to: [number, number]) => {\n  const [fromMin, fromMax] = from;\n  const [toMin, toMax] = to;\n  if (fromMax === fromMin) return toMin;\n  const t = (value - fromMin) / (fromMax - fromMin);\n  return toMin + t * (toMax - toMin);\n};\n\nconst cupertino = createTransition({\n  name: "cupertino",\n  // ...phases\n  options: {\n    decoratorName: "overlay",\n    swipeDirection: "x",\n    onSwipeStart: async () => {\n      return true;\n    },\n    onSwipe: (_, info, { animate, currentScreen, prevScreen, onProgress }) => {\n      const { offset } = info;\n      const dragX = offset.x;\n      const progress = linear(dragX, [0, window.innerWidth], [0, 100]);\n\n      onProgress?.(true, progress);\n\n      animate(currentScreen, { x: Math.max(0, dragX) }, { duration: 0 });\n      animate(prevScreen, { x: `${-35 + progress * 0.35}%` }, { duration: 0 });\n\n      return progress;\n    },\n    onSwipeEnd: async (_, info, { animate, currentScreen, prevScreen, onStart }) => {\n      const { offset, velocity } = info;\n      const dragX = offset.x;\n      const isTriggered = dragX > 50 || velocity.x > 20;\n\n      onStart?.(isTriggered);\n\n      await Promise.all([\n        animate(currentScreen, { x: isTriggered ? "100%" : 0 }, { duration: 0.3, ease: [0.32, 0.72, 0, 1] }),\n        animate(prevScreen, { x: isTriggered ? 0 : "-35%" }, { duration: 0.3, ease: [0.32, 0.72, 0, 1] })\n      ]);\n\n      return isTriggered;\n    }\n  }\n});'
           },
           { type: "h", text: "Decorators" },
           {
@@ -736,7 +798,7 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "Parts take the same three hooks, `onSwipeStart`, `onSwipe`, and `onSwipeEnd`, in a per-element form. Each receives `(triggered, { animate, element, active })`, and `onSwipe` additionally gets the drag `progress` from 0 to 100, the same progress the screen transition reports (see the Transitions page). There is no pointer event and no screens here, just the wrapped `element`, `animate` to write to it, and `active` telling whether it sits on the current top screen (`true`) or the previous screen being revealed (`false`). The rhythm matches the screen hooks: `{ duration: 0 }` in `onSwipe` to follow the finger, and a short settle in `onSwipeEnd` where `triggered` says whether the swipe committed."
+            text: "Parts take their own three hooks, `onSwipeStart`, `onSwipe`, and `onSwipeEnd`, in a per-element form. Each receives `(triggered, { animate, element, active })`, and `onSwipe` additionally gets the drag `progress` from 0 to 100, the same progress the screen transition reports (see the Transitions page). There is no pointer event and no screens here, just the wrapped `element`, `animate` to write to it, and `active` telling whether it sits on the current top screen (`true`) or the previous screen being revealed (`false`). The rhythm is the one a transition's own `onMove` and `onEnd` use: `{ duration: 0 }` in `onSwipe` to follow the finger, and a short settle in `onSwipeEnd` where `triggered` says whether the swipe committed."
           },
           {
             type: "code",
@@ -1551,26 +1613,85 @@ const KO: DocSection[] = [
           { type: "h", text: "스와이프" },
           {
             type: "p",
-            text: '프리셋이든 커스텀이든, `options`에 `swipeDirection`(`"x"` 또는 `"y"`)과 핸들러 세 개를 주면 제스처로 끌 수 있어요. 드래그하는 동안엔 핸들러가 화면을 맡아요. flemo가 포인터 데이터와 두 화면 요소를 넘겨주면, 핸들러가 화면을 움직이고 진행도를 보고하고 결과를 정해요. 내장 cupertino 엣지 스와이프 뒤로가기가 바로 이 방식이에요.'
+            text: "프리셋이든 커스텀이든, `options`에 `swipe: { direction }`만 선언하면 제스처로 끌 수 있어요. 선언은 그게 전부예요. 드래그는 그 트랜지션 자신의 pop 키프레임을 손가락으로 걸어가고, 놓는 순간의 판정은 얼마나 갔는지와 얼마나 빠르게 놓았는지가 정하고, 착지는 남은 거리로 flemo가 계산한 시계로 달려요. 내장 cupertino 엣지 스와이프 뒤로가기가 한 줄이에요."
+          },
+          {
+            type: "table",
+            headers: ["옵션", "타입", "역할"],
+            rows: [
+              ["`direction`", '`"x"` | `"y"`', "필수예요. 제스처가 움직이는 축이에요"],
+              [
+                "`threshold`",
+                "`number` | `(span) => number`",
+                "놓았을 때 넘어가려면 화면을 얼마나 끌고 가야 하는지를 px로 정해요. 기본값은 390px 화면에서의 50px이고, 실제 화면 폭에 맞춰 늘어나요"
+              ],
+              [
+                "`velocity`",
+                "`number`",
+                "아무리 조금 갔어도 넘어가게 만드는 속도예요. 손가락이 놓이는 순간 이보다 빠르면 넘어가요. 기본값은 20이에요"
+              ],
+              [
+                "`progress`",
+                "`(info, span) => number | { current, prev }`",
+                "두 면이 각자 얼마나 왔는지를 0에서 1로 알려줘요. 기본값은 화면이 자기 폭이나 높이에서 얼마나 끌려왔는가예요. 저항이 있거나 도중에 멈추는 드래그는 여기에 적어요"
+              ],
+              [
+                "`onStart` / `onMove` / `onEnd`",
+                "훅",
+                "드래그를 직접 몰아요. `onMove`나 `onEnd`를 적으면 그 국면 동안 화면은 저자 것이 되고 flemo는 손을 떼요"
+              ]
+            ]
+          },
+          {
+            type: "list",
+            items: [
+              "`swipe`가 없는 트랜지션은 제스처가 없어요. 따로 꺼야 할 게 없어요",
+              "`progress`가 숫자 두 개를 반환하는 건 두 면이 서로 다른 비율로 걷기 때문이에요. `material`이 그 사례예요. 밀려나는 화면은 자기 높이만큼 가야 해서 고무줄이 늘어나는 동안 계속 움직이고, 밑에서 올라오는 화면은 56px에서 도착해 멈춰요",
+              "flemo가 계산한 진행도가 그 트랜지션의 데코레이터와 양쪽 화면의 모든 `Part`를 함께 몰아요. 제스처 하나가 장면 전체를 끌어요(Part 페이지 참고)",
+              "`threshold`와 `velocity`는 한 질문의 두 반쪽이에요. 충분히 멀리 갔는가, 아니면 놓는 순간까지 움직이고 있었는가. 둘 중 하나만 넘어도 넘어가요"
+            ]
+          },
+          {
+            type: "p",
+            text: "이게 cupertino의 실제 `options` 블록이에요. 원래도 드래그가 자기 pop을 손가락으로 걸어가는 것이었으니, 선언하는 게 전부예요."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'const cupertino = createTransition({\n  name: "cupertino",\n  // ...phases\n  options: {\n    decoratorName: "overlay",\n    swipe: {\n      direction: "x"\n    }\n  }\n});'
+          },
+          {
+            type: "p",
+            text: "material은 숫자가 하나 더 필요해요. 56px을 넘어가면 손가락을 그대로 따라가지 않고 저항하고, 두 면이 서로 다른 비율로 걷거든요. 그 둘이 `progress`로 가고 키프레임은 위에 선언한 그대로예요."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'const PULL = 56;\n\nconst pull = (dragY: number) => {\n  const followed = Math.max(0, Math.min(PULL, dragY));\n  const over = Math.max(0, dragY - PULL);\n  return followed + Math.sqrt(Math.min(1, over / 160)) * 12;\n};\n\noptions: {\n  swipe: {\n    direction: "y",\n    threshold: PULL,\n    progress: (info, span) => {\n      const pulled = pull(info.offset.y);\n      return {\n        current: span > 0 ? pulled / span : 0,\n        prev: Math.min(PULL, pulled) / PULL\n      };\n    }\n  }\n}'
+          },
+          { type: "h", text: "화면을 직접 몰기" },
+          {
+            type: "p",
+            text: "이제 내장 프리셋 중에 이 훅을 쓰는 건 없어요. `layout`의 제스처는 자기 pop과 아예 다르지만 그래도 선언형이에요. pop은 순수 페이드인데 드래그는 시트를 아래로 당겼다가 미끄러뜨리고, 그걸 `current`가 말해 주거든요. 훅이 남아 있는 건 한 화면 안에서 속성들이 서로 다른 속도로 움직이는 드래그 때문이에요. 스크럽되는 키프레임 하나를 진행도 하나로 걸어서는 두 속도를 말할 수 없으니까요. 두 축을 동시에 따라가거나, 애초에 두 포즈 사이의 보간이 아닌 드래그도 마찬가지예요. `onMove`와 `onEnd`를 적으면 제스처 내내 화면이 저자 것이 돼요. 두 축을 자유롭게 따라가거나 끌면서 작아지는 것처럼, 애초에 보간이 아닌 드래그도 이렇게 만들어요."
           },
           {
             type: "table",
             headers: ["훅", "시그니처", "역할"],
             rows: [
               [
-                "`onSwipeStart`",
+                "`onStart`",
                 "`(event, info, { animate, currentScreen, prevScreen, onStart })`",
-                "제스처를 받아들일지 정해요. `true`를 반환하면 스와이프를 시작하고, `false`면 드래그를 무시해요"
+                "제스처를 받아들일지 정해요. `true`면 시작하고 `false`면 드래그를 무시해요. 그 외에는 아무것도 뺏지 않아서, 선언형 드래그와 같이 쓸 수 있어요"
               ],
               [
-                "`onSwipe`",
+                "`onMove`",
                 "`(event, info, { animate, currentScreen, prevScreen, onProgress })`",
-                "드래그하는 매 프레임 실행돼요. 두 화면을 움직이고, 0에서 100까지의 진행도를 계산해 `onProgress`로 보고한 뒤 그 값을 반환해요"
+                "드래그 프레임마다 불려요. 화면 두 장을 직접 움직여요. 이걸 가져가면 flemo는 화면을 몰지 않아요"
               ],
               [
-                "`onSwipeEnd`",
+                "`onEnd`",
                 "`(event, info, { animate, currentScreen, prevScreen, onStart })`",
-                "`info.offset`과 `info.velocity`로 커밋 여부를 정하고, `onStart`로 판정을 전달하고, 두 화면을 안착시킨 뒤 판정을 반환해요"
+                "`info.offset`과 `info.velocity`로 커밋을 정하고, `onStart`로 결과를 알리고, 화면 두 장을 착지시키고, 결과를 반환해요"
               ]
             ]
           },
@@ -1578,19 +1699,9 @@ const KO: DocSection[] = [
             type: "list",
             items: [
               "`info`는 `{ point, offset, velocity, delta }`이고, 각각 `{ x, y }` 쌍이에요",
-              "`animate(element, target, options?)`는 화면에 값을 써요. `{ duration: 0 }`을 주면 손가락을 따라가고, 짧은 duration과 `ease`를 주면 안착해요",
-              "`onProgress`로 보고하는 `progress`가 트랜지션의 데코레이터와 양쪽 화면의 모든 `Part`를 움직여요. 그래서 제스처 하나가 장면 전체를 끌어요(Part 페이지 참고)",
-              "`onSwipeEnd`에서 `true`를 반환하면 스와이프가 이미 pop 애니메이션을 재생한 셈이라, flemo가 그걸 다시 재생하지 않고 뒤로가기를 완료해요. `false`를 반환하면 전부 원래 자리로 돌아가요"
+              "`animate(element, target, options?)`는 화면에 값을 써요. `{ duration: 0 }`을 주면 손가락을 따라가고, 짧은 duration과 `ease`를 주면 착지예요",
+              "대가가 있어요. 값을 한 프레임씩 쓰는 드래그는 합성기 입장에서 애니메이션이 아니라서, 놓는 순간이 애니메이션의 첫 커밋이 돼요. 아이폰에서 매 릴리스마다 41~49ms의 프레임 유실로 측정됐고, 제스처가 느려도 똑같았어요. 선언형 드래그는 이 값을 내지 않아요"
             ]
-          },
-          {
-            type: "p",
-            text: "이게 cupertino의 실제 `options` 블록이에요. `linear` 헬퍼가 드래그 오프셋을 0에서 100까지의 진행도로 매핑하고, 핸들러 세 개가 나머지를 맡아요."
-          },
-          {
-            type: "code",
-            lang: "ts",
-            code: 'const linear = (value: number, from: [number, number], to: [number, number]) => {\n  const [fromMin, fromMax] = from;\n  const [toMin, toMax] = to;\n  if (fromMax === fromMin) return toMin;\n  const t = (value - fromMin) / (fromMax - fromMin);\n  return toMin + t * (toMax - toMin);\n};\n\nconst cupertino = createTransition({\n  name: "cupertino",\n  // ...phases\n  options: {\n    decoratorName: "overlay",\n    swipeDirection: "x",\n    onSwipeStart: async () => {\n      return true;\n    },\n    onSwipe: (_, info, { animate, currentScreen, prevScreen, onProgress }) => {\n      const { offset } = info;\n      const dragX = offset.x;\n      const progress = linear(dragX, [0, window.innerWidth], [0, 100]);\n\n      onProgress?.(true, progress);\n\n      animate(currentScreen, { x: Math.max(0, dragX) }, { duration: 0 });\n      animate(prevScreen, { x: `${-35 + progress * 0.35}%` }, { duration: 0 });\n\n      return progress;\n    },\n    onSwipeEnd: async (_, info, { animate, currentScreen, prevScreen, onStart }) => {\n      const { offset, velocity } = info;\n      const dragX = offset.x;\n      const isTriggered = dragX > 50 || velocity.x > 20;\n\n      onStart?.(isTriggered);\n\n      await Promise.all([\n        animate(currentScreen, { x: isTriggered ? "100%" : 0 }, { duration: 0.3, ease: [0.32, 0.72, 0, 1] }),\n        animate(prevScreen, { x: isTriggered ? 0 : "-35%" }, { duration: 0.3, ease: [0.32, 0.72, 0, 1] })\n      ]);\n\n      return isTriggered;\n    }\n  }\n});'
           },
           { type: "h", text: "데코레이터" },
           {
@@ -1693,7 +1804,7 @@ const KO: DocSection[] = [
           },
           {
             type: "p",
-            text: "파트도 같은 훅 세 개(`onSwipeStart`, `onSwipe`, `onSwipeEnd`)를 요소 단위 형태로 받아요. 각각 `(triggered, { animate, element, active })`를 받고, `onSwipe`엔 0에서 100까지의 드래그 `progress`가 더 붙어요. 화면 트랜지션이 보고하는 바로 그 진행도예요(Transitions 페이지 참고). 여기엔 포인터 이벤트도 화면도 없어요. 감싼 `element`와, 거기에 값을 쓰는 `animate`, 그리고 그 요소가 현재 맨 위 화면에 있는지(`true`) 드러나는 이전 화면에 있는지(`false`)를 알려주는 `active`뿐이에요. 리듬은 화면 훅과 같아요. `onSwipe`에선 `{ duration: 0 }`으로 손가락을 따라가고, `onSwipeEnd`에선 짧게 안착하며 `triggered`가 스와이프 커밋 여부를 알려줘요."
+            text: "파트는 자기 훅 세 개(`onSwipeStart`, `onSwipe`, `onSwipeEnd`)를 요소 단위 형태로 받아요. 각각 `(triggered, { animate, element, active })`를 받고, `onSwipe`엔 0에서 100까지의 드래그 `progress`가 더 붙어요. 화면 트랜지션이 보고하는 바로 그 진행도예요(Transitions 페이지 참고). 여기엔 포인터 이벤트도 화면도 없어요. 감싼 `element`와, 거기에 값을 쓰는 `animate`, 그리고 그 요소가 현재 맨 위 화면에 있는지(`true`) 드러나는 이전 화면에 있는지(`false`)를 알려주는 `active`뿐이에요. 리듬은 트랜지션의 `onMove`·`onEnd`와 같아요. `onSwipe`에선 `{ duration: 0 }`으로 손가락을 따라가고, `onSwipeEnd`에선 짧게 안착하며 `triggered`가 스와이프 커밋 여부를 알려줘요."
           },
           {
             type: "code",

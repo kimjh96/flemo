@@ -68,10 +68,12 @@ describe("the reveal hold", () => {
       name: "reveal-hold",
       initial: { x: "100%" },
       variants: fullVariants({ x: 0 }, { duration: 0.3 }),
-      swipeDirection: "x",
-      onSwipeStart: async () => true,
-      onSwipe,
-      onSwipeEnd: async () => false
+      swipe: {
+        direction: "x",
+        onStart: async () => true,
+        onMove: onSwipe,
+        onEnd: async () => false
+      }
     } as unknown as Transition;
 
     config = {
