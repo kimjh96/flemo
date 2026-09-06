@@ -626,7 +626,7 @@ const EN: DocSection[] = [
               [
                 "`onStart` / `onMove` / `onEnd`",
                 "hooks",
-                "Take the drag over yourself. Writing `onMove` or `onEnd` makes the screens yours for that phase, and flemo stops driving them"
+                "Drive the drag yourself. Writing `onMove` or `onEnd` takes the screens over, UNLESS you also named `current` or `prev`, in which case flemo keeps the screens and your hook drives everything else"
               ]
             ]
           },
@@ -672,7 +672,11 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "`at` is where along the drag the stop is reached, 0 to 1, and the last stop is the end. What is left for a hook is a drag that is not an interpolation between poses at all: one that follows the finger in two axes at once, or shrinks as it is carried about. There is no line to place an arbitrary pose on, so those drive their own screens and pay the release commit for it."
+            text: "`at` is where along the drag the stop is reached, 0 to 1, and the last stop is the end. What is left for a hook is a drag that is not an interpolation between poses at all: one that follows the finger in two axes at once, or carries an element about freely."
+          },
+          {
+            type: "p",
+            text: "The two compose. Naming `current` or `prev` claims the screens whatever hook you also write, so a gesture that carries a morphing element can have a hook for the element and leave the screens to flemo. That matters for more than tidiness: the release's cost is paid on whatever the main thread was holding through the drag, and the screens are two full-screen layers. A hook written with no destination beside it still takes them, which is what a drag that moves the screens themselves to arbitrary places has to do."
           },
           {
             type: "table",
@@ -1647,7 +1651,7 @@ const KO: DocSection[] = [
               [
                 "`onStart` / `onMove` / `onEnd`",
                 "훅",
-                "드래그를 직접 몰아요. `onMove`나 `onEnd`를 적으면 그 국면 동안 화면은 저자 것이 되고 flemo는 손을 떼요"
+                "드래그를 직접 몰아요. `onMove`나 `onEnd`를 적으면 화면이 저자 것이 되는데, `current`나 `prev`를 같이 적었다면 화면은 flemo가 계속 몰고 훅은 나머지를 몰아요"
               ]
             ]
           },
@@ -1690,7 +1694,11 @@ const KO: DocSection[] = [
           },
           {
             type: "p",
-            text: "`at`은 드래그의 어디에서 그 포즈에 닿는지예요(0에서 1). 마지막 스톱이 끝이고요. 훅이 남아 있는 건 애초에 포즈 사이의 보간이 아닌 드래그예요. 두 축을 동시에 따라가거나 끌려다니며 작아지는 것처럼요. 임의의 포즈를 올려놓을 선분이 없으니 그런 드래그는 화면을 직접 몰고, 릴리스 커밋 값을 냅니다."
+            text: "`at`은 드래그의 어디에서 그 포즈에 닿는지예요(0에서 1). 마지막 스톱이 끝이고요. 훅이 남아 있는 건 애초에 포즈 사이의 보간이 아닌 드래그예요. 두 축을 동시에 따라가거나, 요소를 자유롭게 끌고 다니는 것처럼요."
+          },
+          {
+            type: "p",
+            text: "둘은 같이 쓸 수 있어요. `current`나 `prev`를 적으면 훅을 같이 써도 화면은 flemo 것이라, 모핑 요소를 끌고 다니는 제스처는 요소에만 훅을 쓰고 화면은 맡겨 두면 돼요. 이게 단정함의 문제만은 아니에요. 릴리스 비용은 드래그 내내 메인 스레드가 쥐고 있던 것에 붙는데, 화면은 전체 화면 레이어 두 장이거든요. 도착지 없이 훅만 적으면 화면도 가져갑니다. 화면 자체를 임의의 자리로 옮기는 드래그는 그래야 하고요."
           },
           {
             type: "table",

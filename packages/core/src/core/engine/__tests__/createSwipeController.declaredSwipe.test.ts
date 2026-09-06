@@ -522,6 +522,43 @@ describe("a swipe declared with nothing but a direction", () => {
     expect(JSON.stringify(staged?.keyframes)).toContain("100%");
   });
 
+  it("keeps the screens for a transition that named them and still writes a hook", async () => {
+    // THE COMPOSITION HOOKS EXIST FOR. A gesture that carries a morphing
+    // element about freely needs a hook for the element, and no reason to hand
+    // over the screens for it — they are the expensive half, two full-screen
+    // layers, and the release's cost is measured in what the main thread was
+    // holding.
+    const loose = document.createElement("div");
+    dom.screenContainer.appendChild(loose);
+    stubAnimate(loose);
+
+    const controller = createSwipeController(
+      buildConfig(
+        declared({
+          current: { x: "100%" },
+          prev: {},
+          onMove: (
+            _event: PointerEvent,
+            _info: unknown,
+            { animate }: { animate: (el: HTMLElement, value: unknown, o: unknown) => void }
+          ) => {
+            // The element the author is carrying, and a screen they are not.
+            animate(loose, { x: 12 }, { duration: 0 });
+            animate(dom.scope, { x: 999 }, { duration: 0 });
+            return 0;
+          }
+        })
+      )
+    );
+    await drag(controller, [120, 200]);
+
+    // The screens stayed on the scrub, so the hook's write to one was refused.
+    expect(ANIMATED.map((entry) => entry.element)).toContain(dom.scope);
+    expect(dom.scope.style.transform).toBe("");
+    // And everything else it animated went through untouched.
+    expect(loose.style.transform).toContain("12");
+  });
+
   it("stands aside for a transition that took the drag over", async () => {
     const onMove = vi.fn(() => 0);
     const controller = createSwipeController(

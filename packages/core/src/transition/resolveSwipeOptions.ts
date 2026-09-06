@@ -28,10 +28,22 @@ export interface ResolvedSwipe {
   /**
    * Whether flemo drives the screens itself.
    *
-   * A transition that took over `onMove` or `onEnd` owns the screens for that
-   * gesture, and flemo does not stage a scrub for them: two drivers on one
-   * transform is exactly how a bar drifts from the screen it rides. `onStart`
-   * only answers whether the gesture may begin, so it costs nothing.
+   * Two drivers on one transform is how a bar drifts from the screen it
+   * rides, so exactly one of the two owns them, and NAMING WHERE THEY GO IS
+   * HOW A TRANSITION CLAIMS THEM. Declaring `current` or `prev` keeps the
+   * screens on the scrub whatever hooks are also written, and the hook's own
+   * writes to them are refused while everything else it animates goes
+   * through.
+   *
+   * That combination is the point rather than a leniency. A gesture that
+   * carries a morphing element about freely needs a hook for the element and
+   * has no reason to give up the screens for it — and the screens are the
+   * expensive half, being two full-screen layers. Writing a hook without
+   * naming a destination still hands them over, which is what a drag that
+   * moves the screens themselves to arbitrary places has to do.
+   *
+   * `onStart` only answers whether the gesture may begin, so it never costs
+   * the screens.
    */
   drivesScreens: boolean;
 }
@@ -103,7 +115,7 @@ export const resolveSwipeOptions = (transition: Transition): ResolvedSwipe | nul
     onStart,
     onMove,
     onEnd,
-    drivesScreens: !onMove && !onEnd
+    drivesScreens: !!(swipe.current || swipe.prev) || (!onMove && !onEnd)
   };
 };
 
