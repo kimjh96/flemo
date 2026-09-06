@@ -626,7 +626,7 @@ const EN: DocSection[] = [
               [
                 "`onStart` / `onMove` / `onEnd`",
                 "hooks",
-                "Drive the drag yourself. Writing `onMove` or `onEnd` takes the screens over, UNLESS you also named `current` or `prev`, in which case flemo keeps the screens and your hook drives everything else"
+                "Drive the drag yourself. Writing `onMove` or `onEnd` takes the screens over, UNLESS you also named `current` or `prev`, in which case flemo keeps the screens, decides the release and hands your `onEnd` the verdict as `triggered`"
               ]
             ]
           },
@@ -676,7 +676,11 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "The two compose. Naming `current` or `prev` claims the screens whatever hook you also write, so a gesture that carries a morphing element can have a hook for the element and leave the screens to flemo. That matters for more than tidiness: the release's cost is paid on whatever the main thread was holding through the drag, and the screens are two full-screen layers. A hook written with no destination beside it still takes them, which is what a drag that moves the screens themselves to arbitrary places has to do."
+            text: "The two compose. Naming `current` or `prev` claims the screens whatever hook you also write, so a gesture that carries a morphing element can have a hook for the element and leave the screens to flemo. That matters for more than tidiness: the release's cost is paid on whatever the main thread was holding through the drag, and the screens are two full-screen layers."
+          },
+          {
+            type: "p",
+            text: "WHOEVER OWNS THE SCREENS OWNS THE RELEASE. With a destination named, flemo decides whether the gesture committed, settles the clock every participant lands on, and hands your `onEnd` the answer as `triggered` — so a hook that only wants to land something of its own never restates a rule it has no opinion about, and what it returns is not read. A hook written with no destination beside it takes the screens, and with them the verdict, which is what a drag that moves the screens themselves to arbitrary places has to do."
           },
           {
             type: "table",
@@ -1651,7 +1655,7 @@ const KO: DocSection[] = [
               [
                 "`onStart` / `onMove` / `onEnd`",
                 "훅",
-                "드래그를 직접 몰아요. `onMove`나 `onEnd`를 적으면 화면이 저자 것이 되는데, `current`나 `prev`를 같이 적었다면 화면은 flemo가 계속 몰고 훅은 나머지를 몰아요"
+                "드래그를 직접 몰아요. `onMove`나 `onEnd`를 적으면 화면이 저자 것이 되는데, `current`나 `prev`를 같이 적었다면 화면도 릴리스 판정도 flemo가 맡고 `onEnd`엔 그 판정이 `triggered`로 넘어와요"
               ]
             ]
           },
@@ -1698,7 +1702,11 @@ const KO: DocSection[] = [
           },
           {
             type: "p",
-            text: "둘은 같이 쓸 수 있어요. `current`나 `prev`를 적으면 훅을 같이 써도 화면은 flemo 것이라, 모핑 요소를 끌고 다니는 제스처는 요소에만 훅을 쓰고 화면은 맡겨 두면 돼요. 이게 단정함의 문제만은 아니에요. 릴리스 비용은 드래그 내내 메인 스레드가 쥐고 있던 것에 붙는데, 화면은 전체 화면 레이어 두 장이거든요. 도착지 없이 훅만 적으면 화면도 가져갑니다. 화면 자체를 임의의 자리로 옮기는 드래그는 그래야 하고요."
+            text: "둘은 같이 쓸 수 있어요. `current`나 `prev`를 적으면 훅을 같이 써도 화면은 flemo 것이라, 모핑 요소를 끌고 다니는 제스처는 요소에만 훅을 쓰고 화면은 맡겨 두면 돼요. 이게 단정함의 문제만은 아니에요. 릴리스 비용은 드래그 내내 메인 스레드가 쥐고 있던 것에 붙는데, 화면은 전체 화면 레이어 두 장이거든요."
+          },
+          {
+            type: "p",
+            text: "화면을 가진 쪽이 릴리스도 가집니다. 도착지를 적었다면 넘어갈지 말지도 flemo가 정하고, 모두가 함께 착지할 시계도 flemo가 정하고, `onEnd`엔 그 답이 `triggered`로 넘어와요. 그래서 자기 요소만 착지시키려는 훅은 의견도 없는 규칙을 다시 쓸 필요가 없고, 무엇을 반환하든 읽히지 않아요. 도착지 없이 훅만 적으면 화면과 함께 판정도 가져갑니다. 화면 자체를 임의의 자리로 옮기는 드래그는 그래야 하고요."
           },
           {
             type: "table",

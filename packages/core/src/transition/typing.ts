@@ -181,7 +181,17 @@ export interface SwipeOptions {
       onProgress?: (triggered: boolean, progress?: number) => void;
     }
   ) => number;
-  /** Land the screens yourself. Taking this over has the same terms as `onMove`. */
+  /**
+   * Land what the drag was carrying. Same terms as `onMove`.
+   *
+   * WHOEVER OWNS THE SCREENS OWNS THE VERDICT. A transition that took them
+   * over answers the commit question here, and its answer is the navigation's.
+   * One written beside a declared destination is told the answer instead: it
+   * arrives as `triggered`, the clock every participant lands on is already
+   * settled, and whatever this returns is not read — so a hook that only wants
+   * to land an element of its own does not have to restate a rule it has no
+   * opinion about.
+   */
   onEnd?: (
     event: PointerEvent,
     info: SwipeInfo,
@@ -189,9 +199,11 @@ export interface SwipeOptions {
       animate: SwipeAnimate;
       currentScreen: HTMLDivElement;
       prevScreen: HTMLDivElement;
+      /** The verdict, when flemo owns the screens and has already decided. */
+      triggered?: boolean;
       onStart?: (triggered: boolean) => void;
     }
-  ) => Promise<boolean>;
+  ) => Promise<boolean | void>;
 }
 
 /**

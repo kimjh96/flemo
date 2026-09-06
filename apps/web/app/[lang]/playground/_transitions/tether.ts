@@ -1,6 +1,6 @@
 "use client";
 
-import { createTransition, DEFAULT_COMMIT_FRACTION, DEFAULT_COMMIT_VELOCITY } from "@flemo/react";
+import { createTransition } from "@flemo/react";
 
 import "./tether.types";
 
@@ -74,21 +74,13 @@ const tether = createTransition({
         }
         return 0;
       },
-      onEnd: async (_event, info, { animate, currentScreen }) => {
+      onEnd: async (_event, _info, { animate, currentScreen }) => {
+        // Only the element this transition carries. The verdict and the clock
+        // are flemo's, because the screens are, so there is nothing to answer
+        // and nothing to restate: this write is scaled against the same
+        // release everything else lands on.
         const header = currentScreen.querySelector<HTMLElement>("header");
         if (header) await animate(header, { x: 0 }, { duration: DURATION, ease: EASE });
-        // AND THEN THE VERDICT, which this transition has no opinion about.
-        //
-        // Taking over `onEnd` to land one element of your own means answering
-        // the commit question as well, so the shared rule is restated here
-        // from the constants flemo applies when nobody takes it over. It is a
-        // wart: a hook that only wants to land something should be able to
-        // leave the answer alone.
-        const span = currentScreen.getBoundingClientRect().width || window.innerWidth;
-        return (
-          info.offset.x >= span * DEFAULT_COMMIT_FRACTION ||
-          info.velocity.x > DEFAULT_COMMIT_VELOCITY
-        );
       }
     }
   }

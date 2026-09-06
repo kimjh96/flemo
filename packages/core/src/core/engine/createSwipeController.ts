@@ -1578,7 +1578,13 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // The release's own work, run once the verdict is known: the decorator and
     // the parts land on the same clock the screens do, and the clock itself is
     // read from the verdict (what is LEFT to travel depends on it).
+    let releaseApplied = false;
     const applyRelease = (triggered: boolean) => {
+      // ONCE. The verdict lands the decorator and the parts, and a hook that
+      // reports one flemo has already applied must not drive them a second
+      // time.
+      if (releaseApplied) return;
+      releaseApplied = true;
       const settledTrigger = forceCancel ? false : triggered;
       releaseTriggered = settledTrigger;
       decoratorDef?.onSwipeEnd?.(settledTrigger, {
@@ -1589,27 +1595,18 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       drivePartTransitions("end", settledTrigger, 0, animatePartForEnd);
     };
 
-    let handlerTriggered: boolean;
-    if (swipe.onEnd) {
-      handlerTriggered = await swipe.onEnd(event, swipeInfo, {
-        animate: animateForEnd,
-        currentScreen: scope as HTMLDivElement,
-        prevScreen: prevScreen as HTMLDivElement,
-        onStart: applyRelease
-      });
-    } else {
-      // FLEMO'S OWN VERDICT. Far enough, or still moving when the finger left:
-      // the two halves every preset had written for itself, in one place, and
-      // both of them the transition's to name (`swipe.threshold`,
-      // `swipe.velocity`) with the presets' own numbers as the defaults.
-      handlerTriggered =
-        travelled >= swipe.commitDistance(span) || velocityOnAxis > swipe.commitVelocity;
-      releaseTriggered = forceCancel ? false : handlerTriggered;
-      // And its own clock. Nothing writes a screen on this path — the scrub is
-      // handed back rather than animated to — so the settle length that the
-      // decorator, the parts and the scrub all share is computed here instead
-      // of falling out of the first screen write.
-      settleSeconds = tapLike
+    // FLEMO'S OWN VERDICT. Far enough, or still moving when the finger left:
+    // the two halves every preset had written for itself, in one place, and
+    // both of them the transition's to name (`swipe.threshold`,
+    // `swipe.velocity`) with the presets' own numbers as the defaults.
+    const ownVerdict = () =>
+      travelled >= swipe.commitDistance(span) || velocityOnAxis > swipe.commitVelocity;
+    // And its own clock. Nothing writes a screen on this path — the scrub is
+    // handed back rather than animated to — so the settle length that the
+    // decorator, the parts and anything a hook lands beside them all share is
+    // computed here instead of falling out of the first screen write.
+    const ownClock = () =>
+      tapLike
         ? 0
         : swipeSettleSeconds({
             remainingPx: releaseTriggered ? span - travelled : travelled,
@@ -1619,7 +1616,38 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
             authoredEase: screenReleaseMotion ? easeControlPoints(screenReleaseMotion.ease) : null,
             reversing: !releaseTriggered && !fingerHeadingBack
           });
+
+    let handlerTriggered: boolean;
+    if (swipe.onEnd && !swipe.drivesScreens) {
+      // The transition owns the screens, so it owns the release: it decides,
+      // it lands them, and its answer is the navigation's.
+      handlerTriggered = (await swipe.onEnd(event, swipeInfo, {
+        animate: animateForEnd,
+        currentScreen: scope as HTMLDivElement,
+        prevScreen: prevScreen as HTMLDivElement,
+        onStart: applyRelease
+      })) as boolean;
+    } else {
+      // WHOEVER OWNS THE SCREENS OWNS THE RELEASE, and here that is flemo.
+      //
+      // The verdict and the clock are settled BEFORE any hook runs, so a hook
+      // that lands something of its own is scaled against the same release
+      // every other participant is, and does not have to restate a rule that
+      // was never its to hold. It is told the answer rather than asked for
+      // one, and whatever it returns is not read.
+      handlerTriggered = ownVerdict();
+      releaseTriggered = forceCancel ? false : handlerTriggered;
+      settleSeconds = ownClock();
       applyRelease(handlerTriggered);
+      if (swipe.onEnd) {
+        await swipe.onEnd(event, swipeInfo, {
+          animate: animateForEnd,
+          currentScreen: scope as HTMLDivElement,
+          prevScreen: prevScreen as HTMLDivElement,
+          triggered: releaseTriggered,
+          onStart: applyRelease
+        });
+      }
     }
     const isTriggered = !forceCancel && handlerTriggered;
     // A tap-like release wrote everything at zero duration and never reached

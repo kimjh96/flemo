@@ -559,6 +559,94 @@ describe("a swipe declared with nothing but a direction", () => {
     expect(loose.style.transform).toContain("12");
   });
 
+  it("decides the release itself when it owns the screens, and tells the hook", async () => {
+    // WHOEVER OWNS THE SCREENS OWNS THE RELEASE. A hook written beside a
+    // declared destination is there to land something of its own, and asking
+    // it to answer the commit question as well means restating a rule it has
+    // no opinion about — the fixture that first wrote one had to import
+    // flemo's own constants to repeat them.
+    const back = vi.fn();
+    const seen: (boolean | undefined)[] = [];
+    const controller = createSwipeController({
+      ...buildConfig(
+        declared({
+          current: { x: "100%" },
+          prev: {},
+          onEnd: async (
+            _event: PointerEvent,
+            _info: unknown,
+            { triggered }: { triggered?: boolean }
+          ) => {
+            seen.push(triggered);
+            // Deliberately answering the opposite, and deliberately ignored.
+            return false;
+          }
+        })
+      ),
+      back
+    });
+    await drag(controller, [200, 300]);
+    controller.pointerUp(event({ clientX: 300, clientY: 100 }));
+    await flush();
+
+    // The gesture carried the screen across, so flemo committed it, and the
+    // hook was handed that answer rather than asked for one.
+    expect(seen).toEqual([true]);
+    expect(back).toHaveBeenCalledTimes(1);
+  });
+
+  it("lands the decorator once when a hook reports a verdict flemo already applied", async () => {
+    // A hook may call `onStart` out of habit, or because it was written before
+    // flemo owned the release. Applying twice would drive the dim and the
+    // parts through their landing a second time, on top of themselves.
+    const onSwipeEnd = vi.fn();
+    const base = buildConfig(
+      declared({
+        current: { x: "100%" },
+        prev: {},
+        onEnd: async (
+          _event: PointerEvent,
+          _info: unknown,
+          { onStart }: { onStart?: (triggered: boolean) => void }
+        ) => {
+          onStart?.(true);
+          onStart?.(false);
+        }
+      })
+    );
+    const controller = createSwipeController({
+      ...base,
+      getDecorator: () =>
+        ({
+          name: "declared-swipe-dim",
+          initial: { opacity: 0 },
+          variants: fullVariants({ opacity: 1 }),
+          onSwipeStart: vi.fn(),
+          onSwipeEnd
+        }) as unknown as ReturnType<SwipeControllerConfig["getDecorator"]>
+    });
+    await drag(controller, [200, 300]);
+    controller.pointerUp(event({ clientX: 300, clientY: 100 }));
+    await flush();
+
+    expect(onSwipeEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it("still lets a transition that took the screens decide", async () => {
+    // The other half of the same rule: no destination named, so the hook owns
+    // the screens and its answer is the navigation's.
+    const back = vi.fn();
+    const controller = createSwipeController({
+      ...buildConfig(declared({ onMove: () => 0, onEnd: async () => false })),
+      back
+    });
+    await drag(controller, [200, 300]);
+    controller.pointerUp(event({ clientX: 300, clientY: 100 }));
+    await flush();
+
+    expect(back).not.toHaveBeenCalled();
+  });
+
   it("stands aside for a transition that took the drag over", async () => {
     const onMove = vi.fn(() => 0);
     const controller = createSwipeController(
