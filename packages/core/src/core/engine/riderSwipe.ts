@@ -29,6 +29,18 @@ import { SKIP_ANIMATION_ATTR } from "@dom/attributes";
 export interface RiderSwipe {
   /** Whether anything is actually being driven. */
   readonly active: boolean;
+  /**
+   * Whether any element this staged has left the document.
+   *
+   * A gesture stages against the elements that exist when it begins, and a
+   * drag's own wake can REPLACE one of them a frame later — a covered screen's
+   * dim moves between its container and the layer host as that screen's
+   * `<Layer>` slots unmount and re-mount (see resolvePrevDecorator in
+   * createSwipeController). The animations stay on the node that left, so the
+   * one on screen never moves. Reported for the hook-driven dim; the same wake
+   * reaches a pose-only one, which is what this is for.
+   */
+  readonly stale: boolean;
   /** Move every rider to this fraction of its travel (0 → 1). */
   scrub: (progress: number) => void;
   /**
@@ -102,6 +114,9 @@ export const beginRiderSwipe = (riders: readonly RiderMotion[]): RiderSwipe | nu
   return {
     get active() {
       return !released;
+    },
+    get stale() {
+      return staged.some((rider) => !rider.element.isConnected);
     },
     scrub: (progress: number) => {
       if (released) return;
