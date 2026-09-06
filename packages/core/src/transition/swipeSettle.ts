@@ -128,20 +128,40 @@ export const MIN_REVERSAL_SECONDS = 0.28;
  *
  * So the floor scales with what is left to travel: a release may outrun the
  * authored motion, because the finger genuinely was faster, but not without
- * limit. At 3x, a full-width cupertino landing bottoms out near 0.21s against
- * its authored 0.7s — brisk, continuous with the gesture, and still
- * unmistakably motion. Expressed against the author's own clock and span
- * rather than as pixels per second, so it means the same thing on any screen
- * and under any transition.
+ * limit. Expressed against the author's own clock and span rather than as
+ * pixels per second, so it means the same thing on any screen and under any
+ * transition.
  *
- * THE NUMBER IS A CEILING ON THE ARTIFACT, NOT ON THE FINGER. A human flick
- * tops out around six or seven screen-widths a second; the readings that
- * produced the defect were several times that, which is a coalesced pointer
- * pair over a 4ms gap rather than a hand. 3x leaves every honoured release in
- * the device-judged table above exactly where it was — the fastest of them
- * departs at 2.8x — and only clips what no finger did.
+ * IT WAS 3x, AND 3x WAS CHOSEN SO THAT IT WOULD NOT BIND. The argument ran: a
+ * human flick tops out around six or seven screen-widths a second, the
+ * readings that produced the vanishing screen were several times that, so a
+ * ceiling above the hand "only clips what no finger did". Both halves were
+ * true and the conclusion was backwards. A ceiling no hand can reach is not a
+ * ceiling: on cupertino's 390px over 0.7s the floor only starts to bind above
+ * 2674 px/s, so the by-speed term alone decides every release a person can
+ * actually make, and it lets one run at up to 2.9x the authored motion. That
+ * band IS the hand. Device-reported against the 3x floor itself: "조금 빠르게
+ * 하면 휙 그냥 씹히듯 지나간다".
+ *
+ * 1.2 WAS PICKED ON GLASS, from a ladder of builds identical but for this
+ * number (3 / 2 / 1.5 / 1.2, judged on a device against the same gesture). It
+ * is the first value that reaches the speeds a hand produces: 2 moves nothing
+ * below 1783 px/s and 1.5 nothing below 1337, while 1.2 binds from 1070 up. A
+ * full-width cupertino landing then bottoms out at 0.583s against its authored
+ * 0.7s, and a fast release with 30% travelled lands in 0.408s where it used to
+ * take 0.163s.
+ *
+ * WHAT IT DOES NOT TOUCH. A release slower than the ceiling is unchanged — the
+ * by-distance and by-speed terms already ask for longer than the floor, and
+ * that is most of them. A CANCEL is unchanged outright: a reversal contributes
+ * no speed, so its length is the by-distance term, which is `authored x
+ * remaining` and therefore above this floor by construction at any multiplier
+ * over 1.
+ *
+ * A RELEASE STILL OUTRUNS THE BUTTON, by a fifth. What it no longer does is
+ * outrun it threefold.
  */
-export const MAX_RELEASE_SPEEDUP = 3;
+export const MAX_RELEASE_SPEEDUP = 1.2;
 
 export interface SwipeSettleInput {
   // Distance still to travel when the finger lets go, in px.

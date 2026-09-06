@@ -4,7 +4,7 @@ import { easeControlPoints } from "@transition/cubicBezier";
 import { resolveRideTarget } from "@transition/rideOffset";
 import { reaimReleaseEase, releaseLaunchSlope, swipeSettleSeconds } from "@transition/swipeSettle";
 
-import type { Transition, TransitionVariant } from "@transition/typing";
+import type { BaseTransition, Transition, TransitionVariant } from "@transition/typing";
 import { resolveVariantMotion } from "@transition/variantMotion";
 
 import findScrollable from "@utils/findScrollable";
@@ -460,6 +460,21 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   // repainted from scratch on every frame the finger moved. Same helper, same
   // owner, same deferred demotion — a re-grab inside the previous settle window
   // cancels that pending demotion instead of stripping `will-change` mid-drag.
+  //
+  // The dim is the one participant that is not a fixed element for the whole
+  // gesture (see resolvePrevDecorator), so its promotion is tracked by ELEMENT:
+  // a replacement is promoted the way the original was, and the release names
+  // every one of them rather than the handle of the moment.
+  let dragDecoratorClock: Pick<BaseTransition, "initial" | "variants"> | null = null;
+  const heldDecorators = new Set<HTMLElement>();
+
+  const holdDecoratorLayer = (element: HTMLElement | null) => {
+    // No clock means no decorator on this transition, and nothing to promote.
+    if (!element || !dragDecoratorClock) return;
+    holdScopeLayer(element, dragDecoratorClock, false, layerOwner);
+    heldDecorators.add(element);
+  };
+
   const holdDragLayers = () => {
     const { scope, decorator } = config.getElements();
     const transition = config.getTransition();
@@ -470,18 +485,25 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       // The decorator's variant table only carries a clock once this
       // transition's is folded in (resolveDecoratorClock); the layer hold reads
       // that table to size what it promotes.
-      const decoratorClock = resolveDecoratorClock(transition, decoratorDef);
-      if (decorator) holdScopeLayer(decorator, decoratorClock, false, layerOwner);
-      if (prevDecorator) holdScopeLayer(prevDecorator, decoratorClock, false, layerOwner);
+      dragDecoratorClock = resolveDecoratorClock(transition, decoratorDef);
+      holdDecoratorLayer(decorator);
+      holdDecoratorLayer(resolvePrevDecorator());
     }
   };
 
   const releaseDragLayers = () => {
-    const { scope, decorator } = config.getElements();
+    const { scope } = config.getElements();
     if (scope) releaseScopeLayerAfterSettle(scope, layerOwner);
     if (prevScreen) releaseScopeLayerAfterSettle(prevScreen, layerOwner);
-    if (decorator) releaseScopeLayerAfterSettle(decorator, layerOwner);
-    if (prevDecorator) releaseScopeLayerAfterSettle(prevDecorator, layerOwner);
+    // Every dim this gesture promoted, not the two handles it started with: a
+    // covered screen's dim can be REPLACED mid-drag (see resolvePrevDecorator),
+    // and releasing under the handle of the moment would leave the promotion on
+    // the element that is gone and cut one it never held. A release for an
+    // owner with no stake is a no-op, so a stranded stamp on a detached node
+    // simply goes with the node.
+    for (const element of heldDecorators) releaseScopeLayerAfterSettle(element, layerOwner);
+    heldDecorators.clear();
+    dragDecoratorClock = null;
   };
 
   const releaseRidingBars = () => {
@@ -545,7 +567,15 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // so on those the step never ran and the decorator, found on the scope and
     // lifted out of nothing, sat still for the whole drag while the screens
     // followed the finger. Two readiness conditions cannot share one gate.
-    if (!decoratorSwipe) decoratorSwipe = beginRiderSwipe(collectDecoratorRiders());
+    // Re-staged when the element it was staged against leaves the document: a
+    // dim moves between its screen's container and the layer host as that
+    // screen's `<Layer>` slots come back with the wake this drag caused, and
+    // animations do not follow a node out (see resolvePrevDecorator). The
+    // replacement is staged at zero and the caller scrubs it in the same tick,
+    // so the dim picks up where the finger is rather than where it was.
+    if (!decoratorSwipe || decoratorSwipe.stale) {
+      decoratorSwipe = beginRiderSwipe(collectDecoratorRiders());
+    }
 
     if (stagedDragParts) return;
     // The drag is a flight the engine never sees: the navigate status stays
@@ -615,6 +645,46 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     );
   };
 
+  /**
+   * The covered screen's dim, RESOLVED AT EVERY USE rather than captured once.
+   *
+   * A drag's first act is to wake the screen it is revealing
+   * (`setDragStatus("PENDING")`), and that wake re-mounts that screen's
+   * `<Layer>` slots — which is what decides WHERE its dim is rendered. With a
+   * slot the dim is portalled into the layer host so it can cover what the
+   * overlay carried out; without one it sits in the screen's own container. A
+   * screen frozen while holding an overlay loses the slot on the freeze (React
+   * detaches the ref with the rest of the subtree's effects) and takes it back
+   * on the wake, so the dim is REPLACED — by a fresh element, in the other
+   * place — inside the first commits of the gesture.
+   *
+   * A handle taken in `beginSwipe` therefore points at a node that leaves the
+   * document a frame later, and every write the gesture makes lands in it.
+   * Device-reported and reproduced: after resting on a pushed screen long
+   * enough for the covered one to freeze, the dim did not follow the finger at
+   * ALL — it held at its full rest value through the whole drag and the whole
+   * landing, then vanished in a single frame when COMPLETED flipped it to its
+   * idle rule. Measured off the recording at exactly 1.00 opacity for a full
+   * second and a one-frame cut 0.7s after the commit.
+   *
+   * `isConnected` is the whole test: the handle is good until the node leaves
+   * the document, and re-running the lookup is what finds wherever the dim
+   * went. The lookup itself is BY OWNER, not by position, with the own-child
+   * read kept as the cheap first answer for the ordinary screen: a dim out in
+   * the layer host is not a child of its screen's container at all, and an
+   * own-child query alone answers null there, which hands the decorator hook a
+   * null it silently writes nothing to.
+   */
+  const resolvePrevDecorator = (): HTMLElement | null => {
+    if (prevDecorator?.isConnected) return prevDecorator;
+    prevDecorator =
+      ownChild(prevContainer, attrSelector(DECORATOR_ATTR)) ?? decoratorsOf(prevScreen)[0] ?? null;
+    // A replacement is promoted exactly as the original was, or the dim would
+    // spend the rest of the gesture repainting from scratch every frame.
+    holdDecoratorLayer(prevDecorator);
+    return prevDecorator;
+  };
+
   const collectDecoratorRiders = (): RiderMotion[] => {
     const transition = config.getTransition();
     const decoratorDef = config.getDecorator();
@@ -631,7 +701,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // dim into the layer host when it has a `<Layer>` slot, and then it is not
     // where a position-based lookup would go looking.
     addDecorator(decorator ?? decoratorsOf(scope)[0] ?? null, true);
-    addDecorator(prevDecorator ?? decoratorsOf(prevScreen)[0] ?? null, false);
+    addDecorator(resolvePrevDecorator(), false);
     return riders;
   };
 
@@ -726,15 +796,10 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       (screenContainer?.previousElementSibling as HTMLElement | null) ?? null;
     prevContainer = prevScreenContainer;
     prevScreen = ownChild(prevScreenContainer, attrSelector(SCREEN_ATTR));
-    // BY OWNER, not by position. A screen with a `<Layer>` slot renders its dim
-    // out into the layer host so it can cover what the overlay carried out, and
-    // then it is not a child of this container at all — an own-child query
-    // answers null and the decorator hook, handed null, writes nothing. The
-    // own-child read stays as the cheap first answer for the ordinary screen.
-    prevDecorator =
-      ownChild(prevScreenContainer, attrSelector(DECORATOR_ATTR)) ??
-      decoratorsOf(prevScreen)[0] ??
-      null;
+    // The dim is NOT resolved here. Where it lives is a question this gesture
+    // is about to change the answer to (see resolvePrevDecorator), so it is
+    // asked at every use instead; this only drops the previous gesture's.
+    prevDecorator = null;
 
     if (!prevScreen) {
       isTouchPrevented = false;
@@ -771,7 +836,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         decoratorDef?.onSwipeStart?.(triggered, {
           animate: animateInline,
           currentDecorator: decorator as HTMLDivElement,
-          prevDecorator: prevDecorator as HTMLDivElement
+          prevDecorator: resolvePrevDecorator() as HTMLDivElement
         });
         drivePartTransitions("start", triggered, 0);
       }
@@ -1060,7 +1125,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         decoratorDef?.onSwipe?.(triggered, gestureProgress, {
           animate: animateInline,
           currentDecorator: decorator as HTMLDivElement,
-          prevDecorator: prevDecorator as HTMLDivElement
+          prevDecorator: resolvePrevDecorator() as HTMLDivElement
         });
         drivePartTransitions("swipe", triggered, gestureProgress);
         // Until it takes: the screen these belong to is revealed by the drag
@@ -1334,7 +1399,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         decoratorDef?.onSwipeEnd?.(settledTrigger, {
           animate: animateDecoratorForEnd,
           currentDecorator: decorator as HTMLDivElement,
-          prevDecorator: prevDecorator as HTMLDivElement
+          prevDecorator: resolvePrevDecorator() as HTMLDivElement
         });
         drivePartTransitions("end", settledTrigger, 0, animatePartForEnd);
       }
@@ -1394,7 +1459,12 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       if (scope) clearInlineAnimation(scope, undefined, layerOwner);
       if (prevScreen) clearInlineAnimation(prevScreen, undefined, layerOwner);
       if (decorator) clearInlineAnimation(decorator);
-      if (prevDecorator) clearInlineAnimation(prevDecorator);
+      // Whichever dim the gesture ended up writing to: a drag that outlived a
+      // replacement wrote its last frames to the element that is on screen now,
+      // and that is the one whose inline values have to go back to the rest
+      // rule. The one it replaced left the document with its writes.
+      const settledDecorator = resolvePrevDecorator();
+      if (settledDecorator) clearInlineAnimation(settledDecorator);
       releaseRidingBars();
       releaseDragLayers();
       releasePartTransitions();
