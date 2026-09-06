@@ -609,11 +609,6 @@ const EN: DocSection[] = [
                 "Where the drag carries each screen, when that is not where the pop takes it. The same two the hooks are handed as `currentScreen` and `prevScreen`. Only the destination is named: the drag starts where the screen already is. An empty target means that screen does not move, and a list of stops means it passes through poses on the way"
               ],
               [
-                "`current` / `prev`",
-                "`TransitionTarget` | `SwipeStop[]`",
-                "드래그가 각 화면을 어디로 데려가는지예요. pop이 가는 곳과 다를 때만 적으면 돼요. 훅이 넘겨주는 `currentScreen`·`prevScreen`과 같은 둘이에요. 도착지만 적어요. 출발은 화면이 이미 있는 자리니까요. 빈 값은 그 화면이 안 움직인다는 뜻이고, 스톱 배열을 주면 가는 길에 그 포즈들을 거쳐 가요"
-              ],
-              [
                 "`velocity`",
                 "`number`",
                 "How fast the finger must still be going for the release to navigate however little it travelled. Defaults to 20"
@@ -1641,6 +1636,11 @@ const KO: DocSection[] = [
                 "`threshold`",
                 "`number` | `(span) => number`",
                 "놓았을 때 넘어가려면 화면을 얼마나 끌고 가야 하는지를 px로 정해요. 기본값은 390px 화면에서의 50px이고, 실제 화면 폭에 맞춰 늘어나요"
+              ],
+              [
+                "`current` / `prev`",
+                "`TransitionTarget` | `SwipeStop[]`",
+                "드래그가 각 화면을 어디로 데려가는지예요. pop이 가는 곳과 다를 때만 적으면 돼요. 훅이 넘겨주는 `currentScreen`·`prevScreen`과 같은 둘이에요. 도착지만 적어요. 출발은 화면이 이미 있는 자리니까요. 빈 값은 그 화면이 안 움직인다는 뜻이고, 스톱 배열을 주면 가는 길에 그 포즈들을 거쳐 가요"
               ],
               [
                 "`velocity`",
