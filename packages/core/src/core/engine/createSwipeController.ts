@@ -159,8 +159,9 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   let decoratorSwipe: RiderSwipe | null = null;
   // The screens and the bars riding them, when the transition opted into the
   // scrub. Two sets because the two sides walk at their own rate (see
-  // `SwipeOptions.progress`).
-  let screenScrub: { active: RiderSwipe | null; passive: RiderSwipe | null } | null = null;
+  // `SwipeOptions.progress`). `current` is the screen under the finger, which
+  // is the POPPING-true side; `prev` is the one coming out from under it.
+  let screenScrub: { current: RiderSwipe | null; prev: RiderSwipe | null } | null = null;
   let ridingBars: { current: HTMLElement[]; prev: HTMLElement[] } = { current: [], prev: [] };
   // The subset of the ride lists that is a SHARED BAR, and the screen box those
   // bars must travel. A bar's own box is shorter than its screen's, so a drag
@@ -637,19 +638,14 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       return beginRiderSwipe(riders, { writer: layerOwner });
     };
 
-    // A swipe is always a swipe-BACK, so the dragged screen takes the pop's
-    // active side and the screen returning underneath takes its passive one.
-    const active = collect(scope, ridingBars.current, "POPPING-true", swipe.dragTo.active);
-    const passive = collect(
-      screenUnderneath,
-      ridingBars.prev,
-      "POPPING-false",
-      swipe.dragTo.passive
-    );
+    // A swipe is always a swipe-BACK, so the screen under the finger takes the
+    // pop's active side and the one returning underneath takes its passive one.
+    const current = collect(scope, ridingBars.current, "POPPING-true", swipe.dragTo.current);
+    const prev = collect(screenUnderneath, ridingBars.prev, "POPPING-false", swipe.dragTo.prev);
     // A transition whose pop animates nothing stages nothing, and then owns
     // nothing: `isScrubbed` has to say no, or a shell of nulls would swallow
     // the writes of the one hook such a transition can still be holding.
-    screenScrub = active || passive ? { active, passive } : null;
+    screenScrub = current || prev ? { current, prev } : null;
   };
 
   /** Whether this element's drag is owned by the scrub rather than by a write. */
@@ -670,8 +666,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
    */
   const releaseScreenScrub = (commit: boolean, seconds: number): Promise<void> => {
     const landings = [
-      screenScrub?.active?.settle(commit, seconds),
-      screenScrub?.passive?.settle(commit, seconds)
+      screenScrub?.current?.settle(commit, seconds),
+      screenScrub?.prev?.settle(commit, seconds)
     ].filter((landing): landing is Promise<void> => landing !== undefined);
     screenScrub = null;
     return Promise.all(landings).then(() => undefined);
@@ -1254,8 +1250,8 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         prevDecorator: resolvePrevDecorator() as HTMLDivElement
       });
       const screens = swipe.progress(info, dragSpan, dragged);
-      screenScrub?.active?.scrub(screens.active);
-      screenScrub?.passive?.scrub(screens.passive);
+      screenScrub?.current?.scrub(screens.current);
+      screenScrub?.prev?.scrub(screens.prev);
       drivePartTransitions("swipe", triggered, gestureProgress);
       // Until it takes: the screen these belong to is revealed by the drag
       // itself, and the frame that lands on is not ours to predict.

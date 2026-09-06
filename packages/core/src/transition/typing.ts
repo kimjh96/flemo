@@ -65,7 +65,8 @@ export interface SwipeOptions {
    */
   threshold?: number | ((span: number) => number);
   /**
-   * Where the drag carries the DRAGGED screen, when that is not where this
+   * Where the drag carries the screen under the finger, when that is not where
+   * this
    * transition's pop takes it.
    *
    * The drag is this transition's own pop walked by the finger, and for most
@@ -81,9 +82,9 @@ export interface SwipeOptions {
    *
    * An empty target means the side does not move at all.
    */
-  active?: TransitionTarget;
-  /** Where the drag carries the screen underneath. Terms as `active`. */
-  passive?: TransitionTarget;
+  current?: TransitionTarget;
+  /** Where the drag carries the screen underneath. Terms as `current`. */
+  prev?: TransitionTarget;
   /**
    * The speed at which a release navigates however little it travelled, in the
    * units of `SwipeInfo.velocity`.
@@ -113,8 +114,12 @@ export interface SwipeOptions {
    * stretches, while the screen arriving underneath travels 56px and stops
    * there. One scalar cannot say both, and a drag driven by the wrong one is a
    * drag that no longer resists.
+   *
+   * `current` is the screen under the finger and `prev` is the one coming out
+   * from under it, which are the same two the hooks are handed as
+   * `currentScreen` and `prevScreen`.
    */
-  progress?: (info: SwipeInfo, span: number) => number | { active: number; passive: number };
+  progress?: (info: SwipeInfo, span: number) => number | { current: number; prev: number };
   /**
    * Whether the gesture may begin at all. Returning false abandons it before
    * anything moves.

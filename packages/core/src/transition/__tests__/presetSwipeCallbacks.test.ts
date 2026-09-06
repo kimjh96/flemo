@@ -74,11 +74,11 @@ describe("cupertino's declared swipe", () => {
 
   it("walks both sides together, one for one with the finger", () => {
     const at = (travelled: number) => swipe.progress(swipeInfo(), 400, travelled);
-    expect(at(0)).toEqual({ active: 0, passive: 0 });
-    expect(at(200)).toEqual({ active: 0.5, passive: 0.5 });
+    expect(at(0)).toEqual({ current: 0, prev: 0 });
+    expect(at(200)).toEqual({ current: 0.5, prev: 0.5 });
     // Past its own width the screen is home; a finger that keeps going does
     // not send it further.
-    expect(at(600)).toEqual({ active: 1, passive: 1 });
+    expect(at(600)).toEqual({ current: 1, prev: 1 });
   });
 });
 
@@ -98,25 +98,25 @@ describe("material's declared swipe", () => {
 
   it("follows the finger one for one up to the pull", () => {
     // The screen arriving underneath travels 56px and is then home.
-    expect(at(0).passive).toBeCloseTo(0, 5);
-    expect(at(28).passive).toBeCloseTo(0.5, 5);
-    expect(at(56).passive).toBeCloseTo(1, 5);
+    expect(at(0).prev).toBeCloseTo(0, 5);
+    expect(at(28).prev).toBeCloseTo(0.5, 5);
+    expect(at(56).prev).toBeCloseTo(1, 5);
     // The screen leaving travels its own height, so the same 28px is a much
     // smaller share of its trip.
-    expect(at(28).active).toBeCloseTo(28 / 800, 5);
+    expect(at(28).current).toBeCloseTo(28 / 800, 5);
   });
 
   it("resists past the pull instead of following on, and the arriving side waits", () => {
     // A finger 160px past the pull has dragged the band its full 12px further.
-    expect(at(56 + 160).active).toBeCloseTo((56 + 12) / 800, 5);
+    expect(at(56 + 160).current).toBeCloseTo((56 + 12) / 800, 5);
     // Half of that overshoot is a SQUARE ROOT of the way, not half.
-    expect(at(56 + 80).active).toBeCloseTo((56 + Math.SQRT1_2 * 12) / 800, 5);
+    expect(at(56 + 80).current).toBeCloseTo((56 + Math.SQRT1_2 * 12) / 800, 5);
     // ...and none of it moves the screen that has already arrived.
-    expect(at(56 + 160).passive).toBeCloseTo(1, 5);
+    expect(at(56 + 160).prev).toBeCloseTo(1, 5);
   });
 
   it("never travels upward, however far back the finger goes", () => {
-    expect(at(-200)).toEqual({ active: 0, passive: 0 });
+    expect(at(-200)).toEqual({ current: 0, prev: 0 });
   });
 
   it("reads a screen with no height yet as untravelled", () => {
@@ -124,7 +124,7 @@ describe("material's declared swipe", () => {
     // share of a zero-height trip is not a number, and it would be scrubbed
     // into the animation as one. The arriving side is measured against the
     // pull rather than the box, so it still reads.
-    expect(at(28, 0)).toEqual({ active: 0, passive: 0.5 });
+    expect(at(28, 0)).toEqual({ current: 0, prev: 0.5 });
   });
 });
 

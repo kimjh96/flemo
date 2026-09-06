@@ -391,7 +391,7 @@ describe("a swipe declared with nothing but a direction", () => {
     // it, and before this the only way to author one was to take over `onMove`
     // and pay the release's first animation commit for the whole gesture.
     const controller = createSwipeController(
-      buildConfig(declared({ active: { x: "40%" }, passive: {} }))
+      buildConfig(declared({ current: { x: "40%" }, prev: {} }))
     );
     controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
     controller.pointerMove(event({ clientX: 40, clientY: 100 }));

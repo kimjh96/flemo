@@ -84,16 +84,16 @@ const material = createTransition({
        * `PULL` with a square-root falloff instead of following on.
        *
        * TWO NUMBERS BECAUSE THE TWO SIDES DISAGREE, which is the case that put
-       * the pair in the type. The screen leaving travels its own height, so it
-       * keeps moving while the band stretches; the screen arriving travels
-       * `PULL` and is home, so it stops there and waits. One number would have
-       * to pick which of the two to be wrong about.
+       * the pair in the type. The current screen travels its own height, so it
+       * keeps moving while the band stretches; the previous one travels `PULL`
+       * and is home, so it stops there and waits. One number would have to
+       * pick which of the two to be wrong about.
        */
       progress: (info, span) => {
         const pulled = pull(info.offset.y);
         return {
-          active: span > 0 ? pulled / span : 0,
-          passive: Math.min(PULL, pulled) / PULL
+          current: span > 0 ? pulled / span : 0,
+          prev: Math.min(PULL, pulled) / PULL
         };
       }
     }

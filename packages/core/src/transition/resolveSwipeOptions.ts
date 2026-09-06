@@ -19,13 +19,9 @@ export interface ResolvedSwipe {
    * Where the drag itself carries each side, when that is not where the pop
    * does. `undefined` means walk the pop, which is the case for most.
    */
-  dragTo: { active: SwipeOptions["active"]; passive: SwipeOptions["passive"] };
+  dragTo: { current: SwipeOptions["current"]; prev: SwipeOptions["prev"] };
   /** Where the two sides are along their travel, 0 to 1. */
-  progress: (
-    info: SwipeInfo,
-    span: number,
-    travelled: number
-  ) => { active: number; passive: number };
+  progress: (info: SwipeInfo, span: number, travelled: number) => { current: number; prev: number };
   onStart: SwipeOptions["onStart"] | undefined;
   onMove: SwipeOptions["onMove"] | undefined;
   onEnd: SwipeOptions["onEnd"] | undefined;
@@ -93,16 +89,16 @@ export const resolveSwipeOptions = (transition: Transition): ResolvedSwipe | nul
     const reported = declared?.(info, span);
     const pair =
       typeof reported === "number"
-        ? { active: reported, passive: reported }
-        : (reported ?? { active: geometric, passive: geometric });
-    return { active: clamp01(pair.active), passive: clamp01(pair.passive) };
+        ? { current: reported, prev: reported }
+        : (reported ?? { current: geometric, prev: geometric });
+    return { current: clamp01(pair.current), prev: clamp01(pair.prev) };
   };
 
   return {
     direction,
     commitDistance,
     commitVelocity: swipe.velocity ?? DEFAULT_COMMIT_VELOCITY,
-    dragTo: { active: swipe.active, passive: swipe.passive },
+    dragTo: { current: swipe.current, prev: swipe.prev },
     progress,
     onStart,
     onMove,

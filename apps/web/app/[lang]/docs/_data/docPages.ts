@@ -604,14 +604,14 @@ const EN: DocSection[] = [
                 "How far the gesture must carry the screen before the release navigates, in px. Defaults to 50px on a 390px screen, scaled to the screen it is on"
               ],
               [
-                "`active` / `passive`",
+                "`current` / `prev`",
                 "`TransitionTarget`",
-                "Where the drag carries each side, when that is not where the pop takes it. Only the destination: the drag starts where the screen already is. An empty target means that side does not move"
+                "Where the drag carries each screen, when that is not where the pop takes it. The same two the hooks are handed as `currentScreen` and `prevScreen`. Only the destination is named: the drag starts where the screen already is. An empty target means that screen does not move"
               ],
               [
-                "`active` / `passive`",
+                "`current` / `prev`",
                 "`TransitionTarget`",
-                "드래그가 각 면을 어디로 데려가는지예요. pop이 가는 곳과 다를 때만 적으면 돼요. 도착지만 적어요. 출발은 화면이 이미 있는 자리니까요. 빈 값은 그 면이 움직이지 않는다는 뜻이에요"
+                "드래그가 각 화면을 어디로 데려가는지예요. pop이 가는 곳과 다를 때만 적으면 돼요. 훅이 넘겨주는 `currentScreen`·`prevScreen`과 같은 둘이에요. 도착지만 적어요. 출발은 화면이 이미 있는 자리니까요. 빈 값은 그 화면이 안 움직인다는 뜻이에요"
               ],
               [
                 "`velocity`",
@@ -620,7 +620,7 @@ const EN: DocSection[] = [
               ],
               [
                 "`progress`",
-                "`(info, span) => number | { active, passive }`",
+                "`(info, span) => number | { current, prev }`",
                 "Where the two sides are along their travel, 0 to 1. Defaults to how far the screen has been carried over its own width or height. A drag that resists or clamps says so here"
               ],
               [
@@ -634,7 +634,7 @@ const EN: DocSection[] = [
             type: "list",
             items: [
               "A transition with no `swipe` has no gesture. There is nothing to switch off",
-              "`progress` returns TWO numbers when the two sides walk at different rates. `material` is the case: the screen being pushed away travels its own height and keeps moving as its rubber band stretches, while the screen arriving underneath travels 56px and stops there",
+              "`progress` returns TWO numbers, one per screen, when the two walk at different rates. `material` is the case: the screen being pushed away travels its own height and keeps moving as its rubber band stretches, while the screen arriving underneath travels 56px and stops there",
               "The progress flemo computes drives the transition's decorator and every `Part` on both screens, so one gesture moves the whole scene (see the Part page)",
               "`threshold` and `velocity` are the two halves of one question: did the gesture earn the navigation by going far enough, or by still moving when the finger left. Either alone commits"
             ]
@@ -655,7 +655,7 @@ const EN: DocSection[] = [
           {
             type: "code",
             lang: "ts",
-            code: 'const PULL = 56;\n\nconst pull = (dragY: number) => {\n  const followed = Math.max(0, Math.min(PULL, dragY));\n  const over = Math.max(0, dragY - PULL);\n  return followed + Math.sqrt(Math.min(1, over / 160)) * 12;\n};\n\noptions: {\n  swipe: {\n    direction: "y",\n    threshold: PULL,\n    progress: (info, span) => {\n      const pulled = pull(info.offset.y);\n      return {\n        active: span > 0 ? pulled / span : 0,\n        passive: Math.min(PULL, pulled) / PULL\n      };\n    }\n  }\n}'
+            code: 'const PULL = 56;\n\nconst pull = (dragY: number) => {\n  const followed = Math.max(0, Math.min(PULL, dragY));\n  const over = Math.max(0, dragY - PULL);\n  return followed + Math.sqrt(Math.min(1, over / 160)) * 12;\n};\n\noptions: {\n  swipe: {\n    direction: "y",\n    threshold: PULL,\n    progress: (info, span) => {\n      const pulled = pull(info.offset.y);\n      return {\n        current: span > 0 ? pulled / span : 0,\n        prev: Math.min(PULL, pulled) / PULL\n      };\n    }\n  }\n}'
           },
           {
             type: "h",
@@ -663,7 +663,7 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "A drag that merely ends somewhere the pop does not is declared with `active` and `passive`. What still needs a hook is a drag whose two properties move at DIFFERENT RATES within one side. `layout` is the built-in example: its opacity is done at 56px while its `y` is 56px into a whole screen height, and the commit carries the `y` the rest of the way while the opacity stays put. One scrubbed keyframe walked by one progress cannot say both. Write `onMove` and `onEnd` and the screens are yours for the whole gesture, which is also how a drag that is not an interpolation at all — one that follows the finger in two axes, or shrinks as it goes — is built."
+            text: "A drag that merely ends somewhere the pop does not is declared with `current` and `prev`. What still needs a hook is a drag whose two properties move at DIFFERENT RATES within one side. `layout` is the built-in example: its opacity is done at 56px while its `y` is 56px into a whole screen height, and the commit carries the `y` the rest of the way while the opacity stays put. One scrubbed keyframe walked by one progress cannot say both. Write `onMove` and `onEnd` and the screens are yours for the whole gesture, which is also how a drag that is not an interpolation at all — one that follows the finger in two axes, or shrinks as it goes — is built."
           },
           {
             type: "table",
@@ -1632,7 +1632,7 @@ const KO: DocSection[] = [
               ],
               [
                 "`progress`",
-                "`(info, span) => number | { active, passive }`",
+                "`(info, span) => number | { current, prev }`",
                 "두 면이 각자 얼마나 왔는지를 0에서 1로 알려줘요. 기본값은 화면이 자기 폭이나 높이에서 얼마나 끌려왔는가예요. 저항이 있거나 도중에 멈추는 드래그는 여기에 적어요"
               ],
               [
@@ -1667,12 +1667,12 @@ const KO: DocSection[] = [
           {
             type: "code",
             lang: "ts",
-            code: 'const PULL = 56;\n\nconst pull = (dragY: number) => {\n  const followed = Math.max(0, Math.min(PULL, dragY));\n  const over = Math.max(0, dragY - PULL);\n  return followed + Math.sqrt(Math.min(1, over / 160)) * 12;\n};\n\noptions: {\n  swipe: {\n    direction: "y",\n    threshold: PULL,\n    progress: (info, span) => {\n      const pulled = pull(info.offset.y);\n      return {\n        active: span > 0 ? pulled / span : 0,\n        passive: Math.min(PULL, pulled) / PULL\n      };\n    }\n  }\n}'
+            code: 'const PULL = 56;\n\nconst pull = (dragY: number) => {\n  const followed = Math.max(0, Math.min(PULL, dragY));\n  const over = Math.max(0, dragY - PULL);\n  return followed + Math.sqrt(Math.min(1, over / 160)) * 12;\n};\n\noptions: {\n  swipe: {\n    direction: "y",\n    threshold: PULL,\n    progress: (info, span) => {\n      const pulled = pull(info.offset.y);\n      return {\n        current: span > 0 ? pulled / span : 0,\n        prev: Math.min(PULL, pulled) / PULL\n      };\n    }\n  }\n}'
           },
           { type: "h", text: "화면을 직접 몰기" },
           {
             type: "p",
-            text: "pop이 가지 않는 곳으로 끝나는 드래그는 `active`와 `passive`로 선언해요. 훅이 여전히 필요한 건 한 면 안에서 두 속성이 서로 다른 속도로 움직이는 드래그예요. 내장 `layout`이 그 사례예요. opacity는 56px에서 이미 끝나는데 `y`는 화면 높이 중 56px밖에 못 갔고, 커밋이 나머지 `y`를 마저 옮기는 동안 opacity는 그대로예요. 스크럽되는 키프레임 하나를 진행도 하나로 걸어서는 둘 다 말할 수 없어요. `onMove`와 `onEnd`를 적으면 제스처 내내 화면이 저자 것이 돼요. 두 축을 자유롭게 따라가거나 끌면서 작아지는 것처럼, 애초에 보간이 아닌 드래그도 이렇게 만들어요."
+            text: "pop이 가지 않는 곳으로 끝나는 드래그는 `current`와 `prev`로 선언해요. 훅이 여전히 필요한 건 한 면 안에서 두 속성이 서로 다른 속도로 움직이는 드래그예요. 내장 `layout`이 그 사례예요. opacity는 56px에서 이미 끝나는데 `y`는 화면 높이 중 56px밖에 못 갔고, 커밋이 나머지 `y`를 마저 옮기는 동안 opacity는 그대로예요. 스크럽되는 키프레임 하나를 진행도 하나로 걸어서는 둘 다 말할 수 없어요. `onMove`와 `onEnd`를 적으면 제스처 내내 화면이 저자 것이 돼요. 두 축을 자유롭게 따라가거나 끌면서 작아지는 것처럼, 애초에 보간이 아닌 드래그도 이렇게 만들어요."
           },
           {
             type: "table",

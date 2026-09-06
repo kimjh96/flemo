@@ -102,40 +102,40 @@ describe("resolveSwipeOptions", () => {
       );
 
     it("defaults to how far the screen has been carried over its own box", () => {
-      expect(at({}, 400, 100)).toEqual({ active: 0.25, passive: 0.25 });
+      expect(at({}, 400, 100)).toEqual({ current: 0.25, prev: 0.25 });
     });
 
     it("reads a screen with no box yet as untravelled rather than as NaN", () => {
       // A screen measured before layout has a span of 0, and 0/0 would have
       // been written into a transform.
-      expect(at({}, 0, 100)).toEqual({ active: 0, passive: 0 });
+      expect(at({}, 0, 100)).toEqual({ current: 0, prev: 0 });
     });
 
     it("spreads a single declared number over both sides", () => {
-      expect(at({ progress: () => 0.4 }, 400, 100)).toEqual({ active: 0.4, passive: 0.4 });
+      expect(at({ progress: () => 0.4 }, 400, 100)).toEqual({ current: 0.4, prev: 0.4 });
     });
 
     it("keeps two declared numbers apart", () => {
       // The case that put the pair in the type: material's two sides travel
       // different distances, so one scalar would have to be wrong about one
       // of them.
-      expect(at({ progress: () => ({ active: 0.9, passive: 1 }) }, 400, 360)).toEqual({
-        active: 0.9,
-        passive: 1
+      expect(at({ progress: () => ({ current: 0.9, prev: 1 }) }, 400, 360)).toEqual({
+        current: 0.9,
+        prev: 1
       });
     });
 
     it("clamps whatever a transition returns into 0-1", () => {
-      expect(at({ progress: () => ({ active: 2, passive: -1 }) }, 400, 100)).toEqual({
-        active: 1,
-        passive: 0
+      expect(at({ progress: () => ({ current: 2, prev: -1 }) }, 400, 100)).toEqual({
+        current: 1,
+        prev: 0
       });
       // Including the arithmetic a resistance curve can produce on its own:
       // a NaN scrub leaves the compiled animation at an undefined time.
-      expect(at({ progress: () => Number.NaN }, 400, 100)).toEqual({ active: 0, passive: 0 });
+      expect(at({ progress: () => Number.NaN }, 400, 100)).toEqual({ current: 0, prev: 0 });
       expect(at({ progress: () => Number.POSITIVE_INFINITY }, 400, 100)).toEqual({
-        active: 1,
-        passive: 1
+        current: 1,
+        prev: 1
       });
     });
 
