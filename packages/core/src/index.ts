@@ -284,6 +284,13 @@ export { detectBlinkEngine, isDesktopBlink, isLegacyAndroidBlink } from "@platfo
 // a desktop's memory read `isDesktopBlink` instead.
 export { steadySixtyDesktopProfile } from "@platform/steadySixtyCadence";
 export {
+  resolveSwipeOptions,
+  DEFAULT_COMMIT_FRACTION,
+  COMMIT_VELOCITY,
+  type ResolvedSwipe
+} from "@transition/resolveSwipeOptions";
+export type { SwipeOptions } from "@transition/typing";
+export {
   swipeSettleSeconds,
   MIN_SETTLE_SECONDS,
   type SwipeSettleInput

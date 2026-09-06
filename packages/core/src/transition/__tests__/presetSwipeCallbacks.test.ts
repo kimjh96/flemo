@@ -4,16 +4,12 @@ import cupertinoPreset from "@transition/cupertino";
 import layoutPreset from "@transition/layout";
 import materialPreset from "@transition/material";
 
-import type {
-  BaseTransition,
-  SwipeAnimate,
-  SwipeInfo,
-  TransitionOptions
-} from "@transition/typing";
-
-// The presets all declare swipe callbacks; narrow the Transition union so the
-// callbacks are directly invocable in the tests.
-type SwipeTransition = BaseTransition & Extract<TransitionOptions, { swipeDirection: "x" | "y" }>;
+import {
+  COMMIT_VELOCITY,
+  DEFAULT_COMMIT_FRACTION,
+  resolveSwipeOptions
+} from "@transition/resolveSwipeOptions";
+import type { SwipeAnimate, SwipeInfo, Transition } from "@transition/typing";
 
 import overlay from "@transition/decorator/overlay";
 
@@ -43,276 +39,141 @@ const context = () => {
 
 const pointerEvent = {} as PointerEvent;
 
-const cupertino = cupertinoPreset as unknown as SwipeTransition;
-const material = materialPreset as unknown as SwipeTransition;
-const layout = layoutPreset as unknown as SwipeTransition;
+const cupertino = cupertinoPreset as unknown as Transition;
+const material = materialPreset as unknown as Transition;
+const layout = layoutPreset as unknown as Transition;
 
-describe("cupertino swipe", () => {
-  it("starts a swipe unconditionally", async () => {
-    await expect(cupertino.onSwipeStart!(pointerEvent, swipeInfo(), context())).resolves.toBe(true);
+/** The swipe a preset declares, resolved the way the controller reads it. */
+const swipeOf = (transition: Transition) => resolveSwipeOptions(transition)!;
+
+describe("cupertino's declared swipe", () => {
+  // A DIRECTION IS THE WHOLE DECLARATION. cupertino used to write sixty lines
+  // of hooks that between them walked its own pop at the finger, which is what
+  // the controller now does from the keyframes. What is pinned here is that it
+  // asks for nothing else: the defaults ARE the numbers it used to carry.
+  const swipe = swipeOf(cupertino);
+
+  it("declares an axis and nothing else", () => {
+    expect(swipe.direction).toBe("x");
+    expect(swipe.onStart).toBeUndefined();
+    expect(swipe.onMove).toBeUndefined();
+    expect(swipe.onEnd).toBeUndefined();
   });
 
-  it("maps the horizontal drag to screen offsets and progress", () => {
-    const ctx = context();
-    const onProgress = vi.fn();
-    const progress = cupertino.onSwipe!(
-      pointerEvent,
-      swipeInfo({ offset: { x: window.innerWidth / 2, y: 0 } }),
-      { ...ctx, onProgress }
-    );
-
-    expect(progress).toBeCloseTo(50);
-    // The VERDICT only: the controller supplies the progress a decorator and
-    // a part receive, against the box the screen is dragged over.
-    expect(onProgress).toHaveBeenCalledWith(true);
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.currentScreen,
-      expect.objectContaining({ x: window.innerWidth / 2 }),
-      expect.objectContaining({ duration: 0 })
-    );
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.prevScreen,
-      expect.anything(),
-      expect.objectContaining({ duration: 0 })
-    );
+  it("leaves the screens to the controller, so the drag is an animation", () => {
+    expect(swipe.drivesScreens).toBe(true);
   });
 
-  it("mirrors the previous screen from -30% to 0% across the drag", () => {
-    const ctx = context();
-    const onProgress = vi.fn();
-
-    // No drag yet: previous screen rests at its -30% parallax position.
-    cupertino.onSwipe!(pointerEvent, swipeInfo({ offset: { x: 0, y: 0 } }), {
-      ...ctx,
-      onProgress
-    });
-    expect(ctx.calls).toHaveBeenCalledWith(ctx.currentScreen, { x: 0 }, { duration: 0 });
-    expect(ctx.calls).toHaveBeenCalledWith(ctx.prevScreen, { x: "-30%" }, { duration: 0 });
-    expect(onProgress).toHaveBeenCalledWith(true);
-
-    ctx.calls.mockClear();
-
-    // Full-width drag: previous screen reaches identity (0%).
-    cupertino.onSwipe!(pointerEvent, swipeInfo({ offset: { x: window.innerWidth, y: 0 } }), {
-      ...ctx,
-      onProgress
-    });
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.currentScreen,
-      { x: window.innerWidth },
-      { duration: 0 }
-    );
-    expect(ctx.calls).toHaveBeenCalledWith(ctx.prevScreen, { x: "0%" }, { duration: 0 });
+  it("commits at the fraction of the screen it always did, whatever the width", () => {
+    // 50px on the 390px screen the number was chosen on, so a phone commits
+    // exactly where it did and a wider screen asks proportionally more.
+    expect(swipe.commitDistance(390)).toBeCloseTo(50, 5);
+    expect(swipe.commitDistance(780)).toBeCloseTo(100, 5);
+    expect(DEFAULT_COMMIT_FRACTION * 390).toBeCloseTo(50, 5);
   });
 
-  it("clamps the current screen so a leftward drag never pulls it off-axis", () => {
-    const ctx = context();
-    const progress = cupertino.onSwipe!(
-      pointerEvent,
-      swipeInfo({ offset: { x: -200, y: 0 } }),
-      ctx
-    );
-
-    expect(ctx.calls).toHaveBeenCalledWith(ctx.currentScreen, { x: 0 }, { duration: 0 });
-    expect(progress).toBeLessThan(0);
-  });
-
-  it("commits the pop when the drag crosses the trigger threshold", async () => {
-    const ctx = context();
-    const onStart = vi.fn();
-    const triggered = await cupertino.onSwipeEnd!(
-      pointerEvent,
-      swipeInfo({ offset: { x: window.innerWidth, y: 0 }, velocity: { x: 30, y: 0 } }),
-      { ...ctx, onStart }
-    );
-
-    expect(triggered).toBe(true);
-    expect(onStart).toHaveBeenCalledWith(true);
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.currentScreen,
-      expect.objectContaining({ x: "100%" }),
-      expect.anything()
-    );
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.prevScreen,
-      expect.objectContaining({ x: 0 }),
-      expect.anything()
-    );
-  });
-
-  it("authors its own span as the release ceiling", () => {
-    // The release length itself is the swipe controller's (it knows what is
-    // left and how fast the finger was going, for EVERY transition — see
-    // swipeSettleSeconds). What the preset owns is the ceiling, and it is this
-    // transition's own duration: a release must never outlast the same pop
-    // driven by a button, and with the finger nearly still it should match it.
-    const ctx = context();
-    void cupertino.onSwipeEnd!(
-      pointerEvent,
-      swipeInfo({ offset: { x: 120, y: 0 }, velocity: { x: 0, y: 0 } }),
-      { ...ctx, onStart: vi.fn() }
-    );
-
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.currentScreen,
-      expect.anything(),
-      expect.objectContaining({ duration: 0.7 })
-    );
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.prevScreen,
-      expect.anything(),
-      expect.objectContaining({ duration: 0.7 })
-    );
-  });
-
-  it("commits at the same fraction of the screen whatever its width", async () => {
-    // The threshold shares the progress mapping's reference. 50px was chosen
-    // on a 390px phone, so that is what it still means THERE, and a screen of
-    // another width asks for the same fraction rather than the same 50px. A
-    // gesture that measures its travel one way and decides on it another has
-    // two ideas of how far along it is.
-    const commitAt = async (screenWidth: number, dragX: number) => {
-      const ctx = context();
-      ctx.currentScreen.getBoundingClientRect = () =>
-        ({ width: screenWidth, height: 700, top: 0, left: 0 }) as DOMRect;
-      return cupertino.onSwipeEnd!(pointerEvent, swipeInfo({ offset: { x: dragX, y: 0 } }), {
-        ...ctx,
-        onStart: vi.fn()
-      });
-    };
-
-    // A 390px phone still commits either side of 50px, exactly as before.
-    await expect(commitAt(390, 51)).resolves.toBe(true);
-    await expect(commitAt(390, 49)).resolves.toBe(false);
-
-    // A screen at half that width asks for half the travel...
-    await expect(commitAt(195, 26)).resolves.toBe(true);
-    await expect(commitAt(195, 24)).resolves.toBe(false);
-
-    // ...and a wide one asks for proportionally more, where a flat 50px was
-    // under 4% of the screen and committed almost on contact.
-    await expect(commitAt(1275, 100)).resolves.toBe(false);
-    await expect(commitAt(1275, 200)).resolves.toBe(true);
-  });
-
-  it("cancels back to rest under the threshold", async () => {
-    const ctx = context();
-    const onStart = vi.fn();
-    const triggered = await cupertino.onSwipeEnd!(
-      pointerEvent,
-      swipeInfo({ offset: { x: 4, y: 0 }, velocity: { x: 0, y: 0 } }),
-      { ...ctx, onStart }
-    );
-
-    expect(triggered).toBe(false);
-    expect(onStart).toHaveBeenCalledWith(false);
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.currentScreen,
-      expect.objectContaining({ x: 0 }),
-      expect.anything()
-    );
-    // The previous screen settles back at its parallax rest position.
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.prevScreen,
-      expect.objectContaining({ x: "-30%" }),
-      expect.anything()
-    );
+  it("walks both sides together, one for one with the finger", () => {
+    const at = (travelled: number) => swipe.progress(swipeInfo(), 400, travelled);
+    expect(at(0)).toEqual({ active: 0, passive: 0 });
+    expect(at(200)).toEqual({ active: 0.5, passive: 0.5 });
+    // Past its own width the screen is home; a finger that keeps going does
+    // not send it further.
+    expect(at(600)).toEqual({ active: 1, passive: 1 });
   });
 });
 
-describe("material swipe", () => {
-  it("starts a swipe unconditionally", async () => {
-    await expect(material.onSwipeStart!(pointerEvent, swipeInfo(), context())).resolves.toBe(true);
+describe("material's declared swipe", () => {
+  // The RATE is material's and the SHAPE is its keyframes'. What this pins is
+  // the rubber band, which is the only thing the move to a declaration could
+  // have quietly lost.
+  const swipe = swipeOf(material);
+  const at = (dragY: number, span = 800) =>
+    swipe.progress(swipeInfo({ offset: { x: 0, y: dragY } }), span, dragY);
+
+  it("declares its own threshold, the pull it is built around", () => {
+    expect(swipe.direction).toBe("y");
+    expect(swipe.commitDistance(800)).toBe(56);
+    expect(swipe.drivesScreens).toBe(true);
   });
 
-  it("fades the previous screen in (opacity 0 -> 1) as it lifts back to rest", () => {
-    const ctx = context();
-
-    // No drag: previous screen sits at -56px, fully transparent.
-    material.onSwipe!(pointerEvent, swipeInfo({ offset: { x: 0, y: 0 } }), ctx);
-    expect(ctx.calls).toHaveBeenCalledWith(ctx.prevScreen, { y: -56, opacity: 0 }, { duration: 0 });
-
-    ctx.calls.mockClear();
-
-    // Dragged exactly the 56px threshold: previous screen reaches rest + opaque.
-    material.onSwipe!(pointerEvent, swipeInfo({ offset: { x: 0, y: 56 } }), ctx);
-    expect(ctx.calls).toHaveBeenCalledWith(ctx.currentScreen, { y: 56 }, { duration: 0 });
-    expect(ctx.calls).toHaveBeenCalledWith(ctx.prevScreen, { y: 0, opacity: 1 }, { duration: 0 });
+  it("follows the finger one for one up to the pull", () => {
+    // The screen arriving underneath travels 56px and is then home.
+    expect(at(0).passive).toBeCloseTo(0, 5);
+    expect(at(28).passive).toBeCloseTo(0.5, 5);
+    expect(at(56).passive).toBeCloseTo(1, 5);
+    // The screen leaving travels its own height, so the same 28px is a much
+    // smaller share of its trip.
+    expect(at(28).active).toBeCloseTo(28 / 800, 5);
   });
 
-  it("applies sqrt resistance past the threshold and caps progress at 56", () => {
-    const ctx = context();
-    const onProgress = vi.fn();
-
-    // 56 + 160 of extra drag -> extraRatio 1 -> resistedExtra 12 -> finalY 68,
-    // but progress (and thus the previous screen) is capped at the 56 rest point.
-    const progress = material.onSwipe!(pointerEvent, swipeInfo({ offset: { x: 0, y: 216 } }), {
-      ...ctx,
-      onProgress
-    });
-
-    expect(progress).toBe(56);
-    expect(onProgress).toHaveBeenCalledWith(true);
-    expect(ctx.calls).toHaveBeenCalledWith(ctx.currentScreen, { y: 68 }, { duration: 0 });
-    expect(ctx.calls).toHaveBeenCalledWith(ctx.prevScreen, { y: 0, opacity: 1 }, { duration: 0 });
+  it("resists past the pull instead of following on, and the arriving side waits", () => {
+    // A finger 160px past the pull has dragged the band its full 12px further.
+    expect(at(56 + 160).active).toBeCloseTo((56 + 12) / 800, 5);
+    // Half of that overshoot is a SQUARE ROOT of the way, not half.
+    expect(at(56 + 80).active).toBeCloseTo((56 + Math.SQRT1_2 * 12) / 800, 5);
+    // ...and none of it moves the screen that has already arrived.
+    expect(at(56 + 160).passive).toBeCloseTo(1, 5);
   });
 
-  it("commits on a long downward drag, sending the current screen off and the previous to rest", async () => {
-    const ctx = context();
-    const onStart = vi.fn();
-    const commit = await material.onSwipeEnd!(
-      pointerEvent,
-      swipeInfo({ offset: { x: 0, y: 200 }, velocity: { x: 0, y: 0 } }),
-      { ...ctx, onStart }
-    );
-
-    expect(commit).toBe(true);
-    expect(onStart).toHaveBeenCalledWith(true);
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.currentScreen,
-      expect.objectContaining({ y: "100%" }),
-      expect.anything()
-    );
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.prevScreen,
-      expect.objectContaining({ y: 0, opacity: 1 }),
-      expect.anything()
-    );
+  it("never travels upward, however far back the finger goes", () => {
+    expect(at(-200)).toEqual({ active: 0, passive: 0 });
   });
 
-  it("cancels below the threshold, re-hiding the previous screen", async () => {
-    const ctx = context();
-    const onStart = vi.fn();
-    const cancel = await material.onSwipeEnd!(
-      pointerEvent,
-      swipeInfo({ offset: { x: 0, y: 10 }, velocity: { x: 0, y: 0 } }),
-      { ...ctx, onStart }
-    );
-
-    expect(cancel).toBe(false);
-    expect(onStart).toHaveBeenCalledWith(false);
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.currentScreen,
-      expect.objectContaining({ y: 0 }),
-      expect.anything()
-    );
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.prevScreen,
-      expect.objectContaining({ y: -56, opacity: 0 }),
-      expect.anything()
-    );
+  it("reads a screen with no height yet as untravelled", () => {
+    // A sheet dragged before its box has been laid out: the leaving side's
+    // share of a zero-height trip is not a number, and it would be scrubbed
+    // into the animation as one. The arriving side is measured against the
+    // pull rather than the box, so it still reads.
+    expect(at(28, 0)).toEqual({ active: 0, passive: 0.5 });
   });
 });
 
-describe("layout swipe", () => {
+describe("a transition written the flat way", () => {
+  // The shape flemo shipped first still resolves, so a consumer's transition
+  // keeps working without being rewritten.
+  it("resolves its direction and hooks through the same reader", () => {
+    const legacy = {
+      swipeDirection: "y",
+      onSwipeStart: async () => true,
+      onSwipe: () => 0,
+      onSwipeEnd: async () => true
+    } as unknown as Transition;
+    const swipe = resolveSwipeOptions(legacy)!;
+
+    expect(swipe.direction).toBe("y");
+    expect(swipe.onMove).toBe(legacy.onSwipe);
+    expect(swipe.onEnd).toBe(legacy.onSwipeEnd);
+    // Having taken the drag over, it keeps the screens.
+    expect(swipe.drivesScreens).toBe(false);
+  });
+
+  it("is not a swipe at all when it names no direction", () => {
+    expect(resolveSwipeOptions({} as unknown as Transition)).toBeNull();
+  });
+
+  it("shares the speed at which a release navigates however little it travelled", () => {
+    expect(COMMIT_VELOCITY).toBe(20);
+  });
+});
+
+describe("layout's own swipe, which keeps its hooks", () => {
+  // The case that shows the hooks are not vestigial: layout's pop is a pure
+  // fade, and its DRAG pulls the screen down. The shape differs, not just the
+  // rate, so no progress mapping expresses it and layout drives its screens.
+  it("keeps the screens, because it took the drag over", () => {
+    expect(swipeOf(layout).drivesScreens).toBe(false);
+  });
+
   it("starts a swipe unconditionally", async () => {
-    await expect(layout.onSwipeStart!(pointerEvent, swipeInfo(), context())).resolves.toBe(true);
+    await expect(swipeOf(layout).onStart!(pointerEvent, swipeInfo(), context())).resolves.toBe(
+      true
+    );
   });
 
   it("fades and offsets the screen with resistance on drag", () => {
     const ctx = context();
     const onProgress = vi.fn();
-    const progress = layout.onSwipe!(pointerEvent, swipeInfo({ offset: { x: 0, y: 40 } }), {
+    const progress = swipeOf(layout).onMove!(pointerEvent, swipeInfo({ offset: { x: 0, y: 40 } }), {
       ...ctx,
       onProgress
     });
@@ -328,7 +189,7 @@ describe("layout swipe", () => {
 
   it("never lets the screen travel upward (negative drag clamps to 0)", () => {
     const ctx = context();
-    layout.onSwipe!(pointerEvent, swipeInfo({ offset: { x: 0, y: -30 } }), ctx);
+    swipeOf(layout).onMove!(pointerEvent, swipeInfo({ offset: { x: 0, y: -30 } }), ctx);
 
     expect(ctx.calls).toHaveBeenCalledWith(
       ctx.currentScreen,
@@ -340,7 +201,7 @@ describe("layout swipe", () => {
   it("commits past the drag threshold and restores under it", async () => {
     const commitCtx = context();
     const onStart = vi.fn();
-    const commit = await layout.onSwipeEnd!(
+    const commit = await swipeOf(layout).onEnd!(
       pointerEvent,
       swipeInfo({ offset: { x: 0, y: 120 }, velocity: { x: 0, y: 0 } }),
       { ...commitCtx, onStart }
@@ -353,7 +214,7 @@ describe("layout swipe", () => {
       expect.anything()
     );
 
-    const cancel = await layout.onSwipeEnd!(
+    const cancel = await swipeOf(layout).onEnd!(
       pointerEvent,
       swipeInfo({ offset: { x: 0, y: 8 }, velocity: { x: 0, y: 0 } }),
       context()

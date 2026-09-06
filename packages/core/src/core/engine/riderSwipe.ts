@@ -1,3 +1,4 @@
+import animateInline from "@transition/animateInline";
 import { easingToCss, targetToDecls } from "@transition/compileTransitionStyles";
 import { holdScrubAt, scrubTo, settleScrubbed } from "@transition/gestureScrub";
 import type { VariantMotion } from "@transition/variantMotion";
@@ -51,8 +52,14 @@ export interface RiderSwipe {
    * pose — the contract the swipe already applies to the screen and the dim.
    * Otherwise they run backwards and the compiled rest rule takes them over
    * again.
+   *
+   * RESOLVES WHEN THE LANDING HAS LANDED. A caller that commits a navigation
+   * off the back of a release has to wait for it: the screens are staged
+   * animations now, so committing while they still play removes the screen
+   * mid-flight and it vanishes rather than leaving. Device-reported the first
+   * time the declarative path shipped without this.
    */
-  settle: (commit: boolean, seconds: number) => void;
+  settle: (commit: boolean, seconds: number) => Promise<void>;
 }
 
 export interface RiderMotion {
@@ -75,6 +82,7 @@ const toKeyframe = (target: VariantMotion["from"]): Keyframe => {
 interface StagedRider {
   readonly element: HTMLElement;
   readonly animation: Animation;
+  readonly to: VariantMotion["to"];
   readonly clock: { start: number; duration: number; ease: VariantMotion["ease"] };
 }
 
@@ -83,7 +91,19 @@ interface StagedRider {
  * nothing to drive, so a gesture over chrome that declares no motion costs
  * nothing.
  */
-export const beginRiderSwipe = (riders: readonly RiderMotion[]): RiderSwipe | null => {
+export const beginRiderSwipe = (
+  riders: readonly RiderMotion[],
+  options: {
+    /**
+     * The writer staking the landed pose this hands back (see the note in
+     * `settle`). A caller whose own cleanup is owner-scoped — the swipe's
+     * riding bars are — has to be the one on the lease, or its clear will not
+     * release what was written here.
+     */
+    writer?: symbol;
+  } = {}
+): RiderSwipe | null => {
+  const { writer } = options;
   const staged: StagedRider[] = [];
 
   for (const { element, motion } of riders) {
@@ -103,6 +123,7 @@ export const beginRiderSwipe = (riders: readonly RiderMotion[]): RiderSwipe | nu
     staged.push({
       element,
       animation,
+      to: motion.to,
       clock: { start: motion.delay, duration: motion.duration, ease: motion.ease }
     });
   }
@@ -126,8 +147,9 @@ export const beginRiderSwipe = (riders: readonly RiderMotion[]): RiderSwipe | nu
       for (const rider of staged) scrubTo([rider.animation], rider.clock, progress);
     },
     settle: (commit: boolean, seconds: number) => {
-      if (released) return;
+      if (released) return Promise.resolve();
       released = true;
+      const landings: Promise<void>[] = [];
       for (const rider of staged) {
         if (commit) rider.element.setAttribute(SKIP_ANIMATION_ATTR, "true");
         // BOTH DIRECTIONS HAND THE ELEMENT BACK.
@@ -145,16 +167,46 @@ export const beginRiderSwipe = (riders: readonly RiderMotion[]): RiderSwipe | nu
         // taught it that still wants forward landings left to the engine. This
         // one listens for the Animation's own `finish`, which both directions
         // do fire.
-        rider.animation.addEventListener(
-          "finish",
-          () => {
-            rider.animation.cancel();
-            rider.element.removeAttribute(SKIP_ANIMATION_ATTR);
-          },
-          { once: true }
+        landings.push(
+          new Promise<void>((resolve) => {
+            let done = false;
+            const land = () => {
+              if (done) return;
+              done = true;
+              if (commit) {
+                // GIVE THE LANDED POSE A BASIS THAT IS NOT THE ANIMATION,
+                // before letting the animation go.
+                //
+                // Cancelling returns an element to its own REST style, and on a
+                // committed swipe that style is not where the gesture left it:
+                // the screen that flew out rests where it started, and the
+                // screen that came home rests at the parallax the pop was
+                // supposed to take it out of. Both blinked — measured on the
+                // bench as the returning screen dropping to -117px for two
+                // frames before the stack re-rendered it as the active one.
+                //
+                // Holding the animation's own fill instead was tried first and
+                // WebKit did not honour it. An inline write does, and it is
+                // what this path left behind before the drag became an
+                // animation; the flight's COMPLETED cleanup strips it.
+                void animateInline(rider.element, rider.to, { duration: 0 }, writer);
+              }
+              rider.animation.cancel();
+              rider.element.removeAttribute(SKIP_ANIMATION_ATTR);
+              resolve();
+            };
+            rider.animation.addEventListener("finish", land, { once: true });
+            // The backstop the flight's own resolver keeps, for the same
+            // reason: an animation torn down before it finishes fires nothing,
+            // and a caller waiting on this must not wait for ever.
+            if (typeof setTimeout === "function") {
+              setTimeout(land, Math.max(seconds, 0) * 1000 + 60);
+            }
+          })
         );
         settleScrubbed([rider.animation], rider.clock, commit, seconds);
       }
+      return Promise.all(landings).then(() => undefined);
     }
   };
 };

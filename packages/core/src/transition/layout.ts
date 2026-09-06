@@ -95,67 +95,80 @@ const layout = createTransition({
     //
     // A consumer who wants one names it: `createDecorator` is public, and
     // there is no longer a clock to match by hand.
-    swipeDirection: "y",
-    onSwipeStart: async () => {
-      return true;
-    },
-    onSwipe: (_, info, { animate, currentScreen, onProgress }) => {
-      const { offset } = info;
-      const dragY = offset.y;
-      const clamped = Math.max(0, Math.min(56, dragY));
-      const opacity = linear(clamped, [0, 56], [1, 0.96]);
-      const extra = Math.max(0, dragY - 56);
-      const extraRatio = Math.min(1, extra / 160);
-      const resistedExtra = Math.sqrt(extraRatio) * 12;
-      const finalY = Math.max(0, clamped + resistedExtra);
-      const progress = Math.min(56, finalY);
+    swipe: {
+      direction: "y",
+      // THIS ONE KEEPS ITS HOOKS, and it is the case that shows why the hooks
+      // are not vestigial.
+      //
+      // The declarative drag walks a transition's own pop keyframes, and
+      // layout's pop is a pure fade: `enterBack` is `opacity: 0` and nothing
+      // moves. Its DRAG is not that — the screen is pulled down, with a slight
+      // fade behind it, and only then does the fade take over. The shape
+      // differs, not just the rate, so no progress mapping can express it.
+      //
+      // So layout drives its own screens, pays the release's first commit, and
+      // is exactly the escape hatch `onMove` exists to be.
+      onStart: async () => {
+        return true;
+      },
+      onMove: (_, info, { animate, currentScreen, onProgress }) => {
+        const { offset } = info;
+        const dragY = offset.y;
+        const clamped = Math.max(0, Math.min(56, dragY));
+        const opacity = linear(clamped, [0, 56], [1, 0.96]);
+        const extra = Math.max(0, dragY - 56);
+        const extraRatio = Math.min(1, extra / 160);
+        const resistedExtra = Math.sqrt(extraRatio) * 12;
+        const finalY = Math.max(0, clamped + resistedExtra);
+        const progress = Math.min(56, finalY);
 
-      onProgress?.(true);
+        onProgress?.(true);
 
-      animate(
-        currentScreen,
-        {
-          y: finalY,
-          opacity
-        },
-        {
-          duration: 0
-        }
-      );
-
-      return progress;
-    },
-    onSwipeEnd: async (_, info, { animate, currentScreen, prevScreen, onStart }) => {
-      const { offset, velocity } = info;
-      const dragY = offset.y;
-      const isTriggered = dragY > 56 || velocity.y > 20;
-
-      onStart?.(isTriggered);
-
-      await Promise.all([
         animate(
           currentScreen,
           {
-            y: isTriggered ? "100%" : 0,
-            opacity: isTriggered ? 0.96 : 1
+            y: finalY,
+            opacity
           },
           {
-            duration: 0.3
+            duration: 0
           }
-        ),
-        animate(
-          prevScreen,
-          {
-            y: 0,
-            opacity: isTriggered ? 1 : 0.97
-          },
-          {
-            duration: 0.3
-          }
-        )
-      ]);
+        );
 
-      return isTriggered;
+        return progress;
+      },
+      onEnd: async (_, info, { animate, currentScreen, prevScreen, onStart }) => {
+        const { offset, velocity } = info;
+        const dragY = offset.y;
+        const isTriggered = dragY > 56 || velocity.y > 20;
+
+        onStart?.(isTriggered);
+
+        await Promise.all([
+          animate(
+            currentScreen,
+            {
+              y: isTriggered ? "100%" : 0,
+              opacity: isTriggered ? 0.96 : 1
+            },
+            {
+              duration: 0.3
+            }
+          ),
+          animate(
+            prevScreen,
+            {
+              y: 0,
+              opacity: isTriggered ? 1 : 0.97
+            },
+            {
+              duration: 0.3
+            }
+          )
+        ]);
+
+        return isTriggered;
+      }
     }
   }
 });
