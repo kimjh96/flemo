@@ -37,8 +37,6 @@ const context = () => {
   };
 };
 
-const pointerEvent = {} as PointerEvent;
-
 const cupertino = cupertinoPreset as unknown as Transition;
 const material = materialPreset as unknown as Transition;
 const layout = layoutPreset as unknown as Transition;
@@ -145,70 +143,59 @@ describe("the presets' shared numbers", () => {
   });
 });
 
-describe("layout's own swipe, which keeps its hooks", () => {
-  // The case that shows the hooks are not vestigial: layout's pop is a pure
-  // fade, and its DRAG pulls the screen down. The shape differs, not just the
-  // rate, so no progress mapping expresses it and layout drives its screens.
-  it("keeps the screens, because it took the drag over", () => {
-    expect(swipeOf(layout).drivesScreens).toBe(false);
+describe("layout's declared swipe, which is not its pop", () => {
+  // The case that made a drag name its own destination. layout's pop is a pure
+  // fade and nothing moves; its GESTURE pulls the sheet down and slides it out
+  // if it is let go. Before `current` that could only be written as hooks, and
+  // hooks are what pay the release's first animation commit.
+  const swipe = swipeOf(layout);
+  const at = (dragY: number, span = 800) =>
+    swipe.progress(swipeInfo({ offset: { x: 0, y: dragY } }), span, dragY);
+
+  it("drives its screens itself, with no hook left", () => {
+    expect(swipe.direction).toBe("y");
+    expect(swipe.drivesScreens).toBe(true);
+    expect(swipe.onStart).toBeUndefined();
+    expect(swipe.onMove).toBeUndefined();
+    expect(swipe.onEnd).toBeUndefined();
   });
 
-  it("starts a swipe unconditionally", async () => {
-    await expect(swipeOf(layout).onStart!(pointerEvent, swipeInfo(), context())).resolves.toBe(
-      true
-    );
+  it("declares the slide the gesture ends on, which the pop never runs", () => {
+    // The pop takes this screen to `opacity: 0` without moving it. The drag
+    // takes it off the bottom instead, and says so.
+    expect(layout.variants["POPPING-true"].value).toEqual({ opacity: 0 });
+    expect(swipe.dragTo.current).toEqual({ y: "100%", opacity: 0.96 });
   });
 
-  it("fades and offsets the screen with resistance on drag", () => {
-    const ctx = context();
-    const onProgress = vi.fn();
-    const progress = swipeOf(layout).onMove!(pointerEvent, swipeInfo({ offset: { x: 0, y: 40 } }), {
-      ...ctx,
-      onProgress
-    });
-
-    expect(progress).toBe(40);
-    expect(onProgress).toHaveBeenCalledWith(true);
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.currentScreen,
-      expect.objectContaining({ y: 40, opacity: expect.any(Number) }),
-      expect.objectContaining({ duration: 0 })
-    );
+  it("holds the screen underneath, as the pop does", () => {
+    // An empty destination is a side that does not move, and it is not staged.
+    expect(swipe.dragTo.prev).toEqual({});
+    expect(at(40).prev).toBe(0);
   });
 
-  it("never lets the screen travel upward (negative drag clamps to 0)", () => {
-    const ctx = context();
-    swipeOf(layout).onMove!(pointerEvent, swipeInfo({ offset: { x: 0, y: -30 } }), ctx);
-
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.currentScreen,
-      expect.objectContaining({ y: 0 }),
-      expect.anything()
-    );
+  it("follows the finger one for one up to the pull", () => {
+    expect(at(0).current).toBeCloseTo(0, 5);
+    expect(at(40).current).toBeCloseTo(40 / 800, 5);
+    expect(at(56).current).toBeCloseTo(56 / 800, 5);
   });
 
-  it("commits past the drag threshold and restores under it", async () => {
-    const commitCtx = context();
-    const onStart = vi.fn();
-    const commit = await swipeOf(layout).onEnd!(
-      pointerEvent,
-      swipeInfo({ offset: { x: 0, y: 120 }, velocity: { x: 0, y: 0 } }),
-      { ...commitCtx, onStart }
-    );
-    expect(commit).toBe(true);
-    expect(onStart).toHaveBeenCalledWith(true);
-    expect(commitCtx.calls).toHaveBeenCalledWith(
-      commitCtx.currentScreen,
-      expect.objectContaining({ y: "100%" }),
-      expect.anything()
-    );
+  it("resists past the pull instead of following on", () => {
+    // 160px past has dragged the band its full 12px further.
+    expect(at(56 + 160).current).toBeCloseTo((56 + 12) / 800, 5);
+    // Half of that overshoot is a SQUARE ROOT of the way, not half.
+    expect(at(56 + 80).current).toBeCloseTo((56 + Math.SQRT1_2 * 12) / 800, 5);
+  });
 
-    const cancel = await swipeOf(layout).onEnd!(
-      pointerEvent,
-      swipeInfo({ offset: { x: 0, y: 8 }, velocity: { x: 0, y: 0 } }),
-      context()
-    );
-    expect(cancel).toBe(false);
+  it("never travels upward, however far back the finger goes", () => {
+    expect(at(-30).current).toBe(0);
+  });
+
+  it("keeps the pull it commits on", () => {
+    expect(swipe.commitDistance(800)).toBe(56);
+  });
+
+  it("reads a screen with no height yet as untravelled", () => {
+    expect(at(40, 0).current).toBe(0);
   });
 });
 

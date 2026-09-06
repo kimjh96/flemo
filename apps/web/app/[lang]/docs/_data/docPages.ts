@@ -663,7 +663,7 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "A drag that merely ends somewhere the pop does not is declared with `current` and `prev`. What still needs a hook is a drag whose two properties move at DIFFERENT RATES within one side. `layout` is the built-in example: its opacity is done at 56px while its `y` is 56px into a whole screen height, and the commit carries the `y` the rest of the way while the opacity stays put. One scrubbed keyframe walked by one progress cannot say both. Write `onMove` and `onEnd` and the screens are yours for the whole gesture, which is also how a drag that is not an interpolation at all — one that follows the finger in two axes, or shrinks as it goes — is built."
+            text: "No built-in preset writes these any more. `layout`'s gesture is not its pop at all, and it is still declared: the pop is a pure fade, the drag pulls the sheet down and slides it out, and `current` says so. What is left for a hook is a drag whose properties move at DIFFERENT RATES within one screen, because one scrubbed keyframe walked by one progress cannot say two rates. A drag that follows the finger in two axes at once, or one that is not an interpolation between two poses at all, is the other reason. Write `onMove` and `onEnd` and the screens are yours for the whole gesture, which is also how a drag that is not an interpolation at all — one that follows the finger in two axes, or shrinks as it goes — is built."
           },
           {
             type: "table",
@@ -1672,7 +1672,7 @@ const KO: DocSection[] = [
           { type: "h", text: "화면을 직접 몰기" },
           {
             type: "p",
-            text: "pop이 가지 않는 곳으로 끝나는 드래그는 `current`와 `prev`로 선언해요. 훅이 여전히 필요한 건 한 면 안에서 두 속성이 서로 다른 속도로 움직이는 드래그예요. 내장 `layout`이 그 사례예요. opacity는 56px에서 이미 끝나는데 `y`는 화면 높이 중 56px밖에 못 갔고, 커밋이 나머지 `y`를 마저 옮기는 동안 opacity는 그대로예요. 스크럽되는 키프레임 하나를 진행도 하나로 걸어서는 둘 다 말할 수 없어요. `onMove`와 `onEnd`를 적으면 제스처 내내 화면이 저자 것이 돼요. 두 축을 자유롭게 따라가거나 끌면서 작아지는 것처럼, 애초에 보간이 아닌 드래그도 이렇게 만들어요."
+            text: "이제 내장 프리셋 중에 이 훅을 쓰는 건 없어요. `layout`의 제스처는 자기 pop과 아예 다르지만 그래도 선언형이에요. pop은 순수 페이드인데 드래그는 시트를 아래로 당겼다가 미끄러뜨리고, 그걸 `current`가 말해 주거든요. 훅이 남아 있는 건 한 화면 안에서 속성들이 서로 다른 속도로 움직이는 드래그 때문이에요. 스크럽되는 키프레임 하나를 진행도 하나로 걸어서는 두 속도를 말할 수 없으니까요. 두 축을 동시에 따라가거나, 애초에 두 포즈 사이의 보간이 아닌 드래그도 마찬가지예요. `onMove`와 `onEnd`를 적으면 제스처 내내 화면이 저자 것이 돼요. 두 축을 자유롭게 따라가거나 끌면서 작아지는 것처럼, 애초에 보간이 아닌 드래그도 이렇게 만들어요."
           },
           {
             type: "table",
