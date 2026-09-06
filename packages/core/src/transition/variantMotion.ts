@@ -29,6 +29,10 @@ export type MotionTarget = TransitionVariantValue["value"] | InitialTarget;
 export interface VariantMotion {
   from: MotionTarget;
   to: MotionTarget;
+  // Poses the motion passes THROUGH, with where along it each is reached.
+  // Only a drag names these (see `SwipeStop`); a variant is two poses and a
+  // clock, so every compiled path leaves this empty and reads from/to alone.
+  via?: readonly { at: number; value: MotionTarget }[];
   // Seconds, matching the transition definition format.
   duration: number;
   delay: number;

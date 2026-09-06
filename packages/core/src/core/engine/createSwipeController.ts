@@ -6,8 +6,15 @@ import { resolveSwipeOptions } from "@transition/resolveSwipeOptions";
 import { resolveRideTarget } from "@transition/rideOffset";
 import { reaimReleaseEase, releaseLaunchSlope, swipeSettleSeconds } from "@transition/swipeSettle";
 
-import type { BaseTransition, Transition, TransitionVariant } from "@transition/typing";
-import { resolveVariantFromValue, resolveVariantMotion } from "@transition/variantMotion";
+import type { BaseTransition, SwipeStop, Transition, TransitionVariant } from "@transition/typing";
+import {
+  resolveVariantFromValue,
+  resolveVariantMotion,
+  type MotionTarget
+} from "@transition/variantMotion";
+
+/** What a transition may name as where its drag carries one screen. */
+type DragDestination = TransitionTarget | readonly SwipeStop[] | undefined;
 
 import findScrollable from "@utils/findScrollable";
 
@@ -598,23 +605,41 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // to take over `onMove` and lose the scrub for it. Naming the destination
     // keeps the scrub: the START is unchanged either way, because the screen
     // is already sitting where the pop would begin.
-    const motionFor = (variant: TransitionVariant, dragTo: TransitionTarget | undefined) => {
+    const motionFor = (variant: TransitionVariant, declared: DragDestination) => {
       const pop = resolveVariantMotion(transition, variant);
-      if (!dragTo) return pop;
+      if (!declared) return pop;
       const from = resolveVariantFromValue(transition, variant);
+      // A LIST is the drag passing through poses on its way, which is how two
+      // properties reach their values at different points of one gesture. The
+      // last stop is the end; the rest are handed to the keyframe with where
+      // they sit (see `SwipeStop`).
+      const stops = Array.isArray(declared)
+        ? (declared as readonly SwipeStop[])
+        : [{ value: declared as TransitionTarget }];
+      const last = stops[stops.length - 1];
       // An empty destination is a side that does not move, and a rest variant
-      // has no `from` to move it from.
-      if (from === null || Object.keys(dragTo).length === 0) return null;
+      // has no pose to move it from.
+      if (from === null || !last || Object.keys(last.value).length === 0) return null;
+      const via = stops
+        .slice(0, -1)
+        .map((stop) => ({ at: stop.at ?? 0, value: stop.value as MotionTarget }));
       // The clock is still the pop's: it is the CEILING the release is scaled
       // against, and a drag that ends elsewhere lands on the same one.
-      return { from, to: dragTo, duration: pop?.duration ?? 0, delay: 0, ease: pop?.ease };
+      return {
+        from,
+        to: last.value,
+        via: via.length > 0 ? via : undefined,
+        duration: pop?.duration ?? 0,
+        delay: 0,
+        ease: pop?.ease
+      };
     };
 
     const collect = (
       screen: HTMLElement,
       bars: HTMLElement[],
       variant: TransitionVariant,
-      dragTo: TransitionTarget | undefined
+      dragTo: DragDestination
     ): RiderSwipe | null => {
       const motion = motionFor(variant, dragTo);
       if (!motion) return null;
@@ -630,7 +655,11 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
             ? {
                 ...motion,
                 from: resolveRideTarget(motion.from, rideScreenHeight),
-                to: resolveRideTarget(motion.to, rideScreenHeight)
+                to: resolveRideTarget(motion.to, rideScreenHeight),
+                via: motion.via?.map((stop) => ({
+                  at: stop.at,
+                  value: resolveRideTarget(stop.value, rideScreenHeight)
+                }))
               }
             : motion
         });
@@ -1243,7 +1272,9 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // this transition wrote a hook. It used to hang off the handler's own
     // `onProgress`, which meant a transition that never called it drove
     // nothing — and every built-in one never called it.
+    let followed = false;
     const follow = (triggered: boolean) => {
+      followed = true;
       decoratorDef?.onSwipe?.(triggered, gestureProgress, {
         animate: animateInline,
         currentDecorator: decorator as HTMLDivElement,
@@ -1270,6 +1301,17 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         // gestureProgress above.
         onProgress: follow
       });
+      // A HOOK THAT NEVER REPORTS STILL DOES NOT STOP THE SCREENS. Calling
+      // `onProgress` is how a hook that OWNS the screens says how far along it
+      // thinks the gesture is; a hook written beside a declared destination
+      // owns only what it animates itself, and has no reason to know flemo is
+      // waiting on it to move two screens it never touches.
+      //
+      // Browser-reported against the bench: the hook carried its element per
+      // frame while the screens sat at rest for the whole drag, because
+      // nothing here ran. Every unit suite calls `onProgress`, so none could
+      // see it.
+      if (swipe.drivesScreens && !followed) follow(true);
     } else {
       // A drag flemo owns is a drag in progress: there is nothing for a
       // verdict to be false about until the finger lets go.
@@ -1536,7 +1578,13 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // The release's own work, run once the verdict is known: the decorator and
     // the parts land on the same clock the screens do, and the clock itself is
     // read from the verdict (what is LEFT to travel depends on it).
+    let releaseApplied = false;
     const applyRelease = (triggered: boolean) => {
+      // ONCE. The verdict lands the decorator and the parts, and a hook that
+      // reports one flemo has already applied must not drive them a second
+      // time.
+      if (releaseApplied) return;
+      releaseApplied = true;
       const settledTrigger = forceCancel ? false : triggered;
       releaseTriggered = settledTrigger;
       decoratorDef?.onSwipeEnd?.(settledTrigger, {
@@ -1547,27 +1595,18 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       drivePartTransitions("end", settledTrigger, 0, animatePartForEnd);
     };
 
-    let handlerTriggered: boolean;
-    if (swipe.onEnd) {
-      handlerTriggered = await swipe.onEnd(event, swipeInfo, {
-        animate: animateForEnd,
-        currentScreen: scope as HTMLDivElement,
-        prevScreen: prevScreen as HTMLDivElement,
-        onStart: applyRelease
-      });
-    } else {
-      // FLEMO'S OWN VERDICT. Far enough, or still moving when the finger left:
-      // the two halves every preset had written for itself, in one place, and
-      // both of them the transition's to name (`swipe.threshold`,
-      // `swipe.velocity`) with the presets' own numbers as the defaults.
-      handlerTriggered =
-        travelled >= swipe.commitDistance(span) || velocityOnAxis > swipe.commitVelocity;
-      releaseTriggered = forceCancel ? false : handlerTriggered;
-      // And its own clock. Nothing writes a screen on this path — the scrub is
-      // handed back rather than animated to — so the settle length that the
-      // decorator, the parts and the scrub all share is computed here instead
-      // of falling out of the first screen write.
-      settleSeconds = tapLike
+    // FLEMO'S OWN VERDICT. Far enough, or still moving when the finger left:
+    // the two halves every preset had written for itself, in one place, and
+    // both of them the transition's to name (`swipe.threshold`,
+    // `swipe.velocity`) with the presets' own numbers as the defaults.
+    const ownVerdict = () =>
+      travelled >= swipe.commitDistance(span) || velocityOnAxis > swipe.commitVelocity;
+    // And its own clock. Nothing writes a screen on this path — the scrub is
+    // handed back rather than animated to — so the settle length that the
+    // decorator, the parts and anything a hook lands beside them all share is
+    // computed here instead of falling out of the first screen write.
+    const ownClock = () =>
+      tapLike
         ? 0
         : swipeSettleSeconds({
             remainingPx: releaseTriggered ? span - travelled : travelled,
@@ -1577,7 +1616,38 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
             authoredEase: screenReleaseMotion ? easeControlPoints(screenReleaseMotion.ease) : null,
             reversing: !releaseTriggered && !fingerHeadingBack
           });
+
+    let handlerTriggered: boolean;
+    if (swipe.onEnd && !swipe.drivesScreens) {
+      // The transition owns the screens, so it owns the release: it decides,
+      // it lands them, and its answer is the navigation's.
+      handlerTriggered = (await swipe.onEnd(event, swipeInfo, {
+        animate: animateForEnd,
+        currentScreen: scope as HTMLDivElement,
+        prevScreen: prevScreen as HTMLDivElement,
+        onStart: applyRelease
+      })) as boolean;
+    } else {
+      // WHOEVER OWNS THE SCREENS OWNS THE RELEASE, and here that is flemo.
+      //
+      // The verdict and the clock are settled BEFORE any hook runs, so a hook
+      // that lands something of its own is scaled against the same release
+      // every other participant is, and does not have to restate a rule that
+      // was never its to hold. It is told the answer rather than asked for
+      // one, and whatever it returns is not read.
+      handlerTriggered = ownVerdict();
+      releaseTriggered = forceCancel ? false : handlerTriggered;
+      settleSeconds = ownClock();
       applyRelease(handlerTriggered);
+      if (swipe.onEnd) {
+        await swipe.onEnd(event, swipeInfo, {
+          animate: animateForEnd,
+          currentScreen: scope as HTMLDivElement,
+          prevScreen: prevScreen as HTMLDivElement,
+          triggered: releaseTriggered,
+          onStart: applyRelease
+        });
+      }
     }
     const isTriggered = !forceCancel && handlerTriggered;
     // A tap-like release wrote everything at zero duration and never reached

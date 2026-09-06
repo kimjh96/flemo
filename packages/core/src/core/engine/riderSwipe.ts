@@ -111,7 +111,18 @@ export const beginRiderSwipe = (
     /* v8 ignore next -- jsdom implements Element.animate; the guard is for a
        host that does not, where a drag simply moves nothing. */
     if (typeof element.animate !== "function") continue;
-    const animation = element.animate([toKeyframe(motion.from), toKeyframe(motion.to)], {
+    // The poses this rider passes through, in order, with the end last. A
+    // drag with stops is how two properties travel at different rates: one
+    // reaches its value at the stop and holds, while another keeps going.
+    // Only the stops carry an offset. The ends do not need one: WAAPI already
+    // reads the first keyframe as 0 and the last as 1, and writing them would
+    // change what every two-pose rider stages for no gain.
+    const frames: Keyframe[] = [
+      toKeyframe(motion.from),
+      ...(motion.via ?? []).map((stop) => ({ ...toKeyframe(stop.value), offset: stop.at })),
+      toKeyframe(motion.to)
+    ];
+    const animation = element.animate(frames, {
       duration: motion.duration * 1000,
       delay: motion.delay * 1000,
       easing: easingToCss(motion.ease),

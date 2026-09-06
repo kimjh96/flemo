@@ -56,6 +56,21 @@ describe("resolveSwipeOptions", () => {
     expect(bare?.onEnd).toBeUndefined();
   });
 
+  it("keeps the screens for a transition that named where they go", () => {
+    // Naming a destination is how a transition CLAIMS the screens, so a hook
+    // written beside it drives everything else rather than taking them. The
+    // gesture that carries a morphing element about is the reason: it needs a
+    // hook for the element and nothing from the screens.
+    const claimed = (options: Record<string, unknown>) =>
+      resolveSwipeOptions(transition({ swipe: { direction: "x", ...options } }))?.drivesScreens;
+
+    expect(claimed({ current: { x: "100%" }, onMove: vi.fn() })).toBe(true);
+    expect(claimed({ prev: { x: 0 }, onEnd: vi.fn() })).toBe(true);
+    // Without one, a hook still takes them: a drag that moves the screens
+    // themselves to arbitrary places has to.
+    expect(claimed({ onMove: vi.fn() })).toBe(false);
+  });
+
   it("hands the screens back only while the transition drives neither phase", () => {
     const owns = (options: Record<string, unknown>) =>
       resolveSwipeOptions(transition({ swipe: { direction: "x", ...options } }))?.drivesScreens;

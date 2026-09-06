@@ -11,6 +11,7 @@ import cardBody from "../../_transitions/cardBody";
 import cardChrome from "../../_transitions/cardChrome";
 import detailChromes from "../../_transitions/detailChrome";
 import sheet from "../../_transitions/sheet";
+import tether from "../../_transitions/tether";
 import recess from "../../_transitions/recess";
 import reveal from "../../_transitions/reveal";
 
@@ -55,7 +56,15 @@ function TonightRouter({ bench }: TonightRouterProps) {
       <Router
         initPath="/tonight"
         history="memory"
-        transitions={[reveal, drift, sheet, aperture, sharedAxisForward, sharedAxisBackward]}
+        transitions={[
+          reveal,
+          drift,
+          sheet,
+          tether,
+          aperture,
+          sharedAxisForward,
+          sharedAxisBackward
+        ]}
         // `drift` names this one. A decorator is registered by the Router, not
         // by the transition that asks for it.
         decorators={[recess]}

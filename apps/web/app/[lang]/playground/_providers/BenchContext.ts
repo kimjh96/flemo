@@ -43,6 +43,9 @@ export interface BenchCase {
 //   reveal        a clip-path wipe, on a property no preset animates
 //   drift         depth, with a decorator sized to its own clock
 //   sheet         a modal rising from the bottom edge, asymmetric clocks
+//   tether        a swipe of the consumer's own: a drag that spends one
+//                 property early and keeps another going, and a hook carrying
+//                 one element by hand while flemo keeps the screens
 //   zoom          the container transform, and the still transition it needs
 export const CASES: BenchCase[] = [
   { id: "cupertino", transition: "cupertino", morph: "shared", cardMorph: null },
@@ -52,6 +55,7 @@ export const CASES: BenchCase[] = [
   { id: "reveal", transition: "reveal", morph: "shared", cardMorph: null },
   { id: "drift", transition: "drift", morph: "shared", cardMorph: null },
   { id: "sheet", transition: "sheet", morph: "shared", cardMorph: null },
+  { id: "tether", transition: "tether", morph: "shared", cardMorph: null },
   { id: "zoom", transition: "aperture", morph: "shared", cardMorph: "zoom" }
 ];
 
