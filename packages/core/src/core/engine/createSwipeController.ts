@@ -1272,7 +1272,9 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // this transition wrote a hook. It used to hang off the handler's own
     // `onProgress`, which meant a transition that never called it drove
     // nothing — and every built-in one never called it.
+    let followed = false;
     const follow = (triggered: boolean) => {
+      followed = true;
       decoratorDef?.onSwipe?.(triggered, gestureProgress, {
         animate: animateInline,
         currentDecorator: decorator as HTMLDivElement,
@@ -1299,6 +1301,17 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
         // gestureProgress above.
         onProgress: follow
       });
+      // A HOOK THAT NEVER REPORTS STILL DOES NOT STOP THE SCREENS. Calling
+      // `onProgress` is how a hook that OWNS the screens says how far along it
+      // thinks the gesture is; a hook written beside a declared destination
+      // owns only what it animates itself, and has no reason to know flemo is
+      // waiting on it to move two screens it never touches.
+      //
+      // Browser-reported against the bench: the hook carried its element per
+      // frame while the screens sat at rest for the whole drag, because
+      // nothing here ran. Every unit suite calls `onProgress`, so none could
+      // see it.
+      if (swipe.drivesScreens && !followed) follow(true);
     } else {
       // A drag flemo owns is a drag in progress: there is nothing for a
       // verdict to be false about until the finger lets go.
