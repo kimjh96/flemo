@@ -23,8 +23,9 @@ interface CreateRawPartProps {
 }
 
 // Full-control factory: every status×active variant is set explicitly, for when
-// the idle / enter / exit collapse in createPartTransition is too coarse. Mirrors
-// createRawDecorator.
+// the idle / enter / exit / dismiss collapse in createPartTransition is too
+// coarse: a push that should not read like a replace, or a settled COMPLETED
+// pose apart from the peak the flight passed through. Mirrors createRawDecorator.
 export default function createRawPartTransition({
   name,
   initial,

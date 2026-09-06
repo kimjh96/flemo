@@ -1127,6 +1127,58 @@ describe("compileTransitionStyles bar transitions", () => {
     expect(block).toContain("opacity: 0"); // to (enter)
   });
 
+  // THE PAIR OF MATCHED PARTS, both ways. A push already crosses on its own:
+  // the arrival runs `initial` to `idle` while the departure runs `idle` to
+  // `enter`. A pop only crossed on one side, because POPPING-true's `from` is
+  // IDLE-true and the collapsed factory pinned its `to` to `idle` as well, so
+  // the compiler saw from === to and emitted a rest rule. That is the reported
+  // "only one side fades", and `dismiss` is the slot that names the other one.
+  it("crosses the arrival against the departure on a push", () => {
+    const css = compileTransitionStyles([], [], [titleFade]);
+    const arrival = css.slice(css.indexOf("flemo-part-test-title-fade-PUSHING-true {"));
+    expect(arrival).toContain("opacity: 0"); // from (initial)
+    expect(arrival).toContain("opacity: 1"); // to (idle)
+  });
+
+  it("rests the dismissing side of a pop when no `dismiss` is authored", () => {
+    const css = compileTransitionStyles([], [], [titleFade]);
+    expect(css).not.toContain("@keyframes flemo-part-test-title-fade-POPPING-true");
+    const rest = css.slice(
+      css.indexOf(
+        '[data-flemo-part-name="test-title-fade"][data-flemo-status="POPPING"][data-flemo-active="true"]'
+      )
+    );
+    expect(rest.slice(0, rest.indexOf("}"))).toContain("animation: none");
+  });
+
+  it("crosses both sides of a pop once `dismiss` is authored", () => {
+    const css = compileTransitionStyles(
+      [],
+      [],
+      [
+        createPartTransition({
+          name: "test-title-fade",
+          initial: { opacity: 0 },
+          idle: { value: { opacity: 1 }, options: { duration: 0.4 } },
+          enter: { value: { opacity: 0 }, options: { duration: 0.3 } },
+          exit: { value: { opacity: 1 }, options: { duration: 0.3 } },
+          dismiss: { value: { opacity: 0 }, options: { duration: 0.3 } }
+        })
+      ]
+    );
+
+    // The screen being popped off the stack, now animating rather than resting.
+    expect(css).toContain("@keyframes flemo-part-test-title-fade-POPPING-true");
+    const dismissing = css.slice(css.indexOf("flemo-part-test-title-fade-POPPING-true {"));
+    expect(dismissing).toContain("opacity: 1"); // from (idle)
+    expect(dismissing).toContain("opacity: 0"); // to (dismiss)
+
+    // Against the screen coming back, which was already crossing on its own.
+    const returning = css.slice(css.indexOf("flemo-part-test-title-fade-POPPING-false {"));
+    expect(returning).toContain("opacity: 0"); // from (enter)
+    expect(returning).toContain("opacity: 1"); // to (exit)
+  });
+
   describe("destination park rules", () => {
     // A full-shove transition: the prev screen exits fully off-screen, so on
     // pop it re-enters from a hidden `from` — the park candidate.

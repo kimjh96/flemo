@@ -756,24 +756,31 @@ const EN: DocSection[] = [
           { type: "h", text: "Author the part transition" },
           {
             type: "p",
-            text: "Create the transition with `createPartTransition`, then augment `RegisterPartTransition` for a typed `name` (the same module augmentation as `RegisterRoute`). A part collapses the screen lifecycle to three rest states."
+            text: "Create the transition with `createPartTransition`, then augment `RegisterPartTransition` for a typed `name` (the same module augmentation as `RegisterRoute`). A part collapses the screen lifecycle to four rest states."
           },
           {
             type: "table",
             headers: ["State", "When it applies"],
             rows: [
-              ["`initial`", "The element's style before any animation"],
+              [
+                "`initial`",
+                "Where the element starts when its screen enters as the new top screen. This is the `from` of that animation, not only a pre-mount style"
+              ],
               ["`idle`", "The screen is active and at rest, or entering as the new top screen"],
               [
                 "`enter`",
                 "The screen is moving into the background during a push or replace, and staying there"
               ],
-              ["`exit`", "The previously-behind screen returning to active during a pop"]
+              ["`exit`", "The previously-behind screen returning to active during a pop"],
+              [
+                "`dismiss`",
+                "The screen being popped off the stack during a pop. Optional, and leaving it out holds `idle`, so the part stays put"
+              ]
             ]
           },
           {
             type: "p",
-            text: "Where `createTransition` spells out five states (`idle`, `enter`, `enterBack`, `exit`, `exitBack`), a part collapses to three. On a programmatic push, replace, or pop the part animates in lockstep with its screen's transition automatically, with no per-frame code from you."
+            text: "Where `createTransition` spells out five states (`idle`, `enter`, `enterBack`, `exit`, `exitBack`), a part collapses to four. Each one is a target, and where it animates from is fixed: the screen entering as the new top runs `initial` to `idle`, the screen dropping into the background runs `idle` to `enter`, the screen returning from the background on a pop runs `enter` to `exit`, and the screen being popped off the stack runs `idle` to `dismiss`. On a programmatic push, replace, or pop the part animates in lockstep with its screen's transition automatically, with no per-frame code from you."
           },
           {
             type: "code",
@@ -802,6 +809,20 @@ const EN: DocSection[] = [
             type: "code",
             lang: "tsx",
             code: 'import { Part, Screen } from "@flemo/react";\n\nfunction Panel() {\n  return (\n    <Screen sharedTopBar={<header><Part name="panel-title">Inbox</Part></header>}>\n      <MailList />\n    </Screen>\n  );\n}'
+          },
+          { type: "h", text: "Cross-fade a matched pair" },
+          {
+            type: "p",
+            text: "Two screens can hold different actions in the same bar slot, a close button on one and a back chevron on the next, and the pair reads best when both sides move at once. A push already does that: the arriving part runs `initial` to `idle` while the departing part runs `idle` to `enter`. A pop needs `dismiss`. Without it the part on the screen being popped holds at full opacity while the returning one fades in, so only one side of the pair moves."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'const barAction = createPartTransition({\n  name: "bar-action",\n  initial: { opacity: 0 },\n  idle: { value: { opacity: 1 }, options: { duration: 0.3, ease: EASE } },\n  enter: { value: { opacity: 0 }, options: { duration: 0.3, ease: EASE } },\n  exit: { value: { opacity: 1 }, options: { duration: 0.3, ease: EASE } },\n  dismiss: { value: { opacity: 0 }, options: { duration: 0.3, ease: EASE } }\n});'
+          },
+          {
+            type: "p",
+            text: "Naming all five puts opacity 0 on both ends of the pair, so either direction fades one part out while the other fades in."
           },
           { type: "h", text: "Follow the swipe" },
           {
@@ -1787,21 +1808,28 @@ const KO: DocSection[] = [
           { type: "h", text: "파트 트랜지션 만들기" },
           {
             type: "p",
-            text: "`createPartTransition`으로 트랜지션을 만들고, `RegisterPartTransition`을 확장해 `name`을 타입 안전하게 해요(`RegisterRoute`와 같은 모듈 확장이에요). 파트는 화면 생명주기를 세 가지 정지 상태로 줄여요."
+            text: "`createPartTransition`으로 트랜지션을 만들고, `RegisterPartTransition`을 확장해 `name`을 타입 안전하게 해요(`RegisterRoute`와 같은 모듈 확장이에요). 파트는 화면 생명주기를 네 가지 정지 상태로 줄여요."
           },
           {
             type: "table",
             headers: ["상태", "적용 시점"],
             rows: [
-              ["`initial`", "애니메이션 전 요소의 스타일"],
+              [
+                "`initial`",
+                "새 맨 위 화면으로 들어올 때 요소가 출발하는 지점이에요. 마운트 전 스타일이 아니라 그 애니메이션의 `from`이에요"
+              ],
               ["`idle`", "화면이 활성 상태로 정지해 있거나, 새 맨 위 화면으로 들어올 때"],
               ["`enter`", "push·replace로 화면이 뒤 배경으로 물러나 그대로 머무를 때"],
-              ["`exit`", "pop으로 뒤에 있던 화면이 다시 활성으로 돌아올 때"]
+              ["`exit`", "pop으로 뒤에 있던 화면이 다시 활성으로 돌아올 때"],
+              [
+                "`dismiss`",
+                "pop으로 화면이 스택에서 빠질 때예요. 선택이고, 생략하면 `idle`을 유지해 파트가 그대로 멈춰 있어요"
+              ]
             ]
           },
           {
             type: "p",
-            text: "`createTransition`이 상태를 다섯 개(`idle`, `enter`, `enterBack`, `exit`, `exitBack`) 늘어놓는다면, 파트는 세 개로 줄여요. 프로그래밍 방식 push·replace·pop에서는 파트가 화면 전환에 맞춰 자동으로 함께 움직여요. 그 경로엔 프레임 단위 코드가 전혀 필요 없어요."
+            text: "`createTransition`이 상태를 다섯 개(`idle`, `enter`, `enterBack`, `exit`, `exitBack`) 늘어놓는다면, 파트는 네 개로 줄여요. 각각은 도착 지점이고 출발 지점은 정해져 있어요. 새 맨 위로 들어오는 화면은 `initial`에서 `idle`로, 뒤 배경으로 물러나는 화면은 `idle`에서 `enter`로, pop으로 배경에서 돌아오는 화면은 `enter`에서 `exit`로, pop으로 스택에서 빠지는 화면은 `idle`에서 `dismiss`로 움직여요. 프로그래밍 방식 push·replace·pop에서는 파트가 화면 전환에 맞춰 자동으로 함께 움직여요. 그 경로엔 프레임 단위 코드가 전혀 필요 없어요."
           },
           {
             type: "code",
@@ -1830,6 +1858,20 @@ const KO: DocSection[] = [
             type: "code",
             lang: "tsx",
             code: 'import { Part, Screen } from "@flemo/react";\n\nfunction Panel() {\n  return (\n    <Screen sharedTopBar={<header><Part name="panel-title">Inbox</Part></header>}>\n      <MailList />\n    </Screen>\n  );\n}'
+          },
+          { type: "h", text: "짝지은 파트 크로스페이드" },
+          {
+            type: "p",
+            text: "두 화면이 같은 바 자리에 서로 다른 액션을 둘 수 있어요. 한쪽은 닫기 버튼이고 다음 화면은 뒤로 가기 셰브론인 식이죠. 이런 짝은 양쪽이 동시에 움직일 때 가장 자연스러워요. push는 이미 그렇게 동작해요. 들어오는 파트가 `initial`에서 `idle`로 가는 동안 물러나는 파트가 `idle`에서 `enter`로 가거든요. pop엔 `dismiss`가 필요해요. 이게 없으면 빠지는 화면의 파트가 불투명도 그대로 남아 있고 돌아오는 파트만 나타나서, 짝 중 한쪽만 움직여요."
+          },
+          {
+            type: "code",
+            lang: "ts",
+            code: 'const barAction = createPartTransition({\n  name: "bar-action",\n  initial: { opacity: 0 },\n  idle: { value: { opacity: 1 }, options: { duration: 0.3, ease: EASE } },\n  enter: { value: { opacity: 0 }, options: { duration: 0.3, ease: EASE } },\n  exit: { value: { opacity: 1 }, options: { duration: 0.3, ease: EASE } },\n  dismiss: { value: { opacity: 0 }, options: { duration: 0.3, ease: EASE } }\n});'
+          },
+          {
+            type: "p",
+            text: "다섯 개를 모두 적으면 짝의 양 끝이 불투명도 0이 되니, 어느 방향으로 전환하든 한쪽이 사라지는 동안 다른 쪽이 나타나요."
           },
           { type: "h", text: "스와이프 따라가기" },
           {
