@@ -56,6 +56,16 @@
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "labels": ["dependencies", "major"]
+    },
+    {
+      "description": "Hold ESLint at v9. eslint-plugin-react calls the pre-v10 rule context API (react/display-name dies on contextOrFilename.getFilename), 7.37.5 is the latest published, and its own peer range stops at ^9.7. Lift this when that plugin ships ESLint 10 support. See #427.",
+      "matchPackageNames": ["eslint", "@eslint/js"],
+      "allowedVersions": "<10"
+    },
+    {
+      "description": "Hold TypeScript at v6. vite-plugin-dts, through unplugin-dts, needs the JavaScript Compiler API that TypeScript 7 no longer ships, and both packages are already at their latest. The only workaround is carrying @typescript/typescript6 as a second TypeScript purely to generate the same .d.ts files. Lift this when unplugin-dts supports TypeScript 7 natively. See #422.",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
     }
   ],
   "lockFileMaintenance": {
