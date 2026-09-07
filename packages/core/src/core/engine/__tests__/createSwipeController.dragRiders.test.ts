@@ -268,7 +268,19 @@ describe("createSwipeController drag riders", () => {
     // the finger.
     dom.root.remove();
     dom = buildDom({ noBar: true });
-    const controller = createSwipeController(buildConfig());
+    // No `onMove`: the fixture's default hook takes the follow for itself and
+    // never calls the step this is about, which is flemo's own.
+    const controller = createSwipeController(
+      buildConfig({
+        getTransition: () =>
+          ({
+            name: "drag-riders-test",
+            initial: { x: "100%" },
+            variants: fullVariants({ x: 0 }, { duration: 0.3 }),
+            swipe: { direction: "x", onStart: vi.fn(async () => true) }
+          }) as unknown as Transition
+      })
+    );
     controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
     controller.pointerMove(event({ clientX: 40, clientY: 100 }));
     await flush();
@@ -362,7 +374,19 @@ describe("createSwipeController drag riders", () => {
     // the finger.
     dom.root.remove();
     dom = buildDom({ noBar: true });
-    const controller = createSwipeController(buildConfig());
+    // No `onMove`: the fixture's default hook takes the follow for itself and
+    // never calls the step this is about, which is flemo's own.
+    const controller = createSwipeController(
+      buildConfig({
+        getTransition: () =>
+          ({
+            name: "drag-riders-test",
+            initial: { x: "100%" },
+            variants: fullVariants({ x: 0 }, { duration: 0.3 }),
+            swipe: { direction: "x", onStart: vi.fn(async () => true) }
+          }) as unknown as Transition
+      })
+    );
     controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
     controller.pointerMove(event({ clientX: 40, clientY: 100 }));
     await flush();
