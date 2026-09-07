@@ -1,6 +1,7 @@
 import animateInline from "@transition/animateInline";
 import { easingToCss, targetToDecls } from "@transition/compileTransitionStyles";
-import { holdScrubAt, scrubTo, settleScrubbed } from "@transition/gestureScrub";
+import { invertEasing } from "@transition/cubicBezier";
+import { holdScrubAt, scrubTo } from "@transition/gestureScrub";
 import type { VariantMotion } from "@transition/variantMotion";
 
 import { SKIP_ANIMATION_ATTR } from "@dom/attributes";
@@ -81,10 +82,34 @@ const toKeyframe = (target: VariantMotion["from"]): Keyframe => {
 
 interface StagedRider {
   readonly element: HTMLElement;
+  /** The one the finger moves. Its time is written, never played. */
   readonly animation: Animation;
+  /** The two motions a release can be, staged with it and held out of effect. */
+  readonly commitLeg: Animation | null;
+  readonly cancelLeg: Animation | null;
   readonly to: VariantMotion["to"];
   readonly clock: { start: number; duration: number; ease: VariantMotion["ease"] };
 }
+
+/**
+ * A time before the active interval, where `fill: forwards` contributes
+ * nothing. A leg parked here is staged, composited and inert; seeking it into
+ * range is what makes it the motion on screen.
+ */
+const PARKED_MS = -1;
+
+/**
+ * The declared path, end for end: the same poses and the same stops, walked the
+ * other way. Offsets mirror, so a stop a third of the way out is a stop two
+ * thirds of the way home.
+ */
+const reversedFrames = (frames: readonly Keyframe[]): Keyframe[] =>
+  [...frames]
+    .map((frame, index) => ({
+      ...frame,
+      offset: typeof frame.offset === "number" ? 1 - frame.offset : index === 0 ? 1 : 0
+    }))
+    .reverse();
 
 /**
  * Stage the riders of a drag, paused at zero. Returns null when there is
@@ -131,9 +156,53 @@ export const beginRiderSwipe = (
       // snapping back to its rest style between pointer moves.
       fill: "both"
     });
+
+    // A RELEASE IS NOT THE DRAG PLAYED ON.
+    //
+    // The drag is position-controlled: the finger says where, and the scrub
+    // seeks the animation to the time that pose sits at. A release is
+    // time-controlled: a curve and a duration say where. Sharing one animation
+    // between them makes the release inherit the drag's mapping, and then which
+    // part of the authored curve it lands on is an accident of where the finger
+    // stopped. A cancel always stops inside the curve's opening — device-
+    // captured at 30ms of cupertino's 700 for a drag 9% across — and the
+    // opening of any curve is its own tangent, so the return came home at a
+    // dead constant speed with the author's deceleration still unreached at the
+    // far end.
+    //
+    // So both motions a release can be are staged HERE, with the drag, and held
+    // out of effect. The release only seeks and plays one; it never builds or
+    // reshapes an effect, which is what kept the compositor from having to
+    // commit an animation on the frame the finger lifts.
+    //
+    // The cancel's path is the declared one reversed, so playing it FORWARD is
+    // the author's own motion arriving at the pose the drag began from. Both
+    // legs carry the authored easing, and neither carries anything this file
+    // invented: whatever a consumer declares, including its stops, is what the
+    // release runs.
+    const leg = (legFrames: Keyframe[]): Animation | null => {
+      const created = element.animate(legFrames, {
+        duration: motion.duration * 1000,
+        easing: easingToCss(motion.ease),
+        // Nothing before it is seeked into range; the landed pose after.
+        fill: "forwards"
+      });
+      created.pause();
+      try {
+        created.currentTime = PARKED_MS;
+      } catch {
+        /* v8 ignore next 2 -- a host that refuses the seek leaves the leg
+           unusable; the settle falls back to the drag animation below. */
+        return null;
+      }
+      return created;
+    };
+
     staged.push({
       element,
       animation,
+      commitLeg: leg(frames),
+      cancelLeg: leg(reversedFrames(frames)),
       to: motion.to,
       clock: { start: motion.delay, duration: motion.duration, ease: motion.ease }
     });
@@ -143,6 +212,10 @@ export const beginRiderSwipe = (
   for (const rider of staged) holdScrubAt([rider.animation], 0);
 
   let released = false;
+  // Where the finger left each rider, as a fraction of its travel. The release
+  // needs it to seek its leg to the pose already on screen; reading it back off
+  // the animation would mean inverting the easing twice.
+  let travelled = 0;
   return {
     get active() {
       return !released;
@@ -155,6 +228,7 @@ export const beginRiderSwipe = (
       // Per rider, because a part and the dim need not share a clock: each
       // inherits its own from the same screen variant, and an author may have
       // written a longer one on either.
+      travelled = progress < 0 ? 0 : progress > 1 ? 1 : progress;
       for (const rider of staged) scrubTo([rider.animation], rider.clock, progress);
     },
     settle: (commit: boolean, seconds: number) => {
@@ -173,11 +247,9 @@ export const beginRiderSwipe = (
         // them. Reported as the previous element overlapping and then vanishing
         // on the next push, and as a pop that would not run its whole way.
         //
-        // `settleScrubbed`'s own reverse hook cannot do this: it exists because
-        // a backwards animation fires no `animationend`, and the morph that
-        // taught it that still wants forward landings left to the engine. This
-        // one listens for the Animation's own `finish`, which both directions
-        // do fire.
+        // Both legs run FORWARD, so the landing is the ordinary `finish` in
+        // either direction. The reverse hook the scrub kept for a backwards
+        // animation that fires no `animationend` is not needed here.
         landings.push(
           new Promise<void>((resolve) => {
             let done = false;
@@ -203,10 +275,13 @@ export const beginRiderSwipe = (
                 void animateInline(rider.element, rider.to, { duration: 0 }, writer);
               }
               rider.animation.cancel();
+              rider.commitLeg?.cancel();
+              rider.cancelLeg?.cancel();
               rider.element.removeAttribute(SKIP_ANIMATION_ATTR);
               resolve();
             };
-            rider.animation.addEventListener("finish", land, { once: true });
+            const landing = (commit ? rider.commitLeg : rider.cancelLeg) ?? rider.animation;
+            landing.addEventListener("finish", land, { once: true });
             // The backstop the flight's own resolver keeps, for the same
             // reason: an animation torn down before it finishes fires nothing,
             // and a caller waiting on this must not wait for ever.
@@ -215,7 +290,38 @@ export const beginRiderSwipe = (
             }
           })
         );
-        settleScrubbed([rider.animation], rider.clock, commit, seconds);
+        // SEEK THE LEG TO THE POSE ALREADY ON SCREEN, THEN LET IT RUN.
+        //
+        // The leg was staged with the drag, so the release writes nothing but a
+        // time, a rate and a start. The cancel's frames are reversed, so the
+        // pose the finger left sits at `1 - travelled` along it, and playing
+        // forward walks the author's own motion home.
+        const leg = commit ? rider.commitLeg : rider.cancelLeg;
+        const onLeg = commit ? travelled : 1 - travelled;
+        const durationMs = rider.clock.duration * 1000;
+        const at = invertEasing(rider.clock.ease)(onLeg) * durationMs;
+        const remaining = durationMs - at;
+        if (!leg || remaining <= 0) {
+          // Nothing left to fly, or a host that refused the staging: the drag
+          // animation still holds the pose and the landing below lands it.
+          rider.animation.pause();
+        } else {
+          // The rate is what makes the leg take the seconds the release settled
+          // on: it covers what is left of its own clock in exactly that time.
+          const rate = remaining / (Math.max(seconds, 1 / 60) * 1000);
+          try {
+            leg.currentTime = at;
+            leg.playbackRate = rate;
+            const timeline =
+              typeof leg.timeline?.currentTime === "number" ? leg.timeline.currentTime : null;
+            if (timeline === null) leg.play();
+            else leg.startTime = timeline - at / rate;
+          } catch {
+            /* v8 ignore next -- an engine that refuses the placement still has
+               the play below. */
+            leg.play();
+          }
+        }
       }
       return Promise.all(landings).then(() => undefined);
     }

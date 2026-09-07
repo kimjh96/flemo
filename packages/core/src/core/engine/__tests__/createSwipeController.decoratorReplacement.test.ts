@@ -266,7 +266,10 @@ describe("createSwipeController decorator replacement", () => {
     controller.pointerMove(event({ clientX: 120, clientY: 100 }));
     await flush();
 
-    expect(staged.filter((element) => element === dom.containerDim)).toHaveLength(1);
+    // ONE staging, not one per follow frame. A staging builds three animations
+    // for a rider now — the drag and the two motions a release can be — so the
+    // count that matters is 3 rather than 3 x the frames the finger moved.
+    expect(staged.filter((element) => element === dom.containerDim)).toHaveLength(3);
   });
 
   it("re-stages a pose-only dim the wake replaced", async () => {

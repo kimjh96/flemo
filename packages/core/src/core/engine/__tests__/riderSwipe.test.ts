@@ -87,17 +87,35 @@ afterEach(() => {
 });
 
 describe("beginRiderSwipe", () => {
-  it("stages a paused animation from the rider's own pose", () => {
+  it("stages the drag and both motions a release can be", () => {
+    // A release is not the drag played on. The drag is position-controlled and
+    // the release is time-controlled, so sharing one animation makes the
+    // release inherit the drag's mapping and land on whatever part of the
+    // authored curve the finger happened to stop in. Both legs are staged HERE,
+    // out of effect, so the release only seeks and plays one.
     const swipe = beginRiderSwipe([{ element, motion: motion() }]);
 
     expect(swipe).not.toBeNull();
-    expect(animations).toHaveLength(1);
-    expect(animations[0]!.keyframes).toEqual([{ opacity: "0" }, { opacity: "1" }]);
-    expect(animations[0]!.options.duration).toBe(400);
-    expect(animations[0]!.options.fill).toBe("both");
+    expect(animations).toHaveLength(3);
+
+    const [drag, commitLeg, cancelLeg] = animations;
+    expect(drag!.keyframes).toEqual([{ opacity: "0" }, { opacity: "1" }]);
+    expect(drag!.options.duration).toBe(400);
+    expect(drag!.options.fill).toBe("both");
     // Held at zero: the finger owns the time from the first frame.
-    expect(animations[0]!.paused).toBe(true);
-    expect(animations[0]!.currentTime).toBe(0);
+    expect(drag!.paused).toBe(true);
+    expect(drag!.currentTime).toBe(0);
+
+    // The commit's path is the declared one; the cancel's is it reversed, so
+    // playing that FORWARD is the author's own motion arriving back home.
+    expect(commitLeg!.keyframes.map((frame) => frame.opacity)).toEqual(["0", "1"]);
+    expect(cancelLeg!.keyframes.map((frame) => frame.opacity)).toEqual(["1", "0"]);
+    // Parked before their own start, where `forwards` fills nothing.
+    for (const leg of [commitLeg!, cancelLeg!]) {
+      expect(leg.options.fill).toBe("forwards");
+      expect(leg.paused).toBe(true);
+      expect(leg.currentTime).toBeLessThan(0);
+    }
   });
 
   it("converts a CSS property name to the one WAAPI takes", () => {
@@ -157,8 +175,11 @@ describe("beginRiderSwipe", () => {
     swipe!.settle(true, 0.2);
 
     expect(element.getAttribute(SKIP_ANIMATION_ATTR)).toBe("true");
-    expect(animations[0]!.played).toBe(true);
-    expect(animations[0]!.playbackRate).toBeGreaterThan(0);
+    // The COMMIT leg flies, forward, and the drag animation is left where the
+    // finger put it until the landing clears everything.
+    expect(animations[1]!.played).toBe(true);
+    expect(animations[1]!.playbackRate).toBeGreaterThan(0);
+    expect(animations[0]!.played).toBe(false);
   });
 
   it("hands the element back when a COMMITTED settle finishes", () => {
@@ -171,24 +192,30 @@ describe("beginRiderSwipe", () => {
     swipe!.scrub(0.5);
     swipe!.settle(true, 0.2);
 
-    animations[0]!.listeners.finish?.forEach((fn) => fn());
+    animations[1]!.listeners.finish?.forEach((fn) => fn());
 
-    expect(animations[0]!.cancelled).toBe(true);
+    // Everything the gesture staged goes, not just the one that flew.
+    for (const animation of animations) expect(animation.cancelled).toBe(true);
     expect(element.hasAttribute(SKIP_ANIMATION_ATTR)).toBe(false);
   });
 
-  it("runs backwards on cancel and leaves the element to its rest rule", () => {
+  it("flies the reversed leg FORWARD on cancel, so the return has a landing", () => {
+    // Playing the drag backwards is what left a cancel with no easing at all:
+    // it walks back through the authored curve's opening, which is that curve's
+    // own tangent, and the deceleration the author drew is at the far end where
+    // a cancel never reaches. The reversed leg puts that landing where the
+    // cancel actually arrives.
     const swipe = beginRiderSwipe([{ element, motion: motion() }]);
     swipe!.scrub(0.5);
 
     swipe!.settle(false, 0.2);
 
     expect(element.hasAttribute(SKIP_ANIMATION_ATTR)).toBe(false);
-    expect(animations[0]!.playbackRate).toBeLessThan(0);
-    // Backwards an animation finishes at its start and fires no animationend,
-    // so the handback is explicit here too.
-    animations[0]!.listeners.finish?.forEach((fn) => fn());
-    expect(animations[0]!.cancelled).toBe(true);
+    expect(animations[2]!.played).toBe(true);
+    expect(animations[2]!.playbackRate).toBeGreaterThan(0);
+    // Forward in both directions, so the ordinary `finish` is the landing.
+    animations[2]!.listeners.finish?.forEach((fn) => fn());
+    for (const animation of animations) expect(animation.cancelled).toBe(true);
   });
 
   it("ignores a scrub that lands after the release", () => {
@@ -209,10 +236,12 @@ describe("beginRiderSwipe", () => {
     const swipe = beginRiderSwipe([{ element, motion: motion() }]);
 
     swipe!.settle(true, 0.2);
-    const rate = animations[0]!.playbackRate;
+    const rate = animations[1]!.playbackRate;
     swipe!.settle(false, 0.2);
 
-    expect(animations[0]!.playbackRate).toBe(rate);
+    expect(animations[1]!.playbackRate).toBe(rate);
+    // The cancel leg was never woken by the second report.
+    expect(animations[2]!.played).toBe(false);
     expect(swipe!.active).toBe(false);
   });
 
@@ -231,7 +260,8 @@ describe("beginRiderSwipe", () => {
 
     // Same curve, different spans: the longer rider sits proportionally later
     // on its own clock rather than being dragged onto its neighbour's.
-    expect(animations[1]!.currentTime! / animations[0]!.currentTime!).toBeCloseTo(1 / 0.4, 5);
+    // Three animations per rider now, so the second rider's drag is index 3.
+    expect(animations[3]!.currentTime! / animations[0]!.currentTime!).toBeCloseTo(1 / 0.4, 5);
   });
 
   it("drives nothing for a rider with no motion to run", () => {
