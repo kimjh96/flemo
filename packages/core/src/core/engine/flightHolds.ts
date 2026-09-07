@@ -50,6 +50,20 @@ export interface FlightHoldsInput {
 export interface FlightHolds {
   /** Reconcile every hold with what this drive run says the screen is doing. */
   readonly sync: (input: FlightHoldsInput) => void;
+  /**
+   * Hand everything back because the screen is GONE, not because it finished.
+   *
+   * Every release above is driven by a LATER sync pass, and a screen that
+   * unmounts mid-flight never has one. Two of the holds it armed are not the
+   * screen's to take with it: the response park and the global flight window
+   * are session-wide latches, and the window's refcount has no timer behind
+   * it — measured still open, with nothing in the air, for the rest of the
+   * session after one interrupted push.
+   *
+   * Immediate rather than scheduled: there is no landing left to protect.
+   * Idempotent, and a no-op when nothing was armed.
+   */
+  readonly abandon: () => void;
 }
 
 export const createFlightHolds = (deps: FlightHoldsDeps): FlightHolds => {
@@ -149,5 +163,12 @@ export const createFlightHolds = (deps: FlightHoldsDeps): FlightHolds => {
     }
   };
 
-  return { sync };
+  const abandon = () => {
+    if (!releaseArrivalHold) return;
+    const release = releaseArrivalHold;
+    releaseArrivalHold = null;
+    release();
+  };
+
+  return { sync, abandon };
 };
