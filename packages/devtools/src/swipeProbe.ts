@@ -112,7 +112,6 @@ export const attachSwipeProbe = (options: SwipeProbeOptions): SwipeProbeHandle =
   const now = options.now ?? (() => performance.now());
   const schedule =
     options.schedule ??
-    /* v8 ignore next -- the suite always supplies a frame source. */
     ((run: () => void) => {
       requestAnimationFrame(run);
     });

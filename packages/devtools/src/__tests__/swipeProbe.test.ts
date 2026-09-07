@@ -160,6 +160,54 @@ describe("the swipe probe", () => {
     expect(onRelease.mock.calls[0]![0].eased).toBe(true);
   });
 
+  it("uses the browser's own frames when no source is given", async () => {
+    // The default path, driven for real: only the clock is injected, and it is
+    // run fast so the watch window closes within a couple of rAF ticks.
+    const element = screen(60);
+    const onRelease = vi.fn();
+    let clock = 0;
+    attachSwipeProbe({ onRelease, now: () => (clock += 500) });
+
+    release();
+    for (let index = 0; index < 6; index += 1) {
+      moveTo(element, 60 - index * 12);
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    }
+
+    expect(onRelease).toHaveBeenCalledTimes(1);
+    expect(onRelease.mock.calls[0]![0].samples.length).toBeGreaterThan(0);
+  });
+
+  it("says nothing when there are no screens to watch", () => {
+    // A release outside a flemo Router, which is most releases on most pages.
+    const onRelease = vi.fn();
+    const clock = rig();
+    attachSwipeProbe({ onRelease, ...clock });
+
+    release();
+    clock.settle();
+
+    expect(onRelease).not.toHaveBeenCalled();
+  });
+
+  it("skips a screen the host gives no animations to read", () => {
+    // Not every element answers getAnimations, and a probe must not be the
+    // thing that throws inside a release.
+    const bare = document.createElement("div");
+    bare.setAttribute("data-flemo-screen", "bare");
+    bare.style.transform = "matrix(1, 0, 0, 1, 70, 0)";
+    document.body.appendChild(bare);
+    const onRelease = vi.fn();
+    const clock = rig();
+    attachSwipeProbe({ onRelease, ...clock });
+
+    release();
+    clock.settle();
+
+    expect(onRelease).toHaveBeenCalledTimes(1);
+    expect(onRelease.mock.calls[0]![0].samples[0]!.animations).toEqual([]);
+  });
+
   it("stops listening once detached", () => {
     screen(90);
     const onRelease = vi.fn();
@@ -175,5 +223,15 @@ describe("the swipe probe", () => {
   it("names the screens a release is about", () => {
     screen(50);
     expect(releasedScreens()).toEqual([{ id: "s1", status: "COMPLETED", active: "true" }]);
+  });
+
+  it("names a screen that carries no status or active marker", () => {
+    // A binding mid-mount, or another framework's: the probe reports what is
+    // there rather than refusing to answer.
+    const bare = document.createElement("div");
+    bare.setAttribute("data-flemo-screen", "");
+    document.body.appendChild(bare);
+
+    expect(releasedScreens()).toEqual([{ id: "", status: "", active: "" }]);
   });
 });
