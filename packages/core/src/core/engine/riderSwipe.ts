@@ -280,6 +280,8 @@ export const beginRiderSwipe = (
               rider.element.removeAttribute(SKIP_ANIMATION_ATTR);
               resolve();
             };
+            /* v8 ignore next 2 -- the leg is null only where the host refused
+               the staging seek, which is the ignored branch in `leg` above. */
             const landing = (commit ? rider.commitLeg : rider.cancelLeg) ?? rider.animation;
             landing.addEventListener("finish", land, { once: true });
             // The backstop the flight's own resolver keeps, for the same
