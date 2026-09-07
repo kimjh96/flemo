@@ -54,8 +54,9 @@ CI runs `pnpm install --frozen-lockfile`. Local development may use `bun install
 
 ## Conventions
 
-- Canonical instructions are this file, `apps/web/CLAUDE.md`, `docs/architecture/motion-engine.md`, `docs/architecture/driver-routing.md`, `docs/architecture/react-binding.md`, `docs/instructions/diagnostics.md`, and `docs/instructions/motion-jank-postmortem/`. There is no `.claude/rules/`.
+- Canonical instructions are this file, `apps/web/CLAUDE.md`, `docs/architecture/motion-engine.md`, `docs/architecture/driver-routing.md`, `docs/architecture/react-binding.md`, `docs/instructions/diagnostics.md`, `docs/instructions/transition-authoring.md`, and `docs/instructions/motion-jank-postmortem/`. There is no `.claude/rules/`.
 - Before changing `packages/core/src/core/engine/`, read both engine architecture documents and the motion postmortems.
+- Before authoring or changing any transition, morph, part, or decorator, in a package or in the playground, read `docs/instructions/transition-authoring.md`. It carries the role table, the slot vocabulary each factory uses, the clock-inheritance rules, and a symptom-to-cause index.
 - Match surrounding style. Give every React component and subcomponent its own folder and `index.ts` barrel.
 - Core aliases are `@core`, `@history`, `@morph`, `@navigate`, `@transition`, and `@utils`. Register new top-level aliases in `packages/core/tsconfig.json`, `vite.config.mts`, and `vitest.config.ts`.
 - React aliases are `@history`, `@navigate`, `@renderer`, `@screen`, `@transition`, `@utils`, `@Route`, and `@Router`. Import core APIs as named imports from `@flemo/core`, never through core path aliases.
@@ -78,6 +79,7 @@ CI runs `pnpm install --frozen-lockfile`. Local development may use `bun install
 - Engine lifecycle and invariants: `docs/architecture/motion-engine.md`
 - Driver routing: `docs/architecture/driver-routing.md`
 - React architecture: `docs/architecture/react-binding.md`
+- Transition authoring: `docs/instructions/transition-authoring.md`
 - Diagnostics: `docs/instructions/diagnostics.md`
 - Motion history: `docs/instructions/motion-jank-postmortem.md`
 - Core API: `packages/core/src/index.ts`
