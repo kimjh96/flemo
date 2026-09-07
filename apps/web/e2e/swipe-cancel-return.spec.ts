@@ -141,19 +141,41 @@ test.describe("a cancelled swipe", () => {
     expect(trace[0]).toBeGreaterThan(4);
     expect(Math.abs(trace[trace.length - 1]!)).toBeLessThan(1);
 
-    const steps = trace
-      .slice(1)
-      .map((value, index) => Math.abs(value - trace[index]!))
-      .filter((step) => step > 0.001);
-    expect(steps.length).toBeGreaterThan(4);
-    // The author's curve lands flat, so the last frames of the return cover a
-    // fraction of what the first ones do. A straight line — what a cancel used
-    // to run — would put these within rounding of each other.
-    expect(steps[steps.length - 1]!).toBeLessThan(steps[0]! * 0.4);
-    // ...and it slows the whole way, never speeding up mid-return.
-    for (const [index, step] of steps.entries()) {
-      if (index === 0) continue;
-      expect(step).toBeLessThanOrEqual(steps[index - 1]! + 0.05);
+    // MEASURED AGAINST THE TRACE'S OWN CLOCK, NOT FRAME BY FRAME.
+    //
+    // A dropped frame carries two frames' worth of travel, so a loaded machine
+    // can make a decelerating return non-monotone frame by frame while the
+    // motion itself is perfectly smooth. It cost this file a red CI run. What
+    // does not move when a frame does is WHERE ALONG THE RETURN the distance
+    // was spent.
+    const steps = trace.slice(1).map((value, index) => Math.abs(value - trace[index]!));
+    const first = steps.findIndex((step) => step > 0.05);
+    const last = steps.reduce((found, step, index) => (step > 0.005 ? index : found), -1);
+    expect(first).toBeGreaterThanOrEqual(0);
+    const home = steps.slice(first, last + 1);
+    expect(home.length).toBeGreaterThan(4);
+
+    const total = home.reduce((sum, step) => sum + step, 0);
+    let carried = 0;
+    let halfway = home.length;
+    for (const [index, step] of home.entries()) {
+      carried += step;
+      if (carried >= total / 2) {
+        halfway = index + 1;
+        break;
+      }
     }
+    // The author's curve leaves fast and lands flat, so half the way home is
+    // covered in the first fraction of the return. A straight line, which is
+    // what a cancel used to run, spends half its distance at the halfway mark.
+    expect(halfway / home.length).toBeLessThan(0.3);
+
+    // ...and it is slowing throughout: each third of the return covers less
+    // than the third before it.
+    const third = Math.max(1, Math.floor(home.length / 3));
+    const spent = (from: number, to: number) =>
+      home.slice(from, to).reduce((sum: number, step: number) => sum + step, 0);
+    expect(spent(0, third)).toBeGreaterThan(spent(third, third * 2));
+    expect(spent(third, third * 2)).toBeGreaterThanOrEqual(spent(third * 2, home.length));
   });
 });
