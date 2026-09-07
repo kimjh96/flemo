@@ -1,5 +1,15 @@
 # @flemo/web
 
+## 0.11.10
+
+### Patch Changes
+
+- [`e92a26c`](https://github.com/kimjh96/flemo/commit/e92a26cd51dbaa7fade062e2e6943442b2e5da70) Let `createPartTransition` name the pose of the part on the screen being popped, as an optional `dismiss` beside `idle`, `enter` and `exit`. Two matched parts could cross-fade on a push but only reveal on a pop, because the dismissing side was pinned to `idle` and the sole way to move it was to restate all ten variants through `createRawPartTransition`. Omitting `dismiss` holds the part still exactly as before, and the Part docs now say where each slot animates from.
+- Updated dependencies ([`e92a26c`](https://github.com/kimjh96/flemo/commit/e92a26cd51dbaa7fade062e2e6943442b2e5da70), [`41599c1`](https://github.com/kimjh96/flemo/commit/41599c19b02126c159bf105eef02667a3da77617), [`fdea05a`](https://github.com/kimjh96/flemo/commit/fdea05a78dc524520436444b6fdbc3d0d9e3a8fa)):
+  - @flemo/core@2.5.0
+  - @flemo/react@2.3.1
+  - @flemo/devtools@0.6.0
+
 ## 0.11.9
 
 ### Patch Changes

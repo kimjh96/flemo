@@ -1,5 +1,64 @@
 # @flemo/core
 
+## 2.5.0
+
+### Minor Changes
+
+- [`e92a26c`](https://github.com/kimjh96/flemo/commit/e92a26cd51dbaa7fade062e2e6943442b2e5da70) Let `createPartTransition` name the pose of the part on the screen being popped, as an optional `dismiss` beside `idle`, `enter` and `exit`. Two matched parts could cross-fade on a push but only reveal on a pop, because the dismissing side was pinned to `idle` and the sole way to move it was to restate all ten variants through `createRawPartTransition`. Omitting `dismiss` holds the part still exactly as before, and the Part docs now say where each slot animates from.
+
+- [`fdea05a`](https://github.com/kimjh96/flemo/commit/fdea05a78dc524520436444b6fdbc3d0d9e3a8fa) Remove the compositor warm-up. A hidden element animated `background-position`, a
+  property the compositor cannot take, on an infinite loop, so every frame of a flight
+  and every frame for three seconds after any pointer movement forced a main-thread
+  repaint. It was kept because it was believed to buy back a lost opening frame.
+
+  A same-build A/B could not find that frame. Across cold navigations (five seconds
+  untouched first) and warm ones, on real desktop Chrome driving the same deployment
+  with only this machinery switched off, dropped frames were 10 of 1095 with it and 11
+  of 1103 without, and late animation frames were 1 against 1. What it did cost is
+  measurable: 1303 style recalculations per ten seconds of mouse movement with no
+  navigation at all, against 1 without it, and 193 against 95 per transition. Its
+  founding measurement was taken under DevTools mobile emulation, which the engine
+  itself warns is a source of phantom motion.
+
+  `holdCompositorWarm()` and `WARM_ATTR` are no longer exported, and the
+  `data-flemo-warm` element no longer exists. Nothing a consumer authors changes shape:
+  both names were engine machinery, the attribute published only so that a consumer or a
+  devtools build could recognise flemo's own scratch element rather than mistake it for
+  app content, and there is no longer an element to recognise. Delete any selector that
+  targets it.
+
+### Patch Changes
+
+- [`41599c1`](https://github.com/kimjh96/flemo/commit/41599c19b02126c159bf105eef02667a3da77617) Give a released drag its own motion, so a cancel returns on the curve its
+  transition draws instead of arriving with no easing at all.
+
+  A drag and a release are different kinds of motion. The drag is position
+  controlled: the finger says where, and the scrub seeks the staged animation to
+  the time that pose sits at. A release is time controlled: a curve and a duration
+  say where. Sharing one animation between them made the release inherit the
+  drag's mapping, so which part of the authored curve it landed on was an accident
+  of where the finger stopped.
+
+  For a commit that accident was harmless, because playing on toward the end of a
+  curve ends where the author put the slow part. A cancel plays back toward the
+  beginning, and a cancel by definition stops short of the commit threshold, so it
+  always sits inside the curve's opening. Device-captured: a drag nine per cent of
+  the way across sat at 30ms of cupertino's 700, and the opening of any curve is
+  its own tangent, so the return crossed its last hundred pixels at a dead
+  constant speed and stopped. The deceleration the author drew was at the far end,
+  which a cancel never reaches.
+
+  Both motions a release can be are now staged with the drag and held out of
+  effect. The cancel's path is the declared one reversed, so playing it forward is
+  the author's own motion arriving at the pose the drag began from. The release
+  writes a time, a rate and a start, and never builds or reshapes an effect, which
+  is what keeps the compositor from having to commit an animation on the frame the
+  finger lifts.
+
+  Nothing here is written against a preset. Whatever a transition declares,
+  including its stops and whichever properties it moves, is what the release runs,
+  and both directions now run forward so a cancel fires an ordinary `finish`.
+
 ## 2.4.0
 
 ### Minor Changes
