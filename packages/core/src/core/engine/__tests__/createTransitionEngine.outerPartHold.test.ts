@@ -135,6 +135,20 @@ describe("outer <Part> hold mirroring", () => {
     expect(outerPart.hasAttribute(HOLD)).toBe(false);
   });
 
+  // THE SAME QUESTION THE LAYER HOLDS ANSWERED. The stamp is written on
+  // PERSISTENT chrome by the screen that is flying, and on a pop the flying
+  // screen is the one that goes away. If the screen can be taken out while its
+  // stamp is still on, the chrome stays paused with nobody left to release it.
+  it("takes its stamp off persistent chrome when the screen goes away", () => {
+    drive(false);
+    expect(outerPart.getAttribute(HOLD)).toBe("true");
+
+    // What the binding does on unmount, with no release pass in between.
+    for (const dispose of disposers.splice(0)) dispose();
+
+    expect(outerPart.hasAttribute(HOLD)).toBe(false);
+  });
+
   it("leaves a part inside the screen alone — the descendant rule owns it", () => {
     drive(false);
     // Stamping it would be redundant, and removing it later could fight the
