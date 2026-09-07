@@ -120,8 +120,6 @@ export const attachSwipeProbe = (_options?: SwipeProbeOptions): SwipeProbeHandle
   detach: noop
 });
 
-export const releasedScreens = (): { id: string; status: string; active: string }[] => [];
-
 export type { FlemoGlobal } from "./recorder";
 export type { DevtoolsHudHandle, DevtoolsHudOptions } from "./hud";
 export type { DevtoolsPanelHandle, DevtoolsPanelOptions } from "./panel";

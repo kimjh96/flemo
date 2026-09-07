@@ -1,4 +1,4 @@
-import { ACTIVE_ATTR, SCREEN_ATTR, STATUS_ATTR } from "./domProtocol";
+import { SCREEN_ATTR } from "./domProtocol";
 import { parseTranslateX } from "./sampling";
 
 // THE SWIPE PROBE: what the RELEASE did to the screens.
@@ -60,8 +60,10 @@ export interface SwipeReleaseAudit {
 
 const screensNow = (): Element[] => [...document.querySelectorAll(`[${SCREEN_ATTR}]`)];
 
+// A computed style always answers `transform`; what it answers may be `none`,
+// or a form with no translation in it, and that is what the fallback is for.
 const poseOf = (element: Element): number =>
-  parseTranslateX(getComputedStyle(element).transform ?? "") ?? 0;
+  parseTranslateX(getComputedStyle(element).transform) ?? 0;
 
 const describe = (screens: readonly Element[]): string[] => {
   const found: string[] = [];
@@ -140,11 +142,11 @@ export const attachSwipeProbe = (options: SwipeProbeOptions): SwipeProbeHandle =
 
       // The furthest-travelling screen is the one the release is about; a
       // parallax partner moves a third as far and would flatten every ratio.
-      const lane = samples[0]!.x.reduce(
-        (best, value, index) =>
-          Math.abs(value) > Math.abs(samples[0]!.x[best] ?? 0) ? index : best,
-        0
-      );
+      const firstPose = samples[0]!.x;
+      let lane = 0;
+      for (const [index, value] of firstPose.entries()) {
+        if (Math.abs(value) > Math.abs(firstPose[lane]!)) lane = index;
+      }
       const path = samples.map((sample) => sample.x[lane] ?? 0);
       const steps: number[] = [];
       for (let index = 1; index < path.length; index += 1) {
@@ -182,11 +184,3 @@ export const attachSwipeProbe = (options: SwipeProbeOptions): SwipeProbeHandle =
     }
   };
 };
-
-/** The screens a release is about, for a caller that wants to name them. */
-export const releasedScreens = (): { id: string; status: string; active: string }[] =>
-  screensNow().map((screen) => ({
-    id: screen.getAttribute(SCREEN_ATTR) ?? "",
-    status: screen.getAttribute(STATUS_ATTR) ?? "",
-    active: screen.getAttribute(ACTIVE_ATTR) ?? ""
-  }));

@@ -85,7 +85,6 @@ describe("production entry", () => {
     document.dispatchEvent(new Event("pointerup"));
 
     expect(seen).not.toHaveBeenCalled();
-    expect(inert.releasedScreens()).toEqual([]);
     expect(inert.SWIPE_PROBE_MS).toBe(SWIPE_PROBE_MS);
     expect(() => probe.detach()).not.toThrow();
   });

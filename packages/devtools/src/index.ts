@@ -32,7 +32,7 @@ export {
   sampleRafCadence
 } from "./environment";
 
-export { attachSwipeProbe, releasedScreens, SWIPE_PROBE_MS } from "./swipeProbe";
+export { attachSwipeProbe, SWIPE_PROBE_MS } from "./swipeProbe";
 export type {
   SwipeProbeHandle,
   SwipeProbeOptions,

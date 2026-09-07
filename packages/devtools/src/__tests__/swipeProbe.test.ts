@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { attachSwipeProbe, releasedScreens, SWIPE_PROBE_MS } from "../swipeProbe";
+import { attachSwipeProbe, SWIPE_PROBE_MS } from "../swipeProbe";
 
 // A drag is not a flight, so nothing else in this package opens a window for
 // one. What this pins is the question a swipe report always turns out to be
@@ -123,7 +123,13 @@ describe("the swipe probe", () => {
     const element = screen(90);
     Object.defineProperty(element, "getAnimations", {
       value: () => [
-        { animationName: undefined, playState: "running", currentTime: 210, playbackRate: -0.5 }
+        { animationName: undefined, playState: "running", currentTime: 210, playbackRate: -0.5 },
+        {
+          animationName: "flemo-screen-cupertino-POPPING-true",
+          playState: "running",
+          currentTime: 40,
+          playbackRate: 1
+        }
       ],
       configurable: true
     });
@@ -135,14 +141,19 @@ describe("the swipe probe", () => {
     clock.settle();
 
     const audit = onRelease.mock.calls[0]![0];
-    expect(audit.samples[0]!.animations).toEqual(["waapi|running|ct=210|rate=-0.5"]);
+    expect(audit.samples[0]!.animations).toEqual([
+      "waapi|running|ct=210|rate=-0.5",
+      "flemo-screen-cupertino-POPPING-true|running|ct=40|rate=1"
+    ]);
   });
 
   it("reads the release off the screen that travels furthest", () => {
     // cupertino moves the covered screen a third as far. Averaging the two
     // would flatten every ratio this reports.
-    const dragged = screen(120);
+    // The covered screen is first in the document, as it is in a real stack,
+    // and the dragged one behind it is the one the release is about.
     const covered = screen(-40);
+    const dragged = screen(120);
     const onRelease = vi.fn();
     const clock = rig();
     attachSwipeProbe({ onRelease, ...clock });
@@ -160,23 +171,23 @@ describe("the swipe probe", () => {
     expect(onRelease.mock.calls[0]![0].eased).toBe(true);
   });
 
-  it("uses the browser's own frames when no source is given", async () => {
-    // The default path, driven for real: only the clock is injected, and it is
-    // run fast so the watch window closes within a couple of rAF ticks.
+  it("uses the browser's own clock and frames when neither is given", async () => {
+    // The default path, driven for real. It costs the length of one watch
+    // window, which is the honest price of not marking it unreachable.
     const element = screen(60);
     const onRelease = vi.fn();
-    let clock = 0;
-    attachSwipeProbe({ onRelease, now: () => (clock += 500) });
+    attachSwipeProbe({ onRelease });
 
     release();
     for (let index = 0; index < 6; index += 1) {
-      moveTo(element, 60 - index * 12);
+      moveTo(element, 60 - index * 10);
       await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
     }
+    await new Promise((resolve) => setTimeout(resolve, SWIPE_PROBE_MS + 200));
 
     expect(onRelease).toHaveBeenCalledTimes(1);
     expect(onRelease.mock.calls[0]![0].samples.length).toBeGreaterThan(0);
-  });
+  }, 10_000);
 
   it("says nothing when there are no screens to watch", () => {
     // A release outside a flemo Router, which is most releases on most pages.
@@ -208,6 +219,63 @@ describe("the swipe probe", () => {
     expect(onRelease.mock.calls[0]![0].samples[0]!.animations).toEqual([]);
   });
 
+  it("reads a screen whose transform carries no translation as home", () => {
+    screen(120);
+    const still = document.createElement("div");
+    still.setAttribute("data-flemo-screen", "still");
+    still.style.transform = "none";
+    document.body.appendChild(still);
+    Object.defineProperty(still, "getAnimations", { value: () => [], configurable: true });
+    const onRelease = vi.fn();
+    const clock = rig();
+    attachSwipeProbe({ onRelease, ...clock });
+
+    release();
+    clock.settle();
+
+    expect(onRelease.mock.calls[0]![0].samples[0]!.x).toContain(0);
+  });
+
+  it("reads an animation with no resolved time as zero", () => {
+    const element = screen(80);
+    Object.defineProperty(element, "getAnimations", {
+      value: () => [
+        { animationName: "flemo-x", playState: "paused", currentTime: null, playbackRate: 1 }
+      ],
+      configurable: true
+    });
+    const onRelease = vi.fn();
+    const clock = rig();
+    attachSwipeProbe({ onRelease, ...clock });
+
+    release();
+    clock.settle();
+
+    expect(onRelease.mock.calls[0]![0].samples[0]!.animations).toEqual([
+      "flemo-x|paused|ct=0|rate=1"
+    ]);
+  });
+
+  it("survives a screen that leaves the document mid-landing", () => {
+    // A committed screen unmounts while the settle is still being watched, so
+    // the frames after it carry fewer poses than the frame the probe started on.
+    const staying = screen(40);
+    const leaving = screen(120);
+    const onRelease = vi.fn();
+    const clock = rig();
+    attachSwipeProbe({ onRelease, ...clock });
+
+    release();
+    clock.frame();
+    // The one the reading is taken from is the one that goes.
+    leaving.remove();
+    moveTo(staying, 20);
+    clock.settle();
+
+    expect(onRelease).toHaveBeenCalledTimes(1);
+    expect(onRelease.mock.calls[0]![0].samples.at(-1)!.x).toHaveLength(1);
+  });
+
   it("stops listening once detached", () => {
     screen(90);
     const onRelease = vi.fn();
@@ -218,20 +286,5 @@ describe("the swipe probe", () => {
     clock.settle();
 
     expect(onRelease).not.toHaveBeenCalled();
-  });
-
-  it("names the screens a release is about", () => {
-    screen(50);
-    expect(releasedScreens()).toEqual([{ id: "s1", status: "COMPLETED", active: "true" }]);
-  });
-
-  it("names a screen that carries no status or active marker", () => {
-    // A binding mid-mount, or another framework's: the probe reports what is
-    // there rather than refusing to answer.
-    const bare = document.createElement("div");
-    bare.setAttribute("data-flemo-screen", "");
-    document.body.appendChild(bare);
-
-    expect(releasedScreens()).toEqual([{ id: "", status: "", active: "" }]);
   });
 });
