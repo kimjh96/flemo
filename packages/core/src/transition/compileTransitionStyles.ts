@@ -1,4 +1,5 @@
 import type { AnimationOptions, InitialTarget } from "@transition/cssTypes";
+import { cssKeywordFor, easeName, isCssEasing, namedEasePoints } from "@transition/easing";
 import { percentRatio, rideLength } from "@transition/rideOffset";
 import type { Transition, TransitionVariant, TransitionVariantValue } from "@transition/typing";
 
@@ -9,7 +10,7 @@ import {
   variantDuration
 } from "@transition/variantMotion";
 
-import { warnUnregistered } from "@utils/devWarn";
+import { warnUnknownEasing, warnUnregistered } from "@utils/devWarn";
 
 import {
   ACTIVE_ATTR,
@@ -332,19 +333,22 @@ export const easingToCss = (ease: AnimationOptions["ease"] | undefined): string 
     }
     return "linear";
   }
-  if (typeof ease === "string") {
-    const map: Record<string, string> = {
-      linear: "linear",
-      easeIn: "ease-in",
-      easeOut: "ease-out",
-      easeInOut: "ease-in-out",
-      circIn: "cubic-bezier(0, 0.55, 0.45, 1)",
-      circOut: "cubic-bezier(0.55, 0, 1, 0.45)",
-      backIn: "cubic-bezier(0.31, 0.01, 0.66, -0.59)",
-      backOut: "cubic-bezier(0.33, 1.53, 0.69, 0.99)",
-      anticipate: "cubic-bezier(0.36, 0, 0.66, -0.56)"
-    };
-    return map[ease] ?? "ease";
+  const name = easeName(ease);
+  if (name !== null) {
+    // CSS FIRST, so a value CSS understands survives this function. A string
+    // the table did not know used to become `ease` without a word, which took
+    // `ease-out`, `cubic-bezier(...)`, `steps(...)` and `linear(...)` — the way
+    // a spring ships in CSS — and animated something else instead. See
+    // easing.ts for what that cost and what is accepted now.
+    if (isCssEasing(name)) return name;
+    const keyword = cssKeywordFor(name);
+    if (keyword) return keyword;
+    const points = namedEasePoints(name);
+    if (points) return `cubic-bezier(${points.join(", ")})`;
+    // Still `ease`, because a keyframe must carry something and a browser would
+    // land here anyway. The difference is that it now says so once.
+    warnUnknownEasing(name);
+    return "ease";
   }
   return "ease";
 };
