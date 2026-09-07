@@ -728,16 +728,30 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       decoratorSwipe = beginRiderSwipe(collectDecoratorRiders());
     }
 
-    if (stagedDragParts) return;
     // The drag is a flight the engine never sees: the navigate status stays
     // COMPLETED, so nothing else stages the covered side's bar parts and they
     // would cross-fade underneath the screen the finger is moving.
-    stageDragParts();
-    if (!stagedDragParts) return;
-    // Nor does anything else MOVE them. The compiled rules key on a status no
+    if (!stagedDragParts) stageDragParts();
+
+    // Nor does anything else MOVE a part. The compiled rules key on a status no
     // drag ever sets, so a part that declared only a pose sat still while the
     // screens followed the finger.
-    riderSwipe = beginRiderSwipe(collectPartRiders());
+    //
+    // AND THIS IS THE SECOND READINESS CONDITION, not the same one again. It
+    // used to sit behind the staging above — stage the bar parts, and if that
+    // took, drive everything — which is the gate the decorator was just taken
+    // out of, left in place for the parts. `stageBarParts` declines when there
+    // is nothing to LIFT, and a screen whose parts are its own chrome (a
+    // floating header, a title inside the content) has nothing to lift and
+    // never had. So on every such screen the parts sat still for the whole
+    // drag and then jumped at the release. Reported on the playground's
+    // `tether` and reproduced on `cupertino`: the header held its pose through
+    // a 134px drag while the screen under it followed the finger.
+    //
+    // Retried rather than armed once: `beginRiderSwipe` answers null while
+    // there is nothing to drive, and the covered side's parts arrive with the
+    // React commit this drag itself woke.
+    if (!riderSwipe) riderSwipe = beginRiderSwipe(collectPartRiders());
   };
 
   // The riders this gesture drives ITSELF: the ones that declared a pose and no
