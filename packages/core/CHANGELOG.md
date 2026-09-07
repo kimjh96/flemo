@@ -1,5 +1,16 @@
 # @flemo/core
 
+## 2.5.1
+
+### Patch Changes
+
+- [`86d68ca`](https://github.com/kimjh96/flemo/commit/86d68cad5345f64e9ee58571cd90325ee514197a) Bring a cancelled swipe's shared element home on the transition's own curve. The
+  morph's release replayed the drag backwards, which walks the curve's opening and
+  lands at a constant speed, so a cancelled morph slid home flat while the screens
+  around it decelerated. It now runs a return leg staged with the drag: the
+  declared path walked the other way, stops and all, seeked to the pose the finger
+  left and played forward.
+
 ## 2.5.0
 
 ### Minor Changes
