@@ -9,7 +9,6 @@ import type { TransitionVariant } from "@transition/typing";
 
 import {
   ACTIVE_ATTR,
-  ANIM_HOLD,
   ANIM_HOLD_ATTR,
   attrSelector,
   MORPH_ATTR,
@@ -27,6 +26,7 @@ import {
   SCREEN_ATTR,
   attrValueSelector
 } from "@dom/attributes";
+import mirrorHold from "@dom/holdMirror";
 
 import { intoLayerSpace, preserveAnimations } from "@dom/staging";
 
@@ -1643,17 +1643,7 @@ const startFlight = (
         !layer.contains(element) &&
         all.indexOf(element) === index
     );
-  const mirrorHold = () => {
-    const held = holdSources
-      .map((element) => element.getAttribute(ANIM_HOLD_ATTR))
-      .find((value) => value !== null && value !== ANIM_HOLD.RELEASED);
-    layer.setAttribute(ANIM_HOLD_ATTR, held ?? ANIM_HOLD.RELEASED);
-  };
-  mirrorHold();
-  const holdWatch =
-    typeof MutationObserver === "function" ? new MutationObserver(mirrorHold) : null;
-  for (const element of holdSources)
-    holdWatch?.observe(element, { attributes: true, attributeFilter: [ANIM_HOLD_ATTR] });
+  const hold = mirrorHold(layer, holdSources);
 
   let landed = false;
   const finish = () => {
@@ -1663,7 +1653,7 @@ const startFlight = (
     landed = true;
     entry.element.removeEventListener("animationend", onEnd);
     clearTimeout(backstop);
-    holdWatch?.disconnect();
+    hold.disconnect();
     layer.removeAttribute(ANIM_HOLD_ATTR);
 
     // Home again, and exactly as it was: the element carries no trace of the

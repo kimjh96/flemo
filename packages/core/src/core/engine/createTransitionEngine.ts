@@ -179,7 +179,19 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   // and returned on the COMPLETED one, with several hold-flip drives between.
   let stagedBarParts: StagedBarParts | null = null;
 
-  const driveScreenLifecycle = (input: ScreenLifecycleInput): (() => void) => {
+  // The sweeps a lifecycle pass registers for its own teardown. Collected
+  // rather than composed at each `return`, because the run below hands back a
+  // disposer from six places and a fix that has to be repeated six times is a
+  // fix that will be forgotten in the seventh.
+  //
+  // REPLACED, never emptied in place: each pass's wrapper keeps the array it
+  // was handed, so a second pass beginning must give the first one's disposer
+  // nothing to lose. `lifecycleSweeps.length = 0` would empty an array a live
+  // disposer is still holding.
+  let lifecycleSweeps: (() => void)[] = [];
+
+  const runScreenLifecycle = (input: ScreenLifecycleInput): (() => void) => {
+    lifecycleSweeps = [];
     const { getElements, transitionName, prevTransitionName, status, isActive, animHoldReleased } =
       input;
 
@@ -206,11 +218,23 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // stamp and the screens' own attribute land in the same commit — the part
     // must not lead or trail the flight by a frame either. Stamp and sweep use
     // different predicates on purpose; see collectStampedOuterParts.
+    //
+    // AND THE STAMP MUST NOT OUTLIVE THE SCREEN THAT WROTE IT. The chrome is
+    // persistent and the screen is not: on a pop the flying side is the one
+    // that goes away, and a transition with no clock of its own takes it out
+    // inside the frame it stamped in. The release pass that would have swept
+    // this never runs, and the part stays paused for the rest of the session
+    // with nobody left to own it. So the disposer sweeps what this pass
+    // stamped, by identity rather than by a re-derived query: a detached
+    // scope can no longer say which Router it belonged to, and a broad sweep
+    // would take a nested Router's live stamp with it.
+    let stampedOuter: HTMLElement[] = [];
     if (isActive) {
       const { scope: holdScope } = getElements();
       if (holdScope) {
         if (isTransitional && !animHoldReleased) {
-          for (const part of collectUnheldOuterParts(holdScope, status)) {
+          stampedOuter = collectUnheldOuterParts(holdScope, status);
+          for (const part of stampedOuter) {
             part.setAttribute(ANIM_HOLD_ATTR, "true");
           }
         } else {
@@ -220,6 +244,13 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         }
       }
     }
+    const releaseStampedOuter = () => {
+      for (const part of stampedOuter) {
+        if (part.getAttribute(ANIM_HOLD_ATTR) === "true") part.removeAttribute(ANIM_HOLD_ATTR);
+      }
+      stampedOuter = [];
+    };
+    lifecycleSweeps.push(releaseStampedOuter);
 
     // EVERY flight participant — active or passive, before any early-return
     // fork below (the passive player join returns long before the active
@@ -1411,6 +1442,22 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (flooredTaskId && deps.getTransitionTaskId() !== flooredTaskId) {
         activeResumeCounts.delete(flooredTaskId);
       }
+    };
+  };
+
+  /**
+   * One screen's flight, for as long as the binding renders it.
+   *
+   * The returned disposer runs the pass's own sweeps first: a hold this pass
+   * wrote onto something that OUTLIVES the screen has to come off when the
+   * screen goes, and on a pop the screen that goes is the one that wrote it.
+   */
+  const driveScreenLifecycle = (input: ScreenLifecycleInput): (() => void) => {
+    const dispose = runScreenLifecycle(input);
+    const sweeps = lifecycleSweeps;
+    return () => {
+      for (const sweep of sweeps) sweep();
+      dispose();
     };
   };
 

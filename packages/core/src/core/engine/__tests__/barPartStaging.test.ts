@@ -312,6 +312,20 @@ describe("stageBarParts", () => {
     expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.RELEASED);
   });
 
+  // THE SAME DEFECT THE MORPH LAYER HAD. A screen that unmounts while held can
+  // never flip its own attribute again, and an observer on a removed node
+  // fires nothing — so the parts stayed paused at the from-pose for the whole
+  // flight and then cut into place.
+  it("lets the parts go when the screen they belong to leaves the document", async () => {
+    stage();
+    expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.HELD);
+
+    scope.remove();
+    await NEXT_FRAME();
+
+    expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.RELEASED);
+  });
+
   it("reads an unheld screen as released rather than leaving the layer bare", () => {
     scope.removeAttribute(ANIM_HOLD_ATTR);
     stage();
