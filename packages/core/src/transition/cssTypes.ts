@@ -1,3 +1,5 @@
+import type { AuthoredEasingName, CssEasingFunction } from "@transition/easing";
+
 import type { Properties } from "csstype";
 
 // Local CSS-like types so @flemo/core stays independent of any animation
@@ -5,8 +7,28 @@ import type { Properties } from "csstype";
 // flemo actually compiles. The keyframes compiler accepts these shapes for
 // `transition.initial`, variant `value`, and the imperative inline animator.
 
+/**
+ * WHAT AN EASE MAY BE, offered rather than merely permitted.
+ *
+ * This was `string`, and every string typechecked while only nine motion-style
+ * names were understood — so `ease-out`, `cubic-bezier(...)`, `steps(...)` and
+ * the `linear(...)` a spring ships as all compiled to `ease` with nothing said.
+ * The compiler accepts them now, and the union is what lets an author (or a
+ * tool completing against it) SEE that, which is the half of that bug a runtime
+ * warning arrives too late for.
+ *
+ * `(string & {})` keeps every existing call site compiling and keeps a computed
+ * easing possible, at the cost of letting a typo through — the same trade every
+ * name-like surface in this library already makes (`TransitionName`,
+ * `PartTransitionName`, `MorphTransitionName`). What the union does not catch,
+ * `warnUnknownEasing` says out loud in development.
+ */
 export type AnimationEasing =
-  string | readonly [number, number, number, number] | [number, number, number, number];
+  | AuthoredEasingName
+  | CssEasingFunction
+  | (string & {})
+  | readonly [number, number, number, number]
+  | [number, number, number, number];
 
 export interface AnimationOptions {
   duration?: number;

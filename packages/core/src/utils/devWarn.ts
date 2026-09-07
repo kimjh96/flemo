@@ -67,6 +67,25 @@ export const warnUnregistered = (kind: string, name: string, remedy: string): vo
   );
 
 /**
+ * Say once, in development, that an authored easing string is not one CSS or
+ * flemo knows.
+ *
+ * The same shape of bug as an unregistered name, and it hid for longer: an
+ * `AnimationEasing` is typed as a string, every unknown one resolved to `ease`,
+ * and the motion that came out was simply a different curve from the one
+ * written. `linear(...)` and `cubic-bezier(...)` and even `ease-out` all went
+ * that way. They are accepted now (see transition/easing.ts); this covers what
+ * is left, which is a typo or a value from another library.
+ */
+export const warnUnknownEasing = (value: string): void =>
+  sayOnce(
+    `easing:${value}`,
+    `[flemo] "${value}" is not an easing flemo or CSS knows, so \`ease\` was used instead. ` +
+      "Pass a cubic-bezier tuple, one of flemo's named eases, or any CSS easing " +
+      "(`ease-out`, `cubic-bezier(...)`, `steps(...)`, `linear(...)`)."
+  );
+
+/**
  * Say once, in development, that a morph's `exit` pose keeps its departure on
  * glass.
  *
