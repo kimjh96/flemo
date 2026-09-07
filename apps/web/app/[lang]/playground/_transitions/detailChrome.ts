@@ -4,6 +4,7 @@ import { createRawPartTransition, type PartTransitionName } from "@flemo/react";
 
 import { DRIFT_IN } from "./drift.constants";
 import { SHEET_IN } from "./sheet.constants";
+import { TETHER_IN } from "./tether.constants";
 
 import "./detailChrome.types";
 
@@ -64,7 +65,11 @@ const COVER: Record<string, number> = {
   none: 0,
   reveal: 0.34,
   drift: DRIFT_IN,
-  sheet: SHEET_IN
+  sheet: SHEET_IN,
+  // The header this one carries by hand during a DRAG still has to be held
+  // through the push, like every other case: the hook owns it for the length
+  // of a finger, not for the length of a flight.
+  tether: TETHER_IN
 };
 
 export const chromePartFor = (transition: string): PartTransitionName =>

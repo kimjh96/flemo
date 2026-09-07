@@ -728,16 +728,47 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       decoratorSwipe = beginRiderSwipe(collectDecoratorRiders());
     }
 
-    if (stagedDragParts) return;
     // The drag is a flight the engine never sees: the navigate status stays
     // COMPLETED, so nothing else stages the covered side's bar parts and they
     // would cross-fade underneath the screen the finger is moving.
-    stageDragParts();
-    if (!stagedDragParts) return;
-    // Nor does anything else MOVE them. The compiled rules key on a status no
+    if (!stagedDragParts) stageDragParts();
+
+    // Nor does anything else MOVE a part. The compiled rules key on a status no
     // drag ever sets, so a part that declared only a pose sat still while the
     // screens followed the finger.
-    riderSwipe = beginRiderSwipe(collectPartRiders());
+    //
+    // AND THIS IS THE SECOND READINESS CONDITION, not the same one again. It
+    // used to sit behind the staging above — stage the bar parts, and if that
+    // took, drive everything — which is the gate the decorator was just taken
+    // out of, left in place for the parts. `stageBarParts` declines when there
+    // is nothing to LIFT, and a screen whose parts are its own chrome (a
+    // floating header, a title inside the content) has nothing to lift and
+    // never had. So on every such screen the parts sat still for the whole
+    // drag and then jumped at the release. Reported on the playground's
+    // `tether` and reproduced on `cupertino`: the header held its pose through
+    // a 134px drag while the screen under it followed the finger.
+    //
+    // Retried until it takes: `beginRiderSwipe` answers null while there is
+    // nothing to drive, and on a screen whose parts are staged into a layer
+    // above there is nothing until that staging has run.
+    //
+    // AND RE-ARMED WHEN THIS DRAG'S OWN WAKE REPLACED ONE, which is the same
+    // reason the dim above is, and the reason `RiderSwipe` reports `stale` at
+    // all: a covered screen's `<Layer>` slots unmount and re-mount with the
+    // commit that wake causes, so a part inside one comes back as a new node
+    // while the animations stay on the node that left. The candidates are read
+    // again with it, or the re-arming would stage the departed node a second
+    // time. Staged at zero and scrubbed in the same tick by the caller below,
+    // so the part picks up where the finger IS rather than where it was.
+    //
+    // What this does not do is take on a part that was never there: a pure
+    // addition leaves nothing stale, and an element with no pose at the
+    // gesture's zero has no travel this scrub can place it on. That one is
+    // structural, not an omission.
+    if (!riderSwipe || riderSwipe.stale) {
+      capturePartTransitions(prevContainer);
+      riderSwipe = beginRiderSwipe(collectPartRiders());
+    }
   };
 
   // The riders this gesture drives ITSELF: the ones that declared a pose and no

@@ -173,6 +173,7 @@ function buildDom(options: { nestScope?: boolean; noBar?: boolean; dimInHost?: b
     root,
     scope,
     screenContainer,
+    prevScreenContainer,
     decorator,
     layer,
     prevDecorator,
@@ -260,6 +261,78 @@ describe("createSwipeController drag riders", () => {
     expect(rides(dom.prevPart)).toBe(true);
   });
 
+  it("re-arms a part its own wake replaced, the way the dim already is", async () => {
+    // THE SAME WAKE, THE SAME REPLACEMENT. A covered screen's `<Layer>` slots
+    // unmount and re-mount with the commit this drag causes, so a part inside
+    // one comes back as a NEW node while the animations stay on the node that
+    // left. That is why `RiderSwipe` reports `stale` at all, and why the dim
+    // two lines above is re-armed on it.
+    dom.root.remove();
+    dom = buildDom({ noBar: true });
+    const controller = createSwipeController(
+      buildConfig({
+        getTransition: () =>
+          ({
+            name: "drag-riders-test",
+            initial: { x: "100%" },
+            variants: fullVariants({ x: 0 }, { duration: 0.3 }),
+            swipe: { direction: "x", onStart: vi.fn(async () => true) }
+          }) as unknown as Transition
+      })
+    );
+    controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
+    controller.pointerMove(event({ clientX: 40, clientY: 100 }));
+    await flush();
+    expect(rides(dom.prevPart)).toBe(true);
+
+    const replacement = part(POSE_ONLY);
+    stubLayout(replacement);
+    dom.prevPart.replaceWith(replacement);
+    controller.pointerMove(event({ clientX: 80, clientY: 100, timeStamp: 16 }));
+    await flush();
+
+    // The one on screen is the one that moves.
+    expect(rides(replacement)).toBe(true);
+  });
+
+  it("arms those riders once, not once per frame of the drag", async () => {
+    // Every frame of a real drag calls the arming step again — it has to,
+    // because the covered side's parts arrive with the React commit the drag
+    // itself woke, and the frame that lands on is not ours to predict. What it
+    // must not do is stage a second set on top of the one already following
+    // the finger.
+    dom.root.remove();
+    dom = buildDom({ noBar: true });
+    // No `onMove`: the fixture's default hook takes the follow for itself and
+    // never calls the step this is about, which is flemo's own.
+    const controller = createSwipeController(
+      buildConfig({
+        getTransition: () =>
+          ({
+            name: "drag-riders-test",
+            initial: { x: "100%" },
+            variants: fullVariants({ x: 0 }, { duration: 0.3 }),
+            swipe: { direction: "x", onStart: vi.fn(async () => true) }
+          }) as unknown as Transition
+      })
+    );
+    controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
+    controller.pointerMove(event({ clientX: 40, clientY: 100 }));
+    await flush();
+
+    const staged = (dom.currentPart.animate as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(staged).toBeGreaterThan(0);
+
+    // A second frame of the same gesture, the way the follow queue delivers
+    // one: this is where every frame after the first arms nothing again.
+    controller.pointerMove(event({ clientX: 80, clientY: 100, timeStamp: 16 }));
+    await flush();
+
+    // The riders following the finger are the ones already staged: a second
+    // set would be a second animation per element on every pointer move.
+    expect((dom.currentPart.animate as ReturnType<typeof vi.fn>).mock.calls.length).toBe(staged);
+  });
+
   it("leaves a part whose author wrote a swipe hook to its author", async () => {
     const controller = createSwipeController(buildConfig());
     drag(controller);
@@ -305,6 +378,65 @@ describe("createSwipeController drag riders", () => {
 
     expect(rides(dom.decorator)).toBe(true);
     expect(rides(dom.prevDecorator)).toBe(true);
+  });
+
+  it("drives a screen's own parts when it has no shared bar to stage", async () => {
+    // THE SAME GATE THE DIM WAS TAKEN OUT OF, still shut on the parts.
+    //
+    // Arming ran in one step behind the covered side's bar-part staging: lift
+    // the parts, and if that took, drive everything. `stageBarParts` declines
+    // when there is nothing to LIFT, and a screen whose parts are its own
+    // chrome — a floating header, a title in the content — has nothing to lift
+    // and never had. So on those the parts sat still for the whole drag and
+    // then jumped at the release. Reported on the playground's `tether` and
+    // reproduced on `cupertino`: the header held its pose through a 134px drag
+    // while the screen under it followed the finger.
+    dom.root.remove();
+    dom = buildDom({ noBar: true });
+    const controller = createSwipeController(buildConfig());
+    drag(controller);
+    await flush();
+
+    expect(rides(dom.currentPart)).toBe(true);
+    expect(rides(dom.prevPart)).toBe(true);
+  });
+
+  it("arms those riders once, not once per frame of the drag", async () => {
+    // Every frame of a real drag calls the arming step again — it has to,
+    // because the covered side's parts arrive with the React commit the drag
+    // itself woke, and the frame that lands on is not ours to predict. What it
+    // must not do is stage a second set on top of the one already following
+    // the finger.
+    dom.root.remove();
+    dom = buildDom({ noBar: true });
+    // No `onMove`: the fixture's default hook takes the follow for itself and
+    // never calls the step this is about, which is flemo's own.
+    const controller = createSwipeController(
+      buildConfig({
+        getTransition: () =>
+          ({
+            name: "drag-riders-test",
+            initial: { x: "100%" },
+            variants: fullVariants({ x: 0 }, { duration: 0.3 }),
+            swipe: { direction: "x", onStart: vi.fn(async () => true) }
+          }) as unknown as Transition
+      })
+    );
+    controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
+    controller.pointerMove(event({ clientX: 40, clientY: 100 }));
+    await flush();
+
+    const staged = (dom.currentPart.animate as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(staged).toBeGreaterThan(0);
+
+    // A second frame of the same gesture, the way the follow queue delivers
+    // one: this is where every frame after the first arms nothing again.
+    controller.pointerMove(event({ clientX: 80, clientY: 100, timeStamp: 16 }));
+    await flush();
+
+    // The riders following the finger are the ones already staged: a second
+    // set would be a second animation per element on every pointer move.
+    expect((dom.currentPart.animate as ReturnType<typeof vi.fn>).mock.calls.length).toBe(staged);
   });
 
   it("finds a dim that was rendered out into the layer host", async () => {

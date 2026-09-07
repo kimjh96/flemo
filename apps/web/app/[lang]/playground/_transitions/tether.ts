@@ -2,10 +2,12 @@
 
 import { createTransition } from "@flemo/react";
 
+import { TETHER_EASE, TETHER_IN } from "./tether.constants";
+
 import "./tether.types";
 
-const DURATION = 0.5;
-const EASE: [number, number, number, number] = [0.32, 0.72, 0, 1];
+const DURATION = TETHER_IN;
+const EASE = TETHER_EASE;
 const PARALLAX = 30;
 
 // How far the drag has gone when the fade is spent. The screen is still only
