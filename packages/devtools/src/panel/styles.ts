@@ -1,5 +1,3 @@
-import { SURFACE_TOKENS } from "../surface";
-
 // The panel's entire stylesheet, injected once into its shadow root.
 //
 // NO transitions and NO keyframes anywhere — not even the hover polish the
@@ -10,7 +8,7 @@ import { SURFACE_TOKENS } from "../surface";
 // rect; a hover that ANIMATES keeps the main thread busy for 150ms next to
 // the transition we are trying to measure. Instant wins.
 
-export const PANEL_CSS = `${SURFACE_TOKENS}
+export const PANEL_CSS = `
 .toggle {
   position: fixed;
   bottom: 12px;

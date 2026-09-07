@@ -1,4 +1,4 @@
-import { createShadowHost, flightInProgress, resolveRecorder, SURFACE_TOKENS } from "./surface";
+import { createShadowHost, flightInProgress, resolveRecorder } from "./surface";
 
 import type { FlemoReport, FlightRecord, FlightRecorderHandle } from "./types";
 
@@ -63,7 +63,7 @@ const LONG_PRESS_MS = 450;
 /** Where the hidden/shown choice lives, so a reload does not undo it. */
 export const HUD_HIDDEN_KEY = "flemo:devtools-hud-hidden";
 
-const HUD_CSS = `${SURFACE_TOKENS}
+const HUD_CSS = `
 .dock {
   position: fixed;
   display: flex;

@@ -44,15 +44,21 @@ export interface ShadowHost {
  * surface for a flight participant.
  */
 /**
- * The palette and the type both surfaces are drawn in.
+ * The palette and the type every surface is drawn in.
  *
  * ONE PALETTE, TWO SURFACES. The panel's toggle and the readout sit in
  * opposite corners of the same screen and were drawn from two different sets
  * of hardcoded colours, so they read as two tools that happened to land on the
  * same page. They are one tool. Dark first, because that is what an instrument
  * over a dark app should be, with the light scheme swapped in whole.
+ *
+ * Prepended HERE rather than exported for each stylesheet to interpolate: a
+ * sheet built by interpolating an imported binding is an expression, not a
+ * literal, and the bundler stops dropping it. Measured — the recorder entry,
+ * which mounts no surface at all, grew 1.9 kB the moment the two sheets
+ * referenced this by name.
  */
-export const SURFACE_TOKENS = `
+const SURFACE_TOKENS = `
 :host {
   all: initial;
   color-scheme: dark;
@@ -95,7 +101,7 @@ export const createShadowHost = (css: string): ShadowHost => {
   host.style.zIndex = "2147483000";
   const shadow = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
-  style.textContent = css;
+  style.textContent = SURFACE_TOKENS + css;
   shadow.appendChild(style);
   const root = document.createElement("div");
   root.className = "root";
