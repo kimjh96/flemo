@@ -1643,8 +1643,19 @@ const startFlight = (
         !layer.contains(element) &&
         all.indexOf(element) === index
     );
+  //
+  // A SOURCE THAT LEAVES THE DOCUMENT IS NOT STILL HOLDING, it is gone. A
+  // screen that unmounts mid-flight keeps whatever hold it wore, and an
+  // attribute observer on a removed node never fires again — so the strongest
+  // hold stayed `true` for ever and the flight sat at time zero until its own
+  // backstop landed it. Reported on a `none` pop, which is where a transition
+  // with no clock of its own takes the departing screen out inside the same
+  // frame it was held in: the shared element hung at the arrival pose for the
+  // length of the flight and then cut home. A transition with a clock hides
+  // this, because the screen it holds outlives the release.
   const mirrorHold = () => {
     const held = holdSources
+      .filter((element) => element.isConnected)
       .map((element) => element.getAttribute(ANIM_HOLD_ATTR))
       .find((value) => value !== null && value !== ANIM_HOLD.RELEASED);
     layer.setAttribute(ANIM_HOLD_ATTR, held ?? ANIM_HOLD.RELEASED);
@@ -1652,8 +1663,18 @@ const startFlight = (
   mirrorHold();
   const holdWatch =
     typeof MutationObserver === "function" ? new MutationObserver(mirrorHold) : null;
-  for (const element of holdSources)
+  for (const element of holdSources) {
     holdWatch?.observe(element, { attributes: true, attributeFilter: [ANIM_HOLD_ATTR] });
+    // The departure is watched where it SITS, not on itself: a node cannot
+    // report its own removal. The box a screen is mounted into outlives it,
+    // which is what makes the removal observable at all.
+    /* v8 ignore next -- a hold is resolved with `closest` from an element in
+       the tree, so the only parentless answer it could give is the document
+       element, which the engine never writes a hold onto. */
+    if (element.parentElement) {
+      holdWatch?.observe(element.parentElement, { childList: true });
+    }
+  }
 
   let landed = false;
   const finish = () => {

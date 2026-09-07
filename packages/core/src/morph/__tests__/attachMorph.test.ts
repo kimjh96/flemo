@@ -1097,6 +1097,36 @@ describe("attachMorph", () => {
     expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.PARK_UNDER);
   });
 
+  // A SOURCE THAT LEAVES THE DOCUMENT IS NOT STILL HOLDING.
+  //
+  // An attribute observer on a removed node never fires again, so a screen
+  // that unmounts while held used to hold the flight for ever: the shared
+  // element sat at time zero until the landing's own backstop cut it home.
+  // Reported on a `none` pop, where a transition with no clock of its own
+  // takes the departing screen out inside the frame it was held in. A
+  // transition with a clock hides it, because the screen it holds outlives
+  // the release.
+  it("lets the flight go when a held end leaves the document", async () => {
+    const gallery = makeScreen("layout", true);
+    const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
+    attachMorph(thumbnail, { layoutId: "photo-gone", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    detail.setAttribute(ANIM_HOLD_ATTR, ANIM_HOLD.HELD);
+    const hero = makeMorph(detail, [0, 0, 400, 300]);
+    attachMorph(hero, { layoutId: "photo-gone", navigateStore: store });
+    expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.HELD);
+
+    detail.remove();
+    // The removal is a mutation on the box the screen sat in, which is what
+    // makes it observable at all: a node cannot report its own removal.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.RELEASED);
+  });
+
   // The hold is written on the box that CARRIES a screen, and an end resolves
   // to the scope it was declared in. A nested Router's flight therefore has to
   // look UP for its pause rather than at the element it named.
