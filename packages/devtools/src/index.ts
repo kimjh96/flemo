@@ -32,6 +32,14 @@ export {
   sampleRafCadence
 } from "./environment";
 
+export { attachSwipeProbe, releasedScreens, SWIPE_PROBE_MS } from "./swipeProbe";
+export type {
+  SwipeProbeHandle,
+  SwipeProbeOptions,
+  SwipeReleaseAudit,
+  SwipeSample
+} from "./swipeProbe";
+
 export { derivePreconditions } from "./preconditions";
 export type { PreconditionInput } from "./preconditions";
 

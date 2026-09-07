@@ -28,6 +28,7 @@
 // panel back in the production graph.
 import type { DevtoolsHudHandle, DevtoolsHudOptions } from "./hud";
 import type { DevtoolsPanelHandle, DevtoolsPanelOptions } from "./panel";
+import type { SwipeProbeHandle, SwipeProbeOptions } from "./swipeProbe";
 import type { FlemoReport, FlightRecorderHandle, FlightRecorderOptions } from "./types";
 
 export * from "./anomalies";
@@ -111,9 +112,25 @@ export const attachDevtoolsHud = (_options?: DevtoolsHudOptions): DevtoolsHudHan
   detach: noop
 });
 
+// The swipe probe listens on every pointer release and runs a rAF loop for the
+// length of a settle, so production gets a handle that never attaches one.
+export const SWIPE_PROBE_MS = 1200;
+
+export const attachSwipeProbe = (_options?: SwipeProbeOptions): SwipeProbeHandle => ({
+  detach: noop
+});
+
+export const releasedScreens = (): { id: string; status: string; active: string }[] => [];
+
 export type { FlemoGlobal } from "./recorder";
 export type { DevtoolsHudHandle, DevtoolsHudOptions } from "./hud";
 export type { DevtoolsPanelHandle, DevtoolsPanelOptions } from "./panel";
+export type {
+  SwipeProbeHandle,
+  SwipeProbeOptions,
+  SwipeReleaseAudit,
+  SwipeSample
+} from "./swipeProbe";
 export type { DriverEvidence } from "./frameProbe";
 export type {
   BucketSummary,
