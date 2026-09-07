@@ -6,6 +6,7 @@ import {
   MORPH_LAYER_ATTR,
   MORPH_ROLES,
   MORPH_SHEET_ATTR,
+  PART_NAME_ATTR,
   MORPH_STAND_IN_ATTR,
   SCREEN_ATTR,
   attrSelector
@@ -55,6 +56,30 @@ export interface MorphProbeState {
   shortestGhostLifeMs: number | null;
   /** Morph keyframe rules in the sheet when the flight opened. */
   sheetRulesAtStart: number;
+  /**
+   * Frames where the DEPARTING end was still painting, and how strongly.
+   *
+   * A morph's `exit` pose is the cut: the runtime pins the departing element
+   * at it for the whole flight, so anything other than `opacity: 0` keeps the
+   * element the flight is carrying away from on glass. A push hides that (the
+   * arrival grows over it) and a pop reveals it, which is why it can ship.
+   */
+  departureFrames: number;
+  departureMaxOpacity: number;
+  /**
+   * The widest gap seen between a `<Part>` inside a flying morph and the box
+   * carrying it, and the part it belonged to.
+   *
+   * A part's width is PINNED for the flight (pinParts) so the box's travel
+   * clips it instead of re-wrapping it. The pin takes the width the part has
+   * when the flight stages it, which on a pop is the width it rests at on the
+   * side being returned to: a cell's, not the page's. The part then sits
+   * narrower than the card it is inside for the whole gesture, with whatever
+   * is behind showing through the difference.
+   */
+  partGapPx: number;
+  partGapName: string | null;
+  partGapFrames: number;
 }
 
 const keyOf = (element: Element): string | null => {
@@ -106,6 +131,11 @@ export const createMorphProbeState = (participants: readonly Element[]): MorphPr
     flew: new Set(),
     camera: document.querySelector(attrSelector(MORPH_CAMERA_ATTR)) !== null,
     ghosts: 0,
+    departureFrames: 0,
+    departureMaxOpacity: 0,
+    partGapPx: 0,
+    partGapName: null,
+    partGapFrames: 0,
     ghostBornAt: new Map(),
     shortestGhostLifeMs: null,
     sheetRulesAtStart: morphSheetRuleCount()
@@ -206,6 +236,39 @@ export const morphTripwires = (state: MorphProbeState): TripwireHit[] => {
   ];
 };
 
+/**
+ * What the flight is PAINTING this frame, which the role sightings above
+ * cannot answer.
+ *
+ * Two readings, both of a handful of elements: the departing end's opacity,
+ * and the width of any part inside a flying box against that box. Both are
+ * defects this recorder watched happen and had nothing to say about.
+ */
+export const sampleMorphPaint = (state: MorphProbeState): void => {
+  if (typeof getComputedStyle !== "function") return;
+
+  for (const leaving of document.querySelectorAll(`[${MORPH_ATTR}="exit"]`)) {
+    const opacity = Number.parseFloat(getComputedStyle(leaving).opacity || "1");
+    if (!Number.isFinite(opacity) || opacity <= 0.01) continue;
+    state.departureFrames += 1;
+    if (opacity > state.departureMaxOpacity) state.departureMaxOpacity = opacity;
+  }
+
+  for (const flying of document.querySelectorAll(`[${MORPH_ATTR}="enter"]`)) {
+    const box = flying.getBoundingClientRect().width;
+    if (!(box > 0)) continue;
+    for (const part of flying.querySelectorAll(`[${PART_NAME_ATTR}]`)) {
+      const gap = box - part.getBoundingClientRect().width;
+      if (gap <= 2) continue;
+      state.partGapFrames += 1;
+      if (gap > state.partGapPx) {
+        state.partGapPx = gap;
+        state.partGapName = part.getAttribute(PART_NAME_ATTR);
+      }
+    }
+  }
+};
+
 /** The flight's morph picture, plus what it left behind at rest. */
 export const morphActivity = (state: MorphProbeState, busy: boolean): MorphActivity => {
   const pairable = [...state.pairable].sort();
@@ -235,6 +298,11 @@ export const morphActivity = (state: MorphProbeState, busy: boolean): MorphActiv
     strandedGhosts: residue.strandedGhosts,
     leakedSheetRules: residue.leaked,
     layerResidue: residue.layerResidue,
-    duplicatedKeys: [...state.duplicated].sort()
+    duplicatedKeys: [...state.duplicated].sort(),
+    departureFrames: state.departureFrames,
+    departureMaxOpacity: state.departureMaxOpacity,
+    partGapPx: state.partGapPx,
+    partGapName: state.partGapName,
+    partGapFrames: state.partGapFrames
   };
 };

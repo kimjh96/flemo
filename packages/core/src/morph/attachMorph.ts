@@ -7,7 +7,7 @@ import {
 import type { AnimationOptions, TransitionTarget } from "@transition/cssTypes";
 import type { TransitionVariant } from "@transition/typing";
 
-import { warnUnregistered } from "@utils/devWarn";
+import { warnCameraOverridesScreen, warnUnregistered } from "@utils/devWarn";
 
 import {
   ACTIVE_ATTR,
@@ -26,6 +26,7 @@ import {
   ROUTER_ATTR,
   STATUS_ATTR,
   SCREEN_ATTR,
+  TRANSITION_ATTR,
   attrValueSelector
 } from "@dom/attributes";
 import mirrorHold from "@dom/holdMirror";
@@ -1289,6 +1290,16 @@ const startFlight = (
         ? screen
         : physicalScreen(partner)
       : null;
+  // Two authors of one transform. The camera IS the screen's motion here, so a
+  // transition that also moves it has its travel discarded rather than added;
+  // `zoom`'s own comment states the rule and nothing enforced it. See
+  // warnCameraOverridesScreen.
+  if (cameraScreen && side.screenMoves) {
+    // `screenMoves` is read from the OWNER's transition, so both the owner and
+    // the attribute it was read off are there whenever this is true. A
+    // fallback here would be a branch nothing can reach.
+    warnCameraOverridesScreen(transition.name, owner!.getAttribute(TRANSITION_ATTR)!);
+  }
   const camera =
     cameraScreen && origin.width > 0 && destination.width > 0
       ? buildCameraKeyframes({

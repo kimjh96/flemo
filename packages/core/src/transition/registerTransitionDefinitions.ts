@@ -3,6 +3,8 @@ import { transitionMap } from "@transition/transition";
 
 import type { Transition } from "@transition/typing";
 
+import { warnDepartureNotHidden } from "@utils/devWarn";
+
 import { decoratorMap } from "@transition/decorator/decorator";
 import { morphTransitionMap } from "@transition/morphTransition/morphTransition";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
@@ -69,6 +71,11 @@ export default function registerTransitionDefinitions(
   // the morph runtime. It still reference-counts like the rest: several Routers
   // may register the same name, and the last one out is the one that removes it.
   for (const morphTransition of morphTransitions) {
+    // The one authored value whose consequence is invisible until a pop: see
+    // warnDepartureNotHidden. Checked here rather than per flight because the
+    // answer cannot change once the definition is registered.
+    const departure = morphTransition.variants["PUSHING-false"]?.value?.opacity;
+    if (departure !== 0) warnDepartureNotHidden(morphTransition.name, departure);
     morphTransitionMap.set(morphTransition.name, morphTransition);
     retain(morphTransitionRefs, morphTransition.name);
   }

@@ -183,6 +183,24 @@ export interface ImageActivity {
  * answer it from outside, permanently.
  */
 export interface MorphActivity {
+  /**
+   * Frames where the DEPARTING end was still painting, and the strongest
+   * opacity it was seen at. A morph's `exit` pose is the cut the runtime pins
+   * the departure at, so anything but `opacity: 0` keeps it on glass for the
+   * whole flight — invisible on a push, uncovered by a pop.
+   */
+  departureFrames: number;
+  departureMaxOpacity: number;
+  /**
+   * The widest gap between a `<Part>` inside a flying box and the box itself,
+   * which part it was, and for how many frames. A part is pinned at the width
+   * it had when the flight staged it; on a pop that is the returning side's,
+   * so the part can sit narrower than the card it is inside for the whole
+   * gesture.
+   */
+  partGapPx: number;
+  partGapName: string | null;
+  partGapFrames: number;
   /** Registered morphs seen anywhere in the document as the flight opened. */
   registered: number;
   /**

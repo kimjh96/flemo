@@ -200,6 +200,21 @@ describe("an unregistered name", () => {
     expect(said()).toHaveLength(0);
   });
 
+  it("says nothing where there is no console to say it to", () => {
+    // A host with no console is not a host to throw in. The gate reads the
+    // global rather than assuming one, and this is the branch that proves it.
+    transitionMap.set("none", none);
+    const host = globalThis as { console?: Console };
+    const real = host.console;
+    delete host.console;
+    try {
+      expect(() => resolveTransition("typo" as never)).not.toThrow();
+    } finally {
+      host.console = real;
+    }
+    expect(said()).toHaveLength(0);
+  });
+
   it("stays out of a production build", () => {
     vi.stubEnv("NODE_ENV", "production");
     try {
