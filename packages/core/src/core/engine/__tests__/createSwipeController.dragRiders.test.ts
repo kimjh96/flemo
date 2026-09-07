@@ -261,6 +261,40 @@ describe("createSwipeController drag riders", () => {
     expect(rides(dom.prevPart)).toBe(true);
   });
 
+  it("re-arms a part its own wake replaced, the way the dim already is", async () => {
+    // THE SAME WAKE, THE SAME REPLACEMENT. A covered screen's `<Layer>` slots
+    // unmount and re-mount with the commit this drag causes, so a part inside
+    // one comes back as a NEW node while the animations stay on the node that
+    // left. That is why `RiderSwipe` reports `stale` at all, and why the dim
+    // two lines above is re-armed on it.
+    dom.root.remove();
+    dom = buildDom({ noBar: true });
+    const controller = createSwipeController(
+      buildConfig({
+        getTransition: () =>
+          ({
+            name: "drag-riders-test",
+            initial: { x: "100%" },
+            variants: fullVariants({ x: 0 }, { duration: 0.3 }),
+            swipe: { direction: "x", onStart: vi.fn(async () => true) }
+          }) as unknown as Transition
+      })
+    );
+    controller.pointerDown(event({ target: dom.scope, clientX: 0, clientY: 100 }));
+    controller.pointerMove(event({ clientX: 40, clientY: 100 }));
+    await flush();
+    expect(rides(dom.prevPart)).toBe(true);
+
+    const replacement = part(POSE_ONLY);
+    stubLayout(replacement);
+    dom.prevPart.replaceWith(replacement);
+    controller.pointerMove(event({ clientX: 80, clientY: 100, timeStamp: 16 }));
+    await flush();
+
+    // The one on screen is the one that moves.
+    expect(rides(replacement)).toBe(true);
+  });
+
   it("arms those riders once, not once per frame of the drag", async () => {
     // Every frame of a real drag calls the arming step again — it has to,
     // because the covered side's parts arrive with the React commit the drag

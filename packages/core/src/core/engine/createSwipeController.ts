@@ -752,14 +752,23 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // nothing to drive, and on a screen whose parts are staged into a layer
     // above there is nothing until that staging has run.
     //
-    // WHAT IT TAKES IS WHAT EXISTS WHEN IT SUCCEEDS. The candidate set is read
-    // once, at the start of the gesture, so a part mounted later — the covered
-    // screen's `<Layer>` slots come back as new nodes with the commit this
-    // drag's own wake causes — is not driven by this gesture. That is the
-    // behaviour this has always had, and no report has asked for the other
-    // one; taking riders on mid-drag means a growing set and an element that
-    // must never be driven twice, which is not a thing to add speculatively.
-    if (!riderSwipe) riderSwipe = beginRiderSwipe(collectPartRiders());
+    // AND RE-ARMED WHEN THIS DRAG'S OWN WAKE REPLACED ONE, which is the same
+    // reason the dim above is, and the reason `RiderSwipe` reports `stale` at
+    // all: a covered screen's `<Layer>` slots unmount and re-mount with the
+    // commit that wake causes, so a part inside one comes back as a new node
+    // while the animations stay on the node that left. The candidates are read
+    // again with it, or the re-arming would stage the departed node a second
+    // time. Staged at zero and scrubbed in the same tick by the caller below,
+    // so the part picks up where the finger IS rather than where it was.
+    //
+    // What this does not do is take on a part that was never there: a pure
+    // addition leaves nothing stale, and an element with no pose at the
+    // gesture's zero has no travel this scrub can place it on. That one is
+    // structural, not an omission.
+    if (!riderSwipe || riderSwipe.stale) {
+      capturePartTransitions(prevContainer);
+      riderSwipe = beginRiderSwipe(collectPartRiders());
+    }
   };
 
   // The riders this gesture drives ITSELF: the ones that declared a pose and no
