@@ -35,6 +35,10 @@ test.describe("devtools in a production build", () => {
     expect(await page.locator("[data-flemo-devtools-panel]").count()).toBe(0);
   });
 
+  // `?devtools=on` was the playground's opt-in and is retired: the component
+  // mounts unconditionally now, so the query is residue in a bookmark. It is
+  // still driven here because a dead flag reappearing as a live one would be a
+  // way back into a public chunk.
   test("asking for it changes nothing, because there is nothing to ask for", async ({ page }) => {
     await page.goto("/en/playground?devtools=on");
     await waitForNavIdle(page);

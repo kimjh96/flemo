@@ -22,10 +22,7 @@ describe("FLAG_REGISTRY", () => {
     // live rows are the recorder's own. Every engine key moved to RETIRED_FLAGS
     // so a device still carrying one is told it explains nothing.
     expect(CORE_FLAGS).toEqual([]);
-    expect(FLAG_REGISTRY.map((flag) => flag.key)).toEqual([
-      "flemo:devtools",
-      "flemo:devtools-panel-height"
-    ]);
+    expect(FLAG_REGISTRY.map((flag) => flag.key)).toEqual(["flemo:devtools-panel-height"]);
     const retired = RETIRED_FLAGS.map((flag) => flag.key);
     for (const expected of [
       "flemo:sixty",
@@ -60,9 +57,20 @@ describe("snapshotOverrides", () => {
   });
 
   it("reads registry keys from their native storage", () => {
+    sessionStorage.setItem("flemo:devtools-panel-height", "320");
+    const active = snapshotOverrides();
+    expect(active["flemo:devtools-panel-height"]).toBe("320");
+  });
+
+  // The playground's old opt-in. Nothing arms the devtools any more — the
+  // component mounts unconditionally and a production build resolves it to the
+  // inert entry — so a session still carrying the key is told it explains
+  // nothing rather than being left to look live.
+  it("marks the old playground opt-in as residue", () => {
     sessionStorage.setItem("flemo:devtools", "on");
     const active = snapshotOverrides();
-    expect(active["flemo:devtools"]).toBe("on");
+    expect(Object.keys(active).some((key) => key.startsWith("flemo:devtools "))).toBe(true);
+    expect(deriveOverrideWarnings(active)[0]).toContain("RETIRED residue");
   });
 
   it("captures a retired key from either storage, marked as retired", () => {
@@ -200,7 +208,7 @@ describe("deriveOverrideWarnings", () => {
   it("does not warn about a live key — no engine key is live any more", () => {
     // The recorder's own keys are not findings about the page it records, and
     // nothing else can be live: the library reads no `flemo:*` key.
-    expect(deriveOverrideWarnings({ "flemo:devtools": "on" })).toEqual([]);
+    expect(deriveOverrideWarnings({ "flemo:devtools-panel-height": "320" })).toEqual([]);
   });
 
   it("warns about an engine key left on a device, now that it is retired", () => {

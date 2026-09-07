@@ -49,14 +49,6 @@ export interface FlagDescriptor {
  */
 export const DEVTOOLS_OWNED_FLAGS: readonly FlagDescriptor[] = [
   {
-    key: "flemo:devtools",
-    storage: "session",
-    kind: "opt-in-diagnostic",
-    values: '"on" / "off"',
-    fallback: "off",
-    effect: "arms this flight recorder in the playground (?devtools=on)"
-  },
-  {
     key: PANEL_HEIGHT_KEY,
     storage: "session",
     kind: "production-state",
@@ -89,6 +81,13 @@ export interface RetiredFlag {
 }
 
 export const RETIRED_FLAGS: readonly RetiredFlag[] = [
+  {
+    key: "flemo:devtools",
+    storage: "session",
+    retiredWith:
+      "the playground's opt-in. `<FlemoDevtools />` mounts unconditionally and a " +
+      "production build resolves it to the inert entry, so there is nothing to arm (2026-09-07)"
+  },
   {
     key: "flemo:sixty",
     storage: "session",
