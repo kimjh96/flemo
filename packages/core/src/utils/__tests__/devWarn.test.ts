@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import createNavigateStore from "@navigate/store";
+
 import { compileTransitionStyles } from "@transition/compileTransitionStyles";
 import createTransition from "@transition/createTransition";
 
@@ -8,15 +10,12 @@ import resolveTransition from "@transition/resolveTransition";
 
 import { transitionMap } from "@transition/transition";
 
-import createNavigateStore from "@navigate/store";
+import { resetDevWarningsForTesting } from "@utils/devWarn";
 
+import { ACTIVE_ATTR, SCREEN_ATTR, STATUS_ATTR, TRANSITION_ATTR } from "@dom/attributes";
 import attachMorph from "@morph/attachMorph";
 import { registerMorphLayer } from "@morph/morphLayer";
 import { morphTransitionMap } from "@transition/morphTransition/morphTransition";
-
-import { ACTIVE_ATTR, SCREEN_ATTR, STATUS_ATTR, TRANSITION_ATTR } from "@dom/attributes";
-
-import { resetDevWarningsForTesting } from "@utils/devWarn";
 
 import {
   partTransitionMap,
