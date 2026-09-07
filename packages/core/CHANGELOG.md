@@ -1,5 +1,41 @@
 # @flemo/core
 
+## 2.5.2
+
+### Patch Changes
+
+- [`80a0726`](https://github.com/kimjh96/flemo/commit/80a0726310227e481daa140fdfe96c979edad924) Hand back the session-global holds a screen armed when that screen unmounts
+  mid-flight. Every hold is released by a later drive pass, and a screen taken out
+  before its own completion never has one, so the response park and the flight
+  window stayed latched with nothing in the air: the window gates the image decode
+  offloader and the layer settle hold, which then deferred image reveals and layer
+  demotions for the rest of the session. Released only when the screen has really
+  gone, never between two passes of the same flight.
+
+- [`7860f26`](https://github.com/kimjh96/flemo/commit/7860f2611284a2e8a0e3bddfc7cc0e8df9b09992) Let what a flight holds go when the screen that held it leaves. Three surfaces
+  had the same defect: the morph layer and the bar-part layer both mirror the
+  screens' hold onto themselves, and a screen that unmounts while held could never
+  release it, so the shared element and the lifted parts sat at time zero for the
+  whole flight and were then cut into place; and the hold a flying screen stamps
+  onto a `<Part>` outside the screens stayed on that persistent chrome for the rest
+  of the session. A hold source that has left the document now reads as released,
+  its removal is watched where it sat, and a screen's own teardown takes its stamp
+  with it.
+
+- [`49fb492`](https://github.com/kimjh96/flemo/commit/49fb492558133e5de76dfc3d7d6dd46ae855d52f) Say in development when a name resolves to nothing. A transition, part
+  transition, decorator or morph transition that was never registered used to fall
+  back to something inert and report nothing, so a typo or a forgotten `<Router>`
+  entry produced an element that sits perfectly still while the DOM says
+  everything is right. Each unregistered name is now reported once, on the console,
+  with what it fell back to and where to register it. Production builds are
+  unchanged: the diagnostic folds away with `process.env.NODE_ENV`.
+
+- [`4521857`](https://github.com/kimjh96/flemo/commit/45218577d7428a09310be4134bcc6670d40b6bf1) Drive a screen's own `<Part>` elements during a swipe drag even when that screen
+  has no shared bar. Arming sat behind the covered side's bar-part staging, which
+  declines when there is nothing to lift, so a part that is the screen's own
+  chrome held its pose for the whole drag and then jumped at the release. The two
+  readiness conditions are separate now, the way the decorator's already were.
+
 ## 2.5.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @flemo/react
 
+## 2.3.3
+
+### Patch Changes
+
+- Updated dependencies ([`80a0726`](https://github.com/kimjh96/flemo/commit/80a0726310227e481daa140fdfe96c979edad924), [`7860f26`](https://github.com/kimjh96/flemo/commit/7860f2611284a2e8a0e3bddfc7cc0e8df9b09992), [`49fb492`](https://github.com/kimjh96/flemo/commit/49fb492558133e5de76dfc3d7d6dd46ae855d52f), [`4521857`](https://github.com/kimjh96/flemo/commit/45218577d7428a09310be4134bcc6670d40b6bf1)):
+  - @flemo/core@2.5.2
+
 ## 2.3.2
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @flemo/web
 
+## 0.11.13
+
+### Patch Changes
+
+- [`c8e7b7c`](https://github.com/kimjh96/flemo/commit/c8e7b7c849be0633562af7a1b0551aeebff4c5b1) Give the playground's `tether` case the detail header it was asking for. The
+  chrome part is picked by the bench's transition name, and the clock table had no
+  row for `tether`, so the header resolved to a part transition that was never
+  created: it appeared whole the instant the screen arrived instead of being held
+  through the flight and lowered into place.
+- Updated dependencies ([`80a0726`](https://github.com/kimjh96/flemo/commit/80a0726310227e481daa140fdfe96c979edad924), [`7860f26`](https://github.com/kimjh96/flemo/commit/7860f2611284a2e8a0e3bddfc7cc0e8df9b09992), [`49fb492`](https://github.com/kimjh96/flemo/commit/49fb492558133e5de76dfc3d7d6dd46ae855d52f), [`4521857`](https://github.com/kimjh96/flemo/commit/45218577d7428a09310be4134bcc6670d40b6bf1)):
+  - @flemo/core@2.5.2
+  - @flemo/devtools@0.8.0
+  - @flemo/react@2.3.3
+
 ## 0.11.12
 
 ### Patch Changes
