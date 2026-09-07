@@ -880,108 +880,7 @@ const EN: DocSection[] = [
             text: "`Layer` renders nothing on the server and on the first client render, before its host mounts. The host belongs to the outermost screen, which is the root `Router`'s viewport-sized region: inside a nested `Router`, an overlay's `bottom: 0` resolves against that outer region, not against the nested box."
           }
         ]
-      }
-    ]
-  },
-  {
-    title: "Reference",
-    pages: [
-      {
-        slug: "api",
-        title: "API reference",
-        blocks: [
-          { type: "h", text: "Components" },
-          {
-            type: "table",
-            headers: ["Export", "Summary", "Package"],
-            rows: [
-              ["`Router`", "Root container, renders the active screen", "`@flemo/react`"],
-              ["`Route`", "Maps a path (or paths) to an element", "`@flemo/react`"],
-              [
-                "`Screen`",
-                "Per-route container with top/bottom bar and safe-area slots",
-                "`@flemo/react`"
-              ],
-              [
-                "`Slot`",
-                "Marks the transitioning region, keeping the surrounding layout persistent",
-                "`@flemo/react`"
-              ],
-              [
-                "`Part`",
-                "Runs a named part transition on one element inside a screen",
-                "`@flemo/react`"
-              ],
-              [
-                "`Morph`",
-                "A shared element: one thing on two screens, paired by `layoutId`",
-                "`@flemo/react`"
-              ]
-            ]
-          },
-          { type: "h", text: "Hooks" },
-          {
-            type: "table",
-            headers: ["Export", "Returns"],
-            rows: [
-              ["`useNavigate(options?)`", "`{ push, replace, pop }`, optionally bound to a Router"],
-              ["`useParams<T>()`", "The current route's params (path + query merged)"],
-              ["`useStep<T>()`", "`{ pushStep, replaceStep, popStep }`"],
-              ["`useScreen()`", "Current screen meta (`isActive`, `zIndex`, `params`, ...)"]
-            ]
-          },
-          { type: "h", text: "useScreen fields" },
-          {
-            type: "table",
-            headers: ["Field", "What it is"],
-            rows: [
-              ["`isActive`", "Whether this is the current (top) screen"],
-              ["`isRoot`", "Whether this is the root screen of its stack"],
-              ["`isPrev`", "Whether this screen sits below the previous one (frozen)"],
-              ["`zIndex`", "Stacking depth; `0` is the root, higher is newer"],
-              ["`pathname` / `params`", "The resolved pathname and route params"],
-              ["`routePath`", "The matched route pattern, e.g. `/album/:id`"],
-              ["`layoutId`", "The screen's `layoutId`, if one was passed"]
-            ]
-          },
-          { type: "h", text: "Factories and built-ins" },
-          {
-            type: "list",
-            items: [
-              "`createTransition` / `createRawTransition` author transitions",
-              "`createDecorator` / `createRawDecorator` author decorators",
-              "`createPartTransition` / `createRawPartTransition` author part transitions",
-              "`createMorphTransition` / `createRawMorphTransition` author shared-element morphs",
-              "Built-in transitions: `cupertino`, `material`, `layout`, `none`",
-              "Built-in decorator: `overlay`",
-              "Built-in morph: `shared`"
-            ]
-          },
-          { type: "h", text: "Type registries" },
-          {
-            type: "table",
-            headers: ["Interface", "Purpose"],
-            rows: [
-              ["`RegisterRoute`", "Register routes for type-safe `push` and `useParams`"],
-              ["`RegisterRouter`", "Register Router names for type-safe `router` targets"],
-              ["`RegisterTransition`", "Register custom transition names"],
-              ["`RegisterDecorator`", "Register custom decorator names"],
-              ["`RegisterPartTransition`", "Register custom part transition names"],
-              ["`RegisterMorphTransition`", "Register custom morph transition names"]
-            ]
-          },
-          { type: "h", text: "Peer dependencies" },
-          {
-            type: "p",
-            text: "`@flemo/react` requires only `react ^19` and `react-dom ^19`. Nothing else, shared-element morphs included: `<Morph>` ships in the same package and needs no animation library beside it."
-          }
-        ]
-      }
-    ]
-  },
-  {
-    title: "Shared elements",
-    pages: [
+      },
       {
         slug: "morph",
         title: "Morph",
@@ -1081,6 +980,102 @@ const EN: DocSection[] = [
           {
             type: "note",
             text: "The built-in `shared` preset authors no duration on purpose. That is what lets one morph look right under any transition you pair it with."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    title: "Reference",
+    pages: [
+      {
+        slug: "api",
+        title: "API reference",
+        blocks: [
+          { type: "h", text: "Components" },
+          {
+            type: "table",
+            headers: ["Export", "Summary", "Package"],
+            rows: [
+              ["`Router`", "Root container, renders the active screen", "`@flemo/react`"],
+              ["`Route`", "Maps a path (or paths) to an element", "`@flemo/react`"],
+              [
+                "`Screen`",
+                "Per-route container with top/bottom bar and safe-area slots",
+                "`@flemo/react`"
+              ],
+              [
+                "`Slot`",
+                "Marks the transitioning region, keeping the surrounding layout persistent",
+                "`@flemo/react`"
+              ],
+              [
+                "`Part`",
+                "Runs a named part transition on one element inside a screen",
+                "`@flemo/react`"
+              ],
+              [
+                "`Morph`",
+                "A shared element: one thing on two screens, paired by `layoutId`",
+                "`@flemo/react`"
+              ]
+            ]
+          },
+          { type: "h", text: "Hooks" },
+          {
+            type: "table",
+            headers: ["Export", "Returns"],
+            rows: [
+              ["`useNavigate(options?)`", "`{ push, replace, pop }`, optionally bound to a Router"],
+              ["`useParams<T>()`", "The current route's params (path + query merged)"],
+              ["`useStep<T>()`", "`{ pushStep, replaceStep, popStep }`"],
+              ["`useScreen()`", "Current screen meta (`isActive`, `zIndex`, `params`, ...)"]
+            ]
+          },
+          { type: "h", text: "useScreen fields" },
+          {
+            type: "table",
+            headers: ["Field", "What it is"],
+            rows: [
+              ["`isActive`", "Whether this is the current (top) screen"],
+              ["`isRoot`", "Whether this is the root screen of its stack"],
+              ["`isPrev`", "Whether this screen sits below the previous one (frozen)"],
+              ["`zIndex`", "Stacking depth; `0` is the root, higher is newer"],
+              ["`pathname` / `params`", "The resolved pathname and route params"],
+              ["`routePath`", "The matched route pattern, e.g. `/album/:id`"],
+              ["`layoutId`", "The screen's `layoutId`, if one was passed"]
+            ]
+          },
+          { type: "h", text: "Factories and built-ins" },
+          {
+            type: "list",
+            items: [
+              "`createTransition` / `createRawTransition` author transitions",
+              "`createDecorator` / `createRawDecorator` author decorators",
+              "`createPartTransition` / `createRawPartTransition` author part transitions",
+              "`createMorphTransition` / `createRawMorphTransition` author shared-element morphs",
+              "Built-in transitions: `cupertino`, `material`, `layout`, `none`",
+              "Built-in decorator: `overlay`",
+              "Built-in morph: `shared`"
+            ]
+          },
+          { type: "h", text: "Type registries" },
+          {
+            type: "table",
+            headers: ["Interface", "Purpose"],
+            rows: [
+              ["`RegisterRoute`", "Register routes for type-safe `push` and `useParams`"],
+              ["`RegisterRouter`", "Register Router names for type-safe `router` targets"],
+              ["`RegisterTransition`", "Register custom transition names"],
+              ["`RegisterDecorator`", "Register custom decorator names"],
+              ["`RegisterPartTransition`", "Register custom part transition names"],
+              ["`RegisterMorphTransition`", "Register custom morph transition names"]
+            ]
+          },
+          { type: "h", text: "Peer dependencies" },
+          {
+            type: "p",
+            text: "`@flemo/react` requires only `react ^19` and `react-dom ^19`. Nothing else, shared-element morphs included: `<Morph>` ships in the same package and needs no animation library beside it."
           }
         ]
       }
@@ -1929,89 +1924,7 @@ const KO: DocSection[] = [
             text: "`Layer`는 서버에서, 그리고 호스트가 마운트되기 전 첫 클라이언트 렌더에서는 아무것도 그리지 않아요. 호스트는 가장 바깥 화면의 것이라 루트 `Router`의 뷰포트 크기 영역을 기준으로 놓여요. 중첩 `Router` 안에서 쓰면 오버레이의 `bottom: 0`은 중첩된 상자가 아니라 그 바깥 영역에 맞춰져요."
           }
         ]
-      }
-    ]
-  },
-  {
-    title: "레퍼런스",
-    pages: [
-      {
-        slug: "api",
-        title: "API 레퍼런스",
-        blocks: [
-          { type: "h", text: "컴포넌트" },
-          {
-            type: "table",
-            headers: ["Export", "요약", "패키지"],
-            rows: [
-              ["`Router`", "루트 컨테이너, 활성 화면을 그려요", "`@flemo/react`"],
-              ["`Route`", "경로(들)를 엘리먼트에 연결", "`@flemo/react`"],
-              ["`Screen`", "상단/하단 바와 세이프 에어리어 슬롯을 가진 화면", "`@flemo/react`"],
-              ["`Slot`", "전환 영역 표시, 주변 레이아웃은 유지", "`@flemo/react`"],
-              ["`Part`", "화면 안 한 요소에 이름 붙인 파트 트랜지션을 실행", "`@flemo/react`"],
-              ["`Morph`", "공유 요소, `layoutId`로 짝지은 두 화면의 한 물건", "`@flemo/react`"]
-            ]
-          },
-          { type: "h", text: "훅" },
-          {
-            type: "table",
-            headers: ["Export", "반환"],
-            rows: [
-              ["`useNavigate(options?)`", "`{ push, replace, pop }`, 대상 Router 지정 가능"],
-              ["`useParams<T>()`", "현재 라우트의 파라미터(경로 + 쿼리 병합)"],
-              ["`useStep<T>()`", "`{ pushStep, replaceStep, popStep }`"],
-              ["`useScreen()`", "현재 화면 메타(`isActive`, `zIndex`, `params`, ...)"]
-            ]
-          },
-          { type: "h", text: "useScreen 필드" },
-          {
-            type: "table",
-            headers: ["필드", "의미"],
-            rows: [
-              ["`isActive`", "지금 활성(맨 위) 화면인지"],
-              ["`isRoot`", "자기 스택의 루트(첫) 화면인지"],
-              ["`isPrev`", "이전 화면 아래에 있는지(frozen)"],
-              ["`zIndex`", "쌓임 깊이. `0`이 루트, 클수록 최신"],
-              ["`pathname` / `params`", "해석된 pathname과 라우트 파라미터"],
-              ["`routePath`", "매칭된 라우트 패턴, 예: `/album/:id`"],
-              ["`layoutId`", "넘겼다면 그 화면의 `layoutId`"]
-            ]
-          },
-          { type: "h", text: "팩토리와 내장" },
-          {
-            type: "list",
-            items: [
-              "`createTransition` / `createRawTransition` 트랜지션 제작",
-              "`createDecorator` / `createRawDecorator` 데코레이터 제작",
-              "`createPartTransition` / `createRawPartTransition` 파트 트랜지션 제작",
-              "내장 트랜지션: `cupertino`, `material`, `layout`, `none`",
-              "내장 데코레이터: `overlay`"
-            ]
-          },
-          { type: "h", text: "타입 레지스트리" },
-          {
-            type: "table",
-            headers: ["인터페이스", "용도"],
-            rows: [
-              ["`RegisterRoute`", "타입 안전한 `push`·`useParams`를 위한 라우트 등록"],
-              ["`RegisterRouter`", "타입 안전한 `router` 대상 지정을 위한 Router 이름 등록"],
-              ["`RegisterTransition`", "커스텀 트랜지션 이름 등록"],
-              ["`RegisterDecorator`", "커스텀 데코레이터 이름 등록"],
-              ["`RegisterPartTransition`", "커스텀 파트 트랜지션 이름 등록"]
-            ]
-          },
-          { type: "h", text: "Peer 의존성" },
-          {
-            type: "p",
-            text: "`@flemo/react`는 `react ^19`, `react-dom ^19`만 필요해요. 공유 요소 모핑까지 포함해서 그게 전부예요. `<Morph>`가 같은 패키지에 들어 있어서 애니메이션 라이브러리를 따로 두지 않아도 돼요."
-          }
-        ]
-      }
-    ]
-  },
-  {
-    title: "공유 요소",
-    pages: [
+      },
       {
         slug: "morph",
         title: "Morph",
@@ -2091,6 +2004,83 @@ const KO: DocSection[] = [
           {
             type: "note",
             text: "빌트인 `shared` 프리셋은 일부러 길이를 안 정해요. 그래서 어떤 트랜지션과 짝지어도 하나의 모핑이 알맞게 보여요."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    title: "레퍼런스",
+    pages: [
+      {
+        slug: "api",
+        title: "API 레퍼런스",
+        blocks: [
+          { type: "h", text: "컴포넌트" },
+          {
+            type: "table",
+            headers: ["Export", "요약", "패키지"],
+            rows: [
+              ["`Router`", "루트 컨테이너, 활성 화면을 그려요", "`@flemo/react`"],
+              ["`Route`", "경로(들)를 엘리먼트에 연결", "`@flemo/react`"],
+              ["`Screen`", "상단/하단 바와 세이프 에어리어 슬롯을 가진 화면", "`@flemo/react`"],
+              ["`Slot`", "전환 영역 표시, 주변 레이아웃은 유지", "`@flemo/react`"],
+              ["`Part`", "화면 안 한 요소에 이름 붙인 파트 트랜지션을 실행", "`@flemo/react`"],
+              ["`Morph`", "공유 요소, `layoutId`로 짝지은 두 화면의 한 물건", "`@flemo/react`"]
+            ]
+          },
+          { type: "h", text: "훅" },
+          {
+            type: "table",
+            headers: ["Export", "반환"],
+            rows: [
+              ["`useNavigate(options?)`", "`{ push, replace, pop }`, 대상 Router 지정 가능"],
+              ["`useParams<T>()`", "현재 라우트의 파라미터(경로 + 쿼리 병합)"],
+              ["`useStep<T>()`", "`{ pushStep, replaceStep, popStep }`"],
+              ["`useScreen()`", "현재 화면 메타(`isActive`, `zIndex`, `params`, ...)"]
+            ]
+          },
+          { type: "h", text: "useScreen 필드" },
+          {
+            type: "table",
+            headers: ["필드", "의미"],
+            rows: [
+              ["`isActive`", "지금 활성(맨 위) 화면인지"],
+              ["`isRoot`", "자기 스택의 루트(첫) 화면인지"],
+              ["`isPrev`", "이전 화면 아래에 있는지(frozen)"],
+              ["`zIndex`", "쌓임 깊이. `0`이 루트, 클수록 최신"],
+              ["`pathname` / `params`", "해석된 pathname과 라우트 파라미터"],
+              ["`routePath`", "매칭된 라우트 패턴, 예: `/album/:id`"],
+              ["`layoutId`", "넘겼다면 그 화면의 `layoutId`"]
+            ]
+          },
+          { type: "h", text: "팩토리와 내장" },
+          {
+            type: "list",
+            items: [
+              "`createTransition` / `createRawTransition` 트랜지션 제작",
+              "`createDecorator` / `createRawDecorator` 데코레이터 제작",
+              "`createPartTransition` / `createRawPartTransition` 파트 트랜지션 제작",
+              "내장 트랜지션: `cupertino`, `material`, `layout`, `none`",
+              "내장 데코레이터: `overlay`"
+            ]
+          },
+          { type: "h", text: "타입 레지스트리" },
+          {
+            type: "table",
+            headers: ["인터페이스", "용도"],
+            rows: [
+              ["`RegisterRoute`", "타입 안전한 `push`·`useParams`를 위한 라우트 등록"],
+              ["`RegisterRouter`", "타입 안전한 `router` 대상 지정을 위한 Router 이름 등록"],
+              ["`RegisterTransition`", "커스텀 트랜지션 이름 등록"],
+              ["`RegisterDecorator`", "커스텀 데코레이터 이름 등록"],
+              ["`RegisterPartTransition`", "커스텀 파트 트랜지션 이름 등록"]
+            ]
+          },
+          { type: "h", text: "Peer 의존성" },
+          {
+            type: "p",
+            text: "`@flemo/react`는 `react ^19`, `react-dom ^19`만 필요해요. 공유 요소 모핑까지 포함해서 그게 전부예요. `<Morph>`가 같은 패키지에 들어 있어서 애니메이션 라이브러리를 따로 두지 않아도 돼요."
           }
         ]
       }
