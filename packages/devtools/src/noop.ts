@@ -121,7 +121,7 @@ export const attachSwipeProbe = (_options?: SwipeProbeOptions): SwipeProbeHandle
 });
 
 export type { FlemoGlobal } from "./recorder";
-export type { DevtoolsHudHandle, DevtoolsHudOptions } from "./hud";
+export type { DevtoolsHudHandle, DevtoolsHudOptions, DevtoolsHudPosition } from "./hud";
 export type { DevtoolsPanelHandle, DevtoolsPanelOptions } from "./panel";
 export type {
   SwipeProbeHandle,

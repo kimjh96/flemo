@@ -22,7 +22,7 @@ export { attachDevtoolsPanel } from "./panel";
 export type { DevtoolsPanelHandle, DevtoolsPanelOptions } from "./panel";
 
 export { attachDevtoolsHud } from "./hud";
-export type { DevtoolsHudHandle, DevtoolsHudOptions } from "./hud";
+export type { DevtoolsHudHandle, DevtoolsHudOptions, DevtoolsHudPosition } from "./hud";
 
 export {
   captureEnvironment,

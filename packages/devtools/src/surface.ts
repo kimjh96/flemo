@@ -43,6 +43,53 @@ export interface ShadowHost {
  * `data-flemo-*` screen attribute, so the recorder can never mistake its own
  * surface for a flight participant.
  */
+/**
+ * The palette and the type every surface is drawn in.
+ *
+ * ONE PALETTE, TWO SURFACES. The panel's toggle and the readout sit in
+ * opposite corners of the same screen and were drawn from two different sets
+ * of hardcoded colours, so they read as two tools that happened to land on the
+ * same page. They are one tool. Dark first, because that is what an instrument
+ * over a dark app should be, with the light scheme swapped in whole.
+ *
+ * Prepended HERE rather than exported for each stylesheet to interpolate: a
+ * sheet built by interpolating an imported binding is an expression, not a
+ * literal, and the bundler stops dropping it. Measured — the recorder entry,
+ * which mounts no surface at all, grew 1.9 kB the moment the two sheets
+ * referenced this by name.
+ */
+const SURFACE_TOKENS = `
+:host {
+  all: initial;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+.root {
+  --bg: #14161a;
+  --bg-soft: #1b1e24;
+  --line: #2b3038;
+  --fg: #e6e9ef;
+  --fg-dim: #99a1b0;
+  --accent: #7cc4ff;
+  --warn: #ffb454;
+  --bad: #ff6b6b;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--fg);
+}
+@media (prefers-color-scheme: light) {
+  .root {
+    --bg: #ffffff;
+    --bg-soft: #f4f6f9;
+    --line: #dde1e8;
+    --fg: #1a1d22;
+    --fg-dim: #5c6472;
+    --accent: #0b6bcb;
+    --warn: #a35a00;
+    --bad: #c2261f;
+  }
+}
+`;
+
 export const createShadowHost = (css: string): ShadowHost => {
   const host = document.createElement("div");
   host.setAttribute(DEVTOOLS_PANEL_ATTR, "");
@@ -54,7 +101,7 @@ export const createShadowHost = (css: string): ShadowHost => {
   host.style.zIndex = "2147483000";
   const shadow = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
-  style.textContent = css;
+  style.textContent = SURFACE_TOKENS + css;
   shadow.appendChild(style);
   const root = document.createElement("div");
   root.className = "root";

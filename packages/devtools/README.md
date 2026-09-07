@@ -14,7 +14,7 @@ import { FlemoDevtools } from "@flemo/devtools/react";
 
 That is the whole wiring. Leave it in the tree and ship it: under the `production` export condition the same specifier resolves to a component that renders null and imports nothing, so the recorder, the panel and the readout never enter a production graph. There is no flag to remember and nothing to strip before a release.
 
-Props are `recorder`, `hud` (`true`), `panel` (`true`), `hudPosition` (`"top"`), `panelPosition` (`"bottom-left"`), `initialOpen` (`false`) and `buckets` (`["A", "B"]`). `react` is an optional peer dependency, needed only for this entry.
+Props are `recorder`, `hud` (`true`), `panel` (`true`), `hudPosition` (`"bottom-right"`), `panelPosition` (`"bottom-left"`), `initialOpen` (`false`) and `buckets` (`["A", "B"]`). `react` is an optional peer dependency, needed only for this entry.
 
 Do not reach for `@flemo/devtools/force` to make the component appear in a production build. The specifier survives whatever guard is wrapped around it, so it puts the real panel back into a public chunk; that is a measured mistake, made twice on this project's own site.
 
@@ -38,7 +38,7 @@ Unless `installGlobal: false` or the name is already owned, the recorder install
 copy(JSON.stringify(window.flemo.report(), null, 2));
 ```
 
-Use `/playground?devtools=on` to enable the playground recorder and its surfaces. `flemo:devtools` persists in `sessionStorage`; `?devtools=off` disables it. Armed, the playground imports `@flemo/devtools/force`, and that is the part worth copying: a plain import of this package resolves to the inert production entry, so an instrument wired the ordinary way exists only in the builds whose numbers the judging protocol below says do not count. `attachFlightRecorder()` is idempotent while attached and returns an inert handle during SSR.
+There is nothing to turn on. `<FlemoDevtools />` is rendered unconditionally and a production build resolves it to the inert entry, so the recorder and its surfaces exist in exactly the builds whose numbers the judging protocol below says do not count, and in no others. That is the part worth copying: an instrument wired the ordinary way cannot be left on by accident, and there is no flag whose state you have to remember. `flemo:devtools`, the query opt-in this used to need, is retired; a session still carrying it is reported as residue. `attachFlightRecorder()` is idempotent while attached and returns an inert handle during SSR.
 
 ## Production safety
 
@@ -73,7 +73,7 @@ Install as a devDependency, but do not rely on dependency fields for bundle excl
 
 ```ts
 import { attachDevtoolsHud } from "@flemo/devtools";
-const hud = attachDevtoolsHud({ position: "top" });
+const hud = attachDevtoolsHud({ position: "bottom-right" });
 // hud.detach();
 ```
 
@@ -83,7 +83,9 @@ A phone has no console. The readout is one monospaced line, high contrast and re
 POP 412ms  gap 33.4  drop 1  !2
 ```
 
-Tap it for the detail block (frames, motion, holds, shared elements, what drove the navigation, and the flight's anomalies); long-press to cycle the comparison bucket. Options are `recorder`, `position` (`"top"` or `"bottom"`), `initialExpanded` (`false`) and `buckets` (`["A", "B"]`).
+Tap it for the detail block (frames, motion, holds, shared elements, what drove the navigation, and the flight's anomalies); long-press to cycle the comparison bucket. The pill beside it hides the readout down to itself and brings it back, and the choice is remembered for the session, because judging motion means getting the instruments off the glass without unmounting them. Hidden, it stops polling.
+
+Options are `recorder`, `position` (a corner, `"bottom-right"` by default, or the centred `"top"` and `"bottom"` strips), `initialExpanded` (`false`), `initialHidden` (the session's last choice) and `buckets` (`["A", "B"]`).
 
 It obeys the same rules the panel does: it repaints only between flights, its stylesheet carries no transition and no keyframe, and its host is a zero-sized fixed element that cannot join a flight.
 
@@ -169,7 +171,7 @@ Read `verdict`, then `preconditions`, then each flight's `anomalies`, then `blin
 ## API
 
 - `attachFlightRecorder(options?)` returns `{ report(), mark(), detach() }`; options: `maxFlights` (50), `log` (`false`), `installGlobal` (`true`), `persist` (`true`).
-- `attachDevtoolsHud(options?)` returns `{ detach() }`; options: `recorder`, `position` (`"top"`), `initialExpanded` (`false`), `buckets`.
+- `attachDevtoolsHud(options?)` returns `{ detach() }`; options: `recorder`, `position` (`"bottom-right"`), `initialExpanded` (`false`), `initialHidden`, `buckets`.
 - `attachDevtoolsPanel(options?)` returns `{ detach() }`; options: `recorder`, `initialOpen` (`false`), `position` (`"bottom-right"`), `buckets`.
 - Pure helpers: `deriveFlightAnomalies`, `deriveReportAnomalies`, `deriveOverrideWarnings`, `derivePreconditions`, `deriveVerdict`, `summariseBuckets`, `classifyDriver`, `computeFrameStats`, `parseTranslateX`, `kindFromStatus`.
 - Constants and registries: `BLIND_SPOTS`, `JUDGING_PROTOCOL`, `FLAG_REGISTRY`, `LONG_GAP_MS`, `STALL_MS`, `STUCK_STATUS_MS`, `REPORT_SCHEMA_VERSION`.
