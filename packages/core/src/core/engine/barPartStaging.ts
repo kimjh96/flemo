@@ -1,6 +1,5 @@
 import { expectAnimationCancel } from "@core/engine/cancelResume";
 import {
-  ANIM_HOLD,
   ANIM_HOLD_ATTR,
   attrSelector,
   BAR_ATTR,
@@ -13,6 +12,7 @@ import {
   ROUTER_ATTR,
   SCREEN_ATTR
 } from "@dom/attributes";
+import mirrorHold from "@dom/holdMirror";
 
 import { intoLayerSpace, preserveAnimations } from "@dom/staging";
 
@@ -312,15 +312,12 @@ export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null 
   // out of the ACTIVE side's way: that sweep looks for parts carrying the
   // attribute THEMSELVES, and a part held through an ancestor is excluded from
   // both its stamp and its clear. One owner, no flapping.
-  const mirrorHold = () => {
-    layer.setAttribute(ANIM_HOLD_ATTR, scope.getAttribute(ANIM_HOLD_ATTR) ?? ANIM_HOLD.RELEASED);
-  };
-  mirrorHold();
+  //
+  // A screen that unmounts while held can never flip its own attribute again,
+  // so the mirror reads a departed source as released (see @dom/holdMirror).
   const token = Symbol("bar-part-staging");
   holdOwners.set(layer, token);
-  const holdWatch =
-    typeof MutationObserver === "function" ? new MutationObserver(mirrorHold) : null;
-  holdWatch?.observe(scope, { attributes: true, attributeFilter: [ANIM_HOLD_ATTR] });
+  const hold = mirrorHold(layer, [scope]);
 
   let released = false;
   const release = () => {
@@ -329,7 +326,7 @@ export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null 
     if (released) return;
     released = true;
     clearTimeout(stranded);
-    holdWatch?.disconnect();
+    hold.disconnect();
     // Only if this staging is still the one holding the layer.
     if (holdOwners.get(layer) === token) {
       holdOwners.delete(layer);

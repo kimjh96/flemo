@@ -2,9 +2,10 @@
 "@flemo/core": patch
 ---
 
-Let a shared element fly on a pop under a transition with no clock of its own.
-The morph layer mirrors the strongest hold among the screens the flight belongs
-to, and a screen that unmounts while held could never release it: an attribute
-observer on a removed node never fires again, so the flight sat at time zero for
-its whole length and then cut the element home. A source that has left the
-document is now read as released, and its removal is watched where it sat.
+Let what a staging layer carries fly when the screen it belongs to leaves. Both
+layers the engine lifts into mirror the screens' hold onto themselves, and a
+screen that unmounts while held could never release it: an attribute observer on
+a removed node never fires again, so the shared element and the bar's parts sat
+at time zero for the whole flight and were then cut into place. A source that has
+left the document is now read as released, its removal is watched where it sat,
+and both layers share one copy of that rule.
