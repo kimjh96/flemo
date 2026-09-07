@@ -1,3 +1,5 @@
+import { SURFACE_TOKENS } from "../surface";
+
 // The panel's entire stylesheet, injected once into its shadow root.
 //
 // NO transitions and NO keyframes anywhere — not even the hover polish the
@@ -8,36 +10,7 @@
 // rect; a hover that ANIMATES keeps the main thread busy for 150ms next to
 // the transition we are trying to measure. Instant wins.
 
-export const PANEL_CSS = `
-:host {
-  all: initial;
-  color-scheme: dark;
-}
-* { box-sizing: border-box; }
-.root {
-  --bg: #14161a;
-  --bg-soft: #1b1e24;
-  --line: #2b3038;
-  --fg: #e6e9ef;
-  --fg-dim: #99a1b0;
-  --accent: #7cc4ff;
-  --warn: #ffb454;
-  --bad: #ff6b6b;
-  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: var(--fg);
-}
-@media (prefers-color-scheme: light) {
-  .root {
-    --bg: #ffffff;
-    --bg-soft: #f4f6f9;
-    --line: #dde1e8;
-    --fg: #1a1d22;
-    --fg-dim: #5c6472;
-    --accent: #0b6bcb;
-    --warn: #a35a00;
-    --bad: #c2261f;
-  }
-}
+export const PANEL_CSS = `${SURFACE_TOKENS}
 .toggle {
   position: fixed;
   bottom: 12px;

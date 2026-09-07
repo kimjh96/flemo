@@ -43,6 +43,47 @@ export interface ShadowHost {
  * `data-flemo-*` screen attribute, so the recorder can never mistake its own
  * surface for a flight participant.
  */
+/**
+ * The palette and the type both surfaces are drawn in.
+ *
+ * ONE PALETTE, TWO SURFACES. The panel's toggle and the readout sit in
+ * opposite corners of the same screen and were drawn from two different sets
+ * of hardcoded colours, so they read as two tools that happened to land on the
+ * same page. They are one tool. Dark first, because that is what an instrument
+ * over a dark app should be, with the light scheme swapped in whole.
+ */
+export const SURFACE_TOKENS = `
+:host {
+  all: initial;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+.root {
+  --bg: #14161a;
+  --bg-soft: #1b1e24;
+  --line: #2b3038;
+  --fg: #e6e9ef;
+  --fg-dim: #99a1b0;
+  --accent: #7cc4ff;
+  --warn: #ffb454;
+  --bad: #ff6b6b;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--fg);
+}
+@media (prefers-color-scheme: light) {
+  .root {
+    --bg: #ffffff;
+    --bg-soft: #f4f6f9;
+    --line: #dde1e8;
+    --fg: #1a1d22;
+    --fg-dim: #5c6472;
+    --accent: #0b6bcb;
+    --warn: #a35a00;
+    --bad: #c2261f;
+  }
+}
+`;
+
 export const createShadowHost = (css: string): ShadowHost => {
   const host = document.createElement("div");
   host.setAttribute(DEVTOOLS_PANEL_ATTR, "");

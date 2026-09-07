@@ -423,12 +423,12 @@ describe("the on-device readout", () => {
         })
       });
       expect(box().hidden).toBe(false);
-      expect(eye().textContent).toBe("hide");
+      expect(eye().textContent).toBe("hudhide");
 
       eye().click();
 
       expect(box().hidden).toBe(true);
-      expect(eye().textContent).toBe("hud");
+      expect(eye().textContent).toBe("hudshow");
       // Hidden is INERT, not invisible: an instrument that still wakes twice a
       // second while hidden is not one you can judge motion beside.
       const readsWhenHidden = reads;

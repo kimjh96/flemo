@@ -1,4 +1,4 @@
-import { createShadowHost, flightInProgress, resolveRecorder } from "./surface";
+import { createShadowHost, flightInProgress, resolveRecorder, SURFACE_TOKENS } from "./surface";
 
 import type { FlemoReport, FlightRecord, FlightRecorderHandle } from "./types";
 
@@ -63,9 +63,7 @@ const LONG_PRESS_MS = 450;
 /** Where the hidden/shown choice lives, so a reload does not undo it. */
 export const HUD_HIDDEN_KEY = "flemo:devtools-hud-hidden";
 
-const HUD_CSS = `
-:host { all: initial; }
-.root { all: initial; }
+const HUD_CSS = `${SURFACE_TOKENS}
 .dock {
   position: fixed;
   display: flex;
@@ -82,7 +80,7 @@ const HUD_CSS = `
      for, and the whole point of it is to be found with a thumb. */
   flex-direction: column-reverse;
 }
-.dock[data-edge^="bottom"] { bottom: max(8px, env(safe-area-inset-bottom)); }
+.dock[data-edge^="bottom"] { bottom: max(12px, env(safe-area-inset-bottom)); }
 .dock[data-edge="top"],
 .dock[data-edge="bottom"] {
   left: 50%;
@@ -90,19 +88,18 @@ const HUD_CSS = `
   align-items: center;
 }
 .dock[data-edge$="-left"] {
-  left: max(8px, env(safe-area-inset-left));
+  left: max(12px, env(safe-area-inset-left));
   align-items: flex-start;
 }
-.dock[data-edge$="-right"] { right: max(8px, env(safe-area-inset-right)); }
+.dock[data-edge$="-right"] { right: max(12px, env(safe-area-inset-right)); }
 .hud {
-  box-sizing: border-box;
   max-width: 100%;
   padding: 6px 10px;
-  border-radius: 8px;
-  background: #0b0f14;
-  color: #e8f0f8;
-  border: 1px solid #2b3a4a;
-  font: 500 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  font-weight: 500;
   white-space: pre;
   text-align: left;
   overflow-x: auto;
@@ -113,22 +110,34 @@ const HUD_CSS = `
      never be a moving thing on a screen whose motion is under test. */
 }
 .hud[hidden] { display: none; }
-.hud[data-alarm="true"] { border-color: #ff6b6b; color: #ffd9d9; }
-.hud[data-blocked="true"] { border-color: #ffb020; color: #ffe9c2; }
+.hud[data-alarm="true"] { border-color: var(--bad); color: var(--bad); }
+.hud[data-blocked="true"] { border-color: var(--warn); color: var(--warn); }
+/* The panel's toggle, in the opposite corner: same pill, same mark-and-chip,
+   so the two controls read as one instrument rather than two. */
 .eye {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
-  padding: 4px 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: #0b0f14;
-  color: #8fa4b8;
-  border: 1px solid #2b3a4a;
-  font: 500 11px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
   touch-action: manipulation;
 }
-.eye[data-hidden="true"] { color: #e8f0f8; }
+.eye:hover { background: var(--bg-soft); }
+.mark { font-weight: 700; letter-spacing: 0.04em; }
+.state {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--fg-dim);
+}
 `;
 
 const round1 = (value: number): number => Math.round(value * 10) / 10;
@@ -257,6 +266,13 @@ export const attachDevtoolsHud = (options: DevtoolsHudOptions = {}): DevtoolsHud
   const eye = document.createElement("button");
   eye.className = "eye";
   eye.type = "button";
+  const mark = document.createElement("span");
+  mark.className = "mark";
+  mark.textContent = "hud";
+  const state = document.createElement("span");
+  state.className = "state";
+  eye.appendChild(mark);
+  eye.appendChild(state);
   dock.appendChild(box);
   dock.appendChild(eye);
   root.appendChild(dock);
@@ -316,7 +332,7 @@ export const attachDevtoolsHud = (options: DevtoolsHudOptions = {}): DevtoolsHud
   const setHidden = (next: boolean): void => {
     hidden = next;
     box.hidden = next;
-    eye.textContent = next ? "hud" : "hide";
+    state.textContent = next ? "show" : "hide";
     eye.setAttribute("data-hidden", next ? "true" : "false");
     eye.setAttribute("aria-label", next ? "show the flemo readout" : "hide the flemo readout");
     eye.setAttribute("aria-expanded", next ? "false" : "true");
