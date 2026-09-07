@@ -1,5 +1,52 @@
 # @flemo/core
 
+## 2.6.0
+
+### Minor Changes
+
+- [`cddeafb`](https://github.com/kimjh96/flemo/commit/cddeafbd9aeead8316b59806f7653a8c6548d6ca) Let a `<Part>` say `after: "flight"` instead of writing the flight's length
+  down. Chrome that a flight covers has to wait exactly as long as the flight and
+  be revealed at its landing, and that length belongs to whichever transition is
+  carrying it: writing it in the part meant one part per transition plus a table
+  of their durations. The playground's detail header was eight such rows; it is
+  one part now, and a transition with no row in that table no longer means a part
+  that does not exist.
+
+- [`02b79ee`](https://github.com/kimjh96/flemo/commit/02b79ee838b98178fde1b90bb6b84bdb296fd306) Accept any CSS easing where a transition takes one, and say so when a name
+  resolves to nothing. `AnimationEasing` has always been typed as a string, but
+  only nine motion-style names were understood: everything else, including
+  `ease-out`, `cubic-bezier(...)`, `steps(...)` and the `linear(...)` form a
+  spring ships as, compiled to `ease` without a word. The keyframes compiler and
+  the curve sampler now read one shared table, pass CSS easings through, and warn
+  once in development for a name neither knows.
+
+  `AnimationEasing` also offers what it accepts rather than taking any string:
+  the named eases, the CSS keywords and the functional forms are a union derived
+  from that same table, so an editor completes them. It keeps a `string` arm, so
+  nothing existing stops compiling and a computed easing is still possible.
+
+- [`fc2091e`](https://github.com/kimjh96/flemo/commit/fc2091efb2ef57aff9f20e5c2d3a45c677a61ea3) Report three authoring mistakes that used to be silent. A morph whose `exit`
+  pose does not end at `opacity: 0` leaves the element it is flying away from on
+  glass for the whole flight, because that pose is the cut the runtime pins the
+  departure at; a camera paired with a screen transition that also moves the
+  screen has its travel discarded rather than combined; and a Router with layout
+  children but no `<Slot>` cannot tell screens from chrome. Each now says so once
+  in development.
+
+  The flight recorder gains the two measurements behind the first of those: how
+  many frames a departing end kept painting, and how far a `<Part>` inside a
+  flying box sat inside that box. Both are defects it watched happen in silence,
+  and both surface as anomalies on the flight record.
+
+### Patch Changes
+
+- [`c2b31eb`](https://github.com/kimjh96/flemo/commit/c2b31ebba3dafff6735e5261c79184db2383a46d) Add `docs/instructions/transition-authoring.md`: which side of a flight each
+  status and active flag names, what `enter` means in each of the four factories,
+  which clocks are inherited rather than restated, and a symptom-to-cause index.
+  `AGENTS.md` routes to it as required reading before authoring a transition. A
+  test parses the role table and compares it against what the factories build, so
+  a row that stops being true fails rather than misleading a reader.
+
 ## 2.5.2
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # @flemo/react
 
+## 2.4.0
+
+### Minor Changes
+
+- [`fc2091e`](https://github.com/kimjh96/flemo/commit/fc2091efb2ef57aff9f20e5c2d3a45c677a61ea3) Report three authoring mistakes that used to be silent. A morph whose `exit`
+  pose does not end at `opacity: 0` leaves the element it is flying away from on
+  glass for the whole flight, because that pose is the cut the runtime pins the
+  departure at; a camera paired with a screen transition that also moves the
+  screen has its travel discarded rather than combined; and a Router with layout
+  children but no `<Slot>` cannot tell screens from chrome. Each now says so once
+  in development.
+
+  The flight recorder gains the two measurements behind the first of those: how
+  many frames a departing end kept painting, and how far a `<Part>` inside a
+  flying box sat inside that box. Both are defects it watched happen in silence,
+  and both surface as anomalies on the flight record.
+
+### Patch Changes
+
+- Updated dependencies ([`cddeafb`](https://github.com/kimjh96/flemo/commit/cddeafbd9aeead8316b59806f7653a8c6548d6ca), [`02b79ee`](https://github.com/kimjh96/flemo/commit/02b79ee838b98178fde1b90bb6b84bdb296fd306), [`c2b31eb`](https://github.com/kimjh96/flemo/commit/c2b31ebba3dafff6735e5261c79184db2383a46d), [`fc2091e`](https://github.com/kimjh96/flemo/commit/fc2091efb2ef57aff9f20e5c2d3a45c677a61ea3)):
+  - @flemo/core@2.6.0
+
 ## 2.3.3
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @flemo/web
 
+## 0.11.14
+
+### Patch Changes
+
+- [`cddeafb`](https://github.com/kimjh96/flemo/commit/cddeafbd9aeead8316b59806f7653a8c6548d6ca) Let a `<Part>` say `after: "flight"` instead of writing the flight's length
+  down. Chrome that a flight covers has to wait exactly as long as the flight and
+  be revealed at its landing, and that length belongs to whichever transition is
+  carrying it: writing it in the part meant one part per transition plus a table
+  of their durations. The playground's detail header was eight such rows; it is
+  one part now, and a transition with no row in that table no longer means a part
+  that does not exist.
+- Updated dependencies ([`cddeafb`](https://github.com/kimjh96/flemo/commit/cddeafbd9aeead8316b59806f7653a8c6548d6ca), [`02b79ee`](https://github.com/kimjh96/flemo/commit/02b79ee838b98178fde1b90bb6b84bdb296fd306), [`c2b31eb`](https://github.com/kimjh96/flemo/commit/c2b31ebba3dafff6735e5261c79184db2383a46d), [`fc2091e`](https://github.com/kimjh96/flemo/commit/fc2091efb2ef57aff9f20e5c2d3a45c677a61ea3)):
+  - @flemo/core@2.6.0
+  - @flemo/devtools@0.9.0
+  - @flemo/react@2.4.0
+
 ## 0.11.13
 
 ### Patch Changes
