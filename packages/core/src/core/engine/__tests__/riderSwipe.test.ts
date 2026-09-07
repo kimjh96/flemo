@@ -87,6 +87,45 @@ afterEach(() => {
 });
 
 describe("beginRiderSwipe", () => {
+  // A DECLARED DELAY IS DEAD TIME IN A FLIGHT AND NO TIME AT ALL UNDER A FINGER.
+  //
+  // A part can author one: the playground's card chrome waits a quarter of a
+  // second before it goes, so it is still there while the card is large enough
+  // to hold it. In a FLIGHT that is exactly what it should be — the element
+  // sits at its from-pose and then moves.
+  //
+  // A DRAG cannot spend the finger on it. The chrome above declares 0.24s of
+  // delay against 0.16s of travel, so honouring the delay under the finger
+  // would leave the first sixty per cent of the drag doing nothing at all. The
+  // scrub seeks past it instead: progress 0 lands on the delay's last frame and
+  // progress 1 on the end, so the finger maps to the TRAVEL. Nothing pinned
+  // that, and it lives in one term (`clock.start`) that reads like an offset
+  // somebody could helpfully remove.
+  it("spends the finger on the travel, not on the delay in front of it", () => {
+    const delayed = motion({ duration: 0.16, delay: 0.24 });
+    const swipe = beginRiderSwipe([{ element, motion: delayed }])!;
+    const [drag, commitLeg, cancelLeg] = animations;
+
+    // The delay is carried, so a flight staged from these keyframes waits.
+    expect(drag!.options.delay).toBe(240);
+    expect(drag!.options.duration).toBe(160);
+
+    swipe.scrub(0);
+    expect(drag!.currentTime).toBe(240);
+    swipe.scrub(1);
+    expect(drag!.currentTime).toBe(400);
+    swipe.scrub(0.5);
+    expect(drag!.currentTime).toBeGreaterThan(240);
+    expect(drag!.currentTime).toBeLessThan(400);
+
+    // And the release starts from where the finger left it, so neither leg
+    // carries the wait: a cancel that replayed it would hang before moving.
+    for (const leg of [commitLeg!, cancelLeg!]) {
+      expect(leg.options.delay).toBeUndefined();
+      expect(leg.options.duration).toBe(160);
+    }
+  });
+
   it("stages the drag and both motions a release can be", () => {
     // A release is not the drag played on. The drag is position-controlled and
     // the release is time-controlled, so sharing one animation makes the
