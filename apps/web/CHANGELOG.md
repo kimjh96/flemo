@@ -1,5 +1,12 @@
 # @flemo/web
 
+## 0.11.11
+
+### Patch Changes
+
+- Updated dependencies ([`eb11b6c`](https://github.com/kimjh96/flemo/commit/eb11b6c98cce0b6d52d6af5db62366a85b9e62e5)):
+  - @flemo/devtools@0.7.0
+
 ## 0.11.10
 
 ### Patch Changes
