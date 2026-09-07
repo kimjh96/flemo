@@ -1,4 +1,5 @@
 import type { AnimationOptions } from "@transition/cssTypes";
+import { cssEasingPoints, easeName, isCssEasing, namedEasePoints } from "@transition/easing";
 
 export type EasingFunction = (progress: number) => number;
 
@@ -62,20 +63,11 @@ export const invertEasing = (ease: AnimationOptions["ease"] | undefined): Easing
 
 const LINEAR: EasingFunction = (progress) => progress;
 
-// Named-ease control points, mirroring `easingToCss` in the keyframes
-// compiler exactly so the rAF player and the CSS driver produce the same
-// curve for the same transition definition.
-const NAMED_EASES: Record<string, [number, number, number, number]> = {
-  ease: [0.25, 0.1, 0.25, 1],
-  easeIn: [0.42, 0, 1, 1],
-  easeOut: [0, 0, 0.58, 1],
-  easeInOut: [0.42, 0, 0.58, 1],
-  circIn: [0, 0.55, 0.45, 1],
-  circOut: [0.55, 0, 1, 0.45],
-  backIn: [0.31, 0.01, 0.66, -0.59],
-  backOut: [0.33, 1.53, 0.69, 0.99],
-  anticipate: [0.36, 0, 0.66, -0.56]
-};
+// The named eases live in `transition/easing.ts`, which the keyframes compiler
+// reads too. They used to be duplicated here under a comment promising the two
+// tables mirrored each other exactly, which is a promise nothing could break
+// when one of them changed.
+const DEFAULT_POINTS = namedEasePoints("ease")!;
 
 /**
  * The control points behind an authored ease, named or spelled out — `null`
@@ -93,11 +85,18 @@ export const easeControlPoints = (
     }
     return null;
   }
-  if (typeof ease === "string") {
-    if (ease === "linear") return null;
-    return [...(NAMED_EASES[ease] ?? NAMED_EASES.ease!)];
+  const name = easeName(ease);
+  if (name !== null) {
+    const named = namedEasePoints(name);
+    if (named) return named;
+    // A CSS easing the compiler now passes through verbatim. `cubic-bezier()`
+    // is the same curve an array expresses, so it answers points; `linear`,
+    // `linear()` and `steps()` have no handles and answer null, which is what
+    // `linear` has always answered here.
+    if (isCssEasing(name)) return cssEasingPoints(name);
+    return [...DEFAULT_POINTS];
   }
-  return [...NAMED_EASES.ease!];
+  return [...DEFAULT_POINTS];
 };
 
 export const resolveEasing = (ease: AnimationOptions["ease"] | undefined): EasingFunction => {
@@ -108,10 +107,13 @@ export const resolveEasing = (ease: AnimationOptions["ease"] | undefined): Easin
     }
     return LINEAR;
   }
-  if (typeof ease === "string") {
-    if (ease === "linear") return LINEAR;
-    const points = NAMED_EASES[ease] ?? NAMED_EASES.ease!;
-    return cubicBezier(...points);
+  const name = easeName(ease);
+  if (name !== null) {
+    const points = easeControlPoints(name);
+    // Null is "no handles": `linear`, and the CSS forms that are not a bezier.
+    // Sampling them as a straight line is the honest answer a sampler can give,
+    // and the same one `linear` has always had.
+    return points ? cubicBezier(...points) : LINEAR;
   }
-  return cubicBezier(...NAMED_EASES.ease!);
+  return cubicBezier(...DEFAULT_POINTS);
 };
