@@ -22,16 +22,33 @@ import type { FlemoReport, FlightRecord, FlightRecorderHandle } from "./types";
 //   * ONE TAP, NO CHROME. Tap to expand from one line to the detail block, tap
 //     again to collapse, long-press to cycle the comparison bucket. There is
 //     no menu to find with a thumb while holding the phone in the other hand.
+//   * GETS OUT OF THE WAY. The readout stands on the screen whose motion is
+//     under test, and the judging protocol for this project is to close the
+//     instruments and drive the thing by hand. So it hides to a single small
+//     control, and it remembers that across a reload: an instrument that comes
+//     back every time the page reloads is one nobody turns off.
 //   * NOTHING LIVE. It updates after a flight lands, never during, and it has
 //     no animation of its own anywhere in its stylesheet.
+
+/**
+ * Where the readout docks.
+ *
+ * A corner keeps it clear of the middle of the screen, which is where the
+ * motion being measured is. `"top"` and `"bottom"` are the centred strips this
+ * started as.
+ */
+export type DevtoolsHudPosition =
+  "top" | "bottom" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
 export interface DevtoolsHudOptions {
   /** Recorder to read. Defaults to this package's `window.flemo`, else its own. */
   recorder?: FlightRecorderHandle;
-  /** Where the strip sits. Default "top". */
-  position?: "top" | "bottom";
+  /** Where the strip sits. Default "bottom-right", opposite the panel's toggle. */
+  position?: DevtoolsHudPosition;
   /** Start expanded. Default false (the one-line summary). */
   initialExpanded?: boolean;
+  /** Start hidden, leaving only the control. Default false, or whatever the last session chose. */
+  initialHidden?: boolean;
   /** Labels the long-press cycles through. Default ["A", "B"]. */
   buckets?: string[];
 }
@@ -43,16 +60,43 @@ export interface DevtoolsHudHandle {
 /** Refresh cadence at rest. A landed flight is visible within one tick. */
 const REFRESH_MS = 500;
 const LONG_PRESS_MS = 450;
+/** Where the hidden/shown choice lives, so a reload does not undo it. */
+export const HUD_HIDDEN_KEY = "flemo:devtools-hud-hidden";
 
 const HUD_CSS = `
 :host { all: initial; }
 .root { all: initial; }
-.hud {
+.dock {
   position: fixed;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: calc(100vw - 16px);
+}
+.dock[data-edge^="top"] {
+  top: max(8px, env(safe-area-inset-top));
+  /* The control sits nearest the edge the dock is anchored to, whichever that
+     is, so it does not MOVE when the readout it hides collapses under it. A
+     control that walks across the screen as you use it is one you have to look
+     for, and the whole point of it is to be found with a thumb. */
+  flex-direction: column-reverse;
+}
+.dock[data-edge^="bottom"] { bottom: max(8px, env(safe-area-inset-bottom)); }
+.dock[data-edge="top"],
+.dock[data-edge="bottom"] {
   left: 50%;
   transform: translateX(-50%);
-  max-width: calc(100vw - 16px);
+  align-items: center;
+}
+.dock[data-edge$="-left"] {
+  left: max(8px, env(safe-area-inset-left));
+  align-items: flex-start;
+}
+.dock[data-edge$="-right"] { right: max(8px, env(safe-area-inset-right)); }
+.hud {
   box-sizing: border-box;
+  max-width: 100%;
   padding: 6px 10px;
   border-radius: 8px;
   background: #0b0f14;
@@ -68,10 +112,23 @@ const HUD_CSS = `
   /* No transition and no keyframe anywhere in this sheet: the readout must
      never be a moving thing on a screen whose motion is under test. */
 }
-.hud[data-edge="top"] { top: max(8px, env(safe-area-inset-top)); }
-.hud[data-edge="bottom"] { bottom: max(8px, env(safe-area-inset-bottom)); }
+.hud[hidden] { display: none; }
 .hud[data-alarm="true"] { border-color: #ff6b6b; color: #ffd9d9; }
 .hud[data-blocked="true"] { border-color: #ffb020; color: #ffe9c2; }
+.eye {
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #0b0f14;
+  color: #8fa4b8;
+  border: 1px solid #2b3a4a;
+  font: 500 11px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+.eye[data-hidden="true"] { color: #e8f0f8; }
 `;
 
 const round1 = (value: number): number => Math.round(value * 10) / 10;
@@ -148,6 +205,30 @@ const detailLines = (report: FlemoReport | null, flight: FlightRecord | undefine
   return lines;
 };
 
+/**
+ * The hidden choice, carried across a reload.
+ *
+ * `sessionStorage`, like the trace: a preference this instrument makes about
+ * itself belongs to the session it was made in, and it has no business
+ * outliving the tab. A storage that throws (a private window, a blocked
+ * origin) simply means the readout starts shown.
+ */
+const readHidden = (): boolean => {
+  try {
+    return sessionStorage.getItem(HUD_HIDDEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+
+const writeHidden = (hidden: boolean): void => {
+  try {
+    sessionStorage.setItem(HUD_HIDDEN_KEY, hidden ? "1" : "0");
+  } catch {
+    // Nothing to do and nothing to report: the readout is on screen either way.
+  }
+};
+
 let activeHud: DevtoolsHudHandle | null = null;
 
 /**
@@ -160,15 +241,29 @@ export const attachDevtoolsHud = (options: DevtoolsHudOptions = {}): DevtoolsHud
   const { recorder, ownsRecorder } = resolveRecorder(options.recorder);
   const buckets = options.buckets && options.buckets.length > 0 ? options.buckets : ["A", "B"];
   const { host, root } = createShadowHost(HUD_CSS);
+  // UNDER THE PANEL, NOT OVER IT.
+  //
+  // Both surfaces dock along the bottom now, and the drawer is the one with
+  // the detail. Left at the shared z-index the readout would float on top of
+  // the drawer's own rows, an instrument arguing with itself.
+  host.style.zIndex = "2147482998";
+  const dock = document.createElement("div");
+  dock.className = "dock";
+  dock.setAttribute("data-edge", options.position ?? "bottom-right");
   const box = document.createElement("div");
   box.className = "hud";
-  box.setAttribute("data-edge", options.position ?? "top");
   box.setAttribute("role", "status");
   box.textContent = "flemo  attaching";
-  root.appendChild(box);
+  const eye = document.createElement("button");
+  eye.className = "eye";
+  eye.type = "button";
+  dock.appendChild(box);
+  dock.appendChild(eye);
+  root.appendChild(dock);
 
   let detached = false;
   let expanded = options.initialExpanded === true;
+  let hidden = options.initialHidden ?? readHidden();
   let bucketIndex = -1;
   let timer = 0;
   let pressTimer = 0;
@@ -185,7 +280,7 @@ export const attachDevtoolsHud = (options: DevtoolsHudOptions = {}): DevtoolsHud
   };
 
   const render = (): void => {
-    if (detached || flightInProgress()) return;
+    if (detached || hidden || flightInProgress()) return;
     const report = readReport();
     const flights = report?.flights ?? [];
     const last = flights[flights.length - 1];
@@ -206,6 +301,29 @@ export const attachDevtoolsHud = (options: DevtoolsHudOptions = {}): DevtoolsHud
 
   const tick = (): void => {
     timer = 0;
+    render();
+    timer = window.setTimeout(tick, REFRESH_MS);
+  };
+
+  /**
+   * Show or hide the readout, and say so on the control.
+   *
+   * Hidden is INERT, not invisible: the poll stops with the box. The whole
+   * claim this surface makes is that it costs nothing between flights, and a
+   * hidden instrument that still wakes every half second twice a second is a
+   * claim it would be making falsely.
+   */
+  const setHidden = (next: boolean): void => {
+    hidden = next;
+    box.hidden = next;
+    eye.textContent = next ? "hud" : "hide";
+    eye.setAttribute("data-hidden", next ? "true" : "false");
+    eye.setAttribute("aria-label", next ? "show the flemo readout" : "hide the flemo readout");
+    eye.setAttribute("aria-expanded", next ? "false" : "true");
+    window.clearTimeout(timer);
+    timer = 0;
+    if (next) return;
+    rendered = "";
     render();
     timer = window.setTimeout(tick, REFRESH_MS);
   };
@@ -238,6 +356,10 @@ export const attachDevtoolsHud = (options: DevtoolsHudOptions = {}): DevtoolsHud
   box.addEventListener("pointerdown", onPointerDown);
   box.addEventListener("pointerup", onPointerUp);
   box.addEventListener("pointercancel", () => window.clearTimeout(pressTimer));
+  eye.addEventListener("click", () => {
+    setHidden(!hidden);
+    writeHidden(hidden);
+  });
 
   const detach = (): void => {
     if (detached) return;
@@ -252,8 +374,7 @@ export const attachDevtoolsHud = (options: DevtoolsHudOptions = {}): DevtoolsHud
   };
 
   document.body.appendChild(host);
-  render();
-  timer = window.setTimeout(tick, REFRESH_MS);
+  setHidden(hidden);
 
   const handle: DevtoolsHudHandle = { detach };
   activeHud = handle;

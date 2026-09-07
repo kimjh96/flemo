@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { attachDevtoolsHud } from "../hud";
+import { attachDevtoolsHud, HUD_HIDDEN_KEY } from "../hud";
 
 import type { DevtoolsHudHandle } from "../hud";
 import type { FlemoReport, FlightRecord, FlightRecorderHandle } from "../types";
@@ -88,12 +88,16 @@ const recorder = (read: () => FlemoReport): FlightRecorderHandle => ({
   }
 });
 
-const box = (): HTMLElement => {
+const shadow = (selector: string): HTMLElement => {
   const host = document.querySelector("[data-flemo-devtools-panel]");
-  const node = host?.shadowRoot?.querySelector(".hud");
-  if (!(node instanceof HTMLElement)) throw new Error("hud is not mounted");
+  const node = host?.shadowRoot?.querySelector(selector);
+  if (!(node instanceof HTMLElement)) throw new Error(`${selector} is not mounted`);
   return node;
 };
+
+const box = (): HTMLElement => shadow(".hud");
+const dock = (): HTMLElement => shadow(".dock");
+const eye = (): HTMLElement => shadow(".eye");
 
 const screenInFlight = (): Element => {
   const screen = document.createElement("div");
@@ -106,6 +110,7 @@ const screenInFlight = (): Element => {
 beforeEach(() => {
   vi.useFakeTimers();
   marks.length = 0;
+  sessionStorage.clear();
 });
 
 afterEach(() => {
@@ -388,5 +393,86 @@ describe("the on-device readout", () => {
     const text = box().textContent ?? "";
     expect(text).toContain("morph   1 flew");
     expect(text).not.toContain("cam");
+  });
+
+  // WHERE IT STANDS, AND HOW TO GET IT OFF THE GLASS.
+  //
+  // The readout stands on the screen whose motion is under test, and this
+  // project's own judging protocol is to close the instruments and drive the
+  // thing by hand. It has to be possible without unmounting the devtools.
+  describe("the dock", () => {
+    it("sits in the corner opposite the drawer's toggle by default", () => {
+      hud = attachDevtoolsHud({ recorder: recorder(() => report()) });
+      expect(dock().getAttribute("data-edge")).toBe("bottom-right");
+    });
+
+    it("takes any corner, and the centred strips it started as", () => {
+      hud = attachDevtoolsHud({ recorder: recorder(() => report()), position: "top-left" });
+      expect(dock().getAttribute("data-edge")).toBe("top-left");
+      hud.detach();
+      hud = attachDevtoolsHud({ recorder: recorder(() => report()), position: "top" });
+      expect(dock().getAttribute("data-edge")).toBe("top");
+    });
+
+    it("hides to the control, and stops polling while it is hidden", () => {
+      let reads = 0;
+      hud = attachDevtoolsHud({
+        recorder: recorder(() => {
+          reads++;
+          return report();
+        })
+      });
+      expect(box().hidden).toBe(false);
+      expect(eye().textContent).toBe("hide");
+
+      eye().click();
+
+      expect(box().hidden).toBe(true);
+      expect(eye().textContent).toBe("hud");
+      // Hidden is INERT, not invisible: an instrument that still wakes twice a
+      // second while hidden is not one you can judge motion beside.
+      const readsWhenHidden = reads;
+      vi.advanceTimersByTime(5_000);
+      expect(reads).toBe(readsWhenHidden);
+
+      eye().click();
+
+      expect(box().hidden).toBe(false);
+      vi.advanceTimersByTime(1_000);
+      expect(reads).toBeGreaterThan(readsWhenHidden);
+    });
+
+    it("remembers the choice, so a reload does not put it back on screen", () => {
+      hud = attachDevtoolsHud({ recorder: recorder(() => report()) });
+      eye().click();
+      hud.detach();
+
+      hud = attachDevtoolsHud({ recorder: recorder(() => report()) });
+
+      expect(box().hidden).toBe(true);
+    });
+
+    it("starts hidden when the caller asks, whatever the last session chose", () => {
+      sessionStorage.setItem(HUD_HIDDEN_KEY, "0");
+      hud = attachDevtoolsHud({ recorder: recorder(() => report()), initialHidden: true });
+      expect(box().hidden).toBe(true);
+    });
+
+    it("starts shown where the session storage cannot be read", () => {
+      const original = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+      Object.defineProperty(globalThis, "sessionStorage", {
+        get() {
+          throw new Error("blocked");
+        },
+        configurable: true
+      });
+      try {
+        hud = attachDevtoolsHud({ recorder: recorder(() => report()) });
+        expect(box().hidden).toBe(false);
+        expect(() => eye().click()).not.toThrow();
+      } finally {
+        if (original) Object.defineProperty(globalThis, "sessionStorage", original);
+      }
+    });
   });
 });

@@ -39,7 +39,7 @@ export interface FlemoDevtoolsProps {
   hud?: boolean;
   /** Mount the drawer. Default true. */
   panel?: boolean;
-  /** Where the readout sits. Default "top". */
+  /** Where the readout sits. Default "bottom-right", opposite the drawer's toggle. */
   hudPosition?: DevtoolsHudOptions["position"];
   /** Which corner the drawer's toggle sits in. Default "bottom-left". */
   panelPosition?: DevtoolsPanelOptions["position"];
@@ -60,7 +60,7 @@ export function FlemoDevtools({
   recorder,
   hud = true,
   panel = true,
-  hudPosition = "top",
+  hudPosition = "bottom-right",
   panelPosition = "bottom-left",
   initialOpen = false,
   buckets
