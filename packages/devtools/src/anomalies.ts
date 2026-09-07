@@ -183,6 +183,24 @@ export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
     );
   }
 
+  if (morphs.departureFrames > 2) {
+    anomalies.push(
+      `a morph's departing end kept painting for ${morphs.departureFrames} frames ` +
+        `(up to opacity ${morphs.departureMaxOpacity.toFixed(2)}) — its \`exit\` pose is the cut ` +
+        "the runtime pins the departure at, and every preset ends that pose at opacity 0; a push " +
+        "hides this and a pop uncovers it as the flight lands"
+    );
+  }
+
+  if (morphs.partGapFrames > 2 && morphs.partGapPx >= 4) {
+    anomalies.push(
+      `the part "${morphs.partGapName ?? "?"}" sat up to ${Math.round(morphs.partGapPx)}px ` +
+        `narrower than the box carrying it, for ${morphs.partGapFrames} frames — a part is ` +
+        "pinned at the width it had when the flight staged it, which on a pop is the width it " +
+        "rests at on the side being returned to, so whatever is behind shows through the gap"
+    );
+  }
+
   if (morphs.duplicatedKeys.length > 0) {
     anomalies.push(
       `pairing key(s) used twice inside one screen: ${morphs.duplicatedKeys.join(", ")} ` +

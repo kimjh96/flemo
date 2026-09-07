@@ -56,4 +56,84 @@ export const warnUnregistered = (kind: string, name: string, remedy: string): vo
   );
 };
 
+/**
+ * Say once, in development, that an authored easing string is not one CSS or
+ * flemo knows.
+ *
+ * The same shape of bug as an unregistered name, and it hid for longer: an
+ * `AnimationEasing` is typed as a string, every unknown one resolved to `ease`,
+ * and the motion that came out was simply a different curve from the one
+ * written. `linear(...)` and `cubic-bezier(...)` and even `ease-out` all went
+ * that way. They are accepted now (see transition/easing.ts); this covers what
+ * is left, which is a typo or a value from another library.
+ */
+export const warnUnknownEasing = (value: string): void => {
+  if (!isDevEnvironment() || typeof console === "undefined") return;
+  const key = `easing:${value}`;
+  if (said.has(key)) return;
+  said.add(key);
+  // eslint-disable-next-line no-console
+  console.error(
+    `[flemo] "${value}" is not an easing flemo or CSS knows, so \`ease\` was used instead. ` +
+      "Pass a cubic-bezier tuple, one of flemo's named eases, or any CSS easing " +
+      "(`ease-out`, `cubic-bezier(...)`, `steps(...)`, `linear(...)`)."
+  );
+};
+
+/**
+ * Say once, in development, that a morph's `exit` pose keeps its departure on
+ * glass.
+ *
+ * A morph's `exit` is not a fade. The runtime pins the departing element at
+ * that variant's END pose from the flight's first frame and holds it there
+ * ("CUT FROM THE FIRST FRAME", attachMorph), because a window narrow enough to
+ * be invisible is still a window a dropped frame can land in. So a pose that
+ * does not reach `opacity: 0` is an instruction to keep painting the element
+ * the flight is carrying away from.
+ *
+ * Every built-in preset writes `opacity: 0`, which reads as taste and is a
+ * contract. Authored as `1` on this repository's own card-open page, a push hid
+ * it (the growing card covers the cell) and a pop showed it: the full-bleed
+ * page sat behind the shrinking card and was uncovered as it landed. Nothing
+ * failed; it just looked wrong, for a day.
+ */
+export const warnDepartureNotHidden = (name: string, opacity: unknown): void => {
+  if (!isDevEnvironment() || typeof console === "undefined") return;
+  const key = `morph-exit:${name}`;
+  if (said.has(key)) return;
+  said.add(key);
+  const wrote = opacity === undefined ? "no opacity" : `opacity ${String(opacity)}`;
+  // eslint-disable-next-line no-console
+  console.error(
+    `[flemo] The morph "${name}" leaves its departure visible: its \`exit\` pose ends with ` +
+      `${wrote}, and that pose is the CUT the runtime pins the departing element at for the ` +
+      "whole flight. Every preset ends `exit` at `opacity: 0`; anything else keeps painting " +
+      "the element you are flying away from, which a push usually covers and a pop reveals."
+  );
+};
+
+/**
+ * Say once, in development, that a morph camera and its screen are both trying
+ * to move the same transform.
+ *
+ * `carry: "screen"` IS that screen's motion for the flight, and two authors of
+ * one transform is not a thing CSS composes: the camera supersedes the screen's
+ * own pose rather than adding to it. The rule is in `zoom`'s own doc comment
+ * ("PAIR IT WITH A STILL SCREEN TRANSITION") and there was no way to notice
+ * breaking it except by watching the screen's authored slide disappear.
+ */
+export const warnCameraOverridesScreen = (name: string, transitionName: string): void => {
+  if (!isDevEnvironment() || typeof console === "undefined") return;
+  const key = `morph-camera:${name}:${transitionName}`;
+  if (said.has(key)) return;
+  said.add(key);
+  // eslint-disable-next-line no-console
+  console.error(
+    `[flemo] The morph "${name}" carries a camera and the screen transition ` +
+      `"${transitionName}" moves the screen itself. The camera supersedes that motion for the ` +
+      "flight, so the transition's own travel is discarded rather than combined. Pair a camera " +
+      "with a still transition (`none`, or one that only fades)."
+  );
+};
+
 export default warnUnregistered;

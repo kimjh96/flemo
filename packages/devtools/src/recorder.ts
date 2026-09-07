@@ -39,6 +39,7 @@ import {
   morphActivity,
   morphTripwires,
   trackMorphAttribute,
+  sampleMorphPaint,
   trackMorphNodes
 } from "./morphProbe";
 import { deriveOverrideWarnings, snapshotOverrides } from "./overrides";
@@ -246,6 +247,10 @@ export const attachFlightRecorder = (options: FlightRecorderOptions = {}): Fligh
     }
     frames.lastFrameAt = now;
     sampleDriverEvidence(frames, flight.elements);
+    // What the flight is PAINTING, which the role sightings cannot answer: a
+    // departure still on glass, and a part sitting narrower than the box
+    // carrying it. Both are defects this recorder watched happen in silence.
+    sampleMorphPaint(flight.morphs);
     if (now - flight.t0Ms > STUCK_STATUS_MS) {
       // Watchdog: a flight this old is a locked queue, not a navigation.
       // Record it as stuck and stop burning frames; the observer keeps

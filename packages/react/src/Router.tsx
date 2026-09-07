@@ -43,6 +43,7 @@ import useTransitionStyles from "@transition/styles";
 
 import { devWarn } from "@utils/devDiagnostics";
 
+import Route, { type RouteProps } from "@Route";
 import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 
 import RouterDepthContext from "./RouterDepthContext";
@@ -51,7 +52,6 @@ import RouterScopeContext, { type RouterScopeNode } from "./RouterScopeContext";
 import { findDuplicateNamedAncestor } from "./RouterTarget";
 import Slot from "./Slot";
 
-import type { RouteProps } from "@Route";
 import type { Path } from "path-to-regexp";
 
 // Find a <Slot> in the layout tree and return its <Route> children — the route
@@ -256,6 +256,30 @@ function Router({
   // path-to-regexp as `undefined`.
   const routeChildren =
     slotRoutes ?? (Children.toArray(children).filter(isValidElement) as ReactElement<RouteProps>[]);
+
+  // NO SLOT, AND SOMETHING HERE IS NOT A ROUTE.
+  //
+  // Without a Slot the children ARE the routes, so a header, a provider or a
+  // devtools element beside them is skipped silently: it renders, it just is
+  // not a screen and does not stop the Router treating the rest as the whole
+  // stack. The docs state the remedy ("If a Router has children that are not
+  // Routes ... wrap the routes in a Slot so flemo can tell screens from the
+  // surrounding layout") and nothing said when it was needed. Reported in
+  // render, which is where the shape is known, and once per Router by the
+  // message's own key.
+  if (!hasSlot) {
+    const strays = Children.toArray(children).filter(
+      (child) => isValidElement(child) && child.type !== Route
+    ).length;
+    if (strays > 0) {
+      devWarn(
+        `This Router has ${strays} child${strays === 1 ? "" : "ren"} that ${
+          strays === 1 ? "is" : "are"
+        } not a <Route> and no <Slot> to separate them from the routes, so flemo cannot tell ` +
+          "screens from layout. Wrap the routes in a <Slot> and leave the chrome outside it."
+      );
+    }
+  }
   const routePaths: Path[] = routeChildren.flatMap((child) =>
     child.props?.path ? ([child.props.path].flat() as Path[]) : []
   );
