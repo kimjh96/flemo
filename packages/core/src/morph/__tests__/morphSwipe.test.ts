@@ -152,6 +152,70 @@ const captureFlyerAnimation = (element: HTMLElement) => {
   if (name) animations.push(new FakeAnimation(name));
 };
 
+// A CHANNEL WHOSE DECLARATION CAN BE READ BACK.
+//
+// The fakes above stand in for animations jsdom does not run, and one with no
+// `effect` is the host that cannot hand its keyframes over — which is the
+// fallback the release still has to keep. This is the other half: an animation
+// that reports its own path, so the gesture can stage the return leg from it.
+interface FakeLeg {
+  keyframes: Keyframe[];
+  currentTime: number | null;
+  startTime: number | null;
+  playbackRate: number;
+  cancelled: boolean;
+  timeline: { currentTime: number };
+  handlers: (() => void)[];
+  pause: () => void;
+  play: () => void;
+  cancel: () => void;
+  addEventListener: (type: string, handler: () => void) => void;
+  effect: { getKeyframes: () => Keyframe[] };
+  finish: () => void;
+}
+
+const CUPERTINO = "cubic-bezier(0.32, 0.72, 0, 1)";
+
+/** Give a staged animation a readable declaration, and its element a stub to stage into. */
+const declareTravel = (animation: FakeAnimation, element: HTMLElement) => {
+  const legs: FakeLeg[] = [];
+  (animation as unknown as { effect: unknown }).effect = {
+    target: element,
+    pseudoElement: null,
+    getTiming: () => ({ duration: 700, delay: 0, easing: "linear" }),
+    getKeyframes: () => [
+      { computedOffset: 0, easing: CUPERTINO, transform: "none" },
+      { computedOffset: 1, easing: CUPERTINO, transform: "translateX(120px)" }
+    ]
+  };
+  element.animate = ((keyframes: Keyframe[]) => {
+    const leg: FakeLeg = {
+      keyframes,
+      currentTime: 0,
+      startTime: null,
+      playbackRate: 1,
+      cancelled: false,
+      timeline: documentTimeline,
+      handlers: [],
+      effect: { getKeyframes: () => keyframes },
+      pause() {},
+      play() {},
+      cancel() {
+        this.cancelled = true;
+      },
+      addEventListener(_type, handler) {
+        this.handlers.push(handler);
+      },
+      finish() {
+        for (const handler of this.handlers.splice(0)) handler();
+      }
+    };
+    legs.push(leg);
+    return leg as unknown as Animation;
+  }) as HTMLElement["animate"];
+  return legs;
+};
+
 describe("beginMorphSwipe", () => {
   const stage = () => {
     const detail = makeScreen(true);
@@ -354,6 +418,57 @@ describe("beginMorphSwipe", () => {
     const second = beginMorphSwipe(store, "POPPING");
 
     expect(second.active).toBe(true);
+  });
+
+  it("returns on the flight's own curve rather than replaying its opening", () => {
+    const { thumbnail } = stage();
+    const swipe = beginMorphSwipe(store, "POPPING");
+    // The runtime writes the flyer's animation as it stages the flight, so the
+    // declaration only exists to be read from here; in a browser the leg is
+    // taken at the hold, and here at the first move.
+    captureFlyerAnimation(thumbnail);
+    const flyer = animations[animations.length - 1]!;
+    const legs = declareTravel(flyer, thumbnail);
+
+    swipe.scrub(0.1);
+
+    // Staged with the drag, so the frame the finger lifts commits no animation.
+    expect(legs).toHaveLength(1);
+    expect(legs[0]!.keyframes.map((frame) => frame.transform)).toEqual([
+      "translateX(120px)",
+      "none"
+    ]);
+    swipe.settle(false, 0.2);
+
+    // The finger's own animation stops where it is; the leg is what moves.
+    expect(flyer.playState).toBe("paused");
+    expect(legs[0]!.playbackRate).toBeGreaterThan(0);
+    // A tenth of the way across leaves nine tenths to walk home, and the leg is
+    // seeked to where that much is LEFT of the declared curve.
+    expect(legs[0]!.currentTime).toBeGreaterThan(0);
+    expect(legs[0]!.currentTime).toBeLessThan(700 * 0.6);
+
+    // The flight lands on the leg, and the leg goes with it: left holding its
+    // landed pose it would wear the layer's pose in the tree it came home to.
+    legs[0]!.finish();
+    expect(layer.contains(thumbnail)).toBe(false);
+    expect(legs[0]!.cancelled).toBe(true);
+  });
+
+  it("resumes the flight itself on a commit, so it lands on its own end", () => {
+    const { thumbnail } = stage();
+    const swipe = beginMorphSwipe(store, "POPPING");
+    captureFlyerAnimation(thumbnail);
+    const flyer = animations[animations.length - 1]!;
+    const legs = declareTravel(flyer, thumbnail);
+
+    swipe.scrub(0.6);
+    swipe.settle(true, 0.2);
+
+    expect(flyer.playbackRate).toBeGreaterThan(0);
+    expect(flyer.playState).toBe("running");
+    // Nothing to run, and nothing left staged on the element either.
+    expect(legs[0]!.cancelled).toBe(true);
   });
 
   it("brings the element home when the gesture is abandoned", () => {

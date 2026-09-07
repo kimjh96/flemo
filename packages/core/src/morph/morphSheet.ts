@@ -1,3 +1,5 @@
+import type { DeclaredFrame } from "@transition/gestureScrub";
+
 import isServer from "@utils/isServer";
 
 import { MORPH_SHEET_ATTR } from "@dom/attributes";
@@ -106,4 +108,130 @@ export const ensurePinnedPoses = (): boolean => {
   }
   registered.set(target, took);
   return took;
+};
+
+// READING THE FLIGHT BACK OUT.
+//
+// A gesture's release has to stage the return of a flight it did not compile,
+// which means reading the path back. `getKeyframes()` looks like the way to do
+// that and is not: Chromium answers a CSS animation with the offsets and the
+// curves and none of the custom properties, and a pinned pose — the whole box
+// travel — lives in exactly those. The sheet the rules went into does have
+// them, and it is right here.
+
+/** `0%` → 0, `from` → 0, `to` → 1. Anything else is not an offset. */
+const offsetOf = (keyText: string): number | null => {
+  const key = keyText.trim();
+  if (key === "from") return 0;
+  if (key === "to") return 1;
+  if (!key.endsWith("%")) return null;
+  const percent = Number.parseFloat(key.slice(0, -1));
+  return Number.isFinite(percent) ? percent / 100 : null;
+};
+
+/** Split a CSS list on its top-level commas — `cubic-bezier()` carries its own. */
+const splitList = (value: string): string[] => {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < value.length; index++) {
+    const character = value[index];
+    if (character === "(") depth++;
+    else if (character === ")") depth--;
+    else if (character === "," && depth === 0) {
+      parts.push(value.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  parts.push(value.slice(start).trim());
+  return parts;
+};
+
+const TIMING_FUNCTION = "animation-timing-function";
+
+/**
+ * The curve the animation itself carries, which its keyframes inherit.
+ *
+ * A flight's rule names both, so the rule that names the animation is where it
+ * is read from; the flyer's own set is written inline instead, as a shorthand
+ * list, so there it is matched by position against the names.
+ */
+const declaredEasing = (
+  rules: readonly CSSRule[],
+  name: string,
+  target: HTMLElement
+): string | null => {
+  for (const rule of rules) {
+    const style = (rule as CSSStyleRule).style;
+    if (!style || typeof style.getPropertyValue !== "function") continue;
+    if (style.getPropertyValue("animation-name").trim() === name) {
+      const easing = style.getPropertyValue(TIMING_FUNCTION).trim();
+      if (easing) return easing;
+    }
+  }
+  const names = splitList(target.style.getPropertyValue("animation-name"));
+  const index = names.indexOf(name);
+  if (index < 0) return null;
+  const easings = splitList(target.style.getPropertyValue(TIMING_FUNCTION));
+  /* v8 ignore next -- a name with no curve beside it is not something the
+     emitters produce; the caller declines rather than guessing one. */
+  if (easings.length === 0 || !easings[0]) return null;
+  // A shorter list repeats, which is what CSS does with any animation longhand.
+  return easings[index % easings.length]!;
+};
+
+/**
+ * One flight's compiled path, as its emitter wrote it.
+ *
+ * `null` when the rules are not this sheet's to read — an animation from
+ * somewhere else, or a flight whose rules have already been dropped — and the
+ * caller falls back to what the animation itself reports.
+ */
+export const declaredMorphKeyframes = (animation: Animation): DeclaredFrame[] | null => {
+  const target = (animation.effect as KeyframeEffect | null)?.target as HTMLElement | null;
+  const name = (animation as unknown as { animationName?: unknown }).animationName;
+  if (!target || typeof name !== "string" || !name) return null;
+  const owner = sheet();
+  /* v8 ignore next -- no document to read from. */
+  if (!owner) return null;
+  let rules: readonly CSSRule[];
+  try {
+    rules = [...owner.cssRules];
+    /* v8 ignore next 3 -- a sheet that refuses to be read is not one of ours,
+       but the read is guarded because the CSSOM makes it throwable. */
+  } catch {
+    return null;
+  }
+
+  const blocks = rules.find(
+    (rule): rule is CSSKeyframesRule =>
+      (rule as CSSKeyframesRule).name === name && (rule as CSSKeyframesRule).cssRules != null
+  );
+  if (!blocks) return null;
+  const inherited = declaredEasing(rules, name, target);
+  if (!inherited) return null;
+
+  const frames: DeclaredFrame[] = [];
+  for (const block of [...blocks.cssRules] as CSSKeyframeRule[]) {
+    const style = block.style;
+    /* v8 ignore next -- every block of a `@keyframes` rule has declarations. */
+    if (!style) return null;
+    const own = style.getPropertyValue(TIMING_FUNCTION).trim();
+    const pose: Record<string, string> = {};
+    for (let index = 0; index < style.length; index++) {
+      const property = style.item(index);
+      if (property === TIMING_FUNCTION) continue;
+      pose[property] = style.getPropertyValue(property).trim();
+    }
+    for (const key of splitList(block.keyText)) {
+      const offset = offsetOf(key);
+      if (offset === null) return null;
+      frames.push({ offset, easing: own || inherited, pose });
+    }
+  }
+  if (frames.length < 2) return null;
+  // Blocks come back in the order they were written, which for a landing that
+  // arrives before it lands is not the order they are played in.
+  frames.sort((left, right) => left.offset - right.offset);
+  return frames;
 };
