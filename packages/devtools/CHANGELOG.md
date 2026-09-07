@@ -1,5 +1,23 @@
 # @flemo/devtools
 
+## 0.8.0
+
+### Minor Changes
+
+- [`f4f874a`](https://github.com/kimjh96/flemo/commit/f4f874aec40ebc289eed1ead5eba4a2dd5a6327a) Dock the on-device readout in a corner and give it a hide control. `position`
+  now takes any of the four corners as well as the centred `"top"` and `"bottom"`
+  strips, and defaults to `"bottom-right"`, opposite the panel's toggle. The pill
+  beside the readout hides it down to itself and brings it back, remembering the
+  choice for the session, and a hidden readout stops polling rather than merely
+  going invisible.
+
+### Patch Changes
+
+- [`4886e6d`](https://github.com/kimjh96/flemo/commit/4886e6d5d5f30825e2a89940ba3eff3c52598495) Retire `flemo:devtools`, the playground's `?devtools=on` opt-in. Nothing has
+  read or written it since `<FlemoDevtools />` began mounting unconditionally, so
+  it is moved to the retired list and a session still carrying it is reported as
+  residue rather than as a live flag.
+
 ## 0.7.0
 
 ### Minor Changes
