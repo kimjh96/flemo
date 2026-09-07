@@ -252,6 +252,35 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     };
     lifecycleSweeps.push(releaseStampedOuter);
 
+    // AND THE HOLDS THIS SCREEN ARMED, if the screen is what went away.
+    //
+    // Every hold `flightHolds` arms is released by a LATER sync pass, and a
+    // screen that unmounts mid-flight never has one — so the response park and
+    // the session-global flight window stayed latched with nothing in the air
+    // (see flightHolds.abandon).
+    //
+    // A cleanup runs on every effect RE-RUN as well as on unmount, and
+    // releasing the arrival armor between two passes of the same flight would
+    // be worse than the leak. The two are told apart by the only thing that
+    // differs: a re-run leaves the screen in the document and an unmount does
+    // not. The check is repeated on a microtask because React's own commit
+    // decides when the node is detached, and by the end of the commit a re-run
+    // has already put a live pass back in place.
+    lifecycleSweeps.push(() => {
+      const gone = () => {
+        const { scope: live } = getElements();
+        return !live || !live.isConnected;
+      };
+      if (gone()) {
+        holds.abandon();
+        return;
+      }
+      if (typeof queueMicrotask !== "function") return;
+      queueMicrotask(() => {
+        if (gone()) holds.abandon();
+      });
+    });
+
     // EVERY flight participant — active or passive, before any early-return
     // fork below (the passive player join returns long before the active
     // path) — gets async image decoding before its tiles paint mid-motion:
