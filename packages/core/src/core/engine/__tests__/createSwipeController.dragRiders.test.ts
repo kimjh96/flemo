@@ -173,6 +173,7 @@ function buildDom(options: { nestScope?: boolean; noBar?: boolean; dimInHost?: b
     root,
     scope,
     screenContainer,
+    prevScreenContainer,
     decorator,
     layer,
     prevDecorator,

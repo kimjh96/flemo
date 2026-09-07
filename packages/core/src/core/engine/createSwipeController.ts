@@ -748,9 +748,17 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // `tether` and reproduced on `cupertino`: the header held its pose through
     // a 134px drag while the screen under it followed the finger.
     //
-    // Retried rather than armed once: `beginRiderSwipe` answers null while
-    // there is nothing to drive, and the covered side's parts arrive with the
-    // React commit this drag itself woke.
+    // Retried until it takes: `beginRiderSwipe` answers null while there is
+    // nothing to drive, and on a screen whose parts are staged into a layer
+    // above there is nothing until that staging has run.
+    //
+    // WHAT IT TAKES IS WHAT EXISTS WHEN IT SUCCEEDS. The candidate set is read
+    // once, at the start of the gesture, so a part mounted later — the covered
+    // screen's `<Layer>` slots come back as new nodes with the commit this
+    // drag's own wake causes — is not driven by this gesture. That is the
+    // behaviour this has always had, and no report has asked for the other
+    // one; taking riders on mid-drag means a growing set and an element that
+    // must never be driven twice, which is not a thing to add speculatively.
     if (!riderSwipe) riderSwipe = beginRiderSwipe(collectPartRiders());
   };
 
