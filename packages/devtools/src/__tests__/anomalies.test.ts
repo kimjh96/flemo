@@ -62,7 +62,12 @@ const cleanFlight = (): FlightAnomalyInput => ({
     strandedGhosts: 0,
     leakedSheetRules: 0,
     layerResidue: 0,
-    duplicatedKeys: []
+    duplicatedKeys: [],
+    departureFrames: 0,
+    departureMaxOpacity: 0,
+    partGapPx: 0,
+    partGapName: null,
+    partGapFrames: 0
   },
   tripwires: []
 });
