@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import * as real from "../index";
 import * as inert from "../noop";
 import { REPORT_SCHEMA_VERSION as RECORDER_VERSION } from "../recorder";
+import { SWIPE_PROBE_MS } from "../swipeProbe";
 
 // The production entry (src/noop.ts) is what `exports`'s `production`
 // condition resolves to. Two things have to stay true about it, and neither is
@@ -73,6 +74,19 @@ describe("production entry", () => {
     expect(document.body.innerHTML).toBe(before);
     expect(() => panel.detach()).not.toThrow();
     expect(() => hud.detach()).not.toThrow();
+  });
+
+  it("watches no swipe release", () => {
+    // The probe listens on every pointer release and runs a frame loop for the
+    // length of a settle. Production must do neither, and must still answer.
+    const seen = vi.fn();
+    const probe = inert.attachSwipeProbe({ onRelease: seen });
+
+    document.dispatchEvent(new Event("pointerup"));
+
+    expect(seen).not.toHaveBeenCalled();
+    expect(inert.SWIPE_PROBE_MS).toBe(SWIPE_PROBE_MS);
+    expect(() => probe.detach()).not.toThrow();
   });
 
   it("keeps the pure analysis helpers real, not stubbed", () => {
