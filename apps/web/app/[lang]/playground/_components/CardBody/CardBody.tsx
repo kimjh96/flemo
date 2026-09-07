@@ -4,7 +4,7 @@ import type { PropsWithChildren } from "react";
 
 import { Part } from "@flemo/react";
 
-import { chromePartFor } from "../../_transitions/detailChrome";
+import { DETAIL_CHROME } from "../../_transitions/detailChrome";
 
 import { useBench } from "../../_providers/BenchContext";
 
@@ -33,14 +33,14 @@ export interface CardBodyProps {
 // part; which one depends on whose flight covers it: the card's
 // (`card-chrome`) when the card flies, and otherwise the per-transition clock
 // from detailChrome.ts, which holds it back for exactly the artwork's flight
-// and fades it in across the landing.
+// and fades it in across the landing. That part is one part for every case now:
+// it says `after: "flight"` and the flight answers with its own length.
 function CardBody({ className, as = "copy", children }: PropsWithChildren<CardBodyProps>) {
-  const { transition, cardMorph } = useBench();
+  const { cardMorph } = useBench();
 
   if (cardMorph === null && as === "copy") return <div className={className}>{children}</div>;
 
-  const name =
-    cardMorph === null ? chromePartFor(transition) : as === "chrome" ? "card-chrome" : "card-body";
+  const name = cardMorph === null ? DETAIL_CHROME : as === "chrome" ? "card-chrome" : "card-body";
 
   return (
     <Part name={name} className={className}>

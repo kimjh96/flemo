@@ -43,8 +43,9 @@ export interface TonightRouterProps {
 // branch on it — with one exception the deleted playground's clocks.ts already
 // paid for: the detail's floating header is covered by the artwork's flight
 // and revealed at the landing, so its entrance has to carry the flight's own
-// clock, and a part authors literal durations. detailChrome.ts writes one part
-// per case for exactly that element, and nothing else reads the case name.
+// clock. detailChrome.ts is that element's part, and it takes the flight's
+// length from the flight (`after: "flight"`) rather than from a table of case
+// names.
 //
 // `<Slot>` is required rather than decorative: the Router has a non-Route child
 // (the bench provider's subtree would be one too), and the docs are explicit:

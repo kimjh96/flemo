@@ -16,9 +16,29 @@ import type { BaseTransition, SwipeAnimate, TransitionVariant } from "@transitio
 //
 // An explicit `duration` still wins, including `0` for a piece that should
 // snap and a span longer than the screen's for chrome meant to outlive it.
+/**
+ * A part's own animation options: the screen's, plus one thing a screen cannot
+ * express for it.
+ *
+ * `after: "flight"` starts the part when the flight it rides ENDS. A part that
+ * is covered for the length of a flight and revealed at the landing has to
+ * wait exactly that long, and the length belongs to whichever transition is
+ * carrying it — which the part does not know and must not be made to know.
+ * Before this the only way to write it was a literal, so a consumer's chrome
+ * needed one part per transition and a table of their durations: this
+ * repository's own playground carried eight rows, and a transition with no row
+ * simply had no part at all.
+ *
+ * `delay` still means what it means, and composes: `{ after: "flight", delay:
+ * 0.04 }` is four hundredths after the landing.
+ */
+export type PartVariantOptions = AnimationOptions & {
+  after?: "flight";
+};
+
 export type PartVariantValue = {
   value: TransitionTarget;
-  options?: AnimationOptions;
+  options?: PartVariantOptions;
 };
 
 // User-augmentable registry of part-transition names, mirroring RegisterRoute /

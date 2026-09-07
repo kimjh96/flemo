@@ -51,6 +51,16 @@ export const resolvePartClock = (
     const authored = part.variants[variant];
     const screen = transition?.variants[variant];
 
+    // AFTER THE FLIGHT, which is the one length a part cannot write down.
+    //
+    // A part covered for a flight and revealed at its landing waits exactly as
+    // long as the flight, and that length belongs to whichever transition is
+    // carrying it. Written as a literal it is one part per transition plus a
+    // table of their durations, which is what this repository's own playground
+    // had: eight rows, and a consumer's own transition got no part at all.
+    const flightSpan = variantDelay(screen?.options) + variantDuration(screen?.options);
+    const after = authored.options?.after === "flight";
+
     variants[variant] = {
       value: authored.value,
       options: {
@@ -58,7 +68,9 @@ export const resolvePartClock = (
         // `??`, not `||`: an authored `0` is a snap the author asked for, and
         // it has to survive a screen that runs for three quarters of a second.
         duration: authored.options?.duration ?? variantDuration(screen?.options),
-        delay: authored.options?.delay ?? variantDelay(screen?.options)
+        delay: after
+          ? flightSpan + (authored.options?.delay ?? 0)
+          : (authored.options?.delay ?? variantDelay(screen?.options))
       }
     };
   }
