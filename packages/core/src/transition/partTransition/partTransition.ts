@@ -1,5 +1,7 @@
 import type { BaseTransition, Transition } from "@transition/typing";
 
+import { warnUnregistered } from "@utils/devWarn";
+
 import { resolvePartClock } from "@transition/partTransition/resolvePartClock";
 
 import type { PartTransition, PartTransitionName } from "@transition/partTransition/typing";
@@ -32,6 +34,18 @@ export const resolvePartDefinition = (
 ): Pick<BaseTransition, "initial" | "variants"> | undefined => {
   if (name === null) return undefined;
   const authored = partTransitionMap.get(name as PartTransitionName);
-  if (!authored) return undefined;
+  if (!authored) {
+    // A `<Part name>` nobody registered is an element that sits still while
+    // the DOM says everything is right. Only once the registry has anything
+    // in it: an empty map is a render order, not a mistake.
+    if (partTransitionMap.size > 0) {
+      warnUnregistered(
+        "part transition",
+        name,
+        "The `<Part>` will not move. Pass it to `<Router partTransitions={[...]}>`."
+      );
+    }
+    return undefined;
+  }
   return resolvePartClock(transition, authored);
 };

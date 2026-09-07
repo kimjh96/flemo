@@ -7,6 +7,8 @@ import {
 import type { AnimationOptions, TransitionTarget } from "@transition/cssTypes";
 import type { TransitionVariant } from "@transition/typing";
 
+import { warnUnregistered } from "@utils/devWarn";
+
 import {
   ACTIVE_ATTR,
   ANIM_HOLD_ATTR,
@@ -586,8 +588,18 @@ const startFlight = (
   store: NavigateStoreApi,
   carrying: MorphFlight | null
 ): void => {
-  const transition =
-    morphTransitionMap.get(entry.name) ?? morphTransitionMap.get(DEFAULT_MORPH_TRANSITION_NAME);
+  const named = morphTransitionMap.get(entry.name);
+  if (!named && morphTransitionMap.size > 0) {
+    // A `<Morph transition>` nobody registered still flies, on the built-in
+    // preset — which is a shared element that ignores what its author wrote
+    // rather than one that does not move, so it is the quietest of the four.
+    warnUnregistered(
+      "morph transition",
+      entry.name,
+      "The flight falls back to the built-in `shared` preset. Pass it to `<Router morphTransitions={[...]}>`."
+    );
+  }
+  const transition = named ?? morphTransitionMap.get(DEFAULT_MORPH_TRANSITION_NAME);
   if (!transition) return;
 
   const { enter: enterVariant, exit: exitVariant } = flightVariants(status);

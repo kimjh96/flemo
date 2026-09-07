@@ -9,6 +9,8 @@ import {
   variantDuration
 } from "@transition/variantMotion";
 
+import { warnUnregistered } from "@utils/devWarn";
+
 import {
   ACTIVE_ATTR,
   ANIM_HOLD,
@@ -1290,7 +1292,19 @@ export const compileTransitionStyles = (
   for (const transition of transitionList) {
     if (!transition.decoratorName) continue;
     const decorator = decoratorByName.get(transition.decoratorName);
-    if (!decorator) continue;
+    if (!decorator) {
+      // A transition that names a decorator nobody registered gets no dim, and
+      // said nothing about it. Only once something is registered: an empty set
+      // is a Router that has not got there yet.
+      if (decoratorByName.size > 0) {
+        warnUnregistered(
+          "decorator",
+          transition.decoratorName,
+          `The "${transition.name}" transition will run with no overlay. Pass it to \`<Router decorators={[...]}>\`.`
+        );
+      }
+      continue;
+    }
 
     const resolved = resolveDecoratorClock(transition, decorator);
     const pairName = `${transition.name}--${decorator.name}`;
