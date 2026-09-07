@@ -264,6 +264,86 @@ describe("beginRiderSwipe", () => {
     expect(animations[3]!.currentTime! / animations[0]!.currentTime!).toBeCloseTo(1 / 0.4, 5);
   });
 
+  it("mirrors a declared stop onto the leg that walks home", () => {
+    // The generality claim, pinned: nothing here knows what a transition
+    // declares. A stop a quarter of the way out is a stop three quarters of the
+    // way home, so a drag whose properties travel at different rates retraces
+    // them rather than cutting straight back.
+    beginRiderSwipe([
+      {
+        element,
+        motion: motion({ via: [{ at: 0.25, value: { opacity: 0.4 } }] })
+      }
+    ]);
+
+    const [, commitLeg, cancelLeg] = animations;
+    expect(commitLeg!.keyframes.map((frame) => frame.offset)).toEqual([undefined, 0.25, undefined]);
+    // Reversed, so the arrival pose leads at 0 and the drag's origin closes at
+    // 1, with the stop three quarters of the way home.
+    expect(cancelLeg!.keyframes.map((frame) => frame.offset)).toEqual([0, 0.75, 1]);
+    expect(cancelLeg!.keyframes.map((frame) => frame.opacity)).toEqual(["1", "0.4", "0"]);
+  });
+
+  it("reports itself stale once its element leaves the document", () => {
+    // An animation does not follow its element out, so a rider whose node was
+    // replaced by the wake the drag caused has to be staged again.
+    const swipe = beginRiderSwipe([{ element, motion: motion() }]);
+
+    expect(swipe!.stale).toBe(false);
+    element.remove();
+    expect(swipe!.stale).toBe(true);
+  });
+
+  it("places the leg against a resolved timeline rather than playing it", () => {
+    // `play()` leaves an animation play-PENDING, and the two engines resolve
+    // the start time it lands on differently. A start written by hand has no
+    // pending frame to disagree about.
+    const swipe = beginRiderSwipe([{ element, motion: motion() }]);
+    swipe!.scrub(0.5);
+    const cancelLeg = animations[2]!;
+    (cancelLeg as unknown as { timeline: { currentTime: number } }).timeline = {
+      currentTime: 5_000
+    };
+
+    swipe!.settle(false, 0.2);
+
+    expect(cancelLeg.played).toBe(false);
+    expect((cancelLeg as unknown as { startTime?: number }).startTime).toBeLessThan(5_000);
+  });
+
+  it("leaves a rider the release has nothing left to fly", () => {
+    // Cancelled without ever having moved: the leg is already standing on the
+    // pose it would land at, and the landing below still hands the element
+    // back. Flying a zero-length leg would only delay it.
+    const swipe = beginRiderSwipe([{ element, motion: motion() }]);
+    swipe!.scrub(0);
+
+    swipe!.settle(false, 0.2);
+
+    expect(animations[2]!.played).toBe(false);
+    expect(animations[0]!.paused).toBe(true);
+  });
+
+  it("lands once, whether the finish or the backstop gets there first", () => {
+    // Both are wired on purpose: an animation torn down before it finishes
+    // fires nothing, and a caller waiting on the landing must not wait for
+    // ever. Whichever arrives second must not hand the element back twice.
+    vi.useFakeTimers();
+    try {
+      const swipe = beginRiderSwipe([{ element, motion: motion() }]);
+      swipe!.scrub(0.5);
+      swipe!.settle(false, 0.2);
+
+      animations[2]!.listeners.finish?.forEach((fn) => fn());
+      const cancelledOnce = animations.map((animation) => animation.cancelled);
+      vi.advanceTimersByTime(1_000);
+
+      expect(animations.map((animation) => animation.cancelled)).toEqual(cancelledOnce);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("drives nothing for a rider with no motion to run", () => {
     expect(beginRiderSwipe([{ element, motion: motion({ duration: 0 }) }])).toBeNull();
     expect(beginRiderSwipe([])).toBeNull();
