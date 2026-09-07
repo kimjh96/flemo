@@ -22,9 +22,8 @@ routing library and an animation library together and then keep their timing in 
 pnpm add @flemo/react
 ```
 
-`@flemo/react` needs `react ^19` and `react-dom ^19`, and nothing else. Shared-element
-morphs are included, so no animation library sits beside it. `@flemo/core` comes along as a
-regular dependency.
+`@flemo/react` needs `react ^19` and `react-dom ^19`, and nothing else. `@flemo/core` comes
+along as a regular dependency.
 
 ## Example
 

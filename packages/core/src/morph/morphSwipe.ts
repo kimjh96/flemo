@@ -1,6 +1,14 @@
 import type { NavigateStatus, NavigateStoreApi } from "@navigate/store";
 
-import { holdScrubAt, scrubTo, settleScrubbed } from "@transition/gestureScrub";
+import {
+  holdScrubAt,
+  placeLeg,
+  returnLegSeek,
+  scrubTo,
+  settleScrubbed,
+  stageReturnLeg,
+  type ReturnLeg
+} from "@transition/gestureScrub";
 
 import {
   clearGestureDeliveries,
@@ -9,6 +17,7 @@ import {
   stageHeldFlights,
   type MorphFlight
 } from "@morph/attachMorph";
+import { declaredMorphKeyframes } from "@morph/morphSheet";
 
 // A MORPH THE FINGER DRIVES.
 //
@@ -26,9 +35,9 @@ import {
 //
 // So the gesture stages the flights itself, holds them at zero, and moves them
 // by hand. It runs NO frame loop: the animations are the browser's own, and the
-// pointer event sets their time. On release they are handed back to the
-// browser — played forward to commit, or backwards to put the element home —
-// at whatever speed the release settled the screens at.
+// pointer event sets their time. On release they are handed back to the browser
+// at whatever speed the release settled the screens at: a commit resumes the
+// flight, and a cancel plays the return leg staged alongside it.
 //
 // The scrub reaches every animation of the flight through the DOM rather than
 // through the flight record, because a flight is more than its element: the
@@ -55,9 +64,9 @@ export interface MorphSwipe {
    * Hand the flights back to the browser.
    *
    * `commit` plays them out to the arrival — the gesture became a navigation.
-   * Otherwise they run BACKWARDS to where they started and the elements go
-   * home, which is the only way back: a flight that is merely stopped leaves
-   * the element in the layer, outside the tree its consumer wrote.
+   * Otherwise they run their RETURN, the same path walked the other way, and
+   * the elements go home: a flight that is merely stopped leaves the element in
+   * the layer, outside the tree its consumer wrote.
    */
   settle: (commit: boolean, seconds: number) => void;
   /** Whether anything is actually flying (a screen pair with no shared element is not). */
@@ -118,9 +127,38 @@ export const beginMorphSwipe = (
     for (const flight of heldFlights(store)) flight.suspendBackstop();
   };
 
+  // THE RETURN IS STAGED WITH THE DRAG, NOT BUILT AT THE RELEASE.
+  //
+  // A cancel handed back with a negative playback rate replays the curve's
+  // OPENING, which is its own tangent: the shared element came home at a dead
+  // constant speed while the screens around it decelerated on the author's own
+  // curve. So each animation's return leg is staged here, parked out of effect,
+  // and the release only seeks and plays it (see @transition/gestureScrub).
+  //
+  // Kept per source animation, including the ones that decline: a flight has
+  // several channels — the ghost, the cut, the camera, any nested morph — and
+  // a `null` here is the record that this one is handed back the old way.
+  const returns = new Map<Animation, ReturnLeg | null>();
+  const stageReturns = () => {
+    if (released) return;
+    for (const animation of morphAnimations()) {
+      if (returns.has(animation)) continue;
+      // The path as the emitter wrote it: an engine that answers a compiled
+      // animation without its custom properties would otherwise stage a leg
+      // that moves nothing (see declaredMorphKeyframes).
+      returns.set(animation, stageReturnLeg(animation, declaredMorphKeyframes(animation)));
+    }
+  };
+
+  const dropReturns = () => {
+    for (const leg of returns.values()) leg?.animation.cancel();
+    returns.clear();
+  };
+
   const holdAt = (seconds: number) => {
     suspendBackstops();
     holdScrubAt(morphAnimations(), seconds);
+    stageReturns();
   };
 
   // Nested flights are staged one microtask late (a container has to decline or
@@ -139,6 +177,10 @@ export const beginMorphSwipe = (
       const flight = clockOf();
       if (!flight) return;
       suspendBackstops();
+      // A nested flight can begin at any point of the drag — a container has to
+      // decline or start before the morphs inside it know which they are — so
+      // the legs are taken as the animations appear rather than once at zero.
+      stageReturns();
       scrubTo(morphAnimations(), flight, progress);
     },
     settle: (commit: boolean, seconds: number) => {
@@ -159,9 +201,41 @@ export const beginMorphSwipe = (
       // Handed back to the browser, so the net goes back up — sized to the
       // release, not to the flight the gesture never ran.
       for (const held of heldFlights(store)) held.armBackstop(span);
-      settleScrubbed(animations, flight, commit, seconds, () => {
+      if (commit) {
+        // A COMMIT IS THE FLIGHT ITSELF, RESUMED. Played forward from where the
+        // finger left it, the animation walks the rest of the author's own
+        // curve — the deceleration a cancel never reaches is exactly what is
+        // ahead of it — and it lands on the `animationend` the flight is
+        // already listening for. There is nothing a staged leg would add, and
+        // running one instead would take that landing away.
+        dropReturns();
+        settleScrubbed(animations, flight, true, seconds);
+        return;
+      }
+      const land = () => {
         for (const held of heldFlights(store)) held.finish();
-      });
+        // The flight has put the element back in its own tree; a leg still
+        // holding its landed pose would wear the layer's pose there.
+        dropReturns();
+      };
+      // Whatever declined a leg — a stepped handover, a host that dropped a
+      // property — is handed back the way it always was.
+      const backwards: Animation[] = [];
+      for (const animation of animations) {
+        const leg = returns.get(animation) ?? null;
+        const seek = leg ? returnLegSeek(leg, animation) : null;
+        if (!leg || !seek) {
+          backwards.push(animation);
+          continue;
+        }
+        // The finger's own animation stops where it is; the leg is what moves
+        // from here, and a WAAPI animation outranks the compiled one it was
+        // read from.
+        animation.pause();
+        leg.animation.addEventListener("finish", land, { once: true });
+        placeLeg(leg.animation, seek.at, seek.remaining, seconds);
+      }
+      if (backwards.length > 0) settleScrubbed(backwards, flight, false, seconds, land);
     }
   };
 };

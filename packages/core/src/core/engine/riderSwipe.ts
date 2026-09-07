@@ -1,7 +1,7 @@
 import animateInline from "@transition/animateInline";
 import { easingToCss, targetToDecls } from "@transition/compileTransitionStyles";
 import { invertEasing } from "@transition/cubicBezier";
-import { holdScrubAt, scrubTo } from "@transition/gestureScrub";
+import { holdScrubAt, PARKED_MS, placeLeg, scrubTo } from "@transition/gestureScrub";
 import type { VariantMotion } from "@transition/variantMotion";
 
 import { SKIP_ANIMATION_ATTR } from "@dom/attributes";
@@ -90,13 +90,6 @@ interface StagedRider {
   readonly to: VariantMotion["to"];
   readonly clock: { start: number; duration: number; ease: VariantMotion["ease"] };
 }
-
-/**
- * A time before the active interval, where `fill: forwards` contributes
- * nothing. A leg parked here is staged, composited and inert; seeking it into
- * range is what makes it the motion on screen.
- */
-const PARKED_MS = -1;
 
 /**
  * The declared path, end for end: the same poses and the same stops, walked the
@@ -308,21 +301,9 @@ export const beginRiderSwipe = (
           // animation still holds the pose and the landing below lands it.
           rider.animation.pause();
         } else {
-          // The rate is what makes the leg take the seconds the release settled
-          // on: it covers what is left of its own clock in exactly that time.
-          const rate = remaining / (Math.max(seconds, 1 / 60) * 1000);
-          try {
-            leg.currentTime = at;
-            leg.playbackRate = rate;
-            const timeline =
-              typeof leg.timeline?.currentTime === "number" ? leg.timeline.currentTime : null;
-            if (timeline === null) leg.play();
-            else leg.startTime = timeline - at / rate;
-          } catch {
-            /* v8 ignore next -- an engine that refuses the placement still has
-               the play below. */
-            leg.play();
-          }
+          // One copy of the placement arithmetic, shared with the morph's own
+          // return: what is left of the leg's clock covers the release.
+          placeLeg(leg, at, remaining, seconds);
         }
       }
       return Promise.all(landings).then(() => undefined);
