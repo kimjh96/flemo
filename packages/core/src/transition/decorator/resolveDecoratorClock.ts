@@ -30,6 +30,16 @@ import type { Decorator } from "@transition/decorator/typing";
  * push and pop differ (material runs 0.35s and 0.25s) gives its dim the same
  * asymmetry without the author restating it.
  *
+ * THE CURVE IS NOT PART OF THIS, and that is a decision rather than an
+ * omission. A `<Part>` now takes the screen's curve when it names none, because
+ * a part's pose is a place ON the screen and the two have to agree there. A
+ * decorator has no such place: it dims. `overlay` records what happens if the
+ * two rules are collapsed into one — cupertino's positional decelerate curve
+ * front-loads a luminance ramp into an abrupt step with a long invisible tail,
+ * against a decorator designed for an even perceived ramp. So the length is
+ * inherited, the curve is authored, and a decorator that wants the screen's
+ * curve writes it.
+ *
  * Resolution is COMPILE TIME and produces a literal. It must never become a
  * `var()` in `animation-duration`: timing that depended on custom properties
  * lost WebKit's accelerated playback and collapsed to a 2-frame snap under

@@ -779,6 +779,28 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   // A swipe-back is a POP, so the dragged screen's riders take the active side
   // of POPPING and the screen returning underneath takes the passive one — the
   // same two variants the landing flight would run.
+  /**
+   * The screen a piece of chrome rides, as the scrub needs to read it.
+   *
+   * A part and a dim are chrome ON a screen, and a drag reports the two screens
+   * separately: which of the two numbers the chrome reads, and the curve that
+   * screen's own pop runs, are the pair that keeps the chrome in the flight's
+   * phase rather than the finger's (see `RiderMotion.phase`).
+   *
+   * Null where that screen animates nothing, which is a side with no phase to
+   * be in: the chrome then stays position-controlled, as everything was before.
+   */
+  const screenPhase = (active: boolean): RiderMotion["phase"] => {
+    const transition = config.getTransition();
+    const motion = resolveVariantMotion(transition, `POPPING-${active}` as TransitionVariant);
+    if (!motion) return undefined;
+    return {
+      side: active ? "current" : "prev",
+      ease: motion.ease,
+      duration: motion.duration
+    };
+  };
+
   const collectPartRiders = (): RiderMotion[] => {
     const transition = config.getTransition();
     const riders: RiderMotion[] = [];
@@ -792,7 +814,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       const motion = definition
         ? resolveVariantMotion(definition, `POPPING-${active}` as TransitionVariant)
         : null;
-      if (motion) riders.push({ element, motion });
+      if (motion) riders.push({ element, motion, phase: screenPhase(active) });
     };
     for (const element of partEls.current) addPart(element, true);
     for (const element of partEls.prev) addPart(element, false);
@@ -876,7 +898,20 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const addDecorator = (element: HTMLElement | null, active: boolean) => {
       if (!element) return;
       const motion = resolveVariantMotion(clock, `POPPING-${active}` as TransitionVariant);
-      if (motion) riders.push({ element, motion });
+      // THE SIDE, BUT NOT THE CURVE. A dim belongs to one of the two screens
+      // and reads that one's progress, so a transition that walks its covered
+      // side to a stop (`material`) stops the wash over it there too. Its CURVE
+      // stays its own: a decorator dims rather than takes a place on the screen,
+      // and a positional curve front-loads a luminance ramp into a step (see
+      // `overlay.ts`, and the note in `resolveDecoratorClock`). So the phase
+      // this passes carries the decorator's own ease, not the screen's.
+      if (motion) {
+        riders.push({
+          element,
+          motion,
+          phase: { side: active ? "current" : "prev", ease: motion.ease, duration: motion.duration }
+        });
+      }
     };
     const { scope, decorator } = config.getElements();
     // The handle first, the owner query as the fallback: a screen renders its
@@ -1319,8 +1354,16 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       // itself, and the frame that lands on is not ours to predict.
       armDragRiders();
       // The same span everything else reads, in the 0-1 form the scrub takes.
-      riderSwipe?.scrub(gestureProgress / 100);
-      decoratorSwipe?.scrub(gestureProgress / 100);
+      // THE SCREENS' OWN NUMBERS, not the gesture's, because chrome rides a
+      // screen and the two screens need not be at the same point of a drag.
+      // `material` walks the covered one to `PULL` and holds it there while the
+      // dragged one keeps going, and `layout` does not move it at all: a part
+      // on it used to track the finger past a screen that had stopped, which is
+      // the chrome-drifting-from-its-screen failure this whole path exists to
+      // prevent. For every transition that declares no `progress` of its own
+      // this is the same number `gestureProgress` is, on both sides.
+      riderSwipe?.scrub(screens);
+      decoratorSwipe?.scrub(screens);
     };
 
     if (swipe.onMove) {

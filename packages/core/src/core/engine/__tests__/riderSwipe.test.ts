@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { invertEasing } from "@transition/cubicBezier";
 import type { VariantMotion } from "@transition/variantMotion";
 
-import { beginRiderSwipe } from "@core/engine/riderSwipe";
+import { beginRiderSwipe, type RiderMotion } from "@core/engine/riderSwipe";
 
 import { SKIP_ANIMATION_ATTR } from "@dom/attributes";
 
@@ -393,5 +394,189 @@ describe("beginRiderSwipe", () => {
     expect(beginRiderSwipe([{ element, motion: motion({ duration: 0 }) }])).toBeNull();
     expect(beginRiderSwipe([])).toBeNull();
     expect(animations).toHaveLength(0);
+  });
+});
+
+// THE FINGER OWNS THE SCREEN'S POSITION. EVERYTHING ELSE OWNS ITS TIME.
+//
+// Seeking a rider through the inverse of its OWN curve cancels that curve: the
+// rider then sits at the gesture's own fraction of its travel whatever it
+// authored. A flight cancels nothing, so a drag and the pop it walks were two
+// different motions, and the curve an author wrote only ever appeared on
+// release. Reported from the playground as a swipe that looked like a different
+// transition from the pop.
+describe("a rider reads the gesture through the screen it rides", () => {
+  const CUPERTINO: [number, number, number, number] = [0.32, 0.72, 0, 1];
+
+  /** Where a rider's own animation has been put, as a fraction of its clock. */
+  const timeFraction = (index: number, durationMs = 400) =>
+    (animations[index]!.currentTime ?? 0) / durationMs;
+
+  /** A screen on cupertino's curve, running the 0.4s these riders default to. */
+  const screen = (over: Partial<NonNullable<RiderMotion["phase"]>> = {}) => ({
+    side: "current" as const,
+    ease: CUPERTINO,
+    duration: 0.4,
+    ...over
+  });
+
+  /**
+   * Where a screen on `CUPERTINO` is in its own flight, in seconds, when it is
+   * `p` across.
+   *
+   * Computed here rather than read back off the animation: an expectation taken
+   * from the thing under test moves with it, and the first draft of these
+   * passed against the arithmetic they were written to rule out.
+   */
+  const flightSeconds = (p: number, duration = 0.4) => invertEasing(CUPERTINO)(p) * duration;
+
+  it("puts a rider at the flight time its screen is at, not at the gesture's", () => {
+    const swipe = beginRiderSwipe([
+      { element, motion: motion({ ease: "linear" }), phase: screen() }
+    ]);
+
+    swipe!.scrub(0.5);
+
+    // Cupertino's curve is half travelled about a sixth of the way through its
+    // clock, so a screen half-way across is a flight barely started and the
+    // chrome on it has barely moved. Seeked through its OWN linear curve this
+    // rider would have been at 0.5.
+    expect(timeFraction(0)).toBeCloseTo(flightSeconds(0.5) / 0.4, 5);
+    expect(timeFraction(0)).toBeLessThan(0.25);
+  });
+
+  // THE SCREEN'S PROGRESS IS A FRACTION OF THE SCREEN'S CLOCK, NOT OF THIS ONE.
+  //
+  // The playground's `detail-chrome` runs 0.16s against cupertino's 0.7s, so
+  // the seconds a screen position stands for cover four times as much of the
+  // part's travel. Reading the screen's fraction as if it were the part's put
+  // that header at 3% of its travel where the flight has it at 49%, which is
+  // the same class of mistake as the curve cancelling: a number carried across
+  // a boundary it does not belong to.
+  it("converts the screen's progress into seconds before reading its own clock", () => {
+    const short = beginRiderSwipe([
+      {
+        element,
+        motion: motion({ duration: 0.1, ease: "linear" }),
+        phase: screen({ duration: 0.4 })
+      }
+    ]);
+
+    short!.scrub(0.5);
+
+    // A quarter of the screen's clock is the whole of this rider's, so the
+    // seconds the screen is at put it most of the way along.
+    const seconds = flightSeconds(0.5);
+    expect(timeFraction(0, 100)).toBeCloseTo(seconds / 0.1, 5);
+    expect(timeFraction(0, 100)).toBeGreaterThan(0.5);
+  });
+
+  it("holds a rider that finishes before the drag does", () => {
+    // Its own clock runs out inside the flight, which is what the pop does too:
+    // the chrome is gone and the screen is still sliding.
+    const short = beginRiderSwipe([
+      {
+        element,
+        motion: motion({ duration: 0.05, ease: "linear" }),
+        phase: screen({ duration: 0.4 })
+      }
+    ]);
+
+    short!.scrub(0.9);
+
+    // At the end, less the guard that keeps a scrub inside the active phase:
+    // a tenth of a millisecond is 0.2% of a 50ms clock.
+    expect(timeFraction(0, 50)).toBeGreaterThan(0.99);
+    expect(timeFraction(0, 50)).toBeLessThan(1);
+  });
+
+  it("changes nothing for a rider whose curve is already its screen's", () => {
+    // Which, after `resolvePartClock`, is every part that does not name one.
+    // The two arithmetics have to agree exactly there or this would be a
+    // silent change to every existing drag.
+    const own = beginRiderSwipe([{ element, motion: motion({ ease: CUPERTINO }) }]);
+    own!.scrub(0.37);
+    const positionControlled = timeFraction(0);
+
+    animations.length = 0;
+    const second = document.createElement("div");
+    document.body.appendChild(second);
+    stubAnimate(second);
+    const phased = beginRiderSwipe([
+      {
+        element: second,
+        motion: motion({ ease: CUPERTINO }),
+        phase: screen()
+      }
+    ]);
+    phased!.scrub(0.37);
+
+    expect(timeFraction(0)).toBeCloseTo(positionControlled, 10);
+  });
+
+  it("reads the number belonging to the side it rides", () => {
+    // `material` walks the covered screen to its pull and stops it there while
+    // the dragged one keeps going. A part on the covered screen used to track
+    // the finger past a screen that had stopped moving.
+    const covered = document.createElement("div");
+    document.body.appendChild(covered);
+    stubAnimate(covered);
+
+    const swipe = beginRiderSwipe([
+      { element, motion: motion({ ease: "linear" }), phase: screen({ ease: "linear" }) },
+      {
+        element: covered,
+        motion: motion({ ease: "linear" }),
+        phase: screen({ side: "prev", ease: "linear" })
+      }
+    ]);
+
+    swipe!.scrub({ current: 0.8, prev: 0.25 });
+
+    expect(timeFraction(0)).toBeCloseTo(0.8, 5);
+    expect(timeFraction(3)).toBeCloseTo(0.25, 5);
+  });
+
+  it("is its own phase when the screen it rides animates nothing", () => {
+    // A side with no motion has no phase to be in, and the rider stays
+    // position-controlled exactly as everything was before any of this.
+    const swipe = beginRiderSwipe([{ element, motion: motion({ ease: CUPERTINO }) }]);
+
+    swipe!.scrub(0.5);
+
+    // Its own curve inverted: the pose is the gesture's half, and the TIME is
+    // wherever that curve puts it.
+    expect(timeFraction(0)).toBeLessThan(0.25);
+  });
+
+  it("continues the commit from the time the finger left, not from the gesture's", () => {
+    const swipe = beginRiderSwipe([
+      { element, motion: motion({ ease: "linear" }), phase: screen() }
+    ]);
+    swipe!.scrub(0.5);
+
+    swipe!.settle(true, 0.2);
+
+    // The commit leg is the same path forward, so it picks up at the flight
+    // time the drag left. Seeking it to the gesture's 0.5 instead would jump
+    // the chrome the moment the finger lifts.
+    expect(animations[1]!.currentTime! / 400).toBeCloseTo(flightSeconds(0.5) / 0.4, 5);
+    expect(animations[1]!.currentTime! / 400).not.toBeCloseTo(0.5, 2);
+  });
+
+  it("mirrors the cancel through the rider's own curve, not the gesture's number", () => {
+    // The cancel's frames are reversed, so the pose on screen sits at `1 -
+    // pose` along it, and the pose is the rider's TIME through its OWN curve.
+    // This rider is linear, so its pose IS that time — and that is what has to
+    // be mirrored, not the 0.5 the finger reported.
+    const swipe = beginRiderSwipe([
+      { element, motion: motion({ ease: "linear" }), phase: screen() }
+    ]);
+    swipe!.scrub(0.5);
+
+    swipe!.settle(false, 0.2);
+
+    expect(animations[2]!.currentTime! / 400).toBeCloseTo(1 - flightSeconds(0.5) / 0.4, 5);
+    expect(animations[2]!.currentTime! / 400).not.toBeCloseTo(0.5, 2);
   });
 });
