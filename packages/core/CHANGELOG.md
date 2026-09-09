@@ -1,5 +1,49 @@
 # @flemo/core
 
+## 2.7.0
+
+### Minor Changes
+
+- [`489c511`](https://github.com/kimjh96/flemo/commit/489c5113e6129782c4625e7dfff83f5b20cb6a6a) Give a `<Part>` the screen's easing when it names none, and drive every rider of
+  a drag on the phase of the screen it rides. A part that authored no curve ran
+  the CSS default while its screen ran the transition's, which put the two at the
+  same time and different places, and the drag made it worse: seeking a rider
+  through the inverse of its own curve cancels that curve, so a swipe sat every
+  part at the gesture's own fraction of its travel while the flight did not. The
+  same hand-over therefore read as two different motions depending on whether a
+  finger or a status started it. A decorator still keeps its own curve, because it
+  dims rather than taking a place on the screen and a positional curve
+  front-loads a luminance ramp into a step.
+
+- [`b0dd531`](https://github.com/kimjh96/flemo/commit/b0dd53128b3820c3f2f125528c0e8ff76be742fa) Put the dim on the same phase as everything else riding a drag. `overlay` drove
+  its own gesture with `1 - progress / 100`, which is linear in the screen's
+  position while the flight runs the dim on the clock it inherits: measured on a
+  cupertino pop with the screen three quarters across, the flight had the dim at
+  0.62 and the drag at 0.245. Declaring any swipe hook opts a decorator out of the
+  declarative rider, so the hooks were what kept it out of the path that reads the
+  gesture through the screen's own curve. They are gone, and the same measurement
+  now matches the flight to three decimal places. A decorator's own curve is still
+  never inherited from the screen; that is a separate rule and it is unchanged.
+
+### Patch Changes
+
+- [`41d1a88`](https://github.com/kimjh96/flemo/commit/41d1a8818a472f5c1ae5b10b9d6fc14903513f77) Keep a morph in the air when a swipe is carried the whole way across. The scrub
+  seeked the flight's animations to `delay + duration`, and `animationend` fires
+  on that phase change even for a paused animation that never ran, so the flight
+  landed under a finger that was still down: the shared element blinked home, a
+  finger coming back the other way moved nothing, and the release ran the whole
+  morph a second time because there was no longer a flight to mark delivered. The
+  scrub now stops a tenth of a millisecond short, and the travel's end stays the
+  release's to reach.
+
+- [`50998b1`](https://github.com/kimjh96/flemo/commit/50998b14ca741d132ecc4da6d35f2c906f93aeb4) Stop a `<Part>` inheriting its screen's easing. The inheritance was added on the
+  reasoning that a part's pose is a place on the screen and so has to share the
+  screen's curve, and that reasoning does not hold: a part is inside its screen
+  and rides that screen's transform already, so there is no gap with the screen
+  for a shared curve to close. The participant that does need it is a morph, and
+  only because it leaves the screen for the flight layer. A part keeps the curve
+  it authored, and CSS `ease` when it authors none, which is what it did before.
+
 ## 2.6.0
 
 ### Minor Changes
