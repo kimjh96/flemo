@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import cupertinoPreset from "@transition/cupertino";
 import layoutPreset from "@transition/layout";
@@ -9,7 +9,7 @@ import {
   DEFAULT_COMMIT_VELOCITY,
   resolveSwipeOptions
 } from "@transition/resolveSwipeOptions";
-import type { SwipeAnimate, SwipeInfo, Transition } from "@transition/typing";
+import type { SwipeInfo, Transition } from "@transition/typing";
 
 import overlay from "@transition/decorator/overlay";
 
@@ -24,18 +24,6 @@ const swipeInfo = (overrides: Partial<SwipeInfo> = {}): SwipeInfo => ({
   delta: { x: 0, y: 0 },
   ...overrides
 });
-
-const context = () => {
-  const animate = vi.fn().mockResolvedValue(undefined) as unknown as SwipeAnimate;
-  return {
-    animate,
-    calls: animate as unknown as ReturnType<typeof vi.fn>,
-    currentScreen: document.createElement("div"),
-    prevScreen: document.createElement("div"),
-    currentDecorator: document.createElement("div"),
-    prevDecorator: document.createElement("div")
-  };
-};
 
 const cupertino = cupertinoPreset as unknown as Transition;
 const material = materialPreset as unknown as Transition;
@@ -199,38 +187,27 @@ describe("layout's declared swipe, which is not its pop", () => {
   });
 });
 
-describe("overlay decorator swipe", () => {
-  it("dims in/out on swipe start according to the trigger", async () => {
-    const ctx = context();
-    await overlay.onSwipeStart!(true, ctx);
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.prevDecorator,
-      { opacity: 1 },
-      expect.objectContaining({ duration: 0.3 })
-    );
-
-    const ctx2 = context();
-    await overlay.onSwipeStart!(false, ctx2);
-    expect(ctx2.calls).toHaveBeenCalledWith(ctx2.prevDecorator, { opacity: 0 }, expect.anything());
+// THE DIM DECLARES NO SWIPE HOOKS, and that is the contract rather than an
+// omission.
+//
+// It used to drive its own drag with `1 - progress / 100`, which is linear in
+// the SCREEN'S POSITION, while the flight runs the dim on the clock it
+// inherits. Measured on a cupertino pop with the screen three quarters across,
+// the flight had this dim at 0.62 and the drag at 0.245. Declaring ANY hook
+// opts a decorator out of the declarative rider entirely (see
+// `collectDecoratorRiders`), so the hooks were the thing keeping it out of the
+// path that now reads the gesture through the screen's own curve.
+describe("the overlay decorator's drag", () => {
+  it("declares no swipe hooks, so the declarative rider drives it", () => {
+    expect(overlay.onSwipe).toBeUndefined();
+    expect(overlay.onSwipeStart).toBeUndefined();
+    expect(overlay.onSwipeEnd).toBeUndefined();
   });
 
-  it("tracks the drag progress inversely on the dim", () => {
-    const ctx = context();
-    overlay.onSwipe!(true, 25, ctx);
-    expect(ctx.calls).toHaveBeenCalledWith(
-      ctx.prevDecorator,
-      { opacity: 0.75 },
-      expect.objectContaining({ duration: 0 })
-    );
-  });
-
-  it("settles the dim on swipe end according to the trigger", async () => {
-    const ctx = context();
-    await overlay.onSwipeEnd!(true, ctx);
-    expect(ctx.calls).toHaveBeenCalledWith(ctx.prevDecorator, { opacity: 0 }, expect.anything());
-
-    const ctx2 = context();
-    await overlay.onSwipeEnd!(false, ctx2);
-    expect(ctx2.calls).toHaveBeenCalledWith(ctx2.prevDecorator, { opacity: 1 }, expect.anything());
+  it("still declares the poses that rider walks", () => {
+    // The rider reads its motion from these, so an emptied options block must
+    // not have taken the dim's own travel with it.
+    expect(overlay.variants["PUSHING-false"].value).toMatchObject({ opacity: 1 });
+    expect(overlay.variants["POPPING-false"].value).toMatchObject({ opacity: 0 });
   });
 });

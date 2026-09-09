@@ -63,43 +63,30 @@ const overlay = createDecorator({
       backgroundColor: DIM_COLOR
     }
   },
-  options: {
-    // The durations here are CEILINGS the controller scales, and on the release
-    // it replaces this one with the screens' own (see releaseCeiling in
-    // createSwipeController) so the dim lands with the screen rather than
-    // ahead of it. What is left is the shape of the gesture: full dim when the
-    // release would commit, none when it would not.
-    onSwipeStart: (triggered, { animate, prevDecorator }) =>
-      animate(
-        prevDecorator,
-        {
-          opacity: triggered ? 1 : 0
-        },
-        {
-          duration: 0.3
-        }
-      ),
-    onSwipe: (_, progress, { animate, prevDecorator }) =>
-      animate(
-        prevDecorator,
-        {
-          opacity: Math.max(0, 1 - progress / 100)
-        },
-        {
-          duration: 0
-        }
-      ),
-    onSwipeEnd: (triggered, { animate, prevDecorator }) =>
-      animate(
-        prevDecorator,
-        {
-          opacity: triggered ? 0 : 1
-        },
-        {
-          duration: 0.3
-        }
-      )
-  }
+  // NO SWIPE HOOKS, and their removal is the point rather than a tidy-up.
+  //
+  // This used to drive its own drag: `onSwipe` wrote `1 - progress / 100`, so
+  // the dim was linear in the SCREEN'S POSITION under a finger while the
+  // flight ran it on the clock above. Measured on a cupertino pop with the
+  // screen three quarters across, the flight has this dim at 0.62 and the drag
+  // had it at 0.245. That is the same hand-over reading two different ways
+  // depending on whether a finger or a status started it, and it also
+  // contradicted the ramp this decorator is designed as: even over the
+  // DURATION it inherits, which a line drawn on screen position is not under a
+  // front-loaded curve.
+  //
+  // The declarative rider does it now, and does the whole of it: the gesture is
+  // read through the screen's own curve to find where in the flight that
+  // position is, this decorator's own curve runs over the result (see
+  // `riderSwipe`), the side it belongs to picks which of the two screens it
+  // follows, and both release legs are staged with the drag rather than
+  // animated by hand at the lift. What the hooks were hand-rolling is what the
+  // path they opted out of provides, which is exactly what the authoring guide
+  // says about writing hooks to enable tracking.
+  //
+  // The same measurement after: 0.9121 against the flight's 0.9121, 0.7908
+  // against 0.7906, 0.6197 against 0.6195.
+  options: {}
 });
 
 export default overlay;
