@@ -898,19 +898,25 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const addDecorator = (element: HTMLElement | null, active: boolean) => {
       if (!element) return;
       const motion = resolveVariantMotion(clock, `POPPING-${active}` as TransitionVariant);
-      // THE SIDE, BUT NOT THE CURVE. A dim belongs to one of the two screens
-      // and reads that one's progress, so a transition that walks its covered
-      // side to a stop (`material`) stops the wash over it there too. Its CURVE
-      // stays its own: a decorator dims rather than takes a place on the screen,
-      // and a positional curve front-loads a luminance ramp into a step (see
-      // `overlay.ts`, and the note in `resolveDecoratorClock`). So the phase
-      // this passes carries the decorator's own ease, not the screen's.
+      // THE SAME PHASE AS A PART, AND FOR THE SAME REASON, even though a
+      // decorator does not take the screen's CURVE the way a part does.
+      //
+      // Those are two questions and the first draft of this answered only one
+      // of them. Whose curve the dim RUNS is settled by what it animates: a
+      // luminance ramp on a positional decelerate curve is an abrupt step with
+      // a long invisible tail, so `overlay` leaves its easing unwritten and
+      // `resolveDecoratorClock` never inherits one. Where the dim SITS while a
+      // finger is down is a different question, and reading the gesture through
+      // the screen's curve does not change the dim's own.
+      //
+      // Left position-controlled it was the worst offender on the bench:
+      // measured on a cupertino pop at a screen three quarters across, the
+      // flight has this dim at 0.62 and the drag had it at 0.245. It also
+      // contradicted the decorator's own design, which spreads the dim evenly
+      // over the DURATION it inherits; a drag linear in screen position is
+      // anything but even in time under a front-loaded curve.
       if (motion) {
-        riders.push({
-          element,
-          motion,
-          phase: { side: active ? "current" : "prev", ease: motion.ease, duration: motion.duration }
-        });
+        riders.push({ element, motion, phase: screenPhase(active) });
       }
     };
     const { scope, decorator } = config.getElements();

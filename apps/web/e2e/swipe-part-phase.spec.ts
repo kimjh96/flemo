@@ -187,3 +187,116 @@ test.describe("a part under a finger and the same part in the air", () => {
     expect(Math.min(...compared.map((sample) => sample.drag))).toBeLessThan(0.8);
   });
 });
+
+// AND THE DIM, which was the worse offender of the two and hid behind its own
+// hooks.
+//
+// `overlay` used to drive its own drag with `onSwipe: 1 - progress / 100`,
+// which opts a decorator out of the declarative rider entirely. So the wash was
+// linear in the SCREEN'S POSITION under a finger while the flight ran it on the
+// clock it inherits: at a screen three quarters across the flight had it at
+// 0.62 and the drag at 0.245. Removing the hooks puts it on the same phase as
+// everything else riding the gesture.
+test.describe("the dim under a finger and the same dim in the air", () => {
+  /** The wash over the screen being returned to, and where its screen is. */
+  const readDim = (page: import("@playwright/test").Page) =>
+    page.evaluate(() => {
+      const screen = [...document.querySelectorAll("[data-flemo-screen][data-flemo-router]")].find(
+        (element) =>
+          element.getAttribute("data-flemo-active") === "true" &&
+          element.getAttribute("data-flemo-screen") !== "root"
+      ) as HTMLElement | undefined;
+      const dim = [...document.querySelectorAll<HTMLElement>("[data-flemo-decorator]")].find(
+        (element) => element.getAttribute("data-flemo-decorator-owner") === "root"
+      );
+      if (!screen || !dim) return null;
+      const style = getComputedStyle(screen);
+      const shifted =
+        new DOMMatrixReadOnly(style.transform).m41 + (Number.parseFloat(style.translate) || 0);
+      return {
+        across: shifted / (screen.getBoundingClientRect().width || 1),
+        opacity: Number.parseFloat(getComputedStyle(dim).opacity)
+      };
+    });
+
+  test("reads the same at the same screen position", async ({ page }) => {
+    const box = await enterCase(page, "cupertino");
+    test.skip(box === null, "no pushed screen on this bench");
+
+    await page.evaluate(() => {
+      const trace: { across: number; opacity: number }[] = [];
+      (window as unknown as { __dim: typeof trace }).__dim = trace;
+      const read = () => {
+        const screen = [
+          ...document.querySelectorAll("[data-flemo-screen][data-flemo-router]")
+        ].find(
+          (element) =>
+            element.getAttribute("data-flemo-active") === "true" &&
+            element.getAttribute("data-flemo-screen") !== "root"
+        ) as HTMLElement | undefined;
+        const dim = [...document.querySelectorAll<HTMLElement>("[data-flemo-decorator]")].find(
+          (element) => element.getAttribute("data-flemo-decorator-owner") === "root"
+        );
+        if (screen && dim) {
+          const style = getComputedStyle(screen);
+          const shifted =
+            new DOMMatrixReadOnly(style.transform).m41 + (Number.parseFloat(style.translate) || 0);
+          trace.push({
+            across: shifted / (screen.getBoundingClientRect().width || 1),
+            opacity: Number.parseFloat(getComputedStyle(dim).opacity)
+          });
+        }
+        if (trace.length < 90) requestAnimationFrame(read);
+      };
+      requestAnimationFrame(read);
+    });
+    await page.getByRole("button", { name: "Back" }).click();
+    await page.waitForTimeout(1200);
+
+    const flight = (
+      await page.evaluate(
+        () => (window as unknown as { __dim: { across: number; opacity: number }[] }).__dim
+      )
+    ).filter((sample) => Number.isFinite(sample.across) && sample.across >= 0);
+    expect(flight.length).toBeGreaterThan(10);
+    // The wash cleared as the screen went, or there is nothing to compare.
+    expect(Math.max(...flight.map((sample) => sample.opacity))).toBeGreaterThan(0.8);
+    expect(Math.min(...flight.map((sample) => sample.opacity))).toBeLessThan(0.2);
+
+    const flightAt = (across: number) => {
+      const sorted = [...flight].sort((a, b) => a.across - b.across);
+      const after = sorted.findIndex((sample) => sample.across >= across);
+      if (after <= 0) return sorted[0]!.opacity;
+      const low = sorted[after - 1]!;
+      const high = sorted[after]!;
+      const span = high.across - low.across;
+      if (span <= 0) return low.opacity;
+      return low.opacity + (high.opacity - low.opacity) * ((across - low.across) / span);
+    };
+
+    const dragged = await enterCase(page, "cupertino");
+    expect(dragged).not.toBeNull();
+    const y = dragged!.y + dragged!.height / 2;
+    await page.mouse.move(dragged!.x + 3, y);
+    await page.mouse.down();
+
+    const compared: { drag: number; air: number }[] = [];
+    for (const fraction of [0.3, 0.55, 0.8]) {
+      await page.mouse.move(dragged!.x + dragged!.width * fraction, y, { steps: 8 });
+      await page.waitForTimeout(120);
+      const pair = await readDim(page);
+      expect(pair).not.toBeNull();
+      compared.push({ drag: pair!.opacity, air: flightAt(pair!.across) });
+    }
+    await page.mouse.up();
+
+    // Measured: 0.9121 against 0.9121, 0.7908 against 0.7906, 0.6197 against
+    // 0.6195. With the hooks back the same three read 0.745, 0.495 and 0.245,
+    // so the first sample alone is already 0.167 outside this.
+    for (const sample of compared) {
+      expect(Math.abs(sample.drag - sample.air)).toBeLessThan(0.05);
+    }
+    // And not trivially satisfied by a wash that never moves.
+    expect(compared[0]!.drag - compared[2]!.drag).toBeGreaterThan(0.15);
+  });
+});
