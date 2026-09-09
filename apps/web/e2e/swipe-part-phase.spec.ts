@@ -122,13 +122,27 @@ test.describe("a part under a finger and the same part in the air", () => {
     expect(Math.max(...flight.map((sample) => sample.across))).toBeGreaterThan(0.5);
     expect(Math.min(...flight.map((sample) => sample.opacity))).toBeLessThan(0.2);
 
-    /** What the flight had the chrome at when the screen was this far across. */
+    /**
+     * What the flight had the chrome at when the screen was this far across.
+     *
+     * INTERPOLATED, not nearest. The flight is sampled per frame, and a frame
+     * is a long way in `across` exactly where cupertino's curve moves fastest:
+     * the screen covers half its travel in the first sixth of the clock. Taking
+     * the nearest sample there compares two different screen positions and
+     * charges the difference to the drag. On a loaded runner that read as a
+     * 0.09 error against a 0.03 one locally, which is the resolution of the
+     * trace rather than anything the drag did.
+     */
     const flightAt = (across: number) => {
-      let best = flight[0]!;
-      for (const sample of flight) {
-        if (Math.abs(sample.across - across) < Math.abs(best.across - across)) best = sample;
-      }
-      return best;
+      const sorted = [...flight].sort((a, b) => a.across - b.across);
+      const after = sorted.findIndex((sample) => sample.across >= across);
+      if (after <= 0) return sorted[0]!.opacity;
+      const low = sorted[after - 1]!;
+      const high = sorted[after]!;
+      const span = high.across - low.across;
+      if (span <= 0) return low.opacity;
+      const t = (across - low.across) / span;
+      return low.opacity + (high.opacity - low.opacity) * t;
     };
 
     // THE DRAG, stopped at three points along the same axis.
@@ -144,27 +158,29 @@ test.describe("a part under a finger and the same part in the air", () => {
       await page.waitForTimeout(120);
       const pair = await readPair(page, CHROME);
       expect(pair).not.toBeNull();
-      const air = flightAt(pair!.across);
-      compared.push({ across: pair!.across, drag: pair!.opacity, air: air.opacity });
+      compared.push({ across: pair!.across, drag: pair!.opacity, air: flightAt(pair!.across) });
     }
     await page.mouse.up();
 
-    // The finger and the flight put the chrome in the same place, to within
-    // what a frame of the flight trace can resolve. Measured on this build at
+    // The finger and the flight put the chrome in the same place. Measured at
     // the three points above, screen position against chrome opacity:
     //
     //   across  flight   drag now   drag before
-    //   0.25    0.761    0.763      0.748
-    //   0.50    0.398    0.432      0.498
-    //   0.75    0.000    0.001      0.248
+    //   0.25    0.763    0.763      0.748
+    //   0.50    0.431    0.432      0.498
+    //   0.75    0.007    0.001      0.248
     //
     // The last row is the whole report in one number: the flight has this
     // header gone by three quarters of the way across, because it runs 0.16s of
     // cupertino's 0.7s, and the drag used to still be showing a quarter of it.
-    // The threshold sits above the 0.034 the matched build reaches and well
-    // under the 0.248 it does not.
+    //
+    // The threshold is eight times the 0.006 the matched build reaches, and the
+    // old arithmetic is already outside it at the MIDDLE sample (0.067) before
+    // reaching the 0.24 of the last one. That order matters: the loop reports
+    // the first sample that fails, so a regression is caught at 0.50 rather
+    // than at the obvious end.
     for (const sample of compared) {
-      expect(Math.abs(sample.drag - sample.air)).toBeLessThan(0.08);
+      expect(Math.abs(sample.drag - sample.air)).toBeLessThan(0.05);
     }
     // And the comparison is not trivially satisfied by a part that never moves.
     expect(Math.max(...compared.map((sample) => sample.drag))).toBeGreaterThan(0.2);
