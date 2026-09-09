@@ -15,6 +15,7 @@ Prior experience with shared-element libraries is the largest single source of w
 | The departing element flies | The ARRIVING one flies, and on a pop that is the element on the screen being returned to | `morph/attachMorph.ts` (`arrivingActive`) |
 | `active` means "the screen coming in" | `active` follows the STACK: on a pop the dismissing screen is still the top one and stays `true` | `transition/morphTransition/createMorphTransition.ts` |
 | The element animates in place | It leaves its screen for the flight layer, because a screen clips, covers, and drags its descendants | `morph/morphLayer.ts` |
+| The screen's own stacking still applies to it | It cannot. The flight layer is a sibling of every screen container and paints above all of them, so nothing inside a scope outranks a flight. Chrome that has to stay in front must be outside the scope, and today only a lifted `<Part>` is | `react/src/Router.tsx`, `dom/stacking.ts` |
 | A shared element inherits the screen's transition | A morph is independent of its MOTION, having left the screen; it still borrows its CLOCK, see section 4 | `morph/attachMorph.ts` header |
 | Content reflows as the box grows | A `<Part>` is laid out ONCE at its resting width; the growth clips it rather than re-wrapping it | `morph/pinParts.ts` |
 | Timing is per participant | Parts, decorators, and morphs inherit the flight's clock by variant key | section 4 |
@@ -114,6 +115,7 @@ Search this table before instrumenting anything.
 | The curve is not the one that was written | an easing string neither flemo nor CSS knows resolved to `ease` | `transition/easing.ts` |
 | A swipe-back looks like a different transition from the pop it walks | a rider seeked through its own curve has that curve cancelled, so a drag showed a phase the flight never runs | `core/engine/riderSwipe.ts` `scrub` |
 | A part drifts ahead of the screen it sits on, mid-flight | the part left its `ease` unwritten before parts inherited one, or names a curve its screen does not run | section 4 |
+| The shared element paints over the header, the tab bar or the dim while it flies | the flight layer is above every screen container, and a scope's own content has nothing that can outrank it | section 1 |
 
 ## 7. Before calling it done
 
