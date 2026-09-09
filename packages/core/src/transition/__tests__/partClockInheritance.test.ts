@@ -171,45 +171,33 @@ describe("a part's clock comes from the flight", () => {
     expect(snap.variants["PUSHING-false"].options?.duration).toBe(0.7);
   });
 
-  // THE CURVE IS PART OF THE CLOCK, and leaving it out was the same mistake as
-  // leaving out the length, one step further in.
+  // AND NOT THE CURVE, which is the same answer a decorator gives and for a
+  // related reason.
   //
-  // A part's pose is a place ON the screen carrying it, so the eye reads them
-  // together. Same length and different curves puts them at the same time and
-  // different places: sampled here, cupertino's `[0.32, 0.72, 0, 1]` is 37
-  // percentage points ahead of the CSS default a third of the way through.
+  // The LENGTH is inherited because an omitted one resolved to zero and the
+  // part snapped; that is a broken default. An omitted curve resolves to CSS
+  // `ease`, which is a working one. A part is also INSIDE its screen, so it
+  // rides that screen's transform and has no gap with it to close. The
+  // participant that does need the screen's curve is a MORPH, and only because
+  // it left the screen for the flight layer and has to reproduce that motion
+  // itself (`attachMorph` gates it on `screenMoves`).
   //
-  // It is also what made a swipe look like a different transition from the pop
-  // it walks: a drag seeks each rider through the inverse of its own curve, so
-  // under a finger the curve cancels and two curves agree, while in the air
-  // they do not.
-  it("fills an omitted curve from the screen's SAME variant", () => {
+  // A part is reached by NAME under any transition in the Router, so inheriting
+  // here would make one named part move differently everywhere it appears.
+  it("never inherits the screen's EASE", () => {
     const eased = screen("curve-a", 0.7);
     eased.variants["PUSHING-true"].options = {
       ...eased.variants["PUSHING-true"].options,
       ease: [0.32, 0.72, 0, 1]
     };
-    eased.variants["POPPING-true"].options = {
-      ...eased.variants["POPPING-true"].options,
-      ease: "easeOut"
-    };
 
     const clock = resolvePartClock(eased, poseOnly);
 
-    expect(clock.variants["PUSHING-true"].options?.ease).toEqual([0.32, 0.72, 0, 1]);
-    // Per variant, exactly as the length is: a preset whose push and pop differ
-    // hands its parts the same difference.
-    expect(clock.variants["POPPING-true"].options?.ease).toBe("easeOut");
+    expect(clock.variants["PUSHING-true"].options?.ease).toBeUndefined();
   });
 
-  it("leaves an authored curve alone, which is how a part opts out", () => {
-    const eased = screen("curve-b", 0.7);
-    eased.variants["PUSHING-true"].options = {
-      ...eased.variants["PUSHING-true"].options,
-      ease: [0.32, 0.72, 0, 1]
-    };
-
-    const clock = resolvePartClock(eased, {
+  it("leaves an authored curve exactly as authored", () => {
+    const clock = resolvePartClock(screen("curve-b", 0.7), {
       initial: poseOnly.initial,
       variants: {
         ...poseOnly.variants,
@@ -218,14 +206,6 @@ describe("a part's clock comes from the flight", () => {
     });
 
     expect(clock.variants["PUSHING-true"].options?.ease).toBe("linear");
-  });
-
-  it("keeps what it authored where there is no flight to inherit from", () => {
-    // The by-name pass, and a part mounted outside any screen. Nothing to take
-    // a curve from, and nothing invented for it either.
-    const clock = resolvePartClock(null, poseOnly);
-
-    expect(clock.variants["PUSHING-true"].options?.ease).toBeUndefined();
   });
 
   it("still emits the by-name rule, which is what a part outside any screen matches", () => {
