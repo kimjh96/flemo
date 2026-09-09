@@ -96,14 +96,14 @@ describe("resolveDecoratorClock", () => {
     expect(resolved.variants["POPPING-false"].options.duration).toBe(0.7);
   });
 
-  // AND A `<Part>` DOES, which is the one place the two rules part company.
+  // AND NEITHER DOES A `<Part>`, which keeps the two rules the same one.
   //
-  // A part's pose is a place ON the screen, so a curve of its own puts the two
-  // at the same time and different places. A decorator has no place: it dims.
-  // `overlay` is designed for an even perceived ramp and cupertino's positional
-  // decelerate curve would front-load that into an abrupt step with a long
-  // invisible tail, which is why the length is inherited here and the curve
-  // never is. See `resolvePartClock` for the other half.
+  // Only a MORPH takes the screen's curve, and only because it leaves the
+  // screen for the flight layer and has to reproduce that screen's motion in
+  // its own animation. Everything that stays inside a screen rides its
+  // transform already. `overlay` has a second reason of its own: it is designed
+  // for an even perceived ramp, and a positional decelerate curve would
+  // front-load that into an abrupt step with a long invisible tail.
   it("never inherits the screen's EASE", () => {
     const curved = createTransition({
       name: "clock-long",
