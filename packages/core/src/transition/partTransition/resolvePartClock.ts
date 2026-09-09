@@ -70,7 +70,37 @@ export const resolvePartClock = (
         duration: authored.options?.duration ?? variantDuration(screen?.options),
         delay: after
           ? flightSpan + (authored.options?.delay ?? 0)
-          : (authored.options?.delay ?? variantDelay(screen?.options))
+          : (authored.options?.delay ?? variantDelay(screen?.options)),
+        // THE CURVE IS THE SCREEN'S TOO, and for a sharper reason than the
+        // length.
+        //
+        // A part's pose is a place ON the screen carrying it, so the eye reads
+        // the two together for the whole flight. Sharing the length but not the
+        // curve puts them at the same clock and different places: measured with
+        // this package's own sampler, a part left on the CSS default under
+        // cupertino's `[0.32, 0.72, 0, 1]` is 37.5 percentage points behind its
+        // screen at 161ms of a 0.7s flight, which is 27px of a 72px title.
+        //
+        // It is also what made a swipe look like a different transition from
+        // the pop it walks. A drag is position-controlled: `scrubTo` seeks each
+        // rider through the INVERSE of its own curve, so under the finger the
+        // curve cancels and every rider sits at the same fraction of its
+        // travel. The flight has no such cancellation. Two curves therefore
+        // agree under a finger and disagree in the air, and the same
+        // hand-over read as two different motions depending on how it started.
+        //
+        // This is the rule `attachMorph` already applies to a shared element,
+        // for the same reason and with device measurements behind it: a
+        // destination riding a moving screen chased on a second clock never
+        // closes monotonically.
+        //
+        // WHAT DOES NOT INHERIT is a decorator's, and that is a decision about
+        // what is being animated rather than an omission here: a dim is a
+        // luminance channel with no place on the screen to agree with, and a
+        // positional curve front-loads it into a step (see `overlay.ts`). A
+        // part whose only channel is luminance should name its own curve for
+        // the same reason.
+        ease: authored.options?.ease ?? screen?.options?.ease
       }
     };
   }

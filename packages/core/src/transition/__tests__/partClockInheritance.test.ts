@@ -171,6 +171,63 @@ describe("a part's clock comes from the flight", () => {
     expect(snap.variants["PUSHING-false"].options?.duration).toBe(0.7);
   });
 
+  // THE CURVE IS PART OF THE CLOCK, and leaving it out was the same mistake as
+  // leaving out the length, one step further in.
+  //
+  // A part's pose is a place ON the screen carrying it, so the eye reads them
+  // together. Same length and different curves puts them at the same time and
+  // different places: sampled here, cupertino's `[0.32, 0.72, 0, 1]` is 37
+  // percentage points ahead of the CSS default a third of the way through.
+  //
+  // It is also what made a swipe look like a different transition from the pop
+  // it walks: a drag seeks each rider through the inverse of its own curve, so
+  // under a finger the curve cancels and two curves agree, while in the air
+  // they do not.
+  it("fills an omitted curve from the screen's SAME variant", () => {
+    const eased = screen("curve-a", 0.7);
+    eased.variants["PUSHING-true"].options = {
+      ...eased.variants["PUSHING-true"].options,
+      ease: [0.32, 0.72, 0, 1]
+    };
+    eased.variants["POPPING-true"].options = {
+      ...eased.variants["POPPING-true"].options,
+      ease: "easeOut"
+    };
+
+    const clock = resolvePartClock(eased, poseOnly);
+
+    expect(clock.variants["PUSHING-true"].options?.ease).toEqual([0.32, 0.72, 0, 1]);
+    // Per variant, exactly as the length is: a preset whose push and pop differ
+    // hands its parts the same difference.
+    expect(clock.variants["POPPING-true"].options?.ease).toBe("easeOut");
+  });
+
+  it("leaves an authored curve alone, which is how a part opts out", () => {
+    const eased = screen("curve-b", 0.7);
+    eased.variants["PUSHING-true"].options = {
+      ...eased.variants["PUSHING-true"].options,
+      ease: [0.32, 0.72, 0, 1]
+    };
+
+    const clock = resolvePartClock(eased, {
+      initial: poseOnly.initial,
+      variants: {
+        ...poseOnly.variants,
+        "PUSHING-true": { value: { opacity: 1 }, options: { ease: "linear" } }
+      }
+    });
+
+    expect(clock.variants["PUSHING-true"].options?.ease).toBe("linear");
+  });
+
+  it("keeps what it authored where there is no flight to inherit from", () => {
+    // The by-name pass, and a part mounted outside any screen. Nothing to take
+    // a curve from, and nothing invented for it either.
+    const clock = resolvePartClock(null, poseOnly);
+
+    expect(clock.variants["PUSHING-true"].options?.ease).toBeUndefined();
+  });
+
   it("still emits the by-name rule, which is what a part outside any screen matches", () => {
     // <Part> supports that position on purpose (persistent chrome beside a
     // Slot, a portal). Such a part carries no transition, so only the base

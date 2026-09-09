@@ -103,7 +103,24 @@ export const scrubTo = (
   progress: number
 ): void => {
   const clamped = progress < 0 ? 0 : progress > 1 ? 1 : progress;
-  const at = clock.start + invertEasing(clock.ease)(clamped) * clock.duration;
+  scrubToTime(animations, clock, invertEasing(clock.ease)(clamped));
+};
+
+/**
+ * Put the animations at a fraction of the travel's own CLOCK.
+ *
+ * The half of `scrubTo` that places a time, for a caller that has worked out
+ * which time by some other route than inverting this clock's own curve — a
+ * `<Part>` reads the gesture through the curve of the SCREEN it rides, and the
+ * screen's clock is not always the part's (see riderSwipe).
+ */
+export const scrubToTime = (
+  animations: readonly Animation[],
+  clock: ScrubClock,
+  fraction: number
+): void => {
+  const clamped = fraction < 0 ? 0 : fraction > 1 ? 1 : fraction;
+  const at = clock.start + clamped * clock.duration;
   // Never past the guard, and never behind the travel's own start: a clock with
   // no duration to hold back from would otherwise be seeked into the phase
   // BEFORE its first frame, which is a second way to leave the active one.

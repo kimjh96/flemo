@@ -70,11 +70,13 @@ Never hand-write a length that another participant already decides. Every such l
 | --- | --- | --- | --- |
 | Screen transition | authored, it is the source | authored | authored |
 | Morph | its `enter` variant's own, else the screen's, else 0.4s when the screen has none (`none`) | n/a | its own, EXCEPT when the screen moves: then the screen's, because the destination is riding that screen |
-| Part | authored, else the screen's SAME VARIANT KEY | authored, else the screen's; `after: "flight"` means the screen's delay plus its duration | authored only, never inherited |
+| Part | authored, else the screen's SAME VARIANT KEY | authored, else the screen's; `after: "flight"` means the screen's delay plus its duration | authored, else the screen's same variant key |
 | Decorator | authored, else the screen's same variant key | authored, else the screen's | authored only, never inherited |
 
 - Inheritance is by the same variant key, so an asymmetric preset (`material` runs 0.35s pushing and 0.25s popping) gives its parts and its dim the same asymmetry for free.
 - `??`, not `||`: an authored `0` is a snap the author asked for and survives.
+- A PART TAKES THE CURVE AND A DECORATOR DOES NOT, and that split is about what each one animates. A part's pose is a place ON the screen carrying it, so a curve of its own puts the two at the same time and different places: measured, a part left on the CSS default under cupertino's `[0.32, 0.72, 0, 1]` is 37 percentage points behind its screen a quarter of the way through, which is 27px of a 72px title. A decorator has no place on the screen; it dims. Cupertino's positional decelerate curve front-loads a luminance ramp into an abrupt step with a long invisible tail, which is why `overlay` leaves its easing unwritten on purpose. A part whose only channel is luminance should name its own curve for the same reason.
+- A DRAG AND THE POP IT WALKS RUN THE SAME PHASE, for a part on the screen's own clock. The finger owns the screen's POSITION, so the screen is seeked through the inverse of its own curve, and everything riding it is seeked through the SCREEN's curve and then runs its own over the result. Inverting a rider through its own curve instead cancels that curve, which is what made a swipe look like a different transition from the pop. A part that authors a SHORTER clock than its screen is the exception, and deliberately: the finger maps onto its whole travel rather than finishing it a quarter of the way through the drag, which is the same rule a declared delay already follows.
 - A part authored LONGER than its screen holds the whole flight open, which disables swipe-back for as long as it runs.
 - Resolution is compile time and produces a literal. Timing must never reach `animation-duration` as a `var()`: that lost WebKit's accelerated playback and collapsed to a two-frame snap under main-thread starvation (device-bisected 2026-08-13).
 - `after: "flight"` is how a piece of chrome revealed at the landing waits for a flight whose length it does not know. It replaces the per-transition part tables that a consumer's own transition could never appear in.
@@ -110,6 +112,8 @@ Search this table before instrumenting anything.
 | A nested Router's shared element flies out of its box | the flight layer fell back to document level; a binding must publish the scope's layer | `morph/morphLayer.ts` |
 | The first push runs the element 33ms ahead of its screen, later pushes align | the head kit read from the root attribute instead of the routing | `morph/morphSide.ts` `headSeconds` |
 | The curve is not the one that was written | an easing string neither flemo nor CSS knows resolved to `ease` | `transition/easing.ts` |
+| A swipe-back looks like a different transition from the pop it walks | a rider seeked through its own curve has that curve cancelled, so a drag showed a phase the flight never runs | `core/engine/riderSwipe.ts` `scrub` |
+| A part drifts ahead of the screen it sits on, mid-flight | the part left its `ease` unwritten before parts inherited one, or names a curve its screen does not run | section 4 |
 
 ## 7. Before calling it done
 

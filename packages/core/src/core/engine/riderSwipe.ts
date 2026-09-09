@@ -1,7 +1,7 @@
 import animateInline from "@transition/animateInline";
 import { easingToCss, targetToDecls } from "@transition/compileTransitionStyles";
-import { invertEasing } from "@transition/cubicBezier";
-import { holdScrubAt, PARKED_MS, placeLeg, scrubTo } from "@transition/gestureScrub";
+import { invertEasing, resolveEasing } from "@transition/cubicBezier";
+import { holdScrubAt, PARKED_MS, placeLeg, scrubToTime } from "@transition/gestureScrub";
 import type { VariantMotion } from "@transition/variantMotion";
 
 import { SKIP_ANIMATION_ATTR } from "@dom/attributes";
@@ -43,8 +43,13 @@ export interface RiderSwipe {
    * reaches a pose-only one, which is what this is for.
    */
   readonly stale: boolean;
-  /** Move every rider to this fraction of its travel (0 → 1). */
-  scrub: (progress: number) => void;
+  /**
+   * Move every rider to where this fraction of the gesture (0 → 1) puts it.
+   *
+   * A pair moves the two sides of the drag apart, for a transition whose own
+   * `progress` reports them apart; one number is both sides.
+   */
+  scrub: (progress: number | { current: number; prev: number }) => void;
   /**
    * Hand the riders back at the speed the release settled at.
    *
@@ -66,6 +71,25 @@ export interface RiderSwipe {
 export interface RiderMotion {
   readonly element: HTMLElement;
   readonly motion: VariantMotion;
+  /**
+   * The screen this rider is chrome ON, where it is chrome on one.
+   *
+   * A SCREEN IS ITS OWN PHASE, so it omits this and nothing changes for it.
+   * Everything riding a screen names it, and that is what keeps a drag and the
+   * flight it walks reading as the same motion. See `scrub`.
+   */
+  readonly phase?: {
+    /** Which of a drag's two progress numbers this rider reads. */
+    readonly side: "current" | "prev";
+    /** The curve that screen's own pop runs, `undefined` for the CSS default. */
+    readonly ease: VariantMotion["ease"];
+    /**
+     * How long that pop runs, which is what turns the screen's own progress
+     * into SECONDS. A rider on a shorter clock of its own covers those seconds
+     * faster, exactly as it does in the flight.
+     */
+    readonly duration: number;
+  };
 }
 
 // WAAPI keyframes want IDL names; the compiler emits CSS ones because that is
@@ -89,6 +113,21 @@ interface StagedRider {
   readonly cancelLeg: Animation | null;
   readonly to: VariantMotion["to"];
   readonly clock: { start: number; duration: number; ease: VariantMotion["ease"] };
+  /** Which of a drag's two progress numbers this one reads. */
+  readonly side: "current" | "prev";
+  /** The curve the gesture's progress is read through. See `scrub`. */
+  readonly phaseEase: VariantMotion["ease"];
+  /** The clock that curve belongs to, in seconds. See `scrub`. */
+  readonly phaseDuration: number;
+  /**
+   * Where the finger has left this rider on its OWN clock, 0 to 1.
+   *
+   * Per rider rather than one number for the gesture: the two sides of a drag
+   * need not report the same progress (`material` walks the covered screen to
+   * `PULL` and stops it there while the dragged one keeps going), and two
+   * riders on one side need not share a curve.
+   */
+  at: number;
 }
 
 /**
@@ -124,7 +163,7 @@ export const beginRiderSwipe = (
   const { writer } = options;
   const staged: StagedRider[] = [];
 
-  for (const { element, motion } of riders) {
+  for (const { element, motion, phase } of riders) {
     if (motion.duration <= 0) continue;
     /* v8 ignore next -- jsdom implements Element.animate; the guard is for a
        host that does not, where a drag simply moves nothing. */
@@ -197,7 +236,13 @@ export const beginRiderSwipe = (
       commitLeg: leg(frames),
       cancelLeg: leg(reversedFrames(frames)),
       to: motion.to,
-      clock: { start: motion.delay, duration: motion.duration, ease: motion.ease }
+      clock: { start: motion.delay, duration: motion.duration, ease: motion.ease },
+      side: phase?.side ?? "current",
+      // A rider with no screen to be in phase with is its own phase, which is
+      // the position-controlled scrub this had before any of them named one.
+      phaseEase: phase ? phase.ease : motion.ease,
+      phaseDuration: phase ? phase.duration : motion.duration,
+      at: 0
     });
   }
 
@@ -205,10 +250,6 @@ export const beginRiderSwipe = (
   for (const rider of staged) holdScrubAt([rider.animation], 0);
 
   let released = false;
-  // Where the finger left each rider, as a fraction of its travel. The release
-  // needs it to seek its leg to the pose already on screen; reading it back off
-  // the animation would mean inverting the easing twice.
-  let travelled = 0;
   return {
     get active() {
       return !released;
@@ -216,13 +257,51 @@ export const beginRiderSwipe = (
     get stale() {
       return staged.some((rider) => !rider.element.isConnected);
     },
-    scrub: (progress: number) => {
+    // THE FINGER OWNS THE SCREEN'S POSITION. EVERYTHING ELSE OWNS ITS TIME.
+    //
+    // A drag is position-controlled: the finger says where the screen's edge
+    // is, so `scrubTo` seeks the screen through the INVERSE of its own curve.
+    // That is right for the screen and it was wrong for everything riding it,
+    // because inverting a rider through its OWN curve cancels that curve: every
+    // rider then sat at the same fraction of its travel as the gesture, whatever
+    // it had authored. A flight cancels nothing. So the same hand-over was two
+    // different motions depending on whether a finger or a status started it,
+    // and the curve an author wrote only ever appeared on release.
+    //
+    // Reported from the playground: a swipe-back looked like a different
+    // transition from the pop it walks. Measured with this package's own
+    // sampler, a part left on the CSS default under cupertino's
+    // `[0.32, 0.72, 0, 1]` is 37.5 percentage points from where the same
+    // gesture would put it, at 161ms of a 0.7s flight.
+    //
+    // So a rider reads the gesture through the SCREEN'S curve, which answers
+    // WHERE IN THE FLIGHT that screen position is, in seconds. Its own clock
+    // then says how far along its own travel those seconds put it, and its own
+    // curve does the rest. A rider that inherits the screen's clock, which is
+    // every part that authors no length, therefore lands exactly where the pop
+    // would have it; one on a shorter clock of its own covers those seconds
+    // faster and finishes early, which is also what the pop does.
+    //
+    // WHAT IS STILL NOT THE FLIGHT is a declared DELAY. The finger starts the
+    // travel immediately, because a drag that does nothing for the first sixty
+    // per cent of its length reads as broken; that rule is older than this and
+    // is pinned in this file's first test.
+    //
+    // Per rider, because the two sides of a drag need not report the same
+    // progress and a part and the dim need not share a clock.
+    scrub: (progress: number | { current: number; prev: number }) => {
       if (released) return;
-      // Per rider, because a part and the dim need not share a clock: each
-      // inherits its own from the same screen variant, and an author may have
-      // written a longer one on either.
-      travelled = progress < 0 ? 0 : progress > 1 ? 1 : progress;
-      for (const rider of staged) scrubTo([rider.animation], rider.clock, progress);
+      for (const rider of staged) {
+        const reported = typeof progress === "number" ? progress : progress[rider.side];
+        const clamped = reported < 0 ? 0 : reported > 1 ? 1 : reported;
+        // Seconds into the flight, then that as a fraction of this rider's own
+        // travel. The two are the same number only when the clocks are, which
+        // is why the phase carries a length as well as a curve.
+        const seconds = invertEasing(rider.phaseEase)(clamped) * rider.phaseDuration;
+        const reached = rider.clock.duration > 0 ? seconds / rider.clock.duration : 1;
+        rider.at = reached > 1 ? 1 : reached;
+        scrubToTime([rider.animation], rider.clock, rider.at);
+      }
     },
     settle: (commit: boolean, seconds: number) => {
       if (released) return Promise.resolve();
@@ -289,12 +368,21 @@ export const beginRiderSwipe = (
         //
         // The leg was staged with the drag, so the release writes nothing but a
         // time, a rate and a start. The cancel's frames are reversed, so the
-        // pose the finger left sits at `1 - travelled` along it, and playing
-        // forward walks the author's own motion home.
+        // pose the finger left sits at `1 - pose` along it, and playing forward
+        // walks the author's own motion home.
+        //
+        // `rider.at` is the rider's own TIME, which is what the scrub now
+        // leaves behind; the pose it is showing is that time through its own
+        // curve. A commit therefore continues from that time directly, and a
+        // cancel has to go back through the curve to find the mirrored one.
+        // Where the phase is the rider's own the two reduce to what this always
+        // computed from the gesture's progress.
         const leg = commit ? rider.commitLeg : rider.cancelLeg;
-        const onLeg = commit ? travelled : 1 - travelled;
         const durationMs = rider.clock.duration * 1000;
-        const at = invertEasing(rider.clock.ease)(onLeg) * durationMs;
+        const pose = resolveEasing(rider.clock.ease)(rider.at);
+        const at = commit
+          ? rider.at * durationMs
+          : invertEasing(rider.clock.ease)(1 - pose) * durationMs;
         const remaining = durationMs - at;
         if (!leg || remaining <= 0) {
           // Nothing left to fly, or a host that refused the staging: the drag

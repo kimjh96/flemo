@@ -96,6 +96,14 @@ describe("resolveDecoratorClock", () => {
     expect(resolved.variants["POPPING-false"].options.duration).toBe(0.7);
   });
 
+  // AND A `<Part>` DOES, which is the one place the two rules part company.
+  //
+  // A part's pose is a place ON the screen, so a curve of its own puts the two
+  // at the same time and different places. A decorator has no place: it dims.
+  // `overlay` is designed for an even perceived ramp and cupertino's positional
+  // decelerate curve would front-load that into an abrupt step with a long
+  // invisible tail, which is why the length is inherited here and the curve
+  // never is. See `resolvePartClock` for the other half.
   it("never inherits the screen's EASE", () => {
     const curved = createTransition({
       name: "clock-long",
