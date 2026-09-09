@@ -87,7 +87,34 @@ describe("scrubTo", () => {
     scrubTo(asAnimations([over]), clock, 4);
 
     expect(under.currentTime).toBeCloseTo(100, 5);
-    expect(over.currentTime).toBeCloseTo(600, 5);
+    // A tenth of a millisecond short of 600, for the reason below.
+    expect(over.currentTime).toBeCloseTo(599.9, 5);
+  });
+
+  // A DRAG THAT REACHES THE END IS NOT A FLIGHT THAT FINISHED.
+  //
+  // `animationend` is dispatched on the phase change rather than on the
+  // playback, so an animation seeked to `delay + duration` fires it while
+  // paused, carrying the full duration as `elapsedTime` — indistinguishable
+  // from a landing. A morph lands on exactly that event. Reported from the
+  // playground as three symptoms of one cause: the shared element blinked home
+  // under a finger that was still down, a finger coming back the other way
+  // moved nothing, and the release ran the whole morph a second time.
+  it("stops short of the travel's end, which belongs to the release", () => {
+    const animation = fakeAnimation();
+
+    scrubTo(asAnimations([animation]), clock, 1);
+
+    expect(animation.currentTime).toBeLessThan(600);
+    expect(animation.currentTime).toBeGreaterThan(599.5);
+  });
+
+  it("holds a clock with no duration at its start rather than behind it", () => {
+    const animation = fakeAnimation();
+
+    scrubTo(asAnimations([animation]), { start: 0.1, duration: 0, ease: "linear" }, 1);
+
+    expect(animation.currentTime).toBeCloseTo(100, 5);
   });
 });
 

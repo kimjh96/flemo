@@ -62,6 +62,35 @@ export const holdScrubAt = (animations: readonly Animation[], seconds: number): 
 };
 
 /**
+ * How far short of the travel's end a scrub is allowed to seek, in seconds.
+ *
+ * A DRAG THAT REACHES THE END IS NOT A FLIGHT THAT FINISHED.
+ *
+ * `animationend` is dispatched on the PHASE change, not on the playback: an
+ * animation seeked to `delay + duration` has left its active phase, and the
+ * browser fires the event even though it is paused and has never run. It
+ * arrives with the full duration as `elapsedTime`, so nothing about it tells it
+ * apart from a real landing — the guard that catches WebKit's rebuilt
+ * animations reads `elapsedTime === 0` and lets this one straight through.
+ *
+ * A morph LANDS on that event. So a swipe carried the whole way across put the
+ * shared element back in its screen mid-gesture, and all three of what that
+ * looks like were reported from the playground at once: the element blinked
+ * home under a finger that was still down, a finger coming back the other way
+ * found nothing left to move, and the release — with the flight already gone
+ * from the scope, so nothing was marked delivered — let the navigation stage
+ * the whole trip a second time.
+ *
+ * The end belongs to the release, which plays the remainder out on the
+ * author's own curve and lands on the event it is already listening for. So
+ * the scrub stops a hair short of it. Chromium rounds the seek back up to the
+ * end somewhere between 1us and 10us, WebKit does not round at all; 0.1ms is a
+ * hundred times Chromium's step and 0.04px of a 300px linear travel, which is
+ * nothing on either side of the trade.
+ */
+const SCRUB_END_GUARD = 0.0001;
+
+/**
  * Move to a fraction of the TRAVEL, not of the clock.
  *
  * Those are the same number only for a linear ease; under the built-in curve a
@@ -74,7 +103,12 @@ export const scrubTo = (
   progress: number
 ): void => {
   const clamped = progress < 0 ? 0 : progress > 1 ? 1 : progress;
-  holdScrubAt(animations, clock.start + invertEasing(clock.ease)(clamped) * clock.duration);
+  const at = clock.start + invertEasing(clock.ease)(clamped) * clock.duration;
+  // Never past the guard, and never behind the travel's own start: a clock with
+  // no duration to hold back from would otherwise be seeked into the phase
+  // BEFORE its first frame, which is a second way to leave the active one.
+  const last = Math.max(clock.start, clock.start + clock.duration - SCRUB_END_GUARD);
+  holdScrubAt(animations, Math.min(at, last));
 };
 
 /**

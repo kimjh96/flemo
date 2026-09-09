@@ -112,8 +112,12 @@ describe("beginRiderSwipe", () => {
 
     swipe.scrub(0);
     expect(drag!.currentTime).toBe(240);
+    // A tenth of a millisecond short of 400: the travel's own end belongs to
+    // the release, and a scrub that reaches it takes the animation out of its
+    // active phase, which fires `animationend` on a paused animation that never
+    // ran. See `scrubTo`.
     swipe.scrub(1);
-    expect(drag!.currentTime).toBe(400);
+    expect(drag!.currentTime).toBeCloseTo(399.9, 5);
     swipe.scrub(0.5);
     expect(drag!.currentTime).toBeGreaterThan(240);
     expect(drag!.currentTime).toBeLessThan(400);
@@ -188,11 +192,13 @@ describe("beginRiderSwipe", () => {
     expect(half).toBeLessThan(400);
     expect(half).not.toBe(200);
 
-    // The ends still land exactly on the ends.
+    // The ends still land on the ends — the far one a hair short of it, which
+    // is the scrub keeping the animation inside its active phase (see
+    // `scrubTo`).
     swipe!.scrub(0);
     expect(animations[0]!.currentTime).toBe(0);
     swipe!.scrub(1);
-    expect(animations[0]!.currentTime).toBe(400);
+    expect(animations[0]!.currentTime).toBeCloseTo(399.9, 5);
   });
 
   it("clamps a drag that runs past either end", () => {
@@ -201,7 +207,7 @@ describe("beginRiderSwipe", () => {
     swipe!.scrub(-1);
     expect(animations[0]!.currentTime).toBe(0);
     swipe!.scrub(2);
-    expect(animations[0]!.currentTime).toBe(400);
+    expect(animations[0]!.currentTime).toBeCloseTo(399.9, 5);
   });
 
   it("plays out on commit and suppresses the keyframe the landing would replay", () => {
