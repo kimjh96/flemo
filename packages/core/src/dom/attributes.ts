@@ -45,7 +45,13 @@ export const SCREEN_ATTR = "data-flemo-screen";
 /** The navigation status this screen is rendering: a `NavigateStatus` value. */
 export const STATUS_ATTR = "data-flemo-status";
 
-/** `"true"` on the screen the navigation is moving TO, `"false"` on its partner. */
+/**
+ * Which screen of the pair is the STACK's top, not which one is arriving.
+ * `"true"` is the top screen and `"false"` its partner, so on a push the
+ * arriving screen is `"true"` and on a pop the arriving screen is `"false"`:
+ * the screen being dismissed stays top until it is gone. Reading this as "the
+ * arrival" pairs a morph backwards on every pop.
+ */
 export const ACTIVE_ATTR = "data-flemo-active";
 
 /** The resolved transition name, so the compiled rules select the right keyframes. */
