@@ -113,8 +113,8 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@size-limit/preset-small-lib':
-        specifier: ^13.0.3
-        version: 13.0.3(size-limit@13.0.3)
+        specifier: ^13.1.1
+        version: 13.1.1(size-limit@13.1.1)
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -125,8 +125,8 @@ importers:
         specifier: ^3.9.6
         version: 3.9.6
       size-limit:
-        specifier: ^13.0.3
-        version: 13.0.3
+        specifier: ^13.1.1
+        version: 13.1.1
       turbo:
         specifier: ^2.10.12
         version: 2.10.12
@@ -1225,22 +1225,22 @@ packages:
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
 
-  '@size-limit/esbuild@13.0.3':
-    resolution: {integrity: sha512-g24wsTxM3N/SaGv1MiiDjTShNrIna1WCNJ7NXMrlsWBHWv1OL0nCyllR1bDDHf+gV41lF7QxX7vknswoOr71DQ==}
+  '@size-limit/esbuild@13.1.1':
+    resolution: {integrity: sha512-+aWz9zUJTtnkc1UejLzrFGBOmM/H6QpYvL39BfgmxUULCeLn6xMb2sQw2w8n1CaF70/DvH9/J9QdNl4kAhdrHA==}
     engines: {node: ^20.0.0 || ^22.0.0 || >=24.0.0}
     peerDependencies:
-      size-limit: 13.0.3
+      size-limit: 13.1.1
 
-  '@size-limit/file@13.0.3':
-    resolution: {integrity: sha512-PWTITIXH5p9aGIf6qq2Fruihn/b9nBQyfkyoAyb6DzFJgS1Ek9MSPJYKxKFLO8jdo0aqSgBPd3sevbS6PyBiJw==}
+  '@size-limit/file@13.1.1':
+    resolution: {integrity: sha512-hWsrLRKBSh1vVFa86e2WcpBWcTYnwRvvZ54o6wzmPduhYUQPgOCr9eWqNMLCxvqLP5EiJeGCwLQFDjdgusGFSw==}
     engines: {node: ^20.0.0 || ^22.0.0 || >=24.0.0}
     peerDependencies:
-      size-limit: 13.0.3
+      size-limit: 13.1.1
 
-  '@size-limit/preset-small-lib@13.0.3':
-    resolution: {integrity: sha512-rqKn1+JkVF5ckZRmcxeQPZ8g0e9Fqddh6bjmDotijXJtN40KJQ+5TG6pTiYq3RaA4nkuEkixHULpDBGcgAARAg==}
+  '@size-limit/preset-small-lib@13.1.1':
+    resolution: {integrity: sha512-by5zdyqKuIU3umUo3WQFwDyv1/cOJnYR/cE8VEZeW9lPRyfaExiWu1A3jzIn+LA4GGZaYvQ5Z6THHMlGij9Jmw==}
     peerDependencies:
-      size-limit: 13.0.3
+      size-limit: 13.1.1
 
   '@swc/core-darwin-arm64@1.16.1':
     resolution: {integrity: sha512-zlJblJ8ncErD43lKdxjbUaUskJQf+LxiPXYcWXD8/8ZMV+7uuAT+CwjciLXpyZBd5Pq/S726bMpeeAwSeL1hhg==}
@@ -3236,8 +3236,8 @@ packages:
   sisteransi@1.0.5:
     resolution: {integrity: sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg==}
 
-  size-limit@13.0.3:
-    resolution: {integrity: sha512-KVb2aNEU49BwTR21SVjD+2QHP9gBV/nWsTHzNB/heRwXtHyA7lLQiDZDQ1TiNh/B/TZXKAZrHYyTt+cvBUrzYw==}
+  size-limit@13.1.1:
+    resolution: {integrity: sha512-Yl3CuQFSB3TSirrg9jyD/ahEUa6+aoMWj4UuucW36XunEsBfYhRACZRQr7vaUKoLkS88Njw0czdpDQFfbvCc+Q==}
     engines: {node: ^22.18.0 || ^24.0.0 || >=26.0.0}
     hasBin: true
 
@@ -4380,21 +4380,21 @@ snapshots:
 
   '@rtsao/scc@1.1.0': {}
 
-  '@size-limit/esbuild@13.0.3(size-limit@13.0.3)':
+  '@size-limit/esbuild@13.1.1(size-limit@13.1.1)':
     dependencies:
       esbuild: 0.28.2
       nanoid: 6.0.1
-      size-limit: 13.0.3
+      size-limit: 13.1.1
 
-  '@size-limit/file@13.0.3(size-limit@13.0.3)':
+  '@size-limit/file@13.1.1(size-limit@13.1.1)':
     dependencies:
-      size-limit: 13.0.3
+      size-limit: 13.1.1
 
-  '@size-limit/preset-small-lib@13.0.3(size-limit@13.0.3)':
+  '@size-limit/preset-small-lib@13.1.1(size-limit@13.1.1)':
     dependencies:
-      '@size-limit/esbuild': 13.0.3(size-limit@13.0.3)
-      '@size-limit/file': 13.0.3(size-limit@13.0.3)
-      size-limit: 13.0.3
+      '@size-limit/esbuild': 13.1.1(size-limit@13.1.1)
+      '@size-limit/file': 13.1.1(size-limit@13.1.1)
+      size-limit: 13.1.1
 
   '@swc/core-darwin-arm64@1.16.1':
     optional: true
@@ -6551,7 +6551,7 @@ snapshots:
 
   sisteransi@1.0.5: {}
 
-  size-limit@13.0.3:
+  size-limit@13.1.1:
     dependencies:
       bytes-iec: 3.1.1
       lilconfig: 3.1.3
