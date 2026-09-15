@@ -8,5 +8,5 @@ dataPolicy:
   artifactRetentionDays: 30
   persistRawPrompts: false
   persistDocumentBodiesInEvents: false
-  hubSyncEnabled: false
+  hubSyncEnabled: true
   eventPayloadMode: allowlist
