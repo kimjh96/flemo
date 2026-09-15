@@ -306,7 +306,7 @@ export const buildMorphKeyframes = (input: {
    * The corner the box wears, so a clip that reveals it cuts a rounded shape
    * rather than a square one (see the reveal below).
    */
-  radius?: string | null;
+  radius?: string | { from: string; to: string } | null;
   fade: {
     from: TransitionTarget | null;
     to: TransitionTarget | null;
@@ -658,10 +658,15 @@ export const buildMorphKeyframes = (input: {
     // ROUND, or the reveal is a square cut across a rounded box: the left
     // corner disappears for the whole flight and what grows reads as a plain
     // rectangle sitting over the pill rather than the pill itself.
-    const round = radius && radius !== "0px" ? ` round ${radius}` : "";
+    // And the corner TRAVELS where the box's own does: a clip held at the
+    // arrival's corner while the box interpolates from the departure's rounds
+    // the cut edge to one radius and the far edge to another.
+    const corners = typeof radius === "object" && radius ? radius : { from: radius, to: radius };
+    const round = (value: string | null | undefined): string =>
+      value && value !== "0px" ? ` round ${value}` : "";
     pushSize(
-      `    clip-path: inset(${reveal.from}${round});`,
-      `    clip-path: inset(${reveal.to}${round});`
+      `    clip-path: inset(${reveal.from}${round(corners.from)});`,
+      `    clip-path: inset(${reveal.to}${round(corners.to)});`
     );
   }
   if (fromParts.length > 0) {
