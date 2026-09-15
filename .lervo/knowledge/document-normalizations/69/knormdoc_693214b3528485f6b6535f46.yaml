@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_76efc18d2559278b5f97d95e
+compiler:
+  compilerBuildId: sha256:126612f342267b5dfbefdf7c2f88bf1fe0a710c846d5e3a4f0ed99d118fde27e
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 1+codex-cli 0.153.4
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_c4a79dc3d6ed7dc6f57a356e
+outputLanguage: en
+outputs:
+  - byteCount: 265
+    contentHash: sha256:6d28f4cfea4fc27ac63fb187d2c09492c085ea364e6e00a56a9a1267ba2e2aaa
+    path: GEMINI.md
+    userRegionHash: sha256:6d28f4cfea4fc27ac63fb187d2c09492c085ea364e6e00a56a9a1267ba2e2aaa
+profile: repository_document
+recordId: knormdoc_693214b3528485f6b6535f46
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:2745c8dab545bd0c130d97096a5de8bcb07417b56cf0a2ccec834f32dfd9f6e0
+sourcePath: GEMINI.md
+sourceUnitVersionIds:
+  - uv_f7af8877452849b2b4b273fd

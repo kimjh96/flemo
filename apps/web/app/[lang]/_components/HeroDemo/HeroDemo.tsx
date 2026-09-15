@@ -114,9 +114,12 @@ function HeroDemo({ active }: HeroDemoProps) {
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
     >
+      {/* Promoted on purpose: an unpromoted 64px blur is re-rastered by WebKit
+          every time a flight inside the bezels changes the layer tree (see the
+          playground Stage for the measurement). */}
       <div
         aria-hidden="true"
-        className="absolute -top-12 -left-16 z-0 h-[110%] w-[120%] rounded-[45%] opacity-35 blur-[64px]"
+        className="absolute -top-12 -left-16 z-0 h-[110%] w-[120%] rounded-[45%] opacity-35 blur-[64px] will-change-transform"
         style={{ background: "var(--gradient-blob)" }}
       />
       <div className="relative mx-auto h-[580px] w-[290px]">

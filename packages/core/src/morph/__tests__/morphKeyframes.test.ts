@@ -557,6 +557,30 @@ describe("buildMorphKeyframes", () => {
     expect(travelRule).toContain("clip-path: inset(0% 0.000% 50.000% 0.000% round 12px)");
     expect(travelRule).toContain("clip-path: inset(0% 0.000% 0.000% 0.000% round 12px)");
   });
+
+  it("rounds the reveal with the corner the box is travelling through", () => {
+    // The box's own corner interpolates from the departure's on the paint
+    // animation. A clip held at the arrival's corner rounded the cut edge to one
+    // radius while the far corners were still at the other.
+    const { rules } = buildMorphKeyframes({
+      id: "rr",
+      travel: growing,
+      box: {
+        from: { x: 0, y: 0, width: 100, height: 40 },
+        to: { x: 0, y: 0, width: 100, height: 80 }
+      },
+      contentsHold: true,
+      radius: { from: "24px", to: "30px" },
+      fade: null,
+      paint: [],
+      pinned: true,
+      travelPinned: true
+    });
+
+    const travelRule = rules.join("\n");
+    expect(travelRule).toContain("clip-path: inset(0% 0.000% 50.000% 0.000% round 24px)");
+    expect(travelRule).toContain("clip-path: inset(0% 0.000% 0.000% 0.000% round 30px)");
+  });
 });
 
 describe("the channels beside the travel", () => {

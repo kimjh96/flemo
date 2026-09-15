@@ -1,0 +1,47 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_76efc18d2559278b5f97d95e
+compiler:
+  compilerBuildId: sha256:126612f342267b5dfbefdf7c2f88bf1fe0a710c846d5e3a4f0ed99d118fde27e
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 1+codex-cli 0.153.4
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_9dbf6e056d32dcd7f11c324a
+outputLanguage: en
+outputs:
+  - byteCount: 3070
+    contentHash: sha256:025890be2206c51cc9a0125085d751633490c562d5a002c1e9ba17181a4bec2f
+    path: docs/architecture/react-binding.md
+    userRegionHash: sha256:025890be2206c51cc9a0125085d751633490c562d5a002c1e9ba17181a4bec2f
+  - byteCount: 3552
+    contentHash: sha256:0513e1dfad4ce7627756ba66f4849bb2031f7b59552fbfdd38049744435bb6a7
+    path: docs/architecture/react-binding/rendering.md
+    userRegionHash: sha256:0513e1dfad4ce7627756ba66f4849bb2031f7b59552fbfdd38049744435bb6a7
+  - byteCount: 4347
+    contentHash: sha256:873fd2b189456ac6c582ff81fccc880ad710e7a331c408a04cf813a114674abc
+    path: docs/architecture/react-binding/router.md
+    userRegionHash: sha256:873fd2b189456ac6c582ff81fccc880ad710e7a331c408a04cf813a114674abc
+  - byteCount: 1114
+    contentHash: sha256:8c8d768b0f0249bbe81aa8d638693bbaa3adc135f2f0c6b847db463ce0413fbd
+    path: docs/architecture/react-binding/screen-freeze.md
+    userRegionHash: sha256:8c8d768b0f0249bbe81aa8d638693bbaa3adc135f2f0c6b847db463ce0413fbd
+  - byteCount: 5783
+    contentHash: sha256:f97bb82b15abbd62bd903d203d93d4327c962b76bfe196e309f7af8b2ee36c26
+    path: docs/architecture/react-binding/screen-motion.md
+    userRegionHash: sha256:f97bb82b15abbd62bd903d203d93d4327c962b76bfe196e309f7af8b2ee36c26
+profile: architecture_document
+recordId: knormdoc_1dda1b8b74c052fa84f685bf
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:bf8ce0237eede58765029074ae36b21ce488ea8e7e7fec1bedd9a3d2867e5126
+sourcePath: docs/architecture/react-binding.md
+sourceUnitVersionIds:
+  - uv_26a0fe36a5fb993d7d47d01e
+  - uv_37d832bd0d92e3edbb97645f
+  - uv_7da1f2f887f8e7b45b3fcb10
+  - uv_89d0366a8e85b672c661ea12
+  - uv_b1ff702112043e78a3fe657a
+  - uv_b785dca2101c81275ae7bace

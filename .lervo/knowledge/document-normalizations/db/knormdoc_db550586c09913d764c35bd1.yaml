@@ -1,0 +1,72 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_76efc18d2559278b5f97d95e
+compiler:
+  compilerBuildId: sha256:126612f342267b5dfbefdf7c2f88bf1fe0a710c846d5e3a4f0ed99d118fde27e
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 1+codex-cli 0.153.4
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_67232819a5b1e3bc1efc6997
+outputLanguage: en
+outputs:
+  - byteCount: 1025
+    contentHash: sha256:f0b590ffb6b86bf83c2bcb300fd802acfee8debfcdf68519281c724e3652fc86
+    path: packages/devtools/README.md
+    userRegionHash: sha256:f0b590ffb6b86bf83c2bcb300fd802acfee8debfcdf68519281c724e3652fc86
+  - byteCount: 1059
+    contentHash: sha256:e14931af89643785a1673873340f391bb90de1e16d2343dc74b8a1b41eae418e
+    path: packages/devtools/README/api.md
+    userRegionHash: sha256:e14931af89643785a1673873340f391bb90de1e16d2343dc74b8a1b41eae418e
+  - byteCount: 1178
+    contentHash: sha256:98999e1b0514e11333214183c7ee1b66325e22eaecd0842f33b886a99aaaffe1
+    path: packages/devtools/README/defects.md
+    userRegionHash: sha256:98999e1b0514e11333214183c7ee1b66325e22eaecd0842f33b886a99aaaffe1
+  - byteCount: 1900
+    contentHash: sha256:1dfbefacc73862ca1c46d9db4269e773ca21ae52a019f3c28e69b3a38a0ebe95
+    path: packages/devtools/README/flight-measurements.md
+    userRegionHash: sha256:1dfbefacc73862ca1c46d9db4269e773ca21ae52a019f3c28e69b3a38a0ebe95
+  - byteCount: 1383
+    contentHash: sha256:2665b69dfe52ad62587d7567ba3fae8386c098ea8ebab4433d92bde556c5882b
+    path: packages/devtools/README/judging.md
+    userRegionHash: sha256:2665b69dfe52ad62587d7567ba3fae8386c098ea8ebab4433d92bde556c5882b
+  - byteCount: 1435
+    contentHash: sha256:823bd0e284f350052c736341812728bf3d1cdd70ae48f5d72351760427b565b8
+    path: packages/devtools/README/panel.md
+    userRegionHash: sha256:823bd0e284f350052c736341812728bf3d1cdd70ae48f5d72351760427b565b8
+  - byteCount: 1341
+    contentHash: sha256:66a2b487867826b98dc6f72573cb7ad10f19c76c98aebd70e549e5988d479d04
+    path: packages/devtools/README/production-safety.md
+    userRegionHash: sha256:66a2b487867826b98dc6f72573cb7ad10f19c76c98aebd70e549e5988d479d04
+  - byteCount: 2077
+    contentHash: sha256:6c46531a10240b2266f6023930967b6de35e9dee64964e3812ed2544badd1839
+    path: packages/devtools/README/quickstart.md
+    userRegionHash: sha256:6c46531a10240b2266f6023930967b6de35e9dee64964e3812ed2544badd1839
+  - byteCount: 1028
+    contentHash: sha256:76efbefafb6a2dec15e3150910fddf495fe58d0ae5d8957c7b49a481e27b91ac
+    path: packages/devtools/README/readout.md
+    userRegionHash: sha256:76efbefafb6a2dec15e3150910fddf495fe58d0ae5d8957c7b49a481e27b91ac
+  - byteCount: 2001
+    contentHash: sha256:91966b508ae630244480ed76c1485e3a58a3fda6acae68898c8e4a1c6617e120
+    path: packages/devtools/README/report-schema.md
+    userRegionHash: sha256:91966b508ae630244480ed76c1485e3a58a3fda6acae68898c8e4a1c6617e120
+profile: human_readme
+recordId: knormdoc_db550586c09913d764c35bd1
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:d714d63b2fce79c5c787809b1648636dc04bdea2c9f1f646c5241546611f0f94
+sourcePath: packages/devtools/README.md
+sourceUnitVersionIds:
+  - uv_3454f1e598e5d2f59240e3bc
+  - uv_3c2da56eb55a5664adc42995
+  - uv_43b28f4f6cefc087c32fb75b
+  - uv_6b156a895167e3e6d52ccb7f
+  - uv_6fdb8b1c1e862f7f56251261
+  - uv_748fb2f53b8382c1aaee1c57
+  - uv_a48640f241787b37bbb48dea
+  - uv_b632c53445900439e4c3dfba
+  - uv_be5469e589f692a549af058b
+  - uv_f3f091c3f87e110283b5a626
+  - uv_f6e0a99200c2353cff2ff243

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "kind": "lervo_repository_role",
+  "roleId": "product-owner",
+  "version": "1.0.0",
+  "extends": [
+    {
+      "roleId": "ceo",
+      "version": "1.0.0"
+    }
+  ],
+  "profile": {
+    "name": "Product Owner",
+    "description": "Owns one repository-backed product team, prioritizes outcomes, hires and delegates bounded team agents, and reports decisions to the central executive under exact organization policy.",
+    "requestTypes": [
+      "product.inspect",
+      "product.prioritize",
+      "product.plan",
+      "agent.hire",
+      "assignment.delegate",
+      "deliberation.convene",
+      "organization.coordinate"
+    ]
+  },
+  "checks": []
+}

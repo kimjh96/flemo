@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "sharedInstruction": "Build the requested interactive scene with @flemo/react in the supplied starter. Use only the supplied reference corpus. Do not access the network, copy an existing demo, or add explanatory source comments. The first submitted production build is scored without a repair prompt.",
+  "variants": [
+    {
+      "id": "music-library",
+      "prompt": "Create a music library that opens an album as a full app screen. The app header frame must appear continuous while its title and leading control change naturally on push, pop, and edge-swipe back. A queue panel inside the library owns a URL-independent list and filter history; its local navigation must not move the app header, while an album link inside it must open the outer album screen. The featured cover and its title must travel into the album view as one crisp visual identity. A quick-actions dialog opened from the queue must dim and cover the outer app header without navigating either history. Expose stable data-eval attributes for app-home, app-detail, local-list, local-filter, shared-header, shared-title, shared-action, shared-object, shared-text, overlay, and overlay-close."
+    },
+    {
+      "id": "project-board",
+      "prompt": "Create a project board that opens a task as a full app screen. Keep the header frame visually continuous while its title and leading control exchange on push, pop, swipe cancellation, and swipe commit. A compact activity panel inside the board owns its own memory-only summary and filter history; local navigation changes only that panel, but a task link inside it targets the outer task screen. The highlighted task tile and its title must become the task hero with no duplicated text during motion. A command dialog opened inside the activity panel must paint above the outer header and leave both histories untouched. Expose stable data-eval attributes for app-home, app-detail, local-list, local-filter, shared-header, shared-title, shared-action, shared-object, shared-text, overlay, and overlay-close."
+    },
+    {
+      "id": "travel-itinerary",
+      "prompt": "Create a travel itinerary that opens a day plan as a full app screen. The header frame stays visually fixed while its title and leading control transition with the screen during push, pop, and interactive back gestures. A reservations panel inside the itinerary owns an independent memory history for upcoming and saved views; it must navigate locally without disturbing the header, while a day-plan link inside it opens the outer route. The featured place card and its place name must flow into the day hero as one sharp identity instead of cross-fading duplicate words. A trip-tools dialog opened from the reservations panel must cover the outer header without changing either stack. Expose stable data-eval attributes for app-home, app-detail, local-list, local-filter, shared-header, shared-title, shared-action, shared-object, shared-text, overlay, and overlay-close."
+    }
+  ]
+}
