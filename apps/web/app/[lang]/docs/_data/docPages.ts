@@ -36,6 +36,146 @@ const morphOptionRows = (copy: MorphOptionCopy): string[][] =>
     copy[option]
   ]);
 
+const compositionExample = `import { useState, type ReactNode } from "react";
+import {
+  Layer, Morph, Part, Route, Router, Screen, Slot,
+  createPartTransition, useNavigate
+} from "@flemo/react";
+
+const ARRIVE = [0.4, 0, 1, 1] as const;
+const LEAVE = [0, 0, 0.2, 1] as const;
+const FLIGHT_EASE = [0.32, 0.72, 0, 1] as const;
+
+const headerTitle = createPartTransition({
+  name: "header-title",
+  initial: { opacity: 0, x: 72 },
+  idle: { value: { opacity: 1, x: 0 }, options: { ease: FLIGHT_EASE } },
+  enter: { value: { opacity: 0, x: -72 }, options: { ease: FLIGHT_EASE } },
+  exit: { value: { opacity: 1, x: 0 }, options: { ease: FLIGHT_EASE } },
+  dismiss: { value: { opacity: 0, x: 72 }, options: { ease: FLIGHT_EASE } }
+});
+
+const headerAction = createPartTransition({
+  name: "header-action",
+  initial: { opacity: 0, x: 12 },
+  idle: { value: { opacity: 1, x: 0 }, options: { ease: FLIGHT_EASE } },
+  enter: { value: { opacity: 0, x: -12 }, options: { ease: FLIGHT_EASE } },
+  exit: { value: { opacity: 1, x: 0 }, options: { ease: FLIGHT_EASE } },
+  dismiss: { value: { opacity: 0, x: 12 }, options: { ease: FLIGHT_EASE } }
+});
+
+const cardCopy = createPartTransition({
+  name: "card-copy",
+  initial: { opacity: 0 },
+  idle: { value: { opacity: 1 }, options: { ease: ARRIVE } },
+  enter: { value: { opacity: 0 }, options: { ease: LEAVE } },
+  exit: { value: { opacity: 1 }, options: { ease: ARRIVE } },
+  dismiss: { value: { opacity: 0 }, options: { ease: LEAVE } }
+});
+
+function Header({ title, action }: { title: string; action: ReactNode }) {
+  return <header>
+    <Part name="header-action">{action}</Part>
+    <Part name="header-title"><h1>{title}</h1></Part>
+  </header>;
+}
+
+export function AppRouter() {
+  return <Router
+    name="app"
+    strictRoutes
+    defaultTransitionName="cupertino"
+    partTransitions={[headerTitle, headerAction, cardCopy]}
+  >
+    <Route path="/workspace" element={<Workspace />} />
+    <Route path="/message/:id" element={<Message />} />
+  </Router>;
+}
+
+function Workspace() {
+  const app = useNavigate({ router: "app" });
+  return <Screen
+    sharedTopBar={<Header title="Inbox" action={<button>Menu</button>} />}
+    sharedTopBarId="app-header"
+  >
+    <Morph
+      name="shared"
+      layoutId="featured-message"
+      onClick={() => app.push("/message/:id", { id: "42" })}
+    >
+      <article>
+        <Part name="card-copy"><small>Today</small></Part>
+        <span style={{ display: "block", height: 24 }}>
+          <Morph
+            as="span"
+            name="text"
+            layoutId="featured-message-title"
+            style={{ display: "block", fontSize: 16, lineHeight: "24px" }}
+          >
+            Featured message
+          </Morph>
+        </span>
+        <Part name="card-copy"><p>Open message</p></Part>
+      </article>
+    </Morph>
+
+    <Router name="pane" history="memory" initPath="/list" className="pane">
+      <nav>Local tools</nav>
+      <Slot className="pane-slot">
+        <Route path="/list" element={<MessageList />} />
+        <Route path="/filters" element={<Screen>Filters</Screen>} />
+      </Slot>
+    </Router>
+  </Screen>;
+}
+
+function MessageList() {
+  const pane = useNavigate();
+  const app = useNavigate({ router: "app" });
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  return <Screen>
+    <button onClick={() => pane.push("/filters")}>Local filters</button>
+    <button onClick={() => app.push("/message/:id", { id: "7" })}>
+      Full-screen message
+    </button>
+    <button onClick={() => setOverlayOpen(true)}>Open command layer</button>
+    {overlayOpen && (
+      <Layer>
+        <div className="app-overlay" role="dialog" aria-modal="true">
+          <button onClick={() => setOverlayOpen(false)}>Close</button>
+        </div>
+      </Layer>
+    )}
+  </Screen>;
+}
+
+function Message() {
+  const app = useNavigate({ router: "app" });
+  return <Screen
+    sharedTopBar={
+      <Header title="Message" action={<button onClick={() => app.pop()}>Back</button>} />
+    }
+    sharedTopBarId="app-header"
+  >
+    <Morph name="shared" layoutId="featured-message">
+      <article>
+        <Part name="card-copy"><small>Message 42</small></Part>
+        <span style={{ display: "block", height: 32 }}>
+          <Morph
+            as="span"
+            name="text"
+            layoutId="featured-message-title"
+            style={{ display: "block", fontSize: 24, lineHeight: "32px" }}
+          >
+            Featured message
+          </Morph>
+        </span>
+        <Part name="card-copy"><p>Full message</p></Part>
+      </article>
+    </Morph>
+  </Screen>;
+}`;
+
 export interface DocSection {
   title: string;
   pages: DocPage[];
@@ -93,7 +233,8 @@ const EN: DocSection[] = [
               "`Screen` top bar, bottom bar, safe areas",
               "`Navigation` useNavigate, useParams, useStep",
               "`Transitions` built-in presets, custom transitions, gestures",
-              "`Part` give one element its own transition inside a screen"
+              "`Part` give one element its own transition inside a screen",
+              "`Composition` combine nested routing, shared chrome, Parts, and Morphs"
             ]
           }
         ]
@@ -827,20 +968,24 @@ const EN: DocSection[] = [
           { type: "h", text: "Follow the swipe" },
           {
             type: "p",
-            text: "That is the resting animation, and it is all a programmatic push or pop needs. During an interactive swipe (like cupertino's edge swipe-back) a part without swipe hooks still lands correctly when the swipe commits, but it only settles at the end instead of tracking the finger. To make it follow the drag, add swipe hooks in `options`."
+            text: "The declared pop is already the interactive animation. A Part with no swipe hooks follows the same POPPING progress as its screen, on the clock resolved for that Part, during drag, cancellation, and commit. No per-frame code is required."
           },
           {
             type: "p",
-            text: "Parts take their own three hooks, `onSwipeStart`, `onSwipe`, and `onSwipeEnd`, in a per-element form. Each receives `(triggered, { animate, element, active })`, and `onSwipe` additionally gets the drag `progress` from 0 to 100, the same progress the screen transition reports (see the Transitions page). There is no pointer event and no screens here, just the wrapped `element`, `animate` to write to it, and `active` telling whether it sits on the current top screen (`true`) or the previous screen being revealed (`false`). The rhythm is the one a transition's own `onMove` and `onEnd` use: `{ duration: 0 }` in `onSwipe` to follow the finger, and a short settle in `onSwipeEnd` where `triggered` says whether the swipe committed."
+            text: "Duration and delay inherit from the matching screen variant, but easing does not. An automatic pop evaluates each participant's easing over time, while a swipe seeks every rider to the finger's spatial progress. If the Part must cover the same fraction of its path at the same screen position in both interactions, author the screen's easing on every participating Part variant. Equal duration alone is not enough."
+          },
+          {
+            type: "p",
+            text: "`onSwipeStart`, `onSwipe`, and `onSwipeEnd` are advanced overrides, not an opt-in for tracking. Adding any one of them removes that Part from the default gesture rider, on both active sides, and makes the hooks responsible for its drag pose and both landing outcomes. Use them only when the interactive shape must differ from the declared programmatic pop. Each hook receives `(triggered, { animate, element, active })`; `onSwipe` also receives progress from 0 to 100."
           },
           {
             type: "code",
             lang: "ts",
-            code: 'const panelTitle = createPartTransition({\n  name: "panel-title",\n  initial: { opacity: 1, y: 0 },\n  idle: { value: { opacity: 1, y: 0 }, options: { duration: 0 } },\n  enter: { value: { opacity: 0.35, y: -10 }, options: { duration: 0.6, ease: EASE } },\n  exit: { value: { opacity: 1, y: 0 }, options: { duration: 0.6, ease: EASE } },\n  options: {\n    onSwipe: (_, progress, { animate, element, active }) => {\n      if (active) return;\n      const recovered = Math.min(1, Math.max(0, progress / 100));\n      animate(\n        element,\n        { opacity: 0.35 + 0.65 * recovered, y: -10 * (1 - recovered) },\n        { duration: 0 }\n      );\n    },\n    onSwipeEnd: (triggered, { animate, element, active }) => {\n      if (active) return;\n      animate(element, triggered ? { opacity: 1, y: 0 } : { opacity: 0.35, y: -10 }, {\n        duration: 0.3,\n        ease: EASE\n      });\n    }\n  }\n});'
+            code: 'const panelTitle = createPartTransition({\n  name: "panel-title",\n  initial: { opacity: 1, y: 0 },\n  idle: { value: { opacity: 1, y: 0 }, options: { duration: 0 } },\n  enter: { value: { opacity: 0.35, y: -10 } },\n  exit: { value: { opacity: 1, y: 0 } },\n  options: {\n    onSwipe: (_, progress, { animate, element, active }) => {\n      if (active) return;\n      const travelled = Math.min(1, Math.max(0, progress / 100));\n      const faded = Math.min(1, travelled / 0.55);\n      animate(\n        element,\n        { opacity: 0.35 + 0.65 * faded, y: -10 * (1 - travelled) },\n        { duration: 0 }\n      );\n    },\n    onSwipeEnd: (triggered, { animate, element, active }) => {\n      if (active) return;\n      animate(element, triggered ? { opacity: 1, y: 0 } : { opacity: 0.35, y: -10 }, {\n        duration: 0.3,\n        ease: EASE\n      });\n    }\n  }\n});'
           },
           {
             type: "p",
-            text: "The `if (active) return;` at the top of each hook is the key move. During a swipe-back the top screen is leaving and the previous screen is coming back, so only the previous screen's part needs to recover with the drag. The active side just rides its own screen untouched, so its hooks bail out early. `onSwipe` maps the drag `progress` onto the title's opacity and offset every frame, and `onSwipeEnd` settles the rest based on whether the swipe committed."
+            text: "This override intentionally spends opacity in the first 55% of the gesture while position continues across the full drag. The default rider cannot express that split. `if (active) return;` deliberately leaves the dismissing side under custom control without writing a pose, while the inactive returning title is animated and settled for both commit and cancellation. Remove the entire `options` block when both properties should follow the declared pop normally."
           },
           {
             type: "note",
@@ -980,6 +1125,128 @@ const EN: DocSection[] = [
           {
             type: "note",
             text: "The built-in `shared` preset authors no duration on purpose. That is what lets one morph look right under any transition you pair it with."
+          }
+        ]
+      },
+      {
+        slug: "composition",
+        title: "Composition",
+        blocks: [
+          {
+            type: "p",
+            text: "Complex flemo motion starts with ownership, not easing. Draw the Router tree, decide which stack each action changes, and list every visual participant before choosing a transition factory. This keeps a locally convincing animation from moving the wrong region or pairing across the wrong flight boundary."
+          },
+          { type: "h", text: "Choose structure before motion" },
+          {
+            type: "table",
+            headers: ["Visual requirement", "Structure"],
+            rows: [
+              [
+                "Identical chrome stays mounted on every route",
+                "Place it outside that Router's `Slot`"
+              ],
+              [
+                "Header shell stays visually fixed, but title or actions differ by screen",
+                "Give both Screens the same shared bar ID and wrap changing fields in `Part`"
+              ],
+              [
+                "One object exists on two screens",
+                "Pair two `Morph` elements by `layoutId` inside one Router flight"
+              ],
+              [
+                "A contained panel owns its own back stack",
+                'Mount a nested Router; use `history="memory"` when it must not touch the URL'
+              ],
+              [
+                "A child opens a full-screen destination",
+                "Target the named ancestor Router explicitly"
+              ],
+              [
+                "An overlay must cover shared bars",
+                "Render it through `Layer` and verify its containing box"
+              ]
+            ]
+          },
+          { type: "h", text: "One composed structure" },
+          {
+            type: "p",
+            text: "This example combines a root stack, a local memory stack, a continuous app header, independent title and action motion, a root-owned Morph, local and ancestor-targeted navigation, and an overlay opened by the nested screen but painted through the outer Layer host. The Part variants omit moving durations so they inherit the root screen transition, including its pop asymmetry. The old and new header content cross-fade while translating in opposite directions. No swipe hooks are needed."
+          },
+          { type: "code", lang: "tsx", code: compositionExample },
+          {
+            type: "table",
+            headers: ["Participant", "Owner", "Identity", "Interactive behavior"],
+            rows: [
+              [
+                "Workspace and Message Screens",
+                "`app` Router",
+                "route entries",
+                "root transition and gesture"
+              ],
+              ["Header shell", "root Screens", "shared bar ID `app-header`", "hands over in place"],
+              [
+                "Title and action",
+                "root Screens",
+                "Part names",
+                "declared POPPING poses follow the swipe automatically"
+              ],
+              [
+                "Featured message",
+                "root Screens",
+                "Morph `featured-message`",
+                "arriving side flies in the root morph layer"
+              ],
+              [
+                "Featured title",
+                "outer message Morph",
+                'Morph `featured-message-title` with `name="text"`',
+                "re-typesets once inside the card flight"
+              ],
+              [
+                "Changing card copy",
+                "root Screens, inside the outer Morph",
+                "Part `card-copy`",
+                "departure leaves early and arrival enters late"
+              ],
+              [
+                "List and Filters Screens",
+                "`pane` Router",
+                "local route entries",
+                "only the pane Slot changes"
+              ],
+              [
+                "Command overlay",
+                "List Screen state",
+                "`Layer` slot owned by the nested Screen",
+                "paints in the outer host above the shared header"
+              ]
+            ]
+          },
+          { type: "h", text: "Why the Morph sits outside the nested Router" },
+          {
+            type: "p",
+            text: "A Morph belongs to the Router of its enclosing Screen. The featured source is a child of the root Workspace Screen but a sibling of the nested Router, so it can pair with the root Message Screen. If it lived inside `MessageList`, it would belong to `pane`; targeting `app` changes which stack navigates, but it does not move that source element into the ancestor's flight boundary."
+          },
+          { type: "h", text: "Keep repeated text out of the container cross-fade" },
+          {
+            type: "p",
+            text: "The outer Morph owns the card box and surface. Its repeated title is a nested `name=\"text\"` Morph, so one glyph run re-typesets between sizes on the carrying Morph's clock. Put `display: block` or `inline-block`, font size, and line height on the text Morph itself; the surrounding holder preserves the line's layout space. A non-replaced inline box can receive a computed translate without moving its actual line box, which makes the words appear at the destination before travelling. Ordinary repeated text on both sides would instead leave the source ghost fading over the destination title and visibly double the letters during the handoff."
+          },
+          {
+            type: "p",
+            text: "The eyebrow and description are different copy, not shared identity. They use a `card-copy` Part so the departure leaves early and the arrival enters late on the same root clock. Keep that Part outside the text Morph. Fading a parent around the title would also fade the one glyph run that should remain continuously visible."
+          },
+          { type: "h", text: "Verify the whole composition" },
+          {
+            type: "list",
+            items: [
+              "Push and pop the local pane and confirm the root header and root history do not change",
+              "Open the full-screen message from inside the pane and confirm only the app Router owns the flight",
+              "Open the command overlay from the pane and confirm it paints in the outer Layer host above the shared header without changing either stack",
+              "Slowly swipe back, cancel once, then commit once; title, action, screen, and Morph must stay phase-aligned",
+              "Repeat with long titles and a missing action so the stable header geometry is tested, not assumed",
+              "Judge the motion on a real device with inspection and capture closed, then inspect the devtools report for cleanup and anomalies"
+            ]
           }
         ]
       }
@@ -1135,7 +1402,8 @@ const KO: DocSection[] = [
               "`Screen` 상단 바, 하단 바, 세이프 에어리어",
               "`Navigation` useNavigate, useParams, useStep",
               "`Transitions` 내장 프리셋, 커스텀 트랜지션, 제스처",
-              "`Part` 화면 안 한 요소에 자기만의 전환 주기"
+              "`Part` 화면 안 한 요소에 자기만의 전환 주기",
+              "`조합 설계` 중첩 라우팅, 공유 크롬, Part, Morph를 한 구조로 엮기"
             ]
           }
         ]
@@ -1871,20 +2139,24 @@ const KO: DocSection[] = [
           { type: "h", text: "스와이프 따라가기" },
           {
             type: "p",
-            text: "여기까지가 정지 애니메이션이고, 프로그래밍 방식 push·pop엔 이것만으로 충분해요. 인터랙티브 스와이프(cupertino의 엣지 스와이프 뒤로 같은) 중에는, 스와이프 훅이 없는 파트도 스와이프가 커밋되면 제자리에 잘 안착하지만 손가락을 따라가지 않고 끝에서만 정리돼요. 드래그를 따라가게 하려면 `options`에 스와이프 훅을 더하세요."
+            text: "선언한 pop이 곧 인터랙티브 애니메이션이에요. 스와이프 훅이 없는 Part도 화면과 같은 POPPING 진행도를 따라가고, 그 Part에 해석된 시계로 드래그·취소·커밋 모두를 움직여요. 프레임별 코드는 필요 없어요."
           },
           {
             type: "p",
-            text: "파트는 자기 훅 세 개(`onSwipeStart`, `onSwipe`, `onSwipeEnd`)를 요소 단위 형태로 받아요. 각각 `(triggered, { animate, element, active })`를 받고, `onSwipe`엔 0에서 100까지의 드래그 `progress`가 더 붙어요. 화면 트랜지션이 보고하는 바로 그 진행도예요(Transitions 페이지 참고). 여기엔 포인터 이벤트도 화면도 없어요. 감싼 `element`와, 거기에 값을 쓰는 `animate`, 그리고 그 요소가 현재 맨 위 화면에 있는지(`true`) 드러나는 이전 화면에 있는지(`false`)를 알려주는 `active`뿐이에요. 리듬은 트랜지션의 `onMove`·`onEnd`와 같아요. `onSwipe`에선 `{ duration: 0 }`으로 손가락을 따라가고, `onSwipeEnd`에선 짧게 안착하며 `triggered`가 스와이프 커밋 여부를 알려줘요."
+            text: "duration과 delay는 같은 화면 variant에서 상속하지만 easing은 상속하지 않아요. 자동 pop은 각 참여자의 easing을 시간에 따라 계산하고, swipe는 모든 rider를 손가락의 공간 진행도에 맞춰 찾아가요. 두 상호작용에서 같은 화면 위치일 때 Part도 자기 경로의 같은 비율을 지나야 한다면, 참여하는 모든 Part variant에 화면과 같은 easing을 적어야 해요. duration만 같아서는 충분하지 않아요."
+          },
+          {
+            type: "p",
+            text: "`onSwipeStart`, `onSwipe`, `onSwipeEnd`는 따라가기를 켜는 옵션이 아니라 고급 override예요. 하나라도 추가하면 active 양쪽의 그 Part가 기본 제스처 rider에서 빠지고, 훅이 드래그 포즈와 두 가지 착지를 모두 책임져요. 인터랙티브 모양이 선언한 프로그래밍 pop과 달라야 할 때만 쓰세요. 각 훅은 `(triggered, { animate, element, active })`를 받고, `onSwipe`는 0부터 100까지의 progress도 받아요."
           },
           {
             type: "code",
             lang: "ts",
-            code: 'const panelTitle = createPartTransition({\n  name: "panel-title",\n  initial: { opacity: 1, y: 0 },\n  idle: { value: { opacity: 1, y: 0 }, options: { duration: 0 } },\n  enter: { value: { opacity: 0.35, y: -10 }, options: { duration: 0.6, ease: EASE } },\n  exit: { value: { opacity: 1, y: 0 }, options: { duration: 0.6, ease: EASE } },\n  options: {\n    onSwipe: (_, progress, { animate, element, active }) => {\n      if (active) return;\n      const recovered = Math.min(1, Math.max(0, progress / 100));\n      animate(\n        element,\n        { opacity: 0.35 + 0.65 * recovered, y: -10 * (1 - recovered) },\n        { duration: 0 }\n      );\n    },\n    onSwipeEnd: (triggered, { animate, element, active }) => {\n      if (active) return;\n      animate(element, triggered ? { opacity: 1, y: 0 } : { opacity: 0.35, y: -10 }, {\n        duration: 0.3,\n        ease: EASE\n      });\n    }\n  }\n});'
+            code: 'const panelTitle = createPartTransition({\n  name: "panel-title",\n  initial: { opacity: 1, y: 0 },\n  idle: { value: { opacity: 1, y: 0 }, options: { duration: 0 } },\n  enter: { value: { opacity: 0.35, y: -10 } },\n  exit: { value: { opacity: 1, y: 0 } },\n  options: {\n    onSwipe: (_, progress, { animate, element, active }) => {\n      if (active) return;\n      const travelled = Math.min(1, Math.max(0, progress / 100));\n      const faded = Math.min(1, travelled / 0.55);\n      animate(\n        element,\n        { opacity: 0.35 + 0.65 * faded, y: -10 * (1 - travelled) },\n        { duration: 0 }\n      );\n    },\n    onSwipeEnd: (triggered, { animate, element, active }) => {\n      if (active) return;\n      animate(element, triggered ? { opacity: 1, y: 0 } : { opacity: 0.35, y: -10 }, {\n        duration: 0.3,\n        ease: EASE\n      });\n    }\n  }\n});'
           },
           {
             type: "p",
-            text: "각 훅 맨 위의 `if (active) return;`이 핵심이에요. 스와이프 뒤로 중에는 맨 위 화면이 나가고 이전 화면이 돌아오므로, 드래그에 맞춰 회복해야 하는 건 이전 화면의 파트뿐이에요. 활성 쪽은 자기 화면을 따라 움직이면 그만이라 훅에서 일찍 빠져나와요. `onSwipe`는 드래그 `progress`를 타이틀의 opacity와 위치에 매 프레임 매핑하고, `onSwipeEnd`는 스와이프가 커밋됐는지에 따라 나머지를 안착시켜요."
+            text: "이 override는 opacity를 제스처의 첫 55%에 먼저 끝내고 위치는 드래그 전체에 걸쳐 움직이게 해요. 기본 rider로는 표현할 수 없는 속도 분리예요. `if (active) return;`은 나가는 쪽을 커스텀 제어 아래 둔 채 포즈를 쓰지 않겠다는 의도이고, 비활성인 복귀 타이틀만 움직여 커밋과 취소에 각각 착지시켜요. 두 속성이 선언한 pop을 그대로 따라도 된다면 `options` 블록 전체를 빼세요."
           },
           {
             type: "note",
@@ -2004,6 +2276,117 @@ const KO: DocSection[] = [
           {
             type: "note",
             text: "빌트인 `shared` 프리셋은 일부러 길이를 안 정해요. 그래서 어떤 트랜지션과 짝지어도 하나의 모핑이 알맞게 보여요."
+          }
+        ]
+      },
+      {
+        slug: "composition",
+        title: "조합 설계",
+        blocks: [
+          {
+            type: "p",
+            text: "복잡한 flemo 모션은 easing이 아니라 소유권에서 시작해요. Router 트리를 그리고, 각 동작이 어느 스택을 바꾸는지 정하고, 시각 참가자를 모두 적은 뒤 트랜지션 팩토리를 고르세요. 그래야 부분적으로 그럴듯한 애니메이션이 엉뚱한 영역을 움직이거나 다른 비행 경계의 요소를 짝짓는 일을 막을 수 있어요."
+          },
+          { type: "h", text: "모션보다 구조를 먼저 고르기" },
+          {
+            type: "table",
+            headers: ["시각 요구", "구조"],
+            rows: [
+              ["모든 라우트에서 같은 크롬을 계속 마운트", "그 Router의 `Slot` 바깥에 둬요"],
+              [
+                "헤더 껍데기는 고정되어 보이고 화면마다 타이틀이나 액션은 달라짐",
+                "두 Screen에 같은 공유 바 ID를 주고 바뀌는 필드를 `Part`로 감싸요"
+              ],
+              [
+                "한 물건이 두 화면에 존재",
+                "한 Router 비행 안에서 두 `Morph`를 `layoutId`로 짝지어요"
+              ],
+              [
+                "포함된 패널이 자기 뒤로가기 스택을 소유",
+                '중첩 Router를 두고 URL과 분리하려면 `history="memory"`를 써요'
+              ],
+              [
+                "자식이 전체 화면 목적지를 열어야 함",
+                "이름 붙인 조상 Router를 명시적으로 지정해요"
+              ],
+              ["오버레이가 공유 바까지 덮어야 함", "`Layer`로 그리고 기준 상자를 검증해요"]
+            ]
+          },
+          { type: "h", text: "한 구조에 함께 조합하기" },
+          {
+            type: "p",
+            text: "아래 예제는 루트 스택, 로컬 메모리 스택, 이어지는 앱 헤더, 독립적으로 움직이는 타이틀과 액션, 루트 소유 Morph, 로컬·조상 대상 내비게이션, 그리고 중첩 화면에서 열지만 바깥 Layer host에 그리는 오버레이를 함께 써요. Part의 움직이는 duration은 비워서 pop 비대칭까지 루트 화면 트랜지션에서 물려받아요. 이전·다음 헤더 콘텐츠는 서로 반대 방향으로 이동하며 크로스페이드해요. 스와이프 훅은 필요 없어요."
+          },
+          { type: "code", lang: "tsx", code: compositionExample },
+          {
+            type: "table",
+            headers: ["참가자", "소유자", "정체성", "인터랙티브 동작"],
+            rows: [
+              [
+                "Workspace·Message Screen",
+                "`app` Router",
+                "라우트 엔트리",
+                "루트 트랜지션과 제스처"
+              ],
+              ["헤더 껍데기", "루트 Screen", "공유 바 ID `app-header`", "제자리에서 인계"],
+              [
+                "타이틀·액션",
+                "루트 Screen",
+                "Part 이름",
+                "선언한 POPPING 포즈가 자동으로 스와이프를 따라감"
+              ],
+              [
+                "Featured message",
+                "루트 Screen",
+                "Morph `featured-message`",
+                "도착 쪽이 루트 morph layer에서 비행"
+              ],
+              [
+                "Featured 타이틀",
+                "바깥 message Morph",
+                '`name="text"`인 Morph `featured-message-title`',
+                "카드 비행 안에서 한 벌의 글자를 다시 조판"
+              ],
+              [
+                "바뀌는 카드 카피",
+                "바깥 Morph 안의 루트 Screen",
+                "Part `card-copy`",
+                "출발 카피는 먼저 나가고 도착 카피는 늦게 들어옴"
+              ],
+              ["List·Filters Screen", "`pane` Router", "로컬 라우트 엔트리", "pane Slot만 바뀜"],
+              [
+                "Command 오버레이",
+                "List Screen 상태",
+                "중첩 Screen이 소유한 `Layer` slot",
+                "공유 헤더 위 바깥 host에 그려짐"
+              ]
+            ]
+          },
+          { type: "h", text: "Morph가 중첩 Router 바깥에 있는 이유" },
+          {
+            type: "p",
+            text: "Morph는 자신을 감싼 Screen의 Router에 속해요. featured 출발 요소는 루트 Workspace Screen의 자식이면서 중첩 Router의 형제라서 루트 Message Screen과 짝지을 수 있어요. `MessageList` 안에 두면 `pane` 소유가 돼요. 내비게이션에서 `app`을 대상으로 골라도 바뀌는 건 스택 소유자이지, 출발 요소가 조상 Router의 비행 경계로 옮겨지는 건 아니에요."
+          },
+          { type: "h", text: "반복되는 텍스트를 컨테이너 크로스페이드에서 빼기" },
+          {
+            type: "p",
+            text: '바깥 Morph는 카드의 상자와 표면을 맡아요. 양쪽에 반복되는 타이틀은 `name="text"`인 중첩 Morph로 분리해, 한 벌의 글자가 바깥 Morph의 시계를 타고 두 크기 사이에서 다시 조판되게 해요. `display: block` 또는 `inline-block`, 글자 크기와 행간은 text Morph 자체에 두고, 바깥 holder가 비행 중에도 줄의 레이아웃 공간을 유지하게 하세요. 대체되지 않는 inline 상자는 translate가 계산돼도 실제 line box가 움직이지 않아 글자가 이동 전에 도착 위치에 나타날 수 있어요. 같은 문구를 양쪽의 일반 콘텐츠로 두면 출발 ghost가 도착 타이틀 위에서 페이드되어 전환 중 글자가 두 겹으로 번져 보여요.'
+          },
+          {
+            type: "p",
+            text: "eyebrow와 설명은 같은 정체성이 아니라 서로 다른 카피예요. `card-copy` Part로 분리해 같은 루트 시계에서 출발 카피는 먼저 나가고 도착 카피는 늦게 들어오게 하세요. 이 Part로 text Morph까지 감싸면 계속 보여야 할 한 벌의 글자까지 함께 페이드되므로 둘은 분리해야 해요."
+          },
+          { type: "h", text: "조합 전체 검증하기" },
+          {
+            type: "list",
+            items: [
+              "로컬 pane을 push·pop하고 루트 헤더와 루트 히스토리가 바뀌지 않는지 확인해요",
+              "pane 안에서 전체 화면 메시지를 열고 app Router만 비행을 소유하는지 확인해요",
+              "pane에서 command 오버레이를 열고 두 스택은 바꾸지 않은 채 바깥 Layer host에서 공유 헤더 위를 덮는지 확인해요",
+              "천천히 뒤로 스와이프해 한 번 취소하고 한 번 커밋해요. 타이틀·액션·화면·Morph가 같은 위상을 유지해야 해요",
+              "긴 타이틀과 액션이 없는 경우도 반복해서 고정 헤더 지오메트리를 가정하지 말고 시험해요",
+              "실기기에서 검사 도구와 캡처를 끄고 먼저 눈으로 판단한 뒤 devtools 리포트로 정리 상태와 anomaly를 확인해요"
+            ]
           }
         ]
       }
