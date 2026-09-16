@@ -20,6 +20,16 @@ import { resolve } from "../contract.mjs";
 
 export const id = "router-ownership";
 
+// The roles this criterion needs to be exposed before it can start, so a
+// submission that never marked them fails as that rather than as a timeout.
+export const needs = [
+  "app-home",
+  "local-list",
+  "local-filter",
+  "open-detail-from-local",
+  "shared-action"
+];
+
 const describe = (before, after) => {
   const ids = new Set([...Object.keys(before.scopes), ...Object.keys(after.scopes)]);
   const moved = [];

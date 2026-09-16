@@ -154,6 +154,27 @@ export const target = async (page, map, name) => {
   return (await control.count()) > 0 ? control.first() : element;
 };
 
+/**
+ * Which of a criterion's required roles the submission never marked.
+ *
+ * Asked once, quickly, before the criterion drives anything: a missing role
+ * otherwise surfaces as a thirty-second click timeout with a Playwright call
+ * log in place of a reason, and a run of an empty submission takes minutes to
+ * say nothing.
+ */
+export const missingRoles = async (page, map, names) => {
+  const missing = [];
+  for (const name of names) {
+    const found = await role(page, map, name)
+      .first()
+      .waitFor({ state: "attached", timeout: 3000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!found) missing.push(name);
+  }
+  return missing;
+};
+
 /** Click a role and wait out whatever it started. */
 export const act = async (page, map, name) => {
   await (await target(page, map, name)).click();

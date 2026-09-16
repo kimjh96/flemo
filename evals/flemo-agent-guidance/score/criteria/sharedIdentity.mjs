@@ -29,6 +29,10 @@ import { sampleFlight, settled, target } from "../drive.mjs";
 
 export const id = "shared-identity";
 
+// The roles this criterion needs to be exposed before it can start, so a
+// submission that never marked them fails as that rather than as a timeout.
+export const needs = ["shared-object"];
+
 // HOW MUCH OF A GLYPH REACHES THE GLASS.
 //
 // The product of every opacity above it, and zero as soon as anything above it

@@ -24,6 +24,7 @@
     "build:packages": "turbo run build --filter=@flemo/core --filter=@flemo/react --filter=@flemo/devtools",
     "eval:agents:validate": "node evals/flemo-agent-guidance/validate.mjs",
     "eval:agents:prepare": "node evals/flemo-agent-guidance/prepare-corpora.mjs",
+    "eval:agents:ladder": "node evals/flemo-agent-guidance/runner/index.mjs",
     "eval:agents:score": "node evals/flemo-agent-guidance/score/index.mjs",
     "eval:agents:selftest": "node evals/flemo-agent-guidance/score/selftest.mjs",
     "size": "size-limit",

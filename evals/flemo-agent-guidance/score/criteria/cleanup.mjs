@@ -13,6 +13,9 @@ import { MOVING, settled } from "../drive.mjs";
 
 export const id = "cleanup";
 
+// Reads the state a run is left in, so it needs nothing exposed up front.
+export const needs = [];
+
 export const run = async ({ page, errors }) => {
   await settled(page);
   const state = await page.evaluate((moving) => {

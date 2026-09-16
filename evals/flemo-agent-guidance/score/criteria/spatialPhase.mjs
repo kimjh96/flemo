@@ -29,6 +29,10 @@ import { resolve } from "../contract.mjs";
 
 export const id = "spatial-phase";
 
+// The roles this criterion needs to be exposed before it can start, so a
+// submission that never marked them fails as that rather than as a timeout.
+export const needs = ["app-home", "shared-title", "shared-object", "shared-action"];
+
 // Where the dismissing screen stands, as a fraction of the app's width, and how
 // much ink each copy of the changing field carries. The pair is reported sorted
 // rather than by side, because which copy is "the arriving one" is the

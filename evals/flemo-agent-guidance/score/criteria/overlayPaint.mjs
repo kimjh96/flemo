@@ -19,6 +19,10 @@ import { resolve } from "../contract.mjs";
 
 export const id = "overlay-paint";
 
+// The roles this criterion needs to be exposed before it can start, so a
+// submission that never marked them fails as that rather than as a timeout.
+export const needs = ["shared-header", "open-overlay"];
+
 export const run = async ({ page, map }) => {
   await settled(page);
   const failures = [];

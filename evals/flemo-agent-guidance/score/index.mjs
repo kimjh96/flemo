@@ -16,7 +16,7 @@ import { createRequire } from "node:module";
 import { dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { watchErrors } from "./drive.mjs";
+import { missingRoles, watchErrors } from "./drive.mjs";
 import * as build from "./criteria/build.mjs";
 import * as cleanup from "./criteria/cleanup.mjs";
 import * as overlayPaint from "./criteria/overlayPaint.mjs";
@@ -91,6 +91,15 @@ for (const criterion of CRITERIA) {
     if (criterion !== cleanup) {
       await page.goto(url, { waitUntil: "networkidle" });
       await page.waitForTimeout(400);
+    }
+    const missing = await missingRoles(page, map, criterion.needs ?? []);
+    if (missing.length > 0) {
+      results.push({
+        ...registered,
+        pass: false,
+        failures: missing.map((name) => `the submission exposes no ${name}`)
+      });
+      continue;
     }
     const outcome = await criterion.run({
       page,

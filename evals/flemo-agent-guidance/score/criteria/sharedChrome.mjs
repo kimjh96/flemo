@@ -25,6 +25,16 @@ import { resolve } from "../contract.mjs";
 
 export const id = "shared-chrome";
 
+// The roles this criterion needs to be exposed before it can start, so a
+// submission that never marked them fails as that rather than as a timeout.
+export const needs = [
+  "app-home",
+  "shared-header",
+  "shared-title",
+  "shared-object",
+  "shared-action"
+];
+
 const probe = () => {
   const ink = (node) => {
     let value = 1;
