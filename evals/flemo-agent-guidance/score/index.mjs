@@ -6,7 +6,7 @@
 // a criterion cannot quietly re-weight itself here.
 //
 //   node evals/flemo-agent-guidance/score/index.mjs --url http://localhost:4173 \
-//     [--map score/maps/composition-bench.json] [--out report.json] [--only cleanup]
+//     [--session run-017] [--map score/maps/composition-bench.json] [--out report.json]
 //
 // `--map` exists to rehearse the scorer against an app that predates the
 // contract (see contract.mjs). A scored run passes no map at all.
@@ -121,6 +121,9 @@ await browser.close();
 const scored = results.reduce((total, entry) => total + (entry.pass ? entry.points : 0), 0);
 const criticalFailures = results.filter((entry) => entry.critical && !entry.pass);
 const report = {
+  // Stamped so the aggregator matches a report to its planned session by the
+  // report's own claim rather than by the file's name.
+  session: args.get("session") ?? null,
   url,
   map: args.get("map") ?? null,
   ranCriteria: results.map((entry) => entry.id),
