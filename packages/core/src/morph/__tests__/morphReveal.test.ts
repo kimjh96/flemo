@@ -266,11 +266,18 @@ describe("revealHolds", () => {
   it("probes against the document element where a page has no body", () => {
     // The colour is its own cache key, and a page with no body is only reached
     // on a miss: with one this document has already answered, the probe is
-    // never built and the fallback never runs.
+    // never built and the fallback never runs. So the colour is one no other
+    // case in this file reads, and the assertion is where the probe went rather
+    // than what the rule answered — an answer served from the cache is the
+    // same answer.
     const box = mount();
     document.documentElement.appendChild(box);
     document.body.remove();
-    expect(revealHolds(box, styleOf({ ...PLAIN, color: "rgb(1, 2, 3)" }), {})).toBe(true);
+    const attached = vi.spyOn(document.documentElement, "appendChild");
+    expect(revealHolds(box, styleOf({ ...PLAIN, color: "rgb(211, 97, 53)" }), {})).toBe(true);
+    expect(
+      attached.mock.calls.some(([node]) => (node as Element).getAttribute("aria-hidden") === "true")
+    ).toBe(true);
     document.documentElement.appendChild(document.createElement("body"));
   });
 
