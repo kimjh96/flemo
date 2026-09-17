@@ -1209,7 +1209,13 @@ describe("attachMorph", () => {
   // spread its gradient over the larger end, so both popped at the tap and at
   // the landing. The first case is the control: it proves the contents hold and
   // that a plain clipped box still reveals (see morphReveal for every rule).
-  const revealFlight = (dress: (card: HTMLElement, end: "from" | "to") => void) => {
+  const revealFlight = (
+    dress: (card: HTMLElement, end: "from" | "to") => void,
+    boxes: { from: [number, number, number, number]; to: [number, number, number, number] } = {
+      from: [20, 100, 320, 140],
+      to: [20, 100, 320, 270]
+    }
+  ) => {
     // The probe copy is measured at each size it is given, and its one child
     // sits 16px from the top-left corner at every size: contents that hold.
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
@@ -1232,7 +1238,7 @@ describe("attachMorph", () => {
       } as DOMRect;
     });
     const gallery = makeScreen("layout", true);
-    const cell = makeMorph(gallery, [20, 100, 320, 140]);
+    const cell = makeMorph(gallery, boxes.from);
     cell.innerHTML = "<span></span>";
     cell.style.overflow = "hidden";
     // A browser computes a border with no style to 0px wide; jsdom reports the
@@ -1244,7 +1250,7 @@ describe("attachMorph", () => {
     gallery.setAttribute(ACTIVE_ATTR, "false");
 
     const detail = makeScreen("layout", true);
-    const hero = makeMorph(detail, [20, 100, 320, 270]);
+    const hero = makeMorph(detail, boxes.to);
     hero.innerHTML = "<span></span>";
     hero.style.overflow = "hidden";
     dress(hero, "to");
@@ -1311,6 +1317,23 @@ describe("attachMorph", () => {
       expect(travel).toContain("--flemo-box-h: 140px");
       expect(travel).toContain("--flemo-box-h: 270px");
     }
+  });
+
+  it("measures a box that grows from its trailing edge against that edge", () => {
+    // WHICH CORNER THE CONTENTS ARE MEASURED FROM IS THE BOX'S OWN.
+    //
+    // A box grows away from the corner the flight anchors it on, and a child
+    // that never moved reads as having travelled the whole growth if it is
+    // measured from any other one. Here the two ends share a right edge and
+    // differ on the left, so the contents are asked about the right — and a
+    // child pinned to the LEFT does not hold there, so the box is laid out for
+    // real instead of being revealed. Measured from the left it would have
+    // looked like contents that hold, and the reveal would have cut a picture
+    // the page never draws.
+    const travel = revealFlight(() => {}, { from: [100, 100, 220, 140], to: [20, 100, 300, 140] });
+    expect(travel).not.toContain("clip-path");
+    expect(travel).toContain("--flemo-box-w: 220px");
+    expect(travel).toContain("--flemo-box-w: 300px");
   });
 
   it("rounds a reveal's cut with the corner the box is travelling through", () => {

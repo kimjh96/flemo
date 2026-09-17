@@ -264,11 +264,25 @@ describe("revealHolds", () => {
   });
 
   it("probes against the document element where a page has no body", () => {
+    // The colour is its own cache key, and a page with no body is only reached
+    // on a miss: with one this document has already answered, the probe is
+    // never built and the fallback never runs.
     const box = mount();
     document.documentElement.appendChild(box);
     document.body.remove();
-    expect(revealHolds(box, styleOf(PLAIN), {})).toBe(true);
+    expect(revealHolds(box, styleOf({ ...PLAIN, color: "rgb(1, 2, 3)" }), {})).toBe(true);
     document.documentElement.appendChild(document.createElement("body"));
+  });
+
+  it("lays out a box in a document it cannot compute against", () => {
+    // A document with no window has no computed style to read and no probe to
+    // read it from, so nothing about it can be proven. A detached document is
+    // the reachable case: a template or a parsed fragment a consumer measures
+    // before adopting it.
+    const detached = document.implementation.createHTMLDocument();
+    const box = detached.body.appendChild(detached.createElement("div"));
+    expect(detached.defaultView).toBeNull();
+    expect(revealHolds(box, styleOf(PLAIN), {})).toBe(false);
   });
 
   it("refuses without a computed style to read", () => {
