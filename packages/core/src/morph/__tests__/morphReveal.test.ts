@@ -176,6 +176,101 @@ describe("revealHolds", () => {
     expect(revealHolds(box, styleOf(PLAIN), {})).toBe(false);
   });
 
+  it("reads an empty shadow layer, a slashed alpha and a comma alpha as painting nothing", () => {
+    // Every shape a computed shadow list arrives in. An engine that reports no
+    // shadow at all, one that writes the alpha after a slash, one that writes
+    // it as a fourth comma channel, and one that carries a colour with no
+    // length beside it: none of them paint, and the reveal has to say so for
+    // all four or a plain card lays itself out every frame for nothing.
+    for (const shadow of [
+      "",
+      "none",
+      "rgb(0 0 0 / 0) 0px 4px 8px 0px",
+      "rgba(0, 0, 0, 0) 0px 4px 8px",
+      "rgb(15 23 42)"
+    ]) {
+      expect(revealHolds(mount(), styleOf({ ...PLAIN, "box-shadow": shadow }), {}), shadow).toBe(
+        true
+      );
+    }
+    // And one that does paint still refuses, so the readings above are not
+    // simply everything being waved through.
+    expect(
+      revealHolds(mount(), styleOf({ ...PLAIN, "box-shadow": "rgb(0 0 0 / 0.4) 0px 4px 8px" }), {})
+    ).toBe(false);
+  });
+
+  it("holds content-visibility and clip to their own values", () => {
+    expect(revealHolds(mount(), styleOf({ ...PLAIN, "content-visibility": "visible" }), {})).toBe(
+      true
+    );
+    expect(revealHolds(mount(), styleOf({ ...PLAIN, "content-visibility": "auto" }), {})).toBe(
+      false
+    );
+    expect(revealHolds(mount(), styleOf({ ...PLAIN, clip: "auto" }), {})).toBe(true);
+    expect(
+      revealHolds(mount(), styleOf({ ...PLAIN, clip: "rect(0px, 10px, 10px, 0px)" }), {})
+    ).toBe(false);
+  });
+
+  it("skips the custom properties a page sets on the box itself", () => {
+    // A theme's own variables are on every element of a Tailwind page and none
+    // of them is a paint channel; a rule table that had to name them all would
+    // be a table of the consumer's design system.
+    expect(revealHolds(mount(), styleOf({ ...PLAIN, "--brand": "oklch(0.7 0.2 250)" }), {})).toBe(
+      true
+    );
+  });
+
+  it("lays out a box holding a webkit backdrop filter", () => {
+    const box = mount();
+    const glass = box.appendChild(document.createElement("span"));
+    const real = window.getComputedStyle.bind(window);
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) =>
+      element === glass
+        ? (styleOf({ "-webkit-backdrop-filter": "blur(12px)" }) as unknown as CSSStyleDeclaration)
+        : real(element, pseudo)
+    );
+    expect(revealHolds(box, styleOf(PLAIN), {})).toBe(false);
+  });
+
+  it("lays out a box with more descendants than it will walk", () => {
+    // The walk is bounded because it runs on the navigation frame. A subtree
+    // past the bound is not proven harmless, so it takes the real layout.
+    const box = mount();
+    box.innerHTML = Array(257).fill("<span></span>").join("");
+    expect(revealHolds(box, styleOf(PLAIN), {})).toBe(false);
+  });
+
+  it("reads a shadow written with no colour at all", () => {
+    // An engine may report the colour as the page's own `color`, leaving the
+    // layer as lengths alone. Lengths are what decide whether it paints.
+    expect(revealHolds(mount(), styleOf({ ...PLAIN, "box-shadow": "0px 0px 0px" }), {})).toBe(true);
+    expect(revealHolds(mount(), styleOf({ ...PLAIN, "box-shadow": "0px 4px 8px" }), {})).toBe(
+      false
+    );
+  });
+
+  it("builds the initial-value probe once per document and colour", () => {
+    // Reading a full computed style off a throwaway element is the expensive
+    // half of the rule, and it happens on the navigation frame. It is answered
+    // from the document's own cache from the second flight onwards.
+    const made = vi.spyOn(document, "createElement");
+    revealHolds(mount(), styleOf(PLAIN), {});
+    const first = made.mock.calls.filter(([tag]) => tag === "div").length;
+    revealHolds(mount(), styleOf(PLAIN), {});
+    const second = made.mock.calls.filter(([tag]) => tag === "div").length;
+    expect(second - first).toBe(1);
+  });
+
+  it("probes against the document element where a page has no body", () => {
+    const box = mount();
+    document.documentElement.appendChild(box);
+    document.body.remove();
+    expect(revealHolds(box, styleOf(PLAIN), {})).toBe(true);
+    document.documentElement.appendChild(document.createElement("body"));
+  });
+
   it("refuses without a computed style to read", () => {
     expect(revealHolds(mount(), null, {})).toBe(false);
   });
