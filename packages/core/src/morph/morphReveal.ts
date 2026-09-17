@@ -570,10 +570,8 @@ const LIMIT = 256;
  */
 const initials = new WeakMap<Document, Map<string, Map<string, string>>>();
 
-const initialValues = (element: Element, color: string): Map<string, string> | null => {
+const initialValues = (element: Element, color: string, view: Window): Map<string, string> => {
   const document = element.ownerDocument;
-  const view = document.defaultView;
-  if (!view) return null;
   const byColor = initials.get(document) ?? new Map<string, Map<string, string>>();
   const known = byColor.get(color);
   if (known) return known;
@@ -624,8 +622,9 @@ const proven = (
   if (!clipsOverflow(read("overflow-x")) && !clipsOverflow(overflowX)) return false;
   if (!clipsOverflow(read("overflow-y")) && !clipsOverflow(overflowY)) return false;
 
-  const initial = initialValues(element, read("color"));
-  if (!initial) return false;
+  // The view is the caller's: it has already refused a style it cannot read,
+  // and an element cannot have a computed style without one.
+  const initial = initialValues(element, read("color"), view);
   for (let index = 0; index < style.length; index += 1) {
     const property = style.item(index);
     if (property.startsWith("--")) continue;
