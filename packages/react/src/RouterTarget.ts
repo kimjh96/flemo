@@ -2,24 +2,36 @@ import { matchesPathname } from "@flemo/core";
 
 import type { RouterScopeNode } from "./RouterScopeContext";
 
-// Router names, registered the same way routes and transitions are — augment
-// it and `router: "app"` autocompletes and type-checks:
-//
-//   declare module "@flemo/react" {
-//     interface RegisterRouter {
-//       app: true;
-//       region: true;
-//     }
-//   }
-//
+/**
+ * Router names, registered the same way routes and transitions are. Augment it
+ * and `router: "app"` autocompletes and type-checks:
+ *
+ * ```ts
+ * declare module "@flemo/react" {
+ *   interface RegisterRouter {
+ *     app: true;
+ *     region: true;
+ *   }
+ * }
+ * ```
+ *
+ * Leaving it empty is supported: a target then accepts any string, and a
+ * mistyped name is caught in development instead of at compile time.
+ */
 // eslint-disable-next-line
 export interface RegisterRouter {}
 
-// The relative ways to name a Router without knowing its name.
-//   current       the nearest enclosing <Router> (the default, unchanged)
-//   parent        the <Router> that encloses the current one
-//   root          the outermost <Router> of the current chain
-//   nearest-owner the first Router, current → ancestors, that declares the path
+/**
+ * The relative ways to name a Router without knowing its name.
+ *
+ * - `current`: the nearest enclosing Router, and the default.
+ * - `parent`: the Router that encloses the current one.
+ * - `root`: the outermost Router of the current chain.
+ * - `nearest-owner`: the first Router, current then ancestors, that declares
+ *   the path. It needs a path, so a pathless `pop` falls back to `current`.
+ *
+ * Every one of them walks the ancestor chain, so none can reach a sibling.
+ */
 export type RouterScopeKeyword = "current" | "parent" | "root" | "nearest-owner";
 
 // A Router name in TARGET position. Before any augmentation it stays an open

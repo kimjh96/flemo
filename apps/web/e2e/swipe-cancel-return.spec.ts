@@ -114,9 +114,9 @@ test.describe("a cancelled swipe", () => {
     await dragAndHold(page, box!);
 
     await page.evaluate(() => {
-      const trace: number[] = [];
-      (window as unknown as { __return: number[] }).__return = trace;
-      const read = () => {
+      const trace: { at: number; x: number }[] = [];
+      (window as unknown as { __return: { at: number; x: number }[] }).__return = trace;
+      const read = (at: number) => {
         const screen = [...document.querySelectorAll("[data-flemo-screen]")].find(
           (element) =>
             element.getAttribute("data-flemo-active") === "true" &&
@@ -124,9 +124,11 @@ test.describe("a cancelled swipe", () => {
         );
         if (screen) {
           const style = getComputedStyle(screen);
-          trace.push(
-            new DOMMatrixReadOnly(style.transform).m41 + (Number.parseFloat(style.translate) || 0)
-          );
+          trace.push({
+            at,
+            x:
+              new DOMMatrixReadOnly(style.transform).m41 + (Number.parseFloat(style.translate) || 0)
+          });
         }
         if (trace.length < 40) requestAnimationFrame(read);
       };
@@ -135,11 +137,13 @@ test.describe("a cancelled swipe", () => {
     await page.mouse.up();
     await page.waitForTimeout(900);
 
-    const trace = await page.evaluate(() => (window as unknown as { __return: number[] }).__return);
+    const trace = await page.evaluate(
+      () => (window as unknown as { __return: { at: number; x: number }[] }).__return
+    );
     // It went somewhere, and it came back: a release that committed would have
     // left instead, and would be measuring something else entirely.
-    expect(trace[0]).toBeGreaterThan(4);
-    expect(Math.abs(trace[trace.length - 1]!)).toBeLessThan(1);
+    expect(trace[0]!.x).toBeGreaterThan(4);
+    expect(Math.abs(trace[trace.length - 1]!.x)).toBeLessThan(1);
 
     // MEASURED AGAINST THE TRACE'S OWN CLOCK, NOT FRAME BY FRAME.
     //
@@ -148,33 +152,52 @@ test.describe("a cancelled swipe", () => {
     // motion itself is perfectly smooth. It cost this file a red CI run. What
     // does not move when a frame does is WHERE ALONG THE RETURN the distance
     // was spent.
-    const steps = trace.slice(1).map((value, index) => Math.abs(value - trace[index]!));
-    const first = steps.findIndex((step) => step > 0.05);
-    const last = steps.reduce((found, step, index) => (step > 0.005 ? index : found), -1);
+    const steps = trace
+      .slice(1)
+      .map((sample, index) => ({ ...sample, step: Math.abs(sample.x - trace[index]!.x) }));
+    const first = steps.findIndex((sample) => sample.step > 0.05);
+    const last = steps.reduce((found, sample, index) => (sample.step > 0.005 ? index : found), -1);
     expect(first).toBeGreaterThanOrEqual(0);
     const home = steps.slice(first, last + 1);
     expect(home.length).toBeGreaterThan(4);
 
-    const total = home.reduce((sum, step) => sum + step, 0);
+    // AND AGAINST THE CLOCK, INSIDE THE FRAME THE CROSSING HAPPENS IN.
+    //
+    // Where the distance is spent is a fraction of the return's own duration,
+    // and the frame that carries the halfway point is only the frame it was
+    // NOTICED in. Reported as that frame's own end, the answer can never be
+    // finer than one frame: a runner that paints the return in ten frames
+    // reports 0.30 for a curve whose true crossing is at 0.21, and the
+    // threshold then decides the frame rate rather than the shape. Measured on
+    // a 6x-throttled machine this file reads 0.24 over seventeen frames; CI
+    // read 0.30 and 0.33 over nine or ten. Interpolating inside the crossing
+    // frame reads the same number from both.
+    const started = home[0]!.at;
+    const duration = home[home.length - 1]!.at - started;
+    expect(duration).toBeGreaterThan(0);
+    const total = home.reduce((sum, sample) => sum + sample.step, 0);
     let carried = 0;
-    let halfway = home.length;
-    for (const [index, step] of home.entries()) {
-      carried += step;
-      if (carried >= total / 2) {
-        halfway = index + 1;
-        break;
+    let halfway = duration;
+    for (const [index, sample] of home.entries()) {
+      if (carried + sample.step < total / 2) {
+        carried += sample.step;
+        continue;
       }
+      const within = sample.step > 0 ? (total / 2 - carried) / sample.step : 1;
+      const opened = index === 0 ? started : home[index - 1]!.at;
+      halfway = opened + within * (sample.at - opened) - started;
+      break;
     }
     // The author's curve leaves fast and lands flat, so half the way home is
     // covered in the first fraction of the return. A straight line, which is
     // what a cancel used to run, spends half its distance at the halfway mark.
-    expect(halfway / home.length).toBeLessThan(0.3);
+    expect(halfway / duration).toBeLessThan(0.3);
 
     // ...and it is slowing throughout: each third of the return covers less
     // than the third before it.
     const third = Math.max(1, Math.floor(home.length / 3));
     const spent = (from: number, to: number) =>
-      home.slice(from, to).reduce((sum: number, step: number) => sum + step, 0);
+      home.slice(from, to).reduce((sum: number, sample) => sum + sample.step, 0);
     expect(spent(0, third)).toBeGreaterThan(spent(third, third * 2));
     expect(spent(third, third * 2)).toBeGreaterThanOrEqual(spent(third * 2, home.length));
   });

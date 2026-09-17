@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "capabilityId": "flemo",
+  "kind": "skill",
+  "version": "1.0.0",
+  "contentHash": "sha256:53a70e4fe1cd5bbb5f1470b7696d1efcc39d89f414cfc1e5d41c193f89339ffa",
+  "source": {
+    "kind": "project",
+    "uri": ".agents/skills/flemo",
+    "publisher": {
+      "id": "lervo.repository-migration",
+      "name": "Lervo repository migration"
+    }
+  },
+  "compatibility": {
+    "providers": {
+      "mode": "any"
+    },
+    "minimumRuntimeVersion": "0.1.0",
+    "platforms": [
+      "darwin",
+      "linux",
+      "win32"
+    ]
+  },
+  "requiredPermissions": [],
+  "dependencies": [],
+  "discovery": {
+    "displayName": "flemo",
+    "summary": "Design, implement, review, or debug flemo navigation and motion with @flemo/react. Use for Router, Route, Screen, Slot, useNavigate, nested or named Router ownership, transitions and raw factories, Part and shared bars, Morph and layoutId, decorators, Layer, swipe gestures, or @flemo/devtools, especially when composing app chrome across screen changes.",
+    "keywords": [
+      "flemo"
+    ],
+    "intents": [
+      "Design, implement, review, or debug flemo navigation and motion with @flemo/react. Use for Router, Route, Screen, Slot, useNavigate, nested or named Router ownership, transitions and raw factories, Pa"
+    ],
+    "autoSelect": true
+  },
+  "entrypoint": {
+    "kind": "skill",
+    "skillId": "flemo",
+    "manifestPath": "lervo-skill.json"
+  },
+  "activation": "explicit",
+  "publication": {
+    "defaultVisibility": "local",
+    "secretMaterial": "excluded"
+  }
+}

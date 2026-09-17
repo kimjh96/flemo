@@ -1201,6 +1201,149 @@ describe("attachMorph", () => {
     expect(travel).toContain("--flemo-move-x: 80px;");
   });
 
+  // A REVEAL IS A CLIP, AND IT IS ALLOWED ONLY WHERE IT IS PROVEN HARMLESS.
+  //
+  // Where the arrival's contents land in the same places at both sizes, its box
+  // is laid out once at the larger end and cut back with clip-path. That drew
+  // the playground's featured card without its shadow for the whole flight and
+  // spread its gradient over the larger end, so both popped at the tap and at
+  // the landing. The first case is the control: it proves the contents hold and
+  // that a plain clipped box still reveals (see morphReveal for every rule).
+  const revealFlight = (
+    dress: (card: HTMLElement, end: "from" | "to") => void,
+    boxes: { from: [number, number, number, number]; to: [number, number, number, number] } = {
+      from: [20, 100, 320, 140],
+      to: [20, 100, 320, 270]
+    }
+  ) => {
+    // The probe copy is measured at each size it is given, and its one child
+    // sits 16px from the top-left corner at every size: contents that hold.
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element
+    ) {
+      const box = this as HTMLElement;
+      const width = box.firstElementChild ? Number.parseFloat(box.style.width) || 0 : 40;
+      const height = box.firstElementChild ? Number.parseFloat(box.style.height) || 0 : 20;
+      const at = box.firstElementChild ? 0 : 16;
+      return {
+        x: at,
+        y: at,
+        left: at,
+        top: at,
+        width,
+        height,
+        right: at + width,
+        bottom: at + height,
+        toJSON: () => ({})
+      } as DOMRect;
+    });
+    const gallery = makeScreen("layout", true);
+    const cell = makeMorph(gallery, boxes.from);
+    cell.innerHTML = "<span></span>";
+    cell.style.overflow = "hidden";
+    // A browser computes a border with no style to 0px wide; jsdom reports the
+    // initial `medium` as a width, which the reveal would rightly refuse.
+    cell.style.borderWidth = "0px";
+    dress(cell, "from");
+    attachMorph(cell, { layoutId: "card", navigateStore: store });
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const hero = makeMorph(detail, boxes.to);
+    hero.innerHTML = "<span></span>";
+    hero.style.overflow = "hidden";
+    dress(hero, "to");
+    attachMorph(hero, { layoutId: "card", navigateStore: store });
+
+    return inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
+  };
+
+  it.each([
+    ["reveals a clipped box whose contents hold", () => {}, true],
+    [
+      "lays out a box that does not clip its overflow",
+      (card: HTMLElement) => {
+        card.style.overflow = "visible";
+      },
+      false
+    ],
+    [
+      "lays a shadowed box out for real",
+      (card: HTMLElement) => {
+        card.style.boxShadow = "rgba(0, 0, 0, 0.2) 0px 20px 25px -5px";
+      },
+      false
+    ],
+    [
+      "lays a box with a background image out for real",
+      (card: HTMLElement) => {
+        card.style.backgroundImage =
+          "linear-gradient(to right bottom, rgb(99, 102, 241), rgb(217, 70, 239))";
+      },
+      false
+    ],
+    [
+      "lays a bordered box out for real",
+      (card: HTMLElement) => {
+        card.style.borderBottom = "1px solid rgb(0, 0, 0)";
+      },
+      false
+    ],
+    [
+      "lays a box out for real where only the departure carries a border",
+      (card: HTMLElement, end: "from" | "to") => {
+        if (end === "from") {
+          card.style.borderStyle = "solid";
+          card.style.borderWidth = "2px";
+        }
+      },
+      false
+    ],
+    [
+      "lays a box with an outline out for real",
+      (card: HTMLElement) => {
+        card.style.outline = "2px solid rgb(0, 0, 0)";
+      },
+      false
+    ]
+  ] as const)("%s", (_, dress: (card: HTMLElement, end: "from" | "to") => void, revealed) => {
+    const travel = revealFlight(dress);
+    if (revealed) {
+      expect(travel).toContain("clip-path: inset(0% 0.000% 48.148% 0.000%)");
+      expect(travel).not.toContain("--flemo-box-h: 140px");
+    } else {
+      expect(travel).not.toContain("clip-path");
+      expect(travel).toContain("--flemo-box-h: 140px");
+      expect(travel).toContain("--flemo-box-h: 270px");
+    }
+  });
+
+  it("measures a box that grows from its trailing edge against that edge", () => {
+    // WHICH CORNER THE CONTENTS ARE MEASURED FROM IS THE BOX'S OWN.
+    //
+    // A box grows away from the corner the flight anchors it on, and a child
+    // that never moved reads as having travelled the whole growth if it is
+    // measured from any other one. Here the two ends share a right edge and
+    // differ on the left, so the contents are asked about the right — and a
+    // child pinned to the LEFT does not hold there, so the box is laid out for
+    // real instead of being revealed. Measured from the left it would have
+    // looked like contents that hold, and the reveal would have cut a picture
+    // the page never draws.
+    const travel = revealFlight(() => {}, { from: [100, 100, 220, 140], to: [20, 100, 300, 140] });
+    expect(travel).not.toContain("clip-path");
+    expect(travel).toContain("--flemo-box-w: 220px");
+    expect(travel).toContain("--flemo-box-w: 300px");
+  });
+
+  it("rounds a reveal's cut with the corner the box is travelling through", () => {
+    const travel = revealFlight((card, end) => {
+      card.style.borderRadius = end === "from" ? "24px" : "30px";
+    });
+    expect(travel).toContain("clip-path: inset(0% 0.000% 48.148% 0.000% round 24px)");
+    expect(travel).toContain("clip-path: inset(0% 0.000% 0.000% 0.000% round 30px)");
+  });
+
   it("pairs a POP the other way round, where the dismissing screen is the active one", () => {
     // Caught on glass, not here: the active flag follows the STACK, not the
     // direction of travel. On a pop the screen being dismissed is still the top

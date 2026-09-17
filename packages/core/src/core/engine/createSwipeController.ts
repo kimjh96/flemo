@@ -929,7 +929,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   };
 
   const capturePartTransitions = (prevScreenContainer: HTMLElement | null) => {
-    const { screenContainer } = config.getElements();
+    const { screenContainer, sharedTopBar, sharedBottomBar } = config.getElements();
     // Reached only after beginSwipe's guards resolve the scope + prev screen, so
     // both containers are present.
     // Parts legitimately sit anywhere inside the screen — in its content, or
@@ -937,13 +937,22 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // it must not collect is a NESTED Router's parts: those belong to a screen
     // this swipe is not moving. A part's owning screen is its closest scope
     // (null for a bar-mounted one, which this screen still owns).
-    const select = (root: HTMLElement | null) => {
+    const select = (root: HTMLElement | null, siblingBars: (HTMLElement | null)[] = []) => {
       const ownScope = ownChild(root, attrSelector(SCREEN_ATTR));
-      const inPlace = Array.from(
-        root!.querySelectorAll<HTMLElement>(attrSelector(PART_NAME_ATTR))
-      ).filter((part) => {
+      // Shared bars are siblings of the screen box in the React binding. The
+      // active bar never enters stageBarParts, which only lifts the covered
+      // side, so reading the box alone omitted every current title and action.
+      const candidates = [
+        ...root!.querySelectorAll<HTMLElement>(attrSelector(PART_NAME_ATTR)),
+        ...siblingBars.flatMap((bar) =>
+          bar ? Array.from(bar.querySelectorAll<HTMLElement>(attrSelector(PART_NAME_ATTR))) : []
+        )
+      ];
+      const inPlace = Array.from(new Set(candidates)).filter((part) => {
         const owner = part.closest(attrSelector(SCREEN_ATTR));
-        return owner === null || owner === ownScope;
+        return (
+          owner === ownScope || siblingBars.some((bar) => bar?.contains(part)) || owner === null
+        );
       });
       // Plus any this screen has STAGED. A drag lifts the covered side's
       // bar parts out of the container this walks, and a part the gesture
@@ -956,9 +965,12 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
           attrValueSelector(PART_HOME_ATTR, screenId)
         )
       );
-      return staged.length === 0 ? inPlace : [...inPlace, ...staged];
+      return staged.length === 0 ? inPlace : Array.from(new Set([...inPlace, ...staged]));
     };
-    partEls = { current: select(screenContainer), prev: select(prevScreenContainer) };
+    partEls = {
+      current: select(screenContainer, [sharedTopBar, sharedBottomBar]),
+      prev: select(prevScreenContainer)
+    };
   };
 
   // Drive each captured <Part> element through its registered

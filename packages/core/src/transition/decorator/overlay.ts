@@ -29,6 +29,15 @@ const DIM_COLOR = "rgba(0, 0, 0, 0.1)";
 // evenly across whatever duration it inherits, matching this decorator's
 // linear-perceived-ramp design (see the DIM_COLOR note above). A curve is not
 // inherited and never will be.
+/**
+ * The dim over a covered screen, registered as `"overlay"` and named by
+ * `cupertino`.
+ *
+ * A decorator is reached only through a transition's `decoratorName`, never
+ * from an element. This one authors no durations on purpose: every variant runs
+ * on the clock of whichever transition names it, so the dim resolves in
+ * lockstep with the slide underneath it at any length.
+ */
 const overlay = createDecorator({
   name: "overlay",
   initial: {

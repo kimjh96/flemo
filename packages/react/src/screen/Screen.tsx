@@ -28,22 +28,66 @@ export interface ScreenProps extends PropsWithChildren<
    * decision to the container ScreenMotion renders.
    */
   paintHidden?: boolean;
+  /** Height reserved above the top bar for the platform status bar. */
   statusBarHeight?: string;
+  /** Fill painted behind the reserved status bar area. */
   statusBarColor?: string;
+  /** Height reserved below the bottom bar for the platform navigation bar. */
   systemNavigationBarHeight?: string;
+  /** Fill painted behind the reserved system navigation bar area. */
   systemNavigationBarColor?: string;
+  /**
+   * The screen's own surface color. flemo probes the computed value, and a
+   * verifiably opaque surface is what lets the partner screen park during a
+   * flight instead of holding paused. A transparent screen box gives that up.
+   */
   backgroundColor?: string;
+  /**
+   * A top bar rendered BESIDE the screen box rather than inside it, so it can
+   * stay still while the screen moves. Give the matching bar on both screens the
+   * same `sharedTopBarId` and it hands over seamlessly; otherwise it rides along
+   * with its screen.
+   */
   sharedTopBar?: ReactNode;
+  /**
+   * Identity of the shared top bar. Two bars hand over only when their ids are
+   * equal. Two unlabelled bars still match by position, but a labelled bar never
+   * matches an unlabelled one.
+   */
   sharedTopBarId?: SharedBarId;
+  /** A bottom bar rendered beside the screen box. See `sharedTopBar`. */
   sharedBottomBar?: ReactNode;
+  /** Identity of the shared bottom bar. See `sharedTopBarId`. */
   sharedBottomBarId?: SharedBarId;
+  /**
+   * A top bar rendered INSIDE the screen box. It moves with the screen and can
+   * never stay still across a navigation; use `sharedTopBar` for chrome that
+   * should appear continuous.
+   */
   topBar?: ReactNode;
+  /** A bottom bar rendered inside the screen box. See `topBar`. */
   bottomBar?: ReactNode;
+  /** Drops the reserved status bar area for this screen. */
   hideStatusBar?: boolean;
+  /** Drops the reserved system navigation bar area for this screen. */
   hideSystemNavigationBar?: boolean;
+  /**
+   * Whether the content area scrolls (default `true`). Set `false` to scroll the
+   * whole screen box, bars included, instead.
+   */
   contentScrollable?: boolean;
 }
 
+/**
+ * One screen of a Router's stack: the surface, its bars, and its motion.
+ *
+ * A screen carries a transform while it moves, which makes it a containing
+ * block and a stacking context for everything inside it. Chrome that must stay
+ * still across a navigation therefore goes in `sharedTopBar` or
+ * `sharedBottomBar`, and an overlay that must cover those bars goes in `Layer`.
+ * Elements that move independently within the screen or its shared chrome are
+ * `Part` elements.
+ */
 function Screen({ children, ...props }: ScreenProps) {
   const { isActive, isPrev, zIndex } = useScreen();
 

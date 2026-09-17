@@ -1,0 +1,16 @@
+{
+  "comment": "Rehearsal map only. This repository's composition bench predates the data-eval contract and satisfies the same eleven roles under its own selectors, so the scorer can be proved against a real flemo app before any session is scored. Never use it to score a submission.",
+  "app-home": "[data-testid=\"composition-featured\"]",
+  "app-detail": "[data-testid=\"composition-detail\"]",
+  "local-list": "[data-testid=\"composition-pane-list\"]",
+  "local-filter": { "selector": "button", "text": "Local filters" },
+  "shared-header": "[data-flemo-bar]",
+  "shared-title": "[data-flemo-part-name=\"composition-header-title\"]",
+  "shared-action": "[data-flemo-part-name=\"composition-header-action\"]",
+  "shared-object": "[data-flemo-morph-name=\"composition-card-shell\"]",
+  "shared-text": "[data-flemo-morph-name=\"text\"]",
+  "overlay": "[data-testid=\"composition-layer-overlay\"]",
+  "overlay-close": "[aria-label=\"Close command layer\"]",
+  "open-detail-from-local": { "selector": "button", "text": "Open from nested pane" },
+  "open-overlay": { "selector": "button", "text": "Open command layer" }
+}
