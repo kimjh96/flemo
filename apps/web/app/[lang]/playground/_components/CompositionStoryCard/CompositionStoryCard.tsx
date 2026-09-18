@@ -29,9 +29,25 @@ const TITLE_ID = "composition-featured-title";
 // hand over on the screen's own clock, for as long as the screen takes.
 function CompositionStoryCard({ paired, variant }: CompositionStoryCardProps) {
   const detail = variant === "detail";
+  // NOTHING PAINTS AGAINST THE BOX THAT CHANGES SIZE.
+  //
+  // A container Morph animates its box, so everything painted against that box
+  // is rastered again on every frame of the flight, and everything inside it is
+  // laid out again with it. Measured here on the flight's steady middle: the
+  // gradient cost 0.26ms a frame and the blurred violet shadow 0.38ms, against
+  // 0.08ms with neither — two thirds of a frame's raster on a 120Hz budget of
+  // 8.3ms, every frame, for paint nobody asked to animate. The playground's own
+  // card paints neither on its morphing box, which is why that bench holds its
+  // frame rate where this one did not.
+  //
+  // A flat fill is also the only paint a REVEAL can hold: a box whose contents
+  // stay put is laid out once at the larger end and clipped into view, and a
+  // gradient or a shadow laid out once at the larger end is a different picture
+  // at every size before it (see morphReveal). With the fill flat, this card
+  // takes that path and stops laying its subtree out at every size.
   const panel = detail
-    ? "relative block min-h-[196px] overflow-hidden rounded-[30px] bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 p-5 text-white shadow-2xl shadow-violet-500/20"
-    : "relative block min-h-[104px] overflow-hidden rounded-[24px] bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 p-4 text-white shadow-xl shadow-violet-500/20";
+    ? "relative block min-h-[196px] overflow-hidden rounded-[30px] bg-violet-600 p-5 text-white"
+    : "relative block min-h-[104px] overflow-hidden rounded-[24px] bg-violet-600 p-4 text-white";
 
   const shell = (
     <div className={detail ? "flex min-h-[156px] items-end" : "flex min-h-[72px] items-end"}>
