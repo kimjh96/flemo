@@ -50,12 +50,19 @@ function CompositionStoryCard({ paired, variant }: CompositionStoryCardProps) {
     </div>
   );
 
+  // SPACING IS PADDING, NOT A MARGIN ON THE PART'S CHILD.
+  //
+  // A Part carries `contain: layout` while its screen is moving, and that stops
+  // a child's margin collapsing out of it. So a paragraph spaced by `mt-*`
+  // inside a Part sits in one place while the flight runs and moves by exactly
+  // that margin when the status settles and the containment is dropped —
+  // measured here as the summary falling 12px some 60ms AFTER the card landed,
+  // which is the late drop at the end of the convergence. Padding does not
+  // collapse, so the box is the same whether the screen is moving or at rest.
   return (
     <div className="block text-left">
-      <Part name="composition-card-copy">
-        <p
-          className={`${detail ? "mb-2" : "mb-1"} text-[9px] font-bold tracking-[0.2em] text-slate-500 uppercase dark:text-slate-400`}
-        >
+      <Part name="composition-card-copy" className={detail ? "block pb-2" : "block pb-1"}>
+        <p className="text-[9px] font-bold tracking-[0.2em] text-slate-500 uppercase dark:text-slate-400">
           {detail ? "Message 42" : "Today"}
         </p>
       </Part>
@@ -68,9 +75,9 @@ function CompositionStoryCard({ paired, variant }: CompositionStoryCardProps) {
         <div className={panel}>{shell}</div>
       )}
 
-      <Part name="composition-card-copy">
+      <Part name="composition-card-copy" className={detail ? "block pt-3" : "block pt-2"}>
         <p
-          className={`${detail ? "mt-3 text-[13px]" : "mt-2 text-[11px]"} text-slate-600 dark:text-slate-300`}
+          className={`${detail ? "text-[13px]" : "text-[11px]"} text-slate-600 dark:text-slate-300`}
         >
           {detail
             ? "One story, continued from the workspace card."
