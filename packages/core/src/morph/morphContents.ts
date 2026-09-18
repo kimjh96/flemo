@@ -114,8 +114,62 @@ const places = (root: Element, anchor: MorphAnchor): number[] | null => {
  * flight, which already carries the arriving screen's whole commit: measured on
  * a consumer's app, that frame ran 57ms against 15ms for every frame after it,
  * and nothing moves until it ends.
+ *
+ * KEYED BY THE SUBTREE, NOT BY THE ELEMENT. It was a WeakMap on the arriving
+ * element, and an arrival is MOUNTED for the navigation, so every push handed
+ * it a node it had never seen and the probe ran every time. Measured on the
+ * composition bench at 120Hz: the opening of a push ran 29.0ms against 21.6ms
+ * with the reveal refused, and 141 forced style-and-layout passes against 108 —
+ * the whole difference being a probe whose answer was already known.
+ *
+ * The key is what the answer actually depends on: the two sizes, the corner the
+ * flight is anchored on, and the SHAPE of the subtree. The shape is read
+ * without touching layout — tag, class and the length of each run of text — so
+ * a card whose words changed asks again and one that is the same card at the
+ * same two sizes does not.
  */
-const answered = new WeakMap<Element, Map<string, boolean>>();
+const answered = new Map<string, boolean>();
+
+/** A cap, so a page of many cards cannot grow this without end. */
+const REMEMBERED = 512;
+
+/**
+ * What the subtree looks like, without laying anything out.
+ *
+ * Tag, EVERY attribute, and the length of each run of text, in document order.
+ * Every attribute, because a class is not the only thing that decides where a
+ * child lands: an inline style, a width, a hidden, a data-* a consumer styles
+ * on. Two subtrees that agree on all of it, at the same two sizes, lay out the
+ * same; anything that would move a child changes one of them.
+ */
+const shapeOf = (root: Element): string => {
+  const parts: string[] = [];
+  const mark = (node: Element): string => {
+    const attributes = Array.from(
+      node.attributes,
+      (attribute) => `${attribute.name}=${attribute.value}`
+    );
+    attributes.sort();
+    return `${node.tagName}[${attributes.join(";")}]`;
+  };
+  const visit = (node: Element): void => {
+    if (parts.length >= LIMIT) return;
+    for (const child of node.children) {
+      if (parts.length >= LIMIT) return;
+      parts.push(mark(child));
+      visit(child);
+    }
+    for (const child of node.childNodes) {
+      if (child.nodeType !== 3) continue;
+      const text = (child as Text).data;
+      if (whitespace.test(text)) continue;
+      parts.push(`#${text.trim().length}`);
+    }
+  };
+  parts.push(mark(root));
+  visit(root);
+  return parts.join("|");
+};
 
 export const contentsHoldAcrossBox = (
   element: HTMLElement,
@@ -127,9 +181,10 @@ export const contentsHoldAcrossBox = (
   if (!parent || !element.isConnected) return false;
   if (Math.abs(from.width - to.width) < TICK && Math.abs(from.height - to.height) < TICK)
     return false;
-  const shape = `${from.width.toFixed(1)}x${from.height.toFixed(1)}>${to.width.toFixed(1)}x${to.height.toFixed(1)}|${anchor.x}${anchor.y}`;
-  const known = answered.get(element);
-  const remembered = known?.get(shape);
+  const shape =
+    `${from.width.toFixed(1)}x${from.height.toFixed(1)}>${to.width.toFixed(1)}x${to.height.toFixed(1)}` +
+    `|${anchor.x}${anchor.y}|${shapeOf(element)}`;
+  const remembered = answered.get(shape);
   if (remembered !== undefined) return remembered;
   const probe = element.cloneNode(true) as HTMLElement;
   probe.setAttribute("aria-hidden", "true");
@@ -164,8 +219,7 @@ export const contentsHoldAcrossBox = (
     before.length > 0 &&
     before.length === after.length &&
     before.every((value, index) => Math.abs(value - after[index]!) <= TICK);
-  const seen = known ?? new Map<string, boolean>();
-  seen.set(shape, holds);
-  answered.set(element, seen);
+  if (answered.size > REMEMBERED) answered.clear();
+  answered.set(shape, holds);
   return holds;
 };
