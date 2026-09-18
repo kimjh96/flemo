@@ -161,6 +161,25 @@ describe("desktopHead", () => {
     expect(routing.birthHoldMs).toBeGreaterThan(0);
   });
 
+  it("covers a desktop Blink session too, which reaches glass no sooner", () => {
+    // It was left out on the reading that the latency belonged to WebKit's
+    // main-thread presentation. Traced on a 120Hz desktop Chrome, the
+    // tap-to-first-painted-frame of a push ran 28.5ms against an 8.3ms frame,
+    // and with no head that lands on the animation's opening.
+    setEnv({ blink: true, touch: false });
+    const routing = route();
+    expect(routing.desktopHead).toBe(true);
+    expect(routing.governedHead).toBe(false);
+    expect(routing.birthHoldMs).toBeGreaterThan(0);
+  });
+
+  it("leaves a TOUCH Blink session to the governed tier", () => {
+    // A phone's head is sized for a governor-throttled pipeline, not a
+    // desktop's, and a session is one or the other.
+    setEnv({ blink: true, touch: true });
+    expect(route().desktopHead).toBe(false);
+  });
+
   it("yields to the governed head when both would apply", () => {
     // An iPad spoofing a Mac platform reports touch, so it takes the TOUCH
     // kit — the desktop head's lengths are sized for a different pipeline.

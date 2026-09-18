@@ -6,6 +6,7 @@ import { learnedFrameIntervalMs } from "@platform/displayCadence";
 import { COMPILED_TIER_MAX_INTERVAL_MS } from "@platform/displayProbe";
 import {
   detectBlinkEngine,
+  isDesktopBlink,
   isDesktopMacWebKit,
   isLegacyAndroidBlink
 } from "@platform/engineProbes";
@@ -163,7 +164,17 @@ export const resolveHeadKit = (
   // reaches the glass only after that update's paint, the compositor commit and
   // the UI process's activation. The head holds the authored from-pose across
   // that latency so the curve PLAYS from 0 instead of being entered partway.
-  const desktopHead = isDesktopMacWebKit();
+  //
+  // DESKTOP BLINK TOO. It was left out on the reading that the latency belonged
+  // to WebKit's main-thread presentation, and a desktop Chromium session was
+  // assumed to reach glass on the frame it committed. It does not: traced on a
+  // 120Hz desktop Chrome, the tap-to-first-painted-frame of a push ran 28.5ms
+  // against an 8.3ms frame, of which 22.3ms was the arriving screen's own first
+  // render, and the two frames after it ran 17ms each. With no head those land
+  // on the animation's opening, so the curve is entered several frames in and
+  // the transition starts with a lurch. The same flat head covers it, and costs
+  // only the few milliseconds by which it exceeds the latency it is covering.
+  const desktopHead = isDesktopMacWebKit() || isDesktopBlink();
   return {
     touchGoverned,
     forceCompiled,
