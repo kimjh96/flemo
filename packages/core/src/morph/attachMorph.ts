@@ -16,6 +16,7 @@ import {
   MORPH_ATTR,
   MORPH_CAMERA_ATTR,
   MORPH_LAYER_ATTR,
+  MORPH_SHADE_ATTR,
   MORPH_GHOST_ATTR,
   MORPH_ID_ATTR,
   MORPH_NAME_ATTR,
@@ -32,6 +33,14 @@ import {
 import mirrorHold from "@dom/holdMirror";
 
 import { intoLayerSpace, preserveAnimations } from "@dom/staging";
+
+/**
+ * One computed property, from a style an engine may not have given every part
+ * of. A stub in a test, and a real style in a document that has not laid the
+ * element out, can both answer without `getPropertyValue`.
+ */
+const reads = (style: CSSStyleDeclaration | null, property: string): string =>
+  style && typeof style.getPropertyValue === "function" ? style.getPropertyValue(property) : "";
 
 import { clipTravel, visibleInset } from "@morph/morphClip";
 import { contentsHoldAcrossBox } from "@morph/morphContents";
@@ -60,6 +69,7 @@ import { paintTravel } from "@morph/morphPaint";
 
 import { BOX_WIDTH_PROPERTY, IDENTITY_POSE, resolvePose } from "@morph/morphPose";
 import { revealHolds } from "@morph/morphReveal";
+import { shadowAsFilter } from "@morph/morphShadow";
 
 import { ensurePinnedPoses, insertMorphRules } from "@morph/morphSheet";
 import { headSeconds, resolveMorphSide } from "@morph/morphSide";
@@ -895,6 +905,17 @@ const startFlight = (
     // that corner, and a child that never moved reads as having travelled the
     // whole growth if it is measured from any other one.
     contentsHold,
+    // The reveal draws the image to the size the flight is at rather than the
+    // size the box is laid out at; `morphReveal` has already refused an image
+    // the carry cannot draw, so asking whether there IS one is the whole test.
+    paintsImage: !["", "none"].includes(reads(own, "background-image")),
+    // The reveal's clip eats a shadow, so a revealed box hands it to a carrier
+    // around the element. Both ends are converted here, because the carrier
+    // travels the same two shadows the box would have worn itself.
+    shadow: {
+      from: shadowAsFilter(captured.snapshot.paint["box-shadow"] ?? "none"),
+      to: shadowAsFilter(reads(own, "box-shadow"))
+    },
     clip: edgeClip,
     // The corner the arrival wears, so a reveal cuts the same shape the box has.
     // It travels with the box's own corner where that corner travels.
@@ -1392,6 +1413,31 @@ const startFlight = (
   // What the staging had to carry is what the landing will have to carry, so
   // the landing does not ask again (see preserveAnimations).
   const carried = preserveAnimations(entry.element, () => layer.appendChild(entry.element));
+  // THE SHADOW CARRIER.
+  //
+  // A revealed box is cut back with a clip, and a clip takes everything painted
+  // outside the border box with it, so the box's own shadow is not drawn at all
+  // — and a filter ON the element is applied BEFORE the clip, so that is eaten
+  // too. A filter on a carrier AROUND it is not: it casts the shadow of the
+  // silhouette the clip leaves, which is the visible box at every size on the
+  // way (see morphShadow, where all three were device-measured).
+  //
+  // It fills the layer and paints nothing of its own, so the element's absolute
+  // coordinates are the ones it already had. The filter makes it a containing
+  // block, which is why it has to be exactly the layer's box rather than merely
+  // somewhere above the element.
+  const shade = arriving.revealed ? arriving.shade : null;
+  let carrier: HTMLElement | null = null;
+  if (shade) {
+    carrier = entry.element.ownerDocument.createElement("div");
+    carrier.setAttribute(MORPH_SHADE_ATTR, "");
+    carrier.style.position = "absolute";
+    carrier.style.inset = "0";
+    carrier.style.pointerEvents = "none";
+    carrier.style.animation = shade;
+    layer.appendChild(carrier);
+    preserveAnimations(entry.element, () => carrier!.appendChild(entry.element));
+  }
   for (const [property, value] of inherited) entry.element.style[property] = value;
   entry.element.style.position = "absolute";
   // Laid out where it LANDS, and carried back to where it started by the
@@ -1700,6 +1746,8 @@ const startFlight = (
       else standIn.replaceWith(entry.element);
     } else entry.element.remove();
     standIn.remove();
+    // The carrier only ever held the flying element, which has just gone home.
+    carrier?.remove();
     entry.element.setAttribute(MORPH_ATTR, "");
 
     ghost?.remove();

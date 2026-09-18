@@ -1204,11 +1204,13 @@ describe("attachMorph", () => {
   // A REVEAL IS A CLIP, AND IT IS ALLOWED ONLY WHERE IT IS PROVEN HARMLESS.
   //
   // Where the arrival's contents land in the same places at both sizes, its box
-  // is laid out once at the larger end and cut back with clip-path. That drew
-  // the playground's featured card without its shadow for the whole flight and
-  // spread its gradient over the larger end, so both popped at the tap and at
-  // the landing. The first case is the control: it proves the contents hold and
-  // that a plain clipped box still reveals (see morphReveal for every rule).
+  // is laid out once at the larger end and cut back with clip-path. A shadow
+  // and a gradient used to refuse that outright, which cost every card in the
+  // wild a layout and a fresh raster of its whole subtree on every frame; both
+  // are now CARRIED instead, the image by an animated `background-size` and the
+  // shadow by a carrier around the element (see morphReveal and morphShadow).
+  // The first case is the control: it proves the contents hold and that a plain
+  // clipped box still reveals (see morphReveal for every rule).
   const revealFlight = (
     dress: (card: HTMLElement, end: "from" | "to") => void,
     boxes: { from: [number, number, number, number]; to: [number, number, number, number] } = {
@@ -1269,17 +1271,35 @@ describe("attachMorph", () => {
       false
     ],
     [
-      "lays a shadowed box out for real",
+      "reveals a shadowed box, because a carrier casts the shadow for it",
       (card: HTMLElement) => {
         card.style.boxShadow = "rgba(0, 0, 0, 0.2) 0px 20px 25px -5px";
+      },
+      true
+    ],
+    [
+      "lays an INSET shadow out for real, which no carrier outside the box can put right",
+      (card: HTMLElement) => {
+        card.style.boxShadow = "rgba(0, 0, 0, 0.2) 0px 20px 25px -5px inset";
       },
       false
     ],
     [
-      "lays a box with a background image out for real",
+      "reveals a box with a background image, drawn to the size the flight is at",
       (card: HTMLElement) => {
         card.style.backgroundImage =
           "linear-gradient(to right bottom, rgb(99, 102, 241), rgb(217, 70, 239))";
+      },
+      true
+    ],
+    [
+      "lays an image the carry would overwrite out for real",
+      (card: HTMLElement) => {
+        card.style.backgroundImage =
+          "linear-gradient(to right bottom, rgb(99, 102, 241), rgb(217, 70, 239))";
+        // The carry writes `background-size` itself, so an author who set it is
+        // asking for something it would take away from them.
+        card.style.backgroundSize = "120px 60px";
       },
       false
     ],
@@ -1334,6 +1354,39 @@ describe("attachMorph", () => {
     expect(travel).not.toContain("clip-path");
     expect(travel).toContain("--flemo-box-w: 220px");
     expect(travel).toContain("--flemo-box-w: 300px");
+  });
+
+  it("wraps a revealed box in a carrier that casts its shadow, and takes it away again", () => {
+    // The reveal's clip takes everything painted outside the border box with
+    // it, so the box's own shadow is never drawn and a filter ON the element is
+    // eaten the same way: filters are applied BEFORE the clip. A carrier around
+    // it is not, and casts the shadow of whatever silhouette the clip leaves.
+    layer.setAttribute(MORPH_LAYER_ATTR, "");
+    const travel = revealFlight((card) => {
+      card.style.boxShadow = "rgba(139, 92, 246, 0.2) 0px 20px 25px -5px";
+    });
+    expect(travel).toContain("clip-path");
+
+    const carrier = layer.querySelector("[data-flemo-morph-shade]") as HTMLElement | null;
+    expect(carrier).not.toBeNull();
+    // It fills the layer and paints nothing of its own, so the flying element's
+    // absolute coordinates are the ones it already had.
+    expect(carrier!.style.position).toBe("absolute");
+    expect(carrier!.style.inset).toBe("0px");
+    expect(carrier!.style.pointerEvents).toBe("none");
+    expect(carrier!.style.animation).toContain("-shade");
+    // The flying element is inside it, not beside it: a filter on a sibling
+    // casts nothing.
+    expect(carrier!.querySelector(`[${MORPH_ATTR}]`)).not.toBeNull();
+    // And the rule it animates is in the sheet the flight wrote.
+    expect(inserted.some((rule) => rule.includes("-shade"))).toBe(true);
+  });
+
+  it("wraps nothing around a box with no shadow to cast", () => {
+    layer.setAttribute(MORPH_LAYER_ATTR, "");
+    revealFlight(() => {});
+
+    expect(layer.querySelector("[data-flemo-morph-shade]")).toBeNull();
   });
 
   it("rounds a reveal's cut with the corner the box is travelling through", () => {

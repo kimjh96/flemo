@@ -18,6 +18,99 @@ describe("buildMorphKeyframes", () => {
   const rect = (x: number, width: number): MorphRect => ({ x, y: 10, width, height: 32 });
   const growing: MorphTravel = { ...travel, from: IDENTITY_POSE };
 
+  it("draws a revealed box's image to the size the FLIGHT is at, not the size it is laid out at", () => {
+    // A revealed box is laid out at the larger end, so an image laid out
+    // against it is the larger end's picture with a corner of it showing.
+    // Sized to the end the flight is at and pinned to the corner the clip is
+    // anchored on, it is the picture the box would have painted itself, and it
+    // costs no layout because a background is a paint.
+    const { rules } = buildMorphKeyframes({
+      id: "9u",
+      travel: growing,
+      box: { from: rect(300, 80), to: rect(220, 160) },
+      contentsHold: true,
+      paintsImage: true,
+      fade: null,
+      paint: [],
+      pinned: true,
+      travelPinned: true
+    });
+    const travelRule = rules.join("\n");
+
+    expect(travelRule).toContain("background-size: 80px 32px");
+    expect(travelRule).toContain("background-size: 160px 32px");
+    // The clip cuts the LEFT here, so the picture is anchored on the right and
+    // the one tile the clip shows is the one the carry drew.
+    expect(travelRule).toContain("background-position: right top");
+  });
+
+  it("leaves a box that is laid out for real to paint its own image", () => {
+    const { rules } = buildMorphKeyframes({
+      id: "9y",
+      travel: growing,
+      box: { from: rect(300, 80), to: rect(220, 160) },
+      contentsHold: false,
+      paintsImage: true,
+      fade: null,
+      paint: [],
+      pinned: true,
+      travelPinned: true
+    });
+
+    expect(rules.join("\n")).not.toContain("background-size");
+  });
+
+  it("hands a revealed box's shadow to a carrier, on the flight's own clock", () => {
+    // The reveal's clip takes everything painted outside the border box with
+    // it, so the box's own shadow is never drawn and animating it is dead
+    // weight. The carrier is a separate element, so its shadow needs an
+    // animation of its own rather than a place in the element's list.
+    const built = buildMorphKeyframes({
+      id: "9o",
+      travel: growing,
+      box: { from: rect(300, 80), to: rect(220, 160) },
+      contentsHold: true,
+      shadow: {
+        from: "drop-shadow(0px 20px 15px rgba(139, 92, 246, 0.2))",
+        to: "drop-shadow(0px 25px 30px rgba(139, 92, 246, 0.2))"
+      },
+      fade: null,
+      paint: [{ property: "box-shadow", from: "rgb(0, 0, 0) 0px 1px 2px", to: "none" }],
+      pinned: true,
+      travelPinned: true
+    });
+    const shade = built.rules.find((rule) => rule.includes("-shade"))!;
+
+    expect(built.revealed).toBe(true);
+    expect(shade).toContain("filter: drop-shadow(0px 20px 15px rgba(139, 92, 246, 0.2));");
+    expect(shade).toContain("filter: drop-shadow(0px 25px 30px rgba(139, 92, 246, 0.2));");
+    expect(built.shade).toContain("flemo-morph-9o-shade");
+    // The element's own shadow is inside the clip and paints nothing, so the
+    // paint channel does not carry it.
+    expect(built.rules.some((rule) => rule.includes("box-shadow"))).toBe(false);
+    // And the carrier's animation is not on the element's list.
+    expect(built.animation).not.toContain("-shade");
+  });
+
+  it("casts no carrier shadow for a box that was laid out for real", () => {
+    const built = buildMorphKeyframes({
+      id: "9p",
+      travel: growing,
+      box: { from: rect(300, 80), to: rect(220, 160) },
+      contentsHold: false,
+      shadow: { from: "drop-shadow(0px 20px 15px rgb(0, 0, 0))", to: "none" },
+      fade: null,
+      paint: [{ property: "box-shadow", from: "rgb(0, 0, 0) 0px 1px 2px", to: "none" }],
+      pinned: true,
+      travelPinned: true
+    });
+
+    expect(built.revealed).toBe(false);
+    expect(built.shade).toBeNull();
+    // It paints its own shadow, so the paint channel still carries it.
+    expect(built.rules.some((rule) => rule.includes("box-shadow"))).toBe(true);
+  });
+
   it("holds a box whose contents were MEASURED not to move, and clips it instead", () => {
     // The narrower end is a clip over the wider one: 80 of 160 is half the box,
     // so the flight opens at a 50% left inset and closes at none. One layout,

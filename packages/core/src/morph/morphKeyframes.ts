@@ -184,6 +184,26 @@ export interface MorphKeyframeSet {
    * of the author's own and the correction's, each on its own clock.
    */
   letterSpacing: string | null;
+  /**
+   * Whether the box was REVEALED: laid out once at the size that contains both
+   * ends and cut back with a clip, rather than laid out at every size.
+   *
+   * A caller needs this to know where a shadow can be worn. The reveal's clip
+   * takes everything painted outside the border box with it, so a revealed
+   * box's shadow has to go on a carrier around the element (see morphShadow).
+   * `contentsHold` does not answer it: that is a fact about the subtree, and
+   * the emitter can still decline the reveal on top of it.
+   */
+  revealed: boolean;
+  /**
+   * The `animation` shorthand a shadow carrier wears, or null where there is no
+   * shadow to cast or the box was not revealed.
+   *
+   * It runs the flight's clock and curve, so the carrier's shadow travels with
+   * the box it is cast by, and it is a separate declaration because the carrier
+   * is a separate element (see morphShadow).
+   */
+  shade: string | null;
 }
 
 /**
@@ -226,6 +246,25 @@ export const buildMorphKeyframes = (input: {
    * from the box's shape: a shape says nothing about a consumer's subtree.
    */
   contentsHold?: boolean;
+  /**
+   * Whether the element paints a background IMAGE that the reveal has to carry.
+   *
+   * A revealed box is laid out at the larger end, so an image laid out against
+   * it spreads over that end and the clip shows a corner of it rather than the
+   * whole picture at the smaller size. Drawn to an animated `background-size`
+   * and pinned to the corner the reveal is anchored on, it is instead the same
+   * picture the box would have painted at every size on the way, and it costs
+   * no layout because a background is a paint. Only meaningful under a reveal;
+   * `morphReveal` refuses an image the carry cannot draw.
+   */
+  paintsImage?: boolean;
+  /**
+   * The shadow the two ends wear, already written as the `filter` a carrier
+   * wears in place of a `box-shadow` the reveal's clip would eat (see
+   * morphShadow). Only read under a reveal, where it becomes an animation of
+   * its own for the caller to put on the carrier.
+   */
+  shadow?: { from: string; to: string } | null;
   /** Type morphs by growing, not by being scaled: px at each end. */
   fontSize?: { from: number; to: number } | null;
   /**
@@ -376,6 +415,8 @@ export const buildMorphKeyframes = (input: {
     size,
     clip,
     contentsHold = false,
+    paintsImage = false,
+    shadow = null,
     radius,
     leading,
     leadStart,
@@ -693,6 +734,25 @@ export const buildMorphKeyframes = (input: {
       `    clip-path: inset(${reveal.from}${round(corners.from)});`,
       `    clip-path: inset(${reveal.to}${round(corners.to)});`
     );
+    // THE IMAGE IS DRAWN TO THE BOX THE FLIGHT IS AT.
+    //
+    // The revealed element is laid out at the size that contains both ends, so
+    // an image laid out against it is the LARGER end's picture with a corner of
+    // it showing. Sized to the end the flight is at and pinned to the corner
+    // the clip is anchored on, it is the picture the box would have painted at
+    // that size. A background is a paint, so this buys the whole reveal without
+    // the layout per frame that refusing it would have cost.
+    //
+    // Repeat is not the carry's business: the clip shows exactly one tile,
+    // anchored at the same corner, and everything the tiling puts beyond that
+    // is outside the cut.
+    if (paintsImage && box) {
+      const anchor = rightHeld ? "right top" : "left top";
+      pushSize(
+        `    background-size: ${px(box.from.width)} ${px(box.from.height)};\n    background-position: ${anchor};`,
+        `    background-size: ${px(box.to.width)} ${px(box.to.height)};\n    background-position: ${anchor};`
+      );
+    }
   }
   if (fromParts.length > 0) {
     rules.push(held(geometryName, fromParts.join("\n"), toParts.join("\n")));
@@ -808,10 +868,32 @@ export const buildMorphKeyframes = (input: {
     animations.push(`${trackName} ${clock} linear ${start}s both`);
   }
 
-  if (paint.length > 0) {
+  // ONE AUTHOR PER PROPERTY. The reveal's carry writes `background-size` and
+  // `background-position` from the geometry keyframe, and the paint keyframe is
+  // applied after it, so a paint channel for either would win and the image
+  // would go back to being drawn against the laid-out box.
+  // A revealed box's own `box-shadow` is inside the clip and paints nothing, so
+  // animating it is dead weight; the carrier's filter below is what a reader
+  // sees, and it carries the same two ends.
+  const painted = paint.filter((channel) => {
+    if (!reveal) return true;
+    if (channel.property === "box-shadow") return false;
+    if (!paintsImage) return true;
+    return channel.property !== "background-size" && channel.property !== "background-position";
+  });
+
+  // THE CARRIER'S SHADOW, on the flight's own clock. It is a separate element,
+  // so it cannot ride the element's animation list and needs one of its own.
+  let shade: string | null = null;
+  if (reveal && shadow && (shadow.from !== "none" || shadow.to !== "none")) {
+    const shadeName = `flemo-morph-${id}-shade`;
+    rules.push(held(shadeName, `    filter: ${shadow.from};`, `    filter: ${shadow.to};`));
+    shade = `${shadeName} ${clock} ${easing} ${start}s both`;
+  }
+  if (painted.length > 0) {
     const paintName = `flemo-morph-${id}-paint`;
-    const from = paint.map((channel) => `    ${channel.property}: ${channel.from};`).join("\n");
-    const to = paint.map((channel) => `    ${channel.property}: ${channel.to};`).join("\n");
+    const from = painted.map((channel) => `    ${channel.property}: ${channel.from};`).join("\n");
+    const to = painted.map((channel) => `    ${channel.property}: ${channel.to};`).join("\n");
     rules.push(held(paintName, from, to));
     animations.push(`${paintName} ${clock} ${easing} ${start}s both`);
     // It runs the flight's full length, so it is a sound clock for a side whose
@@ -842,7 +924,16 @@ export const buildMorphKeyframes = (input: {
     translate: moving ? PINNED_TRAVEL : null,
     size: sized ? { width: PINNED_BOX, height: PINNED_BOX_HEIGHT } : null,
     heldEdge: moving && rightHeld && box ? onRuler(box.to.x + box.to.width) : null,
-    letterSpacing: tracking ? PINNED_TRACK : null
+    letterSpacing: tracking ? PINNED_TRACK : null,
+    // WHETHER THE BOX WAS REVEALED, because a shadow then has to be worn by a
+    // carrier around the element rather than by the element: the reveal's clip
+    // takes everything painted outside the border box with it (see morphShadow).
+    // The caller cannot infer this from `contentsHold` alone, which is a fact
+    // about the subtree rather than about what the emitter did with it.
+    revealed: reveal !== null,
+    // The animation a shadow carrier wears, where a revealed box has a shadow
+    // to carry. Null where there is nothing to cast or nothing was revealed.
+    shade
   };
 };
 

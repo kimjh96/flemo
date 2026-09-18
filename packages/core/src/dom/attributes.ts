@@ -309,6 +309,19 @@ export const MORPH_STAND_IN_ATTR = "data-flemo-morph-stand-in";
 export const MORPH_GHOST_ATTR = "data-flemo-morph-ghost";
 
 /**
+ * The shadow CARRIER: a box around a revealed flying element that casts its
+ * shadow for it.
+ *
+ * A reveal cuts the box back with a clip, and a clip takes everything painted
+ * outside the border box with it, so a revealed box's own shadow is never
+ * drawn; a filter on the element is applied before the clip and is eaten the
+ * same way. The carrier sits outside the clip and casts the shadow of the
+ * silhouette the clip leaves. It paints nothing else, takes no pointer events,
+ * and is removed on landing. Owned entirely by the morph runtime.
+ */
+export const MORPH_SHADE_ATTR = "data-flemo-morph-shade";
+
+/**
  * The SCREEN a flight is driving as a camera, stamped with the flight's id.
  *
  * A morph with `carry: "screen"` does not just move its element: it moves the
@@ -477,6 +490,7 @@ export const FLEMO_ATTRIBUTES = [
   MORPH_ATTR,
   MORPH_CAMERA_ATTR,
   MORPH_GHOST_ATTR,
+  MORPH_SHADE_ATTR,
   MORPH_ID_ATTR,
   MORPH_LAYER_ATTR,
   MORPH_NAME_ATTR,
