@@ -70,9 +70,10 @@ describe("buildMorphKeyframes", () => {
       travel: growing,
       box: { from: rect(300, 80), to: rect(220, 160) },
       contentsHold: true,
+      radius: { from: "24px", to: "30px" },
       shadow: {
-        from: "drop-shadow(0px 20px 15px rgba(139, 92, 246, 0.2))",
-        to: "drop-shadow(0px 25px 30px rgba(139, 92, 246, 0.2))"
+        from: "rgba(139, 92, 246, 0.2) 0px 20px 25px -5px",
+        to: "rgba(139, 92, 246, 0.25) 0px 25px 50px -12px"
       },
       fade: null,
       paint: [{ property: "box-shadow", from: "rgb(0, 0, 0) 0px 1px 2px", to: "none" }],
@@ -82,12 +83,18 @@ describe("buildMorphKeyframes", () => {
     const shade = built.rules.find((rule) => rule.includes("-shade"))!;
 
     expect(built.revealed).toBe(true);
-    expect(shade).toContain("filter: drop-shadow(0px 20px 15px rgba(139, 92, 246, 0.2));");
-    expect(shade).toContain("filter: drop-shadow(0px 25px 30px rgba(139, 92, 246, 0.2));");
+    // The card's OWN shadow, unchanged, on a box travelling the card's rects:
+    // a `drop-shadow` approximation has no spread and stacks in sequence.
+    expect(shade).toContain("box-shadow: rgba(139, 92, 246, 0.2) 0px 20px 25px -5px;");
+    expect(shade).toContain("box-shadow: rgba(139, 92, 246, 0.25) 0px 25px 50px -12px;");
+    expect(shade).toContain("width: 80px;");
+    expect(shade).toContain("width: 160px;");
+    expect(shade).toContain("border-radius: 24px;");
+    expect(shade).toContain("border-radius: 30px;");
     expect(built.shade).toContain("flemo-morph-9o-shade");
     // The element's own shadow is inside the clip and paints nothing, so the
-    // paint channel does not carry it.
-    expect(built.rules.some((rule) => rule.includes("box-shadow"))).toBe(false);
+    // paint channel does not carry it; the carrier is where it lives now.
+    expect(built.rules.some((rule) => rule.includes("-paint"))).toBe(false);
     // And the carrier's animation is not on the element's list.
     expect(built.animation).not.toContain("-shade");
   });
@@ -98,7 +105,7 @@ describe("buildMorphKeyframes", () => {
       travel: growing,
       box: { from: rect(300, 80), to: rect(220, 160) },
       contentsHold: false,
-      shadow: { from: "drop-shadow(0px 20px 15px rgb(0, 0, 0))", to: "none" },
+      shadow: { from: "rgb(0, 0, 0) 0px 20px 15px", to: "none" },
       fade: null,
       paint: [{ property: "box-shadow", from: "rgb(0, 0, 0) 0px 1px 2px", to: "none" }],
       pinned: true,

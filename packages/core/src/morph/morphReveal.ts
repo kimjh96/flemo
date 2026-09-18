@@ -21,6 +21,8 @@
 // table costs a layout per frame, which is the path every other flight takes;
 // it can never cost a wrong picture.
 
+import { shadowCarries } from "@morph/morphShadow";
+
 /** The part of a computed style this reads. */
 export type RevealStyle = Pick<CSSStyleDeclaration, "length" | "item" | "getPropertyValue">;
 
@@ -66,26 +68,6 @@ const layers = (value: string): string[] => {
   }
   out.push(value.slice(from));
   return out;
-};
-
-/**
- * Whether one computed shadow layer paints anything. Tailwind composes every
- * shadow with four empty ring layers (`rgba(0, 0, 0, 0) 0px 0px 0px 0px`), so a
- * box with no shadow still computes to a list that is not `none`.
- */
-const layerPaints = (layer: string): boolean => {
-  const text = layer.trim();
-  if (text === "" || text === "none" || /\btransparent\b/.test(text)) return false;
-  const colour = /[a-z-]+\(([^()]*)\)/.exec(text);
-  if (colour) {
-    const channels = colour[1]!;
-    const slash = channels.split("/");
-    const commas = channels.split(",");
-    const alpha = slash.length > 1 ? slash[1] : commas.length === 4 ? commas[3] : undefined;
-    if (alpha !== undefined && Number.parseFloat(alpha) === 0) return false;
-  }
-  const lengths = text.replace(/[a-z-]+\([^()]*\)/g, "").match(/-?\d*\.?\d+px/g) ?? [];
-  return lengths.some((length) => Number.parseFloat(length) !== 0);
 };
 
 const RULES = new Map<string, Rule>();
@@ -577,15 +559,6 @@ const carriesImage = (read: (property: string) => string): boolean => {
   );
 };
 
-/**
- * Whether the shadow carrier casts what this box would.
- *
- * An INSET shadow paints inside the border box, and the revealed border box is
- * the larger end, so it is drawn against the wrong rectangle and no carrier
- * outside the element can put it right.
- */
-const carriesShadow = (value: string): boolean =>
-  !layers(value).some((layer) => /\binset\b/.test(layer) && layerPaints(layer));
 // A border and a rule paint along the edge the clip moves.
 rule(zero, ["border-width", ...sided((side) => `border-${side}-width`)]);
 rule((value) => value === "none" || value === "hidden", ["column-rule-style", "row-rule-style"]);
@@ -688,10 +661,10 @@ const proven = (
   // The two properties the engine CARRIES rather than refuses, each allowed
   // only where the carry draws what the box would have drawn itself.
   if (!carriesImage(read)) return false;
-  if (!carriesShadow(read("box-shadow"))) return false;
+  if (!shadowCarries(read("box-shadow"))) return false;
   // The departure's own shadow is animated ON THE FLYING ELEMENT by the paint
   // channel, so an inset one there reaches the wrong rectangle too.
-  if (!carriesShadow(departure["box-shadow"] ?? "")) return false;
+  if (!shadowCarries(departure["box-shadow"] ?? "")) return false;
 
   // The view is the caller's: it has already refused a style it cannot read,
   // and an element cannot have a computed style without one.

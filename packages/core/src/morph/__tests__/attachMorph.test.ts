@@ -1369,15 +1369,13 @@ describe("attachMorph", () => {
 
     const carrier = layer.querySelector("[data-flemo-morph-shade]") as HTMLElement | null;
     expect(carrier).not.toBeNull();
-    // It fills the layer and paints nothing of its own, so the flying element's
-    // absolute coordinates are the ones it already had.
     expect(carrier!.style.position).toBe("absolute");
-    expect(carrier!.style.inset).toBe("0px");
     expect(carrier!.style.pointerEvents).toBe("none");
     expect(carrier!.style.animation).toContain("-shade");
-    // The flying element is inside it, not beside it: a filter on a sibling
-    // casts nothing.
-    expect(carrier!.querySelector(`[${MORPH_ATTR}]`)).not.toBeNull();
+    // IN FRONT OF the flying element in the layer, so it paints underneath it
+    // and changes nothing about how the element itself is placed.
+    expect(carrier!.nextElementSibling?.hasAttribute(MORPH_ATTR)).toBe(true);
+    expect(carrier!.children).toHaveLength(0);
     // And the rule it animates is in the sheet the flight wrote.
     expect(inserted.some((rule) => rule.includes("-shade"))).toBe(true);
   });

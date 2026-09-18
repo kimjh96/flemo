@@ -199,9 +199,11 @@ export interface MorphKeyframeSet {
    * The `animation` shorthand a shadow carrier wears, or null where there is no
    * shadow to cast or the box was not revealed.
    *
-   * It runs the flight's clock and curve, so the carrier's shadow travels with
-   * the box it is cast by, and it is a separate declaration because the carrier
-   * is a separate element (see morphShadow).
+   * The carrier is an empty box that travels the same rects under the flying
+   * element and wears its `box-shadow`, because the reveal's clip takes the
+   * element's own with it. The animation carries the box as well as the shadow,
+   * so the caller has only to place the carrier and hand it this (see
+   * morphShadow).
    */
   shade: string | null;
 }
@@ -259,10 +261,12 @@ export const buildMorphKeyframes = (input: {
    */
   paintsImage?: boolean;
   /**
-   * The shadow the two ends wear, already written as the `filter` a carrier
-   * wears in place of a `box-shadow` the reveal's clip would eat (see
-   * morphShadow). Only read under a reveal, where it becomes an animation of
-   * its own for the caller to put on the carrier.
+   * The computed `box-shadow` each end wears.
+   *
+   * Only read under a reveal, where the clip eats the element's own shadow and
+   * it has to be cast by an empty box travelling underneath it instead. That
+   * box wears these values unchanged, so the shadow is the card's own rather
+   * than an approximation of it (see morphShadow).
    */
   shadow?: { from: string; to: string } | null;
   /** Type morphs by growing, not by being scaled: px at each end. */
@@ -887,12 +891,36 @@ export const buildMorphKeyframes = (input: {
     return channel.property !== "background-size" && channel.property !== "background-position";
   });
 
-  // THE CARRIER'S SHADOW, on the flight's own clock. It is a separate element,
-  // so it cannot ride the element's animation list and needs one of its own.
+  // THE CARRIER'S SHADOW, on the flight's own clock.
+  //
+  // A BOX, NOT A FILTER. A `drop-shadow` around the flying element does follow
+  // the clip, but it is an approximation twice over: it has no spread, and a
+  // stack of them is applied in SEQUENCE, so the second is cast from the first's
+  // blurred output rather than from the box. Device-measured through a push, the
+  // shadow under the card thinned from a tint of 27.6 at rest to 17 for the
+  // whole flight and snapped back on landing, which is a shadow that pops. It
+  // also asks for a Gaussian blur of the whole card on every frame.
+  //
+  // An empty box wearing the SAME `box-shadow`, travelling the same rects
+  // underneath the card, casts exactly what the card would. It is laid out per
+  // frame, which is what the reveal exists to avoid — but it holds nothing, so
+  // there is no subtree to lay out, and a shadow has no hard edge for the device
+  // grid to step.
   let shade: string | null = null;
-  if (reveal && shadow && (shadow.from !== "none" || shadow.to !== "none")) {
+  if (reveal && box && shadow && (shadow.from !== "none" || shadow.to !== "none")) {
     const shadeName = `flemo-morph-${id}-shade`;
-    rules.push(held(shadeName, `    filter: ${shadow.from};`, `    filter: ${shadow.to};`));
+    const corners = typeof radius === "object" && radius ? radius : { from: radius, to: radius };
+    const face = (rect: MorphRect, corner: string | null | undefined, cast: string): string =>
+      `    left: ${px(rect.x)};\n    top: ${px(rect.y)};\n    width: ${px(rect.width)};\n` +
+      `    height: ${px(rect.height)};\n    border-radius: ${corner && corner !== "" ? corner : "0px"};\n` +
+      `    box-shadow: ${cast};`;
+    rules.push(
+      held(
+        shadeName,
+        face(box.from, corners.from, shadow.from),
+        face(box.to, corners.to, shadow.to)
+      )
+    );
     shade = `${shadeName} ${clock} ${easing} ${start}s both`;
   }
   if (painted.length > 0) {

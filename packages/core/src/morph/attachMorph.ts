@@ -69,7 +69,7 @@ import { paintTravel } from "@morph/morphPaint";
 
 import { BOX_WIDTH_PROPERTY, IDENTITY_POSE, resolvePose } from "@morph/morphPose";
 import { revealHolds } from "@morph/morphReveal";
-import { pairShadowFilters } from "@morph/morphShadow";
+import { shadowPaints } from "@morph/morphShadow";
 
 import { ensurePinnedPoses, insertMorphRules } from "@morph/morphSheet";
 import { headSeconds, resolveMorphSide } from "@morph/morphSide";
@@ -912,10 +912,16 @@ const startFlight = (
     // The reveal's clip eats a shadow, so a revealed box hands it to a carrier
     // around the element. Both ends are converted here, because the carrier
     // travels the same two shadows the box would have worn itself.
-    shadow: pairShadowFilters(
-      captured.snapshot.paint["box-shadow"] ?? "none",
-      reads(own, "box-shadow")
-    ),
+    // The card's own values, unchanged: the carrier is a box, so it wears the
+    // shadow rather than approximating it as a filter.
+    shadow:
+      shadowPaints(captured.snapshot.paint["box-shadow"] ?? "") ||
+      shadowPaints(reads(own, "box-shadow"))
+        ? {
+            from: captured.snapshot.paint["box-shadow"] || "none",
+            to: reads(own, "box-shadow") || "none"
+          }
+        : null,
     clip: edgeClip,
     // The corner the arrival wears, so a reveal cuts the same shape the box has.
     // It travels with the box's own corner where that corner travels.
@@ -1422,21 +1428,21 @@ const startFlight = (
   // silhouette the clip leaves, which is the visible box at every size on the
   // way (see morphShadow, where all three were device-measured).
   //
-  // It fills the layer and paints nothing of its own, so the element's absolute
-  // coordinates are the ones it already had. The filter makes it a containing
-  // block, which is why it has to be exactly the layer's box rather than merely
-  // somewhere above the element.
+  // A SIBLING UNDERNEATH, not a wrapper around. A wrapper would have to carry a
+  // filter to cast anything, and a filter is a containing block, a stacking
+  // context and a Gaussian blur of the whole card on every frame. An empty box
+  // in front of the element in the layer paints under it, wears the card's own
+  // `box-shadow` at the card's own size, and changes nothing about how the
+  // element itself is placed.
   const shade = arriving.revealed ? arriving.shade : null;
   let carrier: HTMLElement | null = null;
   if (shade) {
     carrier = entry.element.ownerDocument.createElement("div");
     carrier.setAttribute(MORPH_SHADE_ATTR, "");
     carrier.style.position = "absolute";
-    carrier.style.inset = "0";
     carrier.style.pointerEvents = "none";
     carrier.style.animation = shade;
-    layer.appendChild(carrier);
-    preserveAnimations(entry.element, () => carrier!.appendChild(entry.element));
+    layer.insertBefore(carrier, entry.element);
   }
   for (const [property, value] of inherited) entry.element.style[property] = value;
   entry.element.style.position = "absolute";
