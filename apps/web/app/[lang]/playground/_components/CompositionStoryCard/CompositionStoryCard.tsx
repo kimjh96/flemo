@@ -12,51 +12,72 @@ export interface CompositionStoryCardProps {
 const SHELL_ID = "composition-featured";
 const TITLE_ID = "composition-featured-title";
 
+// WHAT IS SHARED GOES IN THE BOX; WHAT IS NOT GOES BESIDE IT.
+//
+// The panel is one object on both screens and the title is one line of type on
+// both, so those are the identity the flight carries: a Morph for the box, a
+// text Morph for the line. The eyebrow and the summary are DIFFERENT SENTENCES
+// at the two ends — "Today" against "Message 42" — and a Morph asserts one
+// identity, so they are not the flight's to carry.
+//
+// They used to be inside it anyway, and the card paid for that twice. The ghost
+// follows the arriving box by one transform, so unshared copy it carried
+// stretched with the box and printed over the arrival's own words; the mitigation
+// was to cut the hand-over to 0.13s of a 0.7s flight, which reads as the copy
+// being switched off and the card travelling empty for the rest. Beside the box
+// there is nothing to stretch and nothing to print over, so the two sentences
+// hand over on the screen's own clock, for as long as the screen takes.
 function CompositionStoryCard({ paired, variant }: CompositionStoryCardProps) {
   const detail = variant === "detail";
-  const className = detail
-    ? "relative block min-h-[270px] overflow-hidden rounded-[30px] bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 p-5 text-white shadow-2xl shadow-violet-500/20"
-    : "relative block min-h-[142px] overflow-hidden rounded-[24px] bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 p-4 text-white shadow-xl shadow-violet-500/20";
+  const panel = detail
+    ? "relative block min-h-[196px] overflow-hidden rounded-[30px] bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 p-5 text-white shadow-2xl shadow-violet-500/20"
+    : "relative block min-h-[104px] overflow-hidden rounded-[24px] bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 p-4 text-white shadow-xl shadow-violet-500/20";
 
-  const content = (
-    <>
+  const shell = (
+    <div className={detail ? "flex min-h-[156px] items-end" : "flex min-h-[72px] items-end"}>
+      <div className={detail ? "h-10 w-full" : "h-7 w-full"}>
+        <CardTitle
+          layoutId={paired ? TITLE_ID : null}
+          className={
+            detail
+              ? "block truncate text-[30px] leading-10 font-black tracking-[-0.04em] text-white"
+              : "block truncate text-xl leading-7 font-black tracking-[-0.03em] text-white"
+          }
+        >
+          Morning brief
+        </CardTitle>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="block text-left">
       <Part name="composition-card-copy">
-        <p className="text-[9px] font-bold tracking-[0.2em] text-white/70 uppercase">
+        <p
+          className={`${detail ? "mb-2" : "mb-1"} text-[9px] font-bold tracking-[0.2em] text-slate-500 uppercase dark:text-slate-400`}
+        >
           {detail ? "Message 42" : "Today"}
         </p>
       </Part>
-      <div className={detail ? "mt-24" : "mt-8"}>
-        <div className={detail ? "h-10" : "h-7"}>
-          <CardTitle
-            layoutId={paired ? TITLE_ID : null}
-            className={
-              detail
-                ? "block truncate text-[30px] leading-10 font-black tracking-[-0.04em] text-white"
-                : "block truncate text-xl leading-7 font-black tracking-[-0.03em] text-white"
-            }
-          >
-            Morning brief
-          </CardTitle>
-        </div>
-        <Part name="composition-card-copy">
-          <p
-            className={detail ? "mt-2 text-[13px] text-white/75" : "mt-1 text-[11px] text-white/75"}
-          >
-            {detail
-              ? "One story, continued from the workspace card."
-              : "Open the story without leaving the app shell."}
-          </p>
-        </Part>
-      </div>
-    </>
-  );
 
-  if (!paired) return <div className={className}>{content}</div>;
+      {paired ? (
+        <Morph name="composition-card-shell" layoutId={SHELL_ID} className={panel}>
+          {shell}
+        </Morph>
+      ) : (
+        <div className={panel}>{shell}</div>
+      )}
 
-  return (
-    <Morph name="composition-card-shell" layoutId={SHELL_ID} className={className}>
-      {content}
-    </Morph>
+      <Part name="composition-card-copy">
+        <p
+          className={`${detail ? "mt-3 text-[13px]" : "mt-2 text-[11px]"} text-slate-600 dark:text-slate-300`}
+        >
+          {detail
+            ? "One story, continued from the workspace card."
+            : "Open the story without leaving the app shell."}
+        </p>
+      </Part>
+    </div>
   );
 }
 
