@@ -117,12 +117,55 @@ function indexOf(root: Element): Map<Element, number> {
   return index;
 }
 
+// ASKING IS A STYLE RECALCULATION, AND A FLIGHT ASKS ONCE PER PARTICIPANT.
+//
+// `getAnimations` has to resolve style before it can answer, so its cost is
+// whatever the frame has dirtied since the last time style was clean. On the
+// frame a tap starts, every participant stages in turn — write, move, write —
+// so the first participant's question is cheap and each one after it pays for
+// the writes before it. Measured in Chrome on a warm push of the composition
+// bench: four asks at 0.2ms, then one at 3.8ms that found nothing at all, then
+// one at 3.6ms, out of a frame that has about eight to spend at 120Hz.
+//
+// So the answer is taken for the whole document at once and shared by every
+// participant that asks inside the same task. One resolution instead of one
+// per participant; the snapshot is dropped on the next microtask, and by the
+// caller itself across the re-parent it performs, because that is the one
+// event that makes it stale.
+let snapshot: Map<Element, Animation[]> | null = null;
+
+const dropSnapshot = (): void => {
+  snapshot = null;
+};
+
+const animationsIn = (root: Element): Animation[] => {
+  const document = root.ownerDocument;
+  /* v8 ignore next -- a host without the API is handled by the caller. */
+  if (typeof document.getAnimations !== "function") return [];
+  if (!snapshot) {
+    snapshot = new Map();
+    for (const animation of document.getAnimations()) {
+      const target = targetOf(animation);
+      if (!target) continue;
+      const list = snapshot.get(target);
+      if (list) list.push(animation);
+      else snapshot.set(target, [animation]);
+    }
+    queueMicrotask(dropSnapshot);
+  }
+  const found: Animation[] = [];
+  for (const [target, animations] of snapshot) {
+    if (target === root || root.contains(target)) found.push(...animations);
+  }
+  return found;
+};
+
 function collect(root: Element, includeRoot: boolean): Map<string, SavedTime> {
   const saved = new Map<string, SavedTime>();
-  if (typeof root.getAnimations !== "function") return saved;
+  if (typeof root.ownerDocument.getAnimations !== "function") return saved;
 
   const index = indexOf(root);
-  for (const animation of root.getAnimations({ subtree: true })) {
+  for (const animation of animationsIn(root)) {
     const target = targetOf(animation);
     if (!target) continue;
     if (target === root && !includeRoot) continue;
@@ -171,10 +214,13 @@ export function preserveAnimations(
   const includeRoot = options.includeRoot ?? false;
   const saved = collect(root, includeRoot);
   move();
-  if (saved.size === 0 || typeof root.getAnimations !== "function") return saved.size;
+  // The move is what invalidates the shared answer: it cancels and re-creates
+  // the animations this is here to carry.
+  dropSnapshot();
+  if (saved.size === 0 || typeof root.ownerDocument.getAnimations !== "function") return saved.size;
 
   const index = indexOf(root);
-  for (const animation of root.getAnimations({ subtree: true })) {
+  for (const animation of animationsIn(root)) {
     const target = targetOf(animation);
     if (!target) continue;
     if (target === root && !includeRoot) continue;
