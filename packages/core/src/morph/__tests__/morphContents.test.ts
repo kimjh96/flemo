@@ -99,6 +99,22 @@ describe("contentsHoldAcrossBox", () => {
     }
   });
 
+  it("asks again when the CONTEXT that styles the subtree changes", () => {
+    // A theme class on an ancestor can move a child without changing a byte of
+    // the subtree, and a remembered answer would then draw a picture the page
+    // does not. That is the one thing this rule is not allowed to do.
+    const base = { from: { width: 98, height: 40 }, to: { width: 139, height: 40 } };
+    const first = mount(`<span data-from-right="10"></span>`);
+    contentsHoldAcrossBox(first, base.from, base.to, RIGHT);
+
+    document.documentElement.classList.add("dark");
+    const copies = vi.spyOn(first, "cloneNode");
+    contentsHoldAcrossBox(first, base.from, base.to, RIGHT);
+    document.documentElement.classList.remove("dark");
+
+    expect(copies).toHaveBeenCalled();
+  });
+
   it("measures on a copy and leaves the page as it found it", () => {
     const box = mount(`<span data-from-right="10"></span>`);
     contentsHoldAcrossBox(box, { width: 98, height: 40 }, { width: 139, height: 40 }, RIGHT);

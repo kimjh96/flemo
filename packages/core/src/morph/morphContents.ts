@@ -123,10 +123,16 @@ const places = (root: Element, anchor: MorphAnchor): number[] | null => {
  * the whole difference being a probe whose answer was already known.
  *
  * The key is what the answer actually depends on: the two sizes, the corner the
- * flight is anchored on, and the SHAPE of the subtree. The shape is read
- * without touching layout — tag, class and the length of each run of text — so
- * a card whose words changed asks again and one that is the same card at the
- * same two sizes does not.
+ * flight is anchored on, the SHAPE of the subtree, and the context that styles
+ * it. All of it is read without touching layout, so a card whose words changed
+ * asks again and one that is the same card at the same two sizes does not.
+ *
+ * THE CONTEXT IS PART OF THE KEY, because the subtree is not the only thing
+ * that decides where its children land. A theme class on an ancestor, a
+ * container the card sits in, a stylesheet that arrived with a lazy chunk: any
+ * of them can move a child without changing a byte of the subtree. Leaving them
+ * out would let a remembered answer draw a picture the page does not — the one
+ * thing this rule is not allowed to do, whatever it costs.
  */
 const answered = new Map<string, boolean>();
 
@@ -166,6 +172,10 @@ const shapeOf = (root: Element): string => {
       parts.push(`#${text.trim().length}`);
     }
   };
+  // The chain the subtree hangs from, and how many sheets are styling it.
+  for (let up = root.parentElement; up; up = up.parentElement) parts.push(`^${mark(up)}`);
+  const sheets = root.ownerDocument.styleSheets?.length ?? 0;
+  parts.push(`&${sheets}`);
   parts.push(mark(root));
   visit(root);
   return parts.join("|");

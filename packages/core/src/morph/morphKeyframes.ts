@@ -752,10 +752,17 @@ export const buildMorphKeyframes = (input: {
     // is outside the cut.
     if (paintsImage && box) {
       const anchor = rightHeld ? "right top" : "left top";
-      // THE BORDER BOX, which is what the browser draws a sizeless image into
-      // here: measured against the card at rest, sizing the gradient to the
-      // padding box instead left the tile smaller than the box and the repeat
-      // showed as two hard seams across it.
+      // THE BORDER BOX, because that is the POSITIONING AREA here.
+      //
+      // A sizeless image fills the positioning area, which `background-origin:
+      // padding-box` makes the box inside the BORDER — padding included, which
+      // is the content box's business, not this one's. The reveal already
+      // requires a border of zero width, so the two are the same box and the
+      // border box is the area by construction.
+      //
+      // Sized to the box inside the PADDING instead, the tile is smaller than
+      // the box and the repeat fills the rest: measured against the card at
+      // rest, two hard seams across it.
       const area = (rect: MorphRect): string => `${px(rect.width)} ${px(rect.height)}`;
       pushSize(
         `    background-size: ${area(box.from)};\n    background-position: ${anchor};`,
