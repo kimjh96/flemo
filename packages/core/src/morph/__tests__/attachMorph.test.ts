@@ -434,7 +434,7 @@ describe("attachMorph", () => {
     expect(travel).toContain("line-height: 21px");
   });
 
-  it("cancels a growing run's drift on the tracking, but not on the flight that finds it", () => {
+  it("cancels a growing run's drift on the tracking, beside the author's own", () => {
     // A face whose run width bows off the straight line between its ends, which
     // is what makes a title's later characters wander further than its earlier
     // ones. `system-ui` does exactly this in both engines.
@@ -454,68 +454,35 @@ describe("attachMorph", () => {
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
       context as unknown as CanvasRenderingContext2D
     );
-    // A host that answers when the page is quiet, driven by hand: the search is
-    // scheduled during the first flight and must not run inside it, so the
-    // queue is only drained between the two (see morphLine).
-    const host = globalThis as unknown as { requestIdleCallback?: (work: () => void) => number };
-    const hadIdle = host.requestIdleCallback;
-    const idle: (() => void)[] = [];
-    host.requestIdleCallback = (work) => idle.push(work) && 0;
 
-    const flight = (id: string) => {
-      const gallery = makeScreen("layout", true);
-      const label = makeMorph(gallery, [20, 600, 119, 16]);
-      label.append("Aria", document.createComment("hydration"), " Wave");
-      label.style.fontFamily = "Test Sans";
-      label.style.fontSize = "11px";
-      label.style.lineHeight = "16px";
-      attachMorph(label, { layoutId: id, name: "text", navigateStore: store });
-      flipTo("PUSHING");
-      gallery.setAttribute(ACTIVE_ATTR, "false");
+    const gallery = makeScreen("layout", true);
+    const label = makeMorph(gallery, [20, 600, 119, 16]);
+    label.append("Aria", document.createComment("hydration"), " Wave");
+    label.style.fontFamily = "Test Sans";
+    label.style.fontSize = "11px";
+    label.style.lineHeight = "16px";
+    attachMorph(label, { layoutId: "track-1", name: "text", navigateStore: store });
 
-      const detail = makeScreen("layout", true);
-      const heading = makeMorph(detail, [16, 120, 314, 20]);
-      heading.append("Aria", document.createComment("hydration"), " Wave");
-      heading.style.fontFamily = "Test Sans";
-      heading.style.fontSize = "14px";
-      heading.style.lineHeight = "20px";
-      attachMorph(heading, { layoutId: id, name: "text", navigateStore: store });
-      return heading;
-    };
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
 
-    // THE FLIGHT THAT FINDS THE FACE DOES NOT WEAR WHAT IT FOUND.
-    //
-    // Searching means instantiating the face at every size the search visits,
-    // which a browser charges for once per size, and that bill would land on
-    // the frame the tap started. So the first flight runs on the straight
-    // interpolation and the search happens after it.
-    const beforeFirst = inserted.length;
-    const first = flight("track-1");
-    expect(first.style.letterSpacing).not.toContain("--flemo-track-fix");
-    expect(
-      inserted
-        .slice(beforeFirst)
-        .some((rule) => rule.startsWith("@keyframes") && rule.includes("track-fix"))
-    ).toBe(false);
+    const detail = makeScreen("layout", true);
+    const heading = makeMorph(detail, [16, 120, 314, 20]);
+    heading.append("Aria", document.createComment("hydration"), " Wave");
+    heading.style.fontFamily = "Test Sans";
+    heading.style.fontSize = "14px";
+    heading.style.lineHeight = "20px";
+    attachMorph(heading, { layoutId: "track-1", name: "text", navigateStore: store });
 
-    idle.splice(0).forEach((work) => work());
-    const beforeSecond = inserted.length;
-    // A second pair, because the first is still in the air; what carries across
-    // is the face the search found, which is keyed on the type rather than on
-    // either pair.
-    const second = flight("track-2");
     // The run is read from ALL of the element's text, not just its first node.
     // Two clocks on one property, so neither can be written as a plain length.
-    expect(second.style.letterSpacing).toBe("calc(var(--flemo-track) + var(--flemo-track-fix))");
-    const track = inserted
-      .slice(beforeSecond)
-      .find((rule) => rule.startsWith("@keyframes") && rule.includes("track-fix"))!;
+    expect(heading.style.letterSpacing).toBe("calc(var(--flemo-track) + var(--flemo-track-fix))");
+    const track = inserted.find(
+      (rule) => rule.startsWith("@keyframes") && rule.includes("-track {")
+    )!;
     expect(track).toBeDefined();
     // Ramped, not held: what it cancels is a curve rather than a staircase.
     expect(track).not.toContain("steps(1, end)");
-
-    if (hadIdle) host.requestIdleCallback = hadIdle;
-    else delete host.requestIdleCallback;
   });
 
   it("holds a text pair to one line for the whole flight", () => {

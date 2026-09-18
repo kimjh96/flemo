@@ -13,29 +13,6 @@ import {
   trackStops
 } from "@morph/morphLine";
 
-// THE SEARCH RUNS AT IDLE, SO A TEST ASKS TWICE.
-//
-// The first ask schedules the measurement and answers "no staircase", which is
-// what a flight gets on the tap it starts (see morphLine's own note). A host
-// with an idle callback runs it when the page is quiet; here it runs straight
-// away, and the second ask reads what it found.
-(
-  globalThis as unknown as { requestIdleCallback: (work: () => void) => number }
-).requestIdleCallback = (work) => {
-  work();
-  return 0;
-};
-
-const settledLeading: typeof leadingStops = (...args) => {
-  leadingStops(...args);
-  return leadingStops(...args);
-};
-
-const settledTrack: typeof trackStops = (...args) => {
-  trackStops(...args);
-  return trackStops(...args);
-};
-
 const setRect = (element: HTMLElement, width: number, height: number) => {
   element.getBoundingClientRect = () =>
     ({
@@ -419,7 +396,7 @@ describe("leadingStops", () => {
     const from = end(14, 20);
     const to = end(24, 32);
 
-    const stops = settledLeading(from, to, { ...FONT, family: "Hold Sans" }, undefined)!;
+    const stops = leadingStops(from, to, { ...FONT, family: "Hold Sans" }, undefined)!;
 
     expect(stops).not.toBeNull();
     const leading = to.lineHeight - to.textHeight;
@@ -440,7 +417,7 @@ describe("leadingStops", () => {
   it("lands on the arrival's authored line-height, so the landing is exact", () => {
     stub(0.95, 0.25);
 
-    const stops = settledLeading(
+    const stops = leadingStops(
       end(14, 20),
       end(24, 32),
       { ...FONT, family: "Land Sans" },
@@ -464,7 +441,7 @@ describe("leadingStops", () => {
     });
 
     expect(
-      settledLeading(smooth(14, 20), smooth(24, 32), { ...FONT, family: "Smooth Sans" }, undefined)
+      leadingStops(smooth(14, 20), smooth(24, 32), { ...FONT, family: "Smooth Sans" }, undefined)
     ).toBeNull();
   });
 
@@ -472,7 +449,7 @@ describe("leadingStops", () => {
     stub(0.95, 0.25);
 
     expect(
-      settledLeading(end(24, 32), end(24, 34), { ...FONT, family: "Same Sans" }, undefined)
+      leadingStops(end(24, 32), end(24, 34), { ...FONT, family: "Same Sans" }, undefined)
     ).toBeNull();
   });
 
@@ -480,7 +457,7 @@ describe("leadingStops", () => {
     stub(0.95, 0.25);
 
     expect(
-      settledLeading(
+      leadingStops(
         { fontSize: null, lineHeight: 20, textHeight: 17 },
         end(24, 32),
         { ...FONT, family: "Partial Sans" },
@@ -488,7 +465,7 @@ describe("leadingStops", () => {
       )
     ).toBeNull();
     expect(
-      settledLeading(
+      leadingStops(
         { fontSize: 14, lineHeight: null, textHeight: 17 },
         end(24, 32),
         { ...FONT, family: "Partial Sans" },
@@ -496,14 +473,14 @@ describe("leadingStops", () => {
       )
     ).toBeNull();
     expect(
-      settledLeading(
+      leadingStops(
         { fontSize: 14, lineHeight: 20, textHeight: null },
         end(24, 32),
         { ...FONT, family: "Partial Sans" },
         undefined
       )
     ).toBeNull();
-    expect(settledLeading(end(14, 20), end(24, 32), null, undefined)).toBeNull();
+    expect(leadingStops(end(14, 20), end(24, 32), null, undefined)).toBeNull();
   });
 
   it("finds every boundary the engine actually steps at, wherever the ratio says it is", () => {
@@ -539,7 +516,7 @@ describe("leadingStops", () => {
       };
     };
 
-    const stops = settledLeading(
+    const stops = leadingStops(
       measured(14, 20),
       measured(11, 16),
       { ...FONT, family: "Drift Sans" },
@@ -567,13 +544,13 @@ describe("leadingStops", () => {
     // a curve that opens fast.
     stub(0.95, 0.25);
 
-    const eased = settledLeading(
+    const eased = leadingStops(
       end(14, 20),
       end(24, 32),
       { ...FONT, family: "Eased Sans" },
       [0.32, 0.72, 0, 1]
     )!;
-    const linear = settledLeading(
+    const linear = leadingStops(
       end(14, 20),
       end(24, 32),
       { ...FONT, family: "Linear Sans" },
@@ -601,7 +578,7 @@ describe("leadingStops", () => {
     stub(0.95, 0.25);
 
     expect(
-      settledLeading(end(20.2, 27), end(20.4, 27.2), { ...FONT, family: "Narrow Sans" }, undefined)
+      leadingStops(end(20.2, 27), end(20.4, 27.2), { ...FONT, family: "Narrow Sans" }, undefined)
     ).toBeNull();
   });
 
@@ -609,7 +586,7 @@ describe("leadingStops", () => {
     // A boundary the ease reaches only at the very ends is already carried by
     // the stops that bracket it.
     stub(0.95, 0.25);
-    const stops = settledLeading(
+    const stops = leadingStops(
       end(14, 20),
       end(24, 32),
       { ...FONT, family: "Edge Sans" },
@@ -640,7 +617,7 @@ describe("leadingStops", () => {
     });
 
     expect(
-      settledLeading(end(14, 20), end(24, 32), { ...FONT, family: "Gone Sans" }, undefined)
+      leadingStops(end(14, 20), end(24, 32), { ...FONT, family: "Gone Sans" }, undefined)
     ).toBeNull();
   });
 
@@ -649,7 +626,7 @@ describe("leadingStops", () => {
     // flight. Searching each aim in a window of its own size swallowed the ones
     // after the first; each is searched between its NEIGHBOURS instead.
     stub(0.95, 0.25);
-    const stops = settledLeading(
+    const stops = leadingStops(
       end(14, 20),
       end(24, 32),
       { ...FONT, family: "Crowd Sans" },
@@ -675,7 +652,7 @@ describe("leadingStops", () => {
     });
 
     expect(
-      settledLeading(flat(20.1, 27), flat(20.2, 27.1), { ...FONT, family: "Still Sans" }, undefined)
+      leadingStops(flat(20.1, 27), flat(20.2, 27.1), { ...FONT, family: "Still Sans" }, undefined)
     ).toBeNull();
   });
 
@@ -689,7 +666,7 @@ describe("leadingStops", () => {
       lineHeight,
       textHeight: Math.round(fontSize * 0.5) * 2
     });
-    const stops = settledLeading(
+    const stops = leadingStops(
       both(14, 20),
       both(24, 32),
       { ...FONT, family: "Twin Sans" },
@@ -710,9 +687,9 @@ describe("leadingStops", () => {
     const context = stub(0.95, 0.25);
     const args = [end(14, 20), end(24, 32), { ...FONT, family: "Cached Sans" }, undefined] as const;
 
-    settledLeading(...args);
+    leadingStops(...args);
     const first = context.mock.calls.length;
-    settledLeading(...args);
+    leadingStops(...args);
 
     expect(context.mock.calls.length).toBe(first);
   });
@@ -725,19 +702,19 @@ describe("leadingStops", () => {
     const args = [end(14, 20), end(24, 32), { ...FONT, family: "Recall Sans" }, undefined] as const;
 
     // Prime both the outer memo and the per-pair stop cache for this pair.
-    const primed = settledLeading(...args)!;
+    const primed = leadingStops(...args)!;
     expect(primed).not.toBeNull();
 
     // Flood the shared memo past its 512 cap with distinct pairs. The miss that
     // crosses the cap clears the memo, evicting the primed pair with it.
     for (let i = 0; i < 520; i += 1) {
-      settledLeading(end(14, 20), end(24, 32), { ...FONT, family: `Flood ${i}` }, undefined);
+      leadingStops(end(14, 20), end(24, 32), { ...FONT, family: `Flood ${i}` }, undefined);
     }
     const bisected = context.mock.calls.length;
 
     // The memo no longer answers for our pair, so leadingStops recomputes — but
     // its own stopCache still holds the stairs, so no canvas is asked again.
-    const again = settledLeading(...args)!;
+    const again = leadingStops(...args)!;
 
     expect(again).toEqual(primed);
     expect(context.mock.calls.length).toBe(bisected);
@@ -773,17 +750,17 @@ describe("trackStops", () => {
   it("declines where there is no face to ask, no travel, or no gap to spread over", () => {
     advances((size) => size * 4);
 
-    expect(settledTrack(TEXT, { fontSize: 14 }, { fontSize: 24 }, null, EASE)).toBeNull();
-    expect(settledTrack(TEXT, { fontSize: 14 }, { fontSize: 14 }, FONT, EASE)).toBeNull();
-    expect(settledTrack(TEXT, { fontSize: null }, { fontSize: 24 }, FONT, EASE)).toBeNull();
+    expect(trackStops(TEXT, { fontSize: 14 }, { fontSize: 24 }, null, EASE)).toBeNull();
+    expect(trackStops(TEXT, { fontSize: 14 }, { fontSize: 14 }, FONT, EASE)).toBeNull();
+    expect(trackStops(TEXT, { fontSize: null }, { fontSize: 24 }, FONT, EASE)).toBeNull();
     // One glyph has no gap, so there is nowhere to put a correction.
-    expect(settledTrack("A", { fontSize: 14 }, { fontSize: 24 }, FONT, EASE)).toBeNull();
+    expect(trackStops("A", { fontSize: 14 }, { fontSize: 24 }, FONT, EASE)).toBeNull();
   });
 
   it("declines a face whose advances track their size, having nothing to cancel", () => {
     advances((size) => size * 4);
 
-    expect(settledTrack(TEXT, { fontSize: 14 }, { fontSize: 25 }, FONT, EASE)).toBeNull();
+    expect(trackStops(TEXT, { fontSize: 14 }, { fontSize: 25 }, FONT, EASE)).toBeNull();
   });
 
   // A CORRECTION SMALLER THAN THE GRID IT RIDES ON IS A NEW DEFECT.
@@ -796,7 +773,7 @@ describe("trackStops", () => {
     // nothing the eye was ever reported at.
     advances((size) => size * 4 + (size - 15) * (27 - size) * 0.004);
 
-    expect(settledTrack(TEXT, { fontSize: 15 }, { fontSize: 27 }, FONT, EASE)).toBeNull();
+    expect(trackStops(TEXT, { fontSize: 15 }, { fontSize: 27 }, FONT, EASE)).toBeNull();
   });
 
   it("spreads the run's whole deviation from the line over its gaps", () => {
@@ -805,7 +782,7 @@ describe("trackStops", () => {
     const width = (size: number) => size * 4 + (size - 14) * (26 - size) * 0.2;
     advances(width);
 
-    const stops = settledTrack(TEXT, { fontSize: 14 }, { fontSize: 26 }, FONT, EASE)!;
+    const stops = trackStops(TEXT, { fontSize: 14 }, { fontSize: 26 }, FONT, EASE)!;
     const curve = resolveEasing(EASE);
 
     for (const [index, stop] of stops.entries()) {
@@ -834,22 +811,22 @@ describe("trackStops", () => {
       return size * 4 + (size - 12) * (28 - size) * 0.2;
     });
 
-    const first = settledTrack(TEXT, { fontSize: 12 }, { fontSize: 28 }, FONT, EASE);
+    const first = trackStops(TEXT, { fontSize: 12 }, { fontSize: 28 }, FONT, EASE);
     const measured = asked;
-    const again = settledTrack(TEXT, { fontSize: 12 }, { fontSize: 28 }, FONT, EASE);
+    const again = trackStops(TEXT, { fontSize: 12 }, { fontSize: 28 }, FONT, EASE);
 
     expect(again).toBe(first);
     expect(asked).toBe(measured);
     // A flight with no authored easing is a different question, not the same
     // answer under a different name.
-    expect(settledTrack(TEXT, { fontSize: 12 }, { fontSize: 28 }, FONT, undefined)).not.toBe(first);
+    expect(trackStops(TEXT, { fontSize: 12 }, { fontSize: 28 }, FONT, undefined)).not.toBe(first);
     expect(asked).toBeGreaterThan(measured);
   });
 
   it("keeps its stops in order and inside the flight", () => {
     advances((size) => size * 4 + Math.sin(size) * 2);
 
-    const stops = settledTrack(TEXT, { fontSize: 13 }, { fontSize: 27 }, FONT, EASE)!;
+    const stops = trackStops(TEXT, { fontSize: 13 }, { fontSize: 27 }, FONT, EASE)!;
 
     expect(stops[0].at).toBe(0);
     expect(stops[stops.length - 1].at).toBe(100);
