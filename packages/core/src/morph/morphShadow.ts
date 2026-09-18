@@ -94,18 +94,71 @@ const round = (number: number): string =>
  * Returns `none` where nothing paints, so a box whose only shadow is a stack of
  * empty ring layers wears no filter rather than an empty one.
  */
-export const shadowAsFilter = (shadow: string): string => {
+const dropsOf = (shadow: string): string[] => {
   const drops: string[] = [];
   for (const layer of layers(shadow)) {
     if (!paints(layer)) continue;
     const parts = split(layer);
+    /* v8 ignore next -- a layer that paints has a colour or lengths to read. */
     if (!parts) continue;
     const [x, y, blur, spread] = parts.lengths;
-    const reach = Math.max(0, value(blur) + 2 * value(spread));
-    const geometry = `${round(value(x))} ${round(value(y))} ${round(reach)}`;
+    // A SPREAD IS NOT A BLUR, and `drop-shadow` has an argument for neither it
+    // nor a way to shrink. A shadow reaches `offset + spread + blur / 2` past
+    // the edge it is cast towards, so:
+    //
+    // - a NEGATIVE spread, which is what every tight shadow in the wild uses,
+    //   is taken out of the OFFSET. The reach is then the same and the shadow
+    //   is just as soft. Folding it into the blur instead reaches the same
+    //   distance with a blur two spreads smaller, and Tailwind's second xl
+    //   layer (10px of blur pulled back 6px) came out at a blur of zero, which
+    //   is a hard band under the card rather than a shadow.
+    // - a POSITIVE spread grows the shadow on every side at once, which an
+    //   offset cannot do, so that one is folded into the blur.
+    const room = value(spread);
+    let ox = value(x);
+    let oy = value(y);
+    let soft = value(blur);
+    if (room > 0) soft += 2 * room;
+    else if (room < 0) {
+      const pull = (offset: number): number =>
+        offset === 0 || Math.abs(offset) + room <= 0 ? 0 : offset + Math.sign(offset) * room;
+      ox = pull(ox);
+      oy = pull(oy);
+      // A shadow with no offset has nothing to take the spread out of.
+      if (ox === 0 && oy === 0) soft += 2 * room;
+    }
+    const geometry = `${round(ox)} ${round(oy)} ${round(Math.max(0, soft))}`;
     drops.push(`drop-shadow(${parts.colour === "" ? geometry : `${geometry} ${parts.colour}`})`);
   }
+  return drops;
+};
+
+export const shadowAsFilter = (shadow: string): string => {
+  const drops = dropsOf(shadow);
   return drops.length > 0 ? drops.join(" ") : "none";
+};
+
+/** A shadow that is there to be counted and casts nothing. */
+const BLANK = "drop-shadow(0px 0px 0px rgba(0, 0, 0, 0))";
+
+/**
+ * The two ends of a flight's shadow, as filters with the SAME SHAPE.
+ *
+ * A `filter` interpolates function by function, so two lists of different
+ * lengths do not interpolate at all: the browser swaps one for the other
+ * halfway and the shadow jumps. The ends of a real flight differ exactly that
+ * way — Tailwind's `shadow-xl` paints two layers and its `shadow-2xl` paints
+ * one — so the shorter list is padded with a shadow that casts nothing and the
+ * pair travels smoothly from one to the other.
+ */
+export const pairShadowFilters = (from: string, to: string): { from: string; to: string } => {
+  const start = dropsOf(from);
+  const end = dropsOf(to);
+  if (start.length === 0 && end.length === 0) return { from: "none", to: "none" };
+  const length = Math.max(start.length, end.length);
+  while (start.length < length) start.push(BLANK);
+  while (end.length < length) end.push(BLANK);
+  return { from: start.join(" "), to: end.join(" ") };
 };
 
 /** Whether a computed `box-shadow` paints anything at all. */

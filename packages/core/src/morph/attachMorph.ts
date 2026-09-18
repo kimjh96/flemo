@@ -69,7 +69,7 @@ import { paintTravel } from "@morph/morphPaint";
 
 import { BOX_WIDTH_PROPERTY, IDENTITY_POSE, resolvePose } from "@morph/morphPose";
 import { revealHolds } from "@morph/morphReveal";
-import { shadowAsFilter } from "@morph/morphShadow";
+import { pairShadowFilters } from "@morph/morphShadow";
 
 import { ensurePinnedPoses, insertMorphRules } from "@morph/morphSheet";
 import { headSeconds, resolveMorphSide } from "@morph/morphSide";
@@ -912,10 +912,10 @@ const startFlight = (
     // The reveal's clip eats a shadow, so a revealed box hands it to a carrier
     // around the element. Both ends are converted here, because the carrier
     // travels the same two shadows the box would have worn itself.
-    shadow: {
-      from: shadowAsFilter(captured.snapshot.paint["box-shadow"] ?? "none"),
-      to: shadowAsFilter(reads(own, "box-shadow"))
-    },
+    shadow: pairShadowFilters(
+      captured.snapshot.paint["box-shadow"] ?? "none",
+      reads(own, "box-shadow")
+    ),
     clip: edgeClip,
     // The corner the arrival wears, so a reveal cuts the same shape the box has.
     // It travels with the box's own corner where that corner travels.

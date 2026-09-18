@@ -748,9 +748,14 @@ export const buildMorphKeyframes = (input: {
     // is outside the cut.
     if (paintsImage && box) {
       const anchor = rightHeld ? "right top" : "left top";
+      // THE BORDER BOX, which is what the browser draws a sizeless image into
+      // here: measured against the card at rest, sizing the gradient to the
+      // padding box instead left the tile smaller than the box and the repeat
+      // showed as two hard seams across it.
+      const area = (rect: MorphRect): string => `${px(rect.width)} ${px(rect.height)}`;
       pushSize(
-        `    background-size: ${px(box.from.width)} ${px(box.from.height)};\n    background-position: ${anchor};`,
-        `    background-size: ${px(box.to.width)} ${px(box.to.height)};\n    background-position: ${anchor};`
+        `    background-size: ${area(box.from)};\n    background-position: ${anchor};`,
+        `    background-size: ${area(box.to)};\n    background-position: ${anchor};`
       );
     }
   }
