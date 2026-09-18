@@ -60,6 +60,7 @@ import {
   resetDisplayProbeForTests
 } from "@platform/displayProbe";
 import { detectBlinkEngine } from "@platform/engineProbes";
+import { reportReleaseLatencyMs } from "@platform/releaseLatency";
 import { decoratorMap } from "@transition/decorator/decorator";
 import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
 import { resolvePartDefinition } from "@transition/partTransition/partTransition";
@@ -955,6 +956,27 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         root.setAttribute(DESK_HEAD_ATTR, "true");
       } else {
         root.removeAttribute(DESK_HEAD_ATTR);
+      }
+      // WHAT THE HEAD IS COVERING, measured rather than assumed.
+      //
+      // This IS the release: the styles that start the flight are resolved from
+      // here, and the first frame of it reaches the glass a paint, a commit and
+      // a vsync later. The gap is what the next flight of this status decides
+      // its head from, so an app whose screens are already mounted stops paying
+      // for a latency it does not have (see releaseLatency, and the head kit in
+      // flightRouting that reads it).
+      //
+      // One frame's callback time is the honest reading available here: it is
+      // the moment the browser is about to produce the frame this release will
+      // appear in. It undercounts the presentation by the compositor's own
+      // step, which is a frame, and the threshold it feeds is a frame — so the
+      // undercount is on the side of keeping the head rather than dropping it.
+      if (typeof requestAnimationFrame === "function" && typeof performance !== "undefined") {
+        const releasedAt = performance.now();
+        const releasedStatus = status;
+        requestAnimationFrame((at) => {
+          reportReleaseLatencyMs(releasedStatus, at - releasedAt);
+        });
       }
     }
     // (RETIRED 2026-08-12, same day: the ADAPTIVE birth-hold guard —

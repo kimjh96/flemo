@@ -6,6 +6,7 @@ import type { Transition } from "@transition/typing";
 
 import { resolveFlightRouting } from "@core/engine/flightRouting";
 import { reportDisplayIntervalMs, resetDisplayCadenceForTests } from "@platform/displayCadence";
+import { reportReleaseLatencyMs, resetReleaseLatencyForTests } from "@platform/releaseLatency";
 
 // HOW ONE FLIGHT IS FLOWN. The platform profile answers "what browser is
 // this"; this answers "so what does THIS navigation get" — which opening
@@ -63,6 +64,7 @@ const route = (
   });
 
 afterEach(() => {
+  resetReleaseLatencyForTests();
   delete NAV.userAgentData;
   delete (navigator as unknown as Record<string, unknown>).maxTouchPoints;
   delete (navigator as unknown as Record<string, unknown>).platform;
@@ -171,6 +173,35 @@ describe("desktopHead", () => {
     expect(routing.desktopHead).toBe(true);
     expect(routing.governedHead).toBe(false);
     expect(routing.birthHoldMs).toBeGreaterThan(0);
+  });
+
+  it("drops the head on a desktop Blink session whose opening is already a frame", () => {
+    // A head is a cover for a latency, and a cover for a latency that is not
+    // there is dead time: the screen held still after it could already have
+    // moved. An app whose screens are already mounted reaches glass in a frame.
+    setEnv({ blink: true, touch: false });
+    reportReleaseLatencyMs("PUSHING", 4);
+    const routing = route({ status: "PUSHING" });
+    expect(routing.desktopHead).toBe(false);
+    expect(routing.birthHoldMs).toBe(0);
+  });
+
+  it("keeps the head for the status that is still slow", () => {
+    // The number is per status, because a push mounts a screen and a pop
+    // reveals one that is already there.
+    setEnv({ blink: true, touch: false });
+    reportReleaseLatencyMs("PUSHING", 4);
+    reportReleaseLatencyMs("POPPING", 30);
+    expect(route({ status: "PUSHING" }).desktopHead).toBe(false);
+    expect(route({ status: "POPPING" }).desktopHead).toBe(true);
+  });
+
+  it("keeps desktop Safari's head whatever the app measures", () => {
+    // WebKit's latency is a property of how it presents, which no amount of
+    // the app being fast removes.
+    setEnv({ blink: false, touch: false, mac: true });
+    reportReleaseLatencyMs("PUSHING", 1);
+    expect(route({ status: "PUSHING" }).desktopHead).toBe(true);
   });
 
   it("leaves a TOUCH Blink session to the governed tier", () => {

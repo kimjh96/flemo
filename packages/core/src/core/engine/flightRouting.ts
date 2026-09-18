@@ -12,6 +12,7 @@ import {
 } from "@platform/engineProbes";
 import { governedCompiledActive } from "@platform/governedCompiled";
 import { settleGateActive } from "@platform/profile";
+import { learnedReleaseLatencyMs } from "@platform/releaseLatency";
 
 // HOW THIS ONE FLIGHT IS FLOWN.
 //
@@ -165,16 +166,31 @@ export const resolveHeadKit = (
   // the UI process's activation. The head holds the authored from-pose across
   // that latency so the curve PLAYS from 0 instead of being entered partway.
   //
-  // DESKTOP BLINK TOO. It was left out on the reading that the latency belonged
-  // to WebKit's main-thread presentation, and a desktop Chromium session was
-  // assumed to reach glass on the frame it committed. It does not: traced on a
-  // 120Hz desktop Chrome, the tap-to-first-painted-frame of a push ran 28.5ms
-  // against an 8.3ms frame, of which 22.3ms was the arriving screen's own first
-  // render, and the two frames after it ran 17ms each. With no head those land
-  // on the animation's opening, so the curve is entered several frames in and
-  // the transition starts with a lurch. The same flat head covers it, and costs
-  // only the few milliseconds by which it exceeds the latency it is covering.
-  const desktopHead = isDesktopMacWebKit() || isDesktopBlink();
+  // DESKTOP BLINK TOO, WHERE THERE IS A LATENCY TO COVER. It was left out on
+  // the reading that the latency belonged to WebKit's main-thread presentation,
+  // and a desktop Chromium session was assumed to reach glass on the frame it
+  // committed. It does not: traced on a 120Hz desktop Chrome, the
+  // tap-to-first-painted-frame of a push ran 28.5ms against an 8.3ms frame, of
+  // which 22.3ms was the arriving screen's own first render, and the two frames
+  // after it ran 17ms each. With no head those land on the animation's opening,
+  // so the curve is entered several frames in and the transition starts with a
+  // lurch.
+  //
+  // But a head is a COVER FOR A LATENCY, and a cover for a latency that is not
+  // there is dead time — the screen held still after it could already have
+  // moved. That number is a property of the app, not of the browser: an app
+  // whose screens are already mounted reaches glass in a frame and would be
+  // paying twenty milliseconds of stillness for nothing. So the session
+  // measures itself (see releaseLatency) and wears the head only while its own
+  // opening runs longer than a frame. The first navigation of a status has
+  // nothing measured and takes the head, because that is the one most likely to
+  // be slow.
+  //
+  // WebKit keeps the unconditional head it shipped with: its latency is a
+  // property of how it presents, which no amount of the app being fast removes.
+  const learned = learnedReleaseLatencyMs(status);
+  const blinkNeedsHead = learned === null || learned > learnedFrameIntervalMs();
+  const desktopHead = isDesktopMacWebKit() || (isDesktopBlink() && blinkNeedsHead);
   return {
     touchGoverned,
     forceCompiled,
