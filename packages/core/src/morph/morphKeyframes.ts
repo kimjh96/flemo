@@ -395,9 +395,6 @@ export const buildMorphKeyframes = (input: {
   const headPct = head > 0 ? (head / span) * 100 : 0;
   const clock = `${span.toFixed(3)}s`;
   const start = (travel.start - head).toFixed(3);
-  /** A percentage of the travel, restated as a percentage of head-plus-travel. */
-  const at = (pct: number): number =>
-    head > 0 ? headPct + (pct / 100) * (travel.duration / span) * 100 : pct;
   /** Two-stop keyframes, with the flat lead-in in front where there is one. */
   // A FLIGHT HAS TO ARRIVE BEFORE IT LANDS.
   //
@@ -415,6 +412,34 @@ export const buildMorphKeyframes = (input: {
   // nothing. What is given up is the last sixtieth of a second of an ease that
   // is already flat there.
   const arrived = span > 0 ? Math.max(0, 100 - (100 * (1 / 60)) / span) : 100;
+  /**
+   * A percentage of the travel, restated as a percentage of head-plus-travel.
+   *
+   * THE STAIRCASES MUST LAND ON THE SAME CLOCK THE SIZE DOES.
+   *
+   * A stop is a TIME: the moment the eased font size crosses a grid line, found
+   * by bisecting the travel's own curve. What makes the step invisible is that
+   * the line-height and the lift move on the frame the rendered ascent moves,
+   * so the three cancel and the glyphs hold still.
+   *
+   * The size does not run to 100%, though. `held` reaches the destination at
+   * `arrived` and holds it, one frame early, so the last painted frame is the
+   * resting size rather than a fraction short of it. That compression is the
+   * size's, so it is the staircases' too — and it was not applied to them: a
+   * stop found at 65% of the curve was emitted at 65% of the TIMELINE, which is
+   * 65% of the curve plus most of a frame. Every boundary therefore rendered
+   * before the channel that cancels it, so the glyphs dropped the step on one
+   * frame and were lifted back on the next, ten times in a 0.7s flight, with the
+   * lag growing from nothing at the start to a full frame at the end. Measured
+   * on the composition bench: the glyphs moved up to 0.97px that the travel did
+   * not explain, on half the frames of the flight, alternating in sign, which is
+   * the rattle reported through the whole convergence rather than at its end.
+   *
+   * Mapping a stop onto `[headPct, arrived]` — the window the size actually
+   * travels in — puts each step back on the frame it belongs to.
+   */
+  const at = (pct: number): number =>
+    headPct + (pct / 100) * (Math.max(headPct, arrived) - headPct);
   const held = (name: string, fromBlock: string, toBlock: string): string => {
     const landing =
       arrived >= 99.999

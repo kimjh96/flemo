@@ -247,6 +247,46 @@ describe("buildMorphKeyframes", () => {
       expect(built().animation).toContain("flemo-morph-1s-lead 0.400s linear");
     });
 
+    it("puts its stops on the clock the SIZE runs on, not on the whole timeline", () => {
+      // A stop is the moment the eased font size crosses a grid line, and what
+      // makes that step invisible is the line-height and the lift moving on the
+      // same frame the rendered ascent does. The size does not run to 100%,
+      // though: the destination is reached a frame early and held (`arrived`),
+      // so a stop belongs in that window too. Mapped onto the whole timeline
+      // instead, every stop fired AFTER the boundary it cancels, by more and
+      // more of a frame as the flight ran, and the glyphs dropped the step on
+      // one frame and were lifted back on the next.
+      const lead = built().rules.find((rule) => rule.includes("-lead"))!;
+      const rise = buildMorphKeyframes({
+        id: "1v",
+        travel: { ...travel, from: IDENTITY_POSE },
+        box: {
+          from: { x: 0, y: 100, width: 10, height: 10 },
+          to: { x: 0, y: 300, width: 20, height: 20 }
+        },
+        lineHeight: { from: 20, to: 32 },
+        leading: stairs,
+        lift: [
+          { at: 0, ascent: 13 },
+          { at: 40, ascent: 16 },
+          { at: 100, ascent: 23 }
+        ],
+        travelPinned: true,
+        fade: null,
+        paint: []
+      }).rules.find((rule) => rule.includes("-lift"))!;
+
+      // A 0.4s flight holds its destination from 95.8333%, so the stop at 40%
+      // of the travel sits at 40% of THAT, and the last stop sits on it.
+      expect(lead).toContain("38.3333% {");
+      expect(lead).toContain("95.8333% {");
+      expect(lead).not.toContain("40.0000% {");
+      // The lift cancels the leading, so it has to step on the same frames.
+      expect(rise).toContain("38.3333% {");
+      expect(rise).toContain("95.8333% {");
+      expect(rise).not.toContain("40.0000% {");
+    });
+
     it("takes the channel off the geometry keyframe, so the two cannot both author it", () => {
       const geometry = built().rules.find((rule) => rule.includes("-travel"))!;
 
