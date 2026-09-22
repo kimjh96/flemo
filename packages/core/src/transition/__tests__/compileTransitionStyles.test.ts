@@ -1461,6 +1461,20 @@ describe("morph rules", () => {
     // afterimage of the thing that has not moved yet.
     expect(css).toContain('[data-flemo-anim-hold="true"] [data-flemo-morph-ghost]');
   });
+
+  it("pauses the shadow carrier with the morph it travels under", () => {
+    // The carrier is not the morph, not a Part and not the ghost, so it
+    // matched none of the selectors above and was the one participant the
+    // hold never reached. Unheld it starts at the style commit while
+    // everything around it waits for the release, and runs the whole flight
+    // ahead by however long the hold lasted: measured on a desktop Chrome pop,
+    // the shade ended at 760ms and the card's travel at 827ms, both reporting
+    // 0.7s of elapsed time. A shadow detached from its card, every frame.
+    const css = compileTransitionStyles([cupertino], []);
+    expect(css).toContain('[data-flemo-anim-hold="true"] [data-flemo-morph-shade]');
+    expect(css).toContain('[data-flemo-anim-hold="park"] [data-flemo-morph-shade]');
+    expect(css).toContain('[data-flemo-anim-hold="park-under"] [data-flemo-morph-shade]');
+  });
 });
 
 describe("in-flight arrival hold rule", () => {

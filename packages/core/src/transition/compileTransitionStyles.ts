@@ -34,6 +34,7 @@ import {
   LAYER_SLOT_ATTR,
   MORPH_ATTR,
   MORPH_GHOST_ATTR,
+  MORPH_SHADE_ATTR,
   PARK_HEAD_ATTR,
   PART_NAME_ATTR,
   SCREEN_ATTR,
@@ -1464,7 +1465,19 @@ const ANIM_HOLD_RULE = [
       // nothing mistakes the copy for the real element — which also took it
       // out of the rule above, and a copy that dissolves while the flight is
       // still held is an afterimage of the thing that has not moved yet.
-      `${attrValueSelector(ANIM_HOLD_ATTR, value)} ${attrSelector(MORPH_GHOST_ATTR)}`
+      `${attrValueSelector(ANIM_HOLD_ATTR, value)} ${attrSelector(MORPH_GHOST_ATTR)}`,
+      // AND THE SHADE, for the same reason and with the worse symptom. The
+      // shadow carrier is an empty box travelling under a revealed morph
+      // wearing that morph's own box-shadow, and it is not the morph, not a
+      // Part and not the ghost — so it matched none of the selectors above and
+      // was the one participant the hold never reached. It therefore began at
+      // the style commit while everything around it waited for the release,
+      // and ran the WHOLE flight ahead by however long the hold lasted:
+      // measured on a desktop Chrome pop, the shade's animationend landed at
+      // 760ms and the card's travel at 827ms, both reporting the same 0.7s of
+      // elapsed time. What that draws is a shadow detached from the card it
+      // belongs to for every frame of the flight.
+      `${attrValueSelector(ANIM_HOLD_ATTR, value)} ${attrSelector(MORPH_SHADE_ATTR)}`
     ])
   ].join(",\n") + " {",
   `  animation-play-state: paused !important;`,
