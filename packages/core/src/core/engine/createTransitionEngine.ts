@@ -67,15 +67,6 @@ import { resolvePartDefinition } from "@transition/partTransition/partTransition
 
 const noop = () => {};
 
-// How many vsyncs a clean end waits before the COMPLETED flip so the motion's
-// last frames actually reach the glass first. Two covers the write; WebKit
-// presents from the main thread with a 1-2 frame pipeline behind it, and a
-// measured ~30ms flip commit starting at write+2 still delayed the decel
-// tail's final frame on device (the "blip at the end" of a pop). Four puts
-// the flip past that pipeline; the screen holds its arrival pose under the
-// compiled rules meanwhile, so the extra ~33ms is invisible.
-const LANDING_CLEAR_FRAMES = 4;
-
 // Timeout insurance for the landing-clear deferral (a clean end resolves a
 // few rAFs after the last motion frame so the COMPLETED flip's commit cannot
 // cut it — see resolvePresented): rAF suspends in background tabs, and the
@@ -1041,16 +1032,18 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // frame measured as a dropped frame right at landing (production trace:
     // smoothness-affecting drop ~32ms after animationend, TimerFire → flip
     // commit at the final frame). A CLEAN end therefore lets that frame
-    // PRESENT first: two rAFs — the same anchor the hold uses — with a
-    // timeout fallback for suspended rAF (background tab). The screen holds
-    // its arrival pose under the compiled rules meanwhile, so the deferral is
-    // invisible. Recovery paths (watchdog, floor, resume-terminal) keep
-    // resolving immediately — something is already wrong there.
-    let landingClearFrames: number[] = [];
+    // PRESENT first: rAFs — the same anchor the hold uses — with a timeout
+    // fallback for suspended rAF (background tab). HOW MANY is the engine's
+    // presentation pipeline and nothing more, because the deferral is only
+    // invisible while the picture cannot change under it (see
+    // flightRouting's landingClearFrames). Recovery paths (watchdog, floor,
+    // resume-terminal) keep resolving immediately — something is already
+    // wrong there.
+    let landingClearHandles: number[] = [];
     let landingClearFallback: ReturnType<typeof setTimeout> | undefined;
     const cancelLandingClear = () => {
-      landingClearFrames.forEach((frame) => cancelAnimationFrame(frame));
-      landingClearFrames = [];
+      landingClearHandles.forEach((frame) => cancelAnimationFrame(frame));
+      landingClearHandles = [];
       if (landingClearFallback !== undefined) clearTimeout(landingClearFallback);
       landingClearFallback = undefined;
     };
@@ -1071,9 +1064,9 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           resolve();
           return;
         }
-        landingClearFrames.push(requestAnimationFrame(() => chain(remaining - 1)));
+        landingClearHandles.push(requestAnimationFrame(() => chain(remaining - 1)));
       };
-      chain(LANDING_CLEAR_FRAMES);
+      chain(routing.landingClearFrames);
     };
     const resolveAfterChoreography = () => {
       if (choreographyExtraMs <= 0) {
