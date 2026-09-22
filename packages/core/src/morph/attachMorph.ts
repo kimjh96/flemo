@@ -706,8 +706,31 @@ const startFlight = (
   //
   // On one clock the gap is `(start − end)(1 − curve)`: two fixed ends scaled
   // by one curve, so it closes without ever changing sign.
-  const ease =
-    side.screenMoves && side.screenEase
+  //
+  // AND A NESTED END OWNS NO CURVE AT ALL, for the same argument one level
+  // down. It is not travelling to a place on a moving screen; it is moving
+  // INSIDE a box whose size is being interpolated by its carrier. Give it a
+  // curve of its own and the box collapses on one shape while the thing inside
+  // it walks on another, so the child leaves the box it is supposed to be in.
+  //
+  // Read off the composition bench's pop, where the card takes the screen's
+  // cupertino curve and its paired title took the `text` preset's own:
+  //
+  //   card  0.7s cubic-bezier(0.32, 0.72, 0, 1)
+  //   title 0.7s cubic-bezier(0.4, 0, 0.2, 1)
+  //
+  // At 261ms the card's height was 77% of the way from 196px to 104px and the
+  // title's size was 22% of the way from 30px to 20px, so the title's baseline
+  // stood 30px BELOW the bottom of the card carrying it — clipped in half by a
+  // revealed box, and spilling onto the page under a laid-out one. It held for
+  // about 250ms in the middle of every pop, which is most of the flight.
+  //
+  // An author who wants a different shape for the child is asking for the two
+  // to disagree, and there is no amount of the flight where that reads as one
+  // object moving.
+  const ease = carrying
+    ? carrying.ease
+    : side.screenMoves && side.screenEase
       ? side.screenEase
       : (enterMotion.options.ease ?? side.screenEase);
   const head = carrying ? carrying.head : headSeconds(status);

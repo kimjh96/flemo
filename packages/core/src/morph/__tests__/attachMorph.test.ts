@@ -576,6 +576,83 @@ describe("attachMorph", () => {
     expect(meta.style.whiteSpace).toBe("nowrap");
   });
 
+  it("gives a nested end its carrier's curve, not its own preset's", async () => {
+    // A nested end is not travelling to a place on a moving screen; it is
+    // moving INSIDE a box whose size its carrier is interpolating. Two curves
+    // there means the box collapses on one shape while the thing inside walks
+    // on another, and the child leaves the box it is supposed to be in.
+    // Read off the composition bench's pop: the card ran the screen's
+    // cupertino curve and its title the `text` preset's own, and at 261ms the
+    // card's height was 77% of the way while the title's size was 22% — the
+    // title's baseline stood 30px BELOW the bottom of the card carrying it,
+    // for about 250ms of every flight.
+    const preset = (name: string, ease: [number, number, number, number]) =>
+      morphTransitionMap.set(
+        name as never,
+        createMorphTransition({
+          name: name as never,
+          initial: {},
+          idle: { value: { opacity: 1 }, options: { duration: 0 } },
+          enter: { value: { opacity: 1 }, options: { ease } },
+          exit: { value: { opacity: 0 }, options: { ease } },
+          options: { radius: true }
+        })
+      );
+    preset("carrier-curve", [0.9, 0, 0.1, 1]);
+    preset("own-curve", [0.11, 0.22, 0.33, 0.44]);
+    try {
+      const gallery = makeScreen("layout", true);
+      const card = makeMorph(gallery, [20, 600, 160, 160]);
+      const label = makeMorph(card, [36, 620, 128, 20]);
+      label.textContent = "Morning brief";
+      label.style.fontSize = "11px";
+      attachMorph(card, {
+        layoutId: "curve-card",
+        name: "carrier-curve" as never,
+        navigateStore: store
+      });
+      attachMorph(label, {
+        layoutId: "curve-title",
+        name: "own-curve" as never,
+        navigateStore: store
+      });
+
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("layout", true);
+      const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+      const heading = makeMorph(bigCard, [16, 16, 368, 40]);
+      heading.textContent = "Morning brief";
+      heading.style.fontSize = "30px";
+      // The container first, so the child finds a flight to ride: the binding
+      // renders the morph marker, so in a real tree the walk finds its
+      // container whatever order the effects run in.
+      attachMorph(bigCard, {
+        layoutId: "curve-card",
+        name: "carrier-curve" as never,
+        navigateStore: store
+      });
+      attachMorph(heading, {
+        layoutId: "curve-title",
+        name: "own-curve" as never,
+        navigateStore: store
+      });
+      await Promise.resolve();
+
+      // Whatever curve the carrier ends up on — the screen's, where the screen
+      // moves — the nested end is on that one and not the one its own preset
+      // asked for.
+      const curveOf = (animation: string) => /cubic-bezier\([^)]*\)/.exec(animation)?.[0];
+      expect(curveOf(bigCard.style.animation)).toBeDefined();
+      expect(curveOf(heading.style.animation)).toBe(curveOf(bigCard.style.animation));
+      expect(heading.style.animation).not.toContain("cubic-bezier(0.11, 0.22, 0.33, 0.44)");
+    } finally {
+      morphTransitionMap.delete("own-curve" as never);
+      morphTransitionMap.delete("carrier-curve" as never);
+    }
+  });
+
   it("adds no translate to a nested pair whose two ends already agree", async () => {
     // The correction exists for DISAGREEING local arrangements. A pair whose
     // element sits at the same offsets inside both cards needs nothing, and
