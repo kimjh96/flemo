@@ -1026,6 +1026,16 @@ function ScreenMotion({
                 // where 67 is the anchor plus the raster guard. The guard is
                 // what keeps this honest: a give-up still has to ride two fast
                 // frames, so a screen whose block has not run yet keeps waiting.
+                //
+                // TAKING IT OFF THE PUSH TOO WAS TRIED AND FALSIFIED (glass,
+                // 2026-09-22). It is a real saving and it measures well: the
+                // playground's push held 117-134ms with the grace and 67-99ms
+                // without, so the motion starts some 50ms sooner. Those are
+                // also the 50ms the mount's effects need to declare themselves
+                // — the reviewer watched the transition come apart mid-flight
+                // without them. A push MOUNTS, so the tick this waits for is
+                // real there; a pop does not, which is why the same removal was
+                // right on that side and wrong on this one.
                 graceMs: mountingIntoFlight ? 60 : 0,
                 // The RETURNING side of a pop must wait out the PREVIOUS
                 // push's landing storm (the batched arrival reveal + query
