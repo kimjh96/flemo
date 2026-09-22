@@ -74,6 +74,11 @@ const flipTo = (status: NavigateStatus) => {
 
 const makeMorph = (screen: HTMLElement, rect: [number, number, number, number]) => {
   const element = document.createElement("div");
+  // The binding RENDERS the marker, so it is on the element from the first
+  // commit — before any effect, and whatever order the effects then run in.
+  // A fixture that waited for `attachMorph` to stamp it made a nested element
+  // registering ahead of its container read as a top-level morph.
+  element.setAttribute(MORPH_ATTR, "");
   screen.appendChild(element);
   setRect(element, ...rect);
   return element;
@@ -236,25 +241,50 @@ describe("attachMorph", () => {
     }
   });
 
-  it("does not force a layout for a morph with no container to be staged inside", () => {
+  it("measures nothing at registration, nested or not", () => {
     // Registration runs in a layout effect, in the frame React has just mutated
     // the DOM, so a measurement here is a synchronous layout of the whole page
     // at the most expensive moment there is — and it is repeated for every
-    // render of every morph. The value it produces is only ever read to beat a
-    // STAGED CONTAINER, so an element with none has nothing to learn from it.
+    // render of every morph. Traced on the composition bench, two nested reads
+    // cost 1.6ms and 2.7ms of a 19.2ms tap.
     const gallery = makeScreen("layout", true);
     const card = makeMorph(gallery, [20, 600, 80, 80]);
     const solo = vi.spyOn(card, "getBoundingClientRect");
     attachMorph(card, { layoutId: "solo", navigateStore: store });
     expect(solo).not.toHaveBeenCalled();
 
-    // A nested one still pays it: its own staged measurement is taken inside a
-    // container already at its from-box, so it would end the interpolation on
-    // the wrong size.
+    // A nested one does not pay it either. What its rest size beats is a STAGED
+    // container, and the container reads it in its own pass, before it stages.
     const label = makeMorph(card, [28, 610, 60, 20]);
     const inside = vi.spyOn(label, "getBoundingClientRect");
     attachMorph(label, { layoutId: "nested", navigateStore: store });
-    expect(inside).toHaveBeenCalled();
+    expect(inside).not.toHaveBeenCalled();
+  });
+
+  it("measures a nested end from the flight that carries it, before it stages", async () => {
+    // The binding mounts effects child-first, so every nested morph in the
+    // subtree is registered by the time the container's flight reads. The read
+    // happens before the container writes anything, so the child is still in
+    // its own resting layout.
+    const gallery = makeScreen("layout", true);
+    const card = makeMorph(gallery, [20, 600, 160, 160]);
+    const label = makeMorph(card, [36, 620, 128, 20]);
+    attachMorph(label, { layoutId: "carried-title", navigateStore: store });
+    attachMorph(card, { layoutId: "carried-card", navigateStore: store });
+
+    flipTo("PUSHING");
+    gallery.setAttribute(ACTIVE_ATTR, "false");
+
+    const detail = makeScreen("layout", true);
+    const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+    const heading = makeMorph(bigCard, [16, 16, 368, 40]);
+    attachMorph(heading, { layoutId: "carried-title", navigateStore: store });
+    const read = vi.spyOn(heading, "getBoundingClientRect");
+    attachMorph(bigCard, { layoutId: "carried-card", navigateStore: store });
+    // Read by the container's flight, and while the container was still home.
+    expect(read).toHaveBeenCalled();
+    expect(bigCard.parentElement).toBe(layer);
+    await Promise.resolve();
   });
 
   it("spends the head inside the travel, not in front of it", () => {
@@ -546,16 +576,16 @@ describe("attachMorph", () => {
     // A nested arrival is measured inside a container that is ALREADY staged
     // at its from-box, so what it measures is the wrapped height — the very
     // thing the hold exists to prevent, refusing the hold on its own evidence.
-    // Its registration measurement is the one taken before any container of it
-    // was staged.
+    // The measurement that counts is the one the container took before it
+    // staged, child-first as the binding registers.
     const gallery = makeScreen("layout", true);
     const card = makeMorph(gallery, [20, 600, 160, 160]);
     const label = makeMorph(card, [28, 730, 119, 16]);
     label.textContent = "Thu 20:00 · 35,000";
     label.style.fontSize = "11px";
     label.style.lineHeight = "16px";
-    attachMorph(card, { layoutId: "card-2", navigateStore: store });
     attachMorph(label, { layoutId: "meta-3", name: "text", navigateStore: store });
+    attachMorph(card, { layoutId: "card-2", navigateStore: store });
 
     flipTo("PUSHING");
     gallery.setAttribute(ACTIVE_ATTR, "false");
@@ -566,10 +596,11 @@ describe("attachMorph", () => {
     meta.textContent = "Thu 20:00 · 35,000";
     meta.style.fontSize = "14px";
     meta.style.lineHeight = "20px";
-    attachMorph(bigCard, { layoutId: "card-2", navigateStore: store });
     attachMorph(meta, { layoutId: "meta-3", name: "text", navigateStore: store });
-    // Registered at rest; by the time the nested pass runs a microtask later
-    // the container is staged small and the meta measures two lines.
+    attachMorph(bigCard, { layoutId: "card-2", navigateStore: store });
+    // Measured at rest by the container; by the time the nested pass runs a
+    // microtask later the container is staged small and the meta measures two
+    // lines.
     setRect(meta, 16, 260, 119, 40);
     await Promise.resolve();
 
@@ -646,15 +677,15 @@ describe("attachMorph", () => {
     expect(cardTo.style.lineHeight).toBe("24px");
   });
 
-  it("falls back to the staged size when registration measured nothing", async () => {
-    // A pair can register before its box has laid out (display: contents
+  it("falls back to the staged size when the carrying flight measured nothing", async () => {
+    // A pair can be carried before its box has laid out (display: contents
     // parents, a first commit mid-suspension). With no rest size on record
     // the interpolation ends on the staged measurement instead.
     const gallery = makeScreen("layout", true);
     const card = makeMorph(gallery, [20, 600, 160, 160]);
     const art = makeMorph(card, [36, 620, 64, 64]);
-    attachMorph(card, { layoutId: "card-9r", navigateStore: store });
     attachMorph(art, { layoutId: "art-9r", navigateStore: store });
+    attachMorph(card, { layoutId: "card-9r", navigateStore: store });
 
     flipTo("PUSHING");
     gallery.setAttribute(ACTIVE_ATTR, "false");
@@ -662,16 +693,16 @@ describe("attachMorph", () => {
     const detail = makeScreen("layout", true);
     const bigCard = makeMorph(detail, [0, 0, 400, 340]);
     const hero = makeMorph(bigCard, [16, 16, 128, 128]);
-    // Registration sees an unlaid box; the flight's own measurement sees the
-    // real one.
+    // The container's read pass sees an unlaid box; the nested flight's own
+    // measurement, a microtask later, sees the real one.
     let reads = 0;
     const laid = hero.getBoundingClientRect.bind(hero);
     hero.getBoundingClientRect = () => {
       reads += 1;
       return reads === 1 ? ({ ...laid(), width: 0, height: 0 } as DOMRect) : laid();
     };
-    attachMorph(bigCard, { layoutId: "card-9r", navigateStore: store });
     attachMorph(hero, { layoutId: "art-9r", navigateStore: store });
+    attachMorph(bigCard, { layoutId: "card-9r", navigateStore: store });
     await Promise.resolve();
 
     const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
