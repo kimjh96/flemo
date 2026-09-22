@@ -58,6 +58,14 @@ const FREEZE_REST_DEBOUNCE_MS = 3000;
 // against. Job 2 — this module — keeps its clock. What the user sees is now
 // uniform and immediate; what differs by platform is only when the memory
 // comes back.
+/**
+ * Suspends a covered screen's rendering with React's `Activity`, keeping its
+ * state and scroll while it stops painting and laying out.
+ *
+ * `Screen` decides when to freeze and composes this; an app renders `Screen`.
+ * The `freeze` prop is that decision, and `mode` says whether the hide may wait
+ * for a pop that might re-reveal this screen.
+ */
 function ScreenFreeze({ freeze, mode = "deferred", children }: ScreenFreezeProps) {
   const [applied, setApplied] = useState(freeze);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);

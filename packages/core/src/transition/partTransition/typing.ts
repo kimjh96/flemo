@@ -50,21 +50,29 @@ export interface RegisterPartTransition {}
 export type PartTransitionName =
   RegisterPartTransition[keyof RegisterPartTransition] | (string & {});
 
-// Imperative, per-frame hooks for the swipe (interactive) path. Each fires for a
-// single `<PartTransition>` element with its `active` side, so the author maps the
-// drag `progress` (0–100) onto that element's styles via `animate` — inline
-// writes, no React re-render. The programmatic path needs none of this: the
-// status×active variants compile to `@keyframes` that the compositor drives.
+/**
+ * Advanced per-element overrides for the interactive pop path.
+ *
+ * A Part with no callback here already follows the transition's swipe by
+ * scrubbing its declared `POPPING` variant and resolved clock. Adding any one
+ * of these callbacks opts that Part element out of the default rider, so the
+ * callbacks become solely responsible for its drag pose and both landing
+ * outcomes. Use them only when the gesture needs a different shape from the
+ * declared programmatic pop.
+ */
 export type PartTransitionOptions = {
+  /** Starts custom control for this Part element. */
   onSwipeStart?: (
     triggered: boolean,
     options: { animate: SwipeAnimate; element: HTMLElement; active: boolean }
   ) => void;
+  /** Writes the custom drag pose from progress in the range 0 through 100. */
   onSwipe?: (
     triggered: boolean,
     progress: number,
     options: { animate: SwipeAnimate; element: HTMLElement; active: boolean }
   ) => void;
+  /** Lands the custom pose; `triggered` reports commit versus cancellation. */
   onSwipeEnd?: (
     triggered: boolean,
     options: { animate: SwipeAnimate; element: HTMLElement; active: boolean }

@@ -15,6 +15,17 @@ const pull = (dragY: number): number => {
   return followed + Math.sqrt(Math.min(1, over / RESIST_OVER)) * RESIST_MAX;
 };
 
+/**
+ * The Material-style vertical sheet, registered as `"material"`.
+ *
+ * The arriving screen rises from the bottom over 0.35s while the covered one
+ * lifts 56px and fades out; a pop reverses it at 0.25s. Push and pop running at
+ * different lengths is the case variant-key clock inheritance exists for: every
+ * Part and decorator picks up the same asymmetry without restating it.
+ *
+ * Its swipe is vertical, commits at 56px, and resists past that with a
+ * square-root falloff rather than following the finger or stopping dead.
+ */
 const material = createTransition({
   name: "material",
   initial: {

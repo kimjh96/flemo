@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "skillId": "flemo",
+  "version": "1.0.0",
+  "contentHash": "sha256:53a70e4fe1cd5bbb5f1470b7696d1efcc39d89f414cfc1e5d41c193f89339ffa",
+  "source": {
+    "kind": "project",
+    "uri": ".agents/skills/flemo",
+    "publisher": {
+      "id": "lervo.repository-migration",
+      "name": "Lervo repository migration"
+    }
+  },
+  "supportedRoles": [
+    "*"
+  ],
+  "compatibility": {
+    "providers": {
+      "mode": "any"
+    },
+    "minimumRuntimeVersion": "0.1.0",
+    "platforms": [
+      "darwin",
+      "linux",
+      "win32"
+    ],
+    "requiredTools": [],
+    "unknownIsCompatible": false
+  },
+  "requiredCapabilities": [],
+  "contracts": {
+    "inputSchemaRef": "lervo-schema://skill/input/v1",
+    "outputSchemaRef": "lervo-schema://skill/output/v1"
+  },
+  "trust": {
+    "level": "untrusted",
+    "signatureStatus": "unsigned"
+  },
+  "enabledScope": {
+    "kind": "user"
+  },
+  "pinned": false
+}

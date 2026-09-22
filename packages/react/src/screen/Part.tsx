@@ -11,16 +11,27 @@ import useStores from "@stores/useStores";
 import RouterIdContext from "../RouterIdContext";
 
 export interface PartProps extends PropsWithChildren<ComponentPropsWithRef<"div">> {
-  // The registered createPartTransition `name` to run on this element.
+  /** The registered `createPartTransition` name to run on this element. */
   name: PartTransitionName;
 }
 
-// Wraps a specific element and runs a named part-transition on it, driven by
-// the screen's lifecycle. Programmatic transitions are driven by the compiled
-// `@keyframes` the bar selector emits (compositor, no React re-render); the
-// status / active the screen scope exposes are mirrored onto the wrapper so the
-// right variant matches. Selective by design: only the wrapped child animates,
-// the rest of the bar stays put.
+/**
+ * Animates one named element inside a screen or inside shared screen chrome.
+ *
+ * Only the wrapped element moves; the rest of the bar stays put. The element
+ * follows the flight of the Router that owns the ENCLOSING screen, so a Part in
+ * a nested Router's chrome belongs to the outer flight, and a Part outside every
+ * screen belongs to the nearest Router.
+ *
+ * A pose-only Part follows an interactive pop automatically and inherits the
+ * carrying screen's matching duration and delay. Easing never inherits: author
+ * the screen transition's easing on a Part that must hold the same spatial phase
+ * during both a programmatic pop and a swipe.
+ */
+// Programmatic transitions are driven by the compiled `@keyframes` the bar
+// selector emits (compositor, no React re-render); the status / active the
+// screen scope exposes are mirrored onto the wrapper so the right variant
+// matches.
 function Part({ ref, name, style, children, ...props }: PartProps) {
   const { isActive, isPrev, navigateStore, routerId: screenRouterId, transitionName } = useScreen();
   // The part's OWNING Router, stamped on the element so the engine can scope

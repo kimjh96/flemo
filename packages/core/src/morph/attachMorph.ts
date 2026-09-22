@@ -59,6 +59,7 @@ import {
 import { paintTravel } from "@morph/morphPaint";
 
 import { BOX_WIDTH_PROPERTY, IDENTITY_POSE, resolvePose } from "@morph/morphPose";
+import { revealHolds } from "@morph/morphReveal";
 
 import { ensurePinnedPoses, insertMorphRules } from "@morph/morphSheet";
 import { headSeconds, resolveMorphSide } from "@morph/morphSide";
@@ -861,14 +862,21 @@ const startFlight = (
   const handingOver =
     !carrying && captured.element.isConnected && captured.element !== entry.element;
 
-  const contentsHold = contentsHoldAcrossBox(entry.element, origin, destination, {
-    x:
-      Math.abs(origin.x + origin.width - (destination.x + destination.width)) < 0.05 &&
-      Math.abs(origin.x - destination.x) >= 0.05
-        ? "right"
-        : "left",
-    y: "top"
-  });
+  // A REVEAL IS ONLY THE SAME PICTURE where nothing the box paints depends on
+  // its size (see morphReveal), and asked first it also spares the flight's
+  // first frame the two probe layouts. A corner carried as a percentage
+  // resolves against the revealed box, which is the larger end.
+  const contentsHold =
+    !(corner && (corner.from.includes("%") || corner.to.includes("%"))) &&
+    revealHolds(entry.element, own, captured.snapshot.paint) &&
+    contentsHoldAcrossBox(entry.element, origin, destination, {
+      x:
+        Math.abs(origin.x + origin.width - (destination.x + destination.width)) < 0.05 &&
+        Math.abs(origin.x - destination.x) >= 0.05
+          ? "right"
+          : "left",
+      y: "top"
+    });
   const arriving = buildMorphKeyframes({
     id: `${id}i`,
     travel: {
@@ -889,7 +897,8 @@ const startFlight = (
     contentsHold,
     clip: edgeClip,
     // The corner the arrival wears, so a reveal cuts the same shape the box has.
-    radius: ownStyle?.borderRadius || null,
+    // It travels with the box's own corner where that corner travels.
+    radius: corner ? { from: corner.from, to: corner.to } : ownStyle?.borderRadius || null,
     // The spacing travels too. Without it the arrival wears its OWN padding
     // from the first frame, so the contents it is handing over from flinch in
     // or out by the difference at the exact moment of the tap.

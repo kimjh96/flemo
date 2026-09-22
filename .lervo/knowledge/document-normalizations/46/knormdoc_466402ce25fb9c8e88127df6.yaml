@@ -1,0 +1,54 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_76efc18d2559278b5f97d95e
+compiler:
+  compilerBuildId: sha256:126612f342267b5dfbefdf7c2f88bf1fe0a710c846d5e3a4f0ed99d118fde27e
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 1+codex-cli 0.153.4
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_984d6825ec78ff8aa2fc82ad
+outputLanguage: en
+outputs:
+  - byteCount: 1527
+    contentHash: sha256:f2e61b3cc25c9bd939c2d75d438dfae34a04f35d3ab81cf10d3db68d5ae69786
+    path: docs/architecture/motion-engine.md
+    userRegionHash: sha256:f2e61b3cc25c9bd939c2d75d438dfae34a04f35d3ab81cf10d3db68d5ae69786
+  - byteCount: 1994
+    contentHash: sha256:096ebdcefd906b417b5b84a3fb22c34d0ff5bd736b88b2214362393fd0401ebe
+    path: docs/architecture/motion-engine/inline-leases.md
+    userRegionHash: sha256:096ebdcefd906b417b5b84a3fb22c34d0ff5bd736b88b2214362393fd0401ebe
+  - byteCount: 6010
+    contentHash: sha256:dca803d50b9ecf7bec76d08de8c158bb077e90d56d748d074686298f2fbc0dab
+    path: docs/architecture/motion-engine/lifecycle.md
+    userRegionHash: sha256:dca803d50b9ecf7bec76d08de8c158bb077e90d56d748d074686298f2fbc0dab
+  - byteCount: 3784
+    contentHash: sha256:c7dcce9763c32a0eb43afef92db9793496bccb9e102d30a137b731e7b5ca5e8f
+    path: docs/architecture/motion-engine/modules.md
+    userRegionHash: sha256:c7dcce9763c32a0eb43afef92db9793496bccb9e102d30a137b731e7b5ca5e8f
+  - byteCount: 1606
+    contentHash: sha256:345757f72f4d17ec365455f7950e6c07c4eed3f165b7ef88099277da76ae2365
+    path: docs/architecture/motion-engine/resolution.md
+    userRegionHash: sha256:345757f72f4d17ec365455f7950e6c07c4eed3f165b7ef88099277da76ae2365
+profile: architecture_document
+recordId: knormdoc_466402ce25fb9c8e88127df6
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:b1c72b8ccea80813bd1a65a6c8ba0ea318bc2d58c1c14e1504abf50b08e9cbe2
+sourcePath: docs/architecture/motion-engine.md
+sourceUnitVersionIds:
+  - uv_1642fada3dc5b716e52e55a2
+  - uv_3724c138136b861017273596
+  - uv_44378fd585c107140a0ddbd5
+  - uv_53697a5d05898b42be885b1f
+  - uv_54de56a507d7724f2426a5e1
+  - uv_7563142a22dccd158db91cbd
+  - uv_8b80a7cb6c90d12f64acc0d3
+  - uv_962b4ef71d48170cd02094f7
+  - uv_adf8d0c3bb7ae396909d8d73
+  - uv_b78a2ef2ee3d9940b1df98d5
+  - uv_ca6aeca091157eba03f11961
+  - uv_dbf1f8d9d3a6ac21236efdf2
+  - uv_f38ccab86b2eb8c349fe8096

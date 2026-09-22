@@ -73,6 +73,13 @@ import RouterIdContext from "../RouterIdContext";
 // The profile is resolved PER DECISION, never hoisted: every field reads its
 // flag live, so a DevTools toggle takes effect on the next navigation.
 
+/**
+ * The moving container `Screen` renders: the screen box, its bars, and every
+ * `data-flemo-*` attribute the compiled stylesheet selects on.
+ *
+ * `Screen` composes this with `ScreenFreeze`, so an app renders `Screen` and
+ * not this. Reach for it directly only when replacing the freeze policy.
+ */
 function ScreenMotion({
   children,
   statusBarHeight,

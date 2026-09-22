@@ -8,44 +8,48 @@ import {
 } from "@transition/partTransition/typing";
 
 interface CreatePartProps {
+  /** Public name registered on a Router and selected by a `Part`. */
   name: PartTransitionName;
-  // Where the part sits before the entering side's animation begins: this is
-  // the FROM of PUSHING-true / REPLACING-true (see FROM_VARIANT), not merely a
-  // pre-mount style. Authoring it equal to `idle` is what makes an arriving
-  // part hold still, which is the whole of the "it only fades one way" report:
-  // the pair was cross-fading on the departure alone because the arrival had
-  // nowhere to come from.
+  /**
+   * Where the part starts on `PUSHING-true` or `REPLACING-true`. This is the
+   * arriving part's from-pose, not merely a pre-mount style.
+   */
   initial: InitialTarget;
-  // Rest / active state — held on IDLE-*, the entering side of PUSH/REPLACE
-  // (PUSHING-true / REPLACING-true) and COMPLETED-true, and the default for
-  // POPPING-true. The bar element sits here when its screen isn't shifting
-  // into / out of the background.
+  /**
+   * Resting pose, also used by the arriving side of push or replace. It is the
+   * default for the active, dismissing side of a pop when `dismiss` is absent.
+   */
   idle: PartVariantValue;
-  // The screen is moving INTO the background (becoming "previous"): PUSHING-false
-  // / REPLACING-false (peak) and COMPLETED-false (settled behind). For a title
-  // cross-fade this is the faded-out state.
+  /** Target for the part whose screen moves into or rests in the background. */
   enter: PartVariantValue;
-  // The previously-behind screen returning to active: POPPING-false. Animates
-  // from `enter` back toward the rest state. Match `exit` to `idle` to land
-  // softly without a snap.
+  /**
+   * Target for `POPPING-false`, the part on the screen returning from behind.
+   * It animates from `enter`; match this target to `idle` for a seamless rest.
+   */
   exit: PartVariantValue;
-  // The screen being popped OFF the stack: POPPING-true. It is the ACTIVE side,
-  // because `data-flemo-active` follows the stack rather than the direction of
-  // travel, and it animates from `idle`.
-  //
-  // Optional, and omitting it holds `idle` — which is what this factory did
-  // before the slot existed, so every part authored without it is unchanged.
-  // Naming it is what lets a pair of matched parts cross-fade BOTH ways: with
-  // only the four slots above, a pop faded the returning part in while the one
-  // being dismissed sat at full opacity, and the only way out was to restate
-  // all ten variants through createRawPartTransition.
+  /**
+   * Target for `POPPING-true`, the part on the active top screen being
+   * dismissed. Omitting it holds `idle`; provide it to animate both halves of
+   * a matched pair during a pop.
+   */
   dismiss?: PartVariantValue;
+  /**
+   * Optional per-element gesture overrides. Without any `onSwipe*` callback,
+   * the declared pop variants follow the screen's swipe progress automatically.
+   */
   options?: PartTransitionOptions;
 }
 
-// Factory mirroring createDecorator: collapses the 4-state (idle / enter / exit
-// / dismiss) model into the status×active variants the compiler consumes, plus
-// the optional swipe hooks. Reference the result by `name` from <PartTransition>.
+/**
+ * Creates motion for one named element inside a screen.
+ *
+ * Pose-only Parts inherit the carrying screen's matching clock and follow its
+ * interactive pop automatically. Adding any `onSwipe*` callback opts that
+ * element out of the default gesture rider and gives the callbacks sole control.
+ * Duration and delay inherit, but easing does not. Use the screen's easing on
+ * a Part that must stay at the same spatial phase during automatic and
+ * interactive navigation.
+ */
 export default function createPartTransition({
   name,
   initial,
