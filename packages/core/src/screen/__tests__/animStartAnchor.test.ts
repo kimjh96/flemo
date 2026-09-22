@@ -1603,6 +1603,42 @@ describe("render-settle give-up raster guard", () => {
     expect(onReady).toHaveBeenCalledTimes(1);
   });
 
+  it("completes the pair with the frames the grace already rode, rather than collecting it again", () => {
+    // The pair proves the thread is quiet AT THE RELEASE, and the grace is
+    // frames going by. Where those were fast, one observed now finishes the
+    // evidence; going and collecting both again serialises two waits that
+    // overlap.
+    const onReady = arm();
+    // The grace's own frames, going by at a healthy rate.
+    fastFrame();
+    fastFrame();
+    fastFrame();
+    // The rest of the grace, and no longer: a frame that arrives a whole block
+    // after the timer is a late frame, which is what the fallback is for.
+    vi.advanceTimersByTime(SETTLE.graceMs - 48 + 1);
+    expect(onReady).not.toHaveBeenCalled();
+    // ONE fresh frame, where an unwatched grace would have needed two.
+    fastFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the whole pair when a block starts in the gap it could not see", () => {
+    // The frames the grace rode ended up to a frame ago, so a block starting
+    // in that gap is exactly what the fresh frame is for.
+    const onReady = arm();
+    fastFrame();
+    fastFrame();
+    vi.advanceTimersByTime(SETTLE.graceMs - 32 + 1);
+    // The block runs between the timer and the frame that was to confirm it.
+    vi.advanceTimersByTime(60);
+    flushFrame();
+    expect(onReady).not.toHaveBeenCalled();
+    fastFrame();
+    expect(onReady).not.toHaveBeenCalled();
+    fastFrame();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
   it("a rendering block inside the give-up window defers the release past it", () => {
     const onReady = arm();
     vi.advanceTimersByTime(SETTLE.graceMs + 1);
