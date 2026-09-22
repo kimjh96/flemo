@@ -250,30 +250,6 @@ describe("framePacingKeepalive", () => {
   });
 });
 
-describe("landingClearFrames", () => {
-  it("is one frame on Blink, which draws the last motion frame from the compositor", () => {
-    setEnv({ blink: true, touch: false });
-    expect(route().landingClearFrames).toBe(1);
-    setEnv({ blink: true, touch: true });
-    expect(route().landingClearFrames).toBe(1);
-  });
-
-  it("keeps WebKit's four, which presents from the main thread behind its commit", () => {
-    setEnv({ blink: false, touch: false, mac: true });
-    expect(route().landingClearFrames).toBe(4);
-    setEnv({ blink: false, touch: true });
-    expect(route().landingClearFrames).toBe(4);
-  });
-
-  it("does not vary with the status or the flight", () => {
-    setEnv({ blink: true, touch: false });
-    for (const status of ["PUSHING", "POPPING", "REPLACING"]) {
-      expect(route({ status }).landingClearFrames).toBe(1);
-    }
-    expect(route({ hasAnimation: false }).landingClearFrames).toBe(1);
-  });
-});
-
 describe("the routing as a whole", () => {
   it("takes the mobile-safe defaults with no navigator at all (SSR)", () => {
     const saved = globalThis.navigator;
@@ -289,8 +265,7 @@ describe("the routing as a whole", () => {
         birthHoldMs: 0,
         governedSlide: false,
         framePacingKeepalive: false,
-        creepHead: false,
-        landingClearFrames: 4
+        creepHead: false
       });
     } finally {
       Object.defineProperty(globalThis, "navigator", { value: saved, configurable: true });

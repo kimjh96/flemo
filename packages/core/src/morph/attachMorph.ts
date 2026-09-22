@@ -134,6 +134,16 @@ interface MorphEntry {
   element: HTMLElement;
   layoutId: string;
   name: MorphTransitionName;
+  /**
+   * The element's box AT REST, measured at registration — before any container
+   * it is nested in is staged. A binding registers child-first, so this is the
+   * natural arrival layout. It is what a nested size interpolation must END
+   * on: the staged measurement is taken inside a container still at its
+   * from-box, and a container whose width interpolates lays the child out
+   * slightly small there — the flight then froze 40px short and snapped the
+   * difference at the landing.
+   */
+  restSize: { width: number; height: number } | null;
 }
 
 interface MorphFlight {
@@ -197,23 +207,6 @@ interface MorphScope {
    * one gesture suppresses exactly one navigation's worth of staging.
    */
   delivered: Set<string>;
-  /**
-   * What a NESTED element's box is AT REST, taken by the flight that carries
-   * it (see measureNestedRest).
-   *
-   * It is what a nested size interpolation must END on: the element's own
-   * measurement is taken inside a container already staged at its from-box,
-   * and a container whose width interpolates lays the child out slightly small
-   * there — the flight then froze 40px short and snapped the difference at the
-   * landing. It is also what the one-line hold is decided on, where the staged
-   * measurement reports the two lines the hold exists to prevent.
-   *
-   * Keyed by the ELEMENT rather than held on its entry, so it does not depend
-   * on the order the two register in: the DOM protocol carries the morph
-   * attribute from the first render, so a container's walk finds a child that
-   * has not reached its own effect yet.
-   */
-  restSizes: WeakMap<HTMLElement, { width: number; height: number }>;
   unsubscribe: () => void;
 }
 
@@ -595,35 +588,6 @@ const wear = (
   }
 };
 
-// WHAT THIS CONTAINER'S NESTED ARRIVALS ARE AT REST, taken while it still is.
-//
-// A nested element's own flight measures it inside a container already staged
-// at its FROM-box, which on a growing pair is the small end: the height it
-// reports there is the two lines the one-line hold exists to prevent, and the
-// size channel it ends on is short of the page by the difference. So the
-// answer has to be taken before the container stages, and a container's own
-// read pass is the last instant that is still true.
-//
-// It used to be taken in each nested element's OWN registration, which is also
-// before the container stages and is the most expensive place in the frame to
-// ask from: a layout effect, in the commit React has just mutated the document
-// in, so every one of them is a forced layout of the whole document. Traced on
-// the composition bench, two of them cost 1.6ms and 2.7ms — 4.3ms of the 6.3ms
-// of style and layout the whole tap forced, and the tap's longest task fell
-// from 19.2ms to 8.5ms with them gone. Here the container is already reading
-// its own box for this same flight, so the flush is one being paid anyway and
-// the children come back for nothing.
-const measureNestedRest = (scope: MorphScope, container: HTMLElement): void => {
-  for (const node of container.querySelectorAll<HTMLElement>(MORPH_SELECTOR)) {
-    const box = node.getBoundingClientRect();
-    // A zero box is one the layout has nothing to say about yet (a
-    // `display: contents` parent, a first commit mid-suspension). Whatever the
-    // last flight measured stands rather than being replaced by it.
-    if (box.width > 0 && box.height > 0)
-      scope.restSizes.set(node, { width: box.width, height: box.height });
-  }
-};
-
 const startFlight = (
   scope: MorphScope,
   entry: MorphEntry,
@@ -700,12 +664,6 @@ const startFlight = (
     return;
   }
 
-  // BEFORE A SINGLE WRITE, and only from the container: a nested end is
-  // measured by whichever flight carries it (see measureNestedRest). Placed
-  // above the layer, which is created and dressed, and above the part pinning,
-  // which writes widths.
-  if (!carrying) measureNestedRest(scope, entry.element);
-
   const layer = resolveMorphLayer(store);
   const home = entry.element.parentElement;
   /* v8 ignore next 4 -- neither is reachable from a browser: the layer falls
@@ -764,12 +722,11 @@ const startFlight = (
   // A NESTED arrival is measured inside a container that is already staged at
   // its from-box, so its measured height is the height it takes at the SMALL
   // end — two lines, where the hold is exactly what would have prevented them.
-  // The measurement that counts is the one its CARRIER took before it staged
-  // (see MorphScope.restSizes).
-  const restSize = scope.restSizes.get(entry.element) ?? null;
+  // Its registration measurement is the one taken before any container of it
+  // was staged (see MorphEntry.restSize).
   const arrivalOneLine =
-    entry.element.firstElementChild === null && restSize
-      ? isSingleLine(restSize.height, side.lineHeight, side.fontSize)
+    entry.element.firstElementChild === null && entry.restSize
+      ? isSingleLine(entry.restSize.height, side.lineHeight, side.fontSize)
       : side.singleLine;
   const crossFade = clamp01(transition.crossFade ?? 0.55);
   // READ BEFORE ANYTHING IS WRITTEN.
@@ -1115,12 +1072,12 @@ const startFlight = (
     // `side.rect` is measured where the staged container put it, so the delta
     // is zero exactly when the container's width carries the child correctly,
     // which keeps this channel silent for a grid cell.
-    // The size interpolation ENDS on the rest measurement the carrier took,
+    // The size interpolation ENDS on the rest measurement from registration,
     // not on the staged one: staged is measured inside a container still at
     // its from-box, and when the container's width interpolates the child is
     // laid out slightly small there. Ending on staged froze the artwork 40px
     // short of the page and snapped the difference at the landing.
-    const endSize = restSize ?? { width: side.rect.width, height: side.rect.height };
+    const endSize = entry.restSize ?? { width: side.rect.width, height: side.rect.height };
     const dw = captured.snapshot.rect.width - endSize.width;
     const dh = captured.snapshot.rect.height - endSize.height;
     // NOT for type. A re-typesetting pair moves by FONT SIZE and its box is
@@ -2238,7 +2195,6 @@ const ensureScope = (store: NavigateStoreApi): MorphScope => {
     snapshots: new Map(),
     flights: new Map(),
     delivered: new Set(),
-    restSizes: new WeakMap(),
     /* v8 ignore next -- replaced on the line below; it exists so the field is
        never undefined between construction and subscription. */
     unsubscribe: () => {}
@@ -2268,28 +2224,43 @@ export default function attachMorph(element: HTMLElement, options: AttachMorphOp
   const { layoutId, navigateStore } = options;
   const name = options.name ?? DEFAULT_MORPH_TRANSITION_NAME;
   const scope = ensureScope(navigateStore);
-  // REGISTRATION MEASURES NOTHING.
+  // THE REGISTRATION MEASUREMENT IS FOR A CONTAINER, and only a nested element
+  // has one. Both readers of `restSize` are answering the same question — what
+  // this box is when nothing around it is staged — and for an element with no
+  // morph above it that is simply its staged measurement, which is what both
+  // already fall back to.
   //
-  // The rest size a nested end needs is taken by the flight that carries it,
-  // in that flight's own read pass and before it has written anything (see
-  // measureNestedRest). Asking here instead was a forced layout of the whole
-  // document from a layout effect, in the commit React had just mutated — the
-  // most expensive moment in the frame, paid once per nested morph per
-  // navigation. Device-read on a consumer's tab switch before the nested test
-  // narrowed it: one call at 25ms after the landing and one at 9ms at the tap,
-  // on a navigation with nothing nested in it at all.
+  // Taken unconditionally it cost a synchronous layout of the whole document,
+  // in a layout effect, in the frame React had just mutated it — the most
+  // expensive possible moment to ask. Device-read on a consumer's tab switch:
+  // one call at 25ms after the landing and one at 9ms at the tap, on a
+  // navigation with nothing nested in it at all, and repeated for every render
+  // of every morph on the page. The nested test is a DOM walk (the binding
+  // renders the attribute, so it is there before any effect runs) and costs
+  // nothing.
+  // THE REGISTRATION MEASUREMENT IS FOR A CONTAINER, and only a nested element
+  // has one.
   //
-  // AN ELEMENT IN FLIGHT IS NOT AN ELEMENT AT REST, which is the other half of
-  // why the question moved. A registration that landed while the element was
-  // in the flight layer answered with the box the flight was holding it at, and
-  // every later flight then ended on that: read off a consumer's phone, a grid
-  // cell's title flew with its box pinned at 31px and rested at 20px, so the
-  // landing dropped it eleven pixels and took the line under it down too. Asked
-  // only of a container that has not staged yet, the case cannot arise.
+  // AN ELEMENT IN FLIGHT IS NOT AN ELEMENT AT REST. This answers "what is this
+  // box when nothing around it is staged", and a registration that lands while
+  // the element is in the flight layer answers with the box the flight is
+  // holding it at. Cached, every later flight then ends on it: read off a
+  // consumer's phone, a grid cell's title flew with its box pinned at 31px and
+  // rested at 20px, so the landing dropped it eleven pixels and took the line
+  // under it down too. A re-registration mid-flight keeps what was measured at
+  // rest instead.
+  const nested = element.parentElement?.closest(MORPH_SELECTOR) ?? null;
+  const staged = element.closest(`[${MORPH_LAYER_ATTR}]`) !== null;
+  const previous = scope.entries.get(element)?.restSize ?? null;
+  const rest = nested && !staged ? element.getBoundingClientRect() : null;
   const entry: MorphEntry = {
     element,
     layoutId: String(layoutId),
-    name
+    name,
+    restSize:
+      rest && rest.width > 0 && rest.height > 0
+        ? { width: rest.width, height: rest.height }
+        : previous
   };
 
   scope.entries.set(element, entry);
