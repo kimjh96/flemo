@@ -94,6 +94,15 @@ export interface FlightRouting {
 
   /** Arm the creep head beside the governed one. */
   readonly creepHead: boolean;
+
+  /**
+   * How many vsyncs a CLEAN end waits before the COMPLETED flip, so the
+   * motion's last frame reaches the glass before the flip's commit can cut it.
+   *
+   * The number is a property of WHO DRAWS THE FRAME, not a safety margin to be
+   * padded. See `landingClearFrames`.
+   */
+  readonly landingClearFrames: number;
 }
 
 export interface FlightRoutingInput {
@@ -109,6 +118,42 @@ export interface FlightRoutingInput {
 
 /** A touch device, on either engine. No navigator means no touch surface. */
 const hasTouch = (): boolean => typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
+
+// HOW MANY VSYNCS A CLEAN END WAITS BEFORE THE COMPLETED FLIP.
+//
+// The flip's commit is the convergence frame's busiest moment — the status
+// re-render, the covered screen's teardown, the compiled animations coming off
+// every participant at once — and running it in the same beat as the motion's
+// last frame measured as a dropped frame right at the landing. So the last
+// frame is given room to PRESENT first. The question this answers is how much
+// room, and the answer is a property of WHO DRAWS THE FRAME.
+//
+// BLINK DRAWS FROM THE COMPOSITOR THREAD. The last motion frame is committed
+// in the main frame that ends the animation and drawn at that same frame's
+// deadline, so by the next vsync it is already on glass and nothing the main
+// thread does afterwards can take it back. ONE frame is the whole cover, and
+// it is a real one: traced over twelve pops with no frames at all, two of them
+// lost the last motion frame to the flip's commit.
+//
+// WEBKIT PRESENTS FROM THE MAIN THREAD, one to two frames behind its own
+// commit, so a flip landing at commit+2 still cut the decel tail's final frame
+// on device (the "blip at the end" of a pop). Four puts the flip past that
+// pipeline, and stays until a device says otherwise.
+//
+// A COVER LONGER THAN THE PIPELINE IS NOT FREE, which is what four frames
+// everywhere was costing. It reads as free — the screen holds its arrival pose
+// under the compiled rules, so the extra frames are stillness. They are
+// stillness that ENDS IN A CHANGE: the flip is what takes the compiled
+// animations off, and every element that was composited to run one is
+// re-rastered the moment it goes. Traced on desktop Chrome over twelve pops of
+// the composition bench, twelve of twelve held the last motion frame for 50ms
+// and then repainted — the arriving screen's title and card copy visibly
+// changing weight as their text went back from the layer's grayscale
+// antialiasing to the document's subpixel antialiasing. That is the "hitch at
+// the end of the transition" the bench has been reported as having. At one
+// frame the same twelve pops presented on every vsync and the repaint rode the
+// frame straight after the motion, where it reads as the motion settling.
+const landingClearFrames = (): number => (detectBlinkEngine() ? 1 : 4);
 
 /**
  * WHICH HEAD KIT this session plays, and how long its flat head is.
@@ -237,6 +282,7 @@ export const resolveFlightRouting = (input: FlightRoutingInput): FlightRouting =
     // Aimed at the one dropped frame device timelines pinned to the head
     // BOUNDARY (it followed the head length: 100ms head -> 6th frame after
     // release, 200ms -> 12th).
-    creepHead: governedHead && governedCompiledActive()
+    creepHead: governedHead && governedCompiledActive(),
+    landingClearFrames: landingClearFrames()
   };
 };
