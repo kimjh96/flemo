@@ -1011,7 +1011,22 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // appear in. It undercounts the presentation by the compositor's own
       // step, which is a frame, and the threshold it feeds is a frame — so the
       // undercount is on the side of keeping the head rather than dropping it.
-      if (typeof requestAnimationFrame === "function" && typeof performance !== "undefined") {
+      //
+      // ONLY ON THE RUN THAT IS THE RELEASE. This block also runs at the
+      // staging commit, with the hold still on, and a sample taken there
+      // measures a paused, parked frame: short enough to talk the head off.
+      // The release run then read that sample and dropped the head the
+      // staging commit had put on, so the root attribute flipped between the
+      // two and every participant's compiled animation was swapped for the
+      // bare one at the release. Traced on desktop Chrome as the first pop of
+      // a session on the composition bench, in one to four loads of twelve.
+      // A sample taken here describes the release it follows, and only a
+      // later flight of this status reads it.
+      if (
+        animHoldReleased &&
+        typeof requestAnimationFrame === "function" &&
+        typeof performance !== "undefined"
+      ) {
         const releasedAt = performance.now();
         const releasedStatus = status;
         requestAnimationFrame((at) => {
