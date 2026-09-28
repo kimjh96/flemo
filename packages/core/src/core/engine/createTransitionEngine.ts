@@ -16,6 +16,7 @@ import { stageBarParts, type StagedBarParts } from "@core/engine/barPartStaging"
 import { wireCancelResume } from "@core/engine/cancelResume";
 import { createFlightHolds } from "@core/engine/flightHolds";
 import {
+  collectFlightAnimations,
   collectFlightParts,
   collectScreenParts,
   collectStampedOuterParts,
@@ -23,7 +24,7 @@ import {
   collectVariantParts,
   statusChoreographySpanMs
 } from "@core/engine/flightParticipants";
-import { resolveFlightRouting } from "@core/engine/flightRouting";
+import { landingClearFrames, resolveFlightRouting } from "@core/engine/flightRouting";
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
 
 import { collectLayerRiders, isRider } from "@core/engine/layerRiders";
@@ -743,12 +744,14 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // its animation off the scope so no morph coupling is needed.
         const { scope: cameraScope } = getElements();
         let cameraSpanMs = 0;
+        const cameraAnimations: Animation[] = [];
         const cameraEl =
           cameraScope?.ownerDocument?.querySelector<HTMLElement>(`[${MORPH_CAMERA_ATTR}]`) ?? null;
         if (cameraEl && typeof cameraEl.getAnimations === "function") {
           for (const anim of cameraEl.getAnimations()) {
             const name = (anim as { animationName?: string }).animationName ?? "";
             if (!name.endsWith("-camera")) continue;
+            cameraAnimations.push(anim);
             const timing = anim.effect?.getTiming?.();
             cameraSpanMs = Math.max(
               cameraSpanMs,
@@ -771,8 +774,54 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           // Anchor with the choreography's own span so the gate can never cut
           // an authored motion (see TaskManager.anchorGate).
           if (flooredTaskId) TaskManager.anchorGate(flooredTaskId, spanMs + GATE_MOTION_MARGIN_MS);
-          const spanTimer = setTimeout(resolve, spanMs);
-          return () => clearTimeout(spanTimer);
+          let settled = false;
+          const settle = () => {
+            settled = true;
+            clearTimeout(spanTimer);
+            landingFrames.forEach((frame) => cancelAnimationFrame(frame));
+            resolve();
+          };
+          const spanTimer = setTimeout(settle, spanMs);
+          // THE SPAN IS THE BACKSTOP, NOT THE LANDING.
+          //
+          // It is a wall-clock estimate armed at the release commit, and the
+          // motion does not start at the release commit: the compositor starts
+          // it a frame or two later. So the estimate needs a margin, and
+          // whatever the margin does not spend is picture held still after the
+          // motion has ended, then the COMPLETED flip's repaint. Traced on
+          // desktop Chrome over the bench's container transform, every push and
+          // pop held its last motion frame for 40 to 70ms before landing.
+          //
+          // So the flight lands where a clean end does: when its participants'
+          // animations have actually finished, plus the frames the engine's
+          // presentation pipeline needs (flightRouting's landingClearFrames).
+          // The span still fires if an animation is cancelled, lost, or
+          // outlived by the estimate, which is exactly what it did before.
+          const landingFrames: number[] = [];
+          const flight = collectFlightAnimations(
+            scope,
+            status,
+            [getElements().decorator],
+            cameraAnimations
+          );
+          if (flight.length > 0 && typeof requestAnimationFrame === "function") {
+            Promise.all(flight.map((animation) => animation.finished)).then(() => {
+              const land = (remaining: number) => {
+                if (settled) return;
+                if (remaining <= 0) {
+                  settle();
+                  return;
+                }
+                landingFrames.push(requestAnimationFrame(() => land(remaining - 1)));
+              };
+              land(landingClearFrames());
+            }, noop);
+          }
+          return () => {
+            settled = true;
+            clearTimeout(spanTimer);
+            landingFrames.forEach((frame) => cancelAnimationFrame(frame));
+          };
         }
       }
       // No animation anywhere in this variant pair. Resolve in a microtask so

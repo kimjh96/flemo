@@ -153,7 +153,7 @@ const hasTouch = (): boolean => typeof navigator !== "undefined" && navigator.ma
 // the end of the transition" the bench has been reported as having. At one
 // frame the same twelve pops presented on every vsync and the repaint rode the
 // frame straight after the motion, where it reads as the motion settling.
-const landingClearFrames = (): number => (detectBlinkEngine() ? 1 : 4);
+export const landingClearFrames = (): number => (detectBlinkEngine() ? 1 : 4);
 
 /**
  * WHICH HEAD KIT this session plays, and how long its flat head is.

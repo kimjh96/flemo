@@ -7,6 +7,7 @@ import { transitionMap } from "@transition/transition";
 import type { Transition } from "@transition/typing";
 
 import {
+  collectFlightAnimations,
   collectFlightParts,
   collectScreenParts,
   collectStampedOuterParts,
@@ -15,11 +16,13 @@ import {
   statusChoreographySpanMs
 } from "@core/engine/flightParticipants";
 import {
+  ACTIVE_ATTR,
   ANIM_HOLD_ATTR,
   PART_HOME_ATTR,
   PART_NAME_ATTR,
   ROUTER_ATTR,
-  SCREEN_ATTR
+  SCREEN_ATTR,
+  STATUS_ATTR
 } from "@dom/attributes";
 
 import createPartTransition from "@transition/partTransition/createPartTransition";
@@ -254,5 +257,81 @@ describe("statusChoreographySpanMs", () => {
     expect(statusChoreographySpanMs(scope, still, "PUSHING")).toBe(0);
     container.remove();
     transitionMap.delete("participants-still" as never);
+  });
+});
+
+describe("collectFlightAnimations", () => {
+  const animation = (endTime: number) =>
+    ({ effect: { getComputedTiming: () => ({ endTime }) } }) as unknown as Animation;
+  const withAnimations = (node: HTMLElement, animations: Animation[]) => {
+    node.getAnimations = () => animations;
+    return node;
+  };
+
+  it("reads this Router's passive screen, its parts and the extras, keeping only motion that ends", () => {
+    const router = el({ [ROUTER_ATTR]: "r1" });
+    const scope = el({ [SCREEN_ATTR]: "a", [STATUS_ATTR]: "POPPING", [ACTIVE_ATTR]: "true" });
+    const exit = animation(300);
+    const loop = animation(Infinity);
+    const passive = withAnimations(
+      el({ [SCREEN_ATTR]: "b", [STATUS_ATTR]: "POPPING", [ACTIVE_ATTR]: "false" }),
+      [exit, loop]
+    );
+    const partMotion = animation(500);
+    const flightPart = withAnimations(part("title", { [STATUS_ATTR]: "POPPING" }), [partMotion]);
+    passive.appendChild(flightPart);
+    router.append(scope, passive);
+
+    // Another Router's passive screen in the same status is not this flight.
+    const otherRouter = el({ [ROUTER_ATTR]: "r2" });
+    const unrelated = animation(3000);
+    otherRouter.appendChild(
+      withAnimations(el({ [SCREEN_ATTR]: "c", [STATUS_ATTR]: "POPPING", [ACTIVE_ATTR]: "false" }), [
+        unrelated
+      ])
+    );
+    // A passive screen outside every marked carrier keeps the inclusive
+    // behaviour: over-waiting is a delay, the span still backs it up.
+    const looseExit = animation(250);
+    const loose = withAnimations(
+      el({ [SCREEN_ATTR]: "d", [STATUS_ATTR]: "POPPING", [ACTIVE_ATTR]: "false" }),
+      [looseExit]
+    );
+    document.body.append(router, otherRouter, loose);
+
+    const decoratorMotion = animation(200);
+    const decorator = withAnimations(el({}), [decoratorMotion]);
+    const camera = animation(450);
+    // An element with no Web Animations support is skipped, as is a null slot.
+    const bare = el({});
+    Object.defineProperty(bare, "getAnimations", { value: undefined });
+
+    // An animation with no effect has no end to wait for.
+    const detached = { effect: null } as unknown as Animation;
+
+    expect(
+      collectFlightAnimations(scope, "POPPING", [decorator, null, bare], [camera, detached])
+    ).toEqual([camera, exit, looseExit, partMotion, decoratorMotion]);
+
+    loose.remove();
+    router.remove();
+    otherRouter.remove();
+  });
+
+  it("keeps every passive screen when the scope carries no Router marker", () => {
+    const scope = el({ [SCREEN_ATTR]: "a" });
+    const exit = animation(300);
+    const marked = el({ [ROUTER_ATTR]: "r9" });
+    marked.appendChild(
+      withAnimations(el({ [SCREEN_ATTR]: "b", [STATUS_ATTR]: "PUSHING", [ACTIVE_ATTR]: "false" }), [
+        exit
+      ])
+    );
+    document.body.append(scope, marked);
+
+    expect(collectFlightAnimations(scope, "PUSHING", [], [])).toEqual([exit]);
+
+    scope.remove();
+    marked.remove();
   });
 });
