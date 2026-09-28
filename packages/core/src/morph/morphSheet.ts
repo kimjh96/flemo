@@ -26,12 +26,26 @@ import { PINNED_POSE_PROPERTY_RULES } from "@morph/morphPose";
 // therefore stays with the rest of the flight (see morphPose). Those
 // registrations live below, and unlike a flight's own rules they are never
 // dropped.
-const sheet = (): CSSStyleSheet | null => {
+//
+// THE TWO LIVE IN SEPARATE SHEETS, and that is load-bearing. Blink re-reads a
+// style sheet whole when any rule in it is inserted or deleted, and a re-read
+// sheet that carries `@property` counts as a change of registrations, which
+// invalidates style for the entire document. With the registrations in the
+// flights' own sheet, every flight's insertion and every landing's removal
+// restyled every element on the page: traced on desktop Chrome as a
+// document-wide `PropertyRegistration` invalidation at each landing and two
+// recalculations of the whole arriving screen (220 elements) inside it. Kept
+// apart, the registration sheet is written once and never touched again, and
+// the same landing restyles about twenty.
+const FLIGHTS = "";
+const PROPERTIES = "properties";
+
+const sheet = (kind: typeof FLIGHTS | typeof PROPERTIES = FLIGHTS): CSSStyleSheet | null => {
   if (isServer()) return null;
-  let tag = document.head.querySelector<HTMLStyleElement>(`style[${MORPH_SHEET_ATTR}]`);
+  let tag = document.head.querySelector<HTMLStyleElement>(`style[${MORPH_SHEET_ATTR}="${kind}"]`);
   if (!tag) {
     tag = document.createElement("style");
-    tag.setAttribute(MORPH_SHEET_ATTR, "");
+    tag.setAttribute(MORPH_SHEET_ATTR, kind);
     document.head.appendChild(tag);
   }
   return tag.sheet;
@@ -93,7 +107,7 @@ const registered = new WeakMap<CSSStyleSheet, boolean>();
  * A part that leads the rest of its flight is a flaw; one that jumps is a break.
  */
 export const ensurePinnedPoses = (): boolean => {
-  const target = sheet();
+  const target = sheet(PROPERTIES);
   /* v8 ignore next -- no document to register into. */
   if (!target) return false;
   const seen = registered.get(target);
