@@ -30,6 +30,7 @@ import {
   enteringInitialStyle,
   observeBarHeight,
   publishRideBox,
+  readBarHeight,
   resolvePartLayer,
   resolvePlatformProfile,
   resolveSwipeOptions,
@@ -304,7 +305,9 @@ function ScreenMotion({
   const attachSharedTopBar = useCallback(
     (element: HTMLDivElement | null) => {
       sharedTopBarRef.current = element;
-      if (element?.offsetHeight) commitTopBarHeight(element.offsetHeight);
+      // The same measure observeBarHeight follows (see readBarHeight): a
+      // rounded first reading is a reservation that changes size later.
+      if (element) commitTopBarHeight(readBarHeight(element));
     },
     [commitTopBarHeight]
   );
@@ -312,7 +315,7 @@ function ScreenMotion({
   const attachSharedBottomBar = useCallback(
     (element: HTMLDivElement | null) => {
       sharedBottomBarRef.current = element;
-      if (element?.offsetHeight) commitBottomBarHeight(element.offsetHeight);
+      if (element) commitBottomBarHeight(readBarHeight(element));
     },
     [commitBottomBarHeight]
   );

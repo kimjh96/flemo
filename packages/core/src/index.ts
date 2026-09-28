@@ -295,7 +295,7 @@ export {
   type SwipeSettleInput
 } from "@transition/swipeSettle";
 
-export { default as observeBarHeight } from "@screen/observeBarHeight";
+export { default as observeBarHeight, readBarHeight } from "@screen/observeBarHeight";
 export { default as publishRideBox } from "@screen/publishRideBox";
 export {
   percentRatio,

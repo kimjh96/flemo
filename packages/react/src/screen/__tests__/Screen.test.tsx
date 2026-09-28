@@ -403,12 +403,25 @@ describe("Screen", () => {
         if (nextMetadata) metadataWrites.push(nextMetadata);
       }
     });
-    const offsetHeight = vi
-      .spyOn(HTMLElement.prototype, "offsetHeight", "get")
-      .mockImplementation(function (this: HTMLElement) {
-        if (this.dataset.flemoBar === "app") return 106;
-        if (this.dataset.flemoBar === "nav") return 81;
-        return 0;
+    // The bars' layout heights, as the computed style reports them. The nav
+    // bar is fractional on purpose: it has to be reserved as it is, not rounded
+    // to the pixel `offsetHeight` would give and corrected by a later reading.
+    const heights: Record<string, string> = { app: "106px", nav: "80.5px" };
+    const getComputedStyleOriginal = window.getComputedStyle.bind(window);
+    const computedStyle = vi
+      .spyOn(window, "getComputedStyle")
+      .mockImplementation((element: Element, pseudo?: string | null) => {
+        const style = getComputedStyleOriginal(element, pseudo);
+        const height = heights[(element as HTMLElement).dataset?.flemoBar ?? ""];
+        if (!height) return style;
+        return new Proxy(style, {
+          get: (target, key) =>
+            key === "height"
+              ? height
+              : key === "boxSizing"
+                ? "border-box"
+                : Reflect.get(target, key)
+        });
       });
 
     const { container } = render(
@@ -428,10 +441,10 @@ describe("Screen", () => {
     ).toBe("106px");
     expect(
       container.querySelector<HTMLElement>('[data-flemo-bar-spacer="nav"]')!.style.minHeight
-    ).toBe("81px");
+    ).toBe("80.5px");
     expect(stores.screen.getState().sharedBarMetadata.top).toEqual({
       topBar: { id: "pattern-builder-header", height: 106 },
-      bottomBar: { id: "pattern-builder-actions", height: 81 }
+      bottomBar: { id: "pattern-builder-actions", height: 80.5 }
     });
     // Ref attachment precedes layout effects. Registration must consume that
     // measurement so subscribers never observe an identity-only entry followed
@@ -439,11 +452,11 @@ describe("Screen", () => {
     expect(metadataWrites).toEqual([
       {
         topBar: { id: "pattern-builder-header", height: 106 },
-        bottomBar: { id: "pattern-builder-actions", height: 81 }
+        bottomBar: { id: "pattern-builder-actions", height: 80.5 }
       }
     ]);
     unsubscribe();
-    offsetHeight.mockRestore();
+    computedStyle.mockRestore();
   });
 
   it("keeps the spacer and metadata current when ResizeObserver reports a dynamic resize", () => {
@@ -473,7 +486,12 @@ describe("Screen", () => {
 
       act(() => {
         callbacks.get("nav")?.(
-          [{ contentRect: { height: 93 } } as ResizeObserverEntry],
+          [
+            {
+              borderBoxSize: [{ blockSize: 93, inlineSize: 390 }],
+              contentRect: { height: 93 }
+            } as unknown as ResizeObserverEntry
+          ],
           undefined as unknown as ResizeObserver
         );
       });
