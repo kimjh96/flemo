@@ -74,7 +74,6 @@ import { shadowPaints } from "@morph/morphShadow";
 import { ensurePinnedPoses, insertMorphRules } from "@morph/morphSheet";
 import { headSeconds, resolveMorphSide } from "@morph/morphSide";
 import { pinPartWidths } from "@morph/pinParts";
-import { promoteTravelLayer } from "@morph/travelLayer";
 
 import { morphTransitionMap } from "@transition/morphTransition/morphTransition";
 import {
@@ -580,9 +579,6 @@ const wear = (
 ) => {
   if (set.translate) element.style.translate = set.translate;
   if (set.transform) element.style.transform = set.transform;
-  // What wears a travel is moved every frame: it needs a layer of its own to
-  // land on fractional pixels (see travelLayer).
-  if (set.translate || set.transform) promoteTravelLayer(element);
   if (set.letterSpacing) element.style.letterSpacing = set.letterSpacing;
   // AFTER the staging that wrote the departure's own size: what the element
   // wears now READS the channel, and the keyframe writes the channel.
