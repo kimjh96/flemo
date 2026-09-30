@@ -1,0 +1,46 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_bf3936fb83c3b9e8eaaa3415
+compiler:
+  compilerBuildId: sha256:4921469018da98f751a61e2394a9e506fc3c069b131b8bcdaeeee798734b5725
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.159.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_bfc7435527a175c329823fba
+outputLanguage: en
+outputs:
+  - byteCount: 624
+    contentHash: sha256:0be5294d77d656af18095667054b7ff7e74d02358012f25abbcf2101266c869c
+    path: docs/architecture/motion-engine/lifecycle.md
+    userRegionHash: sha256:0be5294d77d656af18095667054b7ff7e74d02358012f25abbcf2101266c869c
+  - byteCount: 2232
+    contentHash: sha256:300fe3b303eec2729b5c9d4be654629fd79031b5b3108e0927c72b6bec421cf3
+    path: docs/architecture/motion-engine/lifecycle/completion.md
+    userRegionHash: sha256:300fe3b303eec2729b5c9d4be654629fd79031b5b3108e0927c72b6bec421cf3
+  - byteCount: 1487
+    contentHash: sha256:6f333e6ee181e21d7a57242e6658387d5fcc775042f9e4f6d6b7269bfcdc0d96
+    path: docs/architecture/motion-engine/lifecycle/flight.md
+    userRegionHash: sha256:6f333e6ee181e21d7a57242e6658387d5fcc775042f9e4f6d6b7269bfcdc0d96
+  - byteCount: 2262
+    contentHash: sha256:488d8227d3af2af3e4d9ba26196e6e4d233e973b9cf47d26e88ceadfa9e3aa48
+    path: docs/architecture/motion-engine/lifecycle/hold-and-release.md
+    userRegionHash: sha256:488d8227d3af2af3e4d9ba26196e6e4d233e973b9cf47d26e88ceadfa9e3aa48
+  - byteCount: 811
+    contentHash: sha256:007b39f17a5de3ff95192c275da8eff6801a7bf72b7be00b2a2b7e59491ab06a
+    path: docs/architecture/motion-engine/lifecycle/perceptual-landing.md
+    userRegionHash: sha256:007b39f17a5de3ff95192c275da8eff6801a7bf72b7be00b2a2b7e59491ab06a
+profile: architecture_document
+recordId: knormdoc_3ac81f5ed7798cbf5738e953
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:c8e231094511a47437b154c340a351cac57a0df5493905c6c3b002c8a6e6781f
+sourcePath: docs/architecture/motion-engine/lifecycle.md
+sourceUnitVersionIds:
+  - uv_03ad6bb79e07631e54940c36
+  - uv_23c09f768b583ff619e5a277
+  - uv_6041f3be26828ce753cf70fe
+  - uv_7804f38c58de82e0d186363d
+  - uv_cf7926fd103b8f09df424585

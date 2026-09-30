@@ -6,15 +6,15 @@ Automation proves invariants. A person decides whether motion communicates the i
 
 Exercise each applicable row in both directions.
 
-| Area             | Cases                                                                            | Observe                                                                         |
-| ---------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Router ownership | single, nested, sibling, duplicate names                                         | only the intended stack changes; invalid targets warn or fail in development    |
-| Navigation       | push, replace, programmatic pop, browser back                                    | correct route, history index, and transition on both screen sides               |
-| Gesture          | slow partial drag, cancel, threshold commit, velocity commit, reversal           | screen, Part, Morph, and decorator remain phase-aligned and land without a snap |
-| Shared chrome    | matching and mismatched bar IDs, different title lengths, missing action         | correct handoff, stable shell geometry, no duplicate or stale content           |
-| Timing           | inherited, asymmetric, explicit zero, `after: "flight"`, Part longer than Screen | documented clock wins; completion waits for the longest participant             |
-| Morph            | push and pop, clipped content, changing radius, unmatched and duplicate IDs      | correct arriving side flies, departure is hidden, layout and cleanup are stable |
-| Paint            | Slot clipping, shared bars, Layer, nested Router box                             | intended z-order and containing block on every frame                            |
+| Area | Cases | Observe |
+| --- | --- | --- |
+| Router ownership | single, nested, sibling, duplicate names | only the intended stack changes; invalid targets warn or fail in development |
+| Navigation | push, replace, programmatic pop, browser back | correct route, history index, and transition on both screen sides |
+| Gesture | slow partial drag, cancel, threshold commit, velocity commit, reversal | screen, Part, Morph, and decorator remain phase-aligned and land without a snap |
+| Shared chrome | matching and mismatched bar IDs, different title lengths, missing action | correct handoff, stable shell geometry, no duplicate or stale content |
+| Timing | inherited, asymmetric, explicit zero, `after: "flight"`, Part longer than Screen | documented clock wins; completion waits for the longest participant |
+| Morph | push and pop, clipped content, changing radius, unmatched and duplicate IDs | correct arriving side flies, departure is hidden, layout and cleanup are stable |
+| Paint | Slot clipping, shared bars, Layer, nested Router box | intended z-order and containing block on every frame |
 
 ## Automated checks
 
@@ -43,7 +43,7 @@ After visual judgment, inspect the recorder report. A clean report does not over
 
 ## Portable skill evaluation
 
-Before treating a revised skill as proven, give multiple unfamiliar agents the same fixture and prompt, once with only public types/docs and once with this skill. Do not let them inspect flemo source. Score outputs without knowing which condition produced them.
+Before treating a revised skill as proven, give multiple unfamiliar agents the same fixture and prompt: once with only public types/docs, and once with this skill. Do not let them inspect flemo source. Score outputs without knowing which condition produced them.
 
 Use a task requiring:
 
