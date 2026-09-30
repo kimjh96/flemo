@@ -1,6 +1,6 @@
 # Freeze a release corpus
 
-Run the evaluation only after declaration changes, generated docs, and skill are publicly available from one release commit. Create a release lock outside the repository with this shape:
+Run the evaluation only after declaration changes, generated docs, and the skill are publicly available from one release commit. Create a release lock outside the repository with this shape:
 
 ```json
 {

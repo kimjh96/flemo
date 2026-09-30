@@ -1,0 +1,30 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_bf3936fb83c3b9e8eaaa3415
+compiler:
+  compilerBuildId: sha256:4921469018da98f751a61e2394a9e506fc3c069b131b8bcdaeeee798734b5725
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.159.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_434d8085473c012664348ec7
+outputLanguage: en
+outputs:
+  - byteCount: 2957
+    contentHash: sha256:f380e3a0c2c9eeb8ab0c5a22c06e41f91869625c2ed6d21cc1552ddeb6502d4f
+    path: .agents/skills/flemo/references/routing-and-ownership.md
+    userRegionHash: sha256:f380e3a0c2c9eeb8ab0c5a22c06e41f91869625c2ed6d21cc1552ddeb6502d4f
+profile: skill_reference
+recordId: knormdoc_2a6e0b5b58af34f724613e8f
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:5924b9f9bccef0ff6a2aae39b75a25dc327f06afe0ae46daa9440990aada508e
+sourcePath: .agents/skills/flemo/references/routing-and-ownership.md
+sourceUnitVersionIds:
+  - uv_0e15c003cb7e4b3b64892a69
+  - uv_1b81af2b010af07e7449e03e
+  - uv_424ccf27d9d7f79545f25d75
+  - uv_b374f7192b6b2e4e03ac94b0
+  - uv_ce09340e272b27cf83c0d77a

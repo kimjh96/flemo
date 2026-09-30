@@ -6,22 +6,19 @@ pnpm eval:agents:analyse -- --ledger /absolute/ladder/ledger/ledger.json \
   [--sample /absolute/visual-sample.json]
 ```
 
-Reports are the files `eval:agents:score` writes, one per session; pass `--session <id>` when scoring so each report says which session it belongs to.
+`eval:agents:score` writes one report per session. Pass `--session <id>` when scoring so each report identifies its session.
 
-The endpoint, the comparison and the threshold come from `protocol.json`. Nothing is chosen here, and nothing is reported that was not registered.
+`protocol.json` defines the endpoint, comparison, and threshold. Analysis chooses none of these and reports only registered results.
 
-## The rules this enforces
+## Analysis rules
 
-**No early look.** The primary comparison is not computed until every planned session has a report. A ladder that can be read at run 40 and again at 60 and again at 96 has three chances to cross a threshold by luck. `--force` exists for a ladder that was deliberately stopped and stamps the output `INCOMPLETE`, so its number can never be quoted as the registered result.
+- **No early look:** Compute the primary comparison only after every planned session has a report. Reading the ladder at runs 40, 60, and 96 creates three chances to cross the threshold by luck. For a deliberately stopped ladder, `--force` stamps the output `INCOMPLETE`; its number must never be quoted as the registered result.
+- **Missing reports count as failures:** The stopping rule counts model or tool failures as first-pass failures unless a provider outage was independently logged. Mark those sessions `outage` in the ledger to visibly exclude them from the denominator. Every other session without a report counts against its arm.
+- **Keep pools separate:** Never pool results across pools. A ladder run with the network on is the external-validity arm and is reported separately.
+- **Carry the claim boundary:** The summary includes the corpus release and commit, provider families, and the protocol's boundary sentence.
 
-**A missing report is a failure, not a gap.** The stopping rule counts a model or tool failure as a first-pass failure unless a provider outage was logged independently; mark those sessions `outage` in the ledger and they leave the denominator, visibly. Every other session without a report counts against its arm.
+## Blind visual sample
 
-**Nothing is pooled across pools.** A ladder laid out with the network on is the external-validity arm and is reported on its own.
+After every run id is sealed, `--sample` draws one completed build per provider-by-arm stratum, balancing variants where the strata allow. The sample file separates reviewer-visible information from concealed information: `labels` contains only a random label and an order; `key` maps labels to sessions. Hand over the builds and `labels`; keep `key` concealed.
 
-**The claim boundary travels with the number.** The summary carries the corpus release and commit, the provider families, and the protocol's own boundary sentence.
-
-## The blind visual sample
-
-`--sample` draws the reviewer's sample once every run id is sealed: one completed build per provider-by-arm stratum, variants balanced where the strata allow it. The file separates what the reviewer sees from what they must not: `labels` carries only a random label and an order, and `key` maps those labels back to sessions. Hand over the builds and `labels`; keep `key`.
-
-Serve the selected builds under their labels with DevTools and capture closed, and record the direct visual verdict before looking at telemetry, recordings, source, or the automated score.
+Serve selected builds under their labels with DevTools and capture closed. Record the direct visual verdict before inspecting telemetry, recordings, source, or the automated score.
