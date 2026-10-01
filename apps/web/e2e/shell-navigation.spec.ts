@@ -17,8 +17,8 @@ test.describe("shell navigation", () => {
 
     await expect(navButton(page, "Home")).toHaveAttribute("aria-current", "page");
 
-    await navButton(page, "Showcase").click();
-    await expect(navButton(page, "Showcase")).toHaveAttribute("aria-current", "page");
+    await navButton(page, "Examples").click();
+    await expect(navButton(page, "Examples")).toHaveAttribute("aria-current", "page");
     await waitForNavIdle(page);
 
     await navButton(page, "Docs").click();
@@ -32,7 +32,7 @@ test.describe("shell navigation", () => {
   test("repeated back-and-forth navigation never freezes", async ({ page }) => {
     await page.goto("/");
 
-    const hops = ["Showcase", "Docs", "Home", "Showcase", "Home", "Docs"];
+    const hops = ["Examples", "Docs", "Home", "Examples", "Home", "Docs"];
     for (const label of hops) {
       await navButton(page, label).click();
       await expect(navButton(page, label)).toHaveAttribute("aria-current", "page", {

@@ -1,70 +1,81 @@
 "use client";
 
-import { Screen } from "@flemo/react";
+import { Screen, useNavigate } from "@flemo/react";
+
+import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
+import { getDict } from "@/lib/i18n";
 
 import ShowcaseAppCard from "./ShowcaseAppCard";
 import { showcaseApps } from "./showcaseApps";
 import ShowcaseSubmitCard from "./ShowcaseSubmitCard";
-import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
-import { getDict } from "@/lib/i18n";
 
 const SUBMIT_URL = "https://github.com/kimjh96/flemo/issues/new";
 
-// The Showcase peer: real production apps shipping flemo, laid out as a card
-// grid. The showcase data and the card live next to each other so the content
-// stays in one place; shiflo (the flagship) carries the "how it uses flemo" copy.
 function ShowcaseScreen() {
   const lang = useShellLang();
   const t = getDict(lang).showcase;
+  const navigate = useNavigate();
+  const openDemo = () =>
+    navigate.push("/playground", {}, { transitionName: "shared-axis-forward" });
 
   return (
-    <Screen hideStatusBar hideSystemNavigationBar backgroundColor="transparent">
+    <Screen hideStatusBar hideSystemNavigationBar backgroundColor="var(--color-bg)">
       <div className="h-full overflow-y-auto">
-        <div className="mx-auto flex max-w-[1080px] flex-col gap-10 px-6 pt-24 pb-20 lg:pt-28 lg:pb-28">
-          <div className="flex flex-col items-start gap-4">
-            <span className="text-[13px] font-bold tracking-[0.08em] text-[var(--color-text-primary)] uppercase">
-              {t.kicker}
-            </span>
-            <h1 className="text-[clamp(2.25rem,5vw,3.5rem)] font-extrabold tracking-[-0.025em] text-[var(--color-text-primary)]">
-              {t.title}
-            </h1>
-            <p className="max-w-[44ch] text-base leading-relaxed text-[var(--color-text-secondary)]">
-              {t.subtitle}
-            </p>
-          </div>
+        <main className="showcase-page">
+          <div className="site-container">
+            <p className="site-overline">{t.kicker}</p>
+            <div className="showcase-heading">
+              <h1 className="site-display-section">{t.title}</h1>
+              <p className="site-lead">{t.subtitle}</p>
+            </div>
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            {showcaseApps.map((app) => {
-              const copy = t.apps[app.id];
-              return (
-                <ShowcaseAppCard
-                  key={app.id}
-                  name={copy.name}
-                  tagline={copy.tagline}
-                  description={copy.description}
-                  flemoUsageLabel={t.flemoUsageLabel}
-                  flemoUsage={copy.flemoUsage}
-                  languagesLabel={t.languagesLabel}
-                  languages={app.languages.map((code) => t.languageNames[code])}
-                  logo={app.logo}
-                  appStore={
-                    app.appStoreUrl ? { label: t.appStore, href: app.appStoreUrl } : undefined
-                  }
-                  playStore={
-                    app.playStoreUrl ? { label: t.playStore, href: app.playStoreUrl } : undefined
-                  }
+            <div className="showcase-feature-grid">
+              {showcaseApps.map((app) => {
+                const copy = t.apps[app.id];
+                return (
+                  <ShowcaseAppCard
+                    key={app.id}
+                    name={copy.name}
+                    tagline={copy.tagline}
+                    description={copy.description}
+                    flemoUsageLabel={t.flemoUsageLabel}
+                    flemoUsage={copy.flemoUsage}
+                    languagesLabel={t.languagesLabel}
+                    languages={app.languages.map((code) => t.languageNames[code])}
+                    logo={app.logo}
+                    appStore={
+                      app.appStoreUrl ? { label: t.appStore, href: app.appStoreUrl } : undefined
+                    }
+                    playStore={
+                      app.playStoreUrl ? { label: t.playStore, href: app.playStoreUrl } : undefined
+                    }
+                  />
+                );
+              })}
+              <div className="showcase-side">
+                <p className="site-overline">{lang === "ko" ? "직접 체험" : "Try it yourself"}</p>
+                <h2>
+                  {lang === "ko"
+                    ? "화면을 눌러보면 더 빨리 알 수 있어요."
+                    : "A tap says more than a screenshot."}
+                </h2>
+                <button
+                  type="button"
+                  onClick={openDemo}
+                  className="site-button site-button-primary mt-6"
+                >
+                  {lang === "ko" ? "데모 열기" : "Open the demo"} ↗
+                </button>
+                <ShowcaseSubmitCard
+                  title={t.submit.title}
+                  body={t.submit.body}
+                  cta={t.submit.cta}
+                  href={SUBMIT_URL}
                 />
-              );
-            })}
-
-            <ShowcaseSubmitCard
-              title={t.submit.title}
-              body={t.submit.body}
-              cta={t.submit.cta}
-              href={SUBMIT_URL}
-            />
+              </div>
+            </div>
           </div>
-        </div>
+        </main>
       </div>
     </Screen>
   );

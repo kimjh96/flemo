@@ -2,6 +2,8 @@
 
 import { Route, Router, Screen, Slot, useNavigate } from "@flemo/react";
 
+import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
+
 import CompositionHeader from "../../_components/CompositionHeader";
 import CompositionStoryCard from "../../_components/CompositionStoryCard";
 import CompositionFiltersScreen from "../CompositionFiltersScreen";
@@ -9,6 +11,7 @@ import CompositionListScreen from "../CompositionListScreen";
 
 function CompositionWorkspaceScreen() {
   const app = useNavigate({ router: "composition-app" });
+  const isKo = useShellLang() === "ko";
 
   return (
     <Screen
@@ -17,12 +20,12 @@ function CompositionWorkspaceScreen() {
       backgroundColor="var(--color-bg)"
       sharedTopBar={
         <CompositionHeader
-          eyebrow="Workspace"
-          title="Inbox"
+          eyebrow={isKo ? "작업 공간" : "Workspace"}
+          title={isKo ? "받은 편지" : "Inbox"}
           action={
             <button
               type="button"
-              aria-label="Open menu"
+              aria-label={isKo ? "메뉴 열기" : "Open menu"}
               className="grid size-full cursor-pointer place-items-center text-white"
             >
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
@@ -53,10 +56,10 @@ function CompositionWorkspaceScreen() {
         <div className="min-h-[238px] flex-1 overflow-hidden rounded-[24px] border border-black/6 bg-slate-100 dark:border-white/8 dark:bg-slate-900/60">
           <div className="flex h-10 items-center justify-between border-b border-black/5 px-3 dark:border-white/8">
             <span className="text-[10px] font-extrabold tracking-[0.16em] text-slate-400 uppercase">
-              Nested memory Router
+              {isKo ? "앱 안의 화면" : "In-app screen"}
             </span>
             <span className="rounded-full bg-emerald-500/12 px-2 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-300">
-              LOCAL
+              {isKo ? "내부" : "LOCAL"}
             </span>
           </div>
           <Router

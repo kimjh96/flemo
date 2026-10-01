@@ -2,4 +2,4 @@
 "@flemo/web": minor
 ---
 
-Show the real flemo playground as an interactive landing demo, refresh the site header and visual system, and make the introduction easier to read.
+Rebuild the site around two interactive flemo apps, a clearer visual system, and simpler guidance across the home page, playground, showcase, and docs.

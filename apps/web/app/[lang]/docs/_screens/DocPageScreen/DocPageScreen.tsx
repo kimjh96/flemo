@@ -71,10 +71,10 @@ function DocPageScreen() {
     <Screen statusBarHeight="0px" systemNavigationBarHeight="0px" backgroundColor="var(--color-bg)">
       <div
         data-testid="docs-scroll"
-        className="h-full overflow-y-auto px-5 pt-28 pb-16 sm:px-8 lg:px-12 lg:pt-32 lg:pb-20"
+        className="h-full overflow-y-auto px-5 pt-30 pb-20 sm:px-8 lg:px-12 lg:pt-36 lg:pb-24"
       >
-        <div className="mx-auto grid max-w-[970px] gap-14 xl:grid-cols-[minmax(0,700px)_180px]">
-          <article className="min-w-0">
+        <div className="mx-auto grid max-w-[1050px] gap-16 xl:grid-cols-[minmax(0,720px)_190px]">
+          <article className="docs-article min-w-0">
             <button
               type="button"
               onClick={handleOpenNav}
@@ -90,20 +90,38 @@ function DocPageScreen() {
               </svg>
               {page.title}
             </button>
-            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold tracking-[0.06em] uppercase">
-              <span className="text-[var(--color-primary)]">Docs</span>
+            <div className="flex flex-wrap items-center gap-2 text-xs font-bold tracking-[0.11em] uppercase">
+              <span className="text-[var(--color-primary)]">flemo / Docs</span>
               <span className="text-[var(--color-text-disabled)]">/</span>
-              <span className="text-[var(--color-text-disabled)]">{section?.title}</span>
+              <span className="text-[var(--color-text-secondary)]">{section?.title}</span>
             </div>
-            <h1 className="mt-5 text-[clamp(2.2rem,5vw,3.4rem)] leading-[1.1] font-extrabold tracking-[-0.045em] text-[var(--color-text-primary)]">
+            <h1 className="mt-5 text-[clamp(2.8rem,5vw,4.6rem)] leading-[1.04] font-extrabold tracking-[-0.065em] text-[var(--color-text-primary)]">
               {page.title}
             </h1>
             {lead?.type === "p" ? (
-              <p className="mt-5 max-w-[65ch] text-[17px] leading-[1.7] tracking-[-0.01em] text-[var(--color-text-secondary)] sm:text-[18px]">
+              <p className="mt-6 max-w-[58ch] text-[17px] leading-[1.7] tracking-[-0.01em] text-[var(--color-text-secondary)] sm:text-[19px]">
                 {renderInline(lead.text)}
               </p>
             ) : null}
-            <div className="mt-9 flex flex-col gap-5 border-t border-[var(--color-border-light)] pt-8">
+            {slug === "introduction" ? (
+              <button
+                type="button"
+                onClick={() => handlePageMove("getting-started", true)}
+                className="docs-start-card"
+              >
+                <span>{lang === "ko" ? "가장 빠른 시작" : "The fastest way in"}</span>
+                <strong>{lang === "ko" ? "화면 두 개 만들기" : "Build two screens"}</strong>
+                <small>
+                  {lang === "ko"
+                    ? "설치부터 첫 화면 이동까지, 순서대로 따라 해보세요."
+                    : "Install flemo and make your first screen transition."}
+                </small>
+                <span className="docs-start-card-arrow" aria-hidden="true">
+                  ↗
+                </span>
+              </button>
+            ) : null}
+            <div className="mt-10 flex flex-col gap-5 border-t border-[var(--color-border)] pt-8">
               {page.blocks.map((block, index) => {
                 if (index === leadIndex) return null;
                 if (block.type === "h") {
@@ -111,7 +129,7 @@ function DocPageScreen() {
                     <h2
                       key={index}
                       id={`section-${index}`}
-                      className="scroll-mt-28 pt-8 text-[1.45rem] leading-tight font-bold tracking-[-0.025em] text-[var(--color-text-primary)] first:pt-0"
+                      className="scroll-mt-28 pt-8 text-[1.65rem] leading-tight font-bold tracking-[-0.045em] text-[var(--color-text-primary)] first:pt-0"
                     >
                       {block.text}
                     </h2>

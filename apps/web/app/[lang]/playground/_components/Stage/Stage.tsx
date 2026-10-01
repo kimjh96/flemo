@@ -1,5 +1,9 @@
 import type { PropsWithChildren } from "react";
 
+interface StageProps extends PropsWithChildren {
+  compact?: boolean;
+}
+
 // The glass bezel the mini-app runs in: the same one the landing hero uses, so
 // the judging page belongs to the site it is part of.
 //
@@ -15,7 +19,7 @@ import type { PropsWithChildren } from "react";
 // its landing, on a plain cupertino pop with no morph in it, while removing
 // the blob or promoting it read 0ms. `will-change: transform` keeps it on its
 // own layer, so the blur is rendered once and the flight never touches it.
-function Stage({ children }: PropsWithChildren) {
+function Stage({ children, compact = false }: StageProps) {
   return (
     <div className="relative w-fit">
       <div
@@ -23,7 +27,11 @@ function Stage({ children }: PropsWithChildren) {
         className="absolute -top-10 -left-14 z-0 h-[110%] w-[128%] rounded-[45%] opacity-40 blur-[64px] will-change-transform"
         style={{ background: "var(--gradient-blob)" }}
       />
-      <div className="relative aspect-[380/760] h-[min(720px,calc(100dvh-11rem))] rounded-[38px] border border-white/30 bg-white/10 p-1.5 shadow-[0_34px_80px_-26px_rgba(15,23,42,0.55)] backdrop-blur-2xl">
+      <div
+        className={`relative aspect-[380/760] rounded-[38px] border border-white/30 bg-white/10 p-1.5 shadow-[0_34px_80px_-26px_rgba(15,23,42,0.55)] backdrop-blur-2xl ${
+          compact ? "h-[min(640px,calc(100dvh-10rem))]" : "h-[min(720px,calc(100dvh-11rem))]"
+        }`}
+      >
         <div
           className="h-full overflow-hidden rounded-[32px] bg-[var(--color-bg)]"
           data-playground-stage=""

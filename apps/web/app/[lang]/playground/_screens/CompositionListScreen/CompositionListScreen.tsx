@@ -4,12 +4,15 @@ import { useState } from "react";
 
 import { Screen, useNavigate } from "@flemo/react";
 
+import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
+
 import CompositionCommandLayer from "../../_components/CompositionCommandLayer";
 
 function CompositionListScreen() {
   const pane = useNavigate();
   const app = useNavigate({ router: "composition-app" });
   const [isLayerOpen, setIsLayerOpen] = useState(false);
+  const isKo = useShellLang() === "ko";
 
   return (
     <Screen
@@ -26,9 +29,11 @@ function CompositionListScreen() {
         >
           <span>
             <strong className="block text-[13px] text-slate-900 dark:text-white">
-              Local filters
+              {isKo ? "필터 열기" : "Open filters"}
             </strong>
-            <span className="text-[11px] text-slate-500">Push only the inner pane</span>
+            <span className="text-[11px] text-slate-500">
+              {isKo ? "이 영역만 바뀝니다" : "Only this panel changes"}
+            </span>
           </span>
           <span className="text-indigo-500">→</span>
         </button>
@@ -38,8 +43,12 @@ function CompositionListScreen() {
           className="flex cursor-pointer items-center justify-between rounded-2xl bg-indigo-500 p-3 text-left text-white shadow-lg shadow-indigo-500/20"
         >
           <span>
-            <strong className="block text-[13px]">Open from nested pane</strong>
-            <span className="text-[11px] text-white/75">Target the ancestor app Router</span>
+            <strong className="block text-[13px]">
+              {isKo ? "전체 화면 열기" : "Open full screen"}
+            </strong>
+            <span className="text-[11px] text-white/75">
+              {isKo ? "앱 화면 전체가 바뀝니다" : "The whole app moves"}
+            </span>
           </span>
           <span>↗</span>
         </button>
@@ -49,8 +58,12 @@ function CompositionListScreen() {
           className="flex cursor-pointer items-center justify-between rounded-2xl bg-slate-900 p-3 text-left text-white shadow-lg shadow-slate-950/15 dark:bg-white dark:text-slate-950"
         >
           <span>
-            <strong className="block text-[13px]">Open command layer</strong>
-            <span className="text-[11px] opacity-65">Cover the root shared header</span>
+            <strong className="block text-[13px]">
+              {isKo ? "떠 있는 패널 열기" : "Open floating panel"}
+            </strong>
+            <span className="text-[11px] opacity-65">
+              {isKo ? "앱 위에 나타납니다" : "Appears above the app"}
+            </span>
           </span>
           <span>⌘</span>
         </button>

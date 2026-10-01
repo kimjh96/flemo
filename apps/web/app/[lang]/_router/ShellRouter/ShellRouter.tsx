@@ -59,7 +59,7 @@ function ShellRouter({ initPath }: ShellRouterProps) {
         that renders null and imports nothing in a production build. There is
         no guard to get wrong; `e2e/devtools-production.spec.ts` is what says so.
       */}
-      <FlemoDevtools />
+      <FlemoDevtools hud={false} />
       {/* The header overlays the content (absolute, z-40), so screens scroll
           UNDER its frosted glass, real glassmorphism, no seam. */}
       <div className="relative h-[100dvh] overflow-hidden bg-[var(--color-bg)]">

@@ -83,18 +83,18 @@ function SiteHeader() {
   ];
 
   return (
-    <header className="absolute inset-x-0 top-0 z-40 px-3 pt-3 sm:px-6 sm:pt-4">
-      <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between rounded-full border border-[var(--color-border)] bg-[var(--color-bg)]/90 px-4 shadow-[0_16px_44px_-28px_rgba(18,38,70,0.48)] backdrop-blur-xl sm:px-6">
+    <header className="absolute inset-x-0 top-0 z-40 px-3 pt-3 sm:px-6 sm:pt-5">
+      <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between rounded-full border border-[var(--color-border)]/80 bg-[var(--color-surface)]/80 px-4 shadow-[0_18px_48px_-28px_rgba(14,25,52,0.5)] backdrop-blur-2xl sm:px-6">
         <button
           type="button"
           onClick={goHome}
-          className="flex cursor-pointer items-center gap-2 text-[17px] font-bold tracking-[-0.02em] text-[var(--color-text-primary)]"
+          className="flex cursor-pointer items-center gap-2.5 text-[18px] font-extrabold tracking-[-0.04em] text-[var(--color-text-primary)]"
         >
           <Logo size={26} />
           <span>flemo</span>
         </button>
         <nav className="flex items-center gap-1">
-          <div className="hidden items-center gap-1 md:flex">
+          <div className="hidden items-center gap-0.5 md:flex">
             {shellLinks.map((link) => {
               const active = isActivePath(link.path);
               return (
@@ -103,11 +103,11 @@ function SiteHeader() {
                   type="button"
                   onClick={link.onClick}
                   aria-current={active ? "page" : undefined}
-                  className={`cursor-pointer rounded-full px-3.5 py-2 text-[14px] font-semibold transition-colors ${
+                  className={`cursor-pointer rounded-full px-4 py-2 text-[14px] font-semibold transition-colors ${
                     link.path === "/docs"
-                      ? "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]"
+                      ? "ml-2 border border-[var(--color-border-dark)] text-[var(--color-text-primary)] hover:bg-[var(--color-layer)]"
                       : active
-                        ? "bg-[var(--color-layer)] text-[var(--color-text-primary)]"
+                        ? "bg-[var(--color-text-primary)] text-[var(--color-bg)]"
                         : "text-[var(--color-text-secondary)] hover:bg-[var(--color-layer)] hover:text-[var(--color-text-primary)]"
                   }`}
                 >
@@ -147,7 +147,7 @@ function SiteHeader() {
       {/* Keep the menu mounted through closing so its height can animate. */}
       <div
         inert={!mobileOpen}
-        className={`mx-auto mt-2 max-w-[1200px] overflow-hidden rounded-[24px] border border-[var(--color-border)] bg-[var(--color-bg)]/95 shadow-[0_18px_40px_-24px_rgba(18,38,70,0.45)] backdrop-blur-xl transition-[max-height,opacity] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] md:hidden ${
+        className={`mx-auto mt-2 max-w-[1280px] overflow-hidden rounded-[24px] border border-[var(--color-border)] bg-[var(--color-surface)]/95 shadow-[0_18px_40px_-24px_rgba(18,38,70,0.45)] backdrop-blur-xl transition-[max-height,opacity] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] md:hidden ${
           mobileOpen ? "max-h-[420px] opacity-100" : "max-h-0 border-transparent opacity-0"
         }`}
       >

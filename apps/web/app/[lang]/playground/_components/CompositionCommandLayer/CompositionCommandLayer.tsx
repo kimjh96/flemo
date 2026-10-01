@@ -2,11 +2,14 @@
 
 import { Layer } from "@flemo/react";
 
+import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
+
 export interface CompositionCommandLayerProps {
   onClose: () => void;
 }
 
 function CompositionCommandLayer({ onClose }: CompositionCommandLayerProps) {
+  const isKo = useShellLang() === "ko";
   return (
     <Layer>
       <div
@@ -24,31 +27,32 @@ function CompositionCommandLayer({ onClose }: CompositionCommandLayerProps) {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[10px] font-extrabold tracking-[0.16em] text-indigo-500 uppercase">
-                Nested screen, outer layer
+                {isKo ? "앱 위의 패널" : "Panel above the app"}
               </p>
               <h3 id="composition-layer-title" className="mt-1 text-xl font-black">
-                Quick actions
+                {isKo ? "빠른 작업" : "Quick actions"}
               </h3>
             </div>
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close command layer"
+              aria-label={isKo ? "패널 닫기" : "Close command layer"}
               className="grid size-9 cursor-pointer place-items-center rounded-full bg-slate-100 text-lg text-slate-600 dark:bg-slate-800 dark:text-slate-200"
             >
               ×
             </button>
           </div>
           <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-            This dialog was opened by the inner memory Router. Layer moves its paint into the outer
-            screen host, so the dim covers the shared header too.
+            {isKo
+              ? "안쪽 화면에서 열었지만 앱 전체 위에 나타납니다. 뒤의 헤더까지 함께 어두워지는지 보세요."
+              : "Opened from the inner screen, this panel covers the entire app, including its header."}
           </p>
           <div className="mt-5 grid grid-cols-2 gap-2 text-xs font-bold">
             <span className="rounded-2xl bg-indigo-50 p-3 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-200">
-              Inner state kept
+              {isKo ? "안쪽 화면 유지" : "Inner state kept"}
             </span>
             <span className="rounded-2xl bg-emerald-50 p-3 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200">
-              Outer chrome covered
+              {isKo ? "앱 헤더 덮기" : "Outer chrome covered"}
             </span>
           </div>
         </section>

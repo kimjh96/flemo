@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 
 import { Part } from "@flemo/react";
 
+import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
+
 export interface CompositionHeaderProps {
   action: ReactNode;
   eyebrow: string;
@@ -9,6 +11,7 @@ export interface CompositionHeaderProps {
 }
 
 function CompositionHeader({ action, eyebrow, title }: CompositionHeaderProps) {
+  const isKo = useShellLang() === "ko";
   return (
     <header
       data-composition-header=""
@@ -32,7 +35,7 @@ function CompositionHeader({ action, eyebrow, title }: CompositionHeaderProps) {
         <h2 className="truncate text-[17px] leading-tight font-bold tracking-[-0.02em]">{title}</h2>
       </Part>
       <span className="justify-self-end rounded-full bg-indigo-500/10 px-2 py-1 text-[9px] font-extrabold tracking-[0.12em] text-indigo-500">
-        ROOT
+        {isKo ? "앱" : "APP"}
       </span>
     </header>
   );
