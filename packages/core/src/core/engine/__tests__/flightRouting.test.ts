@@ -6,6 +6,7 @@ import type { Transition } from "@transition/typing";
 
 import { resolveFlightRouting } from "@core/engine/flightRouting";
 import { reportDisplayIntervalMs, resetDisplayCadenceForTests } from "@platform/displayCadence";
+import { reportReleaseLatencyMs, resetReleaseLatencyForTests } from "@platform/releaseLatency";
 
 // HOW ONE FLIGHT IS FLOWN. The platform profile answers "what browser is
 // this"; this answers "so what does THIS navigation get" — which opening
@@ -63,6 +64,7 @@ const route = (
   });
 
 afterEach(() => {
+  resetReleaseLatencyForTests();
   delete NAV.userAgentData;
   delete (navigator as unknown as Record<string, unknown>).maxTouchPoints;
   delete (navigator as unknown as Record<string, unknown>).platform;
@@ -161,6 +163,54 @@ describe("desktopHead", () => {
     expect(routing.birthHoldMs).toBeGreaterThan(0);
   });
 
+  it("covers a desktop Blink session too, which reaches glass no sooner", () => {
+    // It was left out on the reading that the latency belonged to WebKit's
+    // main-thread presentation. Traced on a 120Hz desktop Chrome, the
+    // tap-to-first-painted-frame of a push ran 28.5ms against an 8.3ms frame,
+    // and with no head that lands on the animation's opening.
+    setEnv({ blink: true, touch: false });
+    const routing = route();
+    expect(routing.desktopHead).toBe(true);
+    expect(routing.governedHead).toBe(false);
+    expect(routing.birthHoldMs).toBeGreaterThan(0);
+  });
+
+  it("drops the head on a desktop Blink session whose opening is already a frame", () => {
+    // A head is a cover for a latency, and a cover for a latency that is not
+    // there is dead time: the screen held still after it could already have
+    // moved. An app whose screens are already mounted reaches glass in a frame.
+    setEnv({ blink: true, touch: false });
+    reportReleaseLatencyMs("PUSHING", 4);
+    const routing = route({ status: "PUSHING" });
+    expect(routing.desktopHead).toBe(false);
+    expect(routing.birthHoldMs).toBe(0);
+  });
+
+  it("keeps the head for the status that is still slow", () => {
+    // The number is per status, because a push mounts a screen and a pop
+    // reveals one that is already there.
+    setEnv({ blink: true, touch: false });
+    reportReleaseLatencyMs("PUSHING", 4);
+    reportReleaseLatencyMs("POPPING", 30);
+    expect(route({ status: "PUSHING" }).desktopHead).toBe(false);
+    expect(route({ status: "POPPING" }).desktopHead).toBe(true);
+  });
+
+  it("keeps desktop Safari's head whatever the app measures", () => {
+    // WebKit's latency is a property of how it presents, which no amount of
+    // the app being fast removes.
+    setEnv({ blink: false, touch: false, mac: true });
+    reportReleaseLatencyMs("PUSHING", 1);
+    expect(route({ status: "PUSHING" }).desktopHead).toBe(true);
+  });
+
+  it("leaves a TOUCH Blink session to the governed tier", () => {
+    // A phone's head is sized for a governor-throttled pipeline, not a
+    // desktop's, and a session is one or the other.
+    setEnv({ blink: true, touch: true });
+    expect(route().desktopHead).toBe(false);
+  });
+
   it("yields to the governed head when both would apply", () => {
     // An iPad spoofing a Mac platform reports touch, so it takes the TOUCH
     // kit — the desktop head's lengths are sized for a different pipeline.
@@ -200,6 +250,30 @@ describe("framePacingKeepalive", () => {
   });
 });
 
+describe("landingClearFrames", () => {
+  it("is one frame on Blink, which draws the last motion frame from the compositor", () => {
+    setEnv({ blink: true, touch: false });
+    expect(route().landingClearFrames).toBe(1);
+    setEnv({ blink: true, touch: true });
+    expect(route().landingClearFrames).toBe(1);
+  });
+
+  it("keeps WebKit's four, which presents from the main thread behind its commit", () => {
+    setEnv({ blink: false, touch: false, mac: true });
+    expect(route().landingClearFrames).toBe(4);
+    setEnv({ blink: false, touch: true });
+    expect(route().landingClearFrames).toBe(4);
+  });
+
+  it("does not vary with the status or the flight", () => {
+    setEnv({ blink: true, touch: false });
+    for (const status of ["PUSHING", "POPPING", "REPLACING"]) {
+      expect(route({ status }).landingClearFrames).toBe(1);
+    }
+    expect(route({ hasAnimation: false }).landingClearFrames).toBe(1);
+  });
+});
+
 describe("the routing as a whole", () => {
   it("takes the mobile-safe defaults with no navigator at all (SSR)", () => {
     const saved = globalThis.navigator;
@@ -215,7 +289,8 @@ describe("the routing as a whole", () => {
         birthHoldMs: 0,
         governedSlide: false,
         framePacingKeepalive: false,
-        creepHead: false
+        creepHead: false,
+        landingClearFrames: 4
       });
     } finally {
       Object.defineProperty(globalThis, "navigator", { value: saved, configurable: true });

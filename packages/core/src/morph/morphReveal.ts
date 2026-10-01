@@ -21,6 +21,8 @@
 // table costs a layout per frame, which is the path every other flight takes;
 // it can never cost a wrong picture.
 
+import { shadowCarries } from "@morph/morphShadow";
+
 /** The part of a computed style this reads. */
 export type RevealStyle = Pick<CSSStyleDeclaration, "length" | "item" | "getPropertyValue">;
 
@@ -67,28 +69,6 @@ const layers = (value: string): string[] => {
   out.push(value.slice(from));
   return out;
 };
-
-/**
- * Whether one computed shadow layer paints anything. Tailwind composes every
- * shadow with four empty ring layers (`rgba(0, 0, 0, 0) 0px 0px 0px 0px`), so a
- * box with no shadow still computes to a list that is not `none`.
- */
-const layerPaints = (layer: string): boolean => {
-  const text = layer.trim();
-  if (text === "" || text === "none" || /\btransparent\b/.test(text)) return false;
-  const colour = /[a-z-]+\(([^()]*)\)/.exec(text);
-  if (colour) {
-    const channels = colour[1]!;
-    const slash = channels.split("/");
-    const commas = channels.split(",");
-    const alpha = slash.length > 1 ? slash[1] : commas.length === 4 ? commas[3] : undefined;
-    if (alpha !== undefined && Number.parseFloat(alpha) === 0) return false;
-  }
-  const lengths = text.replace(/[a-z-]+\([^()]*\)/g, "").match(/-?\d*\.?\d+px/g) ?? [];
-  return lengths.some((length) => Number.parseFloat(length) !== 0);
-};
-
-const shadowless = (value: string): boolean => !layers(value).some(layerPaints);
 
 const RULES = new Map<string, Rule>();
 const rule = (value: Rule, properties: readonly string[]): void => {
@@ -496,7 +476,6 @@ rule(SAFE, [
 // - A transform, a path or a perspective turns about an origin the box
 //   resolves, and the revealed box is the wrong size to resolve it.
 rule(none, [
-  "background-image",
   "border-image-source",
   "mask-image",
   "-webkit-mask-image",
@@ -521,8 +500,65 @@ rule(none, [
   // The resizer is drawn in the box's corner.
   "resize"
 ]);
-// A shadow paints outside the border box, and the clip removes everything there.
-rule(shadowless, ["box-shadow"]);
+// CARRIED RATHER THAN REFUSED.
+//
+// A background image and a shadow both paint against the box, and a reveal's
+// box is the larger end, so both were refused outright. Both were also the
+// commonest reason a card in the wild never got a reveal and paid a layout and
+// a fresh raster of its whole subtree on every frame of every flight. Measured
+// on the composition bench: the box's top edge rides a transform and moves in
+// fractions of a pixel, while its height rides LAYOUT and a laid-out border box
+// is painted on whole device pixels, so the bottom edge jumped half a pixel and
+// then held for up to four frames while the top edge glided. Fifteen of the
+// flight's forty-four frames painted the card at exactly the height of the one
+// before. That ratchet against a gliding top edge is what a reader reports as a
+// rattle, and a reveal is what removes it, because a clip IS painted between
+// device pixels (measured: 179 of 179 steps on the grid when the height
+// animates, 1 of 179 when a clip does).
+//
+// So the engine carries them instead:
+//
+// - The IMAGE is drawn to the box the flight is at, not the box it is laid out
+//   at, by animating `background-size` alongside the clip and pinning
+//   `background-position` to the corner the reveal is anchored on. It is a
+//   paint, so it costs no layout, and at every size it is the same picture the
+//   box would have painted itself (see `revealBackground` in morphKeyframes).
+// - The SHADOW moves onto a carrier around the flying element, which casts the
+//   shadow of whatever silhouette the clip leaves (see `wearShadow`). A filter
+//   ON the element cannot: filters are applied BEFORE the clip, so the clip
+//   takes the shadow with it. Device-measured, all three ways.
+//
+// Each is allowed only where the carry is exact, which is what the two guards
+// below decide.
+rule(SAFE, ["background-image", "box-shadow"]);
+
+/**
+ * Whether the engine's `background-size` carry draws what this box would.
+ *
+ * It takes over `background-size` and `background-position`, so an author who
+ * set either of those is asking for something the carry would overwrite, and
+ * one that is not a single layer painted from the padding box against a
+ * scrolling viewport is not the picture the carry draws.
+ */
+const carriesImage = (read: (property: string) => string): boolean => {
+  const image = read("background-image");
+  if (none(image)) return true;
+  if (layers(image).length > 1) return false;
+  // An engine that does not report a longhand leaves it empty, which is the
+  // initial value by another name and is exactly what the carry wants.
+  const at = (property: string, allowed: readonly string[]): boolean => {
+    const value = read(property).trim();
+    return value === "" || allowed.includes(value);
+  };
+  return (
+    at("background-attachment", ["scroll"]) &&
+    at("background-origin", ["padding-box"]) &&
+    at("background-clip", ["border-box"]) &&
+    at("background-size", ["auto", "auto auto"]) &&
+    at("background-position", ["0% 0%", "0px 0px", "left top", "0% 0% / auto"])
+  );
+};
+
 // A border and a rule paint along the edge the clip moves.
 rule(zero, ["border-width", ...sided((side) => `border-${side}-width`)]);
 rule((value) => value === "none" || value === "hidden", ["column-rule-style", "row-rule-style"]);
@@ -621,6 +657,14 @@ const proven = (
   const [overflowX = "", overflowY = overflowX] = read("overflow").trim().split(/\s+/);
   if (!clipsOverflow(read("overflow-x")) && !clipsOverflow(overflowX)) return false;
   if (!clipsOverflow(read("overflow-y")) && !clipsOverflow(overflowY)) return false;
+
+  // The two properties the engine CARRIES rather than refuses, each allowed
+  // only where the carry draws what the box would have drawn itself.
+  if (!carriesImage(read)) return false;
+  if (!shadowCarries(read("box-shadow"))) return false;
+  // The departure's own shadow is animated ON THE FLYING ELEMENT by the paint
+  // channel, so an inset one there reaches the wrong rectangle too.
+  if (!shadowCarries(departure["box-shadow"] ?? "")) return false;
 
   // The view is the caller's: it has already refused a style it cannot read,
   // and an element cannot have a computed style without one.

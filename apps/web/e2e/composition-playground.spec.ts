@@ -200,6 +200,11 @@ test.describe("composition playground", () => {
       ).length;
 
       return {
+        // A session that wears the desktop flat head plays every participant
+        // behind it, so the compiled duration is the authored one plus the
+        // head. Read here rather than assumed: whether the head is worn is
+        // measured per session (see flightRouting's resolveHeadKit).
+        deskHead: document.documentElement.hasAttribute("data-flemo-desk-head"),
         ghostHidesTitle,
         parts,
         visibleTitleCount,
@@ -217,13 +222,15 @@ test.describe("composition playground", () => {
       };
     });
 
+    // 0.7s is the screen's clock; a worn PUSHING head is 33ms in front of it.
+    const partDuration = pushFrame.deskHead ? "0.733s" : "0.7s";
     for (const name of ["composition-header-title", "composition-header-action"]) {
       const arriving = pushFrame.parts.find((part) => part.name === name && part.active === "true");
       const departing = pushFrame.parts.find(
         (part) => part.name === name && part.active === "false"
       );
-      expect(arriving).toMatchObject({ duration: "0.7s", status: "PUSHING" });
-      expect(departing).toMatchObject({ duration: "0.7s", status: "PUSHING" });
+      expect(arriving).toMatchObject({ duration: partDuration, status: "PUSHING" });
+      expect(departing).toMatchObject({ duration: partDuration, status: "PUSHING" });
       expect(arriving?.animation).toContain(`flemo-part-${name}-PUSHING-true`);
       expect(departing?.animation).toContain(`flemo-part-${name}-PUSHING-false`);
       expect(arriving?.opacity).toBeGreaterThan(0);

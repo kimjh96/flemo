@@ -17,8 +17,12 @@ const animation = (target: Element, name: string, time: number | null): FakeAnim
   effect: { target }
 });
 
+// The whole document is asked once and the answer shared, so the stub belongs
+// on the document (see staging's note on what asking costs).
 function stubAnimations(root: Element, animations: () => FakeAnimation[]): void {
   (root as unknown as { getAnimations: () => unknown[] }).getAnimations = () => animations();
+  (root.ownerDocument as unknown as { getAnimations: () => unknown[] }).getAnimations = () =>
+    animations();
 }
 
 describe("preserveAnimations", () => {

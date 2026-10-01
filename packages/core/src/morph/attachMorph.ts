@@ -16,6 +16,7 @@ import {
   MORPH_ATTR,
   MORPH_CAMERA_ATTR,
   MORPH_LAYER_ATTR,
+  MORPH_SHADE_ATTR,
   MORPH_GHOST_ATTR,
   MORPH_ID_ATTR,
   MORPH_NAME_ATTR,
@@ -32,6 +33,14 @@ import {
 import mirrorHold from "@dom/holdMirror";
 
 import { intoLayerSpace, preserveAnimations } from "@dom/staging";
+
+/**
+ * One computed property, from a style an engine may not have given every part
+ * of. A stub in a test, and a real style in a document that has not laid the
+ * element out, can both answer without `getPropertyValue`.
+ */
+const reads = (style: CSSStyleDeclaration | null, property: string): string =>
+  style && typeof style.getPropertyValue === "function" ? style.getPropertyValue(property) : "";
 
 import { clipTravel, visibleInset } from "@morph/morphClip";
 import { contentsHoldAcrossBox } from "@morph/morphContents";
@@ -60,6 +69,7 @@ import { paintTravel } from "@morph/morphPaint";
 
 import { BOX_WIDTH_PROPERTY, IDENTITY_POSE, resolvePose } from "@morph/morphPose";
 import { revealHolds } from "@morph/morphReveal";
+import { shadowPaints } from "@morph/morphShadow";
 
 import { ensurePinnedPoses, insertMorphRules } from "@morph/morphSheet";
 import { headSeconds, resolveMorphSide } from "@morph/morphSide";
@@ -696,8 +706,31 @@ const startFlight = (
   //
   // On one clock the gap is `(start − end)(1 − curve)`: two fixed ends scaled
   // by one curve, so it closes without ever changing sign.
-  const ease =
-    side.screenMoves && side.screenEase
+  //
+  // AND A NESTED END OWNS NO CURVE AT ALL, for the same argument one level
+  // down. It is not travelling to a place on a moving screen; it is moving
+  // INSIDE a box whose size is being interpolated by its carrier. Give it a
+  // curve of its own and the box collapses on one shape while the thing inside
+  // it walks on another, so the child leaves the box it is supposed to be in.
+  //
+  // Read off the composition bench's pop, where the card takes the screen's
+  // cupertino curve and its paired title took the `text` preset's own:
+  //
+  //   card  0.7s cubic-bezier(0.32, 0.72, 0, 1)
+  //   title 0.7s cubic-bezier(0.4, 0, 0.2, 1)
+  //
+  // At 261ms the card's height was 77% of the way from 196px to 104px and the
+  // title's size was 22% of the way from 30px to 20px, so the title's baseline
+  // stood 30px BELOW the bottom of the card carrying it — clipped in half by a
+  // revealed box, and spilling onto the page under a laid-out one. It held for
+  // about 250ms in the middle of every pop, which is most of the flight.
+  //
+  // An author who wants a different shape for the child is asking for the two
+  // to disagree, and there is no amount of the flight where that reads as one
+  // object moving.
+  const ease = carrying
+    ? carrying.ease
+    : side.screenMoves && side.screenEase
       ? side.screenEase
       : (enterMotion.options.ease ?? side.screenEase);
   const head = carrying ? carrying.head : headSeconds(status);
@@ -895,6 +928,23 @@ const startFlight = (
     // that corner, and a child that never moved reads as having travelled the
     // whole growth if it is measured from any other one.
     contentsHold,
+    // The reveal draws the image to the size the flight is at rather than the
+    // size the box is laid out at; `morphReveal` has already refused an image
+    // the carry cannot draw, so asking whether there IS one is the whole test.
+    paintsImage: !["", "none"].includes(reads(own, "background-image")),
+    // The reveal's clip eats a shadow, so a revealed box hands it to a carrier
+    // around the element. Both ends are converted here, because the carrier
+    // travels the same two shadows the box would have worn itself.
+    // The card's own values, unchanged: the carrier is a box, so it wears the
+    // shadow rather than approximating it as a filter.
+    shadow:
+      shadowPaints(captured.snapshot.paint["box-shadow"] ?? "") ||
+      shadowPaints(reads(own, "box-shadow"))
+        ? {
+            from: captured.snapshot.paint["box-shadow"] || "none",
+            to: reads(own, "box-shadow") || "none"
+          }
+        : null,
     clip: edgeClip,
     // The corner the arrival wears, so a reveal cuts the same shape the box has.
     // It travels with the box's own corner where that corner travels.
@@ -1392,6 +1442,31 @@ const startFlight = (
   // What the staging had to carry is what the landing will have to carry, so
   // the landing does not ask again (see preserveAnimations).
   const carried = preserveAnimations(entry.element, () => layer.appendChild(entry.element));
+  // THE SHADOW CARRIER.
+  //
+  // A revealed box is cut back with a clip, and a clip takes everything painted
+  // outside the border box with it, so the box's own shadow is not drawn at all
+  // — and a filter ON the element is applied BEFORE the clip, so that is eaten
+  // too. A filter on a carrier AROUND it is not: it casts the shadow of the
+  // silhouette the clip leaves, which is the visible box at every size on the
+  // way (see morphShadow, where all three were device-measured).
+  //
+  // A SIBLING UNDERNEATH, not a wrapper around. A wrapper would have to carry a
+  // filter to cast anything, and a filter is a containing block, a stacking
+  // context and a Gaussian blur of the whole card on every frame. An empty box
+  // in front of the element in the layer paints under it, wears the card's own
+  // `box-shadow` at the card's own size, and changes nothing about how the
+  // element itself is placed.
+  const shade = arriving.revealed ? arriving.shade : null;
+  let carrier: HTMLElement | null = null;
+  if (shade) {
+    carrier = entry.element.ownerDocument.createElement("div");
+    carrier.setAttribute(MORPH_SHADE_ATTR, "");
+    carrier.style.position = "absolute";
+    carrier.style.pointerEvents = "none";
+    carrier.style.animation = shade;
+    layer.insertBefore(carrier, entry.element);
+  }
   for (const [property, value] of inherited) entry.element.style[property] = value;
   entry.element.style.position = "absolute";
   // Laid out where it LANDS, and carried back to where it started by the
@@ -1700,6 +1775,8 @@ const startFlight = (
       else standIn.replaceWith(entry.element);
     } else entry.element.remove();
     standIn.remove();
+    // The carrier only ever held the flying element, which has just gone home.
+    carrier?.remove();
     entry.element.setAttribute(MORPH_ATTR, "");
 
     ghost?.remove();

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { contentsHoldAcrossBox, type MorphAnchor } from "@morph/morphContents";
 
@@ -59,6 +59,60 @@ describe("contentsHoldAcrossBox", () => {
     expect(
       contentsHoldAcrossBox(box, { width: 98, height: 40 }, { width: 139, height: 40 }, RIGHT)
     ).toBe(false);
+  });
+
+  it("remembers the answer across the MOUNTS a navigation makes", () => {
+    // The arrival is mounted for the navigation, so every push used to hand a
+    // WeakMap keyed on the element a node it had never seen, and the probe ran
+    // every time. Measured on a bench at 120Hz, that was 7ms of the opening of
+    // every push, for an answer already known.
+    const markup = `<span data-from-right="10"></span>`;
+    const first = mount(markup);
+    contentsHoldAcrossBox(first, { width: 98, height: 40 }, { width: 139, height: 40 }, RIGHT);
+    first.remove();
+
+    const again = mount(markup);
+    const copies = vi.spyOn(again, "cloneNode");
+    contentsHoldAcrossBox(again, { width: 98, height: 40 }, { width: 139, height: 40 }, RIGHT);
+
+    expect(copies).not.toHaveBeenCalled();
+  });
+
+  it("asks again for a subtree that is not the same subtree", () => {
+    // The key is what the answer depends on, so anything that could move a
+    // child asks again: a class, an inline style, an attribute, the words.
+    const base = { from: { width: 98, height: 40 }, to: { width: 139, height: 40 } };
+    const first = mount(`<span data-from-right="10" class="a"></span>`);
+    contentsHoldAcrossBox(first, base.from, base.to, RIGHT);
+    first.remove();
+
+    for (const markup of [
+      `<span data-from-right="10" class="b"></span>`,
+      `<span data-from-right="10" class="a" style="margin:2px"></span>`,
+      `<span data-from-right="10" class="a">words</span>`
+    ]) {
+      const next = mount(markup);
+      const copies = vi.spyOn(next, "cloneNode");
+      contentsHoldAcrossBox(next, base.from, base.to, RIGHT);
+      expect(copies, markup).toHaveBeenCalled();
+      next.remove();
+    }
+  });
+
+  it("asks again when the CONTEXT that styles the subtree changes", () => {
+    // A theme class on an ancestor can move a child without changing a byte of
+    // the subtree, and a remembered answer would then draw a picture the page
+    // does not. That is the one thing this rule is not allowed to do.
+    const base = { from: { width: 98, height: 40 }, to: { width: 139, height: 40 } };
+    const first = mount(`<span data-from-right="10"></span>`);
+    contentsHoldAcrossBox(first, base.from, base.to, RIGHT);
+
+    document.documentElement.classList.add("dark");
+    const copies = vi.spyOn(first, "cloneNode");
+    contentsHoldAcrossBox(first, base.from, base.to, RIGHT);
+    document.documentElement.classList.remove("dark");
+
+    expect(copies).toHaveBeenCalled();
   });
 
   it("measures on a copy and leaves the page as it found it", () => {

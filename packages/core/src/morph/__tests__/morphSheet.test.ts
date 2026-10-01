@@ -12,7 +12,10 @@ import { declaredMorphKeyframes, ensurePinnedPoses, insertMorphRules } from "@mo
 // when it lands — and what has to hold is that a flight drops EXACTLY its own
 // rules, since two flights legitimately share the sheet.
 
-const sheetTag = () => document.head.querySelector<HTMLStyleElement>(`style[${MORPH_SHEET_ATTR}]`);
+const sheetTag = () =>
+  document.head.querySelector<HTMLStyleElement>(`style[${MORPH_SHEET_ATTR}=""]`);
+const propertiesTag = () =>
+  document.head.querySelector<HTMLStyleElement>(`style[${MORPH_SHEET_ATTR}="properties"]`);
 
 const ruleTexts = () => {
   const rules = sheetTag()?.sheet?.cssRules;
@@ -21,7 +24,7 @@ const ruleTexts = () => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  sheetTag()?.remove();
+  document.head.querySelectorAll(`style[${MORPH_SHEET_ATTR}]`).forEach((tag) => tag.remove());
 });
 
 describe("insertMorphRules", () => {
@@ -102,6 +105,33 @@ describe("ensurePinnedPoses", () => {
 
     expect(insertRule.mock.calls.length).toBe(after);
     insertRule.mockRestore();
+  });
+
+  it("keeps them out of the sheet every flight writes to", () => {
+    // Blink re-reads a sheet whole when a rule in it changes, and a re-read
+    // sheet carrying `@property` restyles the entire document. Sharing the
+    // flights' sheet made every insertion and every landing do exactly that.
+    const writes: { sheet: CSSStyleSheet; rule: string }[] = [];
+    const insertRule = CSSStyleSheet.prototype.insertRule;
+    const spy = vi.spyOn(CSSStyleSheet.prototype, "insertRule").mockImplementation(function (
+      this: CSSStyleSheet,
+      rule: string,
+      index?: number
+    ) {
+      writes.push({ sheet: this, rule });
+      return rule.startsWith("@property") ? 0 : insertRule.call(this, rule, index);
+    });
+
+    ensurePinnedPoses();
+    insertMorphRules(["@keyframes flemo-morph-p { from { opacity: 0 } }"])();
+
+    const registrations = writes.filter(({ rule }) => rule.startsWith("@property"));
+    const flights = writes.filter(({ rule }) => rule.startsWith("@keyframes"));
+    expect(registrations.length).toBeGreaterThan(0);
+    expect(registrations.every(({ sheet }) => sheet === propertiesTag()?.sheet)).toBe(true);
+    expect(flights.every(({ sheet }) => sheet === sheetTag()?.sheet)).toBe(true);
+    expect(propertiesTag()).not.toBe(sheetTag());
+    spy.mockRestore();
   });
 
   it("reports a browser that will not take them, so every pose stays literal", () => {

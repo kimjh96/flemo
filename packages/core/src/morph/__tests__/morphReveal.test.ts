@@ -79,11 +79,19 @@ describe("revealHolds", () => {
   });
 
   it.each([
-    ["a shadow", "box-shadow", `${RINGS}, rgba(139, 92, 246, 0.2) 0px 20px 25px -5px`],
+    [
+      "an inset shadow, which no carrier outside the box can put right",
+      "box-shadow",
+      `${RINGS}, rgba(139, 92, 246, 0.2) 0px 20px 25px -5px inset`
+    ],
     ["a border on the cut edge", "border-bottom-width", "1px"],
     ["a border by its logical name", "border-inline-start-width", "1px"],
     ["an outline or focus ring", "outline-style", "auto"],
-    ["a gradient", "background-image", "linear-gradient(rgb(0, 0, 0), rgb(255, 255, 255))"],
+    [
+      "two background layers, which one carried size cannot draw",
+      "background-image",
+      "linear-gradient(rgb(0, 0, 0), rgb(255, 255, 255)), url(a.png)"
+    ],
     ["a mask", "mask-image", "linear-gradient(black, transparent)"],
     ["a prefixed mask", "-webkit-mask-image", "url(a.png)"],
     ["a border image", "border-image-source", "url(a.png)"],
@@ -136,7 +144,11 @@ describe("revealHolds", () => {
         color: "rgb(255, 255, 255)"
       })
     ).toBe(true);
-    expect(departs({ "box-shadow": "rgba(0, 0, 0, 0.2) 0px 4px 12px 0px" })).toBe(false);
+    // A shadow is carried now, so it is the departure's INSET one that refuses:
+    // the paint channel animates it on the flying element, where the revealed
+    // border box is the larger end and no carrier reaches inside it.
+    expect(departs({ "box-shadow": "rgba(0, 0, 0, 0.2) 0px 4px 12px 0px" })).toBe(true);
+    expect(departs({ "box-shadow": "rgba(0, 0, 0, 0.2) 0px 4px 12px 0px inset" })).toBe(false);
     expect(departs({ "border-width": "2px 0px 0px 0px" })).toBe(false);
     expect(departs({ filter: "blur(4px)" })).toBe(false);
     expect(departs({ "border-radius": "50%" })).toBe(false);
@@ -193,10 +205,19 @@ describe("revealHolds", () => {
         true
       );
     }
-    // And one that does paint still refuses, so the readings above are not
-    // simply everything being waved through.
+    // One that does paint is CARRIED, not refused: it goes on a carrier around
+    // the element, which the clip does not reach.
     expect(
       revealHolds(mount(), styleOf({ ...PLAIN, "box-shadow": "rgb(0 0 0 / 0.4) 0px 4px 8px" }), {})
+    ).toBe(true);
+    // An inset one is still refused, because it paints against the revealed
+    // border box and that is the larger end.
+    expect(
+      revealHolds(
+        mount(),
+        styleOf({ ...PLAIN, "box-shadow": "rgb(0 0 0 / 0.4) 0px 4px 8px inset" }),
+        {}
+      )
     ).toBe(false);
   });
 
@@ -242,11 +263,46 @@ describe("revealHolds", () => {
     expect(revealHolds(box, styleOf(PLAIN), {})).toBe(false);
   });
 
+  it("refuses an image the carry would have to overwrite", () => {
+    // The carry writes `background-size` and `background-position` itself, so an
+    // author who set either is asking for something it would take away. Neither
+    // matters on its own: with no image there is nothing to draw.
+    const image = "linear-gradient(rgb(0, 0, 0), rgb(255, 255, 255))";
+    expect(revealHolds(mount(), styleOf({ ...PLAIN, "background-image": image }), {})).toBe(true);
+    expect(
+      revealHolds(
+        mount(),
+        styleOf({ ...PLAIN, "background-image": image, "background-size": "120px 60px" }),
+        {}
+      )
+    ).toBe(false);
+    expect(
+      revealHolds(
+        mount(),
+        styleOf({ ...PLAIN, "background-image": image, "background-position": "12px 4px" }),
+        {}
+      )
+    ).toBe(false);
+    expect(
+      revealHolds(
+        mount(),
+        styleOf({ ...PLAIN, "background-image": image, "background-attachment": "fixed" }),
+        {}
+      )
+    ).toBe(false);
+    // A size or a position with no image to draw is nothing to carry.
+    expect(revealHolds(mount(), styleOf({ ...PLAIN, "background-size": "120px 60px" }), {})).toBe(
+      true
+    );
+  });
+
   it("reads a shadow written with no colour at all", () => {
     // An engine may report the colour as the page's own `color`, leaving the
     // layer as lengths alone. Lengths are what decide whether it paints.
     expect(revealHolds(mount(), styleOf({ ...PLAIN, "box-shadow": "0px 0px 0px" }), {})).toBe(true);
-    expect(revealHolds(mount(), styleOf({ ...PLAIN, "box-shadow": "0px 4px 8px" }), {})).toBe(
+    // Lengths alone still say it paints; painting is now a reason to CARRY it.
+    expect(revealHolds(mount(), styleOf({ ...PLAIN, "box-shadow": "0px 4px 8px" }), {})).toBe(true);
+    expect(revealHolds(mount(), styleOf({ ...PLAIN, "box-shadow": "0px 4px 8px inset" }), {})).toBe(
       false
     );
   });

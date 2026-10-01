@@ -50,6 +50,24 @@ export const expectAnimationCancel = (element: HTMLElement): void => {
   expectedCancels.add(element);
 };
 
+// Whether the element is running another animation of this flight than the one
+// the event cancelled. The cancelled animation is already idle when the event
+// is dispatched, so any live one of the flight's name is its successor.
+const hasFlightSuccessor = (element: HTMLElement, expectedName: string): boolean => {
+  if (typeof element.getAnimations !== "function") return false;
+  return element
+    .getAnimations()
+    .some(
+      (animation) =>
+        animation.playState !== "idle" &&
+        animation.playState !== "finished" &&
+        matchesFlightAnimationName(
+          (animation as { animationName?: string }).animationName ?? "",
+          expectedName
+        )
+    );
+};
+
 export interface CancelResumeConfig {
   element: HTMLElement;
   // The compiled animation name this element runs; cancels of any other name
@@ -129,6 +147,24 @@ export const wireCancelResume = (config: CancelResumeConfig) => {
       expectedCancels.delete(element);
       return;
     }
+    // A CANCEL WITH A SUCCESSOR IS A SWAP, NOT A LOSS.
+    //
+    // The recovery exists for an element left with NO flight animation. When
+    // the cancelled one has already been replaced by another of the same
+    // flight (the rule matching it changed: a head tier's suffixed keyframes
+    // swapped for the bare ones, or the restart below), the element is still
+    // flying and there is nothing to put back.
+    //
+    // The restart below is itself such a swap, and the browser does not tell
+    // us so in time: dropping the animation cancels the running one inside the
+    // synchronous reflow, but Blink dispatches that `animationcancel` on the
+    // NEXT frame, after `midRestart` has long been cleared. Read as a fresh
+    // loss, it restarted again, which cancelled the animation it had just
+    // made, one frame at a time, until the budget ran out and the flight was
+    // resolved as dead. Traced on desktop Chrome: a pop's head swap at the
+    // release became five cancels on five consecutive frames and a COMPLETED
+    // flip 80ms into a 700ms flight.
+    if (hasFlightSuccessor(element, expectedName)) return;
     if (!config.isLive() || config.budgetUsed() >= RESUME_BUDGET) {
       config.onTerminal();
       return;

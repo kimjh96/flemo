@@ -251,6 +251,7 @@ is not a consumer value; the landed scope belongs to the compiled rest rules.**
 | `engineProbes.ts`       | Pure `navigator` reads (Blink, legacy Android Blink, desktop macOS WebKit, desktop Blink). Its header records the retired driver policy. |
 | `governedCompiled.ts`   | Whether this session takes the governed compiled treatment (touch WebKit).                                                               |
 | `displayCadence.ts`     | The session's learned frame interval, fed by the in-flight probe.                                                                        |
+| `releaseLatency.ts`     | The session's learned release-to-first-frame, per status, which decides whether a flat head has a latency to cover.                      |
 | `displayProbe.ts`       | That probe, plus the frame-pacing keepalive — rAF run during flights, once to measure and once merely to exist.                          |
 | `steadySixtyCadence.ts` | The steady-60 desktop verdict, derived from the same samples. Selects defaults, never a driver.                                          |
 

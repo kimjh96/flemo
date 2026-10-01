@@ -332,6 +332,9 @@ export function scheduleAnimHoldReadiness(
     const elapsed = () => (typeof performance !== "undefined" ? performance.now() : 0) - startedAt;
     /* v8 ignore stop */
     let quietFrames: number[] = [];
+    // The frame-gap watcher's handle, declared up here with the rest because
+    // `finish` has to be able to cancel whatever exists (see below).
+    let watching = 0;
     let seen = false;
     let finished = false;
     // Declared up here because the observer now runs BEFORE they are armed: a
@@ -356,6 +359,8 @@ export function scheduleAnimHoldReadiness(
       clearTimeout(graceTimer);
       clearTimeout(firstTimer);
       clearTimeout(capTimer);
+      if (watching) cancelAnimationFrame(watching);
+      watching = 0;
       quietFrames.forEach((frame) => cancelAnimationFrame(frame));
       quietFrames = [];
       done();
@@ -416,6 +421,38 @@ export function scheduleAnimHoldReadiness(
     // there, inside the same budget the readiness gate always cost.
     const GIVEUP_FAST_FRAMES = 2;
     let givingUp = false;
+    // THE FRAMES THE WAIT ALREADY RODE.
+    //
+    // The guard's question is whether the thread is quiet AT THE RELEASE, and
+    // two consecutive fast frames answer it. It used to go and collect that
+    // answer only once the grace had expired, which serialised two waits that
+    // overlap perfectly: the grace is 60ms of frames going by, and if the last
+    // of them were fast then the thread is quiet now and there is nothing to
+    // collect. Measured on the playground's push, the serial form held the
+    // flight 117-134ms where the anchor and the grace alone account for ~94.
+    //
+    // So the gaps are watched from the anchor onwards and the guard reads the
+    // ones it already has. It is the same evidence, and it is about the same
+    // instant: these are the frames immediately before the release, not older
+    // ones. A wait that has not seen two fast frames yet still goes and waits
+    // for them, exactly as before.
+    let recentGaps: number[] = [];
+    let watchTs: number | null = null;
+    const watchFrames = () => {
+      if (finished) return;
+      watching = requestAnimationFrame((ts) => {
+        if (watchTs !== null) {
+          recentGaps.push(ts - watchTs);
+          if (recentGaps.length > GIVEUP_FAST_FRAMES) recentGaps.shift();
+        }
+        watchTs = ts;
+        watchFrames();
+      });
+    };
+    watchFrames();
+    const rodeFastFrames = () =>
+      recentGaps.length >= GIVEUP_FAST_FRAMES &&
+      recentGaps.every((gap) => gap <= RASTER_BLOCK_GAP_MS);
     const finishWhenFramesFast = () => {
       if (!settle.renderSettleOnly) {
         finish();
@@ -423,6 +460,31 @@ export function scheduleAnimHoldReadiness(
       }
       if (givingUp || finished) return;
       givingUp = true;
+      // ONE FRESH FRAME, not two, where the wait has already ridden fast ones.
+      //
+      // The pair is what proves the thread is quiet at the release. A frame
+      // that has already gone by proves half of it, but only half: it ended up
+      // to a frame ago, and a block starting in that gap is exactly what the
+      // baseline below exists to catch. So the evidence is completed rather
+      // than replaced — the frames the grace already rode, plus ONE observed
+      // now. The guarantee is the same and it costs a frame instead of two.
+      if (rodeFastFrames()) {
+        const since: number | null = typeof performance !== "undefined" ? performance.now() : null;
+        quietFrames.push(
+          requestAnimationFrame((ts) => {
+            if (finished) return;
+            if (since !== null && ts - since > RASTER_BLOCK_GAP_MS) {
+              // A block DID start in the gap. Fall back to the full pair.
+              givingUp = false;
+              recentGaps = [];
+              finishWhenFramesFast();
+              return;
+            }
+            finish();
+          })
+        );
+        return;
+      }
       // Baseline at the timer, not the first frame: with a null seed the
       // first rAF always reads "fast", so a block that starts right after
       // the give-up timer fires would slip past half the pair.

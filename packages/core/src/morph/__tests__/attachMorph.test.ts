@@ -576,6 +576,83 @@ describe("attachMorph", () => {
     expect(meta.style.whiteSpace).toBe("nowrap");
   });
 
+  it("gives a nested end its carrier's curve, not its own preset's", async () => {
+    // A nested end is not travelling to a place on a moving screen; it is
+    // moving INSIDE a box whose size its carrier is interpolating. Two curves
+    // there means the box collapses on one shape while the thing inside walks
+    // on another, and the child leaves the box it is supposed to be in.
+    // Read off the composition bench's pop: the card ran the screen's
+    // cupertino curve and its title the `text` preset's own, and at 261ms the
+    // card's height was 77% of the way while the title's size was 22% — the
+    // title's baseline stood 30px BELOW the bottom of the card carrying it,
+    // for about 250ms of every flight.
+    const preset = (name: string, ease: [number, number, number, number]) =>
+      morphTransitionMap.set(
+        name as never,
+        createMorphTransition({
+          name: name as never,
+          initial: {},
+          idle: { value: { opacity: 1 }, options: { duration: 0 } },
+          enter: { value: { opacity: 1 }, options: { ease } },
+          exit: { value: { opacity: 0 }, options: { ease } },
+          options: { radius: true }
+        })
+      );
+    preset("carrier-curve", [0.9, 0, 0.1, 1]);
+    preset("own-curve", [0.11, 0.22, 0.33, 0.44]);
+    try {
+      const gallery = makeScreen("layout", true);
+      const card = makeMorph(gallery, [20, 600, 160, 160]);
+      const label = makeMorph(card, [36, 620, 128, 20]);
+      label.textContent = "Morning brief";
+      label.style.fontSize = "11px";
+      attachMorph(card, {
+        layoutId: "curve-card",
+        name: "carrier-curve" as never,
+        navigateStore: store
+      });
+      attachMorph(label, {
+        layoutId: "curve-title",
+        name: "own-curve" as never,
+        navigateStore: store
+      });
+
+      flipTo("PUSHING");
+      gallery.setAttribute(ACTIVE_ATTR, "false");
+
+      const detail = makeScreen("layout", true);
+      const bigCard = makeMorph(detail, [0, 0, 400, 340]);
+      const heading = makeMorph(bigCard, [16, 16, 368, 40]);
+      heading.textContent = "Morning brief";
+      heading.style.fontSize = "30px";
+      // The container first, so the child finds a flight to ride: the binding
+      // renders the morph marker, so in a real tree the walk finds its
+      // container whatever order the effects run in.
+      attachMorph(bigCard, {
+        layoutId: "curve-card",
+        name: "carrier-curve" as never,
+        navigateStore: store
+      });
+      attachMorph(heading, {
+        layoutId: "curve-title",
+        name: "own-curve" as never,
+        navigateStore: store
+      });
+      await Promise.resolve();
+
+      // Whatever curve the carrier ends up on — the screen's, where the screen
+      // moves — the nested end is on that one and not the one its own preset
+      // asked for.
+      const curveOf = (animation: string) => /cubic-bezier\([^)]*\)/.exec(animation)?.[0];
+      expect(curveOf(bigCard.style.animation)).toBeDefined();
+      expect(curveOf(heading.style.animation)).toBe(curveOf(bigCard.style.animation));
+      expect(heading.style.animation).not.toContain("cubic-bezier(0.11, 0.22, 0.33, 0.44)");
+    } finally {
+      morphTransitionMap.delete("own-curve" as never);
+      morphTransitionMap.delete("carrier-curve" as never);
+    }
+  });
+
   it("adds no translate to a nested pair whose two ends already agree", async () => {
     // The correction exists for DISAGREEING local arrangements. A pair whose
     // element sits at the same offsets inside both cards needs nothing, and
@@ -1204,11 +1281,13 @@ describe("attachMorph", () => {
   // A REVEAL IS A CLIP, AND IT IS ALLOWED ONLY WHERE IT IS PROVEN HARMLESS.
   //
   // Where the arrival's contents land in the same places at both sizes, its box
-  // is laid out once at the larger end and cut back with clip-path. That drew
-  // the playground's featured card without its shadow for the whole flight and
-  // spread its gradient over the larger end, so both popped at the tap and at
-  // the landing. The first case is the control: it proves the contents hold and
-  // that a plain clipped box still reveals (see morphReveal for every rule).
+  // is laid out once at the larger end and cut back with clip-path. A shadow
+  // and a gradient used to refuse that outright, which cost every card in the
+  // wild a layout and a fresh raster of its whole subtree on every frame; both
+  // are now CARRIED instead, the image by an animated `background-size` and the
+  // shadow by a carrier around the element (see morphReveal and morphShadow).
+  // The first case is the control: it proves the contents hold and that a plain
+  // clipped box still reveals (see morphReveal for every rule).
   const revealFlight = (
     dress: (card: HTMLElement, end: "from" | "to") => void,
     boxes: { from: [number, number, number, number]; to: [number, number, number, number] } = {
@@ -1269,17 +1348,35 @@ describe("attachMorph", () => {
       false
     ],
     [
-      "lays a shadowed box out for real",
+      "reveals a shadowed box, because a carrier casts the shadow for it",
       (card: HTMLElement) => {
         card.style.boxShadow = "rgba(0, 0, 0, 0.2) 0px 20px 25px -5px";
+      },
+      true
+    ],
+    [
+      "lays an INSET shadow out for real, which no carrier outside the box can put right",
+      (card: HTMLElement) => {
+        card.style.boxShadow = "rgba(0, 0, 0, 0.2) 0px 20px 25px -5px inset";
       },
       false
     ],
     [
-      "lays a box with a background image out for real",
+      "reveals a box with a background image, drawn to the size the flight is at",
       (card: HTMLElement) => {
         card.style.backgroundImage =
           "linear-gradient(to right bottom, rgb(99, 102, 241), rgb(217, 70, 239))";
+      },
+      true
+    ],
+    [
+      "lays an image the carry would overwrite out for real",
+      (card: HTMLElement) => {
+        card.style.backgroundImage =
+          "linear-gradient(to right bottom, rgb(99, 102, 241), rgb(217, 70, 239))";
+        // The carry writes `background-size` itself, so an author who set it is
+        // asking for something it would take away from them.
+        card.style.backgroundSize = "120px 60px";
       },
       false
     ],
@@ -1334,6 +1431,37 @@ describe("attachMorph", () => {
     expect(travel).not.toContain("clip-path");
     expect(travel).toContain("--flemo-box-w: 220px");
     expect(travel).toContain("--flemo-box-w: 300px");
+  });
+
+  it("wraps a revealed box in a carrier that casts its shadow, and takes it away again", () => {
+    // The reveal's clip takes everything painted outside the border box with
+    // it, so the box's own shadow is never drawn and a filter ON the element is
+    // eaten the same way: filters are applied BEFORE the clip. A carrier around
+    // it is not, and casts the shadow of whatever silhouette the clip leaves.
+    layer.setAttribute(MORPH_LAYER_ATTR, "");
+    const travel = revealFlight((card) => {
+      card.style.boxShadow = "rgba(139, 92, 246, 0.2) 0px 20px 25px -5px";
+    });
+    expect(travel).toContain("clip-path");
+
+    const carrier = layer.querySelector("[data-flemo-morph-shade]") as HTMLElement | null;
+    expect(carrier).not.toBeNull();
+    expect(carrier!.style.position).toBe("absolute");
+    expect(carrier!.style.pointerEvents).toBe("none");
+    expect(carrier!.style.animation).toContain("-shade");
+    // IN FRONT OF the flying element in the layer, so it paints underneath it
+    // and changes nothing about how the element itself is placed.
+    expect(carrier!.nextElementSibling?.hasAttribute(MORPH_ATTR)).toBe(true);
+    expect(carrier!.children).toHaveLength(0);
+    // And the rule it animates is in the sheet the flight wrote.
+    expect(inserted.some((rule) => rule.includes("-shade"))).toBe(true);
+  });
+
+  it("wraps nothing around a box with no shadow to cast", () => {
+    layer.setAttribute(MORPH_LAYER_ATTR, "");
+    revealFlight(() => {});
+
+    expect(layer.querySelector("[data-flemo-morph-shade]")).toBeNull();
   });
 
   it("rounds a reveal's cut with the corner the box is travelling through", () => {
