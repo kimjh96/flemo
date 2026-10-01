@@ -63,11 +63,20 @@ export const PANEL_CSS = `
   cursor: ns-resize;
   touch-action: none;
 }
+/* The header shrinks and scrolls on its own past half the drawer. It holds a
+   chip per failed precondition, warning and override, and a session with a
+   handful of them used to fill the whole drawer and squeeze the flight list and
+   its detail to nothing, which read as a panel that would not scroll. */
 .head {
   display: flex;
+  flex: 0 1 auto;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  min-height: 0;
+  max-height: 50%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 8px 10px;
   border-bottom: 1px solid var(--line);
 }
@@ -112,12 +121,15 @@ export const PANEL_CSS = `
 }
 .chip.warn { border-color: var(--warn); color: var(--warn); }
 .chip.bad { border-color: var(--bad); color: var(--bad); }
+/* What the header leaves, not a share of the overflow: with an auto basis the
+   detail's long content outbid the header and shrank it to a single row. */
 .body {
   display: flex;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
 }
 .list {
+  overscroll-behavior: contain;
   flex: 0 0 40%;
   max-width: 340px;
   min-width: 180px;
@@ -150,7 +162,7 @@ export const PANEL_CSS = `
   color: var(--fg-dim);
 }
 .row .n.bad { background: var(--bad); color: #fff; }
-.detail { flex: 1 1 auto; overflow: auto; padding: 8px 10px; }
+.detail { flex: 1 1 auto; overflow: auto; overscroll-behavior: contain; padding: 8px 10px; }
 .section { margin: 0 0 10px; }
 .section > h2 {
   margin: 0 0 4px;

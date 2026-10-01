@@ -60,8 +60,13 @@ export const renderChips = (node: Element, report: FlemoReport | null): void => 
   for (const anomaly of report?.anomalies ?? []) {
     node.appendChild(el("span", "chip bad", formatText(anomaly)));
   }
+  // A key a warning already spelled out (retired residue) is not chipped a
+  // second time as a raw value; the report keeps both.
+  const warned = report?.overrides?.warnings ?? [];
   for (const [key, value] of Object.entries(report?.overrides?.active ?? {})) {
-    node.appendChild(el("span", "chip", `${key}=${String(value)}`));
+    const chip = `${key}=${String(value)}`;
+    if (warned.some((warning) => warning.startsWith(chip))) continue;
+    node.appendChild(el("span", "chip", chip));
   }
 };
 

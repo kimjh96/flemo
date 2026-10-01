@@ -345,7 +345,7 @@ describe("attachDevtoolsPanel — header", () => {
       recorder: stub(() =>
         report({
           overrides: {
-            active: { "flemo:apply": "scrub" },
+            active: { "flemo:apply": "scrub", "flemo:devtools-panel-height": "320" },
             warnings: ["flemo:apply=scrub — opt-in diagnostic active"]
           },
           anomalies: ["driver force pin ACTIVE"]
@@ -357,7 +357,8 @@ describe("attachDevtoolsPanel — header", () => {
     expect(find(".env").textContent).toBe("blink · dpr 2 · 1280×720 · rAF 16.7ms");
     expect(texts(".chip.warn")).toEqual(["flemo:apply=scrub — opt-in diagnostic active"]);
     expect(texts(".chip.bad")).toEqual(["driver force pin ACTIVE"]);
-    expect(texts(".chip:not(.warn):not(.bad)")).toEqual(["flemo:apply=scrub"]);
+    // The warned key is chipped once, as its warning; an unwarned one as itself.
+    expect(texts(".chip:not(.warn):not(.bad)")).toEqual(["flemo:devtools-panel-height=320"]);
     expect(find(".foot").textContent).toContain("present pipeline");
   });
 
@@ -1067,6 +1068,24 @@ describe("attachDevtoolsPanel — shared elements, tripwires and input", () => {
 describe("panel stylesheet", () => {
   // A 999px radius is a stadium once a chip wraps: the verdict and a long
   // warning both wrap, and their text ran out past the curve.
+  // A session with a handful of findings used to fill the drawer with chips and
+  // leave the flight list and its detail no height to scroll in.
+  it("caps the header at half the drawer and scrolls it there", () => {
+    const head = /\n\.head \{([^}]*)\}/.exec(PANEL_CSS)?.[1] ?? "";
+    expect(head).toContain("max-height: 50%;");
+    expect(head).toContain("overflow-y: auto;");
+    expect(head).toContain("min-height: 0;");
+    const body = /\n\.body \{([^}]*)\}/.exec(PANEL_CSS)?.[1] ?? "";
+    expect(body).toContain("flex: 1 1 0;");
+  });
+
+  it("keeps a scroll that reaches its end from scrolling the page behind", () => {
+    for (const region of ["head", "list", "detail"]) {
+      const rule = new RegExp(`\\n\\.${region} \\{([^}]*)\\}`).exec(PANEL_CSS)?.[1] ?? "";
+      expect(rule, region).toContain("overscroll-behavior: contain;");
+    }
+  });
+
   it("rounds a chip by half a line, so a wrapped one stays a box", () => {
     const chip = /\n\.chip \{([^}]*)\}/.exec(PANEL_CSS)?.[1] ?? "";
     expect(chip).toContain("border-radius: 12px;");
