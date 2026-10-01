@@ -133,10 +133,8 @@ export const developmentHints = (): string[] => {
       // A getter that throws is not evidence either way.
     }
   }
-  if (typeof document !== "undefined") {
-    for (const tag of DEVELOPMENT_ELEMENTS) {
-      if (document.querySelector(tag) !== null) found.push(`<${tag}>`);
-    }
+  for (const tag of DEVELOPMENT_ELEMENTS) {
+    if (document.querySelector(tag) !== null) found.push(`<${tag}>`);
   }
   return found;
 };

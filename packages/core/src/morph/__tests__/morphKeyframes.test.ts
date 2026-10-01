@@ -44,6 +44,32 @@ describe("buildMorphKeyframes", () => {
     expect(travelRule).toContain("background-position: right top");
   });
 
+  it("leaves the image's size and position to the carry, and paints the rest", () => {
+    // One author per property: the paint keyframe is applied after the
+    // geometry one, so a paint channel for the image's size would win and draw
+    // it against the laid-out box again. A colour has no such author.
+    const { rules } = buildMorphKeyframes({
+      id: "9v",
+      travel: growing,
+      box: { from: rect(300, 80), to: rect(220, 160) },
+      contentsHold: true,
+      paintsImage: true,
+      fade: null,
+      paint: [
+        { property: "background-color", from: "rgb(0, 0, 0)", to: "rgb(255, 255, 255)" },
+        { property: "background-size", from: "10px 10px", to: "20px 20px" },
+        { property: "background-position", from: "0px 0px", to: "4px 4px" }
+      ],
+      pinned: true,
+      travelPinned: true
+    });
+    const paint = rules.find((rule) => rule.includes("-paint"))!;
+
+    expect(paint).toContain("background-color: rgb(255, 255, 255)");
+    expect(paint).not.toContain("background-size");
+    expect(paint).not.toContain("background-position");
+  });
+
   it("leaves a box that is laid out for real to paint its own image", () => {
     const { rules } = buildMorphKeyframes({
       id: "9y",

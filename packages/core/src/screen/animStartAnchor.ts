@@ -359,7 +359,7 @@ export function scheduleAnimHoldReadiness(
       clearTimeout(graceTimer);
       clearTimeout(firstTimer);
       clearTimeout(capTimer);
-      if (watching) cancelAnimationFrame(watching);
+      cancelAnimationFrame(watching);
       watching = 0;
       quietFrames.forEach((frame) => cancelAnimationFrame(frame));
       quietFrames = [];
@@ -438,8 +438,9 @@ export function scheduleAnimHoldReadiness(
     // for them, exactly as before.
     let recentGaps: number[] = [];
     let watchTs: number | null = null;
+    // `finish` cancels the one frame this has pending, so it never re-arms
+    // after the gate has closed.
     const watchFrames = () => {
-      if (finished) return;
       watching = requestAnimationFrame((ts) => {
         if (watchTs !== null) {
           recentGaps.push(ts - watchTs);
@@ -469,10 +470,11 @@ export function scheduleAnimHoldReadiness(
       // than replaced — the frames the grace already rode, plus ONE observed
       // now. The guarantee is the same and it costs a frame instead of two.
       if (rodeFastFrames()) {
+        /* v8 ignore next -- performance exists in every runtime under test. */
         const since: number | null = typeof performance !== "undefined" ? performance.now() : null;
+        // Pending in `quietFrames`, which `finish` cancels.
         quietFrames.push(
           requestAnimationFrame((ts) => {
-            if (finished) return;
             if (since !== null && ts - since > RASTER_BLOCK_GAP_MS) {
               // A block DID start in the gap. Fall back to the full pair.
               givingUp = false;

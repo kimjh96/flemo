@@ -1457,6 +1457,21 @@ describe("attachMorph", () => {
     expect(inserted.some((rule) => rule.includes("-shade"))).toBe(true);
   });
 
+  it.each([
+    ["a cell that gains its shadow on the way up", "to"],
+    ["a card that loses its shadow on the way down", "from"]
+  ] as const)("carries %s from or to none", (_, shadowed) => {
+    // One end with no shadow at all: the carrier travels to or from `none`
+    // rather than an empty value the keyframe would drop.
+    layer.setAttribute(MORPH_LAYER_ATTR, "");
+    revealFlight((card, end) => {
+      if (end === shadowed) card.style.boxShadow = "rgba(0, 0, 0, 0.2) 0px 4px 12px 0px";
+    });
+    const shade = inserted.filter((rule) => rule.includes("-shade")).join("\n");
+    expect(shade).toContain("box-shadow: rgba(0, 0, 0, 0.2) 0px 4px 12px 0px");
+    expect(shade).toContain("box-shadow: none");
+  });
+
   it("wraps nothing around a box with no shadow to cast", () => {
     layer.setAttribute(MORPH_LAYER_ATTR, "");
     revealFlight(() => {});

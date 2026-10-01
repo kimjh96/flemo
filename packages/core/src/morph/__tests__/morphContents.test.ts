@@ -78,6 +78,21 @@ describe("contentsHoldAcrossBox", () => {
     expect(copies).not.toHaveBeenCalled();
   });
 
+  it("forgets everything once it has remembered too much, rather than growing", () => {
+    // A long session keys a new answer per box size; the memory is bounded by
+    // starting over, so the first answer is asked again after the reset.
+    const markup = `<span data-from-right="10"></span>`;
+    const box = mount(markup);
+    contentsHoldAcrossBox(box, { width: 98, height: 40 }, { width: 139, height: 40 }, RIGHT);
+    for (let width = 200; width < 800; width += 1) {
+      contentsHoldAcrossBox(box, { width, height: 40 }, { width: 139, height: 40 }, RIGHT);
+    }
+
+    const copies = vi.spyOn(box, "cloneNode");
+    contentsHoldAcrossBox(box, { width: 98, height: 40 }, { width: 139, height: 40 }, RIGHT);
+    expect(copies).toHaveBeenCalled();
+  });
+
   it("asks again for a subtree that is not the same subtree", () => {
     // The key is what the answer depends on, so anything that could move a
     // child asks again: a class, an inline style, an attribute, the words.

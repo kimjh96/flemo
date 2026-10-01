@@ -174,7 +174,7 @@ const shapeOf = (root: Element): string => {
   };
   // The chain the subtree hangs from, and how many sheets are styling it.
   for (let up = root.parentElement; up; up = up.parentElement) parts.push(`^${mark(up)}`);
-  const sheets = root.ownerDocument.styleSheets?.length ?? 0;
+  const sheets = root.ownerDocument.styleSheets.length;
   parts.push(`&${sheets}`);
   parts.push(mark(root));
   visit(root);

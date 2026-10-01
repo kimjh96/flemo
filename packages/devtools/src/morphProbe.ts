@@ -241,9 +241,11 @@ export const morphTripwires = (state: MorphProbeState): TripwireHit[] => {
 // a part's whole room, not a gap; measuring against the card's outer edge read
 // every `px-4` card as a part 32px short of it.
 const roomFor = (part: Element, box: number): number => {
-  const parent = part.parentElement;
-  if (parent === null) return box;
+  // Found under the flying box, so it always hangs from something.
+  const parent = part.parentElement as HTMLElement;
   const outer = parent.getBoundingClientRect().width;
+  // A parent that draws no box of its own (`display: contents`) gives the part
+  // whatever room the flying box has.
   if (!(outer > 0)) return box;
   const style = getComputedStyle(parent);
   const px = (value: string) => Number.parseFloat(value) || 0;
@@ -255,7 +257,7 @@ const roomFor = (part: Element, box: number): number => {
     px(style.paddingRight) +
     border(style.borderLeftWidth, style.borderLeftStyle) +
     border(style.borderRightWidth, style.borderRightStyle);
-  const layout = (parent as HTMLElement).offsetWidth;
+  const layout = parent.offsetWidth;
   const scale = layout > 0 ? outer / layout : 1;
   return Math.min(box, outer - inset * scale);
 };

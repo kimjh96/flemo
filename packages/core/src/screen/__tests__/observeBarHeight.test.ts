@@ -126,6 +126,14 @@ describe("readBarHeight", () => {
     expect(readBarHeight(element)).toBe(63.5);
   });
 
+  it("falls back to the rounded layout height in a document with no window", () => {
+    // A document made by DOMImplementation has no view to compute styles with.
+    const element = document.implementation.createHTMLDocument().createElement("div");
+    Object.defineProperty(element, "offsetHeight", { configurable: true, value: 64 });
+
+    expect(readBarHeight(element)).toBe(64);
+  });
+
   it("reads 0 from a bar with no layout height", () => {
     const element = document.createElement("div");
     element.style.height = "auto";

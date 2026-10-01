@@ -262,6 +262,26 @@ describe("what the flight painted", () => {
     expect(state.partGapFrames).toBe(0);
   });
 
+  it("measures a part under a boxless wrapper against the flying box", () => {
+    // `display: contents` lays the part out in the flying box's own room, and
+    // its rect reads zero wide: a wrapper that cannot answer, not a room of 0.
+    html(
+      `<div data-flemo-morph="enter" id="box">` +
+        `<div id="wrap" style="display: contents"><div data-flemo-part-name="card-body" id="part"></div></div>` +
+        `</div>`
+    );
+    const width = (id: string, value: number) => {
+      document.getElementById(id)!.getBoundingClientRect = () => ({ width: value }) as DOMRect;
+    };
+    width("box", 346);
+    width("wrap", 0);
+    width("part", 314);
+    const state = createMorphProbeState([]);
+    sampleMorphPaint(state);
+    expect(state.partGapFrames).toBe(1);
+    expect(Math.round(state.partGapPx)).toBe(32);
+  });
+
   it("names the part it could not name", () => {
     // The name is read off the element, so a flight recorded from a host that
     // dropped the attribute still has a gap worth reporting.
