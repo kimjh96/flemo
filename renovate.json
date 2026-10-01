@@ -9,6 +9,8 @@
   "timezone": "Asia/Seoul",
   "schedule": ["after 10pm on sunday", "before 7am on monday"],
   "rangeStrategy": "bump",
+  "minimumReleaseAge": "1 day",
+  "internalChecksFilter": "strict",
   "labels": ["dependencies"],
   "prHourlyLimit": 4,
   "prConcurrentLimit": 8,
