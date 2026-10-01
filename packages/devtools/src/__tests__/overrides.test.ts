@@ -22,7 +22,10 @@ describe("FLAG_REGISTRY", () => {
     // live rows are the recorder's own. Every engine key moved to RETIRED_FLAGS
     // so a device still carrying one is told it explains nothing.
     expect(CORE_FLAGS).toEqual([]);
-    expect(FLAG_REGISTRY.map((flag) => flag.key)).toEqual(["flemo:devtools-panel-height"]);
+    expect(FLAG_REGISTRY.map((flag) => flag.key)).toEqual([
+      "flemo:devtools-panel-height",
+      "flemo:devtools-trace"
+    ]);
     const retired = RETIRED_FLAGS.map((flag) => flag.key);
     for (const expected of [
       "flemo:sixty",
@@ -60,6 +63,23 @@ describe("snapshotOverrides", () => {
     sessionStorage.setItem("flemo:devtools-panel-height", "320");
     const active = snapshotOverrides();
     expect(active["flemo:devtools-panel-height"]).toBe("320");
+  });
+
+  // The recorder persists its own flights under this key. Read as an unknown
+  // key it was copied whole into the report and the panel's header, a second
+  // copy of the trace burying the verdict.
+  it("names its own trace by size, not by contents", () => {
+    const trace = JSON.stringify({ version: "3", flights: [{ id: "flight-1" }] });
+    sessionStorage.setItem("flemo:devtools-trace", trace);
+    try {
+      const active = snapshotOverrides();
+      expect(active["flemo:devtools-trace"]).toBe(
+        `(${trace.length} characters, this recorder's own data)`
+      );
+      expect(Object.keys(active).some((key) => key.includes("unknown key"))).toBe(false);
+    } finally {
+      sessionStorage.removeItem("flemo:devtools-trace");
+    }
   });
 
   // The playground's old opt-in. Nothing arms the devtools any more — the

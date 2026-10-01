@@ -112,8 +112,16 @@ const DEVELOPMENT_GLOBALS: readonly string[] = [
   "__webpack_hot_middleware_reporter__",
   "webpackHotUpdate",
   "__REACT_REFRESH_RUNTIME__",
-  "$RefreshReg$"
+  "$RefreshReg$",
+  // Next 16 under Turbopack installs none of the webpack-era names above. These
+  // two are its hot-update registry and the dev overlay's style cache; a
+  // production Turbopack build ships neither.
+  "TURBOPACK_CHUNK_UPDATE_LISTENERS",
+  "_nextjsDevtoolsStyleCache"
 ];
+
+// Elements only a development runtime mounts: Next's dev overlay host.
+const DEVELOPMENT_ELEMENTS: readonly string[] = ["nextjs-portal"];
 
 export const developmentHints = (): string[] => {
   if (typeof window === "undefined") return [];
@@ -123,6 +131,11 @@ export const developmentHints = (): string[] => {
       if ((window as unknown as Record<string, unknown>)[name] !== undefined) found.push(name);
     } catch {
       // A getter that throws is not evidence either way.
+    }
+  }
+  if (typeof document !== "undefined") {
+    for (const tag of DEVELOPMENT_ELEMENTS) {
+      if (document.querySelector(tag) !== null) found.push(`<${tag}>`);
     }
   }
   return found;

@@ -89,10 +89,13 @@ export const PANEL_CSS = `
   flex: 1 1 100%;
 }
 .chips:empty { display: none; }
+/* Half a single line's height, not 999px: one line still reads as a pill, and
+   a chip that wraps (the verdict, a long warning) stays a rounded box instead
+   of a stadium whose curve its own text runs out past. */
 .chip {
   padding: 2px 8px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 12px;
   background: var(--bg-soft);
   color: var(--fg-dim);
   max-width: 100%;

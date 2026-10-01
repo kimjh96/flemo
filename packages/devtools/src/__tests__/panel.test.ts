@@ -14,6 +14,7 @@ import {
   formatText,
   releasedGapSeries
 } from "../panel/format";
+import { PANEL_CSS } from "../panel/styles";
 
 import type { DevtoolsPanelHandle } from "../panel";
 import type { FlemoReport, FlightRecord, FlightRecorderHandle } from "../types";
@@ -1060,5 +1061,15 @@ describe("attachDevtoolsPanel — shared elements, tripwires and input", () => {
     expect(button).toBeDefined();
     expect(() => button?.click()).not.toThrow();
     expect(actButton("A/B: A")).toBeDefined();
+  });
+});
+
+describe("panel stylesheet", () => {
+  // A 999px radius is a stadium once a chip wraps: the verdict and a long
+  // warning both wrap, and their text ran out past the curve.
+  it("rounds a chip by half a line, so a wrapped one stays a box", () => {
+    const chip = /\n\.chip \{([^}]*)\}/.exec(PANEL_CSS)?.[1] ?? "";
+    expect(chip).toContain("border-radius: 12px;");
+    expect(chip).not.toContain("999px");
   });
 });

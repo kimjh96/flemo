@@ -19,6 +19,8 @@
 // longer reads them, so finding one on a device must RULE IT OUT as a cause
 // rather than leave an investigator chasing it.
 
+import { TRACE_KEY } from "./persistence";
+
 export type FlagClass =
   "production-state" | "production-default-with-override" | "opt-in-diagnostic";
 
@@ -39,6 +41,12 @@ export interface FlagDescriptor {
   fallback: string;
   /** What arming it changes. */
   effect: string;
+  /**
+   * Report the value by its size only. For the recorder's own payload, which
+   * the report already carries as flights; copied in whole it buried the
+   * panel's header under its own JSON.
+   */
+  sizeOnly?: boolean;
 }
 
 /**
@@ -55,6 +63,15 @@ export const DEVTOOLS_OWNED_FLAGS: readonly FlagDescriptor[] = [
     values: "a pixel height",
     fallback: "(the panel's default height)",
     effect: "the drawer height this panel was last dragged to"
+  },
+  {
+    key: TRACE_KEY,
+    storage: "session",
+    kind: "production-state",
+    values: "the recorder's serialized flights",
+    fallback: "(no trace carried across a load)",
+    effect: "the flights this recorder carries across a page load",
+    sizeOnly: true
   }
 ];
 
@@ -250,7 +267,10 @@ export const snapshotOverrides = (): Record<string, string> => {
 
   for (const flag of FLAG_REGISTRY) {
     const value = readKey(flag.storage === "session" ? session : local, flag.key);
-    if (value !== null) active[flag.key] = value;
+    if (value === null) continue;
+    active[flag.key] = flag.sizeOnly
+      ? `(${value.length} characters, this recorder's own data)`
+      : value;
   }
 
   // A retired key is read from BOTH storages: several of them moved location
