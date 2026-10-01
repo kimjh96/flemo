@@ -191,7 +191,7 @@ const EN: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "flemo gives web apps a native-style screen stack: push a screen, pop it, or drag from the edge to go back. Routing and motion are designed as one system."
+            text: "flemo connects React screens with push, pop, and swipe-back motion. Routing and motion share one screen stack."
           },
           { type: "h", text: "The mental model" },
           {
@@ -206,7 +206,7 @@ const EN: DocSection[] = [
           },
           {
             type: "p",
-            text: "A push creates a real history entry and animates the new Screen over the current one. A pop reveals the screen below it. With the cupertino preset, that same pop is interactive when the user drags from the left edge."
+            text: "Push opens a screen. Pop reveals the one beneath it. With the cupertino preset, dragging from the left edge controls that return."
           },
           {
             type: "note",
@@ -223,19 +223,10 @@ const EN: DocSection[] = [
               "Custom screen, part, decorator, and shared-element motion"
             ]
           },
-          { type: "h", text: "Where to go next" },
+          { type: "h", text: "Start with two screens" },
           {
-            type: "list",
-            items: [
-              "`Getting started` install through your first push and pop",
-              "`Router & Route` path matching, registration, defaults",
-              "`Slot` keep part of the layout still while screens transition",
-              "`Screen` top bar, bottom bar, safe areas",
-              "`Navigation` useNavigate, useParams, useStep",
-              "`Transitions` built-in presets, custom transitions, gestures",
-              "`Part` give one element its own transition inside a screen",
-              "`Composition` combine nested routing, shared chrome, Parts, and Morphs"
-            ]
+            type: "p",
+            text: "Continue with Getting started to install flemo and build your first push and pop."
           }
         ]
       },
@@ -1360,7 +1351,7 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "flemo는 웹 앱에 네이티브 방식의 화면 스택을 만들어요. 화면을 push하고 pop하거나, 화면 가장자리를 끌어 뒤로 갈 수 있어요. 라우팅과 움직임을 하나의 시스템으로 다뤄요."
+            text: "flemo는 React 화면을 push, pop, 스와이프 뒤로 가기로 연결해요. 경로와 움직임을 하나의 화면 스택에서 다룹니다."
           },
           { type: "h", text: "먼저 이해할 구조" },
           {
@@ -1375,7 +1366,7 @@ const KO: DocSection[] = [
           },
           {
             type: "p",
-            text: "push하면 실제 히스토리 항목이 생기고 새 Screen이 현재 화면 위로 들어와요. pop하면 아래 화면이 다시 드러나요. cupertino 프리셋에서는 왼쪽 가장자리를 끄는 동작이 그대로 인터랙티브 pop이 돼요."
+            text: "push로 화면을 열고 pop으로 이전 화면에 돌아가요. cupertino 프리셋에서는 왼쪽 가장자리에서 미는 만큼 돌아가는 움직임을 제어할 수 있어요."
           },
           {
             type: "note",
@@ -1392,20 +1383,8 @@ const KO: DocSection[] = [
               "화면, Part, decorator, 공유 요소를 위한 커스텀 모션"
             ]
           },
-          { type: "h", text: "다음으로" },
-          {
-            type: "list",
-            items: [
-              "`빠르게 시작하기` 설치부터 첫 push/pop까지",
-              "`Router와 Route` 경로 매칭, 등록, 기본값",
-              "`Slot` 화면이 전환되는 동안 레이아웃 일부는 그대로 두기",
-              "`Screen` 상단 바, 하단 바, 세이프 에어리어",
-              "`Navigation` useNavigate, useParams, useStep",
-              "`Transitions` 내장 프리셋, 커스텀 트랜지션, 제스처",
-              "`Part` 화면 안 한 요소에 자기만의 전환 주기",
-              "`조합 설계` 중첩 라우팅, 공유 크롬, Part, Morph를 한 구조로 엮기"
-            ]
-          }
+          { type: "h", text: "화면 두 개로 시작하기" },
+          { type: "p", text: "빠르게 시작하기에서 flemo를 설치하고 첫 push와 pop을 만들어 보세요." }
         ]
       },
       {

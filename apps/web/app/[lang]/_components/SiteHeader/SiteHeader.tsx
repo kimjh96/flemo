@@ -83,8 +83,8 @@ function SiteHeader() {
   ];
 
   return (
-    <header className="absolute inset-x-0 top-0 z-40 bg-[var(--color-bg)]/30 backdrop-blur-2xl">
-      <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between px-6">
+    <header className="absolute inset-x-0 top-0 z-40 px-3 pt-3 sm:px-6 sm:pt-4">
+      <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between rounded-full border border-[var(--color-border)] bg-[var(--color-bg)]/90 px-4 shadow-[0_16px_44px_-28px_rgba(18,38,70,0.48)] backdrop-blur-xl sm:px-6">
         <button
           type="button"
           onClick={goHome}
@@ -103,10 +103,12 @@ function SiteHeader() {
                   type="button"
                   onClick={link.onClick}
                   aria-current={active ? "page" : undefined}
-                  className={`cursor-pointer rounded-full px-3 py-2 text-[14px] font-medium transition-colors ${
-                    active
-                      ? "text-[var(--color-text-primary)]"
-                      : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  className={`cursor-pointer rounded-full px-3.5 py-2 text-[14px] font-semibold transition-colors ${
+                    link.path === "/docs"
+                      ? "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]"
+                      : active
+                        ? "bg-[var(--color-layer)] text-[var(--color-text-primary)]"
+                        : "text-[var(--color-text-secondary)] hover:bg-[var(--color-layer)] hover:text-[var(--color-text-primary)]"
                   }`}
                 >
                   {link.label}
@@ -142,13 +144,11 @@ function SiteHeader() {
           </button>
         </nav>
       </div>
-      {/* Always mounted so open AND close animate; the header's frosted glass is
-          mirrored here for one continuous chrome surface. `inert` when closed
-          keeps it out of focus/interaction. */}
+      {/* Keep the menu mounted through closing so its height can animate. */}
       <div
         inert={!mobileOpen}
-        className={`overflow-hidden border-white/10 bg-[var(--color-bg)]/30 backdrop-blur-2xl transition-all duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] md:hidden ${
-          mobileOpen ? "max-h-[420px] border-t opacity-100" : "max-h-0 opacity-0"
+        className={`mx-auto mt-2 max-w-[1200px] overflow-hidden rounded-[24px] border border-[var(--color-border)] bg-[var(--color-bg)]/95 shadow-[0_18px_40px_-24px_rgba(18,38,70,0.45)] backdrop-blur-xl transition-[max-height,opacity] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] md:hidden ${
+          mobileOpen ? "max-h-[420px] opacity-100" : "max-h-0 border-transparent opacity-0"
         }`}
       >
         <nav className="mx-auto flex max-w-[1240px] flex-col gap-0.5 px-4 py-3">

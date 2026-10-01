@@ -58,17 +58,6 @@ function DocPageScreen() {
   const headings = page.blocks.flatMap((block, index) =>
     block.type === "h" ? [{ ...block, index }] : []
   );
-  const readingMinutes = Math.max(
-    2,
-    Math.round(
-      page.blocks.reduce((length, block) => {
-        if (block.type === "code") return length + block.code.length * 0.35;
-        if (block.type === "list") return length + block.items.join(" ").length;
-        if (block.type === "table") return length + block.rows.flat().join(" ").length;
-        return length + block.text.length;
-      }, 0) / 750
-    )
-  );
 
   const handlePageMove = (targetSlug: string, forward: boolean) => {
     navigate.push(
@@ -82,9 +71,9 @@ function DocPageScreen() {
     <Screen statusBarHeight="0px" systemNavigationBarHeight="0px" backgroundColor="var(--color-bg)">
       <div
         data-testid="docs-scroll"
-        className="h-full overflow-y-auto px-5 pt-24 pb-16 sm:px-8 lg:px-12 lg:pt-28 lg:pb-20"
+        className="h-full overflow-y-auto px-5 pt-28 pb-16 sm:px-8 lg:px-12 lg:pt-32 lg:pb-20"
       >
-        <div className="mx-auto grid max-w-[920px] gap-14 xl:grid-cols-[minmax(0,680px)_180px]">
+        <div className="mx-auto grid max-w-[970px] gap-14 xl:grid-cols-[minmax(0,700px)_180px]">
           <article className="min-w-0">
             <button
               type="button"
@@ -101,29 +90,20 @@ function DocPageScreen() {
               </svg>
               {page.title}
             </button>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold tracking-[0.1em] uppercase">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold tracking-[0.06em] uppercase">
               <span className="text-[var(--color-primary)]">Docs</span>
               <span className="text-[var(--color-text-disabled)]">/</span>
               <span className="text-[var(--color-text-disabled)]">{section?.title}</span>
             </div>
-            <h1 className="mt-4 text-[clamp(2.35rem,5vw,3.6rem)] leading-[1.04] font-extrabold tracking-[-0.04em] text-[var(--color-text-primary)]">
+            <h1 className="mt-5 text-[clamp(2.2rem,5vw,3.4rem)] leading-[1.1] font-extrabold tracking-[-0.045em] text-[var(--color-text-primary)]">
               {page.title}
             </h1>
             {lead?.type === "p" ? (
-              <p className="mt-5 max-w-2xl text-[18px] leading-[1.7] font-medium tracking-[-0.015em] text-[var(--color-text-secondary)] sm:text-[20px]">
+              <p className="mt-5 max-w-[65ch] text-[17px] leading-[1.7] tracking-[-0.01em] text-[var(--color-text-secondary)] sm:text-[18px]">
                 {renderInline(lead.text)}
               </p>
             ) : null}
-            <div className="mt-6 flex items-center gap-3 border-b border-[var(--color-border-light)] pb-6 text-[11px] font-semibold text-[var(--color-text-disabled)]">
-              <span className="rounded-full bg-[var(--color-layer)] px-2.5 py-1.5">
-                {lang === "ko" ? `약 ${readingMinutes}분` : `${readingMinutes} min read`}
-              </span>
-              <span>
-                {lang === "ko" ? `섹션 ${headings.length}개` : `${headings.length} sections`}
-              </span>
-            </div>
-
-            <div className="mt-9 flex flex-col gap-6">
+            <div className="mt-9 flex flex-col gap-5 border-t border-[var(--color-border-light)] pt-8">
               {page.blocks.map((block, index) => {
                 if (index === leadIndex) return null;
                 if (block.type === "h") {
@@ -131,7 +111,7 @@ function DocPageScreen() {
                     <h2
                       key={index}
                       id={`section-${index}`}
-                      className="scroll-mt-8 pt-7 text-[1.45rem] leading-tight font-extrabold tracking-[-0.025em] text-[var(--color-text-primary)] first:pt-0"
+                      className="scroll-mt-28 pt-8 text-[1.45rem] leading-tight font-bold tracking-[-0.025em] text-[var(--color-text-primary)] first:pt-0"
                     >
                       {block.text}
                     </h2>
@@ -146,7 +126,7 @@ function DocPageScreen() {
                       {block.items.map((item, itemIndex) => (
                         <li
                           key={itemIndex}
-                          className="relative pl-5 text-[15px] leading-[1.75] text-[var(--color-text-secondary)] before:absolute before:top-[0.74em] before:left-0 before:h-px before:w-2 before:bg-[var(--color-text-disabled)]"
+                          className="relative pl-5 text-[16px] leading-[1.7] text-[var(--color-text-secondary)] before:absolute before:top-[0.74em] before:left-0 before:h-px before:w-2 before:bg-[var(--color-text-disabled)]"
                         >
                           {renderInline(item)}
                         </li>
@@ -210,7 +190,7 @@ function DocPageScreen() {
                 return (
                   <p
                     key={index}
-                    className="text-[16px] leading-[1.85] tracking-[-0.006em] text-[var(--color-text-secondary)]"
+                    className="max-w-[68ch] text-[16px] leading-[1.7] text-[var(--color-text-secondary)]"
                   >
                     {renderInline(block.text)}
                   </p>

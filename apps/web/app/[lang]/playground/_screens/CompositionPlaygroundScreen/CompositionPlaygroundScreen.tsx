@@ -13,50 +13,46 @@ function CompositionPlaygroundScreen() {
   return (
     <Screen hideStatusBar hideSystemNavigationBar backgroundColor="transparent">
       <div className="h-full overflow-y-auto">
-        <div className="mx-auto grid min-h-full w-full max-w-[1180px] items-center gap-10 px-6 pt-24 pb-16 lg:grid-cols-[minmax(0,1fr)_auto] lg:pt-28">
+        <div className="site-container grid min-h-full items-center gap-10 px-5 pt-32 pb-16 sm:px-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16 lg:pt-36">
           <section className="order-2 lg:order-1">
-            <p className="text-xs font-extrabold tracking-[0.18em] text-indigo-500 uppercase">
-              Agent composition benchmark
-            </p>
-            <h1 className="mt-3 text-[clamp(1.9rem,4vw,3rem)] leading-[1.04] font-black tracking-[-0.045em] text-[var(--color-text-primary)]">
-              {isKo ? "구조와 모션을 한 번에 검증하기" : "Verify structure and motion together"}
-            </h1>
-            <p className="mt-5 max-w-[52ch] text-[15px] leading-relaxed text-[var(--color-text-secondary)]">
+            <span className="site-eyebrow">{isKo ? "조합 데모" : "Composition demo"}</span>
+            <h1 className="mt-5 max-w-[12ch] text-[clamp(2.5rem,5vw,4.5rem)] leading-[1.1] font-extrabold tracking-[-0.055em] text-[var(--color-text-primary)] break-keep">
               {isKo
-                ? "루트 공유 헤더의 타이틀과 좌측 액션은 화면 전환과 스와이프를 따라가고, 안쪽 memory Router는 자기 영역만 바꿔요. 두 스택과 Morph 소유권이 한 장면에 들어 있어요."
-                : "The root shared header's title and left action follow navigation and swipe, while the inner memory Router changes only its own region. Two stacks and Morph ownership share one scene."}
+                ? "한 화면 안의 여러 움직임, 하나의 흐름."
+                : "Many moving parts. One coherent flow."}
+            </h1>
+            <p className="mt-6 max-w-[50ch] text-[17px] leading-[1.7] text-[var(--color-text-secondary)] break-keep">
+              {isKo
+                ? "카드는 상세 화면으로 이어지고 헤더는 바뀐 내용을 따라갑니다. 안쪽 목록은 자기 영역에서만 이동해요. 직접 눌러보면 차이가 보입니다."
+                : "The card carries into its detail screen as the header changes with it. The inner list moves within its own space. Try each action to see how they work together."}
             </p>
-            <ol className="mt-7 grid gap-3 text-sm text-[var(--color-text-secondary)]">
+            <ol className="mt-9 grid gap-3 text-[15px] leading-[1.6] text-[var(--color-text-secondary)]">
               <li>
-                <strong className="text-[var(--color-text-primary)]">1.</strong>{" "}
+                <span className="mr-3 font-semibold text-[var(--color-primary)]">01</span>
                 {isKo
-                  ? "Local filters를 열어 루트 헤더가 그대로인지 봅니다."
-                  : "Open Local filters and confirm the root header stays still."}
+                  ? "보라색 카드를 열고 뒤로 돌아오세요."
+                  : "Open the purple card, then go back."}
               </li>
               <li>
-                <strong className="text-[var(--color-text-primary)]">2.</strong>{" "}
+                <span className="mr-3 font-semibold text-[var(--color-primary)]">02</span>
                 {isKo
-                  ? "로컬 뒤로가기 뒤 보라색 카드를 열어 root Morph와 헤더 교대를 봅니다."
-                  : "Go local-back, then open the purple card to watch the root Morph and header handoff."}
+                  ? "Local filters를 열어 헤더가 제자리에 남는지 보세요."
+                  : "Open Local filters and watch the header stay in place."}
               </li>
               <li>
-                <strong className="text-[var(--color-text-primary)]">3.</strong>{" "}
+                <span className="mr-3 font-semibold text-[var(--color-primary)]">03</span>
                 {isKo
-                  ? "안쪽 화면에서 Command layer를 열어 루트 공유 헤더까지 덮는지 봅니다."
-                  : "Open Command layer inside the nested screen and confirm it covers the root shared header."}
-              </li>
-              <li>
-                <strong className="text-[var(--color-text-primary)]">4.</strong>{" "}
-                {isKo
-                  ? "왼쪽 가장자리에서 천천히 끌어 취소하고, 다시 끌어 커밋합니다."
-                  : "Drag slowly from the left edge, cancel once, then commit."}
+                  ? "Command layer를 열어 화면 위로 올라오는 패널을 보세요."
+                  : "Open Command layer to see a panel rise above the screen."}
               </li>
             </ol>
-            <p className="mt-6 max-w-[48ch] rounded-2xl border border-amber-500/20 bg-amber-500/8 p-4 text-xs leading-relaxed text-amber-700 dark:text-amber-200">
-              {isKo
-                ? "시각 판정은 실제 기기에서 DevTools와 화면 캡처를 끈 상태로 먼저 해주세요. 개발 빌드에서는 그 뒤 window.flemo.report()로 잔여 상태와 anomaly를 확인합니다."
-                : "Judge visually on a real device with DevTools and capture closed. In a development build, inspect window.flemo.report() afterward for residue and anomalies."}
-            </p>
+            <div className="mt-10 flex flex-wrap gap-2">
+              {["Morph", "Part", "Layer", "Nested Router"].map((feature) => (
+                <span key={feature} className="chip">
+                  {feature}
+                </span>
+              ))}
+            </div>
           </section>
 
           <div className="order-1 flex justify-center lg:order-2 lg:justify-end">

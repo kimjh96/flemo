@@ -63,8 +63,8 @@ function TabBar() {
             type="button"
             onClick={() => handleTab(tab.path)}
             aria-current={active ? "page" : undefined}
-            className={`flex flex-1 cursor-pointer flex-col items-center gap-1 py-2.5 text-[11px] font-semibold transition-colors ${
-              active ? "text-[var(--color-primary)]" : "text-[var(--color-text-disabled)]"
+            className={`flex flex-1 cursor-pointer flex-col items-center gap-1 py-2.5 text-xs font-semibold transition-colors ${
+              active ? "text-[var(--color-primary)]" : "text-[var(--color-text-secondary)]"
             }`}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">

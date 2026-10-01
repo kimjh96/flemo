@@ -26,6 +26,7 @@ import "./TonightRouter.types";
 
 export interface TonightRouterProps {
   bench: BenchCase;
+  initPath?: "/tonight" | "/tonight/posters";
 }
 
 // The mini-app. A NESTED <Router> with in-memory history, exactly as the
@@ -51,11 +52,11 @@ export interface TonightRouterProps {
 // (the bench provider's subtree would be one too), and the docs are explicit:
 // "If a Router has children that are not Routes ... wrap the routes in a Slot
 // so flemo can tell screens from the surrounding layout."
-function TonightRouter({ bench }: TonightRouterProps) {
+function TonightRouter({ bench, initPath = "/tonight" }: TonightRouterProps) {
   return (
     <BenchContext.Provider value={bench}>
       <Router
-        initPath="/tonight"
+        initPath={initPath}
         history="memory"
         transitions={[
           reveal,

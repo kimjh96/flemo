@@ -119,9 +119,12 @@ export const ACTS: Act[] = [
 export const actById = (id: string | undefined): Act | undefined =>
   ACTS.find((act) => act.id === id);
 
-// A flat gradient rather than a photograph, and that is a measurement rather
-// than a taste: an image finishing its decode mid-flight rasters on the moving
-// layer and costs a present. `@flemo/devtools` reports it as the warm-side
-// image-hold regression; a stage being judged should not manufacture one.
+// CSS artwork stays available on the first frame of a Morph flight. An image
+// decoded mid-flight would re-raster the moving layer and add a visible hitch.
 export const artworkFor = (hue: number): string =>
-  `linear-gradient(155deg, hsl(${hue} 80% 62%), hsl(${(hue + 42) % 360} 70% 44%))`;
+  [
+    "repeating-linear-gradient(132deg, transparent 0 18px, rgb(255 255 255 / 0.045) 19px 20px)",
+    `radial-gradient(circle at 68% 24%, hsl(${(hue + 90) % 360} 95% 82% / 0.8), transparent 35%)`,
+    `radial-gradient(ellipse at 20% 85%, hsl(${(hue + 260) % 360} 85% 30% / 0.8), transparent 55%)`,
+    `linear-gradient(150deg, hsl(${hue} 82% 62%), hsl(${(hue + 45) % 360} 72% 35%))`
+  ].join(", ");
