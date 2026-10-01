@@ -126,41 +126,40 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
   });
 
   // End-to-end through the REAL display-interval probe: each declined desktop
-  // flight arms it (2 warm-up ticks + 8 gaps off the live rAF clock), its
-  // median feeds the verdict, and the third flight graduates. jsdom's rAF
-  // ticks ~17ms — inside the steady-60 window — so this also covers the
-  // probe's warm-up/median path itself.
-  it("graduates through the real display probe after two compiled flights", async () => {
-    // The runner-cadence oracle rides the SAME frames the probes measure: a
-    // window sampled before the flights can drift from the probe's own (a
-    // loaded runner, a throttling dip between windows) and mis-predict the
-    // verdict. Collecting the gaps inside the two inter-flight waits makes
-    // oracle and probe share one clock and one window.
-    const gaps: number[] = [];
-    const framesMeasured = (count: number) =>
-      new Promise<void>((resolve) => {
-        let remaining = count;
-        let last: number | null = null;
-        const tick = (t: number) => {
-          if (last !== null) gaps.push(t - last);
-          last = t;
-          remaining -= 1;
-          if (remaining <= 0) resolve();
-          else requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-      });
+  // flight arms it (2 warm-up ticks + 8 gaps off the rAF clock), its median
+  // feeds the verdict, and the third flight graduates.
+  //
+  // The rAF clock is a hand-fed 60Hz one. This used to ride jsdom's real rAF
+  // and keep an "oracle" of the gaps it saw, asserting only when the oracle
+  // read 60Hz. Under a loaded runner (the parallel CI gate) the oracle and the
+  // probe sampled different stragglers and disagreed, so the test failed about
+  // three runs in eight while the code under it was unchanged. What is under
+  // test is the arming, the warm-up, the median and the verdict, and none of
+  // that needs a real clock to be exercised.
+  it("graduates through the real display probe after two compiled flights", () => {
+    const queue: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
+      queue.push(frameCallback);
+      return queue.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    let now = 0;
+    const frames = (count: number) => {
+      for (let i = 0; i < count; i++) {
+        const callbacks = queue.splice(0, queue.length);
+        now += 1000 / 60;
+        callbacks.forEach((frameCallback) => frameCallback(now));
+      }
+    };
 
-    drive(); // flight 1 — declined (unverified), probe armed
-    await framesMeasured(14);
-    drive(); // flight 2 — declined, probe armed again
-    await framesMeasured(14);
-    drive(); // flight 3 — decided by whatever the probe measured
+    drive(); // flight 1: declined (unverified), probe armed
+    frames(14);
+    expect(steadySixtyVerified()).toBe(false);
+    drive(); // flight 2: declined, probe armed again
+    frames(14);
+    drive(); // flight 3: decided by what the two probes measured
 
-    const median = [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)]!;
-    if (median >= 14 && median <= 22) {
-      expect(steadySixtyVerified()).toBe(true);
-    }
+    expect(steadySixtyVerified()).toBe(true);
     // Whatever the cadence, the compiled animation is what plays.
     expect(compiledAnimationSuppressed()).toBe(false);
   });
