@@ -9,6 +9,8 @@
   "timezone": "Asia/Seoul",
   "schedule": ["after 10pm on sunday", "before 7am on monday"],
   "rangeStrategy": "bump",
+  "minimumReleaseAge": "1 day",
+  "internalChecksFilter": "strict",
   "labels": ["dependencies"],
   "prHourlyLimit": 4,
   "prConcurrentLimit": 8,
@@ -20,6 +22,11 @@
       "automerge": true,
       "automergeType": "pr",
       "automergeStrategy": "squash"
+    },
+    {
+      "description": "Leave published peer ranges alone. A peer floor is the oldest React a consumer may run, so raising it with every devDependency bump drops users for no API we need.",
+      "matchDepTypes": ["peerDependencies"],
+      "enabled": false
     },
     {
       "description": "Group all fumadocs packages together. They version in lockstep.",
