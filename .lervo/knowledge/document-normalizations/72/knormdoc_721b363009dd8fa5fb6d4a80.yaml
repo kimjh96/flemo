@@ -1,0 +1,41 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_76efc18d2559278b5f97d95e
+compiler:
+  compilerBuildId: sha256:126612f342267b5dfbefdf7c2f88bf1fe0a710c846d5e3a4f0ed99d118fde27e
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 1+codex-cli 0.153.4
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_8cd3f8aac2ed83b41a54dc0e
+outputLanguage: en
+outputs:
+  - byteCount: 626
+    contentHash: sha256:9b99ba45ded4502635613e68999ea4755b17c80c6be38ca83d26dc04299cf140
+    path: evals/flemo-agent-guidance/README.md
+    userRegionHash: sha256:9b99ba45ded4502635613e68999ea4755b17c80c6be38ca83d26dc04299cf140
+  - byteCount: 421
+    contentHash: sha256:f9f21b99c20b537f2cc28737ed0b3ac20bb41e4398295b1d81b07bb9a744c247
+    path: evals/flemo-agent-guidance/README/arms.md
+    userRegionHash: sha256:f9f21b99c20b537f2cc28737ed0b3ac20bb41e4398295b1d81b07bb9a744c247
+  - byteCount: 2225
+    contentHash: sha256:03de5787027ff1984a54ecb5e76d2b8a483cd4f43935af2180a45f7067513613
+    path: evals/flemo-agent-guidance/README/release-corpus.md
+    userRegionHash: sha256:03de5787027ff1984a54ecb5e76d2b8a483cd4f43935af2180a45f7067513613
+  - byteCount: 914
+    contentHash: sha256:f1312967002f711ab31872ee0609208eb3e5a6afe51130c9868d76369548fdd7
+    path: evals/flemo-agent-guidance/README/run-and-score.md
+    userRegionHash: sha256:f1312967002f711ab31872ee0609208eb3e5a6afe51130c9868d76369548fdd7
+profile: human_readme
+recordId: knormdoc_721b363009dd8fa5fb6d4a80
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:71863857495599c9f953097cf677a1b8c01cac1e41a05ba41b2926b18cee95d6
+sourcePath: evals/flemo-agent-guidance/README.md
+sourceUnitVersionIds:
+  - uv_0e29df27d6279ad33e4d9582
+  - uv_38129ed5a2b661ee2be08e2a
+  - uv_42d805790201de564d96f028
+  - uv_5e1e209e4d1210f5a2115a06

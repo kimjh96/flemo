@@ -6,6 +6,7 @@ declare module "@flemo/react" {
     "/": Record<string, never>;
     "/showcase": Record<string, never>;
     "/playground": Record<string, never>;
+    "/playground/composition": Record<string, never>;
     "/docs": Record<string, never>;
   }
 

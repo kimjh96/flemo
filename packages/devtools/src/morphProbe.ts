@@ -236,13 +236,40 @@ export const morphTripwires = (state: MorphProbeState): TripwireHit[] => {
   ];
 };
 
+// The width a part's parent lays it out in: the parent's box less its padding
+// and border, in the same transformed pixels the rects report. A padded card is
+// a part's whole room, not a gap; measuring against the card's outer edge read
+// every `px-4` card as a part 32px short of it.
+const roomFor = (part: Element, box: number): number => {
+  // Found under the flying box, so it always hangs from something.
+  const parent = part.parentElement as HTMLElement;
+  const outer = parent.getBoundingClientRect().width;
+  // A parent that draws no box of its own (`display: contents`) gives the part
+  // whatever room the flying box has.
+  if (!(outer > 0)) return box;
+  const style = getComputedStyle(parent);
+  const px = (value: string) => Number.parseFloat(value) || 0;
+  // A side with no border style draws no border, whatever width it reports.
+  const border = (width: string, kind: string) =>
+    kind === "" || kind === "none" || kind === "hidden" ? 0 : px(width);
+  const inset =
+    px(style.paddingLeft) +
+    px(style.paddingRight) +
+    border(style.borderLeftWidth, style.borderLeftStyle) +
+    border(style.borderRightWidth, style.borderRightStyle);
+  const layout = parent.offsetWidth;
+  const scale = layout > 0 ? outer / layout : 1;
+  return Math.min(box, outer - inset * scale);
+};
+
 /**
  * What the flight is PAINTING this frame, which the role sightings above
  * cannot answer.
  *
  * Two readings, both of a handful of elements: the departing end's opacity,
- * and the width of any part inside a flying box against that box. Both are
- * defects this recorder watched happen and had nothing to say about.
+ * and the width of any part inside a flying box against the room it is laid
+ * out in there. Both are defects this recorder watched happen and had nothing
+ * to say about.
  */
 export const sampleMorphPaint = (state: MorphProbeState): void => {
   if (typeof getComputedStyle !== "function") return;
@@ -258,7 +285,7 @@ export const sampleMorphPaint = (state: MorphProbeState): void => {
     const box = flying.getBoundingClientRect().width;
     if (!(box > 0)) continue;
     for (const part of flying.querySelectorAll(`[${PART_NAME_ATTR}]`)) {
-      const gap = box - part.getBoundingClientRect().width;
+      const gap = roomFor(part, box) - part.getBoundingClientRect().width;
       if (gap <= 2) continue;
       state.partGapFrames += 1;
       if (gap > state.partGapPx) {

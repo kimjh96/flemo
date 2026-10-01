@@ -8,26 +8,31 @@ import {
 } from "@transition/decorator/typing";
 
 interface CreateDecoratorProps {
+  /** Public name registered on a Router and selected by a screen transition. */
   name: DecoratorName;
+  /** From-pose for a decorator entering on a newly mounted screen. */
   initial: InitialTarget;
-  // Resting state for the active screen and any screen that isn't currently
-  // shifting into / out of the background. Held at IDLE-*, COMPLETED-true,
-  // POPPING-true, and the entering side of PUSH/REPLACE. None of those slots
-  // are when this decorator should be visible, so for overlays this is the
-  // invisible state.
+  /**
+   * Resting pose for the active screen. For a dim or wash this is normally the
+   * invisible state, including the active screen being dismissed on pop.
+   */
   idle: DecoratorVariantValue;
-  // Target state for the screen that's moving INTO the background, the one
-  // becoming the "previous" screen. Used on PUSHING-false / REPLACING-false
-  // (peak) and COMPLETED-false (settled). For overlays this is the dim state.
+  /** Target for the screen moving into or resting in the background. */
   enter: DecoratorVariantValue;
-  // Target state for the screen moving OUT of the background, the previously-
-  // behind screen returning to active on POPPING-false. Animates from `enter`
-  // (its prior settled position) to `exit`. Match `exit` to `idle` to land
-  // softly on the active rest rule without a snap.
+  /**
+   * Target for `POPPING-false`, the decorator on the returning screen. It
+   * animates from `enter`; match this target to `idle` for a seamless rest.
+   */
   exit: DecoratorVariantValue;
+  /** Decorator behavior; omitted clocks inherit from the naming transition. */
   options?: DecoratorOptions;
 }
 
+/**
+ * Creates a wash or overlay that decorates the inactive side of a transition.
+ * Its omitted duration and delay inherit the naming screen transition by the
+ * same variant key; easing remains the decorator author's choice.
+ */
 export default function createDecorator({
   name,
   initial,

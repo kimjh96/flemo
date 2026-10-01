@@ -22,6 +22,16 @@ import createMorphTransition from "@transition/morphTransition/createMorphTransi
 // middle, and decelerates into place.
 const EASE: [number, number, number, number] = [0.4, 0, 0.2, 1];
 
+/**
+ * The plain shared element, registered as `"shared"` and the default for a
+ * `Morph` that names none.
+ *
+ * The two sides trade places while still on top of each other: the arrival is
+ * opaque from its first frame and a ghost of the departure dissolves over it.
+ * It authors no duration, so it runs as long as the screen transition flying,
+ * and it does author its own curve, which a screen's front-loaded fade must
+ * not replace.
+ */
 const shared = createMorphTransition({
   name: "shared",
   // No opacity on the arrival: it is opaque from its first frame, and the GHOST

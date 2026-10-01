@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_e6f4eab88a74bad6b0eea472
+compiler:
+  compilerBuildId: sha256:0cb9c6469602900e4c2a37e7246c9940ee42cc8d80d6a10ce39da4c1d5f07eeb
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 1+codex-cli 0.154.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_fd7eec6feab7801dee86e2a9
+outputLanguage: en
+outputs:
+  - byteCount: 1364
+    contentHash: sha256:f8967d7fc709322efaa7229bac48de7471b069632eb8dcf902da896d94a013d4
+    path: docs/instructions/transition-authoring/topology.md
+    userRegionHash: sha256:f8967d7fc709322efaa7229bac48de7471b069632eb8dcf902da896d94a013d4
+profile: instruction_document
+recordId: knormdoc_6ba3a16071835d34d0c34b25
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:f8967d7fc709322efaa7229bac48de7471b069632eb8dcf902da896d94a013d4
+sourcePath: docs/instructions/transition-authoring/topology.md
+sourceUnitVersionIds:
+  - uv_d48266c150061ad97a625e2c

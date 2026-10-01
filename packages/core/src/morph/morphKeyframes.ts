@@ -184,6 +184,28 @@ export interface MorphKeyframeSet {
    * of the author's own and the correction's, each on its own clock.
    */
   letterSpacing: string | null;
+  /**
+   * Whether the box was REVEALED: laid out once at the size that contains both
+   * ends and cut back with a clip, rather than laid out at every size.
+   *
+   * A caller needs this to know where a shadow can be worn. The reveal's clip
+   * takes everything painted outside the border box with it, so a revealed
+   * box's shadow has to go on a carrier around the element (see morphShadow).
+   * `contentsHold` does not answer it: that is a fact about the subtree, and
+   * the emitter can still decline the reveal on top of it.
+   */
+  revealed: boolean;
+  /**
+   * The `animation` shorthand a shadow carrier wears, or null where there is no
+   * shadow to cast or the box was not revealed.
+   *
+   * The carrier is an empty box that travels the same rects under the flying
+   * element and wears its `box-shadow`, because the reveal's clip takes the
+   * element's own with it. The animation carries the box as well as the shadow,
+   * so the caller has only to place the carrier and hand it this (see
+   * morphShadow).
+   */
+  shade: string | null;
 }
 
 /**
@@ -226,6 +248,27 @@ export const buildMorphKeyframes = (input: {
    * from the box's shape: a shape says nothing about a consumer's subtree.
    */
   contentsHold?: boolean;
+  /**
+   * Whether the element paints a background IMAGE that the reveal has to carry.
+   *
+   * A revealed box is laid out at the larger end, so an image laid out against
+   * it spreads over that end and the clip shows a corner of it rather than the
+   * whole picture at the smaller size. Drawn to an animated `background-size`
+   * and pinned to the corner the reveal is anchored on, it is instead the same
+   * picture the box would have painted at every size on the way, and it costs
+   * no layout because a background is a paint. Only meaningful under a reveal;
+   * `morphReveal` refuses an image the carry cannot draw.
+   */
+  paintsImage?: boolean;
+  /**
+   * The computed `box-shadow` each end wears.
+   *
+   * Only read under a reveal, where the clip eats the element's own shadow and
+   * it has to be cast by an empty box travelling underneath it instead. That
+   * box wears these values unchanged, so the shadow is the card's own rather
+   * than an approximation of it (see morphShadow).
+   */
+  shadow?: { from: string; to: string } | null;
   /** Type morphs by growing, not by being scaled: px at each end. */
   fontSize?: { from: number; to: number } | null;
   /**
@@ -306,7 +349,7 @@ export const buildMorphKeyframes = (input: {
    * The corner the box wears, so a clip that reveals it cuts a rounded shape
    * rather than a square one (see the reveal below).
    */
-  radius?: string | null;
+  radius?: string | { from: string; to: string } | null;
   fade: {
     from: TransitionTarget | null;
     to: TransitionTarget | null;
@@ -376,6 +419,8 @@ export const buildMorphKeyframes = (input: {
     size,
     clip,
     contentsHold = false,
+    paintsImage = false,
+    shadow = null,
     radius,
     leading,
     leadStart,
@@ -395,9 +440,6 @@ export const buildMorphKeyframes = (input: {
   const headPct = head > 0 ? (head / span) * 100 : 0;
   const clock = `${span.toFixed(3)}s`;
   const start = (travel.start - head).toFixed(3);
-  /** A percentage of the travel, restated as a percentage of head-plus-travel. */
-  const at = (pct: number): number =>
-    head > 0 ? headPct + (pct / 100) * (travel.duration / span) * 100 : pct;
   /** Two-stop keyframes, with the flat lead-in in front where there is one. */
   // A FLIGHT HAS TO ARRIVE BEFORE IT LANDS.
   //
@@ -415,6 +457,34 @@ export const buildMorphKeyframes = (input: {
   // nothing. What is given up is the last sixtieth of a second of an ease that
   // is already flat there.
   const arrived = span > 0 ? Math.max(0, 100 - (100 * (1 / 60)) / span) : 100;
+  /**
+   * A percentage of the travel, restated as a percentage of head-plus-travel.
+   *
+   * THE STAIRCASES MUST LAND ON THE SAME CLOCK THE SIZE DOES.
+   *
+   * A stop is a TIME: the moment the eased font size crosses a grid line, found
+   * by bisecting the travel's own curve. What makes the step invisible is that
+   * the line-height and the lift move on the frame the rendered ascent moves,
+   * so the three cancel and the glyphs hold still.
+   *
+   * The size does not run to 100%, though. `held` reaches the destination at
+   * `arrived` and holds it, one frame early, so the last painted frame is the
+   * resting size rather than a fraction short of it. That compression is the
+   * size's, so it is the staircases' too — and it was not applied to them: a
+   * stop found at 65% of the curve was emitted at 65% of the TIMELINE, which is
+   * 65% of the curve plus most of a frame. Every boundary therefore rendered
+   * before the channel that cancels it, so the glyphs dropped the step on one
+   * frame and were lifted back on the next, ten times in a 0.7s flight, with the
+   * lag growing from nothing at the start to a full frame at the end. Measured
+   * on the composition bench: the glyphs moved up to 0.97px that the travel did
+   * not explain, on half the frames of the flight, alternating in sign, which is
+   * the rattle reported through the whole convergence rather than at its end.
+   *
+   * Mapping a stop onto `[headPct, arrived]` — the window the size actually
+   * travels in — puts each step back on the frame it belongs to.
+   */
+  const at = (pct: number): number =>
+    headPct + (pct / 100) * (Math.max(headPct, arrived) - headPct);
   const held = (name: string, fromBlock: string, toBlock: string): string => {
     const landing =
       arrived >= 99.999
@@ -658,11 +728,47 @@ export const buildMorphKeyframes = (input: {
     // ROUND, or the reveal is a square cut across a rounded box: the left
     // corner disappears for the whole flight and what grows reads as a plain
     // rectangle sitting over the pill rather than the pill itself.
-    const round = radius && radius !== "0px" ? ` round ${radius}` : "";
+    // And the corner TRAVELS where the box's own does: a clip held at the
+    // arrival's corner while the box interpolates from the departure's rounds
+    // the cut edge to one radius and the far edge to another.
+    const corners = typeof radius === "object" && radius ? radius : { from: radius, to: radius };
+    const round = (value: string | null | undefined): string =>
+      value && value !== "0px" ? ` round ${value}` : "";
     pushSize(
-      `    clip-path: inset(${reveal.from}${round});`,
-      `    clip-path: inset(${reveal.to}${round});`
+      `    clip-path: inset(${reveal.from}${round(corners.from)});`,
+      `    clip-path: inset(${reveal.to}${round(corners.to)});`
     );
+    // THE IMAGE IS DRAWN TO THE BOX THE FLIGHT IS AT.
+    //
+    // The revealed element is laid out at the size that contains both ends, so
+    // an image laid out against it is the LARGER end's picture with a corner of
+    // it showing. Sized to the end the flight is at and pinned to the corner
+    // the clip is anchored on, it is the picture the box would have painted at
+    // that size. A background is a paint, so this buys the whole reveal without
+    // the layout per frame that refusing it would have cost.
+    //
+    // Repeat is not the carry's business: the clip shows exactly one tile,
+    // anchored at the same corner, and everything the tiling puts beyond that
+    // is outside the cut.
+    if (paintsImage && box) {
+      const anchor = rightHeld ? "right top" : "left top";
+      // THE BORDER BOX, because that is the POSITIONING AREA here.
+      //
+      // A sizeless image fills the positioning area, which `background-origin:
+      // padding-box` makes the box inside the BORDER — padding included, which
+      // is the content box's business, not this one's. The reveal already
+      // requires a border of zero width, so the two are the same box and the
+      // border box is the area by construction.
+      //
+      // Sized to the box inside the PADDING instead, the tile is smaller than
+      // the box and the repeat fills the rest: measured against the card at
+      // rest, two hard seams across it.
+      const area = (rect: MorphRect): string => `${px(rect.width)} ${px(rect.height)}`;
+      pushSize(
+        `    background-size: ${area(box.from)};\n    background-position: ${anchor};`,
+        `    background-size: ${area(box.to)};\n    background-position: ${anchor};`
+      );
+    }
   }
   if (fromParts.length > 0) {
     rules.push(held(geometryName, fromParts.join("\n"), toParts.join("\n")));
@@ -778,10 +884,56 @@ export const buildMorphKeyframes = (input: {
     animations.push(`${trackName} ${clock} linear ${start}s both`);
   }
 
-  if (paint.length > 0) {
+  // ONE AUTHOR PER PROPERTY. The reveal's carry writes `background-size` and
+  // `background-position` from the geometry keyframe, and the paint keyframe is
+  // applied after it, so a paint channel for either would win and the image
+  // would go back to being drawn against the laid-out box.
+  // A revealed box's own `box-shadow` is inside the clip and paints nothing, so
+  // animating it is dead weight; the carrier's filter below is what a reader
+  // sees, and it carries the same two ends.
+  const painted = paint.filter((channel) => {
+    if (!reveal) return true;
+    if (channel.property === "box-shadow") return false;
+    if (!paintsImage) return true;
+    return channel.property !== "background-size" && channel.property !== "background-position";
+  });
+
+  // THE CARRIER'S SHADOW, on the flight's own clock.
+  //
+  // A BOX, NOT A FILTER. A `drop-shadow` around the flying element does follow
+  // the clip, but it is an approximation twice over: it has no spread, and a
+  // stack of them is applied in SEQUENCE, so the second is cast from the first's
+  // blurred output rather than from the box. Device-measured through a push, the
+  // shadow under the card thinned from a tint of 27.6 at rest to 17 for the
+  // whole flight and snapped back on landing, which is a shadow that pops. It
+  // also asks for a Gaussian blur of the whole card on every frame.
+  //
+  // An empty box wearing the SAME `box-shadow`, travelling the same rects
+  // underneath the card, casts exactly what the card would. It is laid out per
+  // frame, which is what the reveal exists to avoid — but it holds nothing, so
+  // there is no subtree to lay out, and a shadow has no hard edge for the device
+  // grid to step.
+  let shade: string | null = null;
+  if (reveal && box && shadow && (shadow.from !== "none" || shadow.to !== "none")) {
+    const shadeName = `flemo-morph-${id}-shade`;
+    const corners = typeof radius === "object" && radius ? radius : { from: radius, to: radius };
+    const face = (rect: MorphRect, corner: string | null | undefined, cast: string): string =>
+      `    left: ${px(rect.x)};\n    top: ${px(rect.y)};\n    width: ${px(rect.width)};\n` +
+      `    height: ${px(rect.height)};\n    border-radius: ${corner && corner !== "" ? corner : "0px"};\n` +
+      `    box-shadow: ${cast};`;
+    rules.push(
+      held(
+        shadeName,
+        face(box.from, corners.from, shadow.from),
+        face(box.to, corners.to, shadow.to)
+      )
+    );
+    shade = `${shadeName} ${clock} ${easing} ${start}s both`;
+  }
+  if (painted.length > 0) {
     const paintName = `flemo-morph-${id}-paint`;
-    const from = paint.map((channel) => `    ${channel.property}: ${channel.from};`).join("\n");
-    const to = paint.map((channel) => `    ${channel.property}: ${channel.to};`).join("\n");
+    const from = painted.map((channel) => `    ${channel.property}: ${channel.from};`).join("\n");
+    const to = painted.map((channel) => `    ${channel.property}: ${channel.to};`).join("\n");
     rules.push(held(paintName, from, to));
     animations.push(`${paintName} ${clock} ${easing} ${start}s both`);
     // It runs the flight's full length, so it is a sound clock for a side whose
@@ -812,7 +964,16 @@ export const buildMorphKeyframes = (input: {
     translate: moving ? PINNED_TRAVEL : null,
     size: sized ? { width: PINNED_BOX, height: PINNED_BOX_HEIGHT } : null,
     heldEdge: moving && rightHeld && box ? onRuler(box.to.x + box.to.width) : null,
-    letterSpacing: tracking ? PINNED_TRACK : null
+    letterSpacing: tracking ? PINNED_TRACK : null,
+    // WHETHER THE BOX WAS REVEALED, because a shadow then has to be worn by a
+    // carrier around the element rather than by the element: the reveal's clip
+    // takes everything painted outside the border box with it (see morphShadow).
+    // The caller cannot infer this from `contentsHold` alone, which is a fact
+    // about the subtree rather than about what the emitter did with it.
+    revealed: reveal !== null,
+    // The animation a shadow carrier wears, where a revealed box has a shadow
+    // to carry. Null where there is nothing to cast or nothing was revealed.
+    shade
   };
 };
 

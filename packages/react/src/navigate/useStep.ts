@@ -33,6 +33,15 @@ type StepParams<T> = [T] extends [never]
 // chrome overlays start closed (the server can't know an open menu), so there is
 // no hydration mismatch. Everything chrome-specific is gated on `!routePath`, so
 // the screen path is byte-for-byte the original behavior.
+/**
+ * A STEP: a sub-state pushed onto history without stacking a new screen, so
+ * browser back closes a sheet or a menu instead of leaving the page.
+ *
+ * Returns `{ step, pushStep, replaceStep, popStep }`. Called from a `Screen`,
+ * the route's own params drive the step URL and `useParams` reads them back.
+ * Called from chrome OUTSIDE a `Screen`, there is no route, so the step keeps
+ * the current pathname and `step` reports its params reactively after mount.
+ */
 export default function useStep<T extends keyof RegisterRoute | object = never>() {
   const { routePath } = useScreen();
 

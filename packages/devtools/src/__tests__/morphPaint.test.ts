@@ -205,6 +205,83 @@ describe("what the flight painted", () => {
     expect(state.partGapName).toBe("copy");
   });
 
+  it("reads a padded card's inside as the part's whole room", () => {
+    // The playground's detail card wraps its parts in `px-4`: a part 32px
+    // narrower than the card is exactly as wide as it should be, and the
+    // recorder reported it on every push.
+    html(
+      `<div data-flemo-morph="enter" id="box">` +
+        `<div id="pad" style="padding: 0 16px"><div data-flemo-part-name="card-body" id="part"></div></div>` +
+        `</div>`
+    );
+    const width = (id: string, value: number) => {
+      document.getElementById(id)!.getBoundingClientRect = () => ({ width: value }) as DOMRect;
+    };
+    width("box", 325);
+    width("pad", 325);
+    width("part", 293);
+    const state = createMorphProbeState([]);
+    sampleMorphPaint(state);
+    sampleMorphPaint(state);
+    sampleMorphPaint(state);
+    expect(state.partGapFrames).toBe(0);
+  });
+
+  it("still reports a pinned part short of its padded room", () => {
+    html(
+      `<div data-flemo-morph="enter" id="box">` +
+        `<div id="pad" style="padding: 0 16px; border-left: 2px solid"><div data-flemo-part-name="card-body" id="part"></div></div>` +
+        `</div>`
+    );
+    const width = (id: string, value: number) => {
+      document.getElementById(id)!.getBoundingClientRect = () => ({ width: value }) as DOMRect;
+    };
+    width("box", 400);
+    width("pad", 400);
+    width("part", 293);
+    const state = createMorphProbeState([]);
+    sampleMorphPaint(state);
+    expect(state.partGapFrames).toBe(1);
+    expect(Math.round(state.partGapPx)).toBe(400 - 34 - 293);
+  });
+
+  it("reads the room in the transformed pixels the rects report", () => {
+    // A parent drawn at half its layout width has half its padding on glass.
+    html(
+      `<div data-flemo-morph="enter" id="box">` +
+        `<div id="pad" style="padding: 0 16px"><div data-flemo-part-name="card-body" id="part"></div></div>` +
+        `</div>`
+    );
+    const pad = document.getElementById("pad")!;
+    Object.defineProperty(pad, "offsetWidth", { configurable: true, value: 650 });
+    pad.getBoundingClientRect = () => ({ width: 325 }) as DOMRect;
+    document.getElementById("box")!.getBoundingClientRect = () => ({ width: 325 }) as DOMRect;
+    document.getElementById("part")!.getBoundingClientRect = () => ({ width: 309 }) as DOMRect;
+    const state = createMorphProbeState([]);
+    sampleMorphPaint(state);
+    expect(state.partGapFrames).toBe(0);
+  });
+
+  it("measures a part under a boxless wrapper against the flying box", () => {
+    // `display: contents` lays the part out in the flying box's own room, and
+    // its rect reads zero wide: a wrapper that cannot answer, not a room of 0.
+    html(
+      `<div data-flemo-morph="enter" id="box">` +
+        `<div id="wrap" style="display: contents"><div data-flemo-part-name="card-body" id="part"></div></div>` +
+        `</div>`
+    );
+    const width = (id: string, value: number) => {
+      document.getElementById(id)!.getBoundingClientRect = () => ({ width: value }) as DOMRect;
+    };
+    width("box", 346);
+    width("wrap", 0);
+    width("part", 314);
+    const state = createMorphProbeState([]);
+    sampleMorphPaint(state);
+    expect(state.partGapFrames).toBe(1);
+    expect(Math.round(state.partGapPx)).toBe(32);
+  });
+
   it("names the part it could not name", () => {
     // The name is read off the element, so a flight recorded from a host that
     // dropped the attribute still has a gap worth reporting.

@@ -252,6 +252,32 @@ describe("developmentHints", () => {
     }
   });
 
+  // Next 16 under Turbopack sets none of the webpack-era globals; a report from
+  // its dev server read "no development-server global was found".
+  it("names a Turbopack development runtime", () => {
+    (window as unknown as Record<string, unknown>).TURBOPACK_CHUNK_UPDATE_LISTENERS = [];
+    (window as unknown as Record<string, unknown>)._nextjsDevtoolsStyleCache = new Map();
+    try {
+      expect(developmentHints()).toEqual([
+        "TURBOPACK_CHUNK_UPDATE_LISTENERS",
+        "_nextjsDevtoolsStyleCache"
+      ]);
+    } finally {
+      delete (window as unknown as Record<string, unknown>).TURBOPACK_CHUNK_UPDATE_LISTENERS;
+      delete (window as unknown as Record<string, unknown>)._nextjsDevtoolsStyleCache;
+    }
+  });
+
+  it("names the Next dev overlay host when it is mounted", () => {
+    const portal = document.createElement("nextjs-portal");
+    document.body.appendChild(portal);
+    try {
+      expect(developmentHints()).toEqual(["<nextjs-portal>"]);
+    } finally {
+      portal.remove();
+    }
+  });
+
   it("finds none on a page that ships no dev runtime", () => {
     expect(developmentHints()).toEqual([]);
   });

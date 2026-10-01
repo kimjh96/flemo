@@ -139,6 +139,14 @@ export const capturePaint = (styles: Styles): Record<string, string> => {
 };
 
 /**
+ * Every property the table carries. The departure reaches the arrival only
+ * through these, so a reveal has to rule on each (see morphReveal).
+ */
+export const PAINT_PROPERTIES: readonly string[] = PAINT_CHANNELS.map(
+  (channel) => channel.property
+);
+
+/**
  * The channels worth animating: present at both ends and different.
  *
  * `exclude` is how a morph transition opts out of one — the built-in `text`

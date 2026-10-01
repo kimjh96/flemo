@@ -10,6 +10,15 @@ import createMorphTransition from "@transition/morphTransition/createMorphTransi
 // twice.
 const EASE: [number, number, number, number] = [0.4, 0, 0.2, 1];
 
+/**
+ * The morph for TEXT, registered as `"text"` (the export is `textMorph`).
+ *
+ * It differs from `shared` in carrying no ghost: a heading and the label it
+ * came from are the same words at two sizes, so the type simply grows into
+ * place and a copy fading over it would show the same words twice. Use it for
+ * the paired text inside a container Morph, where ordinary text would ghost
+ * departure glyphs over arrival glyphs.
+ */
 const text = createMorphTransition({
   name: "text",
   // No opacity on the arrival: it is opaque from its first frame, and the GHOST

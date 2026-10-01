@@ -8,31 +8,36 @@ import type {
 } from "@transition/morphTransition/typing";
 
 interface CreateMorphProps {
+  /** Public name registered on a Router and selected by a `Morph`. */
   name: MorphTransitionName;
-  // Where the ARRIVING element starts, beyond its measured geometry: the pose
-  // it holds on the flight's first frame, while it still sits exactly on top of
-  // the element it is replacing. `{ opacity: 0 }` is the cross-fade's start.
+  /**
+   * Additional from-pose for the arriving element while it starts over the
+   * measured departure box. `{ opacity: 0 }` starts a cross-fade.
+   */
   initial: InitialTarget;
-  // Rest. Held whenever no flight involves this element, and the pose the
-  // DEPARTING element starts from.
+  /** Resting pose and the departing element's pose before the cut. */
   idle: TransitionVariantValue;
-  // The arriving element's target: where the travelling element lands. Its
-  // `options` time the whole flight — the travel included — so this is the
-  // variant that decides how long a morph takes.
+  /**
+   * Target for the arriving side, which is the element that flies. Its own
+   * duration times the flight; otherwise the screen clock, then 0.4s, wins. A
+   * NESTED Morph is the exception: its container's flight is already carrying
+   * it, so it grows on that clock and its own duration is not consulted.
+   */
   enter: TransitionVariantValue;
-  // The departing element's target: what the element left behind does while the
-  // arrival takes its place. `{ opacity: 0 }` completes the cross-fade.
+  /**
+   * End-pose used to cut the departing side from the first frame. End hidden
+   * unless intentionally painting the departure behind the flight.
+   */
   exit: TransitionVariantValue;
+  /** Geometry, cross-fade, radius, and screen-carrying behavior for the pair. */
   options?: MorphTransitionOptions;
 }
 
-// Factory mirroring createPartTransition: collapses the 3-state (idle / enter /
-// exit) model into the status×active variants the morph runtime consumes.
-//
-// A morph pairs the two elements that share a `layoutId` across a flight, so
-// "enter" and "exit" are not two moments of one element — they are the two
-// SIDES, animating at the same time. Push, replace and pop use the same pair of
-// targets; reach for createRawMorphTransition when a status needs its own.
+/**
+ * Creates shared-element motion for two `Morph` elements with one `layoutId`.
+ * `enter` and `exit` are simultaneous sides: the arriving element flies while
+ * the departing element is cut. Pop reverses which active flag owns each side.
+ */
 export default function createMorphTransition({
   name,
   initial,

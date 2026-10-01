@@ -1,0 +1,45 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_76efc18d2559278b5f97d95e
+compiler:
+  compilerBuildId: sha256:126612f342267b5dfbefdf7c2f88bf1fe0a710c846d5e3a4f0ed99d118fde27e
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 1+codex-cli 0.153.4
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_ed6c9c0253e0b79c84b8197c
+outputLanguage: en
+outputs:
+  - byteCount: 509
+    contentHash: sha256:4472de938e4cc702546d25f34a88a6e672f46de4f9b245952eb139ceb2fcf563
+    path: docs/instructions/diagnostics.md
+    userRegionHash: sha256:4472de938e4cc702546d25f34a88a6e672f46de4f9b245952eb139ceb2fcf563
+  - byteCount: 1397
+    contentHash: sha256:b63f0f5f7d9b515a4da1107828e6509c16e9bd73ff6b19a4fefb486f95c20676
+    path: docs/instructions/diagnostics/e2e.md
+    userRegionHash: sha256:b63f0f5f7d9b515a4da1107828e6509c16e9bd73ff6b19a4fefb486f95c20676
+  - byteCount: 2620
+    contentHash: sha256:b0f1e874c171e3c6c96e724ce31076462fbaf6eed782b36b94226991c6c6d3f3
+    path: docs/instructions/diagnostics/flight-recorder.md
+    userRegionHash: sha256:b0f1e874c171e3c6c96e724ce31076462fbaf6eed782b36b94226991c6c6d3f3
+  - byteCount: 3254
+    contentHash: sha256:28b4b415a299ea52fc09356842de06ddb1a7a6f7c50b48276d4ddfeb9d2ea53e
+    path: docs/instructions/diagnostics/observation.md
+    userRegionHash: sha256:28b4b415a299ea52fc09356842de06ddb1a7a6f7c50b48276d4ddfeb9d2ea53e
+profile: instruction_document
+recordId: knormdoc_6e7b7790d452fdb7a73a0c30
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:c0779b292a0cdf0945018836f0b9194b8d093ea12baaf5368df50760290fba54
+sourcePath: docs/instructions/diagnostics.md
+sourceUnitVersionIds:
+  - uv_0aad5b69b5ff2260db916330
+  - uv_62e3037cc72efb39c1cd83e5
+  - uv_6e1fb4c657d4b15eea5c0424
+  - uv_8df538bb686736829434b27a
+  - uv_9cf044c4602f881480d3a85b
+  - uv_a6bb6b6d3ead80c6992acbe0
+  - uv_afd11d5382438d05cdedee24
+  - uv_fb11a275fd82c10609537df7

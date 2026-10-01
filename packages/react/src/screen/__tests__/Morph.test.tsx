@@ -182,7 +182,13 @@ describe("Morph", () => {
     const { getByTestId } = render(
       <StoreContext.Provider value={stores}>
         <ScreenShell isActive>
-          <Morph layoutId="photo-1" name="shared" className="card" data-testid="thumb">
+          <Morph
+            as="span"
+            layoutId="photo-1"
+            name="shared"
+            className="block card"
+            data-testid="thumb"
+          >
             <span>caption</span>
           </Morph>
         </ScreenShell>
@@ -190,7 +196,8 @@ describe("Morph", () => {
     );
 
     const element = getByTestId("thumb");
-    expect(element.className).toBe("card");
+    expect(element.tagName).toBe("SPAN");
+    expect(element.className).toBe("block card");
     expect(element.getAttribute("data-flemo-morph-name")).toBe("shared");
     expect(element.textContent).toBe("caption");
   });

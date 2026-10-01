@@ -21,6 +21,15 @@ import createMorphTransition from "@transition/morphTransition/createMorphTransi
 // transition composes; a slide is replaced rather than combined.
 const EASE: [number, number, number, number] = [0.4, 0, 0.2, 1];
 
+/**
+ * The CONTAINER TRANSFORM, registered as `"zoom"` (the export is `zoomMorph`).
+ *
+ * `shared` plus a camera: the runtime scales and translates the screen the
+ * element is small on by exactly the zoom that carries the element across, so
+ * a grid cell opening into a full-screen view takes its grid with it. PAIR IT
+ * WITH A STILL SCREEN TRANSITION. The camera supersedes that screen's own
+ * transform for the flight, so an authored slide underneath simply disappears.
+ */
 const zoom = createMorphTransition({
   name: "zoom",
   initial: {},

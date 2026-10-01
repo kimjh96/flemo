@@ -20,24 +20,50 @@ import useStores from "@stores/useStores";
 import RouterIdContext from "../RouterIdContext";
 
 export interface MorphProps extends PropsWithChildren<ComponentPropsWithRef<"div">> {
-  // The pairing key. The element with the same `layoutId` on the other screen
-  // of a flight is the SAME element as far as the eye is concerned, so this one
-  // travels from there instead of appearing where it belongs.
+  /**
+   * The pairing key. The element carrying the same `layoutId` on the other
+   * screen of a flight is the SAME element as far as the eye is concerned, so
+   * this one travels from there instead of appearing where it belongs.
+   */
   layoutId: string | number;
-  // A registered createMorphTransition `name`. Defaults to the built-in
-  // `shared` preset, which authors no timing and therefore lands with whatever
-  // screen transition is flying.
+  /**
+   * A registered `createMorphTransition` name. Defaults to the built-in
+   * `shared` preset, which authors no DURATION, so it runs for as long as
+   * whatever screen transition is flying. Its curve is authored rather than
+   * inherited: a screen's front-loaded fade would snap a shared element across
+   * and leave it sitting there for the rest of the flight.
+   */
   name?: MorphTransitionName;
-  // The tag to render (default `div`). A morph is a real box in the consumer's
-  // layout, so it has to be able to be a `span` inside a button. Props stay
-  // typed as a div's: the intersection every candidate tag shares is close
-  // enough to it that narrowing per tag would cost more in generics than it
-  // returns. Wrap structural tags (`li`, `td`) rather than becoming them.
+  /**
+   * The tag to render (default `div`). Props stay typed as a div's. A text
+   * Morph rendered as `span` still needs a transformable box, usually
+   * `display: block` or `inline-block`, with its font size and line height on
+   * that box. Wrap structural tags (`li`, `td`) rather than becoming them.
+   */
   as?: keyof JSX.IntrinsicElements;
 }
 
-// A shared element: one thing that exists on two screens.
-//
+/**
+ * A shared element: one thing that exists on two screens.
+ *
+ * The arriving element flies and the departing one is CUT, pinned at its morph
+ * transition's `exit` end pose from the flight's first frame. The two ends never
+ * cross-fade. On a pop the arriving element is the one on the screen being
+ * returned to, which is the INACTIVE side, because `active` follows the stack
+ * rather than the direction of travel.
+ *
+ * The element's BOX animates, so its subtree lays out at every intermediate size
+ * instead of scaling. Give both ends the same children: whatever the arrival
+ * does not contain cannot be carried. Pair repeated text as a nested Morph
+ * instead of leaving it as ordinary content inside a container Morph.
+ *
+ * A Morph asserts one identity. Hand copy that differs between the two screens
+ * to `Part` elements beside it.
+ *
+ * During the flight the element is staged ABOVE both screens, so whatever the
+ * screens are doing cannot clip it, cover it, or carry it along. It paints over
+ * shared bars for the same reason, which an author cannot currently prevent.
+ */
 // The component is deliberately almost empty. Everything a morph does —
 // pairing the two sides, measuring the travel, staging it in the flight layer,
 // emitting the keyframes, riding the same hold the screens obey, putting the
@@ -45,10 +71,6 @@ export interface MorphProps extends PropsWithChildren<ComponentPropsWithRef<"div
 // what it needs off the DOM protocol. This is the whole React share of it:
 // render a box, and register it before paint. A Solid or Svelte binding is the
 // same twenty lines in its own dialect.
-//
-// It is NOT tied to a particular screen transition. During the flight the
-// element is staged ABOVE both screens, so whatever the screens are doing —
-// fading, sliding, cutting — cannot clip it, cover it or carry it along.
 //
 // The SLOT is why there are two elements. The runtime moves the inner one out
 // for the flight, and React must never be asked to remove a node that is not

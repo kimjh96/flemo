@@ -16,6 +16,7 @@ import { stageBarParts, type StagedBarParts } from "@core/engine/barPartStaging"
 import { wireCancelResume } from "@core/engine/cancelResume";
 import { createFlightHolds } from "@core/engine/flightHolds";
 import {
+  collectFlightAnimations,
   collectFlightParts,
   collectScreenParts,
   collectStampedOuterParts,
@@ -23,7 +24,7 @@ import {
   collectVariantParts,
   statusChoreographySpanMs
 } from "@core/engine/flightParticipants";
-import { resolveFlightRouting } from "@core/engine/flightRouting";
+import { landingClearFrames, resolveFlightRouting } from "@core/engine/flightRouting";
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
 
 import { collectLayerRiders, isRider } from "@core/engine/layerRiders";
@@ -60,20 +61,12 @@ import {
   resetDisplayProbeForTests
 } from "@platform/displayProbe";
 import { detectBlinkEngine } from "@platform/engineProbes";
+import { reportReleaseLatencyMs } from "@platform/releaseLatency";
 import { decoratorMap } from "@transition/decorator/decorator";
 import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
 import { resolvePartDefinition } from "@transition/partTransition/partTransition";
 
 const noop = () => {};
-
-// How many vsyncs a clean end waits before the COMPLETED flip so the motion's
-// last frames actually reach the glass first. Two covers the write; WebKit
-// presents from the main thread with a 1-2 frame pipeline behind it, and a
-// measured ~30ms flip commit starting at write+2 still delayed the decel
-// tail's final frame on device (the "blip at the end" of a pop). Four puts
-// the flip past that pipeline; the screen holds its arrival pose under the
-// compiled rules meanwhile, so the extra ~33ms is invisible.
-const LANDING_CLEAR_FRAMES = 4;
 
 // Timeout insurance for the landing-clear deferral (a clean end resolves a
 // few rAFs after the last motion frame so the COMPLETED flip's commit cannot
@@ -751,12 +744,14 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // its animation off the scope so no morph coupling is needed.
         const { scope: cameraScope } = getElements();
         let cameraSpanMs = 0;
+        const cameraAnimations: Animation[] = [];
         const cameraEl =
           cameraScope?.ownerDocument?.querySelector<HTMLElement>(`[${MORPH_CAMERA_ATTR}]`) ?? null;
         if (cameraEl && typeof cameraEl.getAnimations === "function") {
           for (const anim of cameraEl.getAnimations()) {
             const name = (anim as { animationName?: string }).animationName ?? "";
             if (!name.endsWith("-camera")) continue;
+            cameraAnimations.push(anim);
             const timing = anim.effect?.getTiming?.();
             cameraSpanMs = Math.max(
               cameraSpanMs,
@@ -779,8 +774,54 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           // Anchor with the choreography's own span so the gate can never cut
           // an authored motion (see TaskManager.anchorGate).
           if (flooredTaskId) TaskManager.anchorGate(flooredTaskId, spanMs + GATE_MOTION_MARGIN_MS);
-          const spanTimer = setTimeout(resolve, spanMs);
-          return () => clearTimeout(spanTimer);
+          let settled = false;
+          const settle = () => {
+            settled = true;
+            clearTimeout(spanTimer);
+            landingFrames.forEach((frame) => cancelAnimationFrame(frame));
+            resolve();
+          };
+          const spanTimer = setTimeout(settle, spanMs);
+          // THE SPAN IS THE BACKSTOP, NOT THE LANDING.
+          //
+          // It is a wall-clock estimate armed at the release commit, and the
+          // motion does not start at the release commit: the compositor starts
+          // it a frame or two later. So the estimate needs a margin, and
+          // whatever the margin does not spend is picture held still after the
+          // motion has ended, then the COMPLETED flip's repaint. Traced on
+          // desktop Chrome over the bench's container transform, every push and
+          // pop held its last motion frame for 40 to 70ms before landing.
+          //
+          // So the flight lands where a clean end does: when its participants'
+          // animations have actually finished, plus the frames the engine's
+          // presentation pipeline needs (flightRouting's landingClearFrames).
+          // The span still fires if an animation is cancelled, lost, or
+          // outlived by the estimate, which is exactly what it did before.
+          const landingFrames: number[] = [];
+          const flight = collectFlightAnimations(
+            scope,
+            status,
+            [getElements().decorator],
+            cameraAnimations
+          );
+          if (flight.length > 0 && typeof requestAnimationFrame === "function") {
+            Promise.all(flight.map((animation) => animation.finished)).then(() => {
+              const land = (remaining: number) => {
+                if (settled) return;
+                if (remaining <= 0) {
+                  settle();
+                  return;
+                }
+                landingFrames.push(requestAnimationFrame(() => land(remaining - 1)));
+              };
+              land(landingClearFrames());
+            }, noop);
+          }
+          return () => {
+            settled = true;
+            clearTimeout(spanTimer);
+            landingFrames.forEach((frame) => cancelAnimationFrame(frame));
+          };
         }
       }
       // No animation anywhere in this variant pair. Resolve in a microtask so
@@ -956,6 +997,42 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       } else {
         root.removeAttribute(DESK_HEAD_ATTR);
       }
+      // WHAT THE HEAD IS COVERING, measured rather than assumed.
+      //
+      // This IS the release: the styles that start the flight are resolved from
+      // here, and the first frame of it reaches the glass a paint, a commit and
+      // a vsync later. The gap is what the next flight of this status decides
+      // its head from, so an app whose screens are already mounted stops paying
+      // for a latency it does not have (see releaseLatency, and the head kit in
+      // flightRouting that reads it).
+      //
+      // One frame's callback time is the honest reading available here: it is
+      // the moment the browser is about to produce the frame this release will
+      // appear in. It undercounts the presentation by the compositor's own
+      // step, which is a frame, and the threshold it feeds is a frame — so the
+      // undercount is on the side of keeping the head rather than dropping it.
+      //
+      // ONLY ON THE RUN THAT IS THE RELEASE. This block also runs at the
+      // staging commit, with the hold still on, and a sample taken there
+      // measures a paused, parked frame: short enough to talk the head off.
+      // The release run then read that sample and dropped the head the
+      // staging commit had put on, so the root attribute flipped between the
+      // two and every participant's compiled animation was swapped for the
+      // bare one at the release. Traced on desktop Chrome as the first pop of
+      // a session on the composition bench, in one to four loads of twelve.
+      // A sample taken here describes the release it follows, and only a
+      // later flight of this status reads it.
+      if (
+        animHoldReleased &&
+        typeof requestAnimationFrame === "function" &&
+        typeof performance !== "undefined"
+      ) {
+        const releasedAt = performance.now();
+        const releasedStatus = status;
+        requestAnimationFrame((at) => {
+          reportReleaseLatencyMs(releasedStatus, at - releasedAt);
+        });
+      }
     }
     // (RETIRED 2026-08-12, same day: the ADAPTIVE birth-hold guard —
     // post-release extensions of the hold var. Frame-stepped falsification:
@@ -1019,16 +1096,18 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // frame measured as a dropped frame right at landing (production trace:
     // smoothness-affecting drop ~32ms after animationend, TimerFire → flip
     // commit at the final frame). A CLEAN end therefore lets that frame
-    // PRESENT first: two rAFs — the same anchor the hold uses — with a
-    // timeout fallback for suspended rAF (background tab). The screen holds
-    // its arrival pose under the compiled rules meanwhile, so the deferral is
-    // invisible. Recovery paths (watchdog, floor, resume-terminal) keep
-    // resolving immediately — something is already wrong there.
-    let landingClearFrames: number[] = [];
+    // PRESENT first: rAFs — the same anchor the hold uses — with a timeout
+    // fallback for suspended rAF (background tab). HOW MANY is the engine's
+    // presentation pipeline and nothing more, because the deferral is only
+    // invisible while the picture cannot change under it (see
+    // flightRouting's landingClearFrames). Recovery paths (watchdog, floor,
+    // resume-terminal) keep resolving immediately — something is already
+    // wrong there.
+    let landingClearHandles: number[] = [];
     let landingClearFallback: ReturnType<typeof setTimeout> | undefined;
     const cancelLandingClear = () => {
-      landingClearFrames.forEach((frame) => cancelAnimationFrame(frame));
-      landingClearFrames = [];
+      landingClearHandles.forEach((frame) => cancelAnimationFrame(frame));
+      landingClearHandles = [];
       if (landingClearFallback !== undefined) clearTimeout(landingClearFallback);
       landingClearFallback = undefined;
     };
@@ -1049,9 +1128,9 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           resolve();
           return;
         }
-        landingClearFrames.push(requestAnimationFrame(() => chain(remaining - 1)));
+        landingClearHandles.push(requestAnimationFrame(() => chain(remaining - 1)));
       };
-      chain(LANDING_CLEAR_FRAMES);
+      chain(routing.landingClearFrames);
     };
     const resolveAfterChoreography = () => {
       if (choreographyExtraMs <= 0) {

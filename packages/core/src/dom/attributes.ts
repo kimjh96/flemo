@@ -45,7 +45,13 @@ export const SCREEN_ATTR = "data-flemo-screen";
 /** The navigation status this screen is rendering: a `NavigateStatus` value. */
 export const STATUS_ATTR = "data-flemo-status";
 
-/** `"true"` on the screen the navigation is moving TO, `"false"` on its partner. */
+/**
+ * Which screen of the pair is the STACK's top, not which one is arriving.
+ * `"true"` is the top screen and `"false"` its partner, so on a push the
+ * arriving screen is `"true"` and on a pop the arriving screen is `"false"`:
+ * the screen being dismissed stays top until it is gone. Reading this as "the
+ * arrival" pairs a morph backwards on every pop.
+ */
 export const ACTIVE_ATTR = "data-flemo-active";
 
 /** The resolved transition name, so the compiled rules select the right keyframes. */
@@ -303,6 +309,19 @@ export const MORPH_STAND_IN_ATTR = "data-flemo-morph-stand-in";
 export const MORPH_GHOST_ATTR = "data-flemo-morph-ghost";
 
 /**
+ * The shadow CARRIER: a box around a revealed flying element that casts its
+ * shadow for it.
+ *
+ * A reveal cuts the box back with a clip, and a clip takes everything painted
+ * outside the border box with it, so a revealed box's own shadow is never
+ * drawn; a filter on the element is applied before the clip and is eaten the
+ * same way. The carrier sits outside the clip and casts the shadow of the
+ * silhouette the clip leaves. It paints nothing else, takes no pointer events,
+ * and is removed on landing. Owned entirely by the morph runtime.
+ */
+export const MORPH_SHADE_ATTR = "data-flemo-morph-shade";
+
+/**
  * The SCREEN a flight is driving as a camera, stamped with the flight's id.
  *
  * A morph with `carry: "screen"` does not just move its element: it moves the
@@ -471,6 +490,7 @@ export const FLEMO_ATTRIBUTES = [
   MORPH_ATTR,
   MORPH_CAMERA_ATTR,
   MORPH_GHOST_ATTR,
+  MORPH_SHADE_ATTR,
   MORPH_ID_ATTR,
   MORPH_LAYER_ATTR,
   MORPH_NAME_ATTR,

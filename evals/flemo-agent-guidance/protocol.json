@@ -1,0 +1,111 @@
+{
+  "schema": 1,
+  "name": "flemo-agent-guidance",
+  "hypothesis": "Portable flemo guidance improves first-pass implementation of unfamiliar compositions beyond declaration JSDoc alone.",
+  "arms": [
+    {
+      "id": "declarations",
+      "artifacts": ["declarations"]
+    },
+    {
+      "id": "declarations-docs",
+      "artifacts": ["declarations", "docs"]
+    },
+    {
+      "id": "declarations-skill",
+      "artifacts": ["declarations", "skill"]
+    },
+    {
+      "id": "declarations-docs-skill",
+      "artifacts": ["declarations", "docs", "skill"]
+    }
+  ],
+  "sample": {
+    "minimumProviderFamilies": 4,
+    "freshSessionsPerProviderArmVariant": 2,
+    "variants": 3,
+    "plannedPrimaryRuns": 96
+  },
+  "primaryEndpoint": {
+    "name": "first-pass-behavioral-success",
+    "definition": "A production build scores at least 85 points and passes every critical criterion before any repair prompt.",
+    "comparison": "declarations-docs-skill minus declarations",
+    "minimumEffectPercentagePoints": 20
+  },
+  "scoring": [
+    {
+      "id": "build",
+      "points": 10,
+      "critical": true,
+      "evidence": "Production typecheck and build pass without forbidden dependencies or mocks."
+    },
+    {
+      "id": "router-ownership",
+      "points": 20,
+      "critical": true,
+      "evidence": "Local navigation changes only the contained stack; ancestor-targeted navigation changes only the app stack."
+    },
+    {
+      "id": "shared-chrome",
+      "points": 15,
+      "critical": true,
+      "evidence": "The header shell keeps stable geometry while its changing fields hand over on push, pop, swipe cancel, and swipe commit."
+    },
+    {
+      "id": "spatial-phase",
+      "points": 15,
+      "critical": true,
+      "evidence": "At equal screen displacement, programmatic pop and swipe place changing header fields at the same fraction of their paths."
+    },
+    {
+      "id": "shared-identity",
+      "points": 15,
+      "critical": true,
+      "evidence": "The shared object and its repeated title travel as one identity without doubled glyphs, blur, or landing residue."
+    },
+    {
+      "id": "overlay-paint",
+      "points": 15,
+      "critical": true,
+      "evidence": "An overlay opened from contained content paints above outer shared chrome without changing either navigation stack."
+    },
+    {
+      "id": "cleanup",
+      "points": 10,
+      "critical": true,
+      "evidence": "No console errors, stuck navigation, duplicate active participants, or transition artifacts remain after landing."
+    }
+  ],
+  "stoppingRule": {
+    "plannedRuns": "Complete all 96 primary runs. There is no early efficacy stop.",
+    "integrityPause": "Pause only for a corpus, runner, provider outage, or scoring defect discovered before treatment labels are revealed.",
+    "failedRun": "Count a model or tool failure as a first-pass failure unless an independently logged provider outage affected the run."
+  },
+  "execution": {
+    "agentVisibility": "Each session receives the identical task prompt and only the files in its anonymous arm directory.",
+    "runtimeVisibility": "The evaluator may install the pinned public packages, but package JavaScript, repository source, playground code, git history, and other arms are not supplied to the agent.",
+    "network": "Disable network for primary runs.",
+    "production": "Run behavioral scoring against a production build.",
+    "development": "Run devtools recorder checks separately in a development build because the normal recorder is intentionally inert in production."
+  },
+  "externalValidityArm": {
+    "primary": false,
+    "runs": 12,
+    "design": "Run one additional unrestricted-network session per provider family and variant. Report it separately and never pool it with the primary result."
+  },
+  "humanVisualGate": {
+    "reviewer": "product owner",
+    "sampleSize": 16,
+    "selection": "After all run IDs are sealed, randomly select one completed build from every provider-family by arm stratum, balancing variants where possible.",
+    "blinding": "Serve compiled builds under random IDs. Hide arm, provider, prompt transcript, source, prose comments, and automated score.",
+    "conditions": "Use real input with DevTools and capture closed. Review capture only after the direct visual verdict.",
+    "criteria": [
+      "header continuity",
+      "text identity and sharpness",
+      "push, pop, and swipe phase consistency",
+      "overlay coverage and visual hierarchy",
+      "overall composition quality"
+    ]
+  },
+  "claimBoundary": "Report results only for the pinned package, documentation, skill, task variants, provider families, and model versions in the run manifest."
+}

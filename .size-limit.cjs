@@ -48,7 +48,23 @@ module.exports = [
     // Re-based to 56 KB, which restores the ~7% headroom the 48.4 -> 52 step
     // took. A gate with no room left is a gate that reports the next commit
     // rather than the next regression.
-    limit: "56 KB",
+    //
+    // 58.85 kB on 2026-09-16, and the growth is one thing: the reveal rule
+    // table (morph/morphReveal.ts). Measured by building this branch with the
+    // table's gate stubbed out, it is 3,172 bytes of the 3,328 the branch adds;
+    // everything else on it together is 156. The table is 400 CSS properties
+    // and what each one does to a box that is laid out once at its larger end
+    // and clipped into view, and it is that long because the rule is a CLOSED
+    // world: a property it does not know forces the always-correct path, so the
+    // reveal cannot be wrong about a page it has never seen. Compacting the
+    // property lists into split strings was tried and returned 21 bytes, which
+    // is what gzip already does with repeated short quoted strings.
+    //
+    // Re-based to 64 KB. The alternative to the bytes was a shorter table,
+    // which is not cheaper: every property left out of it is a flight that
+    // lays its contents out on every frame instead. This entry buys frames
+    // with bytes on purpose.
+    limit: "64 KB",
     gzip: true
   },
   // The morph runtime, measured as its own reachable graph. It is a real
@@ -78,7 +94,12 @@ module.exports = [
     // lands, a fast pop paired against its snapshot before the leaving screen
     // re-rendered, and a stranded or corpse flight was swept from the layer
     // before the next pop could pair against it. Re-based to 26 KB.
-    limit: "26 KB",
+    //
+    // 27.4 kB on 2026-09-16, and this half is where the reveal rule table
+    // lands: 3,040 of the 3,122 bytes this entry grew. See the entry above for
+    // what the table is and why it is not shortened. Re-based to 31 KB, the
+    // usual headroom.
+    limit: "31 KB",
     gzip: true
   },
   {

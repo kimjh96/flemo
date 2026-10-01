@@ -79,45 +79,77 @@ function findSlotRoutes(node: ReactNode): ReactElement<RouteProps>[] | null {
 }
 
 interface RouterProps {
-  // A stable identity for cross-Router navigation: `useNavigate({ router:
-  // "app" })` / `push(path, params, { router: "app" })` run against the
-  // <Router name="app"> that encloses the call. Purely a lookup key — it is
-  // NOT the internal `routerKey` that namespaces `history.state` (that one is
-  // derived, see below), so renaming a Router never orphans its frames.
-  // Consumer-provided, therefore stable across SSR and hydration by
-  // construction. Names must be unique within one chain of nested Routers;
-  // a duplicate is reported in development.
+  /**
+   * A stable identity for cross-Router navigation: `useNavigate({ router:
+   * "app" })` and `push(path, params, { router: "app" })` run against the
+   * `<Router name="app">` that ENCLOSES the call. Resolution searches the
+   * current Router and its ancestors, never a sibling. Names must be unique
+   * within one chain of nested Routers; a duplicate is reported in development.
+   */
+  // Purely a lookup key — it is NOT the internal `routerKey` that namespaces
+  // `history.state` (that one is derived, see below), so renaming a Router
+  // never orphans its frames. Consumer-provided, therefore stable across SSR
+  // and hydration by construction.
   name?: string;
-  // Upgrade the "this Router does not declare that route" development WARNING
-  // to a thrown error for navigations that leave the target implicit. Explicit
-  // `router:` targets always throw in development — this opt-in extends the
-  // same strictness to plain `push`/`replace` calls, which stay warn-only by
-  // default so existing apps keep their behavior.
+  /**
+   * Upgrades the "this Router does not declare that route" development warning
+   * to a thrown error for navigations that leave the target implicit. Explicit
+   * `router:` targets always throw in development; plain `push` and `replace`
+   * calls stay warn-only until this is set.
+   */
   strictRoutes?: boolean;
+  /** The path this Router's stack starts at (default `"/"`). */
   initPath?: string;
+  /**
+   * The transition every navigation in this Router uses unless it passes its own
+   * `transitionName` (default `"cupertino"`). There is no per-`Route`
+   * transition: motion belongs to the navigation, not the destination.
+   */
   defaultTransitionName?: TransitionName;
+  /**
+   * Screen transitions from `createTransition` or `createRawTransition` that
+   * this Router can name. Registering compiles their keyframes.
+   */
   transitions?: Transition[];
+  /**
+   * Decorators from `createDecorator` or `createRawDecorator`. A decorator is
+   * reached only through a transition's `decoratorName`, never by an element.
+   */
   decorators?: Decorator[];
+  /**
+   * Part transitions from `createPartTransition` or `createRawPartTransition`,
+   * reached by name from a `Part` under any screen transition.
+   */
   partTransitions?: PartTransition[];
-  // Consumer morph transitions (createMorphTransition). They compile to no CSS
-  // — a shared element's keyframes need two rects that only a flight produces —
-  // so registering one is purely making its name resolvable to the runtime.
+  /**
+   * Morph transitions from `createMorphTransition` or
+   * `createRawMorphTransition`, reached by name from a `Morph`.
+   */
+  // They compile to no CSS — a shared element's keyframes need two rects that
+  // only a flight produces — so registering one is purely making its name
+  // resolvable to the runtime.
   morphTransitions?: MorphTransition[];
-  // Which history backend this Router drives. "browser" (default) reads/writes
-  // `window.history` so the URL and browser back/forward work inside it, even
-  // when the Router is nested. "memory" keeps an isolated in-memory stack that
-  // never touches `window.history`, the URL, or browser back. History mode is
-  // independent of nesting: nesting only controls the contained box rendering.
+  /**
+   * Which history backend this Router drives. `"browser"` (default) reads and
+   * writes `window.history`, so the URL and browser back/forward work inside it
+   * even when the Router is nested. `"memory"` keeps an isolated in-memory stack
+   * that never touches `window.history`, the URL, or browser back. History mode
+   * is independent of nesting: nesting only controls the contained box.
+   */
   history?: "browser" | "memory";
-  // Override the browser history backend. Receives this Router's key (for state
-  // namespacing) and returns a HistoryDriver — e.g. a locale-aware wrapper that
-  // maps a URL prefix while the Router stays in unprefixed path space, so it
-  // never reads or writes `window.location` directly. Ignored for
-  // history="memory". Defaults to the keyed browser driver.
+  /**
+   * Overrides the browser history backend. Receives this Router's key, for state
+   * namespacing, and returns a `HistoryDriver`. Use it for a locale-aware
+   * wrapper that maps a URL prefix while the Router stays in unprefixed path
+   * space. Ignored when `history` is `"memory"`.
+   */
   createDriver?: (routerKey?: string) => HistoryDriver;
-  // Applied to the region box of a NESTED <Router> only (a root <Router> renders
-  // no wrapper — its screens are fixed to the viewport). Size the region here.
+  /**
+   * Sizes the region box of a NESTED Router. A root Router renders no wrapper,
+   * because its screens are fixed to the viewport.
+   */
   className?: string;
+  /** Sizes the region box of a nested Router. See `className`. */
   style?: CSSProperties;
 }
 
@@ -172,6 +204,18 @@ const CONTAINED_VIEWPORT = { contained: true };
 // continues, and how long it survives past the last interaction — enough to
 // bridge move -> tap -> the flight's own warm-up taking over, short enough
 // that a walked-away user costs nothing lasting.
+/**
+ * Owns one navigation stack, its history, and the motion between its screens.
+ *
+ * Register every transition, decorator, part transition, and morph transition
+ * the stack names here. A navigation runs against the NEAREST enclosing Router
+ * unless it names another one, and only this Router's screens move: everything
+ * outside its `Slot` stays mounted and still.
+ *
+ * Without a `Slot`, the Router's children ARE its routes and its screens fill
+ * the viewport. With one, the routes go inside the `Slot` and the surrounding
+ * layout persists across navigations.
+ */
 function Router({
   children,
   name,

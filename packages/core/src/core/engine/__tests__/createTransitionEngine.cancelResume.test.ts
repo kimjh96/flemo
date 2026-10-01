@@ -667,3 +667,90 @@ describe("createTransitionEngine cancel-resume liveness", () => {
     dispose();
   });
 });
+
+// A cancel whose element is already running another animation of the same
+// flight was a SWAP (a head tier's keyframes replaced by the bare ones, or the
+// recovery's own restart), not a loss. Blink dispatches the restart's cancel on
+// the next frame, and reading it as a loss restarted again every frame until
+// the budget ran out and the flight was resolved 80ms in.
+describe("createTransitionEngine cancel-resume stands down for a swap", () => {
+  let resolveSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    transitionMap.set(CROSSFADE, crossfade);
+    resolveSpy = vi.spyOn(TaskManager, "resolveTask").mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    transitionMap.delete(CROSSFADE);
+    resolveSpy.mockRestore();
+    document.body.replaceChildren();
+  });
+
+  const drive = (scope: HTMLElement) =>
+    createTransitionEngine({
+      getTransitionTaskId: vi.fn(() => "swap-task"),
+      setDragStatus: vi.fn(),
+      setReplaceTransitionStatus: vi.fn()
+    }).driveScreenLifecycle({
+      getElements: () => ({ scope }),
+      transitionName: CROSSFADE,
+      prevTransitionName: CROSSFADE,
+      status: "REPLACING",
+      isActive: true,
+      animHoldReleased: true
+    });
+
+  const running = (animationName: string, playState: AnimationPlayState = "running") =>
+    ({ animationName, playState }) as unknown as Animation;
+
+  it("leaves a head tier's cancel alone while the bare animation already runs", () => {
+    const scope = newDiv();
+    scope.getAnimations = () => [running(ACTIVE(CROSSFADE))];
+    const dispose = drive(scope);
+
+    // More cancels than the budget allows: none of them is a loss.
+    for (let i = 0; i < 6; i++) {
+      scope.dispatchEvent(cancelEvent(`${ACTIVE(CROSSFADE)}-deskhead`, 0.016 * i));
+    }
+
+    expect(scope.style.animationDelay).toBe("");
+    expect(resolveSpy).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it("does not restart on its own restart's cancel, delivered a frame later", () => {
+    const scope = newDiv();
+    let animations: Animation[] = [];
+    scope.getAnimations = () => animations;
+    const dispose = drive(scope);
+
+    // A real loss: nothing of the flight is left on the element.
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.06));
+    expect(scope.style.animationDelay).toBe("-0.06s");
+
+    // The restart put the animation back; the cancel it caused arrives now.
+    animations = [running(ACTIVE(CROSSFADE))];
+    for (let i = 0; i < 6; i++) scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.016));
+
+    expect(scope.style.animationDelay).toBe("-0.06s");
+    expect(resolveSpy).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it("still recovers when what is left is another flight's, idle, or finished", () => {
+    const scope = newDiv();
+    scope.getAnimations = () => [
+      running("flemo-screen-other-REPLACING-true"),
+      running(ACTIVE(CROSSFADE), "idle"),
+      running(ACTIVE(CROSSFADE), "finished"),
+      { playState: "running" } as unknown as Animation
+    ];
+    const dispose = drive(scope);
+
+    scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.06));
+
+    expect(scope.style.animationDelay).toBe("-0.06s");
+    dispose();
+  });
+});

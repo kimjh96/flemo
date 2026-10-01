@@ -6,6 +6,13 @@ import useScreen from "@screen/useScreen";
 
 import useNavigateStore from "@stores/useNavigateStore";
 
+/**
+ * The box a transition's named decorator paints in, over this screen.
+ *
+ * It renders whatever `decoratorName` the screen's current transition names,
+ * and nothing when that transition names none. A decorator is never selected
+ * by an element, so this component takes no name of its own.
+ */
 function ScreenDecorator({ ref, style, ...props }: ComponentPropsWithRef<"div">) {
   const { id, isActive, isPrev, transitionName } = useScreen();
 

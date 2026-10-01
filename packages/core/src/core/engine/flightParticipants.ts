@@ -209,3 +209,41 @@ export const statusChoreographySpanMs = (
   }
   return spanMs;
 };
+
+// The animations a STILL screen's flight is made of: the passive screen of this
+// Router's flight, every <Part> in it, and whatever the caller adds (the
+// decorator's element, the morph camera's animations). The same participants
+// the span above counts, read as the running animations rather than as their
+// authored lengths, so a caller can wait for the motion to actually END instead
+// of for a wall-clock estimate of when it will.
+//
+// Own animations only (a screen's descendants belong to their own parts or to
+// the consumer), and only ones that CAN end: a consumer's infinite loop on a
+// participant would otherwise hold the flight open forever. Same Router
+// boundary as collectFlightParts, for the same reason.
+export const collectFlightAnimations = (
+  scope: HTMLElement,
+  status: string,
+  extraElements: readonly (Element | null | undefined)[],
+  extraAnimations: readonly Animation[]
+): Animation[] => {
+  const flightId = scope.closest(attrSelector(ROUTER_ATTR))?.getAttribute(ROUTER_ATTR) ?? null;
+  const passiveScreens = Array.from(
+    scope.ownerDocument.querySelectorAll<HTMLElement>(
+      `${attrSelector(SCREEN_ATTR)}${attrValueSelector(STATUS_ATTR, status)}${attrValueSelector(ACTIVE_ATTR, "false")}`
+    )
+  ).filter((screen) => {
+    if (flightId === null) return true;
+    const carrier = screen.closest(attrSelector(ROUTER_ATTR));
+    return !carrier || carrier.getAttribute(ROUTER_ATTR) === flightId;
+  });
+  const elements = [...passiveScreens, ...collectFlightParts(scope, status), ...extraElements];
+  const animations: Animation[] = [...extraAnimations];
+  for (const element of elements) {
+    if (!element || typeof element.getAnimations !== "function") continue;
+    animations.push(...element.getAnimations());
+  }
+  return animations.filter((animation) =>
+    Number.isFinite(Number(animation.effect?.getComputedTiming?.().endTime))
+  );
+};

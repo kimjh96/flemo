@@ -17,8 +17,12 @@ const animation = (target: Element, name: string, time: number | null): FakeAnim
   effect: { target }
 });
 
+// The whole document is asked once and the answer shared, so the stub belongs
+// on the document (see staging's note on what asking costs).
 function stubAnimations(root: Element, animations: () => FakeAnimation[]): void {
   (root as unknown as { getAnimations: () => unknown[] }).getAnimations = () => animations();
+  (root.ownerDocument as unknown as { getAnimations: () => unknown[] }).getAnimations = () =>
+    animations();
 }
 
 describe("preserveAnimations", () => {
@@ -51,6 +55,38 @@ describe("preserveAnimations", () => {
 
     expect(root.parentElement).toBe(destination);
     expect(live[0].currentTime).toBe(320);
+  });
+
+  it("shares the document's answer with a staging nested inside the move", () => {
+    // Asking resolves style, so one answer serves every question asked before
+    // a re-parent makes it stale. A staging run from inside another's move
+    // asks before the outer move happens, and is answered from the snapshot.
+    const other = document.createElement("div");
+    const otherChild = document.createElement("span");
+    other.appendChild(otherChild);
+    document.body.appendChild(other);
+
+    let live = [animation(child, "flemo-part-a", 100), animation(otherChild, "flemo-part-b", 200)];
+    let asks = 0;
+    stubAnimations(root, () => {
+      asks += 1;
+      return live;
+    });
+
+    preserveAnimations(root, () => {
+      preserveAnimations(other, () => {
+        live = [animation(child, "flemo-part-a", 100), animation(otherChild, "flemo-part-b", 0)];
+        destination.appendChild(other);
+      });
+      live = [animation(child, "flemo-part-a", 0), live[1]];
+      destination.appendChild(root);
+    });
+
+    // Outer ask, the nested one answered from it, then one fresh ask after
+    // each move to restore what it interrupted.
+    expect(asks).toBe(3);
+    expect(live[0].currentTime).toBe(100);
+    expect(live[1].currentTime).toBe(200);
   });
 
   it("leaves the root's own animations to the runtime", () => {

@@ -18,6 +18,132 @@ describe("buildMorphKeyframes", () => {
   const rect = (x: number, width: number): MorphRect => ({ x, y: 10, width, height: 32 });
   const growing: MorphTravel = { ...travel, from: IDENTITY_POSE };
 
+  it("draws a revealed box's image to the size the FLIGHT is at, not the size it is laid out at", () => {
+    // A revealed box is laid out at the larger end, so an image laid out
+    // against it is the larger end's picture with a corner of it showing.
+    // Sized to the end the flight is at and pinned to the corner the clip is
+    // anchored on, it is the picture the box would have painted itself, and it
+    // costs no layout because a background is a paint.
+    const { rules } = buildMorphKeyframes({
+      id: "9u",
+      travel: growing,
+      box: { from: rect(300, 80), to: rect(220, 160) },
+      contentsHold: true,
+      paintsImage: true,
+      fade: null,
+      paint: [],
+      pinned: true,
+      travelPinned: true
+    });
+    const travelRule = rules.join("\n");
+
+    expect(travelRule).toContain("background-size: 80px 32px");
+    expect(travelRule).toContain("background-size: 160px 32px");
+    // The clip cuts the LEFT here, so the picture is anchored on the right and
+    // the one tile the clip shows is the one the carry drew.
+    expect(travelRule).toContain("background-position: right top");
+  });
+
+  it("leaves the image's size and position to the carry, and paints the rest", () => {
+    // One author per property: the paint keyframe is applied after the
+    // geometry one, so a paint channel for the image's size would win and draw
+    // it against the laid-out box again. A colour has no such author.
+    const { rules } = buildMorphKeyframes({
+      id: "9v",
+      travel: growing,
+      box: { from: rect(300, 80), to: rect(220, 160) },
+      contentsHold: true,
+      paintsImage: true,
+      fade: null,
+      paint: [
+        { property: "background-color", from: "rgb(0, 0, 0)", to: "rgb(255, 255, 255)" },
+        { property: "background-size", from: "10px 10px", to: "20px 20px" },
+        { property: "background-position", from: "0px 0px", to: "4px 4px" }
+      ],
+      pinned: true,
+      travelPinned: true
+    });
+    const paint = rules.find((rule) => rule.includes("-paint"))!;
+
+    expect(paint).toContain("background-color: rgb(255, 255, 255)");
+    expect(paint).not.toContain("background-size");
+    expect(paint).not.toContain("background-position");
+  });
+
+  it("leaves a box that is laid out for real to paint its own image", () => {
+    const { rules } = buildMorphKeyframes({
+      id: "9y",
+      travel: growing,
+      box: { from: rect(300, 80), to: rect(220, 160) },
+      contentsHold: false,
+      paintsImage: true,
+      fade: null,
+      paint: [],
+      pinned: true,
+      travelPinned: true
+    });
+
+    expect(rules.join("\n")).not.toContain("background-size");
+  });
+
+  it("hands a revealed box's shadow to a carrier, on the flight's own clock", () => {
+    // The reveal's clip takes everything painted outside the border box with
+    // it, so the box's own shadow is never drawn and animating it is dead
+    // weight. The carrier is a separate element, so its shadow needs an
+    // animation of its own rather than a place in the element's list.
+    const built = buildMorphKeyframes({
+      id: "9o",
+      travel: growing,
+      box: { from: rect(300, 80), to: rect(220, 160) },
+      contentsHold: true,
+      radius: { from: "24px", to: "30px" },
+      shadow: {
+        from: "rgba(139, 92, 246, 0.2) 0px 20px 25px -5px",
+        to: "rgba(139, 92, 246, 0.25) 0px 25px 50px -12px"
+      },
+      fade: null,
+      paint: [{ property: "box-shadow", from: "rgb(0, 0, 0) 0px 1px 2px", to: "none" }],
+      pinned: true,
+      travelPinned: true
+    });
+    const shade = built.rules.find((rule) => rule.includes("-shade"))!;
+
+    expect(built.revealed).toBe(true);
+    // The card's OWN shadow, unchanged, on a box travelling the card's rects:
+    // a `drop-shadow` approximation has no spread and stacks in sequence.
+    expect(shade).toContain("box-shadow: rgba(139, 92, 246, 0.2) 0px 20px 25px -5px;");
+    expect(shade).toContain("box-shadow: rgba(139, 92, 246, 0.25) 0px 25px 50px -12px;");
+    expect(shade).toContain("width: 80px;");
+    expect(shade).toContain("width: 160px;");
+    expect(shade).toContain("border-radius: 24px;");
+    expect(shade).toContain("border-radius: 30px;");
+    expect(built.shade).toContain("flemo-morph-9o-shade");
+    // The element's own shadow is inside the clip and paints nothing, so the
+    // paint channel does not carry it; the carrier is where it lives now.
+    expect(built.rules.some((rule) => rule.includes("-paint"))).toBe(false);
+    // And the carrier's animation is not on the element's list.
+    expect(built.animation).not.toContain("-shade");
+  });
+
+  it("casts no carrier shadow for a box that was laid out for real", () => {
+    const built = buildMorphKeyframes({
+      id: "9p",
+      travel: growing,
+      box: { from: rect(300, 80), to: rect(220, 160) },
+      contentsHold: false,
+      shadow: { from: "rgb(0, 0, 0) 0px 20px 15px", to: "none" },
+      fade: null,
+      paint: [{ property: "box-shadow", from: "rgb(0, 0, 0) 0px 1px 2px", to: "none" }],
+      pinned: true,
+      travelPinned: true
+    });
+
+    expect(built.revealed).toBe(false);
+    expect(built.shade).toBeNull();
+    // It paints its own shadow, so the paint channel still carries it.
+    expect(built.rules.some((rule) => rule.includes("box-shadow"))).toBe(true);
+  });
+
   it("holds a box whose contents were MEASURED not to move, and clips it instead", () => {
     // The narrower end is a clip over the wider one: 80 of 160 is half the box,
     // so the flight opens at a 50% left inset and closes at none. One layout,
@@ -245,6 +371,46 @@ describe("buildMorphKeyframes", () => {
       // They sit where the ease reaches each face height; easing between them
       // again would move them off it.
       expect(built().animation).toContain("flemo-morph-1s-lead 0.400s linear");
+    });
+
+    it("puts its stops on the clock the SIZE runs on, not on the whole timeline", () => {
+      // A stop is the moment the eased font size crosses a grid line, and what
+      // makes that step invisible is the line-height and the lift moving on the
+      // same frame the rendered ascent does. The size does not run to 100%,
+      // though: the destination is reached a frame early and held (`arrived`),
+      // so a stop belongs in that window too. Mapped onto the whole timeline
+      // instead, every stop fired AFTER the boundary it cancels, by more and
+      // more of a frame as the flight ran, and the glyphs dropped the step on
+      // one frame and were lifted back on the next.
+      const lead = built().rules.find((rule) => rule.includes("-lead"))!;
+      const rise = buildMorphKeyframes({
+        id: "1v",
+        travel: { ...travel, from: IDENTITY_POSE },
+        box: {
+          from: { x: 0, y: 100, width: 10, height: 10 },
+          to: { x: 0, y: 300, width: 20, height: 20 }
+        },
+        lineHeight: { from: 20, to: 32 },
+        leading: stairs,
+        lift: [
+          { at: 0, ascent: 13 },
+          { at: 40, ascent: 16 },
+          { at: 100, ascent: 23 }
+        ],
+        travelPinned: true,
+        fade: null,
+        paint: []
+      }).rules.find((rule) => rule.includes("-lift"))!;
+
+      // A 0.4s flight holds its destination from 95.8333%, so the stop at 40%
+      // of the travel sits at 40% of THAT, and the last stop sits on it.
+      expect(lead).toContain("38.3333% {");
+      expect(lead).toContain("95.8333% {");
+      expect(lead).not.toContain("40.0000% {");
+      // The lift cancels the leading, so it has to step on the same frames.
+      expect(rise).toContain("38.3333% {");
+      expect(rise).toContain("95.8333% {");
+      expect(rise).not.toContain("40.0000% {");
     });
 
     it("takes the channel off the geometry keyframe, so the two cannot both author it", () => {
@@ -556,6 +722,30 @@ describe("buildMorphKeyframes", () => {
     const travelRule = rules.join("\n");
     expect(travelRule).toContain("clip-path: inset(0% 0.000% 50.000% 0.000% round 12px)");
     expect(travelRule).toContain("clip-path: inset(0% 0.000% 0.000% 0.000% round 12px)");
+  });
+
+  it("rounds the reveal with the corner the box is travelling through", () => {
+    // The box's own corner interpolates from the departure's on the paint
+    // animation. A clip held at the arrival's corner rounded the cut edge to one
+    // radius while the far corners were still at the other.
+    const { rules } = buildMorphKeyframes({
+      id: "rr",
+      travel: growing,
+      box: {
+        from: { x: 0, y: 0, width: 100, height: 40 },
+        to: { x: 0, y: 0, width: 100, height: 80 }
+      },
+      contentsHold: true,
+      radius: { from: "24px", to: "30px" },
+      fade: null,
+      paint: [],
+      pinned: true,
+      travelPinned: true
+    });
+
+    const travelRule = rules.join("\n");
+    expect(travelRule).toContain("clip-path: inset(0% 0.000% 50.000% 0.000% round 24px)");
+    expect(travelRule).toContain("clip-path: inset(0% 0.000% 0.000% 0.000% round 30px)");
   });
 });
 

@@ -276,6 +276,59 @@ describe("compileTransitionStyles", () => {
     expect(headed).toContain("100% {\n    opacity: 1;");
   });
 
+  it("names a part's head for the clock of each transition it rides", () => {
+    // No duration of its own: the part runs on whichever transition carries it.
+    const title = createPartTransition({
+      name: "test-clocked-title",
+      initial: { opacity: 0 },
+      idle: { value: { opacity: 1 }, options: { duration: 0 } },
+      enter: { value: { opacity: 1 } },
+      exit: { value: { opacity: 0 } }
+    });
+    const css = compileTransitionStyles([cupertino, material], [], [title]);
+
+    const headFor = (transition: string) => {
+      const rule = deskHeadRules(css).find((block) =>
+        block.includes(
+          `[data-flemo-transition="${transition}"][data-flemo-part-name="test-clocked-title"][data-flemo-status="POPPING"][data-flemo-active="false"]`
+        )
+      )!;
+      const name = /animation-name: ([\w-]+);/.exec(rule)![1]!;
+      const seconds = Number(/animation-duration: ([\d.]+)s;/.exec(rule)![1]);
+      const bodies = css.split("@keyframes ").filter((block) => block.startsWith(`${name} {`));
+      return { name, seconds, bodies };
+    };
+
+    const onCupertino = headFor("cupertino");
+    const onMaterial = headFor("material");
+
+    // Two clocks, two keyframe sets. Under one name only the last body emitted
+    // survived the cascade, and every part played that transition's head.
+    expect(onCupertino.name).not.toBe(onMaterial.name);
+    for (const { name, seconds, bodies } of [onCupertino, onMaterial]) {
+      expect(bodies).toHaveLength(1);
+      // A pop's desktop head is 17ms.
+      const headPct = ((0.017 / seconds) * 100).toFixed(3);
+      expect(bodies[0]).toContain(`0%, ${headPct}% {`);
+      // Still a head of the part's own flight, so its events resolve the part.
+      expect(
+        matchesFlightAnimationName(
+          name,
+          animationName("part", "test-clocked-title", "POPPING-false")
+        )
+      ).toBe(true);
+    }
+  });
+
+  it("matches a clock-tagged head name, and nothing else after the suffix", () => {
+    const base = animationName("part", "x", "POPPING-true");
+    expect(matchesFlightAnimationName(`${base}-deskhead-717ms`, base)).toBe(true);
+    expect(matchesFlightAnimationName(`${base}-gov-780ms`, base)).toBe(true);
+    expect(matchesFlightAnimationName(`${base}-deskhead-717`, base)).toBe(false);
+    expect(matchesFlightAnimationName(`${base}-deskhead-other`, base)).toBe(false);
+    expect(matchesFlightAnimationName(`${base}-extra-717ms`, base)).toBe(false);
+  });
+
   it("keeps part easing authored — no LPM ease var outside the screen scope", () => {
     const css = compileTransitionStyles(
       [],
@@ -1460,6 +1513,20 @@ describe("morph rules", () => {
     // above — and a copy that dissolves while the flight is still held is an
     // afterimage of the thing that has not moved yet.
     expect(css).toContain('[data-flemo-anim-hold="true"] [data-flemo-morph-ghost]');
+  });
+
+  it("pauses the shadow carrier with the morph it travels under", () => {
+    // The carrier is not the morph, not a Part and not the ghost, so it
+    // matched none of the selectors above and was the one participant the
+    // hold never reached. Unheld it starts at the style commit while
+    // everything around it waits for the release, and runs the whole flight
+    // ahead by however long the hold lasted: measured on a desktop Chrome pop,
+    // the shade ended at 760ms and the card's travel at 827ms, both reporting
+    // 0.7s of elapsed time. A shadow detached from its card, every frame.
+    const css = compileTransitionStyles([cupertino], []);
+    expect(css).toContain('[data-flemo-anim-hold="true"] [data-flemo-morph-shade]');
+    expect(css).toContain('[data-flemo-anim-hold="park"] [data-flemo-morph-shade]');
+    expect(css).toContain('[data-flemo-anim-hold="park-under"] [data-flemo-morph-shade]');
   });
 });
 

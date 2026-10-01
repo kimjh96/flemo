@@ -1,0 +1,28 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_e6f4eab88a74bad6b0eea472
+compiler:
+  compilerBuildId: sha256:0cb9c6469602900e4c2a37e7246c9940ee42cc8d80d6a10ce39da4c1d5f07eeb
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 1+codex-cli 0.154.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_3a9f8dbf7ef7b4ccf7c11df1
+outputLanguage: en
+outputs:
+  - byteCount: 3559
+    contentHash: sha256:4a36ae66a59fc5763d3de352c062899b127c26d259ee68e0fa9c16b688556d4a
+    path: docs/instructions/transition-authoring/timing-options.md
+    userRegionHash: sha256:4a36ae66a59fc5763d3de352c062899b127c26d259ee68e0fa9c16b688556d4a
+profile: instruction_document
+recordId: knormdoc_b38021f75638a4a6bc09e348
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:f0b59dbd976313e54fd351530d28e6f9f05a7df6563f1d207d19ac23d4f0d266
+sourcePath: docs/instructions/transition-authoring/timing-options.md
+sourceUnitVersionIds:
+  - uv_1a76f6a06d46008e06eb76e8
+  - uv_8aa5faa7892809177f45b7ba
+  - uv_c5f24595133cc5df36a152b0

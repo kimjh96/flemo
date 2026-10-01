@@ -154,6 +154,14 @@ function buildDom(options: { nestScope?: boolean; noBar?: boolean; dimInHost?: b
     screenContainer.appendChild(scope);
   }
 
+  // React renders the active screen's shared bars BESIDE its screen box. The
+  // controller receives their refs because a descendant walk cannot see them.
+  const currentBar = document.createElement("div");
+  currentBar.setAttribute(BAR_ATTR, "app");
+  currentBar.setAttribute(BAR_RIDING_ATTR, "false");
+  const currentBarPart = part(POSE_ONLY);
+  currentBar.appendChild(currentBarPart);
+
   const decorator = document.createElement("div");
   decorator.setAttribute(DECORATOR_ATTR, "");
   decorator.setAttribute(DECORATOR_OWNER_ATTR, "top-1");
@@ -162,7 +170,7 @@ function buildDom(options: { nestScope?: boolean; noBar?: boolean; dimInHost?: b
   const layer = document.createElement("div");
 
   if (options.dimInHost) layer.appendChild(prevDecorator);
-  root.append(prevScreenContainer, screenContainer, layer);
+  root.append(prevScreenContainer, screenContainer, currentBar, layer);
   document.body.appendChild(root);
 
   scope.setPointerCapture = vi.fn();
@@ -180,6 +188,8 @@ function buildDom(options: { nestScope?: boolean; noBar?: boolean; dimInHost?: b
     prevPart,
     barPart,
     currentPart,
+    currentBar,
+    currentBarPart,
     authoredPart
   };
 }
@@ -259,6 +269,33 @@ describe("createSwipeController drag riders", () => {
 
     expect(rides(dom.currentPart)).toBe(true);
     expect(rides(dom.prevPart)).toBe(true);
+  });
+
+  it("drives a current shared bar beside the screen box", async () => {
+    // A nested Router's bar is still inside the OUTER screen, so closest()
+    // sees that ancestor rather than null. The explicit bar ref is the proof
+    // that the Part belongs to the current inner screen.
+    const outerScope = document.createElement("div");
+    outerScope.setAttribute(SCREEN_ATTR, "outer");
+    dom.root.prepend(outerScope);
+    outerScope.append(dom.prevScreenContainer, dom.screenContainer, dom.currentBar);
+
+    const controller = createSwipeController(
+      buildConfig({
+        getElements: () => ({
+          scope: dom.scope,
+          screenContainer: dom.screenContainer,
+          decorator: dom.decorator,
+          sharedTopBar: dom.currentBar,
+          sharedBottomBar: null
+        })
+      })
+    );
+    drag(controller);
+    await flush();
+
+    expect(rides(dom.currentBarPart)).toBe(true);
+    expect(rides(dom.barPart)).toBe(true);
   });
 
   it("re-arms a part its own wake replaced, the way the dim already is", async () => {

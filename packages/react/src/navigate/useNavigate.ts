@@ -17,22 +17,37 @@ import resolveRouterTarget, { ownsRoute, type RouterTarget } from "../RouterTarg
 
 import type { RegisterRoute } from "@Route";
 
-// Typed distance options: narrows `until` to the route registry. The runtime
-// orchestration lives in @flemo/core's createNavigationController; this hook is
-// the thin React binding that wires the request-scoped stores + the typed path
-// compiler and re-exposes push/replace/pop with route-typed signatures.
+// The runtime orchestration lives in @flemo/core's createNavigationController;
+// this hook is the thin React binding that wires the request-scoped stores +
+// the typed path compiler and re-exposes push/replace/pop with route-typed
+// signatures.
 interface DistanceOptions {
+  /**
+   * How far into the existing stack the call reaches: the target is the screen
+   * `skip` below the top. `pop` lands on it and defaults to 1, `replace`
+   * replaces it, and `push` keeps it and stacks on top, both defaulting to 0.
+   */
   skip?: number;
+  /**
+   * Reach the nearest screen matching this declared route instead of counting.
+   * Mutually exclusive with `skip`, and it wins if both are given. An unmatched
+   * pattern is a no-op for `pop` and `replace`, and a plain `push` for `push`.
+   */
   until?: keyof RegisterRoute;
 }
 
-// Which Router a navigation runs against. Omitted everywhere, the behavior is
-// exactly what it always was: the nearest enclosing <Router>.
-//
-// As a hook argument it is the DEFAULT target for every call it returns
-// (`useNavigate({ router: "app" })` navigates the <Router name="app"> above
-// this call); as a per-call option it OVERRIDES that default.
+/**
+ * Which Router a navigation runs against. Omitted, it is the NEAREST enclosing
+ * `Router`.
+ *
+ * As a hook argument it is the default target for every call the hook returns;
+ * as a per-call option it overrides that default. Resolution searches the
+ * current Router and its ancestors, never a sibling. A pathless `pop` has no
+ * route owner to infer, so `"nearest-owner"` cannot select a Router for it:
+ * name the owner instead.
+ */
 export interface UseNavigateOptions {
+  /** A Router `name`, or one of `current`, `parent`, `root`, `nearest-owner`. */
   router?: RouterTarget;
 }
 
@@ -43,6 +58,22 @@ type RouteOptions = DistanceOptions &
 
 type PopRouteOptions = DistanceOptions & UseNavigateOptions & { transitionName?: TransitionName };
 
+/**
+ * Returns `push`, `replace`, and `pop` for one Router's stack.
+ *
+ * Each call resolves its target Router first, so the whole navigation runs
+ * against that Router's own history and stores. Paths are typed through
+ * `RegisterRoute`, which is one global registry: a path can type-check while
+ * the Router being navigated is not the one that declares it, and the entry
+ * then has no `Route` to mount. Development reports that mismatch.
+ *
+ * Pass `transitionName` per call to override the Router's
+ * `defaultTransitionName`. Every call returns a promise that settles when the
+ * navigation task completes.
+ *
+ * A call that arrives while that Router is mid-transition is IGNORED rather
+ * than queued, so the first tap wins and rapid taps never stack a replay.
+ */
 export default function useNavigate(defaults?: UseNavigateOptions) {
   const stores = useStores();
   const contextScope = useContext(RouterScopeContext);
