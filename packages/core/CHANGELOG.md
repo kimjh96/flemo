@@ -1,5 +1,49 @@
 # @flemo/core
 
+## 2.8.0
+
+### Minor Changes
+
+- [`9f13447`](https://github.com/kimjh96/flemo/commit/9f134477455ab2c1e6ddacd0a8913f4e9c3005ec) Reveal a morph that paints a gradient or a shadow, instead of laying its box out at every size. The image is drawn to the size the flight is at through an animated background-size, the shadow is cast by an empty box travelling under the flying element wearing the card's own box-shadow, and a box whose size used to be painted on whole device pixels now moves as smoothly as its position does.
+
+- [`b9ab611`](https://github.com/kimjh96/flemo/commit/b9ab6116d14b40e62dd9883afe6d9dd03cdded21) Reserve a shared bar's space at its exact fractional height from the first measurement. The first reading was rounded to a whole pixel and corrected after the navigation landed, which moved the screen's content by half a pixel and flickered a line at its bottom edge after every tab switch. Adds `readBarHeight` to `@flemo/core`.
+
+### Patch Changes
+
+- [`9c06f27`](https://github.com/kimjh96/flemo/commit/9c06f27ff5b676a3c620bc7454601c6a903896f9) Clip a Morph's box instead of resizing it only when every computed property of the arrival and every carried paint channel of the departure is proven to draw the same picture. A shadow, border, outline, image, mask, filter, transform, percentage corner, ellipsis, scrollbar, pseudo-element, unclipped overflow, or any property the engine does not know now lays the box out for real, and a clipped reveal's corner travels with the box's own radius.
+
+- [`9739e2b`](https://github.com/kimjh96/flemo/commit/9739e2bf2735d211760374fd46cd5ebfe603b41f) Drive the active screen's shared-bar Parts on the default swipe rider. The swipe read only the screen box, and the active bar's title and actions sit beside it in the React binding, so a swipe back left them standing still while the covered side's moved.
+
+- [`e2bd27c`](https://github.com/kimjh96/flemo/commit/e2bd27cc98e8aa8a361a872262fe5191cc44b8fa) Ask the document once for the animations a flight has to carry, instead of once per participant. `getAnimations` resolves style before it answers, so on the frame a tap starts each participant paid for the writes made by the ones before it: measured in Chrome on a warm push, four asks at 0.2ms and then one at 3.8ms that found nothing and one at 3.6ms, from a frame that has 8.3ms to spend at 120Hz. One shared answer per task takes that from 6.9ms to 4.2ms.
+
+- [`3cbbbe7`](https://github.com/kimjh96/flemo/commit/3cbbbe75a5dfc2e10acff1b973783386109034b6) Document the published declarations so an editor's hover answers what the library expects. Every transition, decorator, part and morph factory input names the variant it fills, the eight built-in presets name the string they are registered under, and Router, Route, Slot, Screen, Part, Morph, Layer and the hooks carry the rules a plausible edit gets wrong: nearest-Router targeting, no per-Route transition prop, a mid-transition navigation being ignored rather than queued, the departure being cut at its end pose while the arriving side flies, shared bars handing over only on equal ids, and duration and delay inheriting where easing never does. Correct the `ACTIVE_ATTR` note, which called the attribute the screen a navigation moves to and so read backwards on every pop, and the `shared` preset note, which called it timing-free when it authors no duration but does author its curve.
+
+- [`839b458`](https://github.com/kimjh96/flemo/commit/839b458fa7b01a0598fd25c53923716742274bdb) Give a desktop Chromium session the same flat lead-in a desktop Safari session already had. A compiled clock is born at the release but its first frame reaches the glass only after that update's paint and the compositor's commit, and on desktop Blink that was measured at 28.5ms against an 8.3ms frame, landing on the animation's opening and entering the curve several frames in.
+
+- [`8a3ef73`](https://github.com/kimjh96/flemo/commit/8a3ef735564cdd1e4abe4551916eae4c7571cc2d) Hold a revealed morph's shadow carrier on the same clock as the morph it travels under. The carrier is neither the morph nor a Part nor the ghost, so the compiled hold rule never reached it and it started at the style commit while the rest of the flight waited for the release, running the whole travel ahead of the card by the length of the hold.
+
+- [`dad2fe6`](https://github.com/kimjh96/flemo/commit/dad2fe69cf332c38174481cd60cbbe51f62c21e0) Keep a navigation flying when its compiled animation is swapped for another of the same flight. Cancel recovery read its own restart as a fresh loss and cut the first pop of a desktop Chrome session about 80ms in; a flight's head is also no longer re-decided between its staging and its release.
+
+- [`2eefb5e`](https://github.com/kimjh96/flemo/commit/2eefb5ee0cfc53e4557d58c9ab008cddf8c5265b) Ask again for a morph's contents when the context that styles them changes. The remembered answer was keyed to the subtree alone, so a theme class on an ancestor or a stylesheet arriving with a lazy chunk could move a child and have the old answer reused, which is the one thing this rule is not allowed to do.
+
+- [`ae91899`](https://github.com/kimjh96/flemo/commit/ae9189933af4f2b4e1d476e2c0f4cbe5edae5762) Wait only as many frames before the completion flip as the engine needs to present the motion's last one. Blink draws that frame from the compositor, so one frame covers it; the four every engine was waiting held the picture still for 50ms and then repainted it, which read as a hitch at the end of every pop. WebKit keeps the four its main-thread presentation was measured to need.
+
+- [`5db710f`](https://github.com/kimjh96/flemo/commit/5db710fc6ecd2e135864c0bf7d57623621ba1abc) Land a navigation whose screen stands still (a container transform's camera, or an exit revealing a motionless screen) on the frame after its motion actually ends. It used to wait out a wall-clock estimate with a 50ms margin, holding the finished picture for 40 to 70ms before the landing repaint.
+
+- [`ef903e0`](https://github.com/kimjh96/flemo/commit/ef903e0f1dbdf43807bb0b45bebd96416976454e) Name a Part's head keyframes for the clock of the transition carrying it. Every transition emitted the Part's head under one name with its own head fraction, so a Part played whichever transition compiled last and ran behind or ahead of its screen whenever a head was worn.
+
+- [`cbdf4aa`](https://github.com/kimjh96/flemo/commit/cbdf4aab3ba9ab9fde29a8ad67db755f651851ae) Run a nested morph on the curve of the flight that carries it. A nested end is not travelling to a place on a moving screen, it is moving inside a box whose size its carrier is interpolating, so a curve of its own makes the box collapse on one shape while the thing inside walks on another. Measured on a paired card and title, the title's baseline stood 30px below the bottom of its own card for about 250ms of every flight.
+
+- [`6cdda6f`](https://github.com/kimjh96/flemo/commit/6cdda6ff77dd96405a2143ed7d07ff93ee8a9cdc) Let the settle gate's raster guard count the frames the grace already rode. The guard proves the thread is quiet at the release and the grace is frames going by, so collecting the whole pair again afterwards serialised two waits that overlap. It now completes the evidence with one observed frame instead of two, and falls back to the full pair when a block starts in the gap it could not see.
+
+- [`2f94c07`](https://github.com/kimjh96/flemo/commit/2f94c07fb5509cf81efbdf7fd618e5b008981f4b) Register a morph's pinned pose properties in a style sheet of their own. Sharing the sheet every flight writes its keyframes to made each flight's start and landing restyle the entire document instead of the elements that animate.
+
+- [`ee67e95`](https://github.com/kimjh96/flemo/commit/ee67e95d2e6489f25105281d4eb3f6f6c96cf94c) Remember whether a morph's contents hold across the mounts a navigation makes. The answer was cached against the arriving element, and an arrival is mounted for the navigation, so every flight laid a copy of the subtree out twice for an answer it already had. It is now keyed by what the answer depends on: the two sizes, the anchored corner, and the shape of the subtree read without touching layout.
+
+- [`05dc791`](https://github.com/kimjh96/flemo/commit/05dc7912002f33fb64f840f9e498b9b2b54b6f1b) Wear a desktop Chromium flat head only while there is a latency for it to cover. A head holds the from-pose across the gap between a compiled clock's birth and its first frame reaching the glass, and a cover for a gap that is not there is dead time. The session now measures its own release-to-first-frame per navigation status and takes the head only while that runs longer than a frame, so an app whose screens are already mounted pays nothing.
+
+- [`12d8515`](https://github.com/kimjh96/flemo/commit/12d851515cf0ae52329b0576861e89a9bca839d7) Land a type morph's leading and lift staircases on the clock its font size runs on. The size reaches its destination a frame before the flight ends and holds it there, but the stops that cancel each grid step were placed against the full timeline, so every step fired after the boundary it was cancelling and the glyphs blipped once per stop.
+
 ## 2.7.0
 
 ### Minor Changes
