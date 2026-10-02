@@ -18,8 +18,8 @@ Check this table before instrumenting.
 | Part travels a different visible distance at the same screen position on automatic pop and swipe | Part inherited duration but uses different easing. Swipe is spatially scrubbed; automatic pop is time-driven. Give participating Part variants the screen's easing. | [Clocks](timing-options.md#clocks) |
 | Authored slide disappears under zoom | `carry: "screen"` supersedes it. | `utils/devWarn.ts` `warnCameraOverridesScreen` |
 | Swipe back looks different from the pop it walks | Seeking a rider through its own curve cancels that curve, so the drag shows a phase the flight never runs. | `core/engine/riderSwipe.ts` `scrub` |
-| Shared element paints over the header, tab bar, or dim while flying | The flight layer sits above every screen container; a scope's own content cannot outrank it. | [Motion semantics](semantics.md#what-flemo-does-differently) |
-| Morph pairs backwards only on pops | `active` was interpreted as travel direction. | [Status slots](semantics.md#who-is-who-on-every-status) |
+| Shared element paints over the header, tab bar, or dim while flying | The flight layer sits above every screen container; a scope's own content cannot outrank it. | [Motion semantics](semantics/motion-behavior.md) |
+| Morph pairs backwards only on pops | `active` was interpreted as travel direction. | [Status slots](semantics/status-and-slots.md) |
 | Correctly spelled name animates nothing | Nothing registered under that name; lookup was total and silent before the warning. | `utils/devWarn.ts` `warnUnregistered` |
 | Header or provider inside `<Router>` is ignored | Without `<Slot>`, children are the routes. | `react/src/Router.tsx` |
 | Nested Router's shared element flies outside its box | The flight layer fell back to document level; a binding must publish the scope's layer. | `morph/morphLayer.ts` |
@@ -28,7 +28,7 @@ Check this table before instrumenting.
 
 ## Before calling it done
 
-- [ ] Check every pose against the [status-slot table](semantics.md#who-is-who-on-every-status) on both POP and PUSH.
+- [ ] Check every pose against the [status-slot table](semantics/status-and-slots.md) on both POP and PUSH.
 - [ ] No participant restates a duration another owns. If a literal duration appears twice, one is already wrong.
 - [ ] Morph `exit` ends hidden.
 - [ ] Repeated text inside a container Morph has a nested `name="text"` identity, avoiding glyphs painted by both ghost and arrival.
