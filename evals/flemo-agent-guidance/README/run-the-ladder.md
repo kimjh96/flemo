@@ -5,9 +5,9 @@ pnpm eval:agents:ladder -- --corpus /absolute/corpora --out /absolute/ladder \
   --providers alpha,beta,gamma,delta [--seed <text>] [--network off]
 ```
 
-This lays out every session's directory and writes the ledger. It does not talk to a provider: the protocol allows any runner, so long as each session starts fresh, sees only its own directory, and has no network. Binding the ladder to one vendor's CLI would make the result a claim about that harness rather than about the guidance.
+This command creates every session directory and writes the ledger without contacting a provider. Any runner is allowed if each session starts fresh, sees only its own directory, and has no network. Binding the ladder to a vendor's CLI would measure that harness rather than the guidance.
 
-## What a session gets
+## Session contents and isolation
 
 ```
 sessions/run-017/
@@ -16,18 +16,20 @@ sessions/run-017/
   submission/    the starter, with @flemo/react pinned to the corpus release
 ```
 
-The arm's directory name never appears inside a session; `reference/` is the same word in all four arms, and the ledger that remembers which arm it was is written to `ledger/`, outside the session tree. Point the runner at one `sessions/<id>` directory and nothing above it.
+The arm's directory name never appears inside a session: all four arms use `reference/`. Arm identities are recorded in `ledger/`, outside the session tree. Point the runner at one `sessions/<id>` directory and nothing above it.
 
-Every session is audited as it is written: an unexpected entry in the directory, or a task text that names the treatment, stops the whole layout rather than producing a run that has to be discarded afterwards.
+Each session is audited as it is written. An unexpected directory entry or task text naming the treatment stops the entire layout, preventing a run that would need discarding later.
 
-## What the plan guarantees
+## Plan guarantees
 
-A full factorial — every provider family runs every arm on every variant, twice — checked to be even before anything is written. The order is shuffled from a recorded seed, so a provider's load, a model revision rolled out mid-run, or a machine warming up cannot be read as the treatment. The same seed regenerates the same plan.
+The plan is a full factorial: every provider family runs every arm on every variant twice. Balance is checked before anything is written.
 
-## Running a session
+Order is shuffled using a recorded seed so provider load, a model revision rolled out mid-run, or machine warm-up cannot be mistaken for the treatment. The same seed regenerates the same plan.
 
-Install the starter's dependencies, then start the session with the runner of your choice, allowlisting only `sessions/<id>`. Append the provider, model, model version, runner version, exit state and timestamps to that session's ledger entry before any arm label is revealed.
+## Run a session
 
-## Scoring
+Install the starter's dependencies, then start your chosen runner with only `sessions/<id>` allowlisted. Before revealing any arm label, append the provider, model, model version, runner version, exit state, and timestamps to that session's ledger entry.
 
-Build and serve the submission, then [score it](./scoring.md) with `--submission` pointing at the same directory. A run with the network on is the external-validity arm and is reported separately; the ledger records which it was.
+## Score a session
+
+Build and serve the submission, then [score it](./scoring.md) with `--submission` pointing at the same directory. A network-enabled run is the external-validity arm and is reported separately; the ledger records whether the network was enabled.

@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_bf3936fb83c3b9e8eaaa3415
+compiler:
+  compilerBuildId: sha256:4921469018da98f751a61e2394a9e506fc3c069b131b8bcdaeeee798734b5725
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.159.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_e7fc6d53fdbb185ca11828e0
+outputLanguage: en
+outputs:
+  - byteCount: 806
+    contentHash: sha256:68e674466dbd6c626c4b1689c26817288cde028766e2be00a977b54d330dce9a
+    path: evals/flemo-agent-guidance/README.md
+    userRegionHash: sha256:68e674466dbd6c626c4b1689c26817288cde028766e2be00a977b54d330dce9a
+profile: human_readme
+recordId: knormdoc_857532152a2778278e6c2c6a
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:da520aacf3fed35c87333dfb4e14a5773357ffc12ba6a07f8102ddefb720abcb
+sourcePath: evals/flemo-agent-guidance/README.md
+sourceUnitVersionIds:
+  - uv_d4287b2fec7fda3c8146fe41

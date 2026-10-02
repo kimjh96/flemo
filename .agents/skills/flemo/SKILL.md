@@ -25,9 +25,9 @@ Design navigation topology, visual ownership, and motion together. A locally pla
 2. Resolve each navigation from its calling component. Record the target Router and operation: push, replace, or pop.
 3. Before coding, make a participant matrix:
 
-| Participant           | Router owner | Primitive              | Identity                  | Push role       | Pop role             | Swipe owner        | Clock owner | Paint layer |
-| --------------------- | ------------ | ---------------------- | ------------------------- | --------------- | -------------------- | ------------------ | ----------- | ----------- |
-| Example: header title | app          | Part in shared top bar | part name + shared bar ID | old out, new in | top out, previous in | default Part rider | app screen  | part layer  |
+| Participant | Router owner | Primitive | Identity | Push role | Pop role | Swipe owner | Clock owner | Paint layer |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Example: header title | app | Part in shared top bar | part name + shared bar ID | old out, new in | top out, previous in | default Part rider | app screen | part layer |
 
 4. Choose primitives by ownership and identity, not desired easing:
    - `Slot`: literally persistent layout around one Router's moving region.
