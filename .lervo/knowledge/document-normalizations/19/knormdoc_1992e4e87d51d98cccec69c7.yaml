@@ -1,0 +1,30 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_bf3936fb83c3b9e8eaaa3415
+compiler:
+  compilerBuildId: sha256:4921469018da98f751a61e2394a9e506fc3c069b131b8bcdaeeee798734b5725
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.159.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_f785d9d09fad00f5f1c9f272
+outputLanguage: en
+outputs:
+  - byteCount: 2069
+    contentHash: sha256:e45cd5d38d93f6b57ffe8514a8331f54416eaf400997aae4aea6337fc561b75c
+    path: evals/flemo-agent-guidance/README/run-the-ladder.md
+    userRegionHash: sha256:e45cd5d38d93f6b57ffe8514a8331f54416eaf400997aae4aea6337fc561b75c
+profile: repository_document
+recordId: knormdoc_1992e4e87d51d98cccec69c7
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:0d0ec43920923c1d60ff28fb8691e6dafd8ca792f7627cecd79ad1952d84e5c9
+sourcePath: evals/flemo-agent-guidance/README/run-the-ladder.md
+sourceUnitVersionIds:
+  - uv_00836cdf8454d0941b38dcd6
+  - uv_5c1de5b99ca4fed3e37c65b2
+  - uv_679bcaf263b850506abd42fd
+  - uv_9a66ef54a89ce17aeb360bff
+  - uv_cc872893cd7fc807f028528e

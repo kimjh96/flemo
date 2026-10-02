@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_bf3936fb83c3b9e8eaaa3415
+compiler:
+  compilerBuildId: sha256:4921469018da98f751a61e2394a9e506fc3c069b131b8bcdaeeee798734b5725
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.159.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_ae8b735b5d28a13909d6228e
+outputLanguage: en
+outputs:
+  - byteCount: 434
+    contentHash: sha256:ade2e9c00bdc8a9e36eea43a261481bc8e76d47b85d4129b496cb6dfcf8b719a
+    path: evals/flemo-agent-guidance/README/arms.md
+    userRegionHash: sha256:ade2e9c00bdc8a9e36eea43a261481bc8e76d47b85d4129b496cb6dfcf8b719a
+profile: repository_document
+recordId: knormdoc_87d5f98cc87f3ce00907ce9c
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:f9f21b99c20b537f2cc28737ed0b3ac20bb41e4398295b1d81b07bb9a744c247
+sourcePath: evals/flemo-agent-guidance/README/arms.md
+sourceUnitVersionIds:
+  - uv_f2f5d7a76e570bee62886622

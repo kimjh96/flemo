@@ -24,9 +24,9 @@ import { morphTransitionMap } from "@transition/morphTransition/morphTransition"
 import createPartTransition from "@transition/partTransition/createPartTransition";
 import createRawPartTransition from "@transition/partTransition/createRawPartTransition";
 
-// THE ONE DOCUMENT AGENTS.md CALLS REQUIRED READING, CHECKED AGAINST THE CODE.
+// THE STATUS TABLE LINKED FROM THE REQUIRED AUTHORING DOCUMENT, CHECKED AGAINST THE CODE.
 //
-// `docs/instructions/transition-authoring.md` exists because the four factories
+// `docs/instructions/transition-authoring.md` links this table because the four factories
 // share a vocabulary and do not share its meaning, and getting a pose into the
 // wrong slot is the mistake that costs a day. A table that says which slot each
 // side lands in is only worth reading while it is TRUE, and prose has no way of
@@ -39,14 +39,16 @@ import createRawPartTransition from "@transition/partTransition/createRawPartTra
 // a reader's lost afternoon.
 const DOC = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  "../../../../../docs/instructions/transition-authoring/semantics.md"
+  "../../../../../docs/instructions/transition-authoring/semantics/status-and-slots.md"
+);
+const FACTORY_DOC = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../../../docs/instructions/transition-authoring/semantics/factory-vocabulary.md"
 );
 
-// The heading the slot table lives under. Named rather than counted: the
-// document was split into one file per concern and every "## 2." this test used
-// to find went with it, which broke the check silently in the split's own
-// commit.
-const SLOT_TABLE = "## Who is who on every status";
+// The heading the slot table lives under. Named rather than counted so a
+// document split cannot silently stop this test from checking the table.
+const SLOT_TABLE = "# Status and slots";
 
 const TRANSITION_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -236,7 +238,7 @@ describe("the transition authoring document", () => {
   });
 
   it("is right about the one slot a part has and a decorator does not", () => {
-    const doc = readFileSync(DOC, "utf8");
+    const doc = readFileSync(FACTORY_DOC, "utf8");
     expect(doc).toContain("omission holds `idle`");
     const bare = createPartTransition({
       name: "doc-part-bare",

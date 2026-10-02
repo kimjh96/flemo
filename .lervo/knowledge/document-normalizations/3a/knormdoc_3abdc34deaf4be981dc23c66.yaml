@@ -1,0 +1,41 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_bf3936fb83c3b9e8eaaa3415
+compiler:
+  compilerBuildId: sha256:4921469018da98f751a61e2394a9e506fc3c069b131b8bcdaeeee798734b5725
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.159.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_8efd2eeb7c2def9df5ad0d13
+outputLanguage: en
+outputs:
+  - byteCount: 447
+    contentHash: sha256:4b1d6aae1491373596b8fe9f10a937865ed990b3686e464c09d46634256a2711
+    path: docs/instructions/transition-authoring/semantics.md
+    userRegionHash: sha256:4b1d6aae1491373596b8fe9f10a937865ed990b3686e464c09d46634256a2711
+  - byteCount: 2324
+    contentHash: sha256:4f2c92c085e5a14a890b7188d7ccd663b0b345c49872aa824f32d44eee7dd73e
+    path: docs/instructions/transition-authoring/semantics/factory-vocabulary.md
+    userRegionHash: sha256:4f2c92c085e5a14a890b7188d7ccd663b0b345c49872aa824f32d44eee7dd73e
+  - byteCount: 2986
+    contentHash: sha256:02049d0ee991a5773422872783671cc2452bdea165d15d80992cfe6443f7b418
+    path: docs/instructions/transition-authoring/semantics/motion-behavior.md
+    userRegionHash: sha256:02049d0ee991a5773422872783671cc2452bdea165d15d80992cfe6443f7b418
+  - byteCount: 1099
+    contentHash: sha256:ccad6ee91d1c0392c64a75bc75b5769e40abd4afdce49b72d26e25a2f39a60a1
+    path: docs/instructions/transition-authoring/semantics/status-and-slots.md
+    userRegionHash: sha256:ccad6ee91d1c0392c64a75bc75b5769e40abd4afdce49b72d26e25a2f39a60a1
+profile: instruction_document
+recordId: knormdoc_3abdc34deaf4be981dc23c66
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:f073cb061e18674e8ea6d8c807f1cb9b933e2f677da65ae7c556e4c6378dd2b7
+sourcePath: docs/instructions/transition-authoring/semantics.md
+sourceUnitVersionIds:
+  - uv_64bcf850af0991d63cc484e4
+  - uv_653a3034af43b6b8d6a1112b
+  - uv_8f71595d7e134190a78d8358
+  - uv_9f04e16cf7ebcfd5b073e69a
