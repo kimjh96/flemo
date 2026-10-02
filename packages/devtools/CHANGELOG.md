@@ -1,5 +1,13 @@
 # @flemo/devtools
 
+## 0.9.1
+
+### Patch Changes
+
+- [`8b6085f`](https://github.com/kimjh96/flemo/commit/8b6085f7a80d1e67cc4ed1254a0280ecf96245c7) Cap the panel header at half the drawer and scroll it there, so a session with many findings no longer squeezes the flight list and detail to nothing, and chip a warned override once instead of twice.
+
+- [`feca913`](https://github.com/kimjh96/flemo/commit/feca9136faabdf9b403fec9a9e7d661eeba9d0cf) Measure a part's gap against the padded room it is laid out in, recognize a Next 16 Turbopack dev server, report the recorder's own trace key by size instead of as an unknown override, and keep wrapped header chips as rounded boxes.
+
 ## 0.9.0
 
 ### Minor Changes
