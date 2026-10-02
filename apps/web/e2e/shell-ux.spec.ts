@@ -37,9 +37,9 @@ test.describe("shell ux", () => {
 
   // The home hero CTA navigates through flemo (a client transition), not a
   // next/link that would fight the shell Router.
-  test("the home Get started CTA navigates to docs", async ({ page }) => {
+  test("the home Start building CTA navigates to docs", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Get started", exact: true }).click();
+    await page.getByRole("button", { name: "Start building", exact: true }).click();
     await expect(page).toHaveURL(/\/docs(\/|$)/);
   });
 
@@ -52,7 +52,7 @@ test.describe("shell ux", () => {
     await expect(menu).toBeVisible();
 
     await menu.click();
-    await siteHeader(page).getByRole("button", { name: "Showcase", exact: true }).click();
+    await siteHeader(page).getByRole("button", { name: "Examples", exact: true }).click();
     await expect(page).toHaveURL(/\/showcase$/);
   });
 });

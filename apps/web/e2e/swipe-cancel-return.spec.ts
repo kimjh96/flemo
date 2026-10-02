@@ -39,6 +39,7 @@ const enterCase = async (page: import("@playwright/test").Page, name: string) =>
     (card as HTMLElement | undefined)?.click();
   }, STAGE);
   await waitForNavIdle(page);
+  await page.locator("[data-playground-stage]").scrollIntoViewIfNeeded();
 
   return page.evaluate(() => {
     const active = [...document.querySelectorAll("[data-flemo-screen][data-flemo-router]")].find(

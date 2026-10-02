@@ -9,7 +9,7 @@ test.describe("composition playground", () => {
     await waitForNavIdle(page);
 
     await expect(page.locator("[data-composition-header]").getByText("Inbox")).toBeVisible();
-    await page.getByRole("button", { name: "Local filters" }).click();
+    await page.getByRole("button", { name: "Open filters" }).click();
     await waitForNavIdle(page);
 
     await expect(page.getByTestId("composition-pane-filters")).toBeVisible();
@@ -17,7 +17,7 @@ test.describe("composition playground", () => {
 
     await page.getByRole("button", { name: "Local back" }).click();
     await waitForNavIdle(page);
-    await page.getByRole("button", { name: "Open from nested pane" }).click();
+    await page.getByRole("button", { name: "Open full screen" }).click();
     await waitForNavIdle(page);
 
     await expect(page.getByTestId("composition-detail")).toBeVisible();
@@ -80,7 +80,7 @@ test.describe("composition playground", () => {
 
     const header = page.locator("[data-composition-header]");
     await expect(header.getByText("Inbox")).toBeVisible();
-    await page.getByRole("button", { name: "Open command layer" }).click();
+    await page.getByRole("button", { name: "Open floating panel" }).click();
 
     const overlay = page.getByTestId("composition-layer-overlay");
     await expect(overlay).toBeVisible();
@@ -133,6 +133,7 @@ test.describe("composition playground", () => {
   test("flies the root-owned featured Morph in both directions", async ({ page }) => {
     await page.goto("/en/playground/composition");
     await waitForNavIdle(page);
+    await page.getByTestId("composition-featured").scrollIntoViewIfNeeded();
 
     const sourceTitle = await page
       .locator('[data-flemo-morph-id="composition-featured-title"]')
@@ -405,6 +406,7 @@ test.describe("composition playground", () => {
     await page.getByTestId("composition-featured").click();
     await waitForNavIdle(page);
 
+    await page.locator("[data-playground-stage]").scrollIntoViewIfNeeded();
     const stage = await page.locator("[data-playground-stage]").boundingBox();
     expect(stage).not.toBeNull();
     if (!stage) return;

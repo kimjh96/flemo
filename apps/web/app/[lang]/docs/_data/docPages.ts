@@ -191,51 +191,33 @@ const EN: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "flemo gives web apps a native-style screen stack: push a screen, pop it, or drag from the edge to go back. Routing and motion are designed as one system."
+            text: "flemo helps a React app move between screens like an app. Open a card, go back with a swipe, or switch tabs while the app stays in place."
           },
-          { type: "h", text: "The mental model" },
+          { type: "h", text: "Start here" },
           {
             type: "list",
             items: [
-              "`Router` owns the screen history and transition catalog",
-              "`Route` maps a path to one screen",
-              "`Screen` supplies the visual surface, safe areas, and shared bars",
-              "`useNavigate` pushes, replaces, or pops the stack",
-              "`Slot` keeps app chrome still while only its screen region moves"
+              "Try the live demo and open a poster",
+              "Install `@flemo/react`",
+              "Connect two screens, then move between them"
+            ]
+          },
+          { type: "h", text: "Three pieces to know" },
+          {
+            type: "list",
+            items: [
+              "`Router` holds the screens your app can open",
+              "`Route` connects a URL path to one screen",
+              "`Screen` wraps the content shown at that path"
             ]
           },
           {
             type: "p",
-            text: "A push creates a real history entry and animates the new Screen over the current one. A pop reveals the screen below it. With the cupertino preset, that same pop is interactive when the user drags from the left edge."
+            text: "Call `navigate.push()` to open the next screen. Use Back or `navigate.pop()` to return. The Getting started guide shows the complete example."
           },
           {
             type: "note",
-            text: "flemo is intentionally a screen router, not a replacement for every server-routing feature. It works best in SPAs, hybrid WebViews, and self-contained app regions where Flemo can own client-side history."
-          },
-          { type: "h", text: "What you get out of the box" },
-          {
-            type: "list",
-            items: [
-              "Native-like `cupertino`, `material`, `layout`, and instant `none` transitions",
-              "Swipe-back and drag-to-dismiss gestures tied to real history",
-              "Shared top and bottom bars that stay visually continuous between screens",
-              "Type-safe paths, route params, transition names, and nested Router targets",
-              "Custom screen, part, decorator, and shared-element motion"
-            ]
-          },
-          { type: "h", text: "Where to go next" },
-          {
-            type: "list",
-            items: [
-              "`Getting started` install through your first push and pop",
-              "`Router & Route` path matching, registration, defaults",
-              "`Slot` keep part of the layout still while screens transition",
-              "`Screen` top bar, bottom bar, safe areas",
-              "`Navigation` useNavigate, useParams, useStep",
-              "`Transitions` built-in presets, custom transitions, gestures",
-              "`Part` give one element its own transition inside a screen",
-              "`Composition` combine nested routing, shared chrome, Parts, and Morphs"
-            ]
+            text: "flemo is best for interactive app areas that own their screen history, including single-page apps and WebViews."
           }
         ]
       },
@@ -245,15 +227,11 @@ const EN: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "Build the smallest complete Flemo app: two screens, one typed route parameter, and a push that can be popped with the browser Back button or a swipe."
+            text: "Build two screens and open one from the other. You can return with the browser Back button or a swipe."
           },
           { type: "h", text: "Install" },
           { type: "code", lang: "bash", code: "pnpm add @flemo/react" },
-          {
-            type: "note",
-            text: "Svelte and SolidJS support is planned."
-          },
-          { type: "h", text: "1. Mount the Router" },
+          { type: "h", text: "1. Connect the screens" },
           {
             type: "p",
             text: "`Router` owns the stack. Each `Route` says which component should become a screen when its path is active."
@@ -263,7 +241,7 @@ const EN: DocSection[] = [
             lang: "tsx",
             code: 'import { Route, Router } from "@flemo/react";\n\nimport Home from "./Home";\nimport Post from "./Post";\n\nexport default function App() {\n  return (\n    <Router>\n      <Route path="/" element={<Home />} />\n      <Route path="/posts/:slug" element={<Post />} />\n    </Router>\n  );\n}'
           },
-          { type: "h", text: "2. Build a Screen and push" },
+          { type: "h", text: "2. Open the next screen" },
           {
             type: "p",
             text: "Every route component renders a `Screen`. Call `navigate.push` with the route pattern and its params. Flemo builds the URL, adds a history entry, and plays the default cupertino transition."
@@ -273,7 +251,7 @@ const EN: DocSection[] = [
             lang: "tsx",
             code: 'import { Screen, useNavigate } from "@flemo/react";\n\nexport default function Home() {\n  const navigate = useNavigate();\n\n  return (\n    <Screen>\n      <h1>Home</h1>\n      <button\n        onClick={() =>\n          navigate.push("/posts/:slug", { slug: "hello" })\n        }\n      >\n        Open hello\n      </button>\n    </Screen>\n  );\n}'
           },
-          { type: "h", text: "3. Add route types" },
+          { type: "h", text: "3. Check paths with TypeScript" },
           {
             type: "p",
             text: "Augment `RegisterRoute` once and TypeScript will check every path and params object. A route without params maps to `undefined`; a dynamic route maps to its param shape."
@@ -300,7 +278,7 @@ const EN: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "`Router` is the root container. It picks which `Route` to render based on the URL."
+            text: "Put your app inside `Router`, then give each screen a `Route`. flemo shows the screen that matches the current address."
           },
           {
             type: "code",
@@ -416,7 +394,7 @@ const EN: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "By default a `Router` transitions the whole viewport. When part of the layout should stay put, like a header, a sidebar, or a bottom tab bar, wrap just the screens in a `Slot`. Everything outside it stays mounted and still while only the screen area animates, so the surrounding layout never slides or re-renders with each navigation."
+            text: "Want the header or bottom tabs to stay in place? Put the changing screens inside a `Slot`. Only that area moves when you open another screen."
           },
           {
             type: "code",
@@ -440,7 +418,7 @@ const EN: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "`Screen` is what each route renders: a container with slots for a top bar, a bottom bar, and safe-area insets."
+            text: "Wrap each page in `Screen`. It gives flemo a place to show the page and optional top and bottom bars."
           },
           { type: "h", text: "Top bar and bottom bar" },
           {
@@ -503,7 +481,7 @@ const EN: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "flemo gives you three navigation hooks for different shapes of movement."
+            text: "Use `useNavigate` to open another screen, replace the current one, or go back. The other hooks below help when navigation belongs to a specific part of the app."
           },
           { type: "h", text: "useNavigate" },
           {
@@ -635,7 +613,7 @@ const EN: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "A transition is the animation between screens. flemo ships four presets and lets you build your own with the same primitives."
+            text: "Choose how the next screen appears. Start with one of the built-in movements, then customize it when your app needs something different."
           },
           {
             type: "table",
@@ -888,7 +866,7 @@ const EN: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "`Part` gives one element inside a screen its own animation, driven by the screen's lifecycle and timed with its transition, but applied to just that one element. The classic use is a pinned shared bar whose title drifts and fades as you move between screens, while the rest of the bar stays put."
+            text: "Use `Part` when one item should move differently from the rest of the screen. For example, a title can slide into place while the header behind it stays still."
           },
           {
             type: "p",
@@ -999,7 +977,7 @@ const EN: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "`Layer` renders an overlay beside its screen instead of inside it, so the overlay can cover the shared bars and survive the screen moving underneath it. A bottom sheet that has to dim the tab bar is the classic use."
+            text: "Use `Layer` for a floating panel or sheet that needs to cover the whole app, including its header and tabs."
           },
           { type: "h", text: "Why an overlay cannot do this from inside" },
           {
@@ -1032,7 +1010,7 @@ const EN: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "`<Morph>` marks an element that exists on two screens. Give both sides the same `layoutId` and flemo treats them as one thing: the arriving element starts where its partner was, the two trade places while they are still on top of each other, and it lands exactly where its own layout puts it."
+            text: "Want a card to grow into its detail page? Wrap the matching item on both screens in `Morph` and give both the same `layoutId`. flemo moves it between those positions."
           },
           {
             type: "note",
@@ -1134,7 +1112,7 @@ const EN: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "Complex flemo motion starts with ownership, not easing. Draw the Router tree, decide which stack each action changes, and list every visual participant before choosing a transition factory. This keeps a locally convincing animation from moving the wrong region or pairing across the wrong flight boundary."
+            text: "When your app has tabs, panels, and detail screens, first decide which area each action should change. Then choose how that area moves. The live composition demo shows these pieces working together."
           },
           { type: "h", text: "Choose structure before motion" },
           {
@@ -1360,51 +1338,33 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "flemo는 웹 앱에 네이티브 방식의 화면 스택을 만들어요. 화면을 push하고 pop하거나, 화면 가장자리를 끌어 뒤로 갈 수 있어요. 라우팅과 움직임을 하나의 시스템으로 다뤄요."
+            text: "flemo는 React 앱의 화면이 자연스럽게 바뀌도록 돕습니다. 카드를 열고, 밀어서 돌아가고, 탭을 바꿔도 앱의 흐름이 이어집니다."
           },
-          { type: "h", text: "먼저 이해할 구조" },
+          { type: "h", text: "이 순서로 시작하세요" },
           {
             type: "list",
             items: [
-              "`Router`가 화면 히스토리와 트랜지션 목록을 관리해요",
-              "`Route`가 경로 하나와 화면 하나를 연결해요",
-              "`Screen`이 화면 표면, 세이프 에어리어, 공유 바를 만들어요",
-              "`useNavigate`로 스택을 push, replace, pop해요",
-              "`Slot`은 앱 바 같은 크롬을 고정하고 화면 영역만 움직여요"
+              "라이브 데모에서 포스터를 열어보세요",
+              "`@flemo/react`를 설치하세요",
+              "화면 두 개를 연결하고 이동해보세요"
+            ]
+          },
+          { type: "h", text: "알아둘 것 세 가지" },
+          {
+            type: "list",
+            items: [
+              "`Router`는 앱에서 열 수 있는 화면을 모아둡니다",
+              "`Route`는 주소와 화면 하나를 연결합니다",
+              "`Screen`은 그 주소에서 보여줄 내용을 감쌉니다"
             ]
           },
           {
             type: "p",
-            text: "push하면 실제 히스토리 항목이 생기고 새 Screen이 현재 화면 위로 들어와요. pop하면 아래 화면이 다시 드러나요. cupertino 프리셋에서는 왼쪽 가장자리를 끄는 동작이 그대로 인터랙티브 pop이 돼요."
+            text: "`navigate.push()`로 다음 화면을 열고, 뒤로 가기나 `navigate.pop()`으로 돌아옵니다. 다음 페이지에서 코드를 순서대로 만들어봅니다."
           },
           {
             type: "note",
-            text: "flemo는 모든 서버 라우팅 기능을 대신하는 도구가 아니라 화면 라우터예요. SPA, 하이브리드 WebView, 또는 Flemo가 클라이언트 히스토리를 맡을 수 있는 독립 앱 영역에 가장 잘 맞아요."
-          },
-          { type: "h", text: "기본으로 얻는 것" },
-          {
-            type: "list",
-            items: [
-              "네이티브 같은 `cupertino`, `material`, `layout`, 즉시 전환 `none`",
-              "실제 히스토리와 연결된 스와이프 뒤로 가기와 드래그 닫기",
-              "화면 사이에서 자연스럽게 이어지는 공유 상단·하단 바",
-              "경로, 파라미터, 트랜지션 이름, 중첩 Router 대상의 타입 안전성",
-              "화면, Part, decorator, 공유 요소를 위한 커스텀 모션"
-            ]
-          },
-          { type: "h", text: "다음으로" },
-          {
-            type: "list",
-            items: [
-              "`빠르게 시작하기` 설치부터 첫 push/pop까지",
-              "`Router와 Route` 경로 매칭, 등록, 기본값",
-              "`Slot` 화면이 전환되는 동안 레이아웃 일부는 그대로 두기",
-              "`Screen` 상단 바, 하단 바, 세이프 에어리어",
-              "`Navigation` useNavigate, useParams, useStep",
-              "`Transitions` 내장 프리셋, 커스텀 트랜지션, 제스처",
-              "`Part` 화면 안 한 요소에 자기만의 전환 주기",
-              "`조합 설계` 중첩 라우팅, 공유 크롬, Part, Morph를 한 구조로 엮기"
-            ]
+            text: "flemo는 화면 이동을 직접 관리하는 앱 영역에 잘 맞습니다. 단일 페이지 앱이나 WebView 안의 화면에서 사용할 수 있어요."
           }
         ]
       },
@@ -1414,15 +1374,11 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "화면 두 개와 타입이 있는 경로 파라미터 하나로 가장 작은 Flemo 앱을 만들어요. push한 화면은 브라우저 뒤로 가기나 스와이프로 다시 pop할 수 있어요."
+            text: "화면 두 개를 만들고 하나에서 다른 하나로 이동해봅니다. 브라우저 뒤로 가기나 화면 밀기로 돌아올 수 있어요."
           },
           { type: "h", text: "설치" },
           { type: "code", lang: "bash", code: "pnpm add @flemo/react" },
-          {
-            type: "note",
-            text: "Svelte, SolidJS 지원도 준비 중이에요."
-          },
-          { type: "h", text: "1. Router 마운트" },
+          { type: "h", text: "1. 화면 연결하기" },
           {
             type: "p",
             text: "`Router`가 화면 스택을 관리해요. 각 `Route`는 경로가 활성화됐을 때 어떤 컴포넌트를 화면으로 보여줄지 정해요."
@@ -1432,7 +1388,7 @@ const KO: DocSection[] = [
             lang: "tsx",
             code: 'import { Route, Router } from "@flemo/react";\n\nimport Home from "./Home";\nimport Post from "./Post";\n\nexport default function App() {\n  return (\n    <Router>\n      <Route path="/" element={<Home />} />\n      <Route path="/posts/:slug" element={<Post />} />\n    </Router>\n  );\n}'
           },
-          { type: "h", text: "2. Screen을 만들고 push" },
+          { type: "h", text: "2. 다음 화면 열기" },
           {
             type: "p",
             text: "각 라우트 컴포넌트는 `Screen`을 그려요. `navigate.push`에 경로 패턴과 파라미터를 넘기면 Flemo가 URL과 히스토리 항목을 만들고 기본 cupertino 전환을 재생해요."
@@ -1442,7 +1398,7 @@ const KO: DocSection[] = [
             lang: "tsx",
             code: 'import { Screen, useNavigate } from "@flemo/react";\n\nexport default function Home() {\n  const navigate = useNavigate();\n\n  return (\n    <Screen>\n      <h1>Home</h1>\n      <button\n        onClick={() =>\n          navigate.push("/posts/:slug", { slug: "hello" })\n        }\n      >\n        Open hello\n      </button>\n    </Screen>\n  );\n}'
           },
-          { type: "h", text: "3. 경로 타입 추가" },
+          { type: "h", text: "3. 경로를 TypeScript로 확인하기" },
           {
             type: "p",
             text: "`RegisterRoute`를 한 번 확장하면 TypeScript가 모든 경로와 파라미터 객체를 검사해요. 파라미터 없는 경로는 `undefined`, 동적 경로는 파라미터 형태를 적어요."
@@ -1454,7 +1410,7 @@ const KO: DocSection[] = [
           },
           {
             type: "p",
-            text: "이제 전체 흐름이 완성됐어요. Open hello를 누르면 post 화면이 push돼요. 브라우저 뒤로 가기, `navigate.pop()`, 왼쪽 가장자리 드래그 중 하나로 Home을 다시 드러낼 수 있어요."
+            text: "이제 흐름이 완성됐습니다. Open hello를 누르면 글 화면이 열립니다. 브라우저 뒤로 가기, `navigate.pop()`, 왼쪽 가장자리 밀기 중 하나로 홈에 돌아올 수 있어요."
           }
         ]
       }
@@ -1469,7 +1425,7 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "`Router`는 루트 컨테이너예요. URL을 보고 어떤 `Route`를 그릴지 골라요."
+            text: "앱을 `Router`로 감싸고, 각 화면을 `Route`에 연결하세요. flemo가 현재 주소에 맞는 화면을 보여줍니다."
           },
           {
             type: "code",
@@ -1585,7 +1541,7 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "기본적으로 `Router`는 화면 전체를 전환해요. 헤더, 사이드바, 하단 탭 바처럼 레이아웃의 일부가 그대로 머물러야 할 때, 화면만 `Slot`으로 감싸요. 그러면 `Slot` 바깥은 마운트된 채 가만히 있고 화면 영역만 움직여서, 내비게이션할 때마다 주변 레이아웃이 딸려 가거나 다시 렌더되지 않아요."
+            text: "헤더나 하단 탭은 그대로 두고 내용만 바꾸고 싶나요? 바뀌는 화면을 `Slot` 안에 넣으세요. 새 화면을 열 때 그 영역만 움직입니다."
           },
           {
             type: "code",
@@ -1609,7 +1565,7 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "`Screen`은 각 라우트가 그려내는 화면이에요. 상단 바, 하단 바, 세이프 에어리어 인셋 슬롯을 갖춘 컨테이너고요."
+            text: "각 페이지를 `Screen`으로 감싸세요. 화면 내용과 선택적인 상단 바, 하단 바를 놓을 수 있습니다."
           },
           { type: "h", text: "상단 바와 하단 바" },
           {
@@ -1670,7 +1626,10 @@ const KO: DocSection[] = [
         slug: "navigation",
         title: "Navigation",
         blocks: [
-          { type: "p", text: "flemo는 이동 방식에 따라 세 가지 내비게이션 훅을 제공해요." },
+          {
+            type: "p",
+            text: "`useNavigate`로 다른 화면을 열거나, 현재 화면을 바꾸거나, 뒤로 갈 수 있어요. 아래의 다른 훅은 앱의 특정 영역만 이동할 때 사용합니다."
+          },
           { type: "h", text: "useNavigate" },
           {
             type: "code",
@@ -1798,7 +1757,7 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "트랜지션은 화면 사이의 애니메이션이에요. flemo는 프리셋 네 개를 제공하고, 같은 기본 요소로 직접 만들 수도 있어요."
+            text: "새 화면이 어떻게 나타날지 고르세요. 기본 움직임을 써본 뒤, 앱에 맞게 직접 바꿀 수도 있습니다."
           },
           {
             type: "table",
@@ -2062,7 +2021,7 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "`Part`는 화면 안의 한 요소에 자기만의 애니메이션을 줘요. 화면 생명주기로 구동되고 화면 전환에 맞춰 함께 동작하되, 화면 전체가 아니라 감싼 그 요소만 움직여요. 대표적인 예는 고정된 공유 바에서 타이틀만 화면을 오갈 때 떠오르며 흐려지고, 나머지 바는 제자리에 그대로 있는 거예요."
+            text: "화면 속 한 요소만 다르게 움직이고 싶을 때 `Part`를 쓰세요. 예를 들어 헤더는 그대로 두고 제목만 새 자리로 움직일 수 있습니다."
           },
           {
             type: "p",
@@ -2170,7 +2129,7 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "`Layer`는 오버레이를 화면 안이 아니라 화면 옆에 그려요. 그래서 오버레이가 공유 바를 덮을 수 있고, 화면이 아래에서 움직여도 살아남아요. 탭바까지 어둡게 덮어야 하는 바텀시트가 대표적인 쓰임새예요."
+            text: "헤더와 탭까지 덮는 팝업이나 시트가 필요할 때 `Layer`를 쓰세요. 화면이 움직여도 패널은 그 위에 남습니다."
           },
           { type: "h", text: "왜 화면 안에서는 안 될까요" },
           {
@@ -2203,7 +2162,7 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "`<Morph>`는 두 화면에 걸쳐 존재하는 요소를 표시해요. 양쪽에 같은 `layoutId`를 주면 flemo가 하나의 물건으로 다뤄요. 도착 요소가 짝이 있던 자리에서 출발하고, 아직 서로 겹쳐 있는 동안 자리를 바꾸고, 자기 레이아웃이 정한 위치에 정확히 착지해요."
+            text: "카드를 누르면 상세 화면으로 커지게 하고 싶나요? 두 화면의 카드에 `Morph`와 같은 `layoutId`를 주면 flemo가 위치를 이어줍니다."
           },
           {
             type: "note",
@@ -2285,7 +2244,7 @@ const KO: DocSection[] = [
         blocks: [
           {
             type: "p",
-            text: "복잡한 flemo 모션은 easing이 아니라 소유권에서 시작해요. Router 트리를 그리고, 각 동작이 어느 스택을 바꾸는지 정하고, 시각 참가자를 모두 적은 뒤 트랜지션 팩토리를 고르세요. 그래야 부분적으로 그럴듯한 애니메이션이 엉뚱한 영역을 움직이거나 다른 비행 경계의 요소를 짝짓는 일을 막을 수 있어요."
+            text: "탭, 패널, 상세 화면이 함께 있는 앱이라면 먼저 각 동작에서 어느 영역이 바뀔지 정하세요. 그 다음 움직임을 고르면 됩니다. 라이브 데모에서 이 구성을 직접 볼 수 있어요."
           },
           { type: "h", text: "모션보다 구조를 먼저 고르기" },
           {

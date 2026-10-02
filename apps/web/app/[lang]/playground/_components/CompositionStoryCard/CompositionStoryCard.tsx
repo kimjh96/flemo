@@ -2,6 +2,8 @@
 
 import { Morph, Part } from "@flemo/react";
 
+import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
+
 import CardTitle from "../CardTitle";
 
 export interface CompositionStoryCardProps {
@@ -29,6 +31,7 @@ const TITLE_ID = "composition-featured-title";
 // hand over on the screen's own clock, for as long as the screen takes.
 function CompositionStoryCard({ paired, variant }: CompositionStoryCardProps) {
   const detail = variant === "detail";
+  const isKo = useShellLang() === "ko";
   const panel = detail
     ? "relative block min-h-[196px] overflow-hidden rounded-[30px] bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 p-5 text-white shadow-2xl shadow-violet-500/20"
     : "relative block min-h-[104px] overflow-hidden rounded-[24px] bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 p-4 text-white shadow-xl shadow-violet-500/20";
@@ -44,7 +47,7 @@ function CompositionStoryCard({ paired, variant }: CompositionStoryCardProps) {
               : "block truncate text-xl leading-7 font-black tracking-[-0.03em] text-white"
           }
         >
-          Morning brief
+          {isKo ? "오늘의 소식" : "Morning brief"}
         </CardTitle>
       </div>
     </div>
@@ -63,7 +66,7 @@ function CompositionStoryCard({ paired, variant }: CompositionStoryCardProps) {
     <div className="block text-left">
       <Part name="composition-card-copy" className={detail ? "block pb-2" : "block pb-1"}>
         <p className="text-[9px] font-bold tracking-[0.2em] text-slate-500 uppercase dark:text-slate-400">
-          {detail ? "Message 42" : "Today"}
+          {detail ? (isKo ? "메시지 42" : "Message 42") : isKo ? "오늘" : "Today"}
         </p>
       </Part>
 
@@ -80,8 +83,12 @@ function CompositionStoryCard({ paired, variant }: CompositionStoryCardProps) {
           className={`${detail ? "text-[13px]" : "text-[11px]"} text-slate-600 dark:text-slate-300`}
         >
           {detail
-            ? "One story, continued from the workspace card."
-            : "Open the story without leaving the app shell."}
+            ? isKo
+              ? "작업 공간에서 열었던 카드의 다음 화면입니다."
+              : "One story, continued from the workspace card."
+            : isKo
+              ? "카드를 눌러 다음 화면으로 이동해보세요."
+              : "Open the story without leaving the app shell."}
         </p>
       </Part>
     </div>

@@ -49,7 +49,7 @@ function PostersScreen() {
           <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
             {t.app.tabPosters}
           </h2>
-          <p className="mt-0.5 text-sm text-[var(--color-text-disabled)]">{t.app.postersNote}</p>
+          <p className="mt-0.5 text-sm text-[var(--color-text-secondary)]">{t.app.postersNote}</p>
         </header>
 
         <ul className="grid min-h-0 flex-1 grid-cols-2 content-start gap-3 overflow-y-auto px-4 pb-3">
@@ -150,7 +150,7 @@ function PostersScreen() {
                   <span className="mt-1 block h-4 px-4">
                     <CardTitle
                       layoutId={`cardmeta-${act.id}`}
-                      className="block truncate text-[11px] leading-4 text-[var(--color-text-disabled)]"
+                      className="block truncate text-[11px] leading-4 text-[var(--color-text-secondary)]"
                     >
                       {act.day} {act.time} · ₩{act.price}
                     </CardTitle>

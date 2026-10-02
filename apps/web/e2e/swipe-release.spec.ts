@@ -46,6 +46,7 @@ const enterCupertinoDetail = async (page: import("@playwright/test").Page) => {
     (card as HTMLElement | undefined)?.click();
   }, STAGE);
   await waitForNavIdle(page);
+  await page.locator("[data-playground-stage]").scrollIntoViewIfNeeded();
 
   // The bench is a stage inside a page, not the viewport: the gesture has to
   // land inside the screen it is dragging.
