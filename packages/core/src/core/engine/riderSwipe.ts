@@ -5,6 +5,7 @@ import { holdScrubAt, PARKED_MS, placeLeg, scrubToTime } from "@transition/gestu
 import type { VariantMotion } from "@transition/variantMotion";
 
 import { SKIP_ANIMATION_ATTR } from "@dom/attributes";
+import { detectBlinkEngine } from "@platform/engineProbes";
 
 // WHAT RIDES A FLIGHT FOLLOWS THE FINGER.
 //
@@ -392,6 +393,30 @@ export const beginRiderSwipe = (
           // One copy of the placement arithmetic, shared with the morph's own
           // return: what is left of the leg's clock covers the release.
           placeLeg(leg, at, remaining, seconds);
+          // THE LEG HAS TO BE THE ONLY ONE LEFT, OR BLINK WILL NOT COMPOSITE IT.
+          //
+          // The drag animation stays paused with `fill: both` and the leg not
+          // taken stays parked, both on the same properties as the leg now
+          // playing. Blink refuses to start a compositor animation beside
+          // paused ones on the same property (a CDP trace reads
+          // `compositeFailed: 64`, target has incompatible animations), so the
+          // release ran on the main thread and every frame wrote a static
+          // translate, which Blink snaps to whole device pixels. The returning
+          // screen's slow tail stepped +1, 0, 0, +1 px on the glass where a
+          // button pop's compiled animation glides by fractions; reported from
+          // the landing's small swipe demo, measured 3/3 runs per lossless
+          // screencast frame.
+          //
+          // The placed leg is already in effect at the pose on screen and both
+          // others sit under it, so letting them go here changes nothing drawn.
+          // Blink only: WebKit presents these on the main thread either way,
+          // and a mid-flight change to an element's animations is what its
+          // accelerated re-sync has been seen to break on (see the motion-jank
+          // postmortem's do-not-retry list), unverified here on a device.
+          if (detectBlinkEngine()) {
+            rider.animation.cancel();
+            (commit ? rider.cancelLeg : rider.commitLeg)?.cancel();
+          }
         }
       }
       return Promise.all(landings).then(() => undefined);
