@@ -5,7 +5,6 @@ import { holdScrubAt, PARKED_MS, placeLeg, scrubToTime } from "@transition/gestu
 import type { VariantMotion } from "@transition/variantMotion";
 
 import { SKIP_ANIMATION_ATTR } from "@dom/attributes";
-import { detectBlinkEngine } from "@platform/engineProbes";
 
 // WHAT RIDES A FLIGHT FOLLOWS THE FINGER.
 //
@@ -393,30 +392,35 @@ export const beginRiderSwipe = (
           // One copy of the placement arithmetic, shared with the morph's own
           // return: what is left of the leg's clock covers the release.
           placeLeg(leg, at, remaining, seconds);
-          // THE LEG HAS TO BE THE ONLY ONE LEFT, OR BLINK WILL NOT COMPOSITE IT.
+          // THE LEG HAS TO BE THE ONLY ANIMATION LEFT, ON EVERY ENGINE.
           //
           // The drag animation stays paused with `fill: both` and the leg not
           // taken stays parked, both on the same properties as the leg now
-          // playing. Blink refuses to start a compositor animation beside
-          // paused ones on the same property (a CDP trace reads
-          // `compositeFailed: 64`, target has incompatible animations), so the
-          // release ran on the main thread and every frame wrote a static
-          // translate, which Blink snaps to whole device pixels. The returning
-          // screen's slow tail stepped +1, 0, 0, +1 px on the glass where a
-          // button pop's compiled animation glides by fractions; reported from
-          // the landing's small swipe demo, measured 3/3 runs per lossless
-          // screencast frame.
+          // playing. Neither engine draws the playing leg as it should beside
+          // them, and the two fail differently:
+          //
+          //   Blink refuses to composite it (a CDP trace reads
+          //   `compositeFailed: 64`, target has incompatible animations), so
+          //   the release runs on the main thread and Blink snaps each frame's
+          //   static translate to whole device pixels: the returning screen's
+          //   slow tail stepped +1, 0, 0, +1 px where a button pop glides by
+          //   fractions (3/3 runs, per lossless screencast frame).
+          //
+          //   WebKit keeps drawing the paused drag animation's pose. Script
+          //   reads the leg's values falling as they should while the glass
+          //   holds the pose the finger left: on Safari 26 the covered screen's
+          //   dim stayed at its drag value for the whole release and vanished
+          //   in one frame at COMPLETED, and the composition bench's header
+          //   title and action Parts held their drag pose the same way (6/6
+          //   runs, real pointer input, measured off screen captures).
           //
           // The placed leg is already in effect at the pose on screen and both
-          // others sit under it, so letting them go here changes nothing drawn.
-          // Blink only: WebKit presents these on the main thread either way,
-          // and a mid-flight change to an element's animations is what its
-          // accelerated re-sync has been seen to break on (see the motion-jank
-          // postmortem's do-not-retry list), unverified here on a device.
-          if (detectBlinkEngine()) {
-            rider.animation.cancel();
-            (commit ? rider.cancelLeg : rider.commitLeg)?.cancel();
-          }
+          // others sit under it, so letting them go here changes nothing drawn
+          // except that the leg is now what is drawn. Nothing about the playing
+          // leg's own timing is touched, which is the line the motion-jank
+          // postmortem's do-not-retry list draws for WebKit.
+          rider.animation.cancel();
+          (commit ? rider.cancelLeg : rider.commitLeg)?.cancel();
         }
       }
       return Promise.all(landings).then(() => undefined);

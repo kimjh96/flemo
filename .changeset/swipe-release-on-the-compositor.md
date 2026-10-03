@@ -2,4 +2,4 @@
 "@flemo/core": patch
 ---
 
-Run a swipe's release on the compositor in Chromium, so the screen returning after a swipe-back glides instead of stepping by whole pixels.
+Leave a swipe's release as the only animation on each element it moves, so Safari stops freezing the dim and shared-bar Parts mid-release and Chromium stops stepping the returning screen by whole pixels.

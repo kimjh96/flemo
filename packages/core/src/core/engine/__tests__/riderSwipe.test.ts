@@ -357,23 +357,13 @@ describe("beginRiderSwipe", () => {
     expect((cancelLeg as unknown as { startTime?: number }).startTime).toBeLessThan(5_000);
   });
 
-  describe("on Blink, the playing leg is the only animation left", () => {
-    // Blink will not start a compositor animation beside paused ones on the
-    // same property, so with the drag and the parked leg still attached the
-    // release ran on the main thread and stepped by whole pixels. Measured as
-    // `compositeFailed: 64` in a CDP trace and as +1/0/0/+1 px steps in the
-    // returning screen's tail.
-    const asBlink = () =>
-      Object.defineProperty(navigator, "userAgentData", {
-        value: { brands: [{ brand: "Chromium" }] },
-        configurable: true
-      });
-    afterEach(() => {
-      Reflect.deleteProperty(navigator, "userAgentData");
-    });
-
+  describe("the playing leg is the only animation left", () => {
+    // The drag animation (paused, `fill: both`) and the leg not taken stayed
+    // on the element under the leg that plays. Blink would not composite the
+    // leg beside them and stepped it by whole pixels; WebKit kept drawing the
+    // paused drag pose, so the dim and the header Parts froze for the whole
+    // release and cut at COMPLETED. Both were measured off the glass.
     it("lets go of the drag and the commit leg when a cancel plays", () => {
-      asBlink();
       const swipe = beginRiderSwipe([{ element, motion: motion() }])!;
       const [drag, commitLeg, cancelLeg] = animations;
       swipe.scrub(0.5);
@@ -386,7 +376,6 @@ describe("beginRiderSwipe", () => {
     });
 
     it("lets go of the drag and the cancel leg when a commit plays", () => {
-      asBlink();
       const swipe = beginRiderSwipe([{ element, motion: motion() }])!;
       const [drag, commitLeg, cancelLeg] = animations;
       swipe.scrub(0.5);
@@ -401,7 +390,6 @@ describe("beginRiderSwipe", () => {
     it("keeps the drag holding the pose when there is no leg to play", () => {
       // Nothing left to fly: the drag animation is what holds the pose until
       // the landing hands the element back, so it must not be let go early.
-      asBlink();
       const swipe = beginRiderSwipe([{ element, motion: motion() }])!;
       swipe.scrub(0);
 
@@ -410,21 +398,6 @@ describe("beginRiderSwipe", () => {
       expect(animations[0]!.cancelled).toBe(false);
       expect(animations[0]!.paused).toBe(true);
     });
-  });
-
-  it("leaves the release's animations alone off Blink until the landing", () => {
-    // WebKit presents these on the main thread either way, and changing an
-    // element's animations mid-flight is what its accelerated re-sync has been
-    // seen to break on. Unchanged there until a device says otherwise.
-    const swipe = beginRiderSwipe([{ element, motion: motion() }])!;
-    const [drag, commitLeg, cancelLeg] = animations;
-    swipe.scrub(0.5);
-
-    swipe.settle(false, 0.2);
-
-    expect(drag!.cancelled).toBe(false);
-    expect(commitLeg!.cancelled).toBe(false);
-    expect(cancelLeg!.cancelled).toBe(false);
   });
 
   it("leaves a rider the release has nothing left to fly", () => {
