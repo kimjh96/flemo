@@ -17,17 +17,17 @@
 ### Minor Changes
 
 - [`fc2091e`](https://github.com/kimjh96/flemo/commit/fc2091efb2ef57aff9f20e5c2d3a45c677a61ea3) Report three authoring mistakes that used to be silent. A morph whose `exit`
-  pose does not end at `opacity: 0` leaves the element it is flying away from on
-  glass for the whole flight, because that pose is the cut the runtime pins the
+  pose does not end at `opacity: 0` leaves the element it is moving away from on
+  glass for the whole transition, because that pose is the cut the runtime pins the
   departure at; a camera paired with a screen transition that also moves the
   screen has its travel discarded rather than combined; and a Router with layout
   children but no `<Slot>` cannot tell screens from chrome. Each now says so once
   in development.
 
-  The flight recorder gains the two measurements behind the first of those: how
+  The transition recorder gains the two measurements behind the first of those: how
   many frames a departing end kept painting, and how far a `<Part>` inside a
-  flying box sat inside that box. Both are defects it watched happen in silence,
-  and both surface as anomalies on the flight record.
+  moving box sat inside that box. Both are defects it watched happen in silence,
+  and both surface as anomalies on the transition record.
 
 ## 0.8.0
 
@@ -53,14 +53,14 @@
 
 - [`eb11b6c`](https://github.com/kimjh96/flemo/commit/eb11b6c98cce0b6d52d6af5db62366a85b9e62e5) Add `attachSwipeProbe`, which reports what a swipe release did to the screens.
 
-  A drag is not a flight. The navigate status stays COMPLETED for its whole
+  A drag is not a transition. The navigate status stays COMPLETED for its whole
   length, so the recorder never opens a window for one and every other probe in
   this package looks straight past the moment that decides how a swipe feels: the
   frame the finger comes off.
 
   That gap cost a day. A cancelled swipe was reported as returning with no
-  transition at all, and every instrument here called the flight clean, because a
-  cancel is not a flight. The release clock was right the whole time; what was
+  transition at all, and every instrument here called the transition clean, because a
+  cancel is not a transition. The release clock was right the whole time; what was
   wrong was the shape, a return that crossed its last hundred pixels at a dead
   constant speed and stopped. A duration is not evidence that anything eased.
 
@@ -93,7 +93,7 @@
   output mounts no devtools surface at all.
 
   The imperative `attachDevtoolsPanel`, `attachDevtoolsHud` and
-  `attachFlightRecorder` are unchanged and stay the entry point for anything that
+  `attachTransitionRecorder` are unchanged and stay the entry point for anything that
   is not React. `react` is an optional peer dependency, needed only for the new
   entry. `dist` gains `react.mjs` and `reactNoop.mjs`, and the package's watch mode
   now rebuilds every entry rather than only the first.
@@ -107,7 +107,7 @@
 
   `attachDevtoolsHud` is an on-device readout: one monospaced line a phone can be
   photographed showing, a tap for the detail block, a long press to cycle the
-  comparison bucket. It repaints only between flights and its stylesheet carries
+  comparison bucket. It repaints only between transitions and its stylesheet carries
   no animation, so it cannot become the artifact it measures.
 
   Reports now lead with `verdict` and `preconditions`. A number is only evidence
@@ -119,13 +119,13 @@
   real or touch input drove the session. The traps a page cannot see stay
   `unknown` rather than being guessed at.
 
-  Flights gain a `morphs` section that groups shared elements by their pairing key
-  and names the pairs that never flew, a `tripwires` list of one-frame events the
+  Transitions gain a `morphs` section that groups shared elements by their pairing key
+  and names the pairs that never moved, a `tripwires` list of one-frame events the
   browser reported (a cancelled animation, an `animationend` with no elapsed time,
   a ghost cut inside a frame, a hold re-asserted after its release), an `input`
   record of what drove the navigation, and `motion.firstAnimationAtMs`. `mark()`
-  labels flights into comparison buckets and `comparison` does the A/B arithmetic;
-  the last flights survive a full page load in `previousSession`.
+  labels transitions into comparison buckets and `comparison` does the A/B arithmetic;
+  the last transitions survive a full page load in `previousSession`.
 
   Report schema is now `"3"`. The retired player's gap mirror is gone with its
   `playerGaps` field and `computePlayerGapStats`, and the driver tier it named is
@@ -201,17 +201,17 @@
 
 ### Patch Changes
 
-- [`47332c9`](https://github.com/kimjh96/flemo/commit/47332c92c2b530e4b1fc2426b62dcfb5490b5f69) Retire the iOS Low Power Mode cadence detection. Its treatment — the compiled tier with the governed head — became the default for every touch-WebKit flight, which left the detection gating nothing: a rAF loop running from module load to the end of the session, six more frames per routed flight and a `sessionStorage` seed, all feeding a flag no code read. `lowPowerCadenceActive` is gone from the public surface; `governedCompiledActive` (the predicate the routing actually asks for) stays. The head gate and its keyframes are renamed to say what they mean — `data-flemo-lpm` is now `data-flemo-governed`, and the `-lpm` animation suffix is `-gov`.
+- [`47332c9`](https://github.com/kimjh96/flemo/commit/47332c92c2b530e4b1fc2426b62dcfb5490b5f69) Retire the iOS Low Power Mode cadence detection. Its treatment — the compiled tier with the governed head — became the default for every touch-WebKit transition, which left the detection gating nothing: a rAF loop running from module load to the end of the session, six more frames per routed transition and a `sessionStorage` seed, all feeding a flag no code read. `lowPowerCadenceActive` is gone from the public surface; `governedCompiledActive` (the predicate the routing actually asks for) stays. The head gate and its keyframes are renamed to say what they mean — `data-flemo-lpm` is now `data-flemo-governed`, and the `-lpm` animation suffix is `-gov`.
 
 ## 0.2.1
 
 ### Patch Changes
 
-- [`62636e4`](https://github.com/kimjh96/flemo/commit/62636e49274572c7d470f3378b3879fecf82df87) Stop reporting a healthy flight's closing frames as a stall. The recorder
+- [`62636e4`](https://github.com/kimjh96/flemo/commit/62636e49274572c7d470f3378b3879fecf82df87) Stop reporting a healthy transition's closing frames as a stall. The recorder
   counted every released frame whose clock and pose stood still, including the
-  ones after the animations had already finished and the flight was simply
-  waiting to close — so a "motion stalled ~50ms mid-flight" fired on every single
-  flight and buried the real ones. Those frames are now counted separately as
+  ones after the animations had already finished and the transition was simply
+  waiting to close — so a "motion stalled ~50ms mid-transition" fired on every single
+  transition and buried the real ones. Those frames are now counted separately as
   `motion.tailFrames`.
 
 ## 0.2.0
@@ -224,10 +224,10 @@
 
 ### Minor Changes
 
-- [`7e7a96b`](https://github.com/kimjh96/flemo/commit/7e7a96b5701818c5c4e251a5d3fa84a5def983ac) Introduce @flemo/devtools: a zero-dependency flight recorder that captures per-transition driver routing, frame pacing, long tasks, landing residues, active debug overrides, and environment/observation-trap fingerprints into a single JSON report for humans and coding agents. Attach with attachFlightRecorder() or ?devtools=on in the playground.
+- [`7e7a96b`](https://github.com/kimjh96/flemo/commit/7e7a96b5701818c5c4e251a5d3fa84a5def983ac) Introduce @flemo/devtools: a zero-dependency transition recorder that captures per-transition driver routing, frame pacing, long tasks, landing residues, active debug overrides, and environment/observation-trap fingerprints into a single JSON report for humans and coding agents. Attach with attachTransitionRecorder() or ?devtools=on in the playground.
 
-- [`14e0a76`](https://github.com/kimjh96/flemo/commit/14e0a767c83a0a0cb4ebdb14c5e6a46e75437e48) Teach the flight recorder to see the defects that frame timing cannot, and give it a visual panel.
+- [`14e0a76`](https://github.com/kimjh96/flemo/commit/14e0a767c83a0a0cb4ebdb14c5e6a46e75437e48) Teach the transition recorder to see the defects that frame timing cannot, and give it a visual panel.
 
-  Report schema v2 adds `flights[].motion` (did the pose actually advance, read from the compiled animation's own clock or the player's inline pose — neither forces a style flush), `flights[].images` (still-loading images that completed mid-flight versus the ones the engine held), `landing.orphanedHolds` (hold markers left on the page at rest), and a constant `judgingProtocol` the page cannot verify but must state: judge with DevTools closed, no capture running, real input. Every one of these guards a defect that shipped during the 2026-08 campaign while rAF ticked at a clean 16.7ms throughout.
+  Report schema v2 adds `transitions[].motion` (did the pose actually advance, read from the compiled animation's own clock or the player's inline pose — neither forces a style flush), `transitions[].images` (still-loading images that completed mid-transition versus the ones the engine held), `landing.orphanedHolds` (hold markers left on the page at rest), and a constant `judgingProtocol` the page cannot verify but must state: judge with DevTools closed, no capture running, real input. Every one of these guards a defect that shipped during the 2026-08 campaign while rAF ticked at a clean 16.7ms throughout.
 
-  `attachDevtoolsPanel()` mounts a shadow-root panel — floating toggle, flight list, per-flight detail with the findings toned — for the human half of the audience. It is opt-in and mounted by the consumer behind their own dev flag; nothing attaches it for you. It never touches the DOM while a flight is in progress, because an instrument that repaints during a transition reproduces the very artifact it is there to measure.
+  `attachDevtoolsPanel()` mounts a shadow-root panel — floating toggle, transition list, per-transition detail with the findings toned — for the human half of the audience. It is opt-in and mounted by the consumer behind their own dev flag; nothing attaches it for you. It never touches the DOM while a transition is in progress, because an instrument that repaints during a transition reproduces the very artifact it is there to measure.

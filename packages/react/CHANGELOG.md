@@ -26,17 +26,17 @@
 ### Minor Changes
 
 - [`fc2091e`](https://github.com/kimjh96/flemo/commit/fc2091efb2ef57aff9f20e5c2d3a45c677a61ea3) Report three authoring mistakes that used to be silent. A morph whose `exit`
-  pose does not end at `opacity: 0` leaves the element it is flying away from on
-  glass for the whole flight, because that pose is the cut the runtime pins the
+  pose does not end at `opacity: 0` leaves the element it is moving away from on
+  glass for the whole transition, because that pose is the cut the runtime pins the
   departure at; a camera paired with a screen transition that also moves the
   screen has its travel discarded rather than combined; and a Router with layout
   children but no `<Slot>` cannot tell screens from chrome. Each now says so once
   in development.
 
-  The flight recorder gains the two measurements behind the first of those: how
+  The transition recorder gains the two measurements behind the first of those: how
   many frames a departing end kept painting, and how far a `<Part>` inside a
-  flying box sat inside that box. Both are defects it watched happen in silence,
-  and both surface as anomalies on the flight record.
+  moving box sat inside that box. Both are defects it watched happen in silence,
+  and both surface as anomalies on the transition record.
 
 ### Patch Changes
 
@@ -117,9 +117,9 @@
 
 ### Patch Changes
 
-- [`29a2e58`](https://github.com/kimjh96/flemo/commit/29a2e58aa7f7d5bbadf36527ced529b21c02f825) Pair a `<Morph>` rendered in a shared bar. A shared bar is a sibling of the screen scope it belongs to, so the nearest `[data-flemo-screen]` above it belongs to another Router or to nothing at all, and both ends of a bar-to-bar pair resolved to the same screen and never flew. The binding now stamps the flight it is on, and the runtime reads the side from that while still taking its transform correction from the screen it is physically inside.
+- [`29a2e58`](https://github.com/kimjh96/flemo/commit/29a2e58aa7f7d5bbadf36527ced529b21c02f825) Pair a `<Morph>` rendered in a shared bar. A shared bar is a sibling of the screen scope it belongs to, so the nearest `[data-flemo-screen]` above it belongs to another Router or to nothing at all, and both ends of a bar-to-bar pair resolved to the same screen and never moved. The binding now stamps the transition it is on, and the runtime reads the side from that while still taking its transform correction from the screen it is physically inside.
 
-- [`1ad7608`](https://github.com/kimjh96/flemo/commit/1ad76080088a1f23674b3fbd8fd28bc51c983079) Cancel a swipe gesture's staged morph flights when a new drag begins over an un-settled one. A gesture torn down mid-drag (its screen frozen, the OS taking the pointer) left its flights held in the layer with their backstops suspended, and every pop after it paired against those stranded elements instead of the grid, swallowing the camera and blinking the text until reload.
+- [`1ad7608`](https://github.com/kimjh96/flemo/commit/1ad76080088a1f23674b3fbd8fd28bc51c983079) Cancel a swipe gesture's staged morph transitions when a new drag begins over an un-settled one. A gesture torn down mid-drag (its screen frozen, the OS taking the pointer) left its transitions held in the layer with their backstops suspended, and every pop after it paired against those stranded elements instead of the grid, swallowing the camera and blinking the text until reload.
 
 - [`b0ac25d`](https://github.com/kimjh96/flemo/commit/b0ac25d862258bfc0dbd98f4313ceb2ea96fd239) Render a screen's dim once. A screen with a `<Layer>` slot rendered its decorator twice, once in its own container and once out in the layer host, so the dim painted twice over and read 19% where the decorator asked for 10%. The copy in the host is the one that covers what an overlay carried out, so it is now the only one, and every handle points at it. A drag also reaches it: the decorator's riders no longer wait on a bar-part staging that a screen with no shared bar never satisfies, and the covered screen's dim is found by the screen that owns it rather than by where it sits.
 
@@ -140,11 +140,11 @@
 
 - [`429599d`](https://github.com/kimjh96/flemo/commit/429599d7ffc022467b9301184d6e746d9c1bada1) Cross-fade a shared bar's `<Part>` elements between screens that match on `sharedTopBarId` or `sharedBottomBarId`. Both sides already received the right status and ran the right keyframes, but each screen renders its own copy of the bar inside its own isolated container, so the covered screen's part animated under the other screen's opaque surface and was never seen. On a pop it was worse than invisible: the returning part finished its enter animation while occluded, then appeared un-transitioned the moment the departing screen was released.
 
-  The covered side's parts now spend the flight in a Router owned part layer above both screens, at the rect they occupied, and go back exactly as they were on landing. A stand-in holds the part's place so the bar keeps its layout while it is away. This works on push, pop, replace and the interactive swipe, and needs nothing from the application: no bar z-index to coordinate and no selectors on internal `data-flemo-*` attributes.
+  The covered side's parts now spend the transition in a Router owned part layer above both screens, at the rect they occupied, and go back exactly as they were on landing. A stand-in holds the part's place so the bar keeps its layout while it is away. This works on push, pop, replace and the interactive swipe, and needs nothing from the application: no bar z-index to coordinate and no selectors on internal `data-flemo-*` attributes.
 
-  A `<Part>` also takes its clock from the flight carrying it, which is the rule decorators already follow and by the same same-variant-key mapping. A part states a pose; how long the hand-over takes is the flight's answer and the flight already gave it. Restating it is how the two drift apart, and omitting it used to resolve to zero: the part snapped under a screen running for three quarters of a second, while a part authored longer than its screen held the whole flight open and disabled swipe-back for as long as it ran. A part's variant states its clock optionally, the way a decorator's already does, so a pose can be written without one.
+  A `<Part>` also takes its clock from the transition carrying it, which is the rule decorators already follow and by the same same-variant-key mapping. A part states a pose; how long the hand-over takes is the transition's answer and the transition already gave it. Restating it is how the two drift apart, and omitting it used to resolve to zero: the part snapped under a screen running for three quarters of a second, while a part authored longer than its screen held the whole transition open and disabled swipe-back for as long as it ran. A part's variant states its clock optionally, the way a decorator's already does, so a pose can be written without one.
 
-  What rides a flight now follows the finger too. A drag flips no status, so the compiled rules never matched and a `<Part>` or a decorator that declared only a pose sat still while the screens moved under it: only an author who hand wrote `onSwipe` got anything, restating in imperative code the pose they had already declared. The gesture now stages those animations itself and scrubs them, which is the model `<Morph>` has used since it learned it, and an authored `onSwipe` still overrides. A committed swipe marks each rider so the landing does not replay it from its start, the contract the swipe already applied to the screen and the dim.
+  What rides a transition now follows the finger too. A drag flips no status, so the compiled rules never matched and a `<Part>` or a decorator that declared only a pose sat still while the screens moved under it: only an author who hand wrote `onSwipe` got anything, restating in imperative code the pose they had already declared. The gesture now stages those animations itself and scrubs them, which is the model `<Morph>` has used since it learned it, and an authored `onSwipe` still overrides. A committed swipe marks each rider so the landing does not replay it from its start, the contract the swipe already applied to the screen and the dim.
 
 ### Patch Changes
 
@@ -171,7 +171,7 @@
   both the entering and the covered side. Set `flemo:parkhead=off` to compare
   against the previous behaviour.
 
-- [`207444c`](https://github.com/kimjh96/flemo/commit/207444c2a9ddcf0705308a26fb56cf079488344f) Start the render-settle gate watching with the transition instead of after its paint anchor, so a pop's Activity unfreeze is seen by the gate that exists to keep it out of the motion. Drop the mount grace for screens that are not mounting, which removes about 50ms of frozen flight from every pop.
+- [`207444c`](https://github.com/kimjh96/flemo/commit/207444c2a9ddcf0705308a26fb56cf079488344f) Start the render-settle gate watching with the transition instead of after its paint anchor, so a pop's Activity unfreeze is seen by the gate that exists to keep it out of the motion. Drop the mount grace for screens that are not mounting, which removes about 50ms of frozen transition from every pop.
 - Updated dependencies ([`28d0377`](https://github.com/kimjh96/flemo/commit/28d03778381fbd5c761712cf8b827aaf0b60a23e), [`e0cb632`](https://github.com/kimjh96/flemo/commit/e0cb632d620e712e8407c8f850ed6019e7024142), [`8608b73`](https://github.com/kimjh96/flemo/commit/8608b73536c305d0410489f55aeb6834a4ab9849), [`472432c`](https://github.com/kimjh96/flemo/commit/472432c6e6c7c951975437fbedf9dc8530e92de2), [`429599d`](https://github.com/kimjh96/flemo/commit/429599d7ffc022467b9301184d6e746d9c1bada1), [`6975302`](https://github.com/kimjh96/flemo/commit/697530271edafea590ebf95e7ce3bfaf2a04cfb6), [`207444c`](https://github.com/kimjh96/flemo/commit/207444c2a9ddcf0705308a26fb56cf079488344f), [`82930e8`](https://github.com/kimjh96/flemo/commit/82930e8e4e3bb12838d21dd9ed3427d1d5c75443)):
   - @flemo/core@2.2.0
 
@@ -197,9 +197,9 @@
 
 ### Minor Changes
 
-- [`9b93703`](https://github.com/kimjh96/flemo/commit/9b9370329a67d45dd4f896830f651bbe82d85d7f) Let a swipe drive a morph. The shared element now stages its flight when the drag starts — both ends are already on screen, so the destination can be measured — holds it at zero, and follows the finger, then plays out to the arrival on a commit or back to where it started on a cancel, at the same speed the screens settle at. It runs no frame loop of its own: the animations are the browser's, and the gesture sets their time. Any transition that declares a `swipeDirection` gets this without authoring anything.
+- [`9b93703`](https://github.com/kimjh96/flemo/commit/9b9370329a67d45dd4f896830f651bbe82d85d7f) Let a swipe drive a morph. The shared element now stages its transition when the drag starts — both ends are already on screen, so the destination can be measured — holds it at zero, and follows the finger, then plays out to the arrival on a commit or back to where it started on a cancel, at the same speed the screens settle at. It runs no frame loop of its own: the animations are the browser's, and the gesture sets their time. Any transition that declares a `swipeDirection` gets this without authoring anything.
 
-- [`9b93703`](https://github.com/kimjh96/flemo/commit/9b9370329a67d45dd4f896830f651bbe82d85d7f) Shared-element morphs are now flemo's own, with no animation library behind them. `<Morph layoutId="...">` (from `@flemo/react`) marks an element that exists on two screens: the arriving one starts on its partner's BOX and grows into its own. It animates the box, not a scale — so the subtree lays itself out at every size on the way and paired text is re-typeset rather than blown up — and it carries a copy of what it replaces — painting only the parts of it that have no counterpart on the other side, so nothing is drawn twice — which dissolves away as it travels. For the length of the flight the element is staged in a layer above both screens, so no scroll container can clip it, no opaque arrival can cover it and no sliding transition can carry it along — which is what lets one morph look right under any screen transition, cupertino and material included. Morphs nest, and a nested one rides its container — so a card stays a card for the whole trip instead of coming apart in the air. A container, a whole screen, or a screen and the elements inside it are all the same feature at different sizes, and what happens BEHIND the element (a background that recedes and blurs, say) stays the screen transition's job: the two keep step because a morph with no duration of its own inherits the flying screen's. Author the choreography with `createMorphTransition`, exactly like every other flemo transition, or take the built-in `shared` preset: it inherits the flying screen's timing, so the element lands with its screen. The travel runs on the compositor as a single per-flight keyframe and obeys the same animation hold the screens do, so it starts on the same frame with no timing code on either side.
+- [`9b93703`](https://github.com/kimjh96/flemo/commit/9b9370329a67d45dd4f896830f651bbe82d85d7f) Shared-element morphs are now flemo's own, with no animation library behind them. `<Morph layoutId="...">` (from `@flemo/react`) marks an element that exists on two screens: the arriving one starts on its partner's BOX and grows into its own. It animates the box, not a scale — so the subtree lays itself out at every size on the way and paired text is re-typeset rather than blown up — and it carries a copy of what it replaces — painting only the parts of it that have no counterpart on the other side, so nothing is drawn twice — which dissolves away as it travels. For the length of the transition the element is staged in a layer above both screens, so no scroll container can clip it, no opaque arrival can cover it and no sliding transition can carry it along — which is what lets one morph look right under any screen transition, cupertino and material included. Morphs nest, and a nested one rides its container — so a card stays a card for the whole trip instead of coming apart in the air. A container, a whole screen, or a screen and the elements inside it are all the same feature at different sizes, and what happens BEHIND the element (a background that recedes and blurs, say) stays the screen transition's job: the two keep step because a morph with no duration of its own inherits the moving screen's. Author the choreography with `createMorphTransition`, exactly like every other flemo transition, or take the built-in `shared` preset: it inherits the moving screen's timing, so the element lands with its screen. The travel runs on the compositor as a single per-transition keyframe and obeys the same animation hold the screens do, so it starts on the same frame with no timing code on either side.
 
 - [`98ede19`](https://github.com/kimjh96/flemo/commit/98ede190f0cdf8239b96a0c5fa78700bc69d700e) Add `<Layer>`, which renders a consumer overlay beside its screen so it can cover the shared bars while the screen is moving. The overlay leaves the screen for paint order only: it stacks by its owning screen, runs that screen's keyframes so it travels and leaves with it, and stops painting when that screen is covered. Screens now state their internal paint order (content under chrome, chrome under an overlay, the dim over all three) instead of inferring it from element order.
 
@@ -207,7 +207,7 @@
 
 - [`5c0dcc0`](https://github.com/kimjh96/flemo/commit/5c0dcc0cb9a24d5dc7647428d7c88f111c172353) Key a shared bar's height observation on whether the screen has that bar rather than on the identity of the node passed to `sharedTopBar` or `sharedBottomBar`. A screen that re-renders no longer disconnects and re-attaches the bar's ResizeObserver or forces a layout read in the pre-paint window on every one of those renders.
 
-- [`9b93703`](https://github.com/kimjh96/flemo/commit/9b9370329a67d45dd4f896830f651bbe82d85d7f) Anchor the flight layer to the app's own frame instead of the viewport. A root Router's layer was fixed, on the reasoning that a root Router owns the screen — but that is one deployment of a root Router, not the only one. Mounted inside a bounded frame (a device preview, an embedded region, a modal) the viewport is not its box, so a shared element in flight painted straight through the frame's rounded corners while every screen inside it stayed clipped. The layer is now absolute in both cases, sharing whatever box — and whatever clip — the app gave its screens.
+- [`9b93703`](https://github.com/kimjh96/flemo/commit/9b9370329a67d45dd4f896830f651bbe82d85d7f) Anchor the transition layer to the app's own frame instead of the viewport. A root Router's layer was fixed, on the reasoning that a root Router owns the screen — but that is one deployment of a root Router, not the only one. Mounted inside a bounded frame (a device preview, an embedded region, a modal) the viewport is not its box, so a shared element running painted straight through the frame's rounded corners while every screen inside it stayed clipped. The layer is now absolute in both cases, sharing whatever box — and whatever clip — the app gave its screens.
 
 - [`9b93703`](https://github.com/kimjh96/flemo/commit/9b9370329a67d45dd4f896830f651bbe82d85d7f) Stop painting a covered screen in the commit it is covered, on every platform. A freeze does two things — the screen stops painting, and the screen is released (effects unmounted, boxes dropped, raster let go) — and they were one commit, so the delay the expensive half needs was also delaying the cheap one. A covered screen went on painting until it was released: 600ms for the screen a pop can return to, and on desktop Blink three seconds on top of that. Nothing above a screen is obliged to be opaque, so that was a stack showing through itself for the whole wait. Paint now stops immediately and uniformly; the release keeps its clock, and a deep screen — never what a pop wakes — is released at once everywhere instead of waiting out a debounce that exists for a round trip it cannot be part of.
 
@@ -287,7 +287,7 @@
 
 ### Patch Changes
 
-- [`db0985b`](https://github.com/kimjh96/flemo/commit/db0985b6d5e81bf5a2cd0e24bba97b0176cd2844) Stop a screen scope from staying a compositor layer at rest. A promotion is also a stacking context, so a scope that kept one outlived its flight and silently outranked anything a consumer rendered inside the screen — an open bottom sheet came up under the shared tab bar and no z-index could answer it. Flight-time promotion is unchanged; it belongs to the engine, which demotes it a settle past the landing. `flemo:preraster=on` re-arms the rest promotion and `flemo:layers=resident` the resident layers, both now opt-in.
+- [`db0985b`](https://github.com/kimjh96/flemo/commit/db0985b6d5e81bf5a2cd0e24bba97b0176cd2844) Stop a screen scope from staying a compositor layer at rest. A promotion is also a stacking context, so a scope that kept one outlived its transition and silently outranked anything a consumer rendered inside the screen — an open bottom sheet came up under the shared tab bar and no z-index could answer it. Transition-time promotion is unchanged; it belongs to the engine, which demotes it a settle past the landing. `flemo:preraster=on` re-arms the rest promotion and `flemo:layers=resident` the resident layers, both now opt-in.
 - Updated dependencies ([`db0985b`](https://github.com/kimjh96/flemo/commit/db0985b6d5e81bf5a2cd0e24bba97b0176cd2844), [`d30a03f`](https://github.com/kimjh96/flemo/commit/d30a03fb860a3850c2925c9f67dad5615a7d50ac)):
   - @flemo/core@1.28.0
 
@@ -307,7 +307,7 @@
   read a new `isDesktopBlink` predicate instead of the learned steady-60 verdict:
   one is about how Blink treats an occluded layer, the other trades memory for
   raster, and neither reads the display. Desktop Chrome sessions get both from
-  their first flight instead of after a two-flight cadence measurement, and a
+  their first transition instead of after a two-transition cadence measurement, and a
   120Hz or 1x desktop is no longer excluded from defaults that never depended on
   its panel.
 - Updated dependencies ([`cbb258d`](https://github.com/kimjh96/flemo/commit/cbb258da2b94456d3c7d31db6ab1bbada0ceb764), [`fb4bb71`](https://github.com/kimjh96/flemo/commit/fb4bb71074f697435acfe8609b4073e2e2c4adc0), [`e89b3e7`](https://github.com/kimjh96/flemo/commit/e89b3e776722ea972250c5fe4af91083ba33a643), [`c0232a9`](https://github.com/kimjh96/flemo/commit/c0232a940c614b6442b63b8abf61ba8d86a94adf), [`b786a0b`](https://github.com/kimjh96/flemo/commit/b786a0b9a5fa81b19ab38b6f77e0d7149eca5d81)):
@@ -328,7 +328,7 @@
   longer shares its frame with React's reconcile, the held head carries a hair of
   motion so the compositor is already driving the animation when the real motion
   starts, and the entering screen's layer is painted during the hold and kept
-  resident at rest instead of being torn down as the flight lands. Sessions can
+  resident at rest instead of being torn down as the transition lands. Sessions can
   opt any of them out with `flemo:relcommit=sync`, `flemo:creep=off` and
   `flemo:layers=off`.
 - Updated dependencies ([`6b1bb93`](https://github.com/kimjh96/flemo/commit/6b1bb93383221c29ba0d630123ca60a7b8f16d30), [`d6dab7f`](https://github.com/kimjh96/flemo/commit/d6dab7f398024dd3f9cae885aba9dfa73b48dda6), [`9d706dc`](https://github.com/kimjh96/flemo/commit/9d706dcda42aacc4d15262dd76fbe7821a52d541), [`9685d02`](https://github.com/kimjh96/flemo/commit/9685d020fea2e6f87ee7893a6b3d616cd8cc26bd)):
@@ -387,7 +387,7 @@
 
 - [`b495c99`](https://github.com/kimjh96/flemo/commit/b495c99651e2eb73f720d2f802525b538a782c95) Scope the image-decode offloader to legacy Android Blink instead of running it on every device. A touch Chromium that ships no UA-CH brands (device-confirmed Galaxy Note 9 Samsung Internet) is confidently pre-2021, GPU-starved hardware whose oversized-image decode stalls the transition opening on re-entry; the offloader now auto-engages there and downscales only its genuinely oversized `<img>` sources. Modern devices (which ship UA-CH brands) and iOS are excluded, so a flagship is never touched, and `flemo:imgoffload` still overrides both ways (`on` forces it anywhere, `off` opts a legacy device out). Exposes `isLegacyAndroidBlink` from `@flemo/core`.
 
-- [`707442e`](https://github.com/kimjh96/flemo/commit/707442e1ec67612f016aba93685750dc21a32541) Close the release race that intermittently froze flights mid-motion on desktop Chrome: the hold release now reconciles React state in the same task as the readiness rAF (flushSync), so an interleaved commit can no longer write the stale paused hold attribute over a running animation. The render-settle gate also arms on a pop's returning screen (its landing-storm commits are node-light and slipped the mount-sized threshold), and a covered screen's Activity freeze is debounced past the natural browse rhythm so a quick detail-and-back never pays the hide/unhide raster thrash mid-flight.
+- [`707442e`](https://github.com/kimjh96/flemo/commit/707442e1ec67612f016aba93685750dc21a32541) Close the release race that intermittently froze transitions mid-motion on desktop Chrome: the hold release now reconciles React state in the same task as the readiness rAF (flushSync), so an interleaved commit can no longer write the stale paused hold attribute over a running animation. The render-settle gate also arms on a pop's returning screen (its landing-storm commits are node-light and slipped the mount-sized threshold), and a covered screen's Activity freeze is debounced past the natural browse rhythm so a quick detail-and-back never pays the hide/unhide raster thrash mid-transition.
 
 ### Patch Changes
 
@@ -396,14 +396,14 @@
 - [`fca7692`](https://github.com/kimjh96/flemo/commit/fca7692bfccdb9d3e5a9cd89ecdb97d99640ad80) Emit `data-flemo-router` only after hydration so the router marker can't cause a hydration mismatch. The id comes from `useId`, whose value encodes the component's position from the hydration root; a consumer whose server render root differs from its client hydrate root (e.g. SSR renders `<Html><App/></Html>` but the client hydrates just `<App/>` at `#root`) produces a different id on each side, surfacing as a mismatch on the one flemo attribute that reaches the DOM. The engine only reads the attribute client-side, so it is now withheld until mount — server and first client render both emit nothing (a match), and an effect exposes it once hydrated.
 
 - [`945eaba`](https://github.com/kimjh96/flemo/commit/945eabace0200a7693271e9433e28da62f2e848a) Fix the pop-convergence round: post-landing layer demotions now wait out any
-  in-flight navigation (the intermittent mid-pop stall), the player's
+  running navigation (the intermittent mid-pop stall), the player's
   perceptual cut lands its final pixel on the cut frame instead of the
   COMPLETED flip, and a navigation force-concludes swipe settles on its
   participants — a tap grazing the swipe-back edge no longer fights the pop it
   triggered. Desktop WebKit and desktop Blink now ride the compositor-driven
   compiled tier deterministically, with the landing governor expressed as an
   easing reshape. The image decode offloader holds re-entry reveals to the
-  flight's rest, and the playground's baked gradient is scoped to Blink (the
+  transition's rest, and the playground's baked gradient is scoped to Blink (the
   swap itself was Safari's first-entry blink). On iOS, Low Power Mode is now
   detected (a regular ~33ms rAF cluster, isolated from the player's learned
   interval, persisted per session) and single slide navigations route to the
@@ -425,13 +425,13 @@
 - [`490b0e4`](https://github.com/kimjh96/flemo/commit/490b0e420429b828011c7092c549f52258beae80) Motion driver overhaul hardening: device-verified fixes across five external review rounds plus two device-measured features.
 
   - Response hold parks every fetch method (reveal queries arrive as POST RPCs and HEAD counts too), never streams, with the self-release backstop bound to the whole choreography's span.
-  - Owner-scoped, composable holds: layer settle holds refcount per-instance tokens and compose requirements as a union over the element's own inline values; inline writes and settle execution are writer-scoped leases; the owner-less force form remains the flight-over authority.
+  - Owner-scoped, composable holds: layer settle holds refcount per-instance tokens and compose requirements as a union over the element's own inline values; inline writes and settle execution are writer-scoped leases; the owner-less force form remains the transition-over authority.
   - Blink detection via the UA-CH Chromium brand (WebKit's userAgentData no longer misreads Safari); stall strikes judged at each run's final measured cadence, so a genuinely slow display never demotes the player.
-  - Player correctness: per-track writer tokens, sustained slow-cadence clock adoption with next-flight seeding, authored transform order preserved (non-canonical or padding-incompatible motions fall to the scrub tier), and the navigation resolves on the player's own clock once every track finishes.
-  - Whole-choreography completion on every path (gate, floor, perceptual cut, early landing, screens-motionless case), with participants scoped to one Router's flight via explicit `data-flemo-router` markers stamped by the React binding on screens, shared bars, and parts.
-  - Async image decode for flight participants: `decoding="async"` stamped on a transitional screen's images (and arrival-held content just before reveal) unless the consumer authored one — a device-measured 37MP portrait no longer freezes mid-flight.
+  - Player correctness: per-track writer tokens, sustained slow-cadence clock adoption with next-transition seeding, authored transform order preserved (non-canonical or padding-incompatible motions fall to the scrub tier), and the navigation resolves on the player's own clock once every track finishes.
+  - Whole-choreography completion on every path (gate, floor, perceptual cut, early landing, screens-motionless case), with participants scoped to one Router's transition via explicit `data-flemo-router` markers stamped by the React binding on screens, shared bars, and parts.
+  - Async image decode for transition participants: `decoding="async"` stamped on a transitional screen's images (and arrival-held content just before reveal) unless the consumer authored one — a device-measured 37MP portrait no longer freezes mid-transition.
   - Platform-density snap default: WebKit below 3x snaps every frame (desktop texture-resampling sizzle, device-judged), phone densities and Blink keep the velocity gate; plus opt-in resident-layer and shallow-freeze diagnostics.
-  - Native first-frame hold disposes its backstop and stale callbacks; GPU prewarm is Blink-gated, refcounted, and deferred while a flight is active; landing snap honors sub-1 device pixel ratios.
+  - Native first-frame hold disposes its backstop and stale callbacks; GPU prewarm is Blink-gated, refcounted, and deferred while a transition is active; landing snap honors sub-1 device pixel ratios.
 
 ### Patch Changes
 
@@ -442,7 +442,7 @@
 
 ### Minor Changes
 
-- [`0c721b8`](https://github.com/kimjh96/flemo/commit/0c721b8c27bea2d895f855a1a8384ccc42a87c97) Start a cold push's motion immediately: the content-settle gate no longer holds the entry until data lands, removing the ~300ms-plus tap-to-motion delay on skeleton screens. The stall re-anchoring and clock-cap machinery shipped since the gate was introduced bounds a mid-flight data commit to at most a two-frame hold, verified jank-free on device with the gate off. The framework-neutral gate (`contentSettle`) remains available in @flemo/core for bindings that prefer the arrive-complete trade.
+- [`0c721b8`](https://github.com/kimjh96/flemo/commit/0c721b8c27bea2d895f855a1a8384ccc42a87c97) Start a cold push's motion immediately: the content-settle gate no longer holds the entry until data lands, removing the ~300ms-plus tap-to-motion delay on skeleton screens. The stall re-anchoring and clock-cap machinery shipped since the gate was introduced bounds a mid-transition data commit to at most a two-frame hold, verified jank-free on device with the gate off. The framework-neutral gate (`contentSettle`) remains available in @flemo/core for bindings that prefer the arrive-complete trade.
 
 ### Patch Changes
 
@@ -470,15 +470,15 @@
 
 ### Minor Changes
 
-- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Enter complete on pushes: a freshly-mounted PUSH destination whose requests are still in flight waits (bounded) for its first content wave to land and settle before the motion starts, so a cold navigation slides in already filled instead of assembling mid-flight. Replaces (bottom-tab switches), warm entries, and pops pay nothing.
+- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Enter complete on pushes: a freshly-mounted PUSH destination whose requests are still running waits (bounded) for its first content wave to land and settle before the motion starts, so a cold navigation slides in already filled instead of assembling mid-transition. Replaces (bottom-tab switches), warm entries, and pops pay nothing.
 
 ### Patch Changes
 
 - [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Defer the covered screen's freeze commit 600ms past the convergence instead of applying it at the COMPLETED flip. The freeze disconnects the covered screen's whole effect tree in one large commit; landing it while the eye watches the transition settle was measured (paired on-device A/B) as the remaining convergence frame drops. The screen is already covered, so freezing late is invisible; a new transition re-arms the timer so the commit only lands in a quiet window. Unfreezing stays immediate.
 
-- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Pre-warm the compositor while the user interacts. The per-flight warm-up starts with the flight, so the first navigation after an idle period still paid the pipeline's wake-up inside its opening frames. The warm-up now rides any interaction (pointer movement, wheel, touch, keys) — a pointer moving toward a tap precedes it by seconds — renewed at a throttled cadence and released shortly after interaction stops.
+- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Pre-warm the compositor while the user interacts. The per-transition warm-up starts with the transition, so the first navigation after an idle period still paid the pipeline's wake-up inside its opening frames. The warm-up now rides any interaction (pointer movement, wheel, touch, keys) — a pointer moving toward a tap precedes it by seconds — renewed at a throttled cadence and released shortly after interaction stops.
 
-- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Warm the compositor for the length of every flight and decode oversized images off the main thread. Fixes the one-frame opening judder on cold transitions and the WebKit tab fade being swallowed when a fetching screen's image decode lands inside the flight.
+- [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f) Warm the compositor for the length of every transition and decode oversized images off the main thread. Fixes the one-frame opening judder on cold transitions and the WebKit tab fade being swallowed when a fetching screen's image decode lands inside the transition.
 - Updated dependencies ([`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f), [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f), [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f), [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f), [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f), [`372c03c`](https://github.com/kimjh96/flemo/commit/372c03cadb82160e58bd2d70750543c00acb766f)):
   - @flemo/core@1.21.0
 
@@ -486,7 +486,7 @@
 
 ### Patch Changes
 
-- [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6) Keep the convergence frames light. Resting screens deeper than the transition pair no longer re-render on status flips (previously an O(depth) re-render plus attribute-write storm landed exactly on the final frames of every navigation), and the in-flight landing now presents two frames after COMPLETED instead of inside the convergence commit — with an immediate land if a new navigation starts first.
+- [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6) Keep the convergence frames light. Resting screens deeper than the transition pair no longer re-render on status flips (previously an O(depth) re-render plus attribute-write storm landed exactly on the final frames of every navigation), and the running landing now presents two frames after COMPLETED instead of inside the convergence commit — with an immediate land if a new navigation starts first.
 - Updated dependencies ([`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6), [`46aec20`](https://github.com/kimjh96/flemo/commit/46aec20c5f4d88a0db769dab9e998ba7c663fed6)):
   - @flemo/core@1.20.0
 
@@ -715,7 +715,7 @@
 
 ### Patch Changes
 
-- [`05cc7eb`](https://github.com/kimjh96/flemo/commit/05cc7eba37ede2ca088c1ea73116a9b99388f7f6) Fix transitions skipping ahead on WebKit when a screen's content updates mid-transition (e.g. an async fetch resolving). The content is now isolated onto its own compositing layer while a transition is in flight, so the repaint no longer stalls the animating layer's presentation. Applies to every transition, including custom ones.
+- [`05cc7eb`](https://github.com/kimjh96/flemo/commit/05cc7eba37ede2ca088c1ea73116a9b99388f7f6) Fix transitions skipping ahead on WebKit when a screen's content updates mid-transition (e.g. an async fetch resolving). The content is now isolated onto its own compositing layer while a transition is running, so the repaint no longer stalls the animating layer's presentation. Applies to every transition, including custom ones.
 
 ## 1.3.1
 
