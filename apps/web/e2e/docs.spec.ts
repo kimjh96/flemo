@@ -32,6 +32,27 @@ test.describe("docs", () => {
     await expect(page.getByRole("heading", { name: "Introduction", level: 1 })).toBeVisible();
   });
 
+  // The sidebar sits outside the docs Router's <Slot>, outside every docs
+  // Screen. It once read the page from screen params there, which answered with
+  // the page the docs were opened on and never moved.
+  test("the sidebar highlight follows the current page", async ({ page }) => {
+    await page.goto("/docs");
+    const sidebar = page.locator("aside");
+    const intro = sidebar.getByRole("button", { name: "Introduction" });
+    const router = sidebar.getByRole("button", { name: "Router and Route" });
+
+    await expect(intro).toHaveAttribute("aria-current", "page");
+
+    await router.click();
+    await expect(page).toHaveURL(/\/docs\/router$/);
+    await expect(router).toHaveAttribute("aria-current", "page");
+    await expect(intro).not.toHaveAttribute("aria-current", "page");
+
+    await page.goBack();
+    await expect(intro).toHaveAttribute("aria-current", "page");
+    await expect(router).not.toHaveAttribute("aria-current", "page");
+  });
+
   // Deep-link / refresh: the composed path is a real server route (200, no 404).
   test("deep-links straight to a sub-page", async ({ page }) => {
     const { errors } = trackConsoleErrors(page);
@@ -51,6 +72,7 @@ test.describe("docs", () => {
     await page.locator("header").getByRole("button", { name: "한국어" }).click();
 
     await expect(page).toHaveURL(/\/docs\/router$/);
-    await expect(page.getByRole("heading", { name: "Router와 Route", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Router and Route", level: 1 })).toBeVisible();
+    await expect(page.getByText("화면 스택 하나와 그 히스토리")).toBeVisible();
   });
 });

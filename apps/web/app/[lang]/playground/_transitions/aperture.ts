@@ -10,7 +10,7 @@ import "./aperture.types";
 //
 //   zoom.ts
 //     "PAIR IT WITH A STILL SCREEN TRANSITION. The camera supersedes that
-//      screen's own transform for the flight (see `carry`), so `none` or an
+//      screen's own transform for the transition (see `carry`), so `none` or an
 //      opacity-only transition composes; a slide is replaced rather than
 //      combined."
 //
@@ -26,8 +26,8 @@ import "./aperture.types";
 // black around a small card. That is the whole case defeated by its own
 // partner.
 //
-// Holding the screen at zero for the flight was the second, on the reasoning
-// that the card is a morph staged in the FLIGHT LAYER and therefore drawn
+// Holding the screen at zero for the transition was the second, on the reasoning
+// that the card is a morph staged in the TRANSITION LAYER and therefore drawn
 // regardless. It is not: measured, the card sits in the layer at opacity 1 and
 // paints nothing while its screen is transparent, so the layer is subject to
 // its screen.
@@ -43,7 +43,7 @@ import "./aperture.types";
 //   shared.ts
 //     "a morph is not a transition of its own, it happens INSIDE one, so the
 //      runtime falls back to the length of whichever screen transition is
-//      flying"
+//      moving"
 //
 // `zoom` authors none either, so the camera, the card and the type inside it
 // all run for exactly as long as this does. `none` would give them zero.
@@ -52,7 +52,7 @@ import "./aperture.types";
 // distance in time. 0.5s is the top of Material's own container-transform band.
 //
 // NO SWIPE, deliberately. A swipe drags a screen directly, and during this
-// flight the screen is not the consumer's to drag: the camera owns its
+// transition the screen is not the consumer's to drag: the camera owns its
 // transform.
 const DURATION = 0.5;
 

@@ -54,7 +54,7 @@ function TabBar() {
   ];
 
   return (
-    <nav className="flex shrink-0 border-t border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur-md">
+    <nav className="flex shrink-0 border-t border-line bg-bg/90 backdrop-blur-md">
       {tabs.map((tab) => {
         const active = isActive(tab.path);
         return (
@@ -64,7 +64,7 @@ function TabBar() {
             onClick={() => handleTab(tab.path)}
             aria-current={active ? "page" : undefined}
             className={`flex flex-1 cursor-pointer flex-col items-center gap-1 py-2.5 text-[11px] font-semibold transition-colors ${
-              active ? "text-[var(--color-primary)]" : "text-[var(--color-text-disabled)]"
+              active ? "text-accent" : "text-fg-subtle"
             }`}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">

@@ -15,7 +15,7 @@ import { useBench } from "../../_providers/BenchContext";
 // The detail: the big side of the grid cell's pair.
 //
 // ITS LAYOUT IS THE CELL'S LAYOUT CONTINUED, and that constraint decided
-// everything here. A container transform lays this page out at the flying
+// everything here. A container transform lays this page out at the moving
 // card's CURRENT width on every frame, so whatever this page does at 150px
 // wide is what shows through as the card's ghost dissolves. One column,
 // artwork first and full-width, everything else in flow below it: at cell
@@ -72,7 +72,7 @@ function ActScreen() {
       // opaque rectangle over the grid from the first frame, covering the
       // camera's own work. Under every other case this screen is the surface
       // and must be opaque itself.
-      backgroundColor={cardMorph ? "transparent" : "var(--color-bg)"}
+      backgroundColor={cardMorph ? "transparent" : "var(--bg)"}
     >
       {/* The scroller sits OUTSIDE the card, and the card is min-h-full inside
           it, exactly as the deleted playground arranged it: the card is a
@@ -81,7 +81,7 @@ function ActScreen() {
       <div className="h-full overflow-y-auto">
         <CardShell
           layoutId={pairId("card", "rowcard")}
-          className="relative flex min-h-full flex-col bg-[var(--color-bg)]"
+          className="relative flex min-h-full flex-col bg-bg"
         >
           {/* Floating, so it adds no height above the artwork: both ends of
               the pair start with the artwork at y0, and a 52px offset here
@@ -89,7 +89,7 @@ function ActScreen() {
               header). The scrim keeps it legible on the gradient. */}
           {/* The chrome part: in once the card has most of its size, out only
               once it has lost most of it. Without it the scrim stamps itself
-              onto the cell on the flight's first frame, which in a light theme
+              onto the cell on the transition's first frame, which in a light theme
               is a dark cap appearing out of nowhere. */}
           <CardBody as="chrome" className="absolute inset-x-0 top-0 z-10">
             <header className="flex items-center justify-between bg-gradient-to-b from-black/45 to-transparent px-4 pt-4 pb-8">
@@ -117,7 +117,7 @@ function ActScreen() {
           </CardBody>
 
           {/* The fixed square holds the artwork's box while the artwork
-              itself is away in the flight layer, so nothing below it moves. */}
+              itself is away in the transition layer, so nothing below it moves. */}
           <span className="block aspect-square w-full shrink-0 overflow-hidden">
             <Morph
               // The BIG side: same morph, same id as the surface that opened
@@ -142,13 +142,13 @@ function ActScreen() {
                 label into this heading, while its clone holds the label's
                 exact box. */}
             {/* h-8 holds the heading's line box while the name is away in the
-                flight layer, for the same reason the artwork sits in a fixed
-                square: the morph slot measures 0x0 mid-flight, and an unheld
+                transition layer, for the same reason the artwork sits in a fixed
+                square: the morph slot measures 0x0 mid-transition, and an unheld
                 line collapses the layout under it until the landing. */}
             <h2 className="h-8">
               <CardTitle
                 layoutId={pairId("cardname", "rowname")}
-                className="block text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]"
+                className="block text-2xl font-extrabold tracking-[-0.02em] text-fg"
               >
                 {act.artist}
               </CardTitle>
@@ -160,7 +160,7 @@ function ActScreen() {
                 instead, and the ghost carries the row's line out. */}
             {from === "row" ? (
               <CardBody>
-                <p className="mt-1 h-5 text-sm text-[var(--color-text-secondary)]">
+                <p className="mt-1 h-5 text-sm text-fg-muted">
                   {act.day} {act.time} · ₩{act.price}
                 </p>
               </CardBody>
@@ -168,7 +168,7 @@ function ActScreen() {
               <p className="mt-1 h-5">
                 <CardTitle
                   layoutId={pairId("cardmeta", "")}
-                  className="block text-sm text-[var(--color-text-secondary)]"
+                  className="block text-sm text-fg-muted"
                 >
                   {act.day} {act.time} · ₩{act.price}
                 </CardTitle>
@@ -180,20 +180,18 @@ function ActScreen() {
                 straight through a translucent ghost), arriving once there is
                 width for it, leaving in the first frames of a pop. */}
             <CardBody>
-              <p className="mt-4 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
-                {t.app.body}
-              </p>
+              <p className="mt-4 text-[13px] leading-relaxed text-fg-muted">{t.app.body}</p>
 
-              {/* The explicit leading matters in flight: the runtime stamps the
-                card's computed line-height on the flying card as an inline
+              {/* The explicit leading matters running: the runtime stamps the
+                card's computed line-height on the moving card as an inline
                 style, and rows that only set a font size inherit it. Measured:
-                20px rows at rest became 24px rows mid-flight, which is the
+                20px rows at rest became 24px rows mid-transition, which is the
                 facts spreading apart on a pop's first frame. */}
-              <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-[var(--color-layer)] p-4 text-[13px] leading-[1.5]">
+              <dl className="mt-5 flex flex-col gap-2 rounded-2xl bg-surface-2 p-4 text-[13px] leading-[1.5]">
                 {facts.map(([label, value]) => (
                   <div key={label} className="flex items-baseline justify-between gap-3">
-                    <dt className="text-[var(--color-text-disabled)]">{label}</dt>
-                    <dd className="m-0 font-semibold text-[var(--color-text-primary)]">{value}</dd>
+                    <dt className="text-fg-subtle">{label}</dt>
+                    <dd className="m-0 font-semibold text-fg">{value}</dd>
                   </div>
                 ))}
               </dl>
@@ -205,7 +203,7 @@ function ActScreen() {
               <button
                 type="button"
                 onClick={getTickets}
-                className="mt-6 w-full cursor-pointer rounded-full bg-[var(--color-primary)] px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
+                className="mt-6 w-full cursor-pointer rounded-full bg-accent px-5 py-3.5 text-sm font-semibold text-accent-fg transition-colors hover:bg-accent-hover"
               >
                 {t.app.getTickets} · ₩{act.price}
               </button>

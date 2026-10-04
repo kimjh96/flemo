@@ -1,81 +1,35 @@
 "use client";
 
-import DocsNav from "../DocsNav";
+import Icon from "@/components/Icon";
+
+import DocsNavList from "../DocsNavList";
 
 export interface DocsNavSheetProps {
-  // Always mounted; `open` slides the drawer in or out so opening and closing
-  // animate from the same declaration. Driven by flemo `useStep`, so the browser
-  // Back button dismisses it too.
   open: boolean;
-  onClose: () => void;
+  title: string;
+  onClose: () => Promise<unknown> | void;
 }
 
-// The docs navigation as a left drawer on mobile, where the persistent sidebar
-// is hidden. Selecting a page navigates and closes; the backdrop, the close
-// button, and the Back button all pop the step.
-function DocsNavSheet({ open, onClose }: DocsNavSheetProps) {
+// The page list on a phone. Opened through a useStep history entry, so the
+// system Back gesture closes it without leaving the page.
+function DocsNavSheet({ open, title, onClose }: DocsNavSheetProps) {
+  if (!open) return null;
+
   return (
-    // A CLOSED DRAWER MUST NOT BE PAINTED.
-    //
-    // This is always mounted so opening and closing animate from one
-    // declaration, but neither `opacity: 0` on the backdrop nor a translated
-    // drawer stops the browser from rendering it: a full-viewport layer, and a
-    // whole second copy of the navigation, were rastered on every frame that
-    // touched this subtree. Device-measured on an iPhone, entering the docs:
-    // the flight's readiness gate sat behind one 462ms main-thread block, and
-    // removing this element alone took that block to 65ms and the hold from
-    // 1014ms to 264ms. `md:hidden` is why it never showed on desktop.
-    //
-    // `visibility: hidden` takes it out of painting entirely while keeping it in
-    // the layout tree, and it holds through the close so the drawer can still
-    // slide out (the delay matches the transition below); opening flips it back
-    // with no delay, before the transform runs.
-    <div
-      className={`fixed inset-0 z-50 md:hidden ${open ? "" : "pointer-events-none"}`}
-      style={{
-        visibility: open ? "visible" : "hidden",
-        transition: "visibility 0s linear",
-        transitionDelay: open ? "0s" : "300ms"
-      }}
-    >
-      <button
-        type="button"
-        aria-label="Close"
-        tabIndex={open ? 0 : -1}
-        onClick={onClose}
-        className="absolute inset-0 cursor-pointer bg-[var(--color-overlay)] backdrop-blur-[2px] transition-opacity duration-300 ease-out"
-        style={{ opacity: open ? 1 : 0 }}
-      />
-      <div
-        className="absolute inset-y-0 left-0 flex w-72 max-w-[82%] flex-col bg-[var(--color-bg)] transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)]"
-        style={{
-          transform: open ? "translateX(0)" : "translateX(-100%)",
-          // Fade the shadow out when closed; the off-screen drawer's blur would
-          // otherwise leak past its right edge onto the page.
-          boxShadow: `0 0 60px -10px rgba(0, 0, 0, ${open ? 0.5 : 0})`
-        }}
-      >
-        <div className="flex items-center justify-end px-3 pt-20 pb-2">
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            tabIndex={open ? 0 : -1}
-            className="grid size-9 cursor-pointer place-items-center rounded-full text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-layer)] hover:text-[var(--color-text-primary)]"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M6 6l12 12M18 6L6 18"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-10">
-          <DocsNav onNavigate={onClose} />
-        </div>
+    <div className="absolute inset-0 z-30 flex flex-col bg-bg md:hidden">
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-line px-4">
+        <span className="label text-fg-subtle">{title}</span>
+        <button
+          type="button"
+          aria-label="Close"
+          onClick={() => onClose()}
+          className="grid size-8 place-items-center rounded-md text-fg hover:bg-surface-2"
+        >
+          <Icon name="close" size={17} />
+        </button>
+      </div>
+      <div className="no-scrollbar flex-1 overflow-y-auto px-2 py-5">
+        <DocsNavList onBeforeNavigate={onClose} />
       </div>
     </div>
   );

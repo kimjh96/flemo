@@ -1,8 +1,11 @@
 @import "tailwindcss";
 
-@source "../node_modules/fumadocs-ui/dist/**/*.js";
-@source "../content/**/*.{md,mdx}";
+/* Dark mode follows the class next-themes writes on <html>, not the media
+   query, so the visitor's explicit choice wins over the system setting. */
+@custom-variant dark (&:where(.dark, .dark *));
 
+/* Pretendard carries Korean. Latin runs in Geist, which next/font self-hosts
+   and exposes as --font-geist / --font-geist-mono (see app/layout.tsx). */
 @font-face {
   font-family: "Pretendard Variable";
   font-weight: 45 920;
@@ -12,300 +15,317 @@
     format("woff2-variations");
 }
 
-@theme {
-  --font-sans:
-    "Pretendard Variable", "Pretendard", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Roboto, sans-serif;
-  --font-mono:
-    "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Monaco, monospace;
+/* ─────────────────────────────────────────────────────────────────────────
+   TOKENS
 
-  /* shiflo · light palette */
-  --color-primary: #0066cc;
-  --color-primary-light: #3b8ef0;
-  --color-primary-dark: #0052a3;
-  --color-primary-hover: #1f78db;
-  --color-primary-glow: #3b8ef0;
+   Components read SEMANTIC tokens only (bg, surface, fg, line, accent ...).
+   Each mode defines those once below; nothing else in the tree names a raw
+   colour. The palette is "Instrument": a quiet neutral chrome and one signal
+   colour, the logo's blue, reserved for what is moving or what you can act on.
+   ───────────────────────────────────────────────────────────────────────── */
 
-  --color-accent: #3182f6;
-  --color-accent-light: #6aa4fa;
-  --color-accent-hover: #4d92f7;
+:root {
+  --bg: #fafaf9;
+  --bg-subtle: #f3f3f1;
+  --surface: #ffffff;
+  --surface-2: #f0f0ee;
+  --surface-3: #e7e7e4;
+  --line: #e4e4e1;
+  --line-strong: #d1d1cd;
+  --fg: #111113;
+  --fg-muted: #5c5c64;
+  --fg-subtle: #8b8b93;
+  --accent: #0066cc;
+  --accent-hover: #0057ad;
+  --accent-fg: #ffffff;
+  --accent-soft: rgb(0 102 204 / 0.1);
+  --success: #12a150;
+  --warning: #b7791f;
+  --danger: #d93025;
+  --grid-line: rgb(17 17 19 / 0.045);
+  --glow: rgb(0 102 204 / 0.14);
+  /* The logo's two trailing frames: solid tints of the accent on this bg. */
+  --logo-trail-1: #aacbeb;
+  --logo-trail-2: #5f9edd;
 
-  --color-neutral-100: #f9fafb;
-  --color-neutral-200: #f2f4f6;
-  --color-neutral-300: #e5e8eb;
-  --color-neutral-400: #d1d6db;
-  --color-neutral-500: #b0b8c1;
-  --color-neutral-600: #8b95a1;
-  --color-neutral-700: #6b7684;
-  --color-neutral-800: #4e5968;
-  --color-neutral-900: #191f28;
+  --code-bg: #f5f5f3;
+  --code-fg: #26262b;
+  --syntax-keyword: #0057b8;
+  --syntax-string: #0f7b52;
+  --syntax-function: #6d4bd1;
+  --syntax-tag: #b42363;
+  --syntax-number: #0b6bcb;
+  --syntax-comment: #9a9aa2;
+  --syntax-punctuation: #6b6b73;
 
-  --color-text-primary: #191f28;
-  --color-text-secondary: #4e5968;
-  --color-text-disabled: #b0b8c1;
-
-  --color-border-light: #f2f4f6;
-  --color-border: #e5e8eb;
-  --color-border-dark: #d1d6db;
-
-  --color-bg: #ffffff;
-  --color-surface: #ffffff;
-  --color-layer: #f7f8fa;
-  --color-card: #ffffff;
-  --color-overlay: rgba(15, 19, 27, 0.48);
-
-  --color-success: #00bf9d;
-  --color-warning: #ffab00;
-  --color-error: #f04452;
-  --color-info: #3182f6;
-
-  --gradient-primary-accent: linear-gradient(180deg, #1f78db 0%, #0066cc 100%);
-
-  /* Hero blob: the vivid field the glass demo window floats on. Built from the
-     shiflo palette — accent blue → primary-light → success teal — so it stays
-     in harmony with the brand. */
-  --gradient-blob: linear-gradient(135deg, #3182f6 0%, #3b8ef0 44%, #00bf9d 100%);
-
-  /* Stable always-dark color (phone bezels, decorative surfaces that should not flip in dark) */
-  --color-ink: #191f28;
-
-  --syntax-punctuation: #4e5968;
+  --shadow-color: 24 24 27;
+  color-scheme: light;
 }
 
 .dark {
-  /* shiflo dark palette */
-  --color-primary: #3b82f6;
-  --color-primary-light: #7baafb;
-  --color-primary-dark: #1f6fe5;
-  --color-primary-hover: #5696f8;
-  --color-primary-glow: #7baafb;
+  --bg: #09090a;
+  --bg-subtle: #0f0f11;
+  --surface: #141416;
+  --surface-2: #1b1b1e;
+  --surface-3: #242428;
+  --line: #222225;
+  --line-strong: #323237;
+  --fg: #ededef;
+  --fg-muted: #a0a0a9;
+  --fg-subtle: #6a6a73;
+  --accent: #5a8bff;
+  --accent-hover: #7aa2ff;
+  --accent-fg: #0b0b0c;
+  --accent-soft: rgb(90 139 255 / 0.16);
+  --success: #3dd68c;
+  --warning: #f5b84a;
+  --danger: #ff6b5e;
+  --grid-line: rgb(255 255 255 / 0.04);
+  --glow: rgb(90 139 255 / 0.22);
+  --logo-trail-1: #233358;
+  --logo-trail-2: #3b5aa2;
 
-  --color-accent: #60a5fa;
-  --color-accent-light: #93bffc;
-  --color-accent-hover: #7baafb;
+  --code-bg: #101012;
+  --code-fg: #d9d9de;
+  --syntax-keyword: #7aa7ff;
+  --syntax-string: #7ee2b8;
+  --syntax-function: #b9a5ff;
+  --syntax-tag: #ff8fb8;
+  --syntax-number: #7cc4ff;
+  --syntax-comment: #62626b;
+  --syntax-punctuation: #8d8d96;
 
-  --color-neutral-100: #1a1f26;
-  --color-neutral-200: #242a32;
-  --color-neutral-300: #2d343e;
-  --color-neutral-400: #3a424d;
-  --color-neutral-500: #55606e;
-  --color-neutral-600: #7b8494;
-  --color-neutral-700: #a5adb8;
-  --color-neutral-800: #d1d6db;
-  --color-neutral-900: #edeff1;
-
-  --color-text-primary: #edeff1;
-  --color-text-secondary: #a5adb8;
-  --color-text-disabled: #55606e;
-
-  --color-border-light: #242a32;
-  --color-border: #2d343e;
-  --color-border-dark: #3a424d;
-
-  --color-bg: #12161c;
-  --color-surface: #1a1f26;
-  --color-layer: #181d24;
-  --color-card: #1e242c;
-  --color-overlay: rgba(0, 0, 0, 0.6);
-
-  --color-success: #2ecea9;
-  --color-warning: #ffc248;
-  --color-error: #ff6675;
-  --color-info: #60a5fa;
-
-  --gradient-primary-accent: linear-gradient(180deg, #5696f8 0%, #1f6fe5 100%);
-
-  --syntax-punctuation: #a5adb8;
+  --shadow-color: 0 0 0;
+  color-scheme: dark;
 }
 
-@layer base {
-  :root {
-    --display-tracking: -0.03em;
-  }
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-code-bg: var(--code-bg);
+  --color-code-fg: var(--code-fg);
 
+  --font-sans:
+    var(--font-geist), "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont,
+    system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), "SF Mono", ui-monospace, Menlo, monospace;
+}
+
+@theme {
+  /* Type scale. Seven steps; every text on the site is one of them. */
+  --text-display: clamp(2.75rem, 1.4rem + 5vw, 5.25rem);
+  --text-display--line-height: 1;
+  --text-display--letter-spacing: -0.045em;
+  --text-display--font-weight: 620;
+  --text-h1: clamp(2.125rem, 1.6rem + 2vw, 3rem);
+  --text-h1--line-height: 1.08;
+  --text-h1--letter-spacing: -0.035em;
+  --text-h1--font-weight: 620;
+  --text-h2: clamp(1.5rem, 1.3rem + 0.8vw, 1.875rem);
+  --text-h2--line-height: 1.2;
+  --text-h2--letter-spacing: -0.025em;
+  --text-h2--font-weight: 600;
+  --text-h3: 1.125rem;
+  --text-h3--line-height: 1.4;
+  --text-h3--letter-spacing: -0.012em;
+  --text-h3--font-weight: 600;
+  --text-lead: 1.1875rem;
+  --text-lead--line-height: 1.6;
+  --text-lead--letter-spacing: -0.012em;
+  --text-body: 1rem;
+  --text-body--line-height: 1.7;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.55;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.45;
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1.2;
+  --text-micro--letter-spacing: 0.08em;
+
+  /* Radius. Four steps for UI, one for device glass. */
+  --radius-xs: 4px;
+  --radius-sm: 7px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-device: 46px;
+
+  /* Elevation. Light reads depth from shadow; dark reads it from surface
+     steps and hairlines, so the same tokens are nearly invisible there. */
+  --shadow-raised:
+    0 1px 2px rgb(var(--shadow-color) / 0.06), 0 1px 1px rgb(var(--shadow-color) / 0.04);
+  --shadow-overlay:
+    0 12px 32px -8px rgb(var(--shadow-color) / 0.18), 0 2px 6px rgb(var(--shadow-color) / 0.06);
+  --shadow-device:
+    0 40px 80px -24px rgb(var(--shadow-color) / 0.35),
+    0 12px 24px -12px rgb(var(--shadow-color) / 0.2);
+
+  /* The site's own UI motion borrows flemo's cupertino curve. */
+  --ease-flemo: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ───────────────────────────────────────────────────────────────────────── */
+
+@layer base {
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    background: var(--color-bg);
-    color: var(--color-text-primary);
+    background: var(--bg);
+    color: var(--fg);
+    /* Korean wraps at word boundaries, never mid-word. */
+    word-break: keep-all;
+    overflow-wrap: anywhere;
   }
 
   body {
     font-family: var(--font-sans);
-    font-feature-settings: "ss01", "ss02", "cv01", "cv11";
-    letter-spacing: -0.011em;
+    font-feature-settings: "ss01", "cv11";
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
   }
 
   ::selection {
-    background: var(--color-primary);
-    color: white;
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  button {
+    cursor: pointer;
   }
 }
 
-@utility display {
-  font-weight: 800;
-  letter-spacing: var(--display-tracking);
-  line-height: 1;
-}
-
-@utility kicker {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+/* Mono uppercase label: section eyebrows, readouts, table heads. */
+@utility label {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  line-height: var(--text-micro--line-height);
+  letter-spacing: var(--text-micro--letter-spacing);
   text-transform: uppercase;
-  color: var(--color-neutral-600);
-}
-
-@utility chip {
-  display: inline-flex;
-  align-items: center;
-  height: 2rem;
-  padding: 0 0.875rem;
-  border-radius: 999px;
-  background: var(--color-neutral-100);
-  border: 1px solid var(--color-border);
-  font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--color-text-secondary);
 }
 
-@utility cta-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  height: 3.5rem;
-  padding: 0 1.625rem;
-  border-radius: 999px;
-  background: var(--color-primary);
-  color: white;
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  transition:
-    transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
-    background 200ms ease;
-}
-@utility cta-pill {
-  &:hover {
-    background: var(--color-primary-hover);
-    transform: translateY(-1px);
+/* Text inside the How it works diagrams (SVG). Fill defaults to the muted
+   foreground; a tag or a label in a diagram may set its own fill. */
+@layer components {
+  .diagram text:not([fill]) {
+    fill: var(--fg-muted);
   }
-  &:active {
-    background: var(--color-primary-dark);
-    transform: translateY(0) scale(0.98);
+  .diagram .diagram-label {
+    font-size: 15px;
+    font-weight: 500;
   }
-}
-
-@utility cta-pill-invert {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  height: 3.5rem;
-  padding: 0 1.625rem;
-  border-radius: 999px;
-  background: white;
-  color: var(--color-text-primary);
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  transition:
-    transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
-    background 200ms ease;
-}
-@utility cta-pill-invert {
-  &:hover {
-    transform: translateY(-1px);
+  .diagram .diagram-note {
+    font-size: 13px;
   }
-  &:active {
-    transform: translateY(0) scale(0.98);
+  .diagram .diagram-note:not([fill]) {
+    fill: var(--fg-subtle);
+  }
+  .diagram .diagram-tag {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .diagram .diagram-code {
+    font-family: var(--font-mono);
+    font-size: 13px;
   }
 }
 
-@utility cta-ghost {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  height: 3.5rem;
-  padding: 0 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  transition: color 200ms ease;
+/* The instrument backdrop: a hairline grid that fades out from the centre. */
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 48px 48px;
 }
-@utility cta-ghost {
-  &:hover {
-    color: var(--color-text-primary);
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
   }
 }
 
-@keyframes hero-demo-dot {
-  0%, 80%, 100% {
-    transform: scale(0.6);
+/* A live signal: the dot beside anything that is currently moving. */
+@keyframes signal-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
     opacity: 0.35;
   }
-  40% {
-    transform: scale(1);
-    opacity: 1;
-  }
 }
 
-.hero-demo-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 9999px;
-  background-color: var(--color-neutral-300);
-  animation: hero-demo-dot 1.2s ease-in-out infinite both;
-}
-
-/* The hero's two real-app demo cards (wallet + music) roll diagonally: the
-   front card recedes down-right while the other comes forward. Two elements run
-   the same loop, the second offset by half a cycle. */
-@keyframes flemo-card-roll {
-  0%,
-  42% {
-    transform: translate3d(0, 0, 0) scale(1);
-    z-index: 2;
-    filter: brightness(1);
-  }
-  50%,
-  92% {
-    transform: translate3d(46px, 40px, 0) scale(0.9);
-    z-index: 1;
-    filter: brightness(0.94);
-  }
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-    z-index: 2;
-    filter: brightness(1);
-  }
-}
-
-/* THE RETURNING ROW'S UNPAIRED LINES, on the zoom case's pop.
-
-   The ghost paints no surface of its own — it carries only the content that
-   has no counterpart — so wherever it is empty, the arriving row shows
-   through from the flight's FIRST frame: the venue line and the price
-   appeared at full strength the instant a pop began. The detail solves the
-   same problem with its card-body part, but a part runs per SCREEN status
-   and would blank the nine rows that are not flying. This selector is the
-   scope a part cannot express: only the row staged in the flight layer,
-   and never the ghost's own copies (on a push those are the departing row's
-   lines, which must stay visible and leave with the ghost).
-
-   The clock is authored against aperture's 0.5s, the only transition that
-   carries this case — the same reasoning, and the same numbers, as the
-   card-body part's "arrive in the last half of the flight". */
-@keyframes act-row-late-in {
+/* The readout's dot. x is the clock, linear on purpose; y runs on the transition's
+   own curve (set inline). Nested, they trace the curve. Travel matches the
+   readout's 120x36 plot. */
+@keyframes readout-x {
   from {
-    opacity: 0;
+    transform: translateX(0);
   }
   to {
-    opacity: 1;
+    transform: translateX(120px);
   }
 }
 
-[data-flemo-morph-layer] .act-row-late:not([data-flemo-morph-ghost] *) {
-  opacity: 0;
-  animation: act-row-late-in 0.24s cubic-bezier(0, 0, 0.2, 1) 0.26s forwards;
+@keyframes readout-y {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-36px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Hangul sets wider than Latin at the same size, so the tight display tracking
+   that suits Geist crowds it. Korean headings keep only a little of it. */
+:lang(ko) .text-display,
+:lang(ko) .text-h1 {
+  letter-spacing: -0.025em;
+}
+
+:lang(ko) .text-h2 {
+  letter-spacing: -0.015em;
 }

@@ -18,7 +18,7 @@ function CompositionRouter() {
       defaultTransitionName="cupertino"
       partTransitions={[...compositionHeaderParts, ...compositionCardParts]}
       morphTransitions={[compositionCardShell]}
-      className="h-full w-full bg-[var(--color-bg)]"
+      className="h-full w-full bg-bg"
       strictRoutes
     >
       <Route path="/composition-home" element={<CompositionWorkspaceScreen />} />

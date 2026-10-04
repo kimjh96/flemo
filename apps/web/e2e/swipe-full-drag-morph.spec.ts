@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { waitForNavIdle } from "./helpers/flemo";
 
-// A DRAG THAT REACHES THE END IS NOT A FLIGHT THAT FINISHED.
+// A DRAG THAT REACHES THE END IS NOT A TRANSITION THAT FINISHED.
 //
 // The gesture drives a morph by seeking its compiled animations by hand, and
 // `animationend` is dispatched on the PHASE change rather than on the playback:
@@ -17,7 +17,7 @@ import { waitForNavIdle } from "./helpers/flemo";
 //
 //   1. the element blinked home under a finger that was still down,
 //   2. a finger coming back the other way found nothing left to move,
-//   3. and the release, with the flight already gone from the scope and
+//   3. and the release, with the transition already gone from the scope and
 //      therefore never marked delivered, let the navigation stage the whole
 //      trip a second time.
 //
@@ -85,14 +85,14 @@ const morphEvents = (page: import("@playwright/test").Page) =>
   );
 
 /**
- * What the flight layer is carrying, and how big each element of it reads.
+ * What the transition layer is carrying, and how big each element of it reads.
  *
  * `spread` sums the box AND the type size because the two kinds of morph on
  * this page grow differently: the artwork re-sizes its box, and the title keeps
  * a box the width of its line slot and re-typesets inside it. One number that
  * both move is what a direction assertion can be written against.
  */
-const inFlight = (page: import("@playwright/test").Page) =>
+const inTransition = (page: import("@playwright/test").Page) =>
   page.evaluate(() =>
     [...document.querySelectorAll("[data-flemo-morph-layer] [data-flemo-morph-id]")].map(
       (element) => {
@@ -111,7 +111,7 @@ const inFlight = (page: import("@playwright/test").Page) =>
  *
  * The controller clamps its own progress at 1, so a finger that runs out of
  * screen reports exactly the end — which is the case every phone produces and
- * the one that used to land the flight.
+ * the one that used to land the transition.
  */
 const dragPastTheEnd = async (
   page: import("@playwright/test").Page,
@@ -129,7 +129,7 @@ const dragPastTheEnd = async (
 };
 
 test.describe("a swipe carried the whole way across", () => {
-  test("keeps the flight in the air while the finger is still down", async ({ page }) => {
+  test("keeps the transition in the air while the finger is still down", async ({ page }) => {
     const box = await enterCase(page, "cupertino");
     test.skip(box === null, "no pushed screen on this bench");
     await watchMorphEvents(page);
@@ -137,10 +137,10 @@ test.describe("a swipe carried the whole way across", () => {
 
     // Still in the layer, at the arrival's own metrics: the drag has taken the
     // element the whole way, and taking it there is not the same as landing it.
-    const carried = await inFlight(page);
+    const carried = await inTransition(page);
     expect(carried.length).toBeGreaterThan(0);
 
-    // And nothing has reported a landing. The travel is the flight's own clock;
+    // And nothing has reported a landing. The travel is the transition's own clock;
     // the short channels alongside it (a cut, a ghost's crossfade) end on their
     // own and always did.
     const events = await morphEvents(page);
@@ -156,7 +156,7 @@ test.describe("a swipe carried the whole way across", () => {
     await watchMorphEvents(page);
     await dragPastTheEnd(page, box!);
 
-    const atTheEnd = await inFlight(page);
+    const atTheEnd = await inTransition(page);
     expect(atTheEnd.length).toBeGreaterThan(0);
 
     const y = box!.y + box!.height / 2;
@@ -169,7 +169,7 @@ test.describe("a swipe carried the whole way across", () => {
     // The same elements, and every one of them back off the pose the drag had
     // carried it to: a pop shrinks the shared element into its row, so a finger
     // coming back grows it again.
-    const backAgain = await inFlight(page);
+    const backAgain = await inTransition(page);
     expect(backAgain.map((entry) => entry.id)).toEqual(atTheEnd.map((entry) => entry.id));
     for (const [index, entry] of backAgain.entries()) {
       expect(entry.spread).toBeGreaterThan(atTheEnd[index]!.spread + 1);
@@ -178,7 +178,7 @@ test.describe("a swipe carried the whole way across", () => {
     await page.mouse.up();
   });
 
-  test("flies the shared element once, not twice", async ({ page }) => {
+  test("moves the shared element once, not twice", async ({ page }) => {
     const box = await enterCase(page, "cupertino");
     test.skip(box === null, "no pushed screen on this bench");
     await watchMorphEvents(page);
@@ -192,7 +192,7 @@ test.describe("a swipe carried the whole way across", () => {
     await page.waitForTimeout(600);
 
     const events = await morphEvents(page);
-    // The gesture staged the flight and the release plays it out. A travel that
+    // The gesture staged the transition and the release plays it out. A travel that
     // STARTS after the finger is gone is the navigation staging the same
     // element a second time, from its rest pose, for the whole trip.
     const restaged = events.filter(
@@ -201,6 +201,6 @@ test.describe("a swipe carried the whole way across", () => {
     expect(restaged).toEqual([]);
 
     // And it did land: the layer is empty and the element is back in its tree.
-    expect(await inFlight(page)).toEqual([]);
+    expect(await inTransition(page)).toEqual([]);
   });
 });

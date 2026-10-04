@@ -12,7 +12,7 @@ import { waitForNavIdle } from "./helpers/flemo";
 // as a screen that "just snaps back with no transition".
 //
 // Two things are watched here, and neither can be asked of jsdom: that the
-// return is staged from what the flight actually compiled (a browser is what
+// return is staged from what the transition actually compiled (a browser is what
 // answers `getKeyframes`, and Chromium answers a CSS animation without its
 // custom properties, which is a morph's whole travel), and that the motion on
 // glass decelerates rather than running at a constant speed.
@@ -73,7 +73,7 @@ const dragAndHold = async (
 };
 
 test.describe("a cancelled swipe", () => {
-  test("stages the return of the flight it is holding", async ({ page }) => {
+  test("stages the return of the transition it is holding", async ({ page }) => {
     const box = await enterCase(page, "cupertino");
     test.skip(box === null, "no pushed screen on this bench");
     await dragAndHold(page, box!);
@@ -81,20 +81,20 @@ test.describe("a cancelled swipe", () => {
     const staged = await page.evaluate(() => {
       // A compiled animation carries the name it was compiled under; one the
       // gesture staged through `element.animate` has no name at all.
-      const flying = new Set<Element>();
+      const moving = new Set<Element>();
       let compiled = 0;
       for (const animation of document.getAnimations()) {
         const name = (animation as unknown as { animationName?: unknown }).animationName;
         const target = (animation.effect as KeyframeEffect | null)?.target ?? null;
         if (typeof name !== "string" || !name.startsWith("flemo-morph-")) continue;
         compiled++;
-        if (target) flying.add(target);
+        if (target) moving.add(target);
       }
       let returns = 0;
       for (const animation of document.getAnimations()) {
         const name = (animation as unknown as { animationName?: unknown }).animationName;
         const target = (animation.effect as KeyframeEffect | null)?.target ?? null;
-        if (typeof name !== "string" && target && flying.has(target)) returns++;
+        if (typeof name !== "string" && target && moving.has(target)) returns++;
       }
       return { compiled, returns };
     });
@@ -102,7 +102,7 @@ test.describe("a cancelled swipe", () => {
     expect(staged.compiled).toBeGreaterThan(0);
     // Staged WITH the drag, so the frame the finger lifts has no animation to
     // commit. A zero here is the sheet read failing silently, which leaves the
-    // flight on the straight-line hand-back it used to have.
+    // transition on the straight-line hand-back it used to have.
     expect(staged.returns).toBeGreaterThan(0);
 
     await page.mouse.up();

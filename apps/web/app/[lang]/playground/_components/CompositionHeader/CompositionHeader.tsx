@@ -31,7 +31,7 @@ function CompositionHeader({ action, eyebrow, title }: CompositionHeaderProps) {
         </p>
         <h2 className="truncate text-[17px] leading-tight font-bold tracking-[-0.02em]">{title}</h2>
       </Part>
-      <span className="justify-self-end rounded-full bg-indigo-500/10 px-2 py-1 text-[9px] font-extrabold tracking-[0.12em] text-indigo-500">
+      <span className="justify-self-end rounded-full whitespace-nowrap bg-indigo-500/10 px-2 py-1 text-[9px] font-extrabold tracking-[0.12em] text-indigo-500">
         ROOT
       </span>
     </header>
