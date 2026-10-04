@@ -1,7 +1,7 @@
 {
   "name": "@flemo/devtools",
   "version": "0.9.0",
-  "description": "Zero-config flight recorder, on-device readout and visual panel for flemo screen transitions: captures per-flight driver routing, frame pacing, long tasks, shared-element pairing, landing residues and judging preconditions into one JSON report readable by humans and coding agents.",
+  "description": "Zero-config transition recorder, on-device readout and visual panel for flemo screen transitions: records how each transition was driven, frame pacing, long tasks, shared-element pairing, what is left behind after a transition ends, and judging preconditions, in one JSON report readable by people and coding agents.",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -14,7 +14,7 @@
     "flemo",
     "devtools",
     "diagnostics",
-    "flight-recorder",
+    "transition-recorder",
     "transition",
     "performance"
   ],

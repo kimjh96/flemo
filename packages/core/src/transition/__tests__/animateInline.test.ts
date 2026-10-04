@@ -34,7 +34,7 @@ describe("animateInline", () => {
     await settled;
   });
 
-  it("clearInlineAnimation concludes an in-flight settle without late writes", () => {
+  it("clearInlineAnimation concludes an running settle without late writes", () => {
     animateInline(el, { x: 0, opacity: 1 }, { duration: 0.3, ease: "linear" });
     expect(el.style.transition).toContain("0.3s");
 
@@ -245,7 +245,7 @@ describe("animateInline", () => {
     const swipe = Symbol("swipe");
     trackInlineWrite(el, "transform", swipe);
     el.style.transform = "translateX(80px)";
-    clearInlineAnimation(el); // the COMPLETED flip: flight is over
+    clearInlineAnimation(el); // the COMPLETED flip: transition is over
     expect(el.style.transform).toBe("");
   });
 });

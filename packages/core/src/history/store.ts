@@ -20,7 +20,7 @@ export interface History {
 
 export interface HistoryStore {
   index: number;
-  // The destination index of the in-flight navigation. It equals `index` at rest
+  // The destination index of the running navigation. It equals `index` at rest
   // and on push/replace, but on a pop it advances to the target IMMEDIATELY
   // (while `index` stays on the leaving screen until the transition completes, so
   // the renderer keeps it mounted). Reads of "where am I now" (usePathname) use

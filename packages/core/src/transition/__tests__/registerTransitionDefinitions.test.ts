@@ -94,7 +94,7 @@ describe("registerTransitionDefinitions (reference-counted)", () => {
 
   it("registers a morph transition by name, and reference-counts it like the rest", () => {
     // A morph compiles to no CSS at registration — its keyframes need two rects
-    // that only a flight produces — so this is a pure name lookup for the morph
+    // that only a transition produces — so this is a pure name lookup for the morph
     // runtime. Several Routers may still register the same one.
     const morph = createMorphTransition({
       name: "shared-morph" as never,

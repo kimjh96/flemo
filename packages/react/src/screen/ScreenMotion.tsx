@@ -112,7 +112,7 @@ function ScreenMotion({
   const stores = useStores();
   // The owning Router's boundary marker (see RouterIdContext) — stamped on
   // the screen and both shared bars so the engine can scope choreography
-  // participants to this Router's flight.
+  // participants to this Router's transition.
   const routerId = useContext(RouterIdContext);
 
   const index = useHistoryStore((state) => state.index);
@@ -202,7 +202,7 @@ function ScreenMotion({
   const layerHostTarget = inheritedLayerHost ?? layerHost;
   // Whether this screen currently HAS an escaped overlay. The dim has to
   // follow one out (see below), and a dim rendered unconditionally would paint
-  // over the shared bars on every flight whether an overlay exists or not.
+  // over the shared bars on every transition whether an overlay exists or not.
   const layerSlotsRef = useRef<Set<HTMLElement>>(new Set());
   const [hasLayerSlot, setHasLayerSlot] = useState(false);
   // Whether this screen's dim is rendered out in the layer host rather than in
@@ -355,7 +355,7 @@ function ScreenMotion({
   };
 
   const swipeControllerRef = useRef<ReturnType<typeof createSwipeController> | null>(null);
-  // The gesture's own morph flights, alive only between a drag's start and its
+  // The gesture's own morph transitions, alive only between a drag's start and its
   // release.
   const morphSwipeRef = useRef<MorphSwipe | null>(null);
   if (!swipeControllerRef.current) {
@@ -371,7 +371,7 @@ function ScreenMotion({
       }),
       hasSharedTopBar: () => swipeEnvRef.current.hasSharedTopBar,
       hasSharedBottomBar: () => swipeEnvRef.current.hasSharedBottomBar,
-      // Resolved from this Router's scope, exactly as the flight path does: the
+      // Resolved from this Router's scope, exactly as the transition path does: the
       // layer is the Router's, and a screen holds no ref to it.
       getPartLayer: () => resolvePartLayer(stores.navigate),
       getSharedTopBarId: () => swipeEnvRef.current.sharedTopBarId,
@@ -406,12 +406,12 @@ function ScreenMotion({
       // to navigate the whole document away instead of popping the stack the
       // gesture was dragging. Every scope mounts the history sync, so this one
       // call is the commit on both backends, and it lands SYNCHRONOUSLY: the
-      // code below depends on the landing flight already existing.
+      // code below depends on the landing transition already existing.
       back: () => stores.driver.back(),
       // THE SHARED ELEMENT FOLLOWS THE FINGER.
       //
       // A morph cannot be driven from a transition's swipe hooks the way a
-      // screen or a <Part> is — the element belongs to a flight the runtime
+      // screen or a <Part> is — the element belongs to a transition the runtime
       // stages, not to the author. So the gesture is handed to the morph
       // runtime here, once, and every transition that declares a
       // `swipeDirection` gets an interactive morph without authoring one.
@@ -424,13 +424,13 @@ function ScreenMotion({
         // `onDragSettle` nulls this ref, so a non-null handle at the start of a
         // new drag means the last drag's settle never ran — its screen was torn
         // down mid-gesture, the OS took the pointer, capture was lost. Its morph
-        // flights are still staged, held at zero with their backstops suspended
+        // transitions are still staged, held at zero with their backstops suspended
         // (see beginMorphSwipe), so nothing will ever land them: they sit in the
-        // flight layer wearing their role, and every pop after reads them as a
+        // transition layer wearing their role, and every pop after reads them as a
         // partner already in the air and pairs against the corpse instead of the
         // grid — no camera, the text blinking, until reload. Device-reported on
         // the poster grid, tab-flipping between cards. Cancelling the orphan
-        // lands its flights home before the new gesture stages.
+        // lands its transitions home before the new gesture stages.
         morphSwipeRef.current?.settle(false, 0);
         morphSwipeRef.current = beginMorphSwipe(stores.navigate, "POPPING");
       },
@@ -496,7 +496,7 @@ function ScreenMotion({
 
     return () => {
       scope.removeEventListener("touchmove", handleTouchMove);
-      // The screen is going away under whatever gesture is in flight — an
+      // The screen is going away under whatever gesture is running — an
       // unmount, or a freeze, which tears these effects down while the
       // controller (a ref) survives to be re-attached later still armed. An
       // armed controller preventDefaults every touchmove, so leaving one behind
@@ -563,7 +563,7 @@ function ScreenMotion({
   // per consumer render: disconnect the observer, read `offsetHeight` (a
   // forced layout, in a layout effect, so pre-paint), observe again, and take
   // the new observer's initial callback. A screen that re-renders during a
-  // flight — a data refetch storm on arrival is measured at dozens of commits
+  // transition — a data refetch storm on arrival is measured at dozens of commits
   // — paid all of that on the frames the motion is watched.
   useLayoutEffect(() => {
     const element = sharedTopBarRef.current;
@@ -707,15 +707,15 @@ function ScreenMotion({
   const parkHeadKeyRef = useRef<string | null>(null);
 
   // Whether this screen has ever been at rest, which is the same question as
-  // "is it mounting into the flight it is holding for". A screen pushed onto
-  // the stack mounts already holding and does not rest until that flight lands;
+  // "is it mounting into the transition it is holding for". A screen pushed onto
+  // the stack mounts already holding and does not rest until that transition lands;
   // every other participant — a pop's returning screen, a pop's departing top,
   // a push's exiting side — was at rest a moment ago. Keyed on rest rather than
   // on the hold key because two pushes in a row SHARE a key (`${status}:
   // ${transition}`), so a key comparison would call the second one a mount too.
   const hasRestedRef = useRef(false);
   if (holdKey === null) hasRestedRef.current = true;
-  const mountingIntoFlight = !hasRestedRef.current;
+  const mountingIntoTransition = !hasRestedRef.current;
 
   const [animRelease, setAnimRelease] = useState<{ key: string | null; released: boolean }>({
     key: holdKey,
@@ -726,7 +726,7 @@ function ScreenMotion({
     // before committing, so the hold and status attributes always land in the
     // same paint.
     setAnimRelease({ key: holdKey, released: holdKey === null });
-    // A new hold starts held: the previous flight's imperative release must not
+    // A new hold starts held: the previous transition's imperative release must not
     // leak into it.
     releasedKeyRef.current = null;
     // Nor its park. Hold keys are `${status}:${transition}`, so two pushes in a
@@ -786,7 +786,7 @@ function ScreenMotion({
   // Whether the head that follows this hold should carry the park pose instead
   // of the authored from-pose (see PARK_HEAD_ATTR). Sticky across the release on
   // purpose: the attribute has to still be there for the whole head, and by then
-  // `holdAttr` has long since read RELEASED. Keyed on the flight's own hold key
+  // `holdAttr` has long since read RELEASED. Keyed on the transition's own hold key
   // so the next navigation starts from nothing — a stale mark would park a
   // screen whose cover was never measured opaque.
   //
@@ -811,7 +811,7 @@ function ScreenMotion({
   // What a <Layer> slot needs to keep being this screen while sitting outside
   // it. Every value here is one the slot cannot get by being where it is: it
   // is a sibling of no scope it belongs to, in a container that may not even
-  // be this screen's, so its stack position, its paint state and the flight it
+  // be this screen's, so its stack position, its paint state and the transition it
   // is part of all have to be handed over. See LayerContext.
   const layerOwner: LayerOwner = {
     zIndex,
@@ -851,7 +851,7 @@ function ScreenMotion({
         prevTransitionName,
         status,
         isActive,
-        // The flight's motion starts exactly at hold release; the compiled
+        // The transition's motion starts exactly at hold release; the compiled
         // hold/park rules own every frame before it. Included in the deps so
         // the release re-runs this effect.
         animHoldReleased: !animHold
@@ -919,7 +919,7 @@ function ScreenMotion({
             }
           }
           // park-under sank the whole screen container beneath its cover;
-          // the released flight must surface in the same frame its clock
+          // the released transition must surface in the same frame its clock
           // starts, not a React commit later. Restore the screen's own stack
           // position rather than clearing the property: the containers are
           // isolated, so `auto` would drop this screen behind every sibling
@@ -934,7 +934,7 @@ function ScreenMotion({
           // this screen with the STALE held state and writes the paused hold
           // attribute back over the RUNNING animation — trace-proved
           // (2026-08-18): presents kept flowing at 60fps while the pop stood
-          // frozen ~250ms mid-flight (cc drawing the same paused pose) until
+          // frozen ~250ms mid-transition (cc drawing the same paused pose) until
           // the reconciling commit re-released it; intermittent because it
           // needs an interleaved commit, and pop-biased because the returning
           // screen's arrival re-renders supply one. flushSync closes the
@@ -947,7 +947,7 @@ function ScreenMotion({
             );
           // the profile's deferReleaseCommit, and only where the DOM flip already
           // released the hold: hand the reconcile to the NEXT frame so it stops
-          // competing with the flight's first present (device-measured: the
+          // competing with the transition's first present (device-measured: the
           // release-frame drop is PUSH-only, 11/18 vs 0/17 on POP). Without the
           // flip there is nothing else releasing the attribute, so the state
           // commit IS the release and must stay in this task.
@@ -995,12 +995,12 @@ function ScreenMotion({
           // so Android ran ungated for two rounds. The two live in one place
           // now (settleGateActive), which is what stops them drifting again.
           // The gate arms on the screen whose render storm threatens the
-          // flight: the ACTIVE side on push (fresh mount) — and on pop BOTH
+          // transition: the ACTIVE side on push (fresh mount) — and on pop BOTH
           // sides, because the pop's storm belongs to the INACTIVE returning
           // screen (its Activity unfreeze re-renders the whole stack entry:
           // device-measured 46-commit pops). Glass-proved 2026-08-18: with
           // the atomic flip closing the release gap, an ungated returning
-          // screen lands its unfreeze storm MID-flight — 133-233ms frozen
+          // screen lands its unfreeze storm MID-transition — 133-233ms frozen
           // blocks in the pop motion — where the state-routed release had
           // been hiding it as a (felt-as-dead-tap) delayed start. The pair
           // coordinator already barriers the pop pair, so gating the
@@ -1010,7 +1010,7 @@ function ScreenMotion({
             ? {
                 // firstWaitMs: no qualifying mount commit within this → warm/
                 // light screen, release with no felt delay. capMs: the hard
-                // backstop (one flight span) so even a pathological render can
+                // backstop (one transition span) so even a pathological render can
                 // never strand the motion. Render-settle waits the full quiet
                 // window (see quietSpan) so a straggler commit can't hit the
                 // release frame.
@@ -1024,7 +1024,7 @@ function ScreenMotion({
                 // before it, and the storm the gate watches for there is the
                 // Activity unfreeze, which commits inside the paint anchor and
                 // is now seen directly (the observer attaches at t=0). Waiting
-                // the grace out on top of that was 60ms of dead flight on every
+                // the grace out on top of that was 60ms of dead transition on every
                 // pop, measured on an empty two-screen stage as 117ms of hold
                 // where 67 is the anchor plus the raster guard. The guard is
                 // what keeps this honest: a give-up still has to ride two fast
@@ -1035,14 +1035,14 @@ function ScreenMotion({
                 // playground's push held 117-134ms with the grace and 67-99ms
                 // without, so the motion starts some 50ms sooner. Those are
                 // also the 50ms the mount's effects need to declare themselves
-                // — the reviewer watched the transition come apart mid-flight
+                // — the reviewer watched the transition come apart halfway through
                 // without them. A push MOUNTS, so the tick this waits for is
                 // real there; a pop does not, which is why the same removal was
                 // right on that side and wrong on this one.
-                graceMs: mountingIntoFlight ? 60 : 0,
+                graceMs: mountingIntoTransition ? 60 : 0,
                 // The RETURNING side of a pop must wait out the PREVIOUS
                 // push's landing storm (the batched arrival reveal + query
-                // writes land two frames past that flight's rest — exactly
+                // writes land two frames past that transition's rest — exactly
                 // when a natural browse rhythm pops back). Those reveal
                 // commits are node-light, so the mount-sized threshold
                 // ignored them and launched the pop INTO the storm —
@@ -1057,7 +1057,16 @@ function ScreenMotion({
             : undefined
       }
     );
-  }, [animHold, holdKey, holdAttr, isActive, mountingIntoFlight, status, stores.navigate, zIndex]);
+  }, [
+    animHold,
+    holdKey,
+    holdAttr,
+    isActive,
+    mountingIntoTransition,
+    status,
+    stores.navigate,
+    zIndex
+  ]);
 
   const initialStyle =
     holdAttr === ANIM_HOLD.PARK_UNDER || holdAttr === ANIM_HOLD.PARK_OVER
@@ -1147,7 +1156,7 @@ function ScreenMotion({
           // park-under rasterize into a composited backing store that SURVIVES
           // the release jump to the off-screen from-pose (an unpromoted layer
           // is discarded there and re-rasters on the slide — the reveal block).
-          // Continuous with holdScopeLayer's own flight-time will-change, so
+          // Continuous with holdScopeLayer's own transition-time will-change, so
           // the one promoted layer spans hold → slide.
           // DEFAULT-ON for steady-60 desktop sessions (2026-08-18): Blink
           // culls the raster of the occluded park-under layer, so the push's
@@ -1316,7 +1325,7 @@ function ScreenMotion({
         correctness hole rather than a cosmetic one.
 
         So the overlay carries the dim out, the same way it carries the screen's
-        flight: one copy per owner, sitting immediately above that owner's own
+        transition: one copy per owner, sitting immediately above that owner's own
         slots and below any screen above it. Slots take even levels and their
         dim the odd one after, which is what keeps the pair adjacent no matter
         how many screens have overlays open.
@@ -1345,12 +1354,12 @@ function ScreenMotion({
 
         It carries no containment and no promotion of its own — either would
         re-create the containing block the overlay left the screen to escape.
-        It DOES ride this screen's flight, on the same attributes a shared bar
+        It DOES ride this screen's transition, on the same attributes a shared bar
         uses, because when this screen moves everything it hosts has to move
         with it: an overlay opened in a nested screen belongs to the region
         this screen is, and a region that slides out from under its own sheet
         is the bug this pairing exists to prevent. A slot only adds its owner's
-        flight on top when the owner is a DIFFERENT screen (see
+        transition on top when the owner is a DIFFERENT screen (see
         LayerOwner.rendersHost), so the two never double up.
       */}
       {!inheritedLayerHost && (

@@ -1,31 +1,31 @@
 import { ACTIVE_ATTR, HELD_ARRIVAL_ATTR, IMAGE_HOLD_ATTR, STATUS_ATTR } from "./domProtocol";
 import { parseTranslateX } from "./sampling";
 
-import type { LandingAudit } from "./types";
+import type { EndAudit } from "./types";
 
-// THE LANDING PROBE: what the flight left behind once everything was supposed
+// THE LANDING PROBE: what the transition left behind once everything was supposed
 // to be at rest.
 //
-// Run two rAF after the flight ends, which is where the engine's own COMPLETED
+// Run two rAF after the transition ends, which is where the engine's own COMPLETED
 // cleanup and the deferred freeze land. Everything it looks for is a class of
 // defect that has actually shipped: an inline pose left on a landed screen
 // (the blank viewport), a hold marker with no owner left to release it (~130
 // permanently blank avatars), a transitional status that never cleared (every
 // later navigation swallowed).
 
-/** How many rAF frames past flight end the landing audit waits. */
+/** How many rAF frames past transition end the landing audit waits. */
 export const LANDING_AUDIT_FRAMES = 2;
 
 /**
  * Hold markers still on the page at rest. Both of these are supposed to be
- * gone by the landing: whatever they hide has no owner left to reveal it.
+ * gone by the endAudit: whatever they hide has no owner left to reveal it.
  * Scanned document-wide on purpose — an orphan's screen is often exactly the
  * one that was swapped out from under the hold.
  *
- * `busy` is the caller's "another flight is already running" test. The audit
- * lands two frames after the previous flight ended, and by then a fast
+ * `busy` is the caller's "another transition is already running" test. The audit
+ * lands two frames after the previous transition ended, and by then a fast
  * back-to-back navigation legitimately owns hold markers of its own. A missed
- * detection is recoverable; blaming a flight for its successor's working holds
+ * detection is recoverable; blaming a transition for its successor's working holds
  * would train the reader to ignore the signal.
  */
 export const orphanedHolds = (busy: boolean): string[] => {
@@ -46,7 +46,7 @@ export const orphanedHolds = (busy: boolean): string[] => {
 export const auditLanding = (
   elements: readonly Element[],
   busy: boolean
-): Omit<LandingAudit, "stuckStatuses"> => {
+): Omit<EndAudit, "stuckStatuses"> => {
   const residual: string[] = [];
   let offViewport = false;
   const viewportWidth = window.visualViewport?.width ?? window.innerWidth ?? 0;

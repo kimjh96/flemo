@@ -13,7 +13,7 @@ vi.mock("@flemo/core", async (importOriginal) => {
 
 const { default: Router } = await import("../Router");
 
-// flemo's AMBIENT machinery — GPU pipelines compiled ahead of the first flight,
+// flemo's AMBIENT machinery — GPU pipelines compiled ahead of the first transition,
 // oversized image decodes kept off the main thread, the compositor kept awake
 // while the user is about to navigate — is core's (`startFlemoRuntime`). WHAT it
 // does and WHEN each piece engages is pinned in core's own suites.

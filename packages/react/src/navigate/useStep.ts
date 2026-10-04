@@ -39,7 +39,7 @@ type StepParams<T> = [T] extends [never]
  *
  * Returns `{ step, pushStep, replaceStep, popStep }`. Called from a `Screen`,
  * the route's own params drive the step URL and `useParams` reads them back.
- * Called from chrome OUTSIDE a `Screen`, there is no route, so the step keeps
+ * Called from a header or other fixed UI OUTSIDE a `Screen`, there is no route, so the step keeps
  * the current pathname and `step` reports its params reactively after mount.
  */
 export default function useStep<T extends keyof RegisterRoute | object = never>() {

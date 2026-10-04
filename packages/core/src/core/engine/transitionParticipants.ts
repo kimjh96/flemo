@@ -17,10 +17,10 @@ import {
 } from "@dom/attributes";
 
 import { decoratorMap } from "@transition/decorator/decorator";
-import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
+import { resolveDecoratorTiming } from "@transition/decorator/resolveDecoratorTiming";
 import { resolvePartDefinition } from "@transition/partTransition/partTransition";
 
-// WHO IS IN THIS FLIGHT.
+// WHO IS IN THIS TRANSITION.
 //
 // A navigation's choreography is not one element. It is the screen scope, its
 // riding shared bars, the decorator, and every <Part> that mirrors the
@@ -35,12 +35,12 @@ import { resolvePartDefinition } from "@transition/partTransition/partTransition
 // belong to that screen's own engine and are excluded.
 //
 // Plus the ones this screen has STAGED. A matched shared bar's parts spend the
-// flight in the Router's part layer, outside every screen (see
+// transition in the Router's part layer, outside every screen (see
 // barPartStaging.ts) — so the container walk above cannot reach them, and each
 // caller of this function is a place where losing them is a defect rather than
 // a saving: the layer pin and its settle release (participantLayers.ts) and the
 // COMPLETED inline clear. They are found by the explicit home marker rather
-// than by structure, for the reason stated below collectFlightParts: a staged
+// than by structure, for the reason stated below collectTransitionParts: a staged
 // part has no ancestry left to infer ownership from.
 
 export const collectScreenParts = (scope: HTMLElement): HTMLElement[] => {
@@ -72,7 +72,7 @@ export const collectVariantParts = (
   );
 };
 
-// Pin the compiled promotions inline for one side of the flight (see
+// Pin the compiled promotions inline for one side of the transition (see
 // layerSettleHold.ts): the screen scope, its riding shared bars (they run
 // the screen's own rule, so they share its property list and containment),
 // the decorator, and this side's <Part> elements — every element whose
@@ -84,51 +84,51 @@ export const collectVariantParts = (
 // The WHOLE choreography's span for one status: the longest of the screen
 // transition's BOTH variants (active and passive — either side may be the
 // long-authored one) and every <Part> participating in this status. Any
-// deadline meant to outlast "the flight" must derive from this, not from one
+// deadline meant to outlast "the transition" must derive from this, not from one
 // screen's variant — the response hold's backstop learned that the hard way
 // (a 700ms screen with a 3s Part flushed parked responses mid-Part).
-// Parts participating in THIS Router's flight, by the EXPLICIT boundary
+// Parts participating in THIS Router's transition, by the EXPLICIT boundary
 // marker: the React binding stamps every screen and shared bar with its
 // owning Router's identity (`data-flemo-router`, see RouterIdContext). A
 // document-global status query let an unrelated Router's 3s part inflate
 // this navigation's gate, floor, and response backstop — and DOM-structure
 // inference cannot draw the line: each screen sits in its own wrapper (so
-// the two screens of ONE flight share no parent), a root Router renders no
+// the two screens of ONE transition share no parent), a root Router renders no
 // container at all, and two independent Routers may share a DOM parent.
 // Marker semantics: a part qualifies when its nearest marked carrier
 // (screen or bar) carries the SAME Router id as the scope's. Either side
 // missing a marker (a binding predating the stamp, detached test fixtures)
 // keeps the old inclusive behavior — over-waiting is a delay, cross-cutting
 // is a truncation.
-export const collectFlightParts = (scope: HTMLElement, status: string): HTMLElement[] => {
+export const collectTransitionParts = (scope: HTMLElement, status: string): HTMLElement[] => {
   const ownCarrier = scope.closest(attrSelector(ROUTER_ATTR));
-  const flightId = ownCarrier?.getAttribute(ROUTER_ATTR) ?? null;
+  const transitionId = ownCarrier?.getAttribute(ROUTER_ATTR) ?? null;
   return Array.from(
     scope.ownerDocument.querySelectorAll<HTMLElement>(
       `${attrSelector(PART_NAME_ATTR)}${attrValueSelector(STATUS_ATTR, status)}`
     )
   ).filter((part) => {
-    if (flightId === null) return true;
+    if (transitionId === null) return true;
     const carrier = part.closest(attrSelector(ROUTER_ATTR));
     if (!carrier) return true;
-    return carrier.getAttribute(ROUTER_ATTR) === flightId;
+    return carrier.getAttribute(ROUTER_ATTR) === transitionId;
   });
 };
 
-// Flight parts that no held element CONTAINS. The compiled hold rule pauses
+// Transition parts that no held element CONTAINS. The compiled hold rule pauses
 // `[data-flemo-anim-hold=…]` and its `[data-flemo-part-name]` DESCENDANTS, so
 // a Part inside a screen rides the screen's own hold and a Part inside a
 // shared bar rides the bar's — the React binding stamps the attribute on
 // both. A Part mounted OUTSIDE any screen has neither. <Part> supports that
 // position deliberately (its own header: "a persistent header next to a
 // <Slot>, a portal"), and the compiled part selector keys on name + status +
-// active with NO structural term, so such a part is driven by this flight's
+// active with NO structural term, so such a part is driven by this transition's
 // keyframes while nothing pauses it: it animated straight through the hold
-// window with every screen parked, then led the flight by the whole hold —
+// window with every screen parked, then led the transition by the whole hold —
 // the defect the decorator once had ("the dim faded in ahead of the held
 // screens", 2026-08-13).
 //
-// Scoped through collectFlightParts, i.e. by the EXPLICIT `data-flemo-router`
+// Scoped through collectTransitionParts, i.e. by the EXPLICIT `data-flemo-router`
 // marker rather than DOM ancestry. That is not a preference: RouterIdContext
 // exists precisely because structure cannot draw this boundary (a root Router
 // renders no container, two Routers may share a parent), and each screen sits
@@ -140,28 +140,28 @@ export const collectFlightParts = (scope: HTMLElement, status: string): HTMLElem
 // already stamped must still be found, so the release can re-derive the same
 // set instead of trusting a record the DOM may have changed under.
 export const collectUnheldOuterParts = (scope: HTMLElement, status: string): HTMLElement[] =>
-  collectFlightParts(scope, status).filter(
+  collectTransitionParts(scope, status).filter(
     (part) => part.parentElement?.closest(`[${ANIM_HOLD_ATTR}]`) == null
   );
 
 // The release sweep is deliberately status-AGNOSTIC while the stamp above is
-// status-scoped. Stamping narrowly keeps the pause off parts this flight does
+// status-scoped. Stamping narrowly keeps the pause off parts this transition does
 // not drive (`animation-play-state` is per-ELEMENT: it would pause whatever
 // the consumer authored on that part too). Clearing broadly guarantees the
-// pause cannot outlive the flight if the part's own status attribute moved in
+// pause cannot outlive the transition if the part's own status attribute moved in
 // a different commit than this drive — a leak would freeze persistent chrome
 // indefinitely, so the two sides must not share a predicate.
 export const collectStampedOuterParts = (scope: HTMLElement): HTMLElement[] => {
-  const flightId = scope.closest(attrSelector(ROUTER_ATTR))?.getAttribute(ROUTER_ATTR) ?? null;
+  const transitionId = scope.closest(attrSelector(ROUTER_ATTR))?.getAttribute(ROUTER_ATTR) ?? null;
   return Array.from(
     scope.ownerDocument.querySelectorAll<HTMLElement>(`[${PART_NAME_ATTR}][${ANIM_HOLD_ATTR}]`)
   ).filter((part) => {
     /* v8 ignore next -- a part reached by a document query always has a parent;
        the optional chain is a guard against a detached caller, not a path. */
     if (part.parentElement?.closest(`[${ANIM_HOLD_ATTR}]`) != null) return false;
-    if (flightId === null) return true;
+    if (transitionId === null) return true;
     const carrier = part.closest(attrSelector(ROUTER_ATTR));
-    return !carrier || carrier.getAttribute(ROUTER_ATTR) === flightId;
+    return !carrier || carrier.getAttribute(ROUTER_ATTR) === transitionId;
   });
 };
 
@@ -180,10 +180,10 @@ export const statusChoreographySpanMs = (
     const motion = resolveVariantMotion(transition, variant)!;
     spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
   }
-  for (const part of collectFlightParts(scope, status)) {
-    // Against THIS flight's transition: a part with no authored duration runs
+  for (const part of collectTransitionParts(scope, status)) {
+    // Against THIS running transition's definition: a part with no authored duration runs
     // at the screen's, so a span computed from the authored variants would
-    // close the flight while the part was still moving.
+    // close the transition while the part was still moving.
     const definition = resolvePartDefinition(part.getAttribute(PART_NAME_ATTR), transition);
     const partVariant = `${status}-${part.getAttribute(ACTIVE_ATTR)}` as TransitionVariant;
     if (!definition || !variantHasAnimation(definition, partVariant)) continue;
@@ -191,16 +191,16 @@ export const statusChoreographySpanMs = (
     spanMs = Math.max(spanMs, (motion.delay + motion.duration) * 1000);
   }
   // The decorator is a full participant too (it joins the shared player): a
-  // 3s custom dim over a 700ms screen must extend every flight deadline,
+  // 3s custom dim over a 700ms screen must extend every transition deadline,
   // exactly like a long-authored Part.
   const decoratorDefinition = transition.decoratorName
     ? decoratorMap.get(transition.decoratorName)
     : undefined;
   if (decoratorDefinition) {
     // On the screen's clock unless the decorator authored its own, so a dim
-    // that simply follows its transition can no longer extend the flight past
+    // that simply follows its transition can no longer extend the transition past
     // it — only one deliberately written longer can.
-    const decoratorClock = resolveDecoratorClock(transition, decoratorDefinition);
+    const decoratorClock = resolveDecoratorTiming(transition, decoratorDefinition);
     for (const variant of [`${status}-true`, `${status}-false`] as TransitionVariant[]) {
       if (!variantHasAnimation(decoratorClock, variant)) continue;
       const motion = resolveVariantMotion(decoratorClock, variant)!;
@@ -210,8 +210,8 @@ export const statusChoreographySpanMs = (
   return spanMs;
 };
 
-// The animations a STILL screen's flight is made of: the passive screen of this
-// Router's flight, every <Part> in it, and whatever the caller adds (the
+// The animations a STILL screen's transition is made of: the passive screen of this
+// Router's transition, every <Part> in it, and whatever the caller adds (the
 // decorator's element, the morph camera's animations). The same participants
 // the span above counts, read as the running animations rather than as their
 // authored lengths, so a caller can wait for the motion to actually END instead
@@ -219,25 +219,25 @@ export const statusChoreographySpanMs = (
 //
 // Own animations only (a screen's descendants belong to their own parts or to
 // the consumer), and only ones that CAN end: a consumer's infinite loop on a
-// participant would otherwise hold the flight open forever. Same Router
-// boundary as collectFlightParts, for the same reason.
-export const collectFlightAnimations = (
+// participant would otherwise hold the transition open forever. Same Router
+// boundary as collectTransitionParts, for the same reason.
+export const collectTransitionAnimations = (
   scope: HTMLElement,
   status: string,
   extraElements: readonly (Element | null | undefined)[],
   extraAnimations: readonly Animation[]
 ): Animation[] => {
-  const flightId = scope.closest(attrSelector(ROUTER_ATTR))?.getAttribute(ROUTER_ATTR) ?? null;
+  const transitionId = scope.closest(attrSelector(ROUTER_ATTR))?.getAttribute(ROUTER_ATTR) ?? null;
   const passiveScreens = Array.from(
     scope.ownerDocument.querySelectorAll<HTMLElement>(
       `${attrSelector(SCREEN_ATTR)}${attrValueSelector(STATUS_ATTR, status)}${attrValueSelector(ACTIVE_ATTR, "false")}`
     )
   ).filter((screen) => {
-    if (flightId === null) return true;
+    if (transitionId === null) return true;
     const carrier = screen.closest(attrSelector(ROUTER_ATTR));
-    return !carrier || carrier.getAttribute(ROUTER_ATTR) === flightId;
+    return !carrier || carrier.getAttribute(ROUTER_ATTR) === transitionId;
   });
-  const elements = [...passiveScreens, ...collectFlightParts(scope, status), ...extraElements];
+  const elements = [...passiveScreens, ...collectTransitionParts(scope, status), ...extraElements];
   const animations: Animation[] = [...extraAnimations];
   for (const element of elements) {
     if (!element || typeof element.getAnimations !== "function") continue;

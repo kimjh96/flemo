@@ -4,16 +4,16 @@ import { compileTransitionStyles, dedupeKeyframeBlocks } from "@transition/compi
 import createRawTransition from "@transition/createRawTransition";
 
 import createRawPartTransition from "@transition/partTransition/createRawPartTransition";
-import { resolvePartClock } from "@transition/partTransition/resolvePartClock";
+import { resolvePartTiming } from "@transition/partTransition/resolvePartTiming";
 
 // A PART DECLARES A POSE, NOT A LENGTH.
 //
-// How long the hand-over takes is the flight's answer and the flight already
-// gave it, so a part with no authored duration runs at the screen's — the rule
-// decorators already follow (resolveDecoratorClock), by the same SAME VARIANT
+// How long the hand-over takes is the screen transition's answer and the screen
+// transition already gave it, so a part with no authored duration runs at the screen's — the rule
+// decorators already follow (resolveDecoratorTiming), by the same SAME VARIANT
 // KEY mapping. Before this, an omitted duration resolved to zero and the part
 // SNAPPED under a screen that ran for three quarters of a second, and a part
-// authored LONGER than its screen held the whole flight open, which disables
+// authored LONGER than its screen held the whole transition open, which disables
 // swipe-back for as long as it runs.
 
 const screen = (name: string, duration: number) =>
@@ -58,7 +58,7 @@ const ruleFor = (css: string, selector: string): string | undefined => {
   return lines.slice(start, end + 1).join("\n");
 };
 
-describe("a part's clock comes from the flight", () => {
+describe("a part's clock comes from the transition", () => {
   it("fills an omitted duration from the screen's SAME variant", () => {
     const css = compileTransitionStyles([screen("clock-a", 0.7)], [], [poseOnly]);
 
@@ -159,7 +159,7 @@ describe("a part's clock comes from the flight", () => {
   it("keeps an authored zero as the snap the author asked for", () => {
     // `??`, not `||`. A part deliberately written to jump must survive a screen
     // that runs for three quarters of a second.
-    const snap = resolvePartClock(screen("clock-d", 0.7), {
+    const snap = resolvePartTiming(screen("clock-d", 0.7), {
       initial: { opacity: 0 },
       variants: {
         ...poseOnly.variants,
@@ -179,7 +179,7 @@ describe("a part's clock comes from the flight", () => {
   // `ease`, which is a working one. A part is also INSIDE its screen, so it
   // rides that screen's transform and has no gap with it to close. The
   // participant that does need the screen's curve is a MORPH, and only because
-  // it left the screen for the flight layer and has to reproduce that motion
+  // it left the screen for the transition layer and has to reproduce that motion
   // itself (`attachMorph` gates it on `screenMoves`).
   //
   // A part is reached by NAME under any transition in the Router, so inheriting
@@ -191,13 +191,13 @@ describe("a part's clock comes from the flight", () => {
       ease: [0.32, 0.72, 0, 1]
     };
 
-    const clock = resolvePartClock(eased, poseOnly);
+    const clock = resolvePartTiming(eased, poseOnly);
 
     expect(clock.variants["PUSHING-true"].options?.ease).toBeUndefined();
   });
 
   it("leaves an authored curve exactly as authored", () => {
-    const clock = resolvePartClock(screen("curve-b", 0.7), {
+    const clock = resolvePartTiming(screen("curve-b", 0.7), {
       initial: poseOnly.initial,
       variants: {
         ...poseOnly.variants,

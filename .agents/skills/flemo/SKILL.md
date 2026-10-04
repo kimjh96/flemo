@@ -25,9 +25,9 @@ Design navigation topology, visual ownership, and motion together. A locally pla
 2. Resolve each navigation from its calling component. Record the target Router and operation: push, replace, or pop.
 3. Before coding, make a participant matrix:
 
-| Participant | Router owner | Primitive | Identity | Push role | Pop role | Swipe owner | Clock owner | Paint layer |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Example: header title | app | Part in shared top bar | part name + shared bar ID | old out, new in | top out, previous in | default Part rider | app screen | part layer |
+| Participant           | Router owner | Primitive              | Identity                  | Push role       | Pop role             | Swipe owner        | Clock owner | Paint layer |
+| --------------------- | ------------ | ---------------------- | ------------------------- | --------------- | -------------------- | ------------------ | ----------- | ----------- |
+| Example: header title | app          | Part in shared top bar | part name + shared bar ID | old out, new in | top out, previous in | default Part rider | app screen  | part layer  |
 
 4. Choose primitives by ownership and identity, not desired easing:
    - `Slot`: literally persistent layout around one Router's moving region.
@@ -36,7 +36,7 @@ Design navigation topology, visual ownership, and motion together. A locally pla
    - `Morph`: one visual object represented on both screens with the same `layoutId`.
    - Decorator: a wash or dim tied to a transition.
    - `Layer`: content that must paint over screen chrome.
-5. Author named transitions and register them on the Router owning the flight. Add type registries when the project uses them.
+5. Author named transitions and register them on the Router owning the transition. Add type registries when the project uses them.
 6. Verify push and pop, plus swipe completion and cancellation. Push alone is insufficient.
 
 ## Preserve invariants
@@ -44,7 +44,7 @@ Design navigation topology, visual ownership, and motion together. A locally pla
 - `active` follows the stack: during pop, the dismissing top screen remains active and the returning screen underneath is inactive.
 - A pose-only Part follows swipe progress and inherits its carrying screen's matching variant clock. Any `onSwipe*` callback opts that Part out of the default rider and assumes full control.
 - Missing Part duration and delay inherit by matching variant. Explicit zero remains zero; easing never inherits.
-- A Morph flies the arriving element and cuts the departing element at its `exit` end-pose. Pop reverses which active flag denotes arrival.
+- A Morph moves the arriving element and cuts the departing element at its `exit` end-pose. Pop reverses which active flag denotes arrival.
 - Router names resolve through the current Router and its ancestors, never siblings. A pathless cross-Router pop must name its owner.
 - Do not repeat durations owned by another participant; repeated literals drift.
 

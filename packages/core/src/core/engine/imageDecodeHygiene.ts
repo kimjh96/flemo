@@ -1,8 +1,8 @@
 // Async-decode stamping for a transitional screen's images.
 //
-// The one main-thread stall the flight armor (response park, arrival hold,
+// The one main-thread stall the transition armor (response park, arrival hold,
 // invisible-animation hold) cannot reach: SYNCHRONOUS image decode. A screen
-// entering a flight paints its already-present <img> content as its tiles
+// entering a transition paints its already-present <img> content as its tiles
 // come onscreen — mid-motion, by definition — and a large source (device-
 // measured: a 37-megapixel portrait JPEG served by a public API) decodes on
 // the main thread inside that paint. Real-device tracer attribution: a 770ms
@@ -18,12 +18,12 @@
 // the motion). This module stamps it on every <img> under a transitional
 // screen that the CONSUMER HAS NOT explicitly authored a `decoding`
 // attribute on — an authored "sync"/"auto" is a deliberate choice and is
-// never overridden. The stamp is left in place after the flight: decode
+// never overridden. The stamp is left in place after the transition: decode
 // happens once, and async decoding is strictly less blocking for any later
 // repaint too.
 //
 // Deliberately NOT a load hold: an earlier attempt that deferred image
-// LOADS during flights was device-judged worse (images landed visibly late
+// LOADS during transitions was device-judged worse (images landed visibly late
 // everywhere). Loads start exactly as authored here; only the decode's
 // scheduling changes.
 

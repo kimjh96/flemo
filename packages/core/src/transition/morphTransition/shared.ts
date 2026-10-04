@@ -5,20 +5,20 @@ import createMorphTransition from "@transition/morphTransition/createMorphTransi
 //
 // It authors no DURATION on purpose: a morph is not a transition of its own —
 // it happens INSIDE one — so the runtime falls back to the length of whichever
-// screen transition is flying (cupertino's 0.7s glide, material's, a
+// screen transition is moving (cupertino's 0.7s glide, material's, a
 // consumer's), and the shared element lands with its screen under any of them.
 //
 // The CURVE is authored, and deliberately not inherited. A screen's fade can be
 // front-loaded to get itself out of the way early (see the `layout` preset);
 // travel borrowed from that curve would snap the element across and leave it
-// sitting there for the rest of the flight.
+// sitting there for the rest of the transition.
 //
 // It is also NOT the iOS glide cupertino uses. That curve is 72% travelled at
 // 32% of its clock, which reads as a glide over a 0.7s slide and as a JUMP over
 // a 0.3s morph — frame-counted at 60fps: the element reached its destination in
 // three frames and spent the remaining fifteen imperceptibly settling. A
 // shared element is the thing the eye is following, so its motion has to be
-// legible for the whole flight: this starts gently, covers ground in the
+// legible for the whole transition: this starts gently, covers ground in the
 // middle, and decelerates into place.
 const EASE: [number, number, number, number] = [0.4, 0, 0.2, 1];
 
@@ -26,16 +26,17 @@ const EASE: [number, number, number, number] = [0.4, 0, 0.2, 1];
  * The plain shared element, registered as `"shared"` and the default for a
  * `Morph` that names none.
  *
- * The two sides trade places while still on top of each other: the arrival is
- * opaque from its first frame and a ghost of the departure dissolves over it.
- * It authors no duration, so it runs as long as the screen transition flying,
+ * The two sides trade places while still on top of each other: the element on
+ * the new screen is opaque from its first frame and a copy of the element on
+ * the old screen fades out over it. It authors no duration, so it runs as long
+ * as the screen transition,
  * and it does author its own curve, which a screen's front-loaded fade must
  * not replace.
  */
 const shared = createMorphTransition({
   name: "shared",
   // No opacity on the arrival: it is opaque from its first frame, and the GHOST
-  // — the copy of what was there, carried inside the flight — is what dissolves
+  // — the copy of what was there, carried inside the transition — is what dissolves
   // away on top of it. Fading both would bleed the background through the pair
   // by a(1 - a), right in the middle of the hand-over.
   initial: {},

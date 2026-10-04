@@ -15,7 +15,7 @@
 // session must not conclude the motion is clean.
 export const JUDGING_PROTOCOL: readonly string[] = [
   "DevTools must be CLOSED while judging motion. An open inspector serializes " +
-    "requests and repaints its own panels on the same machine; the 2026-08 campaign's " +
+    "requests and redraws its own panels on the same machine; the 2026-08 campaign's " +
     "entire residual 'stutter' was this, and it is invisible to every in-page metric.",
   "No screen recording or display capture while judging. A capture client forces " +
     "WindowServer to composite every vsync, which SUPPRESSES the symptom — a capture " +

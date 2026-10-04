@@ -126,7 +126,7 @@ interface RouterProps {
    * `createRawMorphTransition`, reached by name from a `Morph`.
    */
   // They compile to no CSS — a shared element's keyframes need two rects that
-  // only a flight produces — so registering one is purely making its name
+  // only a transition produces — so registering one is purely making its name
   // resolvable to the runtime.
   morphTransitions?: MorphTransition[];
   /**
@@ -202,10 +202,10 @@ const CONTAINED_VIEWPORT = { contained: true };
 
 // Interaction-warm cadence: how often the hold is renewed while interaction
 // continues, and how long it survives past the last interaction — enough to
-// bridge move -> tap -> the flight's own warm-up taking over, short enough
+// bridge move -> tap -> the transition's own warm-up taking over, short enough
 // that a walked-away user costs nothing lasting.
 /**
- * Owns one navigation stack, its history, and the motion between its screens.
+ * Handles one navigation stack, its history, and the motion between its screens.
  *
  * Register every transition, decorator, part transition, and morph transition
  * the stack names here. A navigation runs against the NEAREST enclosing Router
@@ -237,14 +237,14 @@ function Router({
   // Nesting controls ONLY the contained rendering; the history backend is chosen
   // by the `history` prop, independent of depth.
   const depth = useContext(RouterDepthContext);
-  // This Router's flight-boundary identity (see RouterIdContext). useId gives
+  // This Router's transition-boundary identity (see RouterIdContext). useId gives
   // page-load uniqueness, but its value encodes the component's position from
   // the HYDRATION ROOT — so a consumer whose server render root differs from
   // its client hydrate root (e.g. server renders <Html><App/></Html> while the
   // client hydrateRoot's just <App/> at #root) produces a DIFFERENT useId on
   // each side, and this id is the one flemo attribute that reaches the DOM
   // (data-flemo-router), so it surfaces as a hydration mismatch. The engine
-  // only ever reads this attribute CLIENT-side (it scopes live flights; SSR
+  // only ever reads this attribute CLIENT-side (it scopes live transitions; SSR
   // never runs it), so the marker is withheld until after hydration: the
   // server and the first client render both emit nothing (a match), and an
   // effect exposes the id once mounted. Robust to any consumer's root config.
@@ -320,7 +320,7 @@ function Router({
         `This Router has ${strays} child${strays === 1 ? "" : "ren"} that ${
           strays === 1 ? "is" : "are"
         } not a <Route> and no <Slot> to separate them from the routes, so flemo cannot tell ` +
-          "screens from layout. Wrap the routes in a <Slot> and leave the chrome outside it."
+          "screens from layout. Wrap the routes in a <Slot> and leave headers, tab bars and other layout outside it."
       );
     }
   }
@@ -465,7 +465,7 @@ function Router({
   }, [scope, name]);
 
   // Router liveness for queued navigation tasks: a push/pop task can sit in
-  // the shared queue behind an in-flight transition and run after this Router
+  // the shared queue behind an running transition and run after this Router
   // unmounted — it must abort rather than move the browser history for screens
   // that no longer exist. Set on every mount (strict-mode remounts and hosted
   // re-adoption included), cleared on unmount.
@@ -490,7 +490,7 @@ function Router({
   useTransitionStyles(transitions, decorators, partTransitions, morphTransitions);
 
   // flemo's AMBIENT machinery — GPU pipelines compiled ahead of the first
-  // flight, oversized image decodes off the main thread where the platform
+  // transition, oversized image decodes off the main thread where the platform
   // profile asks for it, and the compositor kept awake while the user is about
   // to navigate. All of it is framework-neutral and all of it is core's
   // (@runtime/flemoRuntime); this effect only decides that a mounted Router is
@@ -549,7 +549,7 @@ function Router({
             {/* EVERY Router mounts the sync, memory included. It is what turns a
                 `driver.back()` into the store pop, and the swipe controller
                 commits with exactly that call — synchronously, because the
-                landing flight has to pick the screens up where the gesture left
+                landing transition has to pick the screens up where the gesture left
                 them. Route a memory commit through the navigation queue instead
                 and it lands a third of a second later, after the settle has
                 already put everything back, and the whole transition replays.
@@ -573,7 +573,7 @@ function Router({
   // it via className/style) and clips the slide overflow. Everything outside this
   // <Router> in the layout persists across its navigations. A root Router renders
   // no wrapper: its screens are fixed to the viewport.
-  // The FLIGHT LAYER is rendered by the Router because only the Router knows
+  // The TRANSITION LAYER is rendered by the Router because only the Router knows
   // which box bounds its screens. It is absolute in both cases: a nested region
   // has the wrapper below, and a root Router inherits the app's own frame —
   // which is exactly what <Slot> does for the screens themselves.

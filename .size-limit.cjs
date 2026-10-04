@@ -11,7 +11,7 @@ module.exports = [
     // the real wire cost for a fresh consumer.
     //
     // What the number covers: the navigation/task/history/store core, the
-    // compiled-style engine and its per-platform head kits, the flight's
+    // compiled-style engine and its per-platform head kits, the transition's
     // glass-integrity machinery (arrival/response/image/layer holds, the
     // perceptual completion cut), the swipe controller, the image decode
     // offloader (with its embedded worker source), the compositor warm-up and
@@ -26,7 +26,7 @@ module.exports = [
     // bytes of headroom — the gate was one commit from tripping on anything).
     //
     // Internalizing shared-element morphs (2026-08-25) took it to 45.0 kB:
-    // the pairing, the measured travel, the per-flight keyframe compiler, the
+    // the pairing, the measured travel, the per-transition keyframe compiler, the
     // paint-channel table, the stand-in and the gesture handle, which used to
     // be `motion` in a consumer's node_modules and are now flemo's own. That
     // is a whole feature's worth of growth and it is measured separately
@@ -61,7 +61,7 @@ module.exports = [
     // is what gzip already does with repeated short quoted strings.
     //
     // Re-based to 64 KB. The alternative to the bytes was a shorter table,
-    // which is not cheaper: every property left out of it is a flight that
+    // which is not cheaper: every property left out of it is a transition that
     // lays its contents out on every frame instead. This entry buys frames
     // with bytes on purpose.
     limit: "64 KB",
@@ -88,11 +88,11 @@ module.exports = [
     // ~15% headroom this entry has always kept.
     //
     // 22.3 kB after the 2026-09 camera/interrupt campaign, all of it
-    // device-justified: the flight itself bisected to find every face boundary
+    // device-justified: the transition itself bisected to find every face boundary
     // (the ratio-aimed stops missed iOS's real ones), the camera arrived one
     // frame early and spanned the task so a still-screen zoom completes when it
     // lands, a fast pop paired against its snapshot before the leaving screen
-    // re-rendered, and a stranded or corpse flight was swept from the layer
+    // re-rendered, and a stranded or corpse transition was swept from the layer
     // before the next pop could pair against it. Re-based to 26 KB.
     //
     // 27.4 kB on 2026-09-16, and this half is where the reveal rule table
@@ -106,7 +106,7 @@ module.exports = [
     name: "@flemo/react",
     path: "packages/react/dist/index.mjs",
     // ~6.2 KB when the transition logic moved to @flemo/core, tightened to
-    // 8 KB to lock that shrink in. `<Morph>` and its flight layer put it at
+    // 8 KB to lock that shrink in. `<Morph>` and its transition layer put it at
     // 8.0 kB — twenty lines of binding plus the layer a Router renders, since
     // everything else about a morph is core's. Re-based to 9 KB.
     limit: "9 KB",
@@ -126,11 +126,11 @@ module.exports = [
   {
     name: "@flemo/devtools (recorder)",
     path: "packages/devtools/dist/index.mjs",
-    import: "{ attachFlightRecorder }",
-    // Zero-dependency flight recorder (~8 KB at birth: report schema
+    import: "{ attachTransitionRecorder }",
+    // Zero-dependency transition recorder (~8 KB at birth: report schema
     // constants, flag registry, anomaly derivation, recorder). The regression
     // net — pose/clock progress sampling, hold re-assert detection, the
-    // orphaned-hold and mid-flight image audits, and the judging protocol —
+    // orphaned-hold and mid-transition image audits, and the judging protocol —
     // took it to 9.2 KB, which is deliberate: those are the signatures the
     // 2026-08 campaign's defects would return through.
     //
@@ -146,7 +146,7 @@ module.exports = [
     //   the preconditions    the observable half of the judging protocol, so a
     //                        clean number from an invalid session says so
     //   the verdict          the session read back in sentences
-    //   buckets + the trace  the A/B ladder, and flights that survive a reload
+    //   buckets + the trace  the A/B ladder, and transitions that survive a reload
     //
     // Re-based to 19 KB, the ~25% headroom convention; a dependency creeping
     // in would still blow straight through it.
@@ -193,7 +193,7 @@ module.exports = [
     name: "@flemo/devtools (panel)",
     path: "packages/devtools/dist/index.mjs",
     import: "{ attachDevtoolsPanel }",
-    // The visual panel: shadow-root shell, stylesheet, flight list/detail
+    // The visual panel: shadow-root shell, stylesheet, transition list/detail
     // renderers — PLUS the recorder, which the panel falls back to attaching
     // itself, so this number is the real cost of `attachDevtoolsPanel` alone.
     // 20.7 kB after the 2026-09-06 rework: the recorder's own growth above,

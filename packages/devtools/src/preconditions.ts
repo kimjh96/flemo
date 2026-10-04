@@ -27,14 +27,14 @@ const CONTENTION_SINGLE_MS = 200;
 
 export interface PreconditionInput {
   environment: EnvironmentFingerprint;
-  /** Long tasks observed while NO flight was open. */
+  /** Long tasks observed while NO transition was open. */
   idleLongTasks: LongTaskSpan[];
   /** How long the recorder has been attached. */
   observedMs: number;
   /** The document was hidden at least once while recording. */
   wentHidden: boolean;
   documentHidden: boolean;
-  /** Input observed across every recorded flight. */
+  /** Input observed across every recorded transition. */
   input: InputEvidence;
 }
 
@@ -60,7 +60,7 @@ const cadenceCheck = (environment: EnvironmentFingerprint): Precondition => {
     return {
       id: "display-cadence",
       status: "ok",
-      detail: `idle frames arrive every ${median}ms — a 60Hz clock`,
+      detail: `idle frames arrive every ${median}ms: a 60Hz display`,
       metrics
     };
   }
@@ -71,7 +71,7 @@ const cadenceCheck = (environment: EnvironmentFingerprint): Precondition => {
       detail:
         `idle frames arrive every ${median}ms — the page is being served roughly HALF rate. ` +
         "On iOS this is Low Power Mode, whose main-thread ceiling is ~30Hz while the compositor " +
-        "keeps 60: motion judged here is judged against a clock no transition can beat, and the " +
+        "keeps 60: motion judged here is judged against a frame rate no transition can beat, and the " +
         "ceiling is not a library defect. Turn it off, or judge elsewhere",
       metrics
     };
@@ -81,7 +81,7 @@ const cadenceCheck = (environment: EnvironmentFingerprint): Precondition => {
     status: "violated",
     detail:
       `idle frames arrive every ${median}ms — the page is barely being served frames at all ` +
-      "while idle. Something outside the transition owns this machine; no motion verdict taken " +
+      "while idle. Something other than the transition is using this machine; no motion verdict taken " +
       "here means anything",
     metrics
   };
@@ -108,7 +108,7 @@ const contentionCheck = (input: PreconditionInput): Precondition => {
       id: "machine-idle",
       status: "violated",
       detail:
-        `${count} long task(s) totalling ${totalMs}ms ran while NO navigation was in flight ` +
+        `${count} long task(s) totalling ${totalMs}ms ran while NO navigation was running ` +
         `(worst ${maxMs}ms). Something else on this page or this machine was busy, and a ` +
         "motion verdict taken under someone else's load measures the load. A whole tremble " +
         "campaign was invalidated by exactly this, with a build running in another window",
@@ -141,7 +141,7 @@ const inputCheck = (input: PreconditionInput): Precondition => {
       id: "real-input",
       status: "unknown",
       detail:
-        "no input event preceded any recorded flight. These navigations were driven " +
+        "no input event preceded any recorded transition. These navigations were driven " +
         "programmatically or by the browser's own back/forward, which is a different path from " +
         "the one a user takes",
       metrics: { trusted, synthetic }
@@ -187,7 +187,7 @@ const UNOBSERVABLE: readonly Precondition[] = [
     status: "unknown",
     detail:
       "whether an inspector is open cannot be seen from inside the page. An open one serializes " +
-      "requests and repaints its own panels on the same machine; a whole campaign's residual " +
+      "requests and redraws its own panels on the same machine; a whole campaign's residual " +
       "stutter was this and nothing else. Confirm it with the user"
   },
   {
@@ -241,7 +241,7 @@ export const derivePreconditions = (input: PreconditionInput): Precondition[] =>
           status: "violated",
           detail: input.documentHidden
             ? "this document is HIDDEN right now — a backgrounded page is throttled to a fraction of its frames"
-            : "this document was hidden at least once while recording; any flight that ran then was throttled"
+            : "this document was hidden at least once while recording; any transition that ran then was throttled"
         }
       : { id: "page-foreground", status: "ok", detail: "the document stayed visible throughout" }
   );

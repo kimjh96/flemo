@@ -21,17 +21,17 @@ import RouterIdContext from "../RouterIdContext";
 
 export interface MorphProps extends PropsWithChildren<ComponentPropsWithRef<"div">> {
   /**
-   * The pairing key. The element carrying the same `layoutId` on the other
-   * screen of a flight is the SAME element as far as the eye is concerned, so
-   * this one travels from there instead of appearing where it belongs.
+   * The pairing key. The element with the same `layoutId` on the other
+   * screen of a transition is the SAME element as far as the user can see, so
+   * this one moves from there instead of appearing where it belongs.
    */
   layoutId: string | number;
   /**
    * A registered `createMorphTransition` name. Defaults to the built-in
    * `shared` preset, which authors no DURATION, so it runs for as long as
-   * whatever screen transition is flying. Its curve is authored rather than
+   * whatever screen transition is moving. Its curve is authored rather than
    * inherited: a screen's front-loaded fade would snap a shared element across
-   * and leave it sitting there for the rest of the flight.
+   * and leave it sitting there for the rest of the transition.
    */
   name?: MorphTransitionName;
   /**
@@ -46,26 +46,27 @@ export interface MorphProps extends PropsWithChildren<ComponentPropsWithRef<"div
 /**
  * A shared element: one thing that exists on two screens.
  *
- * The arriving element flies and the departing one is CUT, pinned at its morph
- * transition's `exit` end pose from the flight's first frame. The two ends never
- * cross-fade. On a pop the arriving element is the one on the screen being
- * returned to, which is the INACTIVE side, because `active` follows the stack
- * rather than the direction of travel.
+ * The element on the new screen moves, and the element on the old screen
+ * disappears at once: from the transition's first frame it stays at the end
+ * style of its morph transition's `exit` variant. The two never cross-fade. On
+ * a pop the element on the new screen is the one on the screen being returned
+ * to, which is the INACTIVE side, because `active` follows the stack rather
+ * than the direction of travel.
  *
  * The element's BOX animates, so its subtree lays out at every intermediate size
- * instead of scaling. Give both ends the same children: whatever the arrival
- * does not contain cannot be carried. Pair repeated text as a nested Morph
+ * instead of scaling. Give both ends the same children: whatever the element
+ * on the new screen does not contain cannot move with it. Pair repeated text as a nested Morph
  * instead of leaving it as ordinary content inside a container Morph.
  *
- * A Morph asserts one identity. Hand copy that differs between the two screens
- * to `Part` elements beside it.
+ * A Morph asserts one identity. Put text that differs between the two screens
+ * in `Part` elements beside it.
  *
- * During the flight the element is staged ABOVE both screens, so whatever the
- * screens are doing cannot clip it, cover it, or carry it along. It paints over
+ * During the transition the element is rendered ABOVE both screens, so whatever the
+ * screens are doing cannot clip it, cover it, or move it along. It renders over
  * shared bars for the same reason, which an author cannot currently prevent.
  */
 // The component is deliberately almost empty. Everything a morph does —
-// pairing the two sides, measuring the travel, staging it in the flight layer,
+// pairing the two sides, measuring the travel, staging it in the transition layer,
 // emitting the keyframes, riding the same hold the screens obey, putting the
 // element back on landing — lives in @flemo/core's morph runtime, which reads
 // what it needs off the DOM protocol. This is the whole React share of it:
@@ -73,10 +74,10 @@ export interface MorphProps extends PropsWithChildren<ComponentPropsWithRef<"div
 // same twenty lines in its own dialect.
 //
 // The SLOT is why there are two elements. The runtime moves the inner one out
-// for the flight, and React must never be asked to remove a node that is not
+// for the transition, and React must never be asked to remove a node that is not
 // where it left it: the slot stays put and takes that removal. It is
 // `display: contents` at rest, so the consumer's layout sees only the box they
-// wrote; the runtime gives it the element's measured size for the flight, so
+// wrote; the runtime gives it the element's measured size for the transition, so
 // nothing reflows while the element is away.
 function Morph({ ref, layoutId, name, as = "div", style, children, ...props }: MorphProps) {
   const { isActive, isPrev, navigateStore, routerId: screenRouterId, transitionName } = useScreen();
@@ -108,7 +109,7 @@ function Morph({ ref, layoutId, name, as = "div", style, children, ...props }: M
   // Re-registering on every status change is intentional and cheap. It is what
   // lets a screen that was never frozen (a shallow-freeze session, a live
   // previous screen) still take its side of a pop, since nothing else would
-  // tell the runtime the flight had begun.
+  // tell the runtime the transition had begun.
   // Whether this element is inside a screen at all — see the note below.
   const owns = !!navigateStore;
 
@@ -128,14 +129,14 @@ function Morph({ ref, layoutId, name, as = "div", style, children, ...props }: M
     });
   }, [layoutId, name, owns, store, status, isActive]);
 
-  // WHICH FLIGHT THIS ELEMENT IS ON, said out loud.
+  // WHICH TRANSITION THIS ELEMENT IS ON, said out loud.
   //
   // The runtime used to infer it from the nearest `[data-flemo-screen]`
   // ancestor, which is right for anything written inside a screen and wrong for
   // SHARED CHROME: a shared bar is rendered as a sibling of the screen scope it
   // belongs to, so the walk leaves the screen entirely (root Router) or lands on
   // some enclosing Router's screen (nested). Both ends of a bar-to-bar pair then
-  // resolved to the same non-transitional screen and the pair never flew.
+  // resolved to the same non-transitional screen and the pair never moved.
   //
   // Structure cannot answer it, so the binding does — it is standing in the
   // enclosing Screen and simply knows. Same protocol `<Part>` already renders,
@@ -145,7 +146,7 @@ function Morph({ ref, layoutId, name, as = "div", style, children, ...props }: M
   // ONLY INSIDE A SCREEN. `navigateStore` is absent in the default screen
   // context, which is exactly the case of persistent chrome that lives outside
   // every screen — a mini player beside the <Slot>. That element has no side of
-  // a flight to be on, and the runtime's "no screen at all is a real partner"
+  // a transition to be on, and the runtime's "no screen at all is a real partner"
   // rule is what pairs it today. Stamping a status and an active flag there
   // would answer a question it does not have, and on a pop the answer would be
   // "arriving".

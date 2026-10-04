@@ -60,7 +60,7 @@ export interface FlemoStores {
   // instantly, so it is already on the right entry whenever it is revealed.
   persistent?: boolean;
   // The owning Router's liveness. A navigation task can sit queued behind an
-  // in-flight transition and outlive the Router that created it (its screen
+  // running transition and outlive the Router that created it (its screen
   // popped away in the meantime); running it would then move the BROWSER
   // history while only a dead store hears about it, walking the URL away from
   // every live screen. The binding flips this off on unmount; queued

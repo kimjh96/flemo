@@ -1,16 +1,16 @@
 import { reportDisplayIntervalMs } from "@platform/displayCadence";
 
 const noop = () => {};
-import { reportInFlightCadence } from "@platform/steadySixtyCadence";
+import { reportInTransitionCadence } from "@platform/steadySixtyCadence";
 
-// THE IN-FLIGHT DISPLAY PROBE, and the frame-pacing keepalive beside it.
+// THE RUNNING DISPLAY PROBE, and the frame-pacing keepalive beside it.
 //
-// Both exist because a compositor-driven flight leaves the main thread idle,
+// Both exist because a compositor-driven transition leaves the main thread idle,
 // and an idle main thread tells you two lies: an adaptive panel reports its
 // idle rate rather than the rate it is presenting at, and Chrome paces its
 // macOS ProMotion presentation unevenly when nothing is asking for frames.
 //
-// So this module runs rAF during flights — once to MEASURE (the probe, whose
+// So this module runs rAF during transitions — once to MEASURE (the probe, whose
 // median feeds the learned cadence and the steady-60 verdict) and once to
 // simply EXIST (the keepalive, whose callback does nothing at all).
 //
@@ -22,24 +22,24 @@ import { reportInFlightCadence } from "@platform/steadySixtyCadence";
 // measured on battery) never qualifies.
 export const COMPILED_TIER_MAX_INTERVAL_MS = 12;
 
-// Frame-pacing keepalive for Blink's COMPILED tier. A compositor-driven flight
+// Frame-pacing keepalive for Blink's COMPILED tier. A compositor-driven transition
 // leaves the main thread idle, and Chrome then paces its macOS ProMotion
 // presentation UNEVENLY — video-measured at 120fps, a full-screen slide
-// drops/duplicates frames mid-flight (a near-zero inter-frame delta followed
+// drops/duplicates frames mid-transition (a near-zero inter-frame delta followed
 // by a double-step) and the eye reads it as trembling, which rAF timing on the
 // main thread cannot see because the animation's value function is smooth.
 // Device-confirmed: an empty `requestAnimationFrame` loop running for the
-// flight visibly steadies the cadence (the compositor keeps presenting on every
+// transition visibly steadies the cadence (the compositor keeps presenting on every
 // vsync while a frame source is live). The callback does nothing — its mere
-// existence is the fix. Ref-counted so overlapping flights share one loop, and
-// armed only for compiled Blink flights (WebKit and the rAF player already keep
+// existence is the fix. Ref-counted so overlapping transitions share one loop, and
+// armed only for compiled Blink transitions (WebKit and the rAF player already keep
 // a frame source alive).
 // CONTINUOUS once started — never stopped for the rest of the page session.
-// A per-flight loop lets Chrome re-ramp its macOS ProMotion panel from idle
+// A per-transition loop lets Chrome re-ramp its macOS ProMotion panel from idle
 // 60Hz on every deliberate navigation (a cold opening), which is why an
 // on/off loop barely helped while the device A/B — a NEVER-stopping rAF — did.
 // The callback does nothing; a live frame source is the whole point, and it
-// costs a single empty rAF. Armed lazily on the first compiled Blink flight
+// costs a single empty rAF. Armed lazily on the first compiled Blink transition
 // (so it never runs before the app navigates) and then kept warm forever.
 let keepaliveHandle: number | null = null;
 const keepaliveTick = () => {
@@ -57,7 +57,7 @@ export const armFramePacingKeepalive = (): (() => void) => {
   return noop;
 };
 
-// Re-sample the display cadence while flights run WITHOUT a player (the
+// Re-sample the display cadence while transitions run WITHOUT a player (the
 // routed-compiled state has no player to learn from): six rAF gaps, median
 // reported back to the player module. One probe at a time.
 // (2026-08-12 note: a retrying, slow-vouching variant of this probe powered
@@ -71,9 +71,9 @@ export const armFramePacingKeepalive = (): (() => void) => {
 let displayProbeActive = false;
 // Bumped on every arm AND every cancel; a tick whose generation is stale
 // stops scheduling and reports nothing. Cancellation matters on adaptive
-// panels: a probe outliving its compiled flight measures the IDLE clock,
+// panels: a probe outliving its compiled transition measures the IDLE clock,
 // which reads ~60Hz there — exactly the value that must never feed the
-// steady-60 verdict (in-flight is the only honest window, see
+// steady-60 verdict (running is the only honest window, see
 // steadySixtyCadence.ts).
 let displayProbeGeneration = 0;
 export const cancelDisplayIntervalProbe = () => {
@@ -88,7 +88,7 @@ export const resetDisplayProbeForTests = () => {
   displayProbeActive = false;
 };
 // Two skipped warm-up gaps + an 8-gap median: the probe arms in the same
-// commit that releases the flight, so its FIRST gaps ride the entering
+// commit that releases the transition, so its FIRST gaps ride the entering
 // screen's mount-commit stall — measured on the playground push, the raw
 // 6-gap median read 30ms+ on a healthy 60Hz panel and poisoned every
 // cadence consumer. The warm-up lets the commit clear while the compositor
@@ -121,11 +121,11 @@ export const armDisplayIntervalProbe = () => {
     // The RAW median additionally feeds the steady-60 verdict (the learned
     // interval above is clamped to the 60Hz nominal, which would erase the
     // 60-vs-unmeasured distinction the verdict needs). This probe only runs
-    // during compiled flights — a compositor animation is live, so an
+    // during compiled transitions — a compositor animation is live, so an
     // adaptive panel is at its true rate (see steadySixtyCadence.ts). The
     // window's max gap rides along so the verdict can reject jam-noise
     // windows (rAF catch-up bursts fake a fast median).
-    reportInFlightCadence(median, sorted[sorted.length - 1]!);
+    reportInTransitionCadence(median, sorted[sorted.length - 1]!);
   };
   requestAnimationFrame(tick);
 };

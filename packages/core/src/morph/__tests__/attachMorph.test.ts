@@ -53,7 +53,7 @@ const makeScreen = (transitionName: string, active: boolean) => {
   screen.setAttribute(SCREEN_ATTR, "");
   screen.setAttribute(TRANSITION_ATTR, transitionName);
   // A screen renders the status it is in, exactly like the binding does: the
-  // runtime reads it to tell a screen that is IN this flight from one that is
+  // runtime reads it to tell a screen that is IN this transition from one that is
   // merely stacked underneath.
   screen.setAttribute(STATUS_ATTR, store.getState().status);
   screen.setAttribute(ACTIVE_ATTR, active ? "true" : "false");
@@ -132,7 +132,7 @@ describe("attachMorph", () => {
     expect(thumbnail.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.EXIT);
   });
 
-  it("inherits the flying screen's duration when the morph authors none", () => {
+  it("inherits the moving screen's duration when the morph authors none", () => {
     // The built-in preset deliberately has no timing of its own: that is what
     // lets a shared element land with its screen under any transition.
     const gallery = makeScreen("layout", true);
@@ -177,7 +177,7 @@ describe("attachMorph", () => {
   });
 
   it("paints the departure through the head, not the arrival", () => {
-    // The head is the flat lead-in the compiled tiers bake in: the flight is
+    // The head is the flat lead-in the compiled tiers bake in: the transition is
     // staged and running and nothing has moved yet. A zero cross-fade used to
     // mean no ghost at all, so for the length of the head the only thing on
     // glass was the arrival — the destination's contents at the departure's
@@ -212,7 +212,7 @@ describe("attachMorph", () => {
       wide.textContent = "calendar";
       attachMorph(wide, { layoutId: "pill", name: "cutting" as never, navigateStore: store });
 
-      // A copy of the departure flies, and it is the departure's own content.
+      // A copy of the departure moves, and it is the departure's own content.
       const ghost = [...layer.children].find((child) => child !== wide) as HTMLElement;
       expect(ghost.textContent).toBe("summary");
       // The desktop head for a replace is 33ms, and both ends of the hand-over
@@ -322,7 +322,7 @@ describe("attachMorph", () => {
     await Promise.resolve();
 
     const nestedRule = inserted.find((rule) => /flemo-morph-\d+n-travel/.test(rule))!;
-    // Its travel rides the same channel a flying pair's box does: one
+    // Its travel rides the same channel a moving pair's box does: one
     // translation, on one clock, with room for the ascent to cancel on.
     expect(nestedRule).toContain("--flemo-move-x:");
     expect(nestedRule).not.toContain("transform:");
@@ -330,7 +330,7 @@ describe("attachMorph", () => {
   });
 
   it("lets a nested morph RIDE its container, starting from the measured from-pose", async () => {
-    // Tried the two hard alternatives on glass. Flying free tears the
+    // Tried the two hard alternatives on glass. Moving free tears the
     // container apart in the air; cancelling the container's transform so the
     // child keeps its own path holds the box together but opens voids inside
     // it. Riding keeps the container a faithful scaled copy of itself — but
@@ -339,7 +339,7 @@ describe("attachMorph", () => {
     // ends' local arrangement was a lurch at the tap: measured at 20px
     // sideways on the playground's caption, and at 16px on the demo it
     // replaced. So the child rides AND carries a translate from the measured
-    // from-delta to identity, exact at both ends of the flight.
+    // from-delta to identity, exact at both ends of the transition.
     const gallery = makeScreen("layout", true);
     const card = makeMorph(gallery, [20, 600, 160, 160]);
     const label = makeMorph(card, [28, 730, 140, 20]);
@@ -369,7 +369,7 @@ describe("attachMorph", () => {
 
     // Literal, and rightly so: this pair also carries its own size, which is
     // the main thread's work already. Pinning is for the parts a compositor
-    // could otherwise run away with while the rest of the flight waits.
+    // could otherwise run away with while the rest of the transition waits.
     expect(nestedRule).toContain("width:");
     // The arrival's stop carries to 100%, one frame early (see `arrived`).
     expect(nestedRule).toMatch(/%, 100% \{[^}]*--flemo-move-x: 0px;/);
@@ -429,7 +429,7 @@ describe("attachMorph", () => {
 
     // Both ends read a half-leading of exactly 1, which is the boundary an
     // interpolation can only approach, so both ends take the same pixel of
-    // leading and the flight renders on the step the landing will.
+    // leading and the transition renders on the step the landing will.
     const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
     expect(travel).toContain("line-height: 21px");
   });
@@ -485,8 +485,8 @@ describe("attachMorph", () => {
     expect(track).not.toContain("steps(1, end)");
   });
 
-  it("holds a text pair to one line for the whole flight", () => {
-    // The flying element is the ARRIVAL's tree, so it re-wraps at every width
+  it("holds a text pair to one line for the whole transition", () => {
+    // The moving element is the ARRIVAL's tree, so it re-wraps at every width
     // between the two ends under the arrival's rules. Where both ends are one
     // line, the widths in between have no honest reason for two: the detail's
     // meta line broke after its middle dot at the small end of every push on
@@ -508,20 +508,20 @@ describe("attachMorph", () => {
     meta.style.lineHeight = "20px";
     attachMorph(meta, { layoutId: "meta-1", name: "text", navigateStore: store });
 
-    // The departure's own appearance, held for the flight: one line, clipped
+    // The departure's own appearance, held for the transition: one line, clipped
     // to the box, ellipsised where it does not fit yet.
     expect(meta.style.whiteSpace).toBe("nowrap");
     expect(meta.style.overflow).toBe("hidden");
     expect(meta.style.textOverflow).toBe("ellipsis");
 
-    // And dropped at the landing with the rest of the flight's inline style.
+    // And dropped at the landing with the rest of the transition's inline style.
     meta.dispatchEvent(animationEndEvent(`${meta.style.animation.split(" ")[0]}`));
     expect(meta.style.whiteSpace).toBe("");
   });
 
   it("leaves a pair that wraps at either end to its own line breaking", () => {
     // A heading that is two lines where it lands is meant to be two lines, and
-    // holding it to one would clip the half the flight is carrying.
+    // holding it to one would clip the half the transition is carrying.
     const gallery = makeScreen("layout", true);
     const label = makeMorph(gallery, [20, 600, 119, 16]);
     label.textContent = "Thu 20:00 · 35,000";
@@ -585,7 +585,7 @@ describe("attachMorph", () => {
     // cupertino curve and its title the `text` preset's own, and at 261ms the
     // card's height was 77% of the way while the title's size was 22% — the
     // title's baseline stood 30px BELOW the bottom of the card carrying it,
-    // for about 250ms of every flight.
+    // for about 250ms of every transition.
     const preset = (name: string, ease: [number, number, number, number]) =>
       morphTransitionMap.set(
         name as never,
@@ -625,7 +625,7 @@ describe("attachMorph", () => {
       const heading = makeMorph(bigCard, [16, 16, 368, 40]);
       heading.textContent = "Morning brief";
       heading.style.fontSize = "30px";
-      // The container first, so the child finds a flight to ride: the binding
+      // The container first, so the child finds a transition to ride: the binding
       // renders the morph marker, so in a real tree the walk finds its
       // container whatever order the effects run in.
       attachMorph(bigCard, {
@@ -687,7 +687,7 @@ describe("attachMorph", () => {
     // inline on a hoisted container hands every descendant an absolute leading
     // where the tree they left gave them a factor. Measured on a paired card:
     // rows that set only a 13px font were 20px tall at rest and 24px tall in
-    // flight, because the card's own used 24px landed on them verbatim.
+    // transition, because the card's own used 24px landed on them verbatim.
     const gallery = makeScreen("layout", true);
     const cardFrom = makeMorph(gallery, [20, 600, 160, 160]);
     attachMorph(cardFrom, { layoutId: "card-3", navigateStore: store });
@@ -739,7 +739,7 @@ describe("attachMorph", () => {
     const detail = makeScreen("layout", true);
     const bigCard = makeMorph(detail, [0, 0, 400, 340]);
     const hero = makeMorph(bigCard, [16, 16, 128, 128]);
-    // Registration sees an unlaid box; the flight's own measurement sees the
+    // Registration sees an unlaid box; the transition's own measurement sees the
     // real one.
     let reads = 0;
     const laid = hero.getBoundingClientRect.bind(hero);
@@ -795,12 +795,12 @@ describe("attachMorph", () => {
     const inner = makeMorph(thumbnail, [20, 600, 80, 20]);
     // A binding renders the marker from the first commit, so a paired
     // descendant is recognisable in the copy even before it registers. Its
-    // copy is dimmed: the real pair flies from the captured pose, so the
+    // copy is dimmed: the real pair moves from the captured pose, so the
     // dimmed copy is a window onto it — while a painting copy rides the
     // ghost's transform and stretches over the crisp re-typesetting
     // original, which is the smeared double title reported on a push.
     // (Dimming was once removed for "holes" — a collapsed hero, a vanished
-    // title — but those were this pair's flight silently declining on a
+    // title — but those were this pair's transition silently declining on a
     // zero-width destination, and the window had nothing behind it.)
     inner.setAttribute(MORPH_ATTR, "");
     inner.setAttribute("data-flemo-morph-name", "text");
@@ -939,7 +939,7 @@ describe("attachMorph", () => {
   });
 
   it("carries the two ends' SPACING, so nothing flinches on the first frame", () => {
-    // What flies is the ARRIVAL's tree, so without this it wears the arrival's
+    // What moves is the ARRIVAL's tree, so without this it wears the arrival's
     // padding from frame one: a list card at `p-2` handing over to a panel at
     // `p-3` starts with its contents 8px narrower than the ones they replace —
     // a visible step the wrong way at the exact moment of the tap.
@@ -1000,9 +1000,9 @@ describe("attachMorph", () => {
 
   it("holds the element's place with a COPY of it, not with a box the size of it", () => {
     // A placeholder measured in pixels is a placeholder that can be wrong, and
-    // wrong here is a layout shift lasting exactly as long as the flight.
+    // wrong here is a layout shift lasting exactly as long as the transition.
     // WebKit-measured: a card inside an `inline-block` button left its `<li>`
-    // 6.31px taller for the whole flight, because an EMPTY block gives the
+    // 6.31px taller for the whole transition, because an EMPTY block gives the
     // button no baseline to synthesise from and the line box then adds the
     // strut's descender. A copy of the element has the same box, the same
     // margins and the same baseline, so the layout cannot tell it apart.
@@ -1038,7 +1038,7 @@ describe("attachMorph", () => {
     expect(hero.parentElement).toBe(home);
   });
 
-  it("stages the arrival in the flight layer, out of its screen's reach", () => {
+  it("stages the arrival in the transition layer, out of its screen's reach", () => {
     // The whole reason a morph needs no transition of its own. Inside its
     // screen the element would be clipped by it, covered by it and carried
     // along by it; on the layer none of the three can happen, so cupertino gets
@@ -1082,10 +1082,10 @@ describe("attachMorph", () => {
 
   it("lifts the destination's size CLAMPS so an element that fills a screen can still grow", () => {
     // `min-height: 100%` is how an element that fills its screen is written,
-    // and a clamp outranks the animation: the flyer would be pinned at full
+    // and a clamp outranks the animation: the mover would be pinned at full
     // height from the first frame and the growth would never happen. The
     // clamps describe where the element RESTS, so they are lifted for the
-    // flight and come back with the rest of the inline style at the landing.
+    // transition and come back with the rest of the inline style at the landing.
     const gallery = makeScreen("layout", true);
     const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
     attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
@@ -1150,14 +1150,14 @@ describe("attachMorph", () => {
     expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.HELD);
   });
 
-  // ONE FLIGHT, ONE START.
+  // ONE TRANSITION, ONE START.
   //
-  // A flight has two ends and they are not held alike. Reading only the end
+  // A transition has two ends and they are not held alike. Reading only the end
   // whose transform displaces it let the layer mirror RELEASED while the other
   // end was still parked, so the morph ran alone: measured on a consumer's tab
-  // switch, the button had travelled 42% of its flight before the bar's parts
+  // switch, the button had travelled 42% of its transition before the bar's parts
   // started their cross-fade.
-  it("holds the flight while EITHER of its ends is held", () => {
+  it("holds the transition while EITHER of its ends is held", () => {
     const gallery = makeScreen("layout", true);
     gallery.setAttribute(ANIM_HOLD_ATTR, ANIM_HOLD.PARK_UNDER);
     const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
@@ -1177,13 +1177,13 @@ describe("attachMorph", () => {
   // A SOURCE THAT LEAVES THE DOCUMENT IS NOT STILL HOLDING.
   //
   // An attribute observer on a removed node never fires again, so a screen
-  // that unmounts while held used to hold the flight for ever: the shared
+  // that unmounts while held used to hold the transition for ever: the shared
   // element sat at time zero until the landing's own backstop cut it home.
   // Reported on a `none` pop, where a transition with no clock of its own
   // takes the departing screen out inside the frame it was held in. A
   // transition with a clock hides it, because the screen it holds outlives
   // the release.
-  it("lets the flight go when a held end leaves the document", async () => {
+  it("lets the transition go when a held end leaves the document", async () => {
     const gallery = makeScreen("layout", true);
     const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
     attachMorph(thumbnail, { layoutId: "photo-gone", navigateStore: store });
@@ -1205,7 +1205,7 @@ describe("attachMorph", () => {
   });
 
   // The hold is written on the box that CARRIES a screen, and an end resolves
-  // to the scope it was declared in. A nested Router's flight therefore has to
+  // to the scope it was declared in. A nested Router's transition therefore has to
   // look UP for its pause rather than at the element it named.
   it("reads the hold from the nearest box above the end, not from the end itself", () => {
     const gallery = makeScreen("layout", true);
@@ -1244,7 +1244,7 @@ describe("attachMorph", () => {
     attachMorph(wide, { layoutId: "pill-1", navigateStore: store });
 
     // Never from the layer's right: the layer is the Router's box and that box
-    // changes width mid-flight when the two mounted screens take the page's
+    // changes width mid-transition when the two mounted screens take the page's
     // scrollbar away and give it back. From the EDGE, through the same channel
     // the width animates on, so the two round together — reached as position +
     // size it ran 366.000 ± 0.015, reversing six times in twenty-three frames.
@@ -1288,7 +1288,7 @@ describe("attachMorph", () => {
   // shadow by a carrier around the element (see morphReveal and morphShadow).
   // The first case is the control: it proves the contents hold and that a plain
   // clipped box still reveals (see morphReveal for every rule).
-  const revealFlight = (
+  const revealTransition = (
     dress: (card: HTMLElement, end: "from" | "to") => void,
     boxes: { from: [number, number, number, number]; to: [number, number, number, number] } = {
       from: [20, 100, 320, 140],
@@ -1362,7 +1362,7 @@ describe("attachMorph", () => {
       false
     ],
     [
-      "reveals a box with a background image, drawn to the size the flight is at",
+      "reveals a box with a background image, drawn to the size the transition is at",
       (card: HTMLElement) => {
         card.style.backgroundImage =
           "linear-gradient(to right bottom, rgb(99, 102, 241), rgb(217, 70, 239))";
@@ -1405,7 +1405,7 @@ describe("attachMorph", () => {
       false
     ]
   ] as const)("%s", (_, dress: (card: HTMLElement, end: "from" | "to") => void, revealed) => {
-    const travel = revealFlight(dress);
+    const travel = revealTransition(dress);
     if (revealed) {
       expect(travel).toContain("clip-path: inset(0% 0.000% 48.148% 0.000%)");
       expect(travel).not.toContain("--flemo-box-h: 140px");
@@ -1419,7 +1419,7 @@ describe("attachMorph", () => {
   it("measures a box that grows from its trailing edge against that edge", () => {
     // WHICH CORNER THE CONTENTS ARE MEASURED FROM IS THE BOX'S OWN.
     //
-    // A box grows away from the corner the flight anchors it on, and a child
+    // A box grows away from the corner the transition anchors it on, and a child
     // that never moved reads as having travelled the whole growth if it is
     // measured from any other one. Here the two ends share a right edge and
     // differ on the left, so the contents are asked about the right — and a
@@ -1427,7 +1427,10 @@ describe("attachMorph", () => {
     // real instead of being revealed. Measured from the left it would have
     // looked like contents that hold, and the reveal would have cut a picture
     // the page never draws.
-    const travel = revealFlight(() => {}, { from: [100, 100, 220, 140], to: [20, 100, 300, 140] });
+    const travel = revealTransition(() => {}, {
+      from: [100, 100, 220, 140],
+      to: [20, 100, 300, 140]
+    });
     expect(travel).not.toContain("clip-path");
     expect(travel).toContain("--flemo-box-w: 220px");
     expect(travel).toContain("--flemo-box-w: 300px");
@@ -1439,7 +1442,7 @@ describe("attachMorph", () => {
     // eaten the same way: filters are applied BEFORE the clip. A carrier around
     // it is not, and casts the shadow of whatever silhouette the clip leaves.
     layer.setAttribute(MORPH_LAYER_ATTR, "");
-    const travel = revealFlight((card) => {
+    const travel = revealTransition((card) => {
       card.style.boxShadow = "rgba(139, 92, 246, 0.2) 0px 20px 25px -5px";
     });
     expect(travel).toContain("clip-path");
@@ -1449,11 +1452,11 @@ describe("attachMorph", () => {
     expect(carrier!.style.position).toBe("absolute");
     expect(carrier!.style.pointerEvents).toBe("none");
     expect(carrier!.style.animation).toContain("-shade");
-    // IN FRONT OF the flying element in the layer, so it paints underneath it
+    // IN FRONT OF the moving element in the layer, so it paints underneath it
     // and changes nothing about how the element itself is placed.
     expect(carrier!.nextElementSibling?.hasAttribute(MORPH_ATTR)).toBe(true);
     expect(carrier!.children).toHaveLength(0);
-    // And the rule it animates is in the sheet the flight wrote.
+    // And the rule it animates is in the sheet the transition wrote.
     expect(inserted.some((rule) => rule.includes("-shade"))).toBe(true);
   });
 
@@ -1464,7 +1467,7 @@ describe("attachMorph", () => {
     // One end with no shadow at all: the carrier travels to or from `none`
     // rather than an empty value the keyframe would drop.
     layer.setAttribute(MORPH_LAYER_ATTR, "");
-    revealFlight((card, end) => {
+    revealTransition((card, end) => {
       if (end === shadowed) card.style.boxShadow = "rgba(0, 0, 0, 0.2) 0px 4px 12px 0px";
     });
     const shade = inserted.filter((rule) => rule.includes("-shade")).join("\n");
@@ -1474,13 +1477,13 @@ describe("attachMorph", () => {
 
   it("wraps nothing around a box with no shadow to cast", () => {
     layer.setAttribute(MORPH_LAYER_ATTR, "");
-    revealFlight(() => {});
+    revealTransition(() => {});
 
     expect(layer.querySelector("[data-flemo-morph-shade]")).toBeNull();
   });
 
   it("rounds a reveal's cut with the corner the box is travelling through", () => {
-    const travel = revealFlight((card, end) => {
+    const travel = revealTransition((card, end) => {
       card.style.borderRadius = end === "from" ? "24px" : "30px";
     });
     expect(travel).toContain("clip-path: inset(0% 0.000% 48.148% 0.000% round 24px)");
@@ -1500,7 +1503,7 @@ describe("attachMorph", () => {
 
     flipTo("POPPING");
 
-    // The screen returning to view carries active="false" for the whole flight.
+    // The screen returning to view carries active="false" for the whole transition.
     const thumbnail = makeMorph(library, [20, 600, 80, 80]);
     attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
 
@@ -1518,8 +1521,8 @@ describe("attachMorph", () => {
     // before the leaving screen re-renders, so the partner — remembered only in
     // the snapshot, its live entry already disposed by the unmount — sits on a
     // screen still reading COMPLETED. Judged as a live entry it fails the
-    // transitional gate and the pair is refused: the container never flies, its
-    // camera never runs, and its children fly on their own as bare morphs. A
+    // transitional gate and the pair is refused: the container never moves, its
+    // camera never runs, and its children move on their own as bare morphs. A
     // snapshot was the partner when it was captured, so its not-yet-flipped
     // status is tolerated.
     const library = makeScreen("layout", false);
@@ -1535,7 +1538,7 @@ describe("attachMorph", () => {
     const thumbnail = makeMorph(library, [20, 600, 80, 80]);
     attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
 
-    // The pair still forms from the snapshot: the arrival flies its box from
+    // The pair still forms from the snapshot: the arrival moves its box from
     // the remembered big cover to its own small one.
     expect(thumbnail.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.ENTER);
     const travel = inserted.filter((rule) => /-travel|-size/.test(rule)).join("\n");
@@ -1543,14 +1546,14 @@ describe("attachMorph", () => {
     expect(travel).toContain("--flemo-box-w: 80px");
   });
 
-  it("lets only the arriving side drive the flight", () => {
+  it("lets only the arriving side drive the transition", () => {
     const gallery = makeScreen("layout", true);
     const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
     attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
     flipTo("PUSHING");
 
-    // Registering the covered side again mid-flight must not start a second,
-    // opposite flight.
+    // Registering the covered side again mid-transition must not start a second,
+    // opposite transition.
     attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
     expect(thumbnail.style.animation).toBe("");
   });
@@ -1594,7 +1597,7 @@ describe("attachMorph", () => {
   // A SHARED BAR is rendered as a sibling of the screen scope it belongs to, so
   // walking up from a morph inside one leaves that screen entirely — and in a
   // nested Router it lands on the ENCLOSING screen, which both ends share. The
-  // side of the flight therefore cannot come from structure; the binding stamps
+  // side of the transition therefore cannot come from structure; the binding stamps
   // it on the element, and these two cover the shapes that broke.
   const makeBar = (host: HTMLElement, status: NavigateStatus, active: boolean) => {
     // The scope div carries the protocol; the bar is its SIBLING, inside a
@@ -1646,18 +1649,18 @@ describe("attachMorph", () => {
     // BELONGING AND DISPLACEMENT ARE TWO QUESTIONS.
     //
     // A nested Router's bar hangs under the ENCLOSING screen, which belongs to
-    // another Router and has no say over this flight's clock — that much the
+    // another Router and has no say over this transition's clock — that much the
     // owner answers, and declines. But `closest` walks the DOM, so a screen it
     // finds is one this element is genuinely INSIDE, and an ancestor's
     // transform displaces every rect measured under it whoever it belongs to.
     // Treating the foreign Router as "not my pose" left the arrival measured
     // with the transition's from-pose still on it and never taken off: the
-    // flight was placed a whole shift out and snapped back at the landing.
+    // transition was placed a whole shift out and snapped back at the landing.
     // Device-read on a consumer's tab switch, 4.28px — exactly the 1% that
     // transition slides by, and it went away when the slide was turned off.
     //
     // The two ends are measured at DIFFERENT MOMENTS — the departure when the
-    // status flips, the arrival when the flight is staged — and the enclosing
+    // status flips, the arrival when the transition is staged — and the enclosing
     // screen takes its from-pose between them. So the rects here are what a
     // browser would actually report at each of those moments.
     const outer = makeScreen("cupertino", true);
@@ -1689,7 +1692,7 @@ describe("attachMorph", () => {
     expect(travel).toContain("--flemo-box-w: 150px");
   });
 
-  it("lands: the travel's end takes every trace of the flight with it", () => {
+  it("lands: the travel's end takes every trace of the transition with it", () => {
     const gallery = makeScreen("layout", true);
     const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
     attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
@@ -1706,8 +1709,8 @@ describe("attachMorph", () => {
     expect(hero.parentElement).toBe(detail);
     expect(hero.getAttribute("style")).toBeNull();
     expect(hero.getAttribute(MORPH_ATTR)).toBe("");
-    // The departure's cut is NOT part of that: it belongs to the flight, and
-    // the flight is not over while the navigation still is (see below).
+    // The departure's cut is NOT part of that: it belongs to the transition, and
+    // the transition is not over while the navigation still is (see below).
     flipTo("COMPLETED");
     expect(thumbnail.style.animation).toBe("");
     expect(thumbnail.getAttribute(MORPH_ATTR)).toBe("");
@@ -1716,8 +1719,8 @@ describe("attachMorph", () => {
   it("holds the departure cut until the navigation ends, not until the travel does", async () => {
     // Caught on glass under `none`: the screens have no motion of their own, so
     // their span is set by whatever else the author gave them — a <Part>'s
-    // choreography — and it outlasted the flight. Lifting the cut at the
-    // landing brought the element the user had just watched fly away BACK, at
+    // choreography — and it outlasted the transition. Lifting the cut at the
+    // landing brought the element the user had just watched move away BACK, at
     // full size, in the middle of a screen that was about to vanish.
     // The suite's default insertRule mock records text and inserts nothing, so
     // a disposer has no rules to drop. This one keeps a real live/dropped
@@ -1764,9 +1767,9 @@ describe("attachMorph", () => {
     expect(dropped.length).toBeGreaterThan(0);
   });
 
-  it("does not let one flight's cut become the next flight's restored style", () => {
+  it("does not let one transition's cut become the next transition's restored style", () => {
     // The interrupt: a pop before the push has finished. The element the push
-    // CUT (the list card) is the element the pop FLIES, and a flight snapshots
+    // CUT (the list card) is the element the pop MOVES, and a transition snapshots
     // the inline style it found so it can put it back at the landing. If the
     // cut is still in that style, landing restores it — the card comes home
     // invisible, and what the user saw was a screen transition with no morph
@@ -1782,7 +1785,7 @@ describe("attachMorph", () => {
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
     expect(thumbnail.style.animation).toContain("-fade");
 
-    // The pop interrupts. The scope finishes the flight in the air and both
+    // The pop interrupts. The scope finishes the transition in the air and both
     // sides re-register; the list card is now the ARRIVING side.
     flipTo("POPPING");
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
@@ -1833,7 +1836,7 @@ describe("attachMorph", () => {
     // not one card leaving a grid that stayed behind — the camera moved to the
     // card, and the rest of the grid went past the edges because it was pushed
     // there. So the screen the element is SMALL on is zoomed by exactly the
-    // amount that takes the element from one end of the flight to the other.
+    // amount that takes the element from one end of the transition to the other.
     const gallery = makeScreen("none", true);
     const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
     attachMorph(thumbnail, { layoutId: "photo-1", name: "zoom", navigateStore: store });
@@ -1893,10 +1896,10 @@ describe("attachMorph", () => {
     );
   });
 
-  it("registers the pose's coordinates once, not once per flight", () => {
+  it("registers the pose's coordinates once, not once per transition", () => {
     // A `@property` registration is document-wide, and adding one invalidates
-    // style for the whole page — the single frame a flight has the least room
-    // in. Two flights, one registration.
+    // style for the whole page — the single frame a transition has the least room
+    // in. Two transitions, one registration.
     const gallery = makeScreen("layout", true);
     const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
     attachMorph(thumbnail, { layoutId: "photo-1", name: "zoom", navigateStore: store });
@@ -1955,7 +1958,7 @@ describe("attachMorph", () => {
     expect(inserted.some((rule) => rule.includes("-camera"))).toBe(false);
   });
 
-  it("holds the camera until the navigation ends, like every other flight residue", () => {
+  it("holds the camera until the navigation ends, like every other transition residue", () => {
     // Dropping it at the landing snaps the whole background back while the
     // screen it belongs to is still on glass — the same failure as lifting the
     // departure's cut early, one layer out.
@@ -1982,7 +1985,7 @@ describe("attachMorph", () => {
     // type, its shape, its spacing — but wore its destination's radius from
     // the first frame, so a 12px thumbnail corner opening into a 16px one
     // stepped the whole 4px at the instant of the tap and then held there for
-    // the rest of the flight.
+    // the rest of the transition.
     const gallery = makeScreen("layout", true);
     const card = makeMorph(gallery, [20, 600, 160, 160]);
     const art = makeMorph(card, [28, 608, 144, 144]);
@@ -2012,7 +2015,7 @@ describe("attachMorph", () => {
   it("carries a square pair's corner as a proportion of its box", () => {
     // 12px on a 48px thumb is a quarter-round corner; 12px on the 346px hero
     // it becomes is barely a bevel. Interpolated in px the ROUNDNESS the eye
-    // reads collapses in the flight's first tenth — reported as "the radius
+    // reads collapses in the transition's first tenth — reported as "the radius
     // snaps to 0 and then the morph starts". A percentage resolves against
     // the animated box every frame, so the proportion is what interpolates.
     const gallery = makeScreen("layout", true);
@@ -2098,10 +2101,10 @@ describe("attachMorph", () => {
     expect(rule).toContain("border-radius: 0.00%");
   });
 
-  it("carries the scrollport's clip into the flight", () => {
+  it("carries the scrollport's clip into the transition", () => {
     // The cell sits at the list's bottom edge with 30 of its 80px scrolled
     // under the chrome stacked there. Bare, the hidden strip paints on the
-    // flight's first frame and the element crosses the tab bar whole; carried
+    // transition's first frame and the element crosses the tab bar whole; carried
     // as an inset it slides out from under the edge instead.
     const gallery = makeScreen("layout", true);
     const scroller = document.createElement("div");
@@ -2128,12 +2131,12 @@ describe("attachMorph", () => {
     expect(ghostRule).toContain("inset(0.00% 0.00% 37.50% 0.00%)");
   });
 
-  it("does not pair with an element on a screen that is not in this flight", () => {
+  it("does not pair with an element on a screen that is not in this transition", () => {
     // Caught on glass in the chain fixture. A layoutId is a name, not an
     // address: the same one can sit on a screen DEEP in the stack, and pairing
     // by name alone let a navigation between two other screens grab it. What
     // the user saw was a morph running on a pop that had no shared element in
-    // it at all — one screen's card flying to another screen's card, neither
+    // it at all — one screen's card moving to another screen's card, neither
     // of them the pair the author wrote.
     const deep = makeScreen("cupertino", false);
     const buried = makeMorph(deep, [20, 600, 80, 80]);
@@ -2147,12 +2150,12 @@ describe("attachMorph", () => {
 
     flipTo("POPPING");
     // A screen below the direct prev pins its status — the binding does this
-    // for every stacked screen, and it is what says "not in this flight".
+    // for every stacked screen, and it is what says "not in this transition".
     deep.setAttribute(STATUS_ATTR, "COMPLETED");
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
 
     // The only other element with this layoutId is two screens down, resting.
-    // There is no pair here, so there is no flight.
+    // There is no pair here, so there is no transition.
     expect(inserted.some((rule) => rule.includes("-travel"))).toBe(false);
     expect(hero.parentElement).toBe(returning);
     expect(layer.childElementCount).toBe(0);
@@ -2263,10 +2266,10 @@ describe("attachMorph", () => {
 
   it("gives the departure's own content a window to LEAVE in, not three frames", () => {
     // What a pop looked like next to the push it was supposed to reverse: the
-    // arriving content rose in over the whole flight, and the departing
+    // arriving content rose in over the whole transition, and the departing
     // content — a caption, a paragraph, a button with no counterpart — was
     // gone before the box had moved. It leaves on the GHOST, and the ghost's
-    // window was 22% of the flight, which on a 0.4s morph is three frames.
+    // window was 22% of the transition, which on a 0.4s morph is three frames.
     const gallery = makeScreen("layout", true);
     const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
     thumbnail.textContent = "from the list";
@@ -2284,13 +2287,13 @@ describe("attachMorph", () => {
     expect(Number(window[1])).toBeGreaterThan(0.2);
   });
 
-  it("cuts the departure from the flight's first frame, with no window to be caught in", () => {
-    // The departure rides the screen it belongs to; the flight does not. So a
+  it("cuts the departure from the transition's first frame, with no window to be caught in", () => {
+    // The departure rides the screen it belongs to; the transition does not. So a
     // window in which it is BOTH still painting AND already carried away by
     // that screen is a second copy of the card offset from the real one. It
     // used to be one frame wide, which is invisible until a frame is missed:
     // desktop Safari measured a 36ms gap between two rAF callbacks, and the
-    // stale opacity landed on glass 15px from where the flight was.
+    // stale opacity landed on glass 15px from where the transition was.
     //
     // So both ends of the cut are the same pose, and the fill hides it from
     // staging. What this asserts is the ABSENCE of an interpolation: no
@@ -2320,7 +2323,7 @@ describe("attachMorph", () => {
   });
 
   it("does not land on an animationend that ran for no time", () => {
-    // The flight's landing is triggered by the travel's own `animationend`.
+    // The transition's landing is triggered by the travel's own `animationend`.
     // But an animation that is torn down and rebuilt — a style recalculation
     // WebKit resolves by replacing it — also reports an END, with the name, the
     // keyframes and the duration all intact and `elapsedTime: 0`. Landing on
@@ -2360,9 +2363,9 @@ describe("attachMorph", () => {
   });
 
   it("lands a NESTED morph on its own animation's end", async () => {
-    // A nested morph is its own flight record — it has to be taken off the
+    // A nested morph is its own transition record — it has to be taken off the
     // scope's book when it is done, and give its element back exactly the
-    // style the consumer wrote, or the next flight restores this one's.
+    // style the consumer wrote, or the next transition restores this one's.
     const gallery = makeScreen("layout", true);
     const card = makeMorph(gallery, [20, 600, 160, 160]);
     const label = makeMorph(card, [28, 730, 140, 20]);
@@ -2394,13 +2397,13 @@ describe("attachMorph", () => {
     heading.dispatchEvent(real);
 
     expect(heading.getAttribute(MORPH_ATTR)).toBe("");
-    // Exactly the style the consumer wrote, and nothing the flight added.
+    // Exactly the style the consumer wrote, and nothing the transition added.
     expect(heading.getAttribute("style")).toBe("font-size: 24px;");
   });
 
   it("brings a NESTED morph home on the backstop when no end ever arrives", async () => {
     // Nothing guarantees an `animationend`: a rule dropped from the sheet, an
-    // element hidden mid-flight, a browser that cancels rather than ends. The
+    // element hidden mid-transition, a browser that cancels rather than ends. The
     // net is what keeps the element from staying marked for the rest of the
     // session.
     vi.useFakeTimers();
@@ -2431,7 +2434,7 @@ describe("attachMorph", () => {
   });
 
   it("ignores an animationend that belongs to something else on the element", () => {
-    // The flyer keeps whatever the consumer was already animating inside it,
+    // The mover keeps whatever the consumer was already animating inside it,
     // and those ends bubble to the same listener.
     const gallery = makeScreen("layout", true);
     const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
@@ -2449,14 +2452,14 @@ describe("attachMorph", () => {
     const travelName = /flemo-morph-\d+i-travel/.exec(hero.style.animation)![0];
     hero.dispatchEvent(animationEndEvent(travelName));
     expect(hero.parentElement).toBe(detail);
-    // A second end changes nothing: the flight is already off the books.
+    // A second end changes nothing: the transition is already off the books.
     hero.dispatchEvent(animationEndEvent(travelName));
     expect(hero.parentElement).toBe(detail);
   });
 
-  it("drops an element whose home left the document while it was flying", () => {
-    // The slot the element flew out of is React's promise that it can be put
-    // back. A screen that unmounts mid-flight takes that promise with it, and
+  it("drops an element whose home left the document while it was moving", () => {
+    // The slot the element moved out of is React's promise that it can be put
+    // back. A screen that unmounts mid-transition takes that promise with it, and
     // putting the element back into a detached tree would leave it on the
     // layer instead.
     const gallery = makeScreen("layout", true);
@@ -2476,7 +2479,7 @@ describe("attachMorph", () => {
     expect(layer.contains(hero)).toBe(false);
   });
 
-  it("declines a flight with no box at either end", () => {
+  it("declines a transition with no box at either end", () => {
     // An element that has not laid out has no honest travel to compute, and
     // dividing by its zero reaches the compositor as an infinity.
     const gallery = makeScreen("layout", true);
@@ -2493,7 +2496,7 @@ describe("attachMorph", () => {
     expect(unlaid.style.animation).toBe("");
   });
 
-  it("declines a flight whose ORIGIN never had a box", () => {
+  it("declines a transition whose ORIGIN never had a box", () => {
     const gallery = makeScreen("layout", true);
     const thumbnail = makeMorph(gallery, [20, 600, 0, 0]);
     attachMorph(thumbnail, { layoutId: "photo-3", navigateStore: store });
@@ -2508,10 +2511,10 @@ describe("attachMorph", () => {
     expect(hero.style.animation).toBe("");
   });
 
-  it("flies where there is no MutationObserver to mirror the hold with", () => {
+  it("moves where there is no MutationObserver to mirror the hold with", () => {
     // The mirror is how the layer stays under the same pause as the screens.
     // Without an observer the first mirror still happens; what is lost is
-    // tracking later changes, not the flight.
+    // tracking later changes, not the transition.
     const observer = globalThis.MutationObserver;
     (globalThis as { MutationObserver?: unknown }).MutationObserver = undefined;
     try {
@@ -2537,7 +2540,7 @@ describe("attachMorph", () => {
   });
 
   it("forgets a snapshot whose element left the document", async () => {
-    // Snapshots outlive the flight that took them, which is what lets an
+    // Snapshots outlive the transition that took them, which is what lets an
     // interrupted navigation continue from where the eye last had the element.
     // They must not outlive the ELEMENT: a stack walked twice would otherwise
     // measure its second walk against rects taken on screens that are gone —
@@ -2574,7 +2577,7 @@ describe("attachMorph", () => {
     const hero = makeMorph(detail, [0, 0, 400, 300]);
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
 
-    // A task id changing is not a navigation starting; finishing the flights
+    // A task id changing is not a navigation starting; finishing the transitions
     // here would land the element before it had moved.
     store.getState().setStatus("PUSHING");
 
@@ -2597,15 +2600,15 @@ describe("attachMorph", () => {
     const hero = makeMorph(detail, [0, 0, 400, 300]);
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
 
-    // The second registration is still there, so the pair still flies.
+    // The second registration is still there, so the pair still moves.
     expect(hero.parentElement).toBe(layer);
   });
 
   it("sweeps a corpse left in the layer at the next navigation", () => {
     // An interrupted storm (a tab switch tearing the home screen down while a
     // card's nested morphs are still in the air) strands a role-bearing element
-    // in the layer: connected, still `enter`, its flight already gone from the
-    // map. `isFlightPartner` reads any role-bearing element as a partner already
+    // in the layer: connected, still `enter`, its transition already gone from the
+    // map. `isTransitionPartner` reads any role-bearing element as a partner already
     // in the air, so a corpse pairs against every later pop instead of the grid
     // — no camera, the texts blinking — until the next navigation clears it.
     const corpse = document.createElement("div");
@@ -2755,10 +2758,10 @@ describe("attachMorph", () => {
     }
   });
 
-  it("stages a flight in a layer that has not been laid out", () => {
+  it("stages a transition in a layer that has not been laid out", () => {
     // A layer inside a transformed ancestor is measured against its own laid
     // out size to find the ratio. Before layout there is no ratio to find, and
-    // dividing by that zero would send the flight to infinity.
+    // dividing by that zero would send the transition to infinity.
     Object.defineProperty(layer, "offsetWidth", { value: 0, configurable: true });
     Object.defineProperty(layer, "offsetHeight", { value: 0, configurable: true });
 
@@ -2777,7 +2780,7 @@ describe("attachMorph", () => {
     expect(travel).not.toContain("Infinity");
   });
 
-  it("flies where there are no computed styles to read", () => {
+  it("moves where there are no computed styles to read", () => {
     // Everything the runtime reads off the computed style is an enhancement —
     // the inherited type the stand-in has to keep, the paint channels, the
     // screen's origin. The travel is not, and it still has to happen.
@@ -2801,7 +2804,7 @@ describe("attachMorph", () => {
     }
   });
 
-  it("stages a flight in a layer that has not been painted", () => {
+  it("stages a transition in a layer that has not been painted", () => {
     // Laid out but not painted — a layer inside a `content-visibility: hidden`
     // ancestor measures zero. The ratio it would give is zero, and a rect
     // divided by it is an infinity on the compositor.
@@ -2822,7 +2825,7 @@ describe("attachMorph", () => {
     expect(travel).not.toContain("Infinity");
   });
 
-  it("clamps a cross-fade window that would outlast the flight", () => {
+  it("clamps a cross-fade window that would outlast the transition", () => {
     morphTransitionMap.set(
       "long-faded" as never,
       createMorphTransition({
@@ -2853,7 +2856,7 @@ describe("attachMorph", () => {
         navigateStore: store
       });
 
-      // The ghost dissolves over the flight, never past it: a fade still
+      // The ghost dissolves over the transition, never past it: a fade still
       // running at the landing is a copy of the departure left on the layer.
       const ghost = layer.querySelector<HTMLElement>("[data-flemo-morph-ghost]");
       expect(ghost?.style.animation ?? "").toContain("0.400s");
@@ -2862,7 +2865,7 @@ describe("attachMorph", () => {
     }
   });
 
-  it("clamps a cross-fade window an author put outside the flight", () => {
+  it("clamps a cross-fade window an author put outside the transition", () => {
     morphTransitionMap.set(
       "over-faded" as never,
       createMorphTransition({
@@ -2903,9 +2906,9 @@ describe("attachMorph", () => {
     }
   });
 
-  it("lets an element inside an unpaired morph fly on its own", async () => {
-    // A container that has no partner this navigation is not a flight, so the
-    // element inside it is not riding anything — it flies, and its ghost has to
+  it("lets an element inside an unpaired morph move on its own", async () => {
+    // A container that has no partner this navigation is not a transition, so the
+    // element inside it is not riding anything — it moves, and its ghost has to
     // stack above a container that is still painting.
     const gallery = makeScreen("layout", true);
     const card = makeMorph(gallery, [20, 600, 160, 160]);
@@ -3007,7 +3010,7 @@ describe("attachMorph", () => {
   });
 
   it("gives a NESTED element back the absence of a style attribute", async () => {
-    // The flight writes an inline `animation` onto an element that had no
+    // The transition writes an inline `animation` onto an element that had no
     // `style` at all. Landing has to remove the attribute rather than leave an
     // empty one, or the consumer's DOM is not what they wrote.
     const sheet = document.createElement("style");
@@ -3032,8 +3035,8 @@ describe("attachMorph", () => {
     await Promise.resolve();
 
     const nestedName = /flemo-morph-\d+n-(?:travel|paint)/.exec(heading.style.animation)![0];
-    // Something else on the element ending is not this flight ending.
-    heading.dispatchEvent(animationEndEvent("not-this-flight"));
+    // Something else on the element ending is not this transition ending.
+    heading.dispatchEvent(animationEndEvent("not-this-transition"));
     expect(heading.getAttribute(MORPH_ATTR)).toBe(MORPH_ROLE.ENTER);
 
     const real = animationEndEvent(nestedName);
@@ -3046,16 +3049,16 @@ describe("attachMorph", () => {
     expect(heading.getAttribute("style")).toBeNull();
   });
 
-  it("measures a partner that is already in the flight layer", () => {
-    // An interrupted navigation: the element the new flight pairs with is
-    // mid-flight itself, so it is not on any screen. What it is WEARING is
+  it("measures a partner that is already in the transition layer", () => {
+    // An interrupted navigation: the element the new transition pairs with is
+    // mid-transition itself, so it is not on any screen. What it is WEARING is
     // where it is, and there is no screen pose to undo.
     const gallery = makeScreen("layout", true);
     const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
     flipTo("PUSHING");
     gallery.setAttribute(ACTIVE_ATTR, "false");
 
-    // Straight into the layer, exactly as a flight would have staged it, and
+    // Straight into the layer, exactly as a transition would have staged it, and
     // registered only now — so there is no snapshot for the arrival to find and
     // it has to measure the partner where it currently is.
     layer.appendChild(thumbnail);
@@ -3069,7 +3072,7 @@ describe("attachMorph", () => {
     expect(inserted.find((rule) => rule.includes("-travel"))).toContain("--flemo-move-x: 20px;");
   });
 
-  it("declines when there is no morph transition to fly at all", () => {
+  it("declines when there is no morph transition to move at all", () => {
     // The preset is a registration like any other: a consumer bundling their
     // own registry, or a teardown that ran early, can leave the map empty.
     const preset = morphTransitionMap.get("shared" as never)!;
@@ -3092,7 +3095,7 @@ describe("attachMorph", () => {
     }
   });
 
-  it("re-registering during a flight does not restart or abort it", () => {
+  it("re-registering during a transition does not restart or abort it", () => {
     // A binding re-registers on every status change; that is the contract, and
     // it must be free.
     const gallery = makeScreen("layout", true);
@@ -3179,8 +3182,8 @@ describe("attachMorph", () => {
     }
   });
 
-  it("drops a landed flight's rules inline where there is no animation frame", () => {
-    // The residue release runs the flight's own `disposeOnce`; with no
+  it("drops a landed transition's rules inline where there is no animation frame", () => {
+    // The residue release runs the transition's own `disposeOnce`; with no
     // `requestAnimationFrame` to defer to, the rules are dropped on the spot.
     const raf = globalThis.requestAnimationFrame;
     (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame = undefined;
@@ -3209,8 +3212,8 @@ describe("attachMorph", () => {
   });
 
   it("carries a landing element's own animations home", () => {
-    // A consumer's animation running inside the flyer must keep its clock across
-    // the landing re-parent rather than restart a beat after the flight settles.
+    // A consumer's animation running inside the mover must keep its clock across
+    // the landing re-parent rather than restart a beat after the transition settles.
     const gallery = makeScreen("layout", true);
     const thumbnail = makeMorph(gallery, [20, 600, 80, 80]);
     attachMorph(thumbnail, { layoutId: "photo-1", navigateStore: store });
@@ -3254,8 +3257,8 @@ describe("attachMorph", () => {
     expect(inserted.find((rule) => rule.includes("i-travel"))).toContain("--flemo-move-x: 20px;");
   });
 
-  it("declines a corpse in the layer that no live flight is holding", () => {
-    // A role-bearing element stranded in the layer with its flight already gone
+  it("declines a corpse in the layer that no live transition is holding", () => {
+    // A role-bearing element stranded in the layer with its transition already gone
     // is a corpse. Pairing against it swallows the camera on every later pop, so
     // it is no partner at all.
     layer.setAttribute(MORPH_LAYER_ATTR, "");
@@ -3275,35 +3278,35 @@ describe("attachMorph", () => {
     expect(hero.parentElement).toBe(detail);
   });
 
-  it("pairs with the in-air element a live flight still holds", () => {
+  it("pairs with the in-air element a live transition still holds", () => {
     // The other side of the corpse rule: a role-bearing element in the layer
-    // whose flight the map still knows is a live partner. A re-registration
-    // under a new key while it flies is exactly what the binding does.
+    // whose transition the map still knows is a live partner. A re-registration
+    // under a new key while it moves is exactly what the binding does.
     layer.setAttribute(MORPH_LAYER_ATTR, "");
     const gallery = makeScreen("layout", true);
     const thumbZ = makeMorph(gallery, [10, 500, 60, 60]);
     const thumbA = makeMorph(gallery, [20, 600, 80, 80]);
-    attachMorph(thumbZ, { layoutId: "flight-z", navigateStore: store });
-    attachMorph(thumbA, { layoutId: "flight-a", navigateStore: store });
+    attachMorph(thumbZ, { layoutId: "transition-z", navigateStore: store });
+    attachMorph(thumbA, { layoutId: "transition-a", navigateStore: store });
     flipTo("PUSHING");
     gallery.setAttribute(ACTIVE_ATTR, "false");
 
     const detail = makeScreen("layout", true);
     const heroZ = makeMorph(detail, [0, 0, 300, 200]);
     const heroA = makeMorph(detail, [0, 0, 400, 300]);
-    attachMorph(heroZ, { layoutId: "flight-z", navigateStore: store });
-    attachMorph(heroA, { layoutId: "flight-a", navigateStore: store });
-    // Both are in the air; flight-z was booked before flight-a.
+    attachMorph(heroZ, { layoutId: "transition-z", navigateStore: store });
+    attachMorph(heroA, { layoutId: "transition-a", navigateStore: store });
+    // Both are in the air; transition-z was booked before transition-a.
     expect(heroZ.parentElement).toBe(layer);
     expect(heroA.parentElement).toBe(layer);
 
-    // heroA is re-registered under a new key while still flying under the old.
-    attachMorph(heroA, { layoutId: "flight-b", navigateStore: store });
+    // heroA is re-registered under a new key while still moving under the old.
+    attachMorph(heroA, { layoutId: "transition-b", navigateStore: store });
 
-    // A fresh arrival for that key pairs with heroA: the search passes flight-z
-    // (a different element) before it reaches the flight that still holds heroA.
+    // A fresh arrival for that key pairs with heroA: the search passes transition-z
+    // (a different element) before it reaches the transition that still holds heroA.
     const heroB = makeMorph(detail, [40, 40, 200, 200]);
-    attachMorph(heroB, { layoutId: "flight-b", navigateStore: store });
+    attachMorph(heroB, { layoutId: "transition-b", navigateStore: store });
 
     expect(heroB.parentElement).toBe(layer);
   });

@@ -10,7 +10,7 @@
 // A MAP EXISTS SO THE SCORER CAN BE REHEARSED. An app that predates the
 // contract (this repository's own composition bench) satisfies the same shapes
 // under different selectors, and pointing the scorer at it is the only way to
-// prove a criterion separates a real flight from a broken one before any
+// prove a criterion separates a real transition from a broken one before any
 // session is scored. A map never adds a role and never changes what a
 // criterion asserts; it only says where each role is.
 

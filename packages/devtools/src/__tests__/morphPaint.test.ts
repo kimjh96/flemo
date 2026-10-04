@@ -1,25 +1,27 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { deriveFlightAnomalies } from "../anomalies";
+import { deriveTransitionAnomalies } from "../anomalies";
 import { createMorphProbeState, morphActivity, sampleMorphPaint } from "../morphProbe";
 
-import type { FlightAnomalyInput } from "../anomalies";
+import type { TransitionAnomalyInput } from "../anomalies";
 
 // THE TWO THINGS THE RECORDER WATCHED HAPPEN AND HAD NOTHING TO SAY ABOUT.
 //
 // Both shipped on this repository's own playground and were found by eye, days
 // apart: a morph whose `exit` pose left the departing page painting for the
-// whole flight (a push covers it, a pop uncovers it as the card lands), and a
-// `<Part>` pinned at the width it rests at on the OTHER side of the flight, so
+// whole transition (a push covers it, a pop uncovers it as the card lands), and a
+// `<Part>` pinned at the width it rests at on the OTHER side of the transition, so
 // it sat 32px narrower than the card carrying it for a whole drag with the
 // frosted feed showing through the gap.
 //
 // Neither is visible in roles, gaps, holds or residue, which is everything the
 // recorder measured before.
-const flight = (over: Partial<FlightAnomalyInput["morphs"]>): FlightAnomalyInput["morphs"] => ({
+const transition = (
+  over: Partial<TransitionAnomalyInput["morphs"]>
+): TransitionAnomalyInput["morphs"] => ({
   registered: 2,
   pairable: ["card"],
-  flew: ["card"],
+  moved: ["card"],
   skipped: [],
   camera: false,
   ghosts: 0,
@@ -39,7 +41,7 @@ const flight = (over: Partial<FlightAnomalyInput["morphs"]>): FlightAnomalyInput
 
 // The shape the anomaly pass reads, borrowed from anomalies.test.ts so this
 // file only varies the two fields it is about.
-const input = (morphs: FlightAnomalyInput["morphs"]): FlightAnomalyInput => ({
+const input = (morphs: TransitionAnomalyInput["morphs"]): TransitionAnomalyInput => ({
   t0Ms: 1000,
   t1Ms: 1400,
   driver: "compiled",
@@ -54,7 +56,7 @@ const input = (morphs: FlightAnomalyInput["morphs"]): FlightAnomalyInput => ({
   longTasks: [],
   holdLongTasks: [],
   releasedAtMs: null,
-  landing: {
+  endAudit: {
     residualInlineTransforms: [],
     offViewportAtRest: false,
     stuckStatuses: [],
@@ -71,9 +73,9 @@ const input = (morphs: FlightAnomalyInput["morphs"]): FlightAnomalyInput => ({
   },
   images: {
     loadingAtStart: 0,
-    addedDuringFlight: 0,
-    completedDuringFlight: 0,
-    heldDuringFlight: 0,
+    addedDuringTransition: 0,
+    completedDuringTransition: 0,
+    heldDuringTransition: 0,
     completedUnheld: 0
   },
   morphs,
@@ -84,13 +86,13 @@ const html = (markup: string) => {
   document.body.innerHTML = markup;
 };
 
-describe("what the flight painted", () => {
+describe("what the transition painted", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     document.body.innerHTML = "";
   });
 
-  it("counts a departure that is still on glass", () => {
+  it("counts an old-screen end that is still visible", () => {
     html(`<div data-flemo-morph="exit" style="opacity: 1"></div>`);
     const state = createMorphProbeState([]);
     sampleMorphPaint(state);
@@ -99,7 +101,9 @@ describe("what the flight painted", () => {
     const activity = morphActivity(state, true);
     expect(activity.departureFrames).toBe(3);
     expect(activity.departureMaxOpacity).toBeCloseTo(1);
-    expect(deriveFlightAnomalies(input(flight(activity))).join(" ")).toContain("kept painting");
+    expect(deriveTransitionAnomalies(input(transition(activity))).join(" ")).toContain(
+      "stayed visible"
+    );
   });
 
   it("stays quiet for the cut every preset writes", () => {
@@ -173,13 +177,13 @@ describe("what the flight painted", () => {
     expect(activity.partGapFrames).toBe(3);
     expect(Math.round(activity.partGapPx)).toBe(32);
     expect(activity.partGapName).toBe("story-copy");
-    expect(deriveFlightAnomalies(input(flight(activity))).join(" ")).toContain(
+    expect(deriveTransitionAnomalies(input(transition(activity))).join(" ")).toContain(
       "narrower than the box"
     );
   });
 
   it("measures nothing against a box with no width, and keeps the widest gap", () => {
-    // A flyer the engine cannot measure is an engine that cannot answer, not a
+    // A mover the engine cannot measure is an engine that cannot answer, not a
     // part that fits; a part within two pixels of its box is the rounding the
     // rule exists to ignore; and of two real gaps the sampler keeps the worse.
     html(
@@ -262,8 +266,8 @@ describe("what the flight painted", () => {
     expect(state.partGapFrames).toBe(0);
   });
 
-  it("measures a part under a boxless wrapper against the flying box", () => {
-    // `display: contents` lays the part out in the flying box's own room, and
+  it("measures a part under a boxless wrapper against the moving box", () => {
+    // `display: contents` lays the part out in the moving box's own room, and
     // its rect reads zero wide: a wrapper that cannot answer, not a room of 0.
     html(
       `<div data-flemo-morph="enter" id="box">` +
@@ -283,10 +287,10 @@ describe("what the flight painted", () => {
   });
 
   it("names the part it could not name", () => {
-    // The name is read off the element, so a flight recorded from a host that
+    // The name is read off the element, so a transition recorded from a host that
     // dropped the attribute still has a gap worth reporting.
-    const anomalies = deriveFlightAnomalies(
-      input(flight({ partGapFrames: 4, partGapPx: 32, partGapName: null }))
+    const anomalies = deriveTransitionAnomalies(
+      input(transition({ partGapFrames: 4, partGapPx: 32, partGapName: null }))
     ).join(" ");
     expect(anomalies).toContain('the part "?"');
   });

@@ -10,25 +10,25 @@ import {
 interface CreateRawPartProps {
   /** Public name registered on a Router and selected by a `Part`. */
   name: PartTransitionName;
-  /** From-pose for a part entering on a newly mounted screen. */
+  /** Starting style for a part entering on a newly mounted screen. */
   initial: InitialTarget;
-  /** Resting pose for both sides while the Router is idle. */
+  /** Resting style for both sides while the Router is idle. */
   idle: PartVariantValue;
-  /** Target for the part on `PUSHING-true`, the arriving new top screen. */
+  /** Target for the part on `PUSHING-true`, the new top screen. */
   pushOnEnter: PartVariantValue;
   /** Target for the part on `PUSHING-false`, the screen moving behind. */
   pushOnExit: PartVariantValue;
-  /** Target for the part on `REPLACING-true`, the arriving replacement. */
+  /** Target for the part on `REPLACING-true`, the new screen that replaces the current one. */
   replaceOnEnter: PartVariantValue;
   /** Target for the part on `REPLACING-false`, the screen being replaced. */
   replaceOnExit: PartVariantValue;
-  /** Target for the part on `POPPING-true`, the top screen being dismissed. */
+  /** Target for the part on `POPPING-true`, the closing top screen. */
   popOnEnter: PartVariantValue;
   /** Target for the part on `POPPING-false`, the screen returning from behind. */
   popOnExit: PartVariantValue;
-  /** Settled pose for the part on `COMPLETED-true`, the active top screen. */
+  /** Style after the transition ends for the part on `COMPLETED-true`, the active top screen. */
   completedOnEnter: PartVariantValue;
-  /** Settled pose for the part on `COMPLETED-false`, the covered screen. */
+  /** Style after the transition ends for the part on `COMPLETED-false`, the covered screen. */
   completedOnExit: PartVariantValue;
   /**
    * Optional per-element gesture overrides. Without any `onSwipe*` callback,
@@ -40,11 +40,11 @@ interface CreateRawPartProps {
 /**
  * Creates Part motion with every status and active-side target explicit.
  *
- * Pose-only Parts still inherit the carrying screen's matching clock and ride
- * its swipe. Any `onSwipe*` callback replaces that default rider for the Part.
- * Duration and delay inherit, but easing does not. Use the screen's easing on
- * a Part that must stay at the same spatial phase during automatic and
- * interactive navigation.
+ * Parts that only declare styles still inherit the matching timing of the
+ * screen they are on and follow its swipe. Any `onSwipe*` callback replaces
+ * that default swipe-following for the Part. Duration and delay inherit, but
+ * easing does not. Use the screen's easing on a Part that must stay at the same
+ * point along its path as the screen during automatic and interactive navigation.
  */
 export default function createRawPartTransition({
   name,

@@ -18,7 +18,7 @@ import { partTransitionMap } from "@transition/partTransition/partTransition";
 // participant with `will-change`, and that promotion un-matches at the
 // COMPLETED flip — demoting and repainting a layer on exactly the frames the
 // eye is watching settle. So the engine pins the promotion inline for the
-// flight and releases it off-cadence afterwards.
+// transition and releases it off-cadence afterwards.
 //
 // The landing governor's inline easing rides the same lease, which is what
 // makes a superseded stamp releasable instead of left to bend the next
@@ -112,7 +112,7 @@ describe("holdParticipantLayers", () => {
     );
 
     // ONE string, shared: a riding bar runs the screen's own keyframes, so the
-    // pair has to be reshaped identically or it drifts apart mid-flight.
+    // pair has to be reshaped identically or it drifts apart mid-transition.
     expect(scope.style.animationTimingFunction).toMatch(/^linear\(/);
     expect(riding.style.animationTimingFunction).toBe(scope.style.animationTimingFunction);
   });

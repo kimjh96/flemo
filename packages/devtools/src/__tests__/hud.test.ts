@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { attachDevtoolsHud, HUD_HIDDEN_KEY } from "../hud";
 
 import type { DevtoolsHudHandle } from "../hud";
-import type { FlemoReport, FlightRecord, FlightRecorderHandle } from "../types";
+import type { FlemoReport, TransitionRecord, TransitionRecorderHandle } from "../types";
 
 // A PHONE HAS NO CONSOLE.
 //
@@ -11,12 +11,12 @@ import type { FlemoReport, FlightRecord, FlightRecorderHandle } from "../types";
 // device, and every one of those investigations began by hand-building a box
 // that prints numbers on the screen and deleting it when the round was over.
 // This is that box, kept — and the rules it has to keep are the ones the panel
-// keeps: never repaint during a flight, never animate, and be readable in a
+// keeps: never repaint during a transition, never animate, and be readable in a
 // photograph of the device.
 
-const flight = (over: Partial<FlightRecord> = {}): FlightRecord =>
+const transition = (over: Partial<TransitionRecord> = {}): TransitionRecord =>
   ({
-    id: "flight-1",
+    id: "transition-1",
     kind: "POP",
     durationMs: 412,
     driver: "compiled",
@@ -42,7 +42,7 @@ const flight = (over: Partial<FlightRecord> = {}): FlightRecord =>
     morphs: {
       registered: 2,
       pairable: ["hero"],
-      flew: ["hero"],
+      moved: ["hero"],
       skipped: [],
       camera: true,
       ghosts: 1,
@@ -57,17 +57,17 @@ const flight = (over: Partial<FlightRecord> = {}): FlightRecord =>
     longTasks: [],
     anomalies: [],
     ...over
-  }) as unknown as FlightRecord;
+  }) as unknown as TransitionRecord;
 
 const report = (over: Partial<FlemoReport> = {}): FlemoReport =>
   ({
     generatedAt: "",
-    version: "3",
+    version: "4",
     verdict: [],
     environment: { rafCadence: { medianGapMs: 16.7, sampleCount: 20 } },
     preconditions: [],
     overrides: { active: {}, warnings: [] },
-    flights: [flight()],
+    transitions: [transition()],
     comparison: [],
     previousSession: null,
     anomalies: [],
@@ -79,7 +79,7 @@ const report = (over: Partial<FlemoReport> = {}): FlemoReport =>
 let hud: DevtoolsHudHandle | null = null;
 const marks: (string | null)[] = [];
 
-const recorder = (read: () => FlemoReport): FlightRecorderHandle => ({
+const recorder = (read: () => FlemoReport): TransitionRecorderHandle => ({
   report: read,
   detach: vi.fn(),
   mark: (bucket) => {
@@ -99,7 +99,7 @@ const box = (): HTMLElement => shadow(".hud");
 const dock = (): HTMLElement => shadow(".dock");
 const eye = (): HTMLElement => shadow(".eye");
 
-const screenInFlight = (): Element => {
+const screenInTransition = (): Element => {
   const screen = document.createElement("div");
   screen.setAttribute("data-flemo-screen", "");
   screen.setAttribute("data-flemo-status", "POPPING");
@@ -126,14 +126,14 @@ describe("the on-device readout", () => {
     expect(box().textContent).toBe("POP 412ms  gap 33.4  drop 1  ok");
   });
 
-  it("says so plainly before anything has flown", () => {
-    hud = attachDevtoolsHud({ recorder: recorder(() => report({ flights: [] })) });
-    expect(box().textContent).toContain("no flight yet");
+  it("says so plainly before anything has moved", () => {
+    hud = attachDevtoolsHud({ recorder: recorder(() => report({ transitions: [] })) });
+    expect(box().textContent).toContain("no transition yet");
   });
 
-  it("marks a flight that carries an anomaly, in text as well as in colour", () => {
+  it("marks a transition that carries an anomaly, in text as well as in colour", () => {
     hud = attachDevtoolsHud({
-      recorder: recorder(() => report({ flights: [flight({ anomalies: ["a", "b"] })] }))
+      recorder: recorder(() => report({ transitions: [transition({ anomalies: ["a", "b"] })] }))
     });
     expect(box().textContent).toContain("!2");
     expect(box().getAttribute("data-alarm")).toBe("true");
@@ -159,18 +159,18 @@ describe("the on-device readout", () => {
     expect(text).toContain("frames  n18");
     expect(text).toContain("motion  stall 0ms tail 3 start +22ms");
     expect(text).toContain("hold    park rel 118ms");
-    expect(text).toContain("morph   1 flew cam");
+    expect(text).toContain("morph   1 moved cam");
     expect(text).toContain("input   touch");
   });
 
-  it("names a shared element that did not fly, where a device can read it", () => {
+  it("names a shared element that did not move, where a device can read it", () => {
     hud = attachDevtoolsHud({
       recorder: recorder(() =>
         report({
-          flights: [
-            flight({
-              morphs: { ...flight().morphs, flew: [], skipped: ["hero"] },
-              anomalies: ["shared element(s) did not fly: hero"]
+          transitions: [
+            transition({
+              morphs: { ...transition().morphs, moved: [], skipped: ["hero"] },
+              anomalies: ["shared element(s) did not move: hero"]
             })
           ]
         })
@@ -179,34 +179,36 @@ describe("the on-device readout", () => {
     });
     const text = box().textContent ?? "";
     expect(text).toContain("SKIPPED 1 (hero)");
-    expect(text).toContain("! shared element(s) did not fly");
+    expect(text).toContain("! shared element(s) did not move");
   });
 
   it("calls out script-driven input, which proves nothing about a finger", () => {
     hud = attachDevtoolsHud({
       recorder: recorder(() =>
-        report({ flights: [flight({ input: { trusted: 0, synthetic: 3, pointerTypes: [] } })] })
+        report({
+          transitions: [transition({ input: { trusted: 0, synthetic: 3, pointerTypes: [] } })]
+        })
       ),
       initialExpanded: true
     });
     expect(box().textContent).toContain("SYNTHETIC 3");
   });
 
-  it("shows the idle cadence when there is no flight to describe", () => {
+  it("shows the idle cadence when there is no transition to describe", () => {
     hud = attachDevtoolsHud({
-      recorder: recorder(() => report({ flights: [] })),
+      recorder: recorder(() => report({ transitions: [] })),
       initialExpanded: true
     });
     expect(box().textContent).toContain("rAF 16.7ms");
   });
 
-  it("NEVER repaints while a flight is in progress", () => {
-    let flights = [flight()];
-    hud = attachDevtoolsHud({ recorder: recorder(() => report({ flights })) });
+  it("NEVER repaints while a transition is in progress", () => {
+    let transitions = [transition()];
+    hud = attachDevtoolsHud({ recorder: recorder(() => report({ transitions })) });
     const before = box().textContent;
 
-    const screen = screenInFlight();
-    flights = [flight({ kind: "PUSH", durationMs: 999 })];
+    const screen = screenInTransition();
+    transitions = [transition({ kind: "PUSH", durationMs: 999 })];
     vi.advanceTimersByTime(2000);
     expect(box().textContent).toBe(before);
 
@@ -251,7 +253,7 @@ describe("the on-device readout", () => {
         throw new Error("no");
       })
     });
-    expect(box().textContent).toContain("no flight yet");
+    expect(box().textContent).toContain("no transition yet");
     expect(() => vi.advanceTimersByTime(2000)).not.toThrow();
   });
 
@@ -284,12 +286,12 @@ describe("the on-device readout", () => {
   // here is read as possibly-absent for the same reason the panel's are: the
   // schema grows, and an instrument that throws on a missing key is worse than
   // no instrument on the device where it is hardest to replace.
-  it("renders a flight with nothing in it rather than throwing", () => {
+  it("renders a transition with nothing in it rather than throwing", () => {
     hud = attachDevtoolsHud({
       recorder: recorder(
         () =>
           ({
-            flights: [{ id: "flight-1" }]
+            transitions: [{ id: "transition-1" }]
           }) as unknown as FlemoReport
       ),
       initialExpanded: true
@@ -306,21 +308,21 @@ describe("the on-device readout", () => {
       recorder: recorder(() => ({}) as unknown as FlemoReport),
       initialExpanded: true
     });
-    expect(box().textContent).toContain("no flight yet");
+    expect(box().textContent).toContain("no transition yet");
     expect(box().textContent).toContain("rAF 0ms");
   });
 
-  it("says nothing about input or shared elements a flight did not carry", () => {
+  it("says nothing about input or shared elements a transition did not carry", () => {
     hud = attachDevtoolsHud({
       recorder: recorder(
         () =>
           ({
-            flights: [
+            transitions: [
               {
-                id: "flight-1",
+                id: "transition-1",
                 kind: "PUSH",
                 durationMs: 100,
-                morphs: { pairable: [], flew: [], skipped: [], camera: false }
+                morphs: { pairable: [], moved: [], skipped: [], camera: false }
               }
             ]
           }) as unknown as FlemoReport
@@ -334,7 +336,7 @@ describe("the on-device readout", () => {
 
   it("carries the armed bucket on the line it shows", () => {
     hud = attachDevtoolsHud({
-      recorder: recorder(() => report({ flights: [flight({ bucket: "B" })] }))
+      recorder: recorder(() => report({ transitions: [transition({ bucket: "B" })] }))
     });
     expect(box().textContent).toContain("[B]");
   });
@@ -359,17 +361,17 @@ describe("the on-device readout", () => {
     }
   });
 
-  // A pair the runtime had already staged when the flight opened is proved by
+  // A pair the runtime had already staged when the transition opened is proved by
   // its role, not by the grouping of ends still sitting in their screens, so
-  // the count of what FLEW can exceed that grouping. Printed as a fraction it
+  // the count of what MOVED can exceed that grouping. Printed as a fraction it
   // read "3/0" on a device, which looks like a failure and is not one.
-  it("counts what flew without a denominator that can be smaller", () => {
+  it("counts what moved without a denominator that can be smaller", () => {
     hud = attachDevtoolsHud({
       recorder: recorder(() =>
         report({
-          flights: [
-            flight({
-              morphs: { ...flight().morphs, pairable: [], flew: ["a", "b", "c"] }
+          transitions: [
+            transition({
+              morphs: { ...transition().morphs, pairable: [], moved: ["a", "b", "c"] }
             })
           ]
         })
@@ -377,21 +379,21 @@ describe("the on-device readout", () => {
       initialExpanded: true
     });
     const text = box().textContent ?? "";
-    expect(text).toContain("morph   3 flew");
+    expect(text).toContain("morph   3 moved");
     expect(text).not.toContain("/0");
   });
 
-  it("says nothing about a camera on a flight that drove no screen", () => {
+  it("says nothing about a camera on a transition that drove no screen", () => {
     hud = attachDevtoolsHud({
       recorder: recorder(() =>
         report({
-          flights: [flight({ morphs: { ...flight().morphs, camera: false } })]
+          transitions: [transition({ morphs: { ...transition().morphs, camera: false } })]
         })
       ),
       initialExpanded: true
     });
     const text = box().textContent ?? "";
-    expect(text).toContain("morph   1 flew");
+    expect(text).toContain("morph   1 moved");
     expect(text).not.toContain("cam");
   });
 

@@ -220,7 +220,7 @@ const readRows = (): Row[] => {
 describe("the transition authoring document", () => {
   const rows = readRows();
 
-  it("names a row for every side of every flight", () => {
+  it("names a row for every side of every transition", () => {
     const covered = new Set(rows.map((row) => row.variant));
     for (const status of ["PUSHING", "REPLACING", "POPPING"]) {
       expect(covered).toContain(`${status}-true`);
@@ -300,7 +300,7 @@ describe("published transition factory guidance", () => {
     const activeDoc =
       /\/\*\*((?:(?!\/\*\*)[\s\S])*?)\*\/\s+(?:export )?declare const ACTIVE_ATTR/.exec(emitted);
     expect(activeDoc, "ACTIVE_ATTR lost its documentation").not.toBeNull();
-    expect(activeDoc![1]).toContain("not which one is arriving");
+    expect(activeDoc![1]).toContain("not which one is the new screen");
     expect(activeDoc![1]).toContain("on a pop the");
     expect(activeDoc![1]).not.toMatch(/moving TO/);
   });
@@ -316,7 +316,7 @@ describe("published transition factory guidance", () => {
     }).outputText;
 
     expect(emitted).toContain("already follows the transition's swipe");
-    expect(emitted).toContain("opts that Part element out of the default rider");
+    expect(emitted).toContain("stops that Part element from following the swipe");
   });
 });
 
@@ -329,7 +329,7 @@ describe("published transition factory guidance", () => {
 //
 // It also pins one asymmetry worth keeping honest: `popOnEnter` is POPPING-true
 // for a screen, a part and a decorator, and POPPING-false for a MORPH, because
-// a morph's entering side is the element that flies and on a pop that element
+// a morph's entering side is the element that moves and on a pop that element
 // is the inactive one. A normalizing refactor would "fix" that and pair every
 // morph backwards on every pop.
 const RAW_FACTORIES = [

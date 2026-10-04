@@ -11,19 +11,13 @@
       "name": "Lervo repository migration"
     }
   },
-  "supportedRoles": [
-    "*"
-  ],
+  "supportedRoles": ["*"],
   "compatibility": {
     "providers": {
       "mode": "any"
     },
     "minimumRuntimeVersion": "0.1.0",
-    "platforms": [
-      "darwin",
-      "linux",
-      "win32"
-    ],
+    "platforms": ["darwin", "linux", "win32"],
     "requiredTools": [],
     "unknownIsCompatible": false
   },

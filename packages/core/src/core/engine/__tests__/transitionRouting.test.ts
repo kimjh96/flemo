@@ -4,11 +4,11 @@ import createTransition from "@transition/createTransition";
 
 import type { Transition } from "@transition/typing";
 
-import { resolveFlightRouting } from "@core/engine/flightRouting";
+import { resolveTransitionRouting } from "@core/engine/transitionRouting";
 import { reportDisplayIntervalMs, resetDisplayCadenceForTests } from "@platform/displayCadence";
 import { reportReleaseLatencyMs, resetReleaseLatencyForTests } from "@platform/releaseLatency";
 
-// HOW ONE FLIGHT IS FLOWN. The platform profile answers "what browser is
+// HOW ONE TRANSITION IS MOVED. The platform profile answers "what browser is
 // this"; this answers "so what does THIS navigation get" — which opening
 // treatment, and whether the engine may touch the clock.
 //
@@ -52,9 +52,9 @@ const slide = (options?: { driver?: "native" }) =>
   }) as Transition;
 
 const route = (
-  over: Partial<Parameters<typeof resolveFlightRouting>[0]> & { status?: string } = {}
+  over: Partial<Parameters<typeof resolveTransitionRouting>[0]> & { status?: string } = {}
 ) =>
-  resolveFlightRouting({
+  resolveTransitionRouting({
     status: "PUSHING",
     transition: slide(),
     skipAnimation: false,
@@ -87,7 +87,7 @@ describe("nativeSurgeryAllowed", () => {
     setEnv({ blink: false, touch: true });
     expect(route().nativeSurgeryAllowed).toBe(false);
     expect(route({ transition: slide({ driver: "native" }) }).nativeSurgeryAllowed).toBe(true);
-    // Blink composites the flight and rides main-thread stalls; a rewind there
+    // Blink composites the transition and rides main-thread stalls; a rewind there
     // would yank a smooth animation backwards.
     setEnv({ blink: true, touch: true });
     expect(route({ transition: slide({ driver: "native" }) }).nativeSurgeryAllowed).toBe(false);
@@ -265,7 +265,7 @@ describe("landingClearFrames", () => {
     expect(route().landingClearFrames).toBe(4);
   });
 
-  it("does not vary with the status or the flight", () => {
+  it("does not vary with the status or the transition", () => {
     setEnv({ blink: true, touch: false });
     for (const status of ["PUSHING", "POPPING", "REPLACING"]) {
       expect(route({ status }).landingClearFrames).toBe(1);
@@ -297,7 +297,7 @@ describe("the routing as a whole", () => {
     }
   });
 
-  it("is resolved fresh, so an environment change lands on the next flight", () => {
+  it("is resolved fresh, so an environment change lands on the next transition", () => {
     setEnv({ blink: false, touch: true });
     expect(route({ status: "PUSHING" }).forceCompiled).toBe(true);
     setEnv({ blink: true, touch: true });
@@ -315,7 +315,7 @@ describe("the routing as a whole", () => {
 describe("the governed head kit on touch Blink", () => {
   const routeOn = (over: Parameters<typeof setEnv>[0]) => {
     setEnv(over);
-    return resolveFlightRouting({
+    return resolveTransitionRouting({
       status: "PUSHING",
       transition: { swipe: { direction: "x" } } as never,
       skipAnimation: false,

@@ -114,18 +114,18 @@ describe("holdOneLine", () => {
 });
 
 // Both engines render the half-leading — `(line-height - the face's own
-// height) / 2` — floored to whole pixels, so a flight that interpolates the
+// height) / 2` — floored to whole pixels, so a transition that interpolates the
 // leading steps once per pixel boundary it crosses. At the end that step is the
 // whole artefact: an interpolation only holds its endpoint from the instant the
-// flight ends, which is the instant the flight lands, so a pair whose arrival
-// half-leading sits ON a boundary renders the entire flight one floor down and
+// transition ends, which is the instant the transition lands, so a pair whose arrival
+// half-leading sits ON a boundary renders the entire transition one floor down and
 // the landing puts it back.
 
 // Both engines put a line on a grid and floor the half-leading to it, but they
 // do not agree on the grid: iOS Safari uses whole CSS pixels, desktop Chrome
 // uses DEVICE pixels. Either way an interpolation only holds its endpoint from
-// the instant the flight lands, so a pair whose arrival half-leading sits ON a
-// step renders the whole flight one step down and the landing puts it back.
+// the instant the transition lands, so a pair whose arrival half-leading sits ON a
+// step renders the whole transition one step down and the landing puts it back.
 describe("leadingBias", () => {
   const dpr = (ratio: number | undefined) => {
     if (ratio === undefined) {
@@ -149,7 +149,7 @@ describe("leadingBias", () => {
       expect(leadingBias(cell, page)).toBe(1);
     });
 
-    it("renders the flight and the landing on the same step", () => {
+    it("renders the transition and the landing on the same step", () => {
       dpr(3);
       const bias = leadingBias(cell, page);
       const half = (line: number, text: number) => Math.floor((line - text) / 2);
@@ -173,7 +173,7 @@ describe("leadingBias", () => {
       expect(leadingBias(cell, page)).toBeCloseTo(0.5, 6);
     });
 
-    it("renders the flight and the landing on the same step", () => {
+    it("renders the transition and the landing on the same step", () => {
       dpr(2);
       const bias = leadingBias(cell, page);
       const half = (line: number, text: number) => Math.floor((line - text) / 2 / 0.5 + 1e-6) * 0.5;
@@ -354,11 +354,11 @@ describe("captureMorphSnapshot type metrics", () => {
 
 // A LINE-HEIGHT THAT CLIMBS THE SAME STAIRS THE FACE DOES.
 //
-// The bias above puts the two ENDS of a flight inside one step of the grid.
+// The bias above puts the two ENDS of a transition inside one step of the grid.
 // Between them the half-leading is a smooth line minus a staircase, which is a
-// sawtooth, and on Blink it crosses the grid several times per flight. Device
+// sawtooth, and on Blink it crosses the grid several times per transition. Device
 // numbers, desktop Chrome, the playground's title: `2 -> 1.5 -> 1 -> 1.5` in one
-// flight, and the last of those is what reads as the type being nudged down a
+// transition, and the last of those is what reads as the type being nudged down a
 // moment after it lands.
 describe("leadingStops", () => {
   const FONT = { family: "Test Sans", weight: 800, style: "normal" };
@@ -391,7 +391,7 @@ describe("leadingStops", () => {
     vi.restoreAllMocks();
   });
 
-  it("holds the leading at the arrival's own value for the whole flight", () => {
+  it("holds the leading at the arrival's own value for the whole transition", () => {
     stub(0.95, 0.25);
     const from = end(14, 20);
     const to = end(24, 32);
@@ -401,7 +401,7 @@ describe("leadingStops", () => {
     expect(stops).not.toBeNull();
     const leading = to.lineHeight - to.textHeight;
     for (const stop of stops) {
-      // Every stop is a face height the flight passes through plus one fixed
+      // Every stop is a face height the transition passes through plus one fixed
       // leading, which is what makes the rendered half-leading a constant.
       const face = stop.lineHeight - leading;
       expect(face).toBe(Math.round(face));
@@ -489,7 +489,7 @@ describe("leadingStops", () => {
     // wrong place finds nothing, and a dropped stop lands its whole step on
     // the endpoint, one frame before the landing — the poster grid's meta
     // line dropping a CSS pixel on every zoomed pop. So the stops are found by
-    // bisecting the flight itself, and a face whose rounding drifts off its
+    // bisecting the transition itself, and a face whose rounding drifts off its
     // own ratio changes nothing.
     const drifted = (size: number) => ({
       fontBoundingBoxAscent: Math.round(size * 0.9689 + 0.31),
@@ -525,7 +525,7 @@ describe("leadingStops", () => {
 
     expect(stops).not.toBeNull();
     // The arrival's face is on glass BEFORE the endpoint stop: its last real
-    // boundary is mid-flight, so the stop before 100% already wears the
+    // boundary is mid-transition, so the stop before 100% already wears the
     // arrival's line-height and the landing has no step left to take.
     const last = stops[stops.length - 1]!;
     const before = stops[stops.length - 2]!;
@@ -540,7 +540,7 @@ describe("leadingStops", () => {
 
   it("places each stop at the TIME the ease reaches it, not at its share of the range", () => {
     // Font size travels with the eased progress, so a step two-thirds of the
-    // way through the sizes is met long before two-thirds of the flight under
+    // way through the sizes is met long before two-thirds of the transition under
     // a curve that opens fast.
     stub(0.95, 0.25);
 
@@ -571,10 +571,10 @@ describe("leadingStops", () => {
     }
   });
 
-  it("stands down where the face steps nowhere inside the flight", () => {
+  it("stands down where the face steps nowhere inside the transition", () => {
     // Both ends reproduce, so the engine is one that quantises — but a range
     // this narrow crosses no boundary, and a staircase with no stairs is just
-    // the line-height the flight already had.
+    // the line-height the transition already had.
     stub(0.95, 0.25);
 
     expect(
@@ -582,7 +582,7 @@ describe("leadingStops", () => {
     ).toBeNull();
   });
 
-  it("drops a step that falls outside the flight's own window", () => {
+  it("drops a step that falls outside the transition's own window", () => {
     // A boundary the ease reaches only at the very ends is already carried by
     // the stops that bracket it.
     stub(0.95, 0.25);
@@ -623,7 +623,7 @@ describe("leadingStops", () => {
 
   it("finds a step even where the aims crowd together", () => {
     // An ease that opens fast packs several steps into a hundredth of the
-    // flight. Searching each aim in a window of its own size swallowed the ones
+    // transition. Searching each aim in a window of its own size swallowed the ones
     // after the first; each is searched between its NEIGHBOURS instead.
     stub(0.95, 0.25);
     const stops = leadingStops(
@@ -641,8 +641,8 @@ describe("leadingStops", () => {
     }
   });
 
-  it("keeps a step the flight never reaches out of the stops", () => {
-    // A face whose height is settled before the flight begins has nothing to
+  it("keeps a step the transition never reaches out of the stops", () => {
+    // A face whose height is settled before the transition begins has nothing to
     // find, and an aim with no change inside its bracket is dropped.
     stub(0.95, 0.25);
     const flat = (fontSize: number, lineHeight: number) => ({
@@ -794,7 +794,7 @@ describe("trackStops", () => {
         width(14) + (width(26) - width(14)) * part,
         6
       );
-      // And the stop sits at the time the flight reaches that size.
+      // And the stop sits at the time the transition reaches that size.
       expect(curve(stop.at / 100)).toBeCloseTo(part, 4);
     }
     // Both ends measure themselves, so the landing is untouched.
@@ -817,13 +817,13 @@ describe("trackStops", () => {
 
     expect(again).toBe(first);
     expect(asked).toBe(measured);
-    // A flight with no authored easing is a different question, not the same
+    // A transition with no authored easing is a different question, not the same
     // answer under a different name.
     expect(trackStops(TEXT, { fontSize: 12 }, { fontSize: 28 }, FONT, undefined)).not.toBe(first);
     expect(asked).toBeGreaterThan(measured);
   });
 
-  it("keeps its stops in order and inside the flight", () => {
+  it("keeps its stops in order and inside the transition", () => {
     advances((size) => size * 4 + Math.sin(size) * 2);
 
     const stops = trackStops(TEXT, { fontSize: 13 }, { fontSize: 27 }, FONT, EASE)!;
@@ -834,7 +834,7 @@ describe("trackStops", () => {
   });
 });
 
-// THE FLIGHT MUST BEGIN ON THE LINE THE DEPARTURE DREW.
+// THE TRANSITION MUST BEGIN ON THE LINE THE DEPARTURE DREW.
 //
 // The staircase holds the ARRIVAL's leading from the first frame, so the line
 // it renders at the departure is not the line the departure rendered. Half of
@@ -856,7 +856,7 @@ describe("leadingOwed", () => {
     expect(leadingOwed(end(20, 14, 3), end(32, 24, 4), null)).toBe(0);
   });
 
-  it("owes nothing where the flight already renders the departure's line", () => {
+  it("owes nothing where the transition already renders the departure's line", () => {
     expect(leadingOwed(end(20, 14, 3), end(32, 24, 4), held(20))).toBe(0);
   });
 

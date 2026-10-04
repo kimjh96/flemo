@@ -506,7 +506,7 @@ describe("TaskManager: gate phases (markGateHeld / anchorGate)", () => {
     void pending.then(() => events.push("resolved"));
 
     await new Promise((resolve) => setTimeout(resolve, 150));
-    // Past the configured default, inside the motion span: still flying.
+    // Past the configured default, inside the motion span: still moving.
     expect(events).toEqual([]);
 
     // Past the anchored span the gate is still the stranded-task net.
@@ -570,18 +570,18 @@ describe("TaskManager: gate phases (markGateHeld / anchorGate)", () => {
   });
 });
 
-// ONE FRAME BETWEEN A FLIGHT'S TEARDOWN AND THE NEXT FLIGHT'S OPENING.
+// ONE FRAME BETWEEN A TRANSITION'S TEARDOWN AND THE NEXT TRANSITION'S OPENING.
 //
 // The queue used to wake synchronously with a terminal flip, which put both
-// state changes in ONE binding commit: the finished flight's screen unmounted
-// and the queued flight's opening stamped together, so a single frame carried
-// two flights' worth of style, layout and paint.
+// state changes in ONE binding commit: the finished transition's screen unmounted
+// and the queued transition's opening stamped together, so a single frame carried
+// two transitions' worth of style, layout and paint.
 //
 // Reproduced by driving two system-back gestures 60ms apart against a
 // production build under a 6x CPU throttle: a dropped frame of 31-37ms in every
 // run, at the exact millisecond the screen count fell, and none in the
 // single-back control. No long task — not one script doing too much, one frame
-// asked to commit two flights. Device-reported on a Galaxy Z Flip 4 as a single
+// asked to commit two transitions. Device-reported on a Galaxy Z Flip 4 as a single
 // hitch on a fast double back. After the split: 22-28ms, and not every run.
 describe("TaskManager: the queue hands over on a frame boundary", () => {
   /**
@@ -625,7 +625,7 @@ describe("TaskManager: the queue hands over on a frame boundary", () => {
       await new Promise((r) => setTimeout(r, 30));
 
       // The terminal flip has landed and the queued task has NOT run: the
-      // binding needs this frame to commit the finished flight's teardown
+      // binding needs this frame to commit the finished transition's teardown
       // alone. Running both in one commit is the dropped frame this exists to
       // stop.
       expect(order).toEqual(["held"]);
@@ -673,8 +673,8 @@ describe("TaskManager: the queue hands over on a frame boundary", () => {
 // its own stack (history="memory") shares none of that, and used to queue
 // behind every other Router on the page anyway: on the marketing site, whose
 // landing runs two looping memory mockups, the real call to action started its
-// flight in 58-67ms while they were idle and in 246-868ms while one was
-// mid-flight. These tests pin that a lane still serializes itself and no longer
+// transition in 58-67ms while they were idle and in 246-868ms while one was
+// mid-transition. These tests pin that a lane still serializes itself and no longer
 // serializes against anyone else.
 describe("TaskManager: serial lanes", () => {
   // A task that parks its gate open until the test resolves it, which is the

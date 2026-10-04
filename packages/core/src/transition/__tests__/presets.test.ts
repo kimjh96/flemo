@@ -11,7 +11,7 @@ import type { TransitionVariant } from "@transition/typing";
 
 import { decoratorMap } from "@transition/decorator/decorator";
 import overlay from "@transition/decorator/overlay";
-import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
+import { resolveDecoratorTiming } from "@transition/decorator/resolveDecoratorTiming";
 
 describe("transition presets", () => {
   it("cupertino has the expected name + transform-based shape", () => {
@@ -47,7 +47,7 @@ describe("transition presets", () => {
 
     // Against cupertino the dim gets cupertino's own span, on the matching
     // variant key — the number that used to be written into the decorator.
-    const onCupertino = resolveDecoratorClock(cupertino, overlay);
+    const onCupertino = resolveDecoratorTiming(cupertino, overlay);
     expect(onCupertino.variants["PUSHING-false"].options.duration).toBe(
       cupertino.variants["PUSHING-false"].options?.duration
     );
@@ -57,9 +57,9 @@ describe("transition presets", () => {
 
     // Against a shorter preset it is a shorter dim, with nothing authored
     // twice. This is what `layout` could not get before: `overlay`'s 0.7s over
-    // a 0.4s flight left a wash on the screen underneath for 300ms after the
+    // a 0.4s transition left a wash on the screen underneath for 300ms after the
     // dismissing screen had gone.
-    const onLayout = resolveDecoratorClock(layout, overlay);
+    const onLayout = resolveDecoratorTiming(layout, overlay);
     expect(onLayout.variants["PUSHING-false"].options.duration).toBe(
       layout.variants["PUSHING-false"].options?.duration
     );

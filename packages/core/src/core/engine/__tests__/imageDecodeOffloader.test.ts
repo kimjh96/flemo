@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { beginFlightWindow, resetFlightWindowForTests } from "@core/engine/flightWindow";
 import ensureImageDecodeOffloader, {
   createImageDecodeOffloader,
   OFFLOADED_SRC_ATTR,
   OVERSIZE_AREA_RATIO,
   shouldOffloadImage
 } from "@core/engine/imageDecodeOffloader";
+import {
+  beginTransitionWindow,
+  resetTransitionWindowForTests
+} from "@core/engine/transitionWindow";
 
 // jsdom has neither Worker nor OffscreenCanvas nor the Cache API, so the
 // runtime paths are exercised with stubs; the pure decision logic is tested
@@ -139,7 +142,7 @@ const paintedImage = (src: string) => {
   return image;
 };
 
-// The flight-yield (probe defer + worker terminate) is Blink-only; these two
+// The transition-yield (probe defer + worker terminate) is Blink-only; these two
 // tests present a Chromium userAgentData so detectBlinkEngine() is true.
 const asBlink = () => {
   Object.defineProperty(navigator, "userAgentData", {
@@ -188,10 +191,10 @@ describe("createImageDecodeOffloader", () => {
     dispose();
   });
 
-  it("defers the worker decode while a flight is in progress, flushing at rest (Blink)", async () => {
+  it("defers the worker decode while a transition is in progress, flushing at rest (Blink)", async () => {
     asBlink();
     const { posted, reply } = installWorkerStubs();
-    const release = beginFlightWindow();
+    const release = beginTransitionWindow();
     const src = "https://example.test/raw-original.jpg";
     const image = freshImage(src);
     document.body.appendChild(image);
@@ -210,7 +213,7 @@ describe("createImageDecodeOffloader", () => {
     dispose();
   });
 
-  it("terminates the worker when a flight opens mid-decode, re-queuing for rest (Blink)", async () => {
+  it("terminates the worker when a transition opens mid-decode, re-queuing for rest (Blink)", async () => {
     asBlink();
     const { posted, terminated, reply } = installWorkerStubs();
     const src = "https://example.test/raw-original.jpg";
@@ -222,7 +225,7 @@ describe("createImageDecodeOffloader", () => {
     expect(posted).toHaveLength(1);
     expect(terminated.count).toBe(0);
 
-    const release = beginFlightWindow();
+    const release = beginTransitionWindow();
     expect(terminated.count).toBe(1);
 
     release();
@@ -653,7 +656,7 @@ describe("createImageDecodeOffloader responsive verdicts", () => {
 });
 
 // A cache stub whose match resolves only when the test says so — for racing
-// verdicts against an in-flight cache read.
+// verdicts against an running cache read.
 const installDeferredCacheStub = () => {
   const pending: Array<(blob: Blob | undefined) => void> = [];
   vi.stubGlobal("caches", {
@@ -726,7 +729,7 @@ describe("createImageDecodeOffloader branch edges", () => {
     dispose();
   });
 
-  it("a settle landing while the responsive cache read is in flight releases it once", async () => {
+  it("a settle landing while the responsive cache read is running releases it once", async () => {
     const { reply } = installWorkerStubs();
     const { resolveMatch } = installDeferredCacheStub();
     const dispose = track(createImageDecodeOffloader(document.body));
@@ -747,7 +750,7 @@ describe("createImageDecodeOffloader branch edges", () => {
     responsive.dispatchEvent(new Event("load"));
 
     // The probe's verdict settles BOTH held elements while the responsive
-    // element's own cache read is still in flight...
+    // element's own cache read is still running...
     reply({ url: "https://cdn.example/race.jpg", blob: new Blob(["scaled"]) });
     expect(responsive.getAttribute("src")).toMatch(/^blob:scaled-/);
     // ...so the late read finds it already released and changes nothing.
@@ -993,11 +996,11 @@ describe("createImageDecodeOffloader zero-layout and disposal races", () => {
 // still pre-paint, so the offloader must keep owning it. Mistaking
 // "complete" for "painted" let a re-entered list paint every raw original
 // inside the entering commit — WebKit's synchronous paint-time decode made
-// that a tap-to-flight stall on device.
+// that a tap-to-transition stall on device.
 describe("cache-warm fresh inserts (screen re-entry)", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    resetFlightWindowForTests();
+    resetTransitionWindowForTests();
     document.body.innerHTML = "";
   });
 
@@ -1063,7 +1066,7 @@ describe("cache-warm fresh inserts (screen re-entry)", () => {
     dispose();
   });
 
-  it("an opaque original inserted mid-flight stays unpainted until the flight's rest", async () => {
+  it("an opaque original inserted mid-transition stays unpainted until the transition's rest", async () => {
     const { reply } = installWorkerStubs();
     const src = "https://gov.example/raw-37mp.jpg";
     const dispose = createImageDecodeOffloader(document.body);
@@ -1076,16 +1079,16 @@ describe("cache-warm fresh inserts (screen re-entry)", () => {
     // The held element reveals as authored (its own load is network-gated).
     expect(first.getAttribute("src")).toBe(src);
 
-    // Re-entry mid-flight: the cache-warm original would paint (and decode)
+    // Re-entry mid-transition: the cache-warm original would paint (and decode)
     // inside the entering commit — held hidden until the window closes.
-    const endFlight = beginFlightWindow();
+    const endTransition = beginTransitionWindow();
     const again = cacheWarmImage(src);
     document.body.appendChild(again);
     await flush();
     expect(again.getAttribute("src")).toBe(src); // never re-pointed
     expect(again.style.visibility).toBe("hidden");
 
-    endFlight();
+    endTransition();
     expect(again.style.visibility).toBe("");
     dispose();
   });
@@ -1100,7 +1103,7 @@ describe("cache-warm fresh inserts (screen re-entry)", () => {
     reply({ url: src, error: "cors" });
 
     // The entering commit inserts the screen (already stamped transitional)
-    // BEFORE the engine's drive effect opens the flight window.
+    // BEFORE the engine's drive effect opens the transition window.
     const screen = document.createElement("div");
     screen.setAttribute("data-flemo-screen", "");
     screen.setAttribute("data-flemo-status", "REPLACING");
@@ -1112,10 +1115,10 @@ describe("cache-warm fresh inserts (screen re-entry)", () => {
 
     // The drive effect opens the window; the reveal's one-frame re-check
     // then defers to the window's release.
-    const endFlight = beginFlightWindow();
+    const endTransition = beginTransitionWindow();
     await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
     expect(again.style.visibility).toBe("hidden");
-    endFlight();
+    endTransition();
     expect(again.style.visibility).toBe("");
     dispose();
   });
@@ -1171,7 +1174,7 @@ describe("cache-warm fresh inserts (screen re-entry)", () => {
     dispose();
   });
 
-  it("a known-oversized insert mid-flight rides hidden and repairs a framework echo at rest", async () => {
+  it("a known-oversized insert mid-transition rides hidden and repairs a framework echo at rest", async () => {
     const { reply } = installWorkerStubs();
     const src = "https://example.test/echoed-oversized.jpg";
     const dispose = createImageDecodeOffloader(document.body);
@@ -1182,9 +1185,9 @@ describe("cache-warm fresh inserts (screen re-entry)", () => {
     const scaled = first.getAttribute("src")!;
     expect(scaled).toContain("blob:scaled");
 
-    // Re-entry mid-flight: swapped pre-paint but hidden through the flight;
+    // Re-entry mid-transition: swapped pre-paint but hidden through the transition;
     // a framework re-render echoes the authored URL over the swap.
-    const endFlight = beginFlightWindow();
+    const endTransition = beginTransitionWindow();
     const again = cacheWarmImage(src);
     document.body.appendChild(again);
     await flush();
@@ -1192,7 +1195,7 @@ describe("cache-warm fresh inserts (screen re-entry)", () => {
     again.setAttribute("src", src); // the echo
 
     // Rest: the src is repaired once and the element reveals.
-    endFlight();
+    endTransition();
     expect(again.getAttribute("src")).toBe(scaled);
     expect(again.style.visibility).toBe("");
     dispose();
@@ -1210,12 +1213,12 @@ describe("cache-warm fresh inserts (screen re-entry)", () => {
     const again = cacheWarmImage(src);
     document.body.appendChild(again);
     await flush();
-    // No flight in progress: the decode is simply the cost of showing it.
+    // No transition in progress: the decode is simply the cost of showing it.
     expect(again.style.visibility).toBe("");
     dispose();
   });
 
-  it("disposal reveals a reveal still deferred to a flight window", async () => {
+  it("disposal reveals a reveal still deferred to a transition window", async () => {
     const { reply } = installWorkerStubs();
     const src = "https://gov.example/raw-disposed.jpg";
     const dispose = createImageDecodeOffloader(document.body);
@@ -1224,13 +1227,13 @@ describe("cache-warm fresh inserts (screen re-entry)", () => {
     await flush();
     reply({ url: src, error: "cors" });
 
-    const endFlight = beginFlightWindow();
+    const endTransition = beginTransitionWindow();
     const again = cacheWarmImage(src);
     document.body.appendChild(again);
     await flush();
     expect(again.style.visibility).toBe("hidden");
     dispose();
     expect(again.style.visibility).toBe("");
-    endFlight();
+    endTransition();
   });
 });

@@ -19,7 +19,7 @@ import type { InputEvidence, TripwireHit } from "./types";
 // nothing happens. Both listeners are passive and capture-phase, so they
 // observe without participating.
 
-/** How long before a flight opens an input event still counts as its cause. */
+/** How long before a transition opens an input event still counts as its cause. */
 export const INPUT_WINDOW_MS = 2000;
 
 /** Rolling input events kept; a navigation is never more than a few gestures old. */
@@ -44,12 +44,12 @@ export interface TripwireHandle {
 export interface TripwireOptions {
   /**
    * Called with each hit, on the frame it happened. `atMs` is
-   * `performance.now()`, absolute — the recorder makes it flight-relative,
-   * because a hit can land while no flight is open and must not be silently
+   * `performance.now()`, absolute — the recorder makes it transition-relative,
+   * because a hit can land while no transition is open and must not be silently
    * attributed to the previous one.
    */
   onHit: (hit: { kind: TripwireHit["kind"]; detail: string; atMs: number }) => void;
-  /** Called with the moment the first flemo animation of a flight started. */
+  /** Called with the moment the first flemo animation of a transition started. */
   onAnimationStart: (atMs: number) => void;
 }
 
@@ -95,7 +95,7 @@ export const attachTripwires = (options: TripwireOptions): TripwireHandle => {
       atMs: performance.now(),
       detail:
         `${event.animationName} was CANCELLED on ${describe(event.target)} — the element was ` +
-        "re-parented, re-styled or removed mid-flight. A cancelled animation loses its start " +
+        "re-parented, re-styled or removed mid-transition. A cancelled animation loses its start " +
         "time, and whatever restarts it is free to overwrite the authored delay"
     });
   };
@@ -110,7 +110,7 @@ export const attachTripwires = (options: TripwireOptions): TripwireHandle => {
       detail:
         `${event.animationName} reported animationend with elapsedTime 0 on ` +
         `${describe(event.target)} — the animation ended without ever running. Anything ` +
-        "landing on this event lands before the motion it was waiting for"
+        "that waits for this event runs before the motion it was waiting for"
     });
   };
 

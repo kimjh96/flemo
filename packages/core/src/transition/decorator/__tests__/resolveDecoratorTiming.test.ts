@@ -6,7 +6,7 @@ import createTransition from "@transition/createTransition";
 import type { TransitionName, TransitionVariant } from "@transition/typing";
 
 import createDecorator from "@transition/decorator/createDecorator";
-import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
+import { resolveDecoratorTiming } from "@transition/decorator/resolveDecoratorTiming";
 
 import type { DecoratorName } from "@transition/decorator/typing";
 
@@ -49,16 +49,16 @@ const dim = createDecorator({
 const long = slider("clock-long", 0.7, "clock-dim");
 const short = slider("clock-short", 0.3, "clock-dim");
 
-describe("resolveDecoratorClock", () => {
+describe("resolveDecoratorTiming", () => {
   it("takes the screen's duration for the SAME variant key", () => {
-    const resolved = resolveDecoratorClock(long, dim);
+    const resolved = resolveDecoratorTiming(long, dim);
     expect(resolved.variants["PUSHING-false"].options.duration).toBe(0.7);
     expect(resolved.variants["POPPING-false"].options.duration).toBe(0.7);
   });
 
   it("gives one decorator two clocks on two transitions", () => {
-    expect(resolveDecoratorClock(long, dim).variants["PUSHING-false"].options.duration).toBe(0.7);
-    expect(resolveDecoratorClock(short, dim).variants["PUSHING-false"].options.duration).toBe(0.3);
+    expect(resolveDecoratorTiming(long, dim).variants["PUSHING-false"].options.duration).toBe(0.7);
+    expect(resolveDecoratorTiming(short, dim).variants["PUSHING-false"].options.duration).toBe(0.3);
   });
 
   it("carries DIRECTION, because direction is part of the clock", () => {
@@ -74,7 +74,7 @@ describe("resolveDecoratorClock", () => {
       exitBack: { value: { x: 0 }, options: { duration: 0.25 } },
       options: { decoratorName: "clock-dim" }
     });
-    const resolved = resolveDecoratorClock(directional, dim);
+    const resolved = resolveDecoratorTiming(directional, dim);
     expect(resolved.variants["PUSHING-false"].options.duration).toBe(0.35);
     expect(resolved.variants["POPPING-false"].options.duration).toBe(0.25);
   });
@@ -89,7 +89,7 @@ describe("resolveDecoratorClock", () => {
       enter: { value: { opacity: 1 }, options: { duration: 3 } },
       exit: { value: { opacity: 0 } }
     });
-    const resolved = resolveDecoratorClock(long, fixed);
+    const resolved = resolveDecoratorTiming(long, fixed);
     expect(resolved.variants["IDLE-true"].options.duration).toBe(0);
     expect(resolved.variants["PUSHING-false"].options.duration).toBe(3);
     // ...and the unauthored one still inherits.
@@ -99,7 +99,7 @@ describe("resolveDecoratorClock", () => {
   // AND NEITHER DOES A `<Part>`, which keeps the two rules the same one.
   //
   // Only a MORPH takes the screen's curve, and only because it leaves the
-  // screen for the flight layer and has to reproduce that screen's motion in
+  // screen for the transition layer and has to reproduce that screen's motion in
   // its own animation. Everything that stays inside a screen rides its
   // transform already. `overlay` has a second reason of its own: it is designed
   // for an even perceived ramp, and a positional decelerate curve would
@@ -115,7 +115,7 @@ describe("resolveDecoratorClock", () => {
       exitBack: { value: { x: 0 }, options: { duration: 0.7, ease: [0.32, 0.72, 0, 1] } },
       options: { decoratorName: "clock-dim" }
     });
-    const resolved = resolveDecoratorClock(curved, dim);
+    const resolved = resolveDecoratorTiming(curved, dim);
     expect(resolved.variants["PUSHING-false"].options.ease).toBeUndefined();
   });
 });

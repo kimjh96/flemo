@@ -60,7 +60,7 @@ const base: ScreenContextProps = {
 
 function ScreenShell({ isActive, children }: PropsWithChildren<{ isActive: boolean }>) {
   // The real Screen renders the LIVE status, and the morph runtime reads it to
-  // tell a screen that is in this flight from one that is merely stacked
+  // tell a screen that is in this transition from one that is merely stacked
   // underneath. A shell pinned at IDLE would let this suite pass on a runtime
   // that pairs across screens which are not transitioning at all.
   const status = useStore(stores.navigate, (state) => state.status);
@@ -117,7 +117,7 @@ describe("Morph", () => {
     expect(thumb.getAttribute("data-flemo-morph")).toBe("exit");
   });
 
-  it("gives the consumer the same node the runtime flies", () => {
+  it("gives the consumer the same node the runtime moves", () => {
     // A consumer's ref is how they reach their own element — an IntersectionObserver,
     // a measurement, a focus call. It has to be the BOX, not the slot, because
     // the slot is `display: contents` and has no box at all.
@@ -174,7 +174,7 @@ describe("Morph", () => {
       stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });
     });
 
-    // Nothing staged it, and nothing marked it: it is not in this flight.
+    // Nothing staged it, and nothing marked it: it is not in this transition.
     expect(getByTestId("thumb").getAttribute("data-flemo-morph")).toBe("");
   });
 
@@ -202,7 +202,7 @@ describe("Morph", () => {
     expect(element.textContent).toBe("caption");
   });
 
-  it("says which flight it is on, so a shared bar does not have to be guessed at", () => {
+  it("says which transition it is on, so a shared bar does not have to be guessed at", () => {
     // The runtime cannot read this off the tree for a morph in a SHARED BAR:
     // the bar is a sibling of its own screen scope, so the nearest
     // [data-flemo-screen] belongs to some other Router or to nothing. The
@@ -226,7 +226,7 @@ describe("Morph", () => {
 
   it("falls back to the nearest Router when the screen carries no id of its own", () => {
     // A morph inside a screen may not know its own Router id (the screen scope
-    // never set one), but it still belongs to a flight: the nearest enclosing
+    // never set one), but it still belongs to a transition: the nearest enclosing
     // Router answers. Same protocol <Part> renders — the enclosing screen wins
     // when it has an id, the nearest Router when it does not.
     const { getByTestId } = render(
@@ -261,7 +261,7 @@ describe("Morph", () => {
 
   it("says nothing when it is not in a screen at all", () => {
     // Persistent chrome beside the <Slot> — a mini player — has no side of a
-    // flight to be on, and the runtime pairs it precisely BECAUSE it answers
+    // transition to be on, and the runtime pairs it precisely BECAUSE it answers
     // nothing. An active flag invented here would read as "arriving" on a pop.
     const { getByTestId } = render(
       <StoreContext.Provider value={stores}>

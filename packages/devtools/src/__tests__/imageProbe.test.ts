@@ -7,7 +7,7 @@ import {
   trackAddedImages
 } from "../imageProbe";
 
-// A still-loading image that completes DURING a flight decodes and
+// A still-loading image that completes DURING a transition decodes and
 // first-rasters on the moving layer, at a glass-measured cost of one skipped
 // present. The engine holds those images; what this probe watches for is a
 // completion WITHOUT a hold.
@@ -33,7 +33,7 @@ afterEach(() => {
 });
 
 describe("the image probe", () => {
-  it("tracks only what was still loading when the flight opened", () => {
+  it("tracks only what was still loading when the transition opened", () => {
     const a = screen();
     image(a, true);
     image(a, false);
@@ -49,17 +49,17 @@ describe("the image probe", () => {
 
     held.setAttribute("data-flemo-img-hold", "");
     snapshotHeldImages(state, [a]);
-    // Both finish before the flight ends; only one of them was parked.
+    // Both finish before the transition ends; only one of them was parked.
     Object.defineProperty(held, "complete", { value: true, configurable: true });
     Object.defineProperty(unheld, "complete", { value: true, configurable: true });
 
     const activity = imageActivity(state);
-    expect(activity.completedDuringFlight).toBe(2);
-    expect(activity.heldDuringFlight).toBe(1);
+    expect(activity.completedDuringTransition).toBe(2);
+    expect(activity.heldDuringTransition).toBe(1);
     expect(activity.completedUnheld).toBe(1);
   });
 
-  it("picks up an image that arrives inside a participant mid-flight", () => {
+  it("picks up an image that arrives inside a participant mid-transition", () => {
     const a = screen();
     const state = createImageProbeState([a]);
     const wrapper = document.createElement("div");
@@ -67,11 +67,11 @@ describe("the image probe", () => {
     a.appendChild(wrapper);
 
     trackAddedImages(state, [a], nodes([wrapper]));
-    expect(state.addedDuringFlight).toBe(1);
+    expect(state.addedDuringTransition).toBe(1);
     expect(state.tracked.has(late)).toBe(true);
   });
 
-  it("ignores an image that arrives outside the flight's participants", () => {
+  it("ignores an image that arrives outside the transition's participants", () => {
     const a = screen();
     const elsewhere = document.createElement("div");
     document.body.appendChild(elsewhere);
@@ -81,7 +81,7 @@ describe("the image probe", () => {
     image(stray, false);
     elsewhere.appendChild(stray);
     trackAddedImages(state, [a], nodes([stray]));
-    expect(state.addedDuringFlight).toBe(0);
+    expect(state.addedDuringTransition).toBe(0);
   });
 
   it("ignores non-element nodes and images that already finished", () => {
@@ -90,7 +90,7 @@ describe("the image probe", () => {
     trackAddedImages(state, [a], nodes([document.createTextNode("x")]));
     const done = image(a, true);
     trackAddedImages(state, [a], nodes([done]));
-    expect(state.addedDuringFlight).toBe(0);
+    expect(state.addedDuringTransition).toBe(0);
   });
 
   // THE PROBE MUST NEVER BECOME THE COST IT MEASURES. A list commit can append
@@ -112,6 +112,6 @@ describe("the image probe", () => {
     a.appendChild(more);
     trackAddedImages(state, [a], nodes([more]));
     expect(state.tracked.size).toBe(200);
-    expect(state.addedDuringFlight).toBe(200);
+    expect(state.addedDuringTransition).toBe(200);
   });
 });

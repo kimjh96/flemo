@@ -5,34 +5,34 @@ import { TRANSITION_VARIANTS, variantDelay, variantDuration } from "@transition/
 import type { Decorator } from "@transition/decorator/typing";
 
 /**
- * A decorator's variant table with its clock filled in from the screen
- * transition that names it.
+ * A decorator's variant table with its timing filled in from the screen
+ * transition that sets it.
  *
  * A decorator is only ever reached through `transition.decoratorName`, so the
- * flight it dresses already decides how long it has. Authoring the length a
+ * transition it decorates already decides how long it has. Authoring the length a
  * second time is how the two drift apart, and this repository worked around
  * that three times before removing the duplication:
  *
  *   - `overlay` and `cupertino` each restated 0.7s, with a comment on the
  *     decorator saying the number came from the transition.
  *   - the playground's `drift` and `recess` share a constants file for no
- *     other reason than to keep two hand-written clocks equal.
+ *     other reason than to keep two hand-written timings equal.
  *   - `layout` dropped its dim ALTOGETHER rather than inherit `overlay`'s
- *     0.7s over a 0.4s flight: measured on a pop, the dismissing screen was
- *     fully gone at 335ms while the screen underneath still carried a 10%
+ *     0.7s over a 0.4s transition: measured on a pop, the closing screen was
+ *     fully gone at 335ms while the previous screen behind it still had a 10%
  *     black wash, which reads as a grey cast appearing from nowhere and then
  *     lifting for no reason.
  *
  * The rule is the SAME VARIANT KEY, which is exactly the mapping those
  * workarounds were doing by hand: a decorator's `enter` sits at PUSHING-false
  * with the screen's `exit`, its `exit` at POPPING-false with the screen's
- * `exitBack`. It therefore also carries direction for free — a preset whose
+ * `exitBack`. It therefore also follows direction for free: a preset whose
  * push and pop differ (material runs 0.35s and 0.25s) gives its dim the same
  * asymmetry without the author restating it.
  *
  * THE CURVE IS NOT PART OF THIS, and that is a decision rather than an
- * omission. A `<Part>` now takes the screen's curve when it names none, because
- * a part's pose is a place ON the screen and the two have to agree there. A
+ * omission. A `<Part>` now takes the screen's curve when it sets none, because
+ * a part's style is a place ON the screen and the two have to agree there. A
  * decorator has no such place: it dims. `overlay` records what happens if the
  * two rules are collapsed into one — cupertino's positional decelerate curve
  * front-loads a luminance ramp into an abrupt step with a long invisible tail,
@@ -46,7 +46,7 @@ import type { Decorator } from "@transition/decorator/typing";
  * main-thread starvation (device-bisected 2026-08-13, see
  * compileTransitionStyles.ts).
  */
-export const resolveDecoratorClock = (
+export const resolveDecoratorTiming = (
   transition: Pick<Transition, "variants">,
   decorator: Pick<Decorator, "initial" | "variants">
 ): Pick<BaseTransition, "initial" | "variants"> => {
@@ -71,4 +71,4 @@ export const resolveDecoratorClock = (
   return { initial: decorator.initial, variants };
 };
 
-export default resolveDecoratorClock;
+export default resolveDecoratorTiming;

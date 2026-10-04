@@ -7,14 +7,14 @@ import { transitionMap } from "@transition/transition";
 import type { Transition } from "@transition/typing";
 
 import {
-  collectFlightAnimations,
-  collectFlightParts,
+  collectTransitionAnimations,
+  collectTransitionParts,
   collectScreenParts,
   collectStampedOuterParts,
   collectUnheldOuterParts,
   collectVariantParts,
   statusChoreographySpanMs
-} from "@core/engine/flightParticipants";
+} from "@core/engine/transitionParticipants";
 import {
   ACTIVE_ATTR,
   ANIM_HOLD_ATTR,
@@ -28,7 +28,7 @@ import {
 import createPartTransition from "@transition/partTransition/createPartTransition";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
-// WHO IS IN THIS FLIGHT. The scoping rules cannot be inferred from DOM
+// WHO IS IN THIS TRANSITION. The scoping rules cannot be inferred from DOM
 // structure — each screen sits in its own wrapper, a root Router renders no
 // container, and two independent Routers may share a parent — so they are
 // explicit, and they are what these suites pin.
@@ -79,7 +79,7 @@ describe("collectScreenParts", () => {
   });
 
   it("follows a staged bar part out into the part layer", () => {
-    // A matched shared bar's parts spend the flight above both screens (see
+    // A matched shared bar's parts spend the transition above both screens (see
     // barPartStaging.ts), where the container walk cannot reach them. Every
     // caller here is one where losing them is a defect: the layer pin, the
     // settle release, the COMPLETED inline clear.
@@ -133,7 +133,7 @@ describe("collectVariantParts", () => {
   });
 });
 
-describe("collectFlightParts", () => {
+describe("collectTransitionParts", () => {
   it("scopes by the Router marker, not by DOM ancestry", () => {
     const container = el({});
     const ours = el({ [ROUTER_ATTR]: "root" });
@@ -148,7 +148,7 @@ describe("collectFlightParts", () => {
     container.append(ours, theirRouter);
     document.body.appendChild(container);
 
-    expect(collectFlightParts(scope, "PUSHING")).toEqual([mine]);
+    expect(collectTransitionParts(scope, "PUSHING")).toEqual([mine]);
     container.remove();
   });
 
@@ -160,19 +160,19 @@ describe("collectFlightParts", () => {
     const unmarked = part("title", { "data-flemo-status": "PUSHING" });
     container.append(scope, unmarked);
     document.body.appendChild(container);
-    expect(collectFlightParts(scope, "PUSHING")).toEqual([unmarked]);
+    expect(collectTransitionParts(scope, "PUSHING")).toEqual([unmarked]);
 
     // Scope marked, part not: the part still qualifies.
     const marked = el({ [ROUTER_ATTR]: "root" });
     marked.appendChild(scope);
     container.appendChild(marked);
-    expect(collectFlightParts(scope, "PUSHING")).toEqual([unmarked]);
+    expect(collectTransitionParts(scope, "PUSHING")).toEqual([unmarked]);
     container.remove();
   });
 });
 
 describe("the outer-part collectors", () => {
-  it("takes flight parts no held element contains, and skips contained ones", () => {
+  it("takes transition parts no held element contains, and skips contained ones", () => {
     const container = el({});
     const scope = el({ [SCREEN_ATTR]: "true" });
     const outer = part("chrome", { "data-flemo-status": "PUSHING" });
@@ -260,7 +260,7 @@ describe("statusChoreographySpanMs", () => {
   });
 });
 
-describe("collectFlightAnimations", () => {
+describe("collectTransitionAnimations", () => {
   const animation = (endTime: number) =>
     ({ effect: { getComputedTiming: () => ({ endTime }) } }) as unknown as Animation;
   const withAnimations = (node: HTMLElement, animations: Animation[]) => {
@@ -278,11 +278,13 @@ describe("collectFlightAnimations", () => {
       [exit, loop]
     );
     const partMotion = animation(500);
-    const flightPart = withAnimations(part("title", { [STATUS_ATTR]: "POPPING" }), [partMotion]);
-    passive.appendChild(flightPart);
+    const transitionPart = withAnimations(part("title", { [STATUS_ATTR]: "POPPING" }), [
+      partMotion
+    ]);
+    passive.appendChild(transitionPart);
     router.append(scope, passive);
 
-    // Another Router's passive screen in the same status is not this flight.
+    // Another Router's passive screen in the same status is not this transition.
     const otherRouter = el({ [ROUTER_ATTR]: "r2" });
     const unrelated = animation(3000);
     otherRouter.appendChild(
@@ -310,7 +312,7 @@ describe("collectFlightAnimations", () => {
     const detached = { effect: null } as unknown as Animation;
 
     expect(
-      collectFlightAnimations(scope, "POPPING", [decorator, null, bare], [camera, detached])
+      collectTransitionAnimations(scope, "POPPING", [decorator, null, bare], [camera, detached])
     ).toEqual([camera, exit, looseExit, partMotion, decoratorMotion]);
 
     loose.remove();
@@ -329,7 +331,7 @@ describe("collectFlightAnimations", () => {
     );
     document.body.append(scope, marked);
 
-    expect(collectFlightAnimations(scope, "PUSHING", [], [])).toEqual([exit]);
+    expect(collectTransitionAnimations(scope, "PUSHING", [], [])).toEqual([exit]);
 
     scope.remove();
     marked.remove();

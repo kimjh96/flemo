@@ -10,11 +10,11 @@ import {
 interface CreateDecoratorProps {
   /** Public name registered on a Router and selected by a screen transition. */
   name: DecoratorName;
-  /** From-pose for a decorator entering on a newly mounted screen. */
+  /** Starting style for a decorator entering on a newly mounted screen. */
   initial: InitialTarget;
   /**
-   * Resting pose for the active screen. For a dim or wash this is normally the
-   * invisible state, including the active screen being dismissed on pop.
+   * Resting style for the active screen. For a dim or wash this is normally the
+   * invisible state, including the active screen that closes on pop.
    */
   idle: DecoratorVariantValue;
   /** Target for the screen moving into or resting in the background. */
@@ -24,13 +24,13 @@ interface CreateDecoratorProps {
    * animates from `enter`; match this target to `idle` for a seamless rest.
    */
   exit: DecoratorVariantValue;
-  /** Decorator behavior; omitted clocks inherit from the naming transition. */
+  /** Decorator behavior; omitted timing comes from the screen transition that sets this decorator. */
   options?: DecoratorOptions;
 }
 
 /**
  * Creates a wash or overlay that decorates the inactive side of a transition.
- * Its omitted duration and delay inherit the naming screen transition by the
+ * Its omitted duration and delay come from the screen transition that sets it, by the
  * same variant key; easing remains the decorator author's choice.
  */
 export default function createDecorator({

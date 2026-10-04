@@ -43,7 +43,7 @@ const MAPPED = import.meta.glob("../../../{core/engine,platform,dom,runtime}/*.t
 
 const doc = Object.values(DOC)[0] ?? "";
 
-/** Basenames the inventory tables name, e.g. `flightRouting.ts`. */
+/** Basenames the inventory tables name, e.g. `transitionRouting.ts`. */
 const namedInDoc = new Set(
   [...doc.matchAll(/`([A-Za-z][A-Za-z0-9]*\.ts)`/g)].map((match) => match[1]!)
 );
@@ -77,7 +77,7 @@ describe("packages/core/docs/motion-engine.md", () => {
       "pendingNetwork.ts",
       "partLayer.ts",
       "gestureScrub.ts",
-      "resolvePartClock.ts",
+      "resolvePartTiming.ts",
       "variantMotion.ts",
       "animateInline.ts",
       "compileTransitionStyles.ts",

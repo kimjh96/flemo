@@ -80,7 +80,7 @@ describe("Layer", () => {
     // The two halves come from two different screens and can arrive apart. A
     // host inherited from an ancestor with no owning screen in between is not
     // a target this can use: without an owner there is no stack position, no
-    // flight and no paint state to carry, and portalling anyway would put an
+    // transition and no paint state to carry, and portalling anyway would put an
     // unattached overlay above everything.
     const target = document.createElement("div");
     document.body.append(target);
@@ -159,11 +159,11 @@ describe("Layer", () => {
   // WHICH BOX RIDES, and why exactly one of them does.
   //
   // An overlay has to travel with whatever is actually moving under it, and
-  // that is not always its owner. Both boxes carry the flight attributes the
+  // that is not always its owner. Both boxes carry the transition attributes the
   // compiled screen rule pairs on; the binding decides which one gets them for
   // a given arrangement. If both did, the two transforms would compose and the
   // overlay would travel twice as far as its screen.
-  const FLIGHT = [
+  const TRANSITION = [
     "data-flemo-transition",
     "data-flemo-status",
     "data-flemo-active",
@@ -171,7 +171,7 @@ describe("Layer", () => {
   ];
 
   const ridesWith = (element: HTMLElement, scope: HTMLElement) =>
-    FLIGHT.every(
+    TRANSITION.every(
       (attribute) =>
         element.getAttribute(attribute) !== null &&
         element.getAttribute(attribute) === scope.getAttribute(attribute)
@@ -197,11 +197,11 @@ describe("Layer", () => {
     // Compared AGAINST THE SCOPE rather than against literals: the scope's own
     // status is derived, and a rider that agreed with a literal while
     // disagreeing with its screen is the failure this pins — two elements, one
-    // flight, one clock.
+    // transition, one clock.
     expect(ridesWith(host(container)!, scope)).toBe(true);
     expect(host(container)!.getAttribute("data-flemo-transition")).toBe("material");
     // The slot stays out of it, or the pair would compose.
-    expect(FLIGHT.every((a) => slots(container)[0]!.getAttribute(a) === null)).toBe(true);
+    expect(TRANSITION.every((a) => slots(container)[0]!.getAttribute(a) === null)).toBe(true);
   });
 
   it("rides on the slot when the owner is a screen nested inside the host", () => {
@@ -236,7 +236,7 @@ describe("Layer", () => {
     expect(slots(container)[0]!.getAttribute("data-flemo-active")).toBe("true");
   });
 
-  it("carries the INACTIVE side of a flight too", () => {
+  it("carries the INACTIVE side of a transition too", () => {
     // Every push has one of each, and a slot that only ever agreed with the
     // arriving screen would ride the wrong half of the pair.
     stores.navigate.setState({ status: "PUSHING", transitionTaskId: null });

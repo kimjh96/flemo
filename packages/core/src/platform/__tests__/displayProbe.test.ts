@@ -4,8 +4,8 @@ import { armFramePacingKeepalive, resetDisplayProbeForTests } from "@platform/di
 
 // The keepalive's callback does nothing; its EXISTENCE is the fix — a live
 // frame source keeps Chrome presenting on every vsync instead of pacing a
-// compositor-driven flight unevenly. So the only things worth pinning are that
-// it survives an environment with no rAF at all, and that overlapping flights
+// compositor-driven transition unevenly. So the only things worth pinning are that
+// it survives an environment with no rAF at all, and that overlapping transitions
 // share one loop.
 
 afterEach(() => {
@@ -19,7 +19,7 @@ describe("armFramePacingKeepalive", () => {
     expect(() => armFramePacingKeepalive()()).not.toThrow();
   });
 
-  it("starts one loop however many flights arm it", () => {
+  it("starts one loop however many transitions arm it", () => {
     let started = 0;
     vi.stubGlobal("requestAnimationFrame", () => {
       started += 1;
@@ -27,7 +27,7 @@ describe("armFramePacingKeepalive", () => {
     });
     armFramePacingKeepalive();
     armFramePacingKeepalive();
-    // CONTINUOUS by design: a per-flight loop lets an adaptive panel re-ramp
+    // CONTINUOUS by design: a per-transition loop lets an adaptive panel re-ramp
     // from idle on every navigation, which is the drop this exists to remove.
     expect(started).toBe(1);
   });

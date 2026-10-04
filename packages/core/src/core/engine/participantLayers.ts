@@ -4,24 +4,24 @@ import type resolveTransition from "@transition/resolveTransition";
 import type { TransitionVariant } from "@transition/typing";
 import { resolveVariantMotion, type VariantMotion } from "@transition/variantMotion";
 
-import { collectScreenParts, collectVariantParts } from "@core/engine/flightParticipants";
 import { governedEasingForMotion } from "@core/engine/landingGovernor";
 import { isRider } from "@core/engine/layerRiders";
 import { holdScopeLayer, releaseScopeLayerAfterSettle } from "@core/engine/layerSettleHold";
+import { collectScreenParts, collectVariantParts } from "@core/engine/transitionParticipants";
 import { PART_NAME_ATTR } from "@dom/attributes";
 import { learnedFrameIntervalMs } from "@platform/displayCadence";
 import { COMPILED_TIER_MAX_INTERVAL_MS } from "@platform/displayProbe";
 import { detectBlinkEngine } from "@platform/engineProbes";
 import { decoratorMap } from "@transition/decorator/decorator";
-import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
+import { resolveDecoratorTiming } from "@transition/decorator/resolveDecoratorTiming";
 import { resolvePartDefinition } from "@transition/partTransition/partTransition";
 
-// COMPOSITOR LAYERS, held for the length of a flight and released after it.
+// COMPOSITOR LAYERS, held for the length of a transition and released after it.
 //
 // The compiled variant rules promote each participant with `will-change`, and
 // that promotion UN-MATCHES at the COMPLETED flip — which would demote and
 // repaint a layer on exactly the frames the eye is watching settle. So the
-// engine pins the promotion inline for the flight and releases it off-cadence
+// engine pins the promotion inline for the transition and releases it off-cadence
 // afterwards.
 //
 // The landing governor's inline easing rides along here: it is stamped on the
@@ -87,13 +87,13 @@ export const holdParticipantLayers = (
     const definition = decoratorMap.get(transition.decoratorName);
     // On this transition's clock, so the layer is promoted for exactly the
     // window the compiled decorator rule animates for.
-    const clock = definition ? resolveDecoratorClock(transition, definition) : null;
+    const clock = definition ? resolveDecoratorTiming(transition, definition) : null;
     if (clock && variantHasAnimation(clock, variant)) {
       holdScopeLayer(decorator, clock, containment, owner);
     }
   }
   for (const part of collectVariantParts(scope, variant)) {
-    // Against the flight's transition, so the pin matches the clock the CSS
+    // Against the running transition's definition, so the pin matches the clock the CSS
     // actually runs the part at (see resolvePartDefinition).
     const definition = resolvePartDefinition(part.getAttribute(PART_NAME_ATTR), transition);
     if (definition && variantHasAnimation(definition, variant)) {

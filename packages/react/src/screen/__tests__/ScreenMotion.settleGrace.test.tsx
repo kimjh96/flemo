@@ -32,7 +32,7 @@ import StoreContext, { type FlemoStores } from "@stores/StoreContext";
 // after the paint the gate anchors to, so giving up sooner would call a loading
 // screen idle. A screen that is NOT mounting has no such tick coming — a pop
 // moves two screens that both existed before it — and waiting the window out
-// there was 60ms of frozen flight on every pop, with nothing that could arrive
+// there was 60ms of frozen transition on every pop, with nothing that could arrive
 // in it. These tests read the `graceMs` the coordinator was joined with.
 //
 // What keeps the shorter grace honest is the raster guard in the gate itself: a
@@ -123,7 +123,7 @@ describe("ScreenMotion settle grace wiring", () => {
       histories: [historyEntry("below"), historyEntry("top")]
     });
 
-    // At rest first — this is the screen that has already lived a flight.
+    // At rest first — this is the screen that has already lived a transition.
     renderScreen(screenContext({ id: "below", isActive: false, isPrev: false, zIndex: 0 }));
     expect(join).not.toHaveBeenCalled();
 
@@ -167,7 +167,7 @@ describe("ScreenMotion settle grace wiring", () => {
     });
     expect(lastGrace(join)).toBe(60);
 
-    // That flight lands. From here the screen exists, so no mount effects can
+    // That transition lands. From here the screen exists, so no mount effects can
     // still be owed — the grace is spent on nothing.
     await act(async () => {
       stores.navigate.setState({ status: "COMPLETED", transitionTaskId: null });

@@ -2,8 +2,8 @@
 //
 // NO transitions and NO keyframes anywhere — not even the hover polish the
 // design would allow. Reason: a transition can only be suppressed during a
-// flight by writing to the DOM (an attribute/class the CSS keys on), and this
-// panel is forbidden from writing to the DOM while a flight runs (see
+// transition by writing to the DOM (an attribute/class the CSS keys on), and this
+// panel is forbidden from writing to the DOM while a transition runs (see
 // panel/index.ts). A hover that repaints instantly costs one small composited
 // rect; a hover that ANIMATES keeps the main thread busy for 150ms next to
 // the transition we are trying to measure. Instant wins.
@@ -65,7 +65,7 @@ export const PANEL_CSS = `
 }
 /* The header shrinks and scrolls on its own past half the drawer. It holds a
    chip per failed precondition, warning and override, and a session with a
-   handful of them used to fill the whole drawer and squeeze the flight list and
+   handful of them used to fill the whole drawer and squeeze the transition list and
    its detail to nothing, which read as a panel that would not scroll. */
 .head {
   display: flex;

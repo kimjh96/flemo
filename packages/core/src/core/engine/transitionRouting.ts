@@ -14,12 +14,12 @@ import { governedCompiledActive } from "@platform/governedCompiled";
 import { settleGateActive } from "@platform/profile";
 import { learnedReleaseLatencyMs } from "@platform/releaseLatency";
 
-// HOW THIS ONE FLIGHT IS FLOWN.
+// HOW THIS ONE TRANSITION IS MOVED.
 //
 // The platform profile (see @platform/profile) answers "what kind of browser
 // is this". This answers the next question down: given that browser, THIS
 // navigation's status, and THIS transition's authored options — which opening
-// treatment does the flight get, and may the engine touch its clock?
+// treatment does the transition get, and may the engine touch its clock?
 //
 // Every field was one `const` in the middle of driveScreenLifecycle, computed
 // among four hundred lines of unrelated wiring. Together they are a single
@@ -28,13 +28,13 @@ import { learnedReleaseLatencyMs } from "@platform/releaseLatency";
 // Read once per drive run, never cached: the probes feeding it are read live,
 // so a verdict formed mid-session lands on the next navigation.
 
-export interface FlightRouting {
-  /** This flight has motion to drive at all (not skipped, and it resolves). */
+export interface TransitionRouting {
+  /** This transition has motion to drive at all (not skipped, and it resolves). */
   readonly hasDrivableMotion: boolean;
 
   /**
-   * The engine may perform CLOCK SURGERY on this flight — the first-frame
-   * hold, the flight-start anchor, stall re-anchoring. Authored
+   * The engine may perform CLOCK SURGERY on this transition — the first-frame
+   * hold, the transition-start anchor, stall re-anchoring. Authored
    * `driver: "native"` pins only, and never on Blink.
    *
    * Every one of those mutates a running animation's timing (WAAPI pause/play,
@@ -56,7 +56,7 @@ export interface FlightRouting {
   readonly forceCompiled: boolean;
 
   /**
-   * This flight gets the GOVERNED HEAD KIT — a flat opening segment baked into
+   * This transition gets the GOVERNED HEAD KIT — a flat opening segment baked into
    * the keyframes, so a commit that ages the wall clock eats the head instead
    * of the curve's start.
    */
@@ -85,8 +85,8 @@ export interface FlightRouting {
   readonly governedSlide: boolean;
 
   /**
-   * Keep a frame source alive for the flight. Compiled Blink only: a
-   * compositor-driven flight leaves the main thread idle, and Chrome then
+   * Keep a frame source alive for the transition. Compiled Blink only: a
+   * compositor-driven transition leaves the main thread idle, and Chrome then
    * paces its macOS ProMotion presentation unevenly — video-measured as
    * drops and double-steps the eye reads as trembling.
    */
@@ -105,10 +105,10 @@ export interface FlightRouting {
   readonly landingClearFrames: number;
 }
 
-export interface FlightRoutingInput {
+export interface TransitionRoutingInput {
   readonly status: string;
   readonly transition: Transition;
-  /** The scope carries the skip marker for this flight. */
+  /** The scope carries the skip marker for this transition. */
   readonly skipAnimation: boolean;
   /** The active variant resolves a motion. */
   readonly hasActiveMotion: boolean;
@@ -159,12 +159,12 @@ export const landingClearFrames = (): number => (detectBlinkEngine() ? 1 : 4);
  * WHICH HEAD KIT this session plays, and how long its flat head is.
  *
  * Extracted so it has exactly one definition. It is a pure function of the
- * platform and the status — nothing about the flight —
+ * platform and the status — nothing about the transition —
  * and the MORPH runtime needs the same answer at a moment when it cannot get
  * it from the DOM: the head is announced by an attribute on the root, and the
  * engine writes that attribute from the SAME commit the morph is staged in.
  * React runs a descendant's layout effect first, so a morph reading the
- * attribute reads the PREVIOUS flight's answer — right by luck from the second
+ * attribute reads the PREVIOUS transition's answer — right by luck from the second
  * navigation on, and wrong on the first, which is what made a first push run
  * its element 33ms ahead of the screen carrying it while every push after it
  * was aligned.
@@ -184,7 +184,7 @@ export const resolveHeadKit = (
   const touchGoverned = !blink && touch && governedCompiledActive();
 
   // The governed head kit for touch Blink: a slow device's commits age a BARE
-  // compiled flight's clock past the whole opening (the Note 9 profile:
+  // compiled transition's clock past the whole opening (the Note 9 profile:
   // 120-260ms mount tasks).
   //
   // Known gap, deliberately not closed here: a modern-but-weak touch Blink
@@ -249,13 +249,13 @@ export const resolveHeadKit = (
   };
 };
 
-export const resolveFlightRouting = (input: FlightRoutingInput): FlightRouting => {
+export const resolveTransitionRouting = (input: TransitionRoutingInput): TransitionRouting => {
   const { status, transition, skipAnimation, hasActiveMotion, hasAnimation } = input;
   const blink = detectBlinkEngine();
 
   // One definition of the head kit, shared with the morph runtime — see
   // resolveHeadKit. The two answers must never be able to drift apart: a morph
-  // staged against a different kit from the flight carrying it runs its element
+  // staged against a different kit from the transition carrying it runs its element
   // a head ahead of the screen.
   const { touchGoverned, forceCompiled, governedHead, desktopHead, headMs } =
     resolveHeadKit(status);

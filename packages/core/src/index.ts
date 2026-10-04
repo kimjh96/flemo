@@ -102,7 +102,7 @@ export {
 export { default as createDecorator } from "@transition/decorator/createDecorator";
 export { default as createRawDecorator } from "@transition/decorator/createRawDecorator";
 export { decoratorMap } from "@transition/decorator/decorator";
-export { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
+export { resolveDecoratorTiming } from "@transition/decorator/resolveDecoratorTiming";
 
 // Bar-transition primitives (progress-driven, name-referenced bar-child animations)
 export { default as createPartTransition } from "@transition/partTransition/createPartTransition";
@@ -111,7 +111,7 @@ export { partTransitionMap } from "@transition/partTransition/partTransition";
 
 // Morph primitives (shared elements: one thing on two screens, under one
 // `layoutId`). Authored exactly like every other flemo transition; the travel
-// between the two rects is measured per flight and composed by the runtime.
+// between the two rects is measured per transition and composed by the runtime.
 export { default as createMorphTransition } from "@transition/morphTransition/createMorphTransition";
 export { default as createRawMorphTransition } from "@transition/morphTransition/createRawMorphTransition";
 export { morphTransitionMap } from "@transition/morphTransition/morphTransition";
@@ -121,18 +121,18 @@ export { DEFAULT_MORPH_TRANSITION_NAME } from "@transition/morphTransition/typin
 // paint; everything else — pairing, geometry, keyframes, cleanup — happens
 // here, off the DOM protocol, with no framework in sight. See @morph.
 export { default as attachMorph, type AttachMorphOptions } from "@morph/attachMorph";
-// The flight layer a scope stages its shared elements in. Published by the
+// The transition layer a scope stages its shared elements in. Published by the
 // binding because only a Router knows which box bounds its screens.
 export { registerMorphLayer } from "@morph/morphLayer";
 
 // The PART LAYER: where a matched shared bar's <Part> elements are staged for a
-// flight so the covered screen's copy is not painted under the other screen's
-// opaque surface. Published by the binding for the same reason the flight layer
+// transition so the covered screen's copy is not painted under the other screen's
+// opaque surface. Published by the binding for the same reason the transition layer
 // is, and resolved by it too — the engine takes the box as a DOM node beside
 // the scope and the bars, so nothing in it has to know about stores.
 export { registerPartLayer, resolvePartLayer } from "@screen/partLayer";
 
-// THE INTERACTIVE MORPH. A gesture stages its own flights and moves them by
+// THE INTERACTIVE MORPH. A gesture stages its own transitions and moves them by
 // hand — the shared element follows the finger instead of running a clock — and
 // hands them back to the browser on release. A binding wires this to its swipe
 // controller once; no transition has to author anything for its morphs to
@@ -307,7 +307,7 @@ export { default as observeViewportScrollHeight } from "@screen/observeViewportS
 
 // One-shot GPU pipeline prewarm (see the module): front-loads Graphite/Dawn
 // pipeline compilation at boot idle so a cold cache's ~100ms GPU stalls never
-// land inside the first flight.
+// land inside the first transition.
 export { default as ensureGpuPipelinePrewarm } from "@core/engine/gpuPipelinePrewarm";
 
 // Off-main decode-to-scale for oversized images (WebKit decodes synchronously

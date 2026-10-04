@@ -42,7 +42,7 @@ const defaultGuard = createSelfPopGuard();
 /**
  * Marks that flemo itself is about to call `window.history.back()`. The
  * `popstate` it produces is then consumed by `consumeSelfInducedPop` so the
- * popstate listener doesn't re-process a pop the navigation queue already owns.
+ * popstate listener doesn't re-process a pop the navigation queue is already handling.
  */
 export function markSelfInducedPop() {
   defaultGuard.mark();

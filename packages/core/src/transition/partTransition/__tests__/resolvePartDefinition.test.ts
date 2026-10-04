@@ -31,7 +31,7 @@ afterEach(() => {
 });
 
 describe("resolvePartDefinition", () => {
-  it("resolves a registered part against the flight's clock", () => {
+  it("resolves a registered part against the transition's clock", () => {
     partTransitionMap.set(registered.name as PartTransitionName, registered);
 
     const resolved = resolvePartDefinition(registered.name, null);

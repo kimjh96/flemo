@@ -10,11 +10,11 @@ import createTransitionEngine from "@core/engine/createTransitionEngine";
 import type { TransitionEngineDeps } from "@core/engine/types";
 
 // A <Part> mounted OUTSIDE any screen — persistent chrome beside a <Slot>, a
-// portal — is driven by this flight's compiled keyframes (the part selector
+// portal — is driven by this transition's compiled keyframes (the part selector
 // keys on name + status + active, with no structural term) while nothing
 // pauses it: the compiled hold rule reaches a held element's DESCENDANTS, and
 // this part descends from neither a screen nor a shared bar. It ran through
-// the whole hold window with every screen parked, then led the flight by the
+// the whole hold window with every screen parked, then led the transition by the
 // hold's length — the defect the decorator once had ("the dim faded in ahead
 // of the held screens", 2026-08-13).
 //
@@ -76,8 +76,8 @@ describe("outer <Part> hold mirroring", () => {
     foreignPart = part("header", "router-2");
 
     const slot = document.createElement("div");
-    // Each screen gets its own wrapper; the two screens of one flight share no
-    // parent, so the wrapper is NOT a flight-wide container.
+    // Each screen gets its own wrapper; the two screens of one transition share no
+    // parent, so the wrapper is NOT a transition-wide container.
     const wrapper = document.createElement("div");
     const bar = document.createElement("div");
     bar.setAttribute("data-flemo-bar", "app");
@@ -110,7 +110,7 @@ describe("outer <Part> hold mirroring", () => {
     resolveSpy.mockRestore();
   });
 
-  // One engine per screen for the whole flight, as the binding does.
+  // One engine per screen for the whole transition, as the binding does.
   const drive = (animHoldReleased: boolean, isActive = true, status = "PUSHING") => {
     disposers.push(
       engine.driveScreenLifecycle({
@@ -136,7 +136,7 @@ describe("outer <Part> hold mirroring", () => {
   });
 
   // THE SAME QUESTION THE LAYER HOLDS ANSWERED. The stamp is written on
-  // PERSISTENT chrome by the screen that is flying, and on a pop the flying
+  // PERSISTENT chrome by the screen that is moving, and on a pop the moving
   // screen is the one that goes away. If the screen can be taken out while its
   // stamp is still on, the chrome stays paused with nobody left to release it.
   it("takes its stamp off persistent chrome when the screen goes away", () => {
@@ -171,11 +171,11 @@ describe("outer <Part> hold mirroring", () => {
     expect(outerPart.hasAttribute(HOLD)).toBe(false);
   });
 
-  it("sweeps a stamp whose part has already moved past this flight's status", () => {
+  it("sweeps a stamp whose part has already moved past this transition's status", () => {
     drive(false);
     // The part's own status attribute can advance in a different commit than
     // this drive; the release must still find it, or the pause outlives the
-    // flight on persistent chrome.
+    // transition on persistent chrome.
     outerPart.setAttribute("data-flemo-status", "COMPLETED");
     drive(true);
     expect(outerPart.hasAttribute(HOLD)).toBe(false);

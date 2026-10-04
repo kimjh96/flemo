@@ -14,11 +14,11 @@ import RouterIdContext from "../../RouterIdContext";
 
 // A <Part> mounted OUTSIDE any screen — the position <Part> documents as
 // supported ("a persistent header next to a <Slot>, a portal") — is driven by
-// this flight's compiled keyframes, because the part selector keys on name +
+// this transition's compiled keyframes, because the part selector keys on name +
 // status + active with no structural term. Nothing paused it: the compiled
 // hold rule reaches a held element's DESCENDANTS, and this part is a
 // descendant of no screen and no shared bar. It ran through the whole hold
-// window with every screen parked, then led the flight by the hold's length.
+// window with every screen parked, then led the transition by the hold's length.
 //
 // This is the REAL structure (Part outside, screens inside the Slot's box).
 // The engine-level unit test cannot stand in for it: an outer part synthesized
@@ -107,13 +107,13 @@ describe("outer <Part> hold mirroring (real Router/Part/Slot structure)", () => 
     const outer = getByTestId("outer-part");
     const screen = getByTestId("screen");
 
-    // MID-FLIGHT is the only discriminating moment: after the release both
+    // MID-TRANSITION is the only discriminating moment: after the release both
     // the fixed and the broken engine leave the part unpaused.
     expect(screen.getAttribute(HOLD)).not.toBe("false");
-    expect(outer.getAttribute(HOLD), "the outer part must ride the flight's hold").toBe("true");
+    expect(outer.getAttribute(HOLD), "the outer part must ride the transition's hold").toBe("true");
   });
 
-  it("releases the outer part when the flight's hold releases", async () => {
+  it("releases the outer part when the transition's hold releases", async () => {
     const { getByTestId } = render(<PersistentChrome stores={stores} />);
     const outer = getByTestId("outer-part");
     const screen = getByTestId("screen");
@@ -123,7 +123,7 @@ describe("outer <Part> hold mirroring (real Router/Part/Slot structure)", () => 
     await flushMicrotasks();
 
     expect(screen.getAttribute(HOLD)).toBe("false");
-    expect(outer.getAttribute(HOLD), "the pause must not outlive the flight").toBeNull();
+    expect(outer.getAttribute(HOLD), "the pause must not outlive the transition").toBeNull();
   });
 
   it("leaves a <Part> inside the screen alone — the screen's own hold covers it", async () => {
@@ -151,7 +151,7 @@ describe("outer <Part> hold mirroring (real Router/Part/Slot structure)", () => 
     expect(getByTestId("outer-part").getAttribute(HOLD)).toBe("true");
     expect(
       getByTestId("foreign-part").getAttribute(HOLD),
-      "another Router's chrome is not this flight's participant"
+      "another Router's chrome is not this transition's participant"
     ).toBeNull();
   });
 });

@@ -9,14 +9,14 @@ import createTransitionEngine, {
   resetDisplayProbeForTests
 } from "@core/engine/createTransitionEngine";
 import {
-  reportInFlightCadence,
+  reportInTransitionCadence,
   resetSteadySixtyForTests,
   steadySixtyVerified
 } from "@platform/steadySixtyCadence";
 
 import type { TransitionEngineDeps } from "@core/engine/types";
 
-// The engine's in-flight DISPLAY-INTERVAL PROBE and what it feeds.
+// The engine's running DISPLAY-INTERVAL PROBE and what it feeds.
 //
 // The probe is the only source of a cadence reading taken while a compositor
 // animation is running, and two live consumers depend on it: the steady-60
@@ -24,7 +24,7 @@ import type { TransitionEngineDeps } from "@core/engine/types";
 // compiled tier's landing governor
 // (displayCadence.learnedFrameIntervalMs). It used to be armed from inside the
 // driver-routing gate; the driver is gone and the arming had to survive it, so
-// these suites pin that it still runs on exactly a Blink flight.
+// these suites pin that it still runs on exactly a Blink transition.
 //
 // The tier itself is no longer a variable: Blink runs the compiled animation
 // in every cadence state, verified or not.
@@ -102,32 +102,32 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
     expect(compiledAnimationSuppressed()).toBe(false);
   });
 
-  it("stays compiled after two in-flight medians verify steady-60 (the settled 2026-08-18 verdict: on the target hardware every per-frame writer — rAF player, snap masks, pre-quantized WAAPI — was live-judged worse than the compiled compositor; the verdict gates desktop-profile DEFAULTS, never the driver)", () => {
-    reportInFlightCadence(16.7);
-    reportInFlightCadence(16.7);
+  it("stays compiled after two running medians verify steady-60 (the settled 2026-08-18 verdict: on the target hardware every per-frame writer — rAF player, snap masks, pre-quantized WAAPI — was live-judged worse than the compiled compositor; the verdict gates desktop-profile DEFAULTS, never the driver)", () => {
+    reportInTransitionCadence(16.7);
+    reportInTransitionCadence(16.7);
     drive();
     expect(compiledAnimationSuppressed()).toBe(false);
   });
 
   it("stays compiled on a verified-60 display at 1x density", () => {
-    reportInFlightCadence(16.7);
-    reportInFlightCadence(16.7);
+    reportInTransitionCadence(16.7);
+    reportInTransitionCadence(16.7);
     Object.defineProperty(window, "devicePixelRatio", { value: 1, configurable: true });
     drive();
     expect(compiledAnimationSuppressed()).toBe(false);
   });
 
   it("a single high-refresh median latches the session's verdict", () => {
-    reportInFlightCadence(8.3);
-    reportInFlightCadence(16.7);
-    reportInFlightCadence(16.7);
+    reportInTransitionCadence(8.3);
+    reportInTransitionCadence(16.7);
+    reportInTransitionCadence(16.7);
     drive();
     expect(compiledAnimationSuppressed()).toBe(false);
   });
 
   // End-to-end through the REAL display-interval probe: each declined desktop
-  // flight arms it (2 warm-up ticks + 8 gaps off the rAF clock), its median
-  // feeds the verdict, and the third flight graduates.
+  // transition arms it (2 warm-up ticks + 8 gaps off the rAF clock), its median
+  // feeds the verdict, and the third transition graduates.
   //
   // The rAF clock is a hand-fed 60Hz one. This used to ride jsdom's real rAF
   // and keep an "oracle" of the gaps it saw, asserting only when the oracle
@@ -136,7 +136,7 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
   // three runs in eight while the code under it was unchanged. What is under
   // test is the arming, the warm-up, the median and the verdict, and none of
   // that needs a real clock to be exercised.
-  it("graduates through the real display probe after two compiled flights", () => {
+  it("graduates through the real display probe after two compiled transitions", () => {
     const queue: FrameRequestCallback[] = [];
     vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
       queue.push(frameCallback);
@@ -152,19 +152,19 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
       }
     };
 
-    drive(); // flight 1: declined (unverified), probe armed
+    drive(); // transition 1: declined (unverified), probe armed
     frames(14);
     expect(steadySixtyVerified()).toBe(false);
-    drive(); // flight 2: declined, probe armed again
+    drive(); // transition 2: declined, probe armed again
     frames(14);
-    drive(); // flight 3: decided by what the two probes measured
+    drive(); // transition 3: decided by what the two probes measured
 
     expect(steadySixtyVerified()).toBe(true);
     // Whatever the cadence, the compiled animation is what plays.
     expect(compiledAnimationSuppressed()).toBe(false);
   });
 
-  it("a flight that completes mid-probe discards the window — idle gaps must not verify", () => {
+  it("a transition that completes mid-probe discards the window — idle gaps must not verify", () => {
     // Deterministic rAF: a manual queue with hand-fed timestamps.
     const queue: FrameRequestCallback[] = [];
     vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
@@ -191,16 +191,16 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
       disposers.push(dispose);
     };
 
-    // Flight 1: the probe runs its full window at a steady 16.7ms — one
+    // Transition 1: the probe runs its full window at a steady 16.7ms — one
     // verified median banked.
     drive();
     for (let i = 0; i < 12; i++) tickAll(16.7);
 
-    // Flight 2: the probe arms, but the flight lands before the window fills.
+    // Transition 2: the probe arms, but the transition lands before the window fills.
     drive();
     for (let i = 0; i < 4; i++) tickAll(16.7);
     driveCompleted();
-    // Post-flight idle gaps ALSO read ~16.7ms on an adaptive panel — the
+    // Post-transition idle gaps ALSO read ~16.7ms on an adaptive panel — the
     // exact trap: they must not complete the discarded window into the
     // second verifying median.
     for (let i = 0; i < 12; i++) tickAll(16.7);
@@ -210,14 +210,14 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
   });
 
   it("touch Blink is compiled too — Blink is one rule", () => {
-    reportInFlightCadence(16.7);
-    reportInFlightCadence(16.7);
+    reportInTransitionCadence(16.7);
+    reportInTransitionCadence(16.7);
     Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
     drive();
     // Touch Blink used to default to the player and reach the compiled tier
-    // only by demotion — two stalled flights, persisted per origin, re-probed
+    // only by demotion — two stalled transitions, persisted per origin, re-probed
     // every session. Blink now routes compiled everywhere, so a weak phone is
-    // deterministic from its first flight instead of depending on what its
+    // deterministic from its first transition instead of depending on what its
     // ledger happens to hold.
     expect(compiledAnimationSuppressed()).toBe(false);
   });
@@ -227,7 +227,7 @@ describe("createTransitionEngine steady-60 desktop routing", () => {
   // is gone and the condition is now written out, so it needs its own guard —
   // silently losing it would strand the landing governor on its 60Hz seed and
   // the steady-60 verdict on nothing at all, with no failing test anywhere.
-  it("arms only for a Blink flight, and not for one chained behind another task", () => {
+  it("arms only for a Blink transition, and not for one chained behind another task", () => {
     const queue: FrameRequestCallback[] = [];
     vi.stubGlobal("requestAnimationFrame", (frameCallback: FrameRequestCallback) => {
       queue.push(frameCallback);

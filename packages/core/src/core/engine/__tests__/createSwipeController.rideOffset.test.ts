@@ -31,7 +31,7 @@ function buildDom() {
   scope.setAttribute("data-flemo-screen", "");
   const topBar = document.createElement("div");
   topBar.setAttribute("data-flemo-bar", "app");
-  // A <Layer> host rides the same flight down the same code path, and is the
+  // A <Layer> host rides the same transition down the same code path, and is the
   // control for the exclusion above: its box is the screen's, so it must keep
   // the authored percentage.
   const layerHost = document.createElement("div");

@@ -2,15 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { deriveVerdict } from "../verdict";
 
-import type { FlightRecord, Precondition } from "../types";
+import type { TransitionRecord, Precondition } from "../types";
 
 // THE VERDICT LEADS THE REPORT, so it has to refuse to summarise data from a
 // session that was not allowed to produce evidence — that refusal is the whole
 // reason it exists.
 
-const flight = (over: Partial<FlightRecord> = {}): FlightRecord =>
+const transition = (over: Partial<TransitionRecord> = {}): TransitionRecord =>
   ({
-    id: "flight-1",
+    id: "transition-1",
     kind: "PUSH",
     t0: { ms: 0, iso: "" },
     t1: { ms: 400, iso: "" },
@@ -37,15 +37,15 @@ const flight = (over: Partial<FlightRecord> = {}): FlightRecord =>
     },
     images: {
       loadingAtStart: 0,
-      addedDuringFlight: 0,
-      completedDuringFlight: 0,
-      heldDuringFlight: 0,
+      addedDuringTransition: 0,
+      completedDuringTransition: 0,
+      heldDuringTransition: 0,
       completedUnheld: 0
     },
     morphs: {
       registered: 0,
       pairable: [],
-      flew: [],
+      moved: [],
       skipped: [],
       camera: false,
       ghosts: 0,
@@ -60,7 +60,7 @@ const flight = (over: Partial<FlightRecord> = {}): FlightRecord =>
     input: { trusted: 1, synthetic: 0, pointerTypes: ["touch"] },
     longTasks: [],
     holdLongTasks: [],
-    landing: {
+    endAudit: {
       residualInlineTransforms: [],
       offViewportAtRest: false,
       stuckStatuses: [],
@@ -68,7 +68,7 @@ const flight = (over: Partial<FlightRecord> = {}): FlightRecord =>
     },
     anomalies: [],
     ...over
-  }) as FlightRecord;
+  }) as TransitionRecord;
 
 const ok: Precondition[] = [{ id: "display-cadence", status: "ok", detail: "60Hz" }];
 const observation = { longTasks: true, elementAnimations: true, animationEvents: true };
@@ -81,7 +81,7 @@ describe("deriveVerdict", () => {
         { id: "build-mode", status: "violated", detail: "dev" },
         { id: "machine-idle", status: "violated", detail: "busy" }
       ],
-      flights: [flight()],
+      transitions: [transition()],
       observation
     });
     expect(lines[0]).toContain("NOT EVIDENCE");
@@ -89,14 +89,14 @@ describe("deriveVerdict", () => {
   });
 
   it("says plainly when nothing was recorded, and why that can happen", () => {
-    const lines = deriveVerdict({ preconditions: ok, flights: [], observation });
+    const lines = deriveVerdict({ preconditions: ok, transitions: [], observation });
     expect(lines[lines.length - 1]).toContain("attached after the one you meant to measure");
   });
 
   it("distrusts its own animation channel when it never fired", () => {
     const lines = deriveVerdict({
       preconditions: ok,
-      flights: [flight()],
+      transitions: [transition()],
       observation: { ...observation, animationEvents: false }
     });
     expect(lines.some((line) => line.includes("unmeasured rather than as clean"))).toBe(true);
@@ -105,19 +105,19 @@ describe("deriveVerdict", () => {
   it("summarises the session with the median and the worst gap", () => {
     const lines = deriveVerdict({
       preconditions: ok,
-      flights: [flight(), flight({ id: "flight-2", durationMs: 600 })],
+      transitions: [transition(), transition({ id: "transition-2", durationMs: 600 })],
       observation
     });
-    expect(lines[0]).toContain("2 flight(s) recorded");
+    expect(lines[0]).toContain("2 transition(s) recorded");
     expect(lines[0]).toContain("Median duration 600ms");
   });
 
-  it("separates a flight that stopped moving from one that dropped frames", () => {
+  it("separates a transition that stopped moving from one that dropped frames", () => {
     const lines = deriveVerdict({
       preconditions: ok,
-      flights: [
-        flight({
-          motion: { ...flight().motion, longestStallMs: 250, stalledFrames: 15 }
+      transitions: [
+        transition({
+          motion: { ...transition().motion, longestStallMs: 250, stalledFrames: 15 }
         })
       ],
       observation
@@ -126,17 +126,17 @@ describe("deriveVerdict", () => {
     expect(lines.some((line) => line.includes("not at the frame budget"))).toBe(true);
   });
 
-  it("names the shared elements that never flew", () => {
+  it("names the shared elements that never moved", () => {
     const lines = deriveVerdict({
       preconditions: ok,
-      flights: [
-        flight({
-          morphs: { ...flight().morphs, pairable: ["hero"], skipped: ["hero"] }
+      transitions: [
+        transition({
+          morphs: { ...transition().morphs, pairable: ["hero"], skipped: ["hero"] }
         })
       ],
       observation
     });
-    const line = lines.find((entry) => entry.includes("did NOT fly"));
+    const line = lines.find((entry) => entry.includes("did NOT move"));
     expect(line).toContain("hero");
     expect(line).toContain("silent by nature");
   });
@@ -144,17 +144,17 @@ describe("deriveVerdict", () => {
   it("puts a duplicated pairing key on the consuming app", () => {
     const lines = deriveVerdict({
       preconditions: ok,
-      flights: [flight({ morphs: { ...flight().morphs, duplicatedKeys: ["card"] } })],
+      transitions: [transition({ morphs: { ...transition().morphs, duplicatedKeys: ["card"] } })],
       observation
     });
     expect(lines.some((line) => line.includes("not in the library"))).toBe(true);
   });
 
-  it("counts the tripwire hits and points at the flights that carry them", () => {
+  it("counts the tripwire hits and points at the transitions that carry them", () => {
     const lines = deriveVerdict({
       preconditions: ok,
-      flights: [
-        flight({
+      transitions: [
+        transition({
           tripwires: [{ kind: "animation-cancel", atMs: 12, detail: "x" }]
         })
       ],
@@ -164,7 +164,7 @@ describe("deriveVerdict", () => {
   });
 
   it("declares a clean session clean, and says what is left", () => {
-    const lines = deriveVerdict({ preconditions: ok, flights: [flight()], observation });
+    const lines = deriveVerdict({ preconditions: ok, transitions: [transition()], observation });
     expect(lines[lines.length - 1]).toContain("this session is clean");
     expect(lines[lines.length - 1]).toContain("blindSpots");
   });
@@ -172,7 +172,7 @@ describe("deriveVerdict", () => {
   it("never calls a session clean when a precondition failed", () => {
     const lines = deriveVerdict({
       preconditions: [{ id: "build-mode", status: "violated", detail: "dev" }],
-      flights: [flight()],
+      transitions: [transition()],
       observation
     });
     expect(lines.some((line) => line.includes("this session is clean"))).toBe(false);

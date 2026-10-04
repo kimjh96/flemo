@@ -101,7 +101,7 @@ describe("createNavigationController (headless, no React)", () => {
     expect(stores.history.getState().histories.at(-1)?.transitionName).toBe("material");
   });
 
-  it("a navigation is ignored while a transition is mid-flight", async () => {
+  it("a navigation is ignored while a transition is mid-transition", async () => {
     const { stores, controller } = setup();
     stores.navigate.getState().setStatus("PUSHING");
     await controller.push("/a");
@@ -328,11 +328,11 @@ describe("createNavigationController distance options (skip / until / collapse)"
     expect(stores.history.getState().histories).toHaveLength(1);
   });
 
-  it("replace mid-flight is IGNORED — the hard guard, identical to push", async () => {
+  it("replace mid-transition is IGNORED — the hard guard, identical to push", async () => {
     const { stores, controller } = setup();
     await controller.push("/x");
     // From here the test owns gate resolution: the first replace must be
-    // verifiably IN FLIGHT (gate parked) when the second one arrives.
+    // verifiably RUNNING (gate parked) when the second one arrives.
     await stopSweeper?.();
     stopSweeper = null;
 
@@ -341,7 +341,7 @@ describe("createNavigationController distance options (skip / until / collapse)"
       expect(stores.navigate.getState().status).toBe("REPLACING");
     });
 
-    // Input landing while a transition is in flight is dropped (user policy
+    // Input landing while a transition is running is dropped (user policy
     // 2026-08-13, superseding both the #220 supersede — device-read as
     // "연타 시 전부 스킵" — and the brief queue-everything policy): the
     // first tap wins, and a double-tap can never run the same switch twice.
@@ -358,7 +358,7 @@ describe("createNavigationController distance options (skip / until / collapse)"
     expect(stores.history.getState().histories).toHaveLength(2);
   });
 
-  it("pop mid-flight is IGNORED — the hard guard, identical to push and replace", async () => {
+  it("pop mid-transition is IGNORED — the hard guard, identical to push and replace", async () => {
     const { stores, controller } = setup();
     await controller.push("/x");
     await controller.push("/y");
@@ -372,7 +372,7 @@ describe("createNavigationController distance options (skip / until / collapse)"
 
     // Pop never carried the guard push and replace have, and the click gate
     // only covers PUSHING and REPLACING screens — so a back tapped during a
-    // pop QUEUED behind the running flight and ran against a half-cleaned
+    // pop QUEUED behind the running transition and ran against a half-cleaned
     // stack the moment it resolved: no pair, no camera, a zoomed pop cutting
     // to rest. The first tap wins here too.
     const second = controller.pop();

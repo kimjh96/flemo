@@ -2,7 +2,7 @@ import { collectAnimatedProperties } from "@transition/compileTransitionStyles";
 
 import type { Transition } from "@transition/typing";
 
-import { flightWindowActive, onFlightWindowIdle } from "@core/engine/flightWindow";
+import { transitionWindowActive, onTransitionWindowIdle } from "@core/engine/transitionWindow";
 
 // Deferred compositor-layer demotion for the transition's rule-matched
 // participants: the screen scope, its decorator, riding shared bars, and
@@ -24,7 +24,7 @@ import { flightWindowActive, onFlightWindowIdle } from "@core/engine/flightWindo
 // the same promote-on-status rules and demote in the same flip commit.
 //
 // So the engine pins each rule's promotion as an INLINE `will-change` for the
-// length of the flight: inline styles survive the COMPLETED flip's rule
+// length of the transition: inline styles survive the COMPLETED flip's rule
 // un-match, so no demotion happens in that commit at all. The layer is
 // released on its own clock, LAYER_SETTLE_MS after COMPLETED — past the
 // convergence commits, with the screen fully at rest, where a one-frame
@@ -45,7 +45,7 @@ import { flightWindowActive, onFlightWindowIdle } from "@core/engine/flightWindo
 //
 // Trade-off, accepted knowingly: `will-change` keeps the element a
 // containing block for fixed/absolute descendants while it is stamped. The
-// compiled rules already impose that for the whole flight; this extends it
+// compiled rules already impose that for the whole transition; this extends it
 // by LAYER_SETTLE_MS past rest. A consumer opening a `position: fixed`
 // overlay within ~a third of a second of landing would see it anchor to the
 // screen box — which is the screen-sized viewport in every flemo layout — so
@@ -53,7 +53,7 @@ import { flightWindowActive, onFlightWindowIdle } from "@core/engine/flightWindo
 //
 // The stamp mirrors the compiled rule's property list (the union across
 // variants — a superset promotion is harmless; a missing one would demote a
-// mid-flight layer), via the same collectAnimatedProperties the compiler and
+// mid-transition layer), via the same collectAnimatedProperties the compiler and
 // the swipe controller's bar promotion already use.
 
 // Past the measured convergence storm (status flips, freeze, deferred
@@ -64,11 +64,11 @@ export const LAYER_SETTLE_MS = 300;
 
 // OPT-IN diagnostic: keep SCREEN layers resident at rest instead of demoting
 // them LAYER_SETTLE_MS past the flip. Measurement motive (2026-08, Mac
-// Safari glass recordings): almost every flight shows exactly ONE skipped
-// present in its first ~50-150ms, position-locked to the moment the flight's
+// Safari glass recordings): almost every transition shows exactly ONE skipped
+// present in its first ~50-150ms, position-locked to the moment the transition's
 // compositing layers are (re)created — WebKit pays a full-screen first
 // raster into each fresh backing store. Demoting at rest means every next
-// flight pays that creation raster again. Keeping the screen layers RESIDENT
+// transition pays that creation raster again. Keeping the screen layers RESIDENT
 // instead was tried behind a session key and reverted: a resident promotion is
 // a permanent stacking context on the consumer's screen, which silently
 // outranks any overlay rendered inside it (the tab-bar-over-bottom-sheet
@@ -121,7 +121,7 @@ const restoreLayer = (scope: HTMLElement, stamp: LayerStamp) => {
 
 // Compose the applied `contain` from the element's ORIGINAL value and the
 // owners' layout requirement. The original's own semantics (a consumer's
-// `contain: paint` clipping child overflow) must SURVIVE the flight, not be
+// `contain: paint` clipping child overflow) must SURVIVE the transition, not be
 // replaced for its span — so the original tokens stay and `layout` is added
 // only when missing (`strict`/`content` already imply it).
 const composeContain = (original: string, needsLayout: boolean): string => {
@@ -135,7 +135,7 @@ const composeContain = (original: string, needsLayout: boolean): string => {
 // Apply the union of every current owner's requirements over the element's
 // captured original values. The original inline `will-change` tokens ride
 // along too (a consumer's `will-change: filter` keeps its promotion during a
-// transform flight instead of losing it for the span).
+// transform transition instead of losing it for the span).
 const applyUnion = (scope: HTMLElement, stamp: LayerStamp) => {
   const properties = new Set<string>();
   let containment = false;
@@ -155,14 +155,14 @@ const applyUnion = (scope: HTMLElement, stamp: LayerStamp) => {
   else scope.style.removeProperty("contain");
 };
 
-// Pin the compiled rule's promotion inline for the flight. Idempotent per
-// owner — the driver effect re-runs mid-flight (the anim-hold release) and
+// Pin the compiled rule's promotion inline for the transition. Idempotent per
+// owner — the driver effect re-runs mid-transition (the anim-hold release) and
 // re-stamps the same requirement. A definition that animates nothing leaves
 // no stamp (the compiled rule has no `will-change` either — stamping would
 // ADD a layer the CSS path never made), and if THIS owner had previously
 // stamped (a rehold into an animation-less variant) its requirement is
 // dropped and the union recomputed — so its stale properties/containment
-// never bleed into the animation-less flight. `containment` mirrors the
+// never bleed into the animation-less transition. `containment` mirrors the
 // rule's `contain: layout` (PUSHING/REPLACING only).
 export const holdScopeLayer = (
   scope: HTMLElement,
@@ -248,13 +248,13 @@ export const releaseScopeLayerAfterSettle = (scope: HTMLElement, owner: symbol =
   scheduleDemotion(scope, stamp);
 };
 
-// The demotion clock, gated on the flight window. A quick pop chained onto a
+// The demotion clock, gated on the transition window. A quick pop chained onto a
 // push's landing overlaps the push's LAYER_SETTLE window — and the elements
 // the pop does NOT re-hold (the push's dim decorator, its parts, a deep
-// screen) would demote MID-FLIGHT: device-measured (iPhone, 2026-08) as the
+// screen) would demote MID-TRANSITION: device-measured (iPhone, 2026-08) as the
 // intermittent ~30ms rAF gap + stutter step on the pop-returning parallax,
 // position-locked to landing+300ms. So when the timer fires into an active
-// flight, the demotion re-queues for the flight's rest and runs the settle
+// transition, the demotion re-queues for the transition's rest and runs the settle
 // clock again from there — the repaint only ever lands where it was designed
 // to: with the glass at rest. Re-holds still cancel through `stamp.pending`;
 // the idle callback re-checks the stamp's state so a voided window (re-hold,
@@ -262,8 +262,8 @@ export const releaseScopeLayerAfterSettle = (scope: HTMLElement, owner: symbol =
 const scheduleDemotion = (scope: HTMLElement, stamp: LayerStamp) => {
   stamp.pending = setTimeout(() => {
     stamp.pending = null;
-    if (flightWindowActive()) {
-      onFlightWindowIdle(() => {
+    if (transitionWindowActive()) {
+      onTransitionWindowIdle(() => {
         if (
           stamps.get(scope) === stamp &&
           stamp.owners.size === 0 &&

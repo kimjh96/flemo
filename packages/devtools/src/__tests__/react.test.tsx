@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { FlemoDevtools } from "../react";
 import { FlemoDevtools as InertFlemoDevtools } from "../reactNoop";
 
-import type { FlemoReport, FlightRecorderHandle } from "../types";
+import type { FlemoReport, TransitionRecorderHandle } from "../types";
 
 // THE SHAPE A CONSUMER WRITES.
 //
@@ -19,10 +19,10 @@ const hosts = () => document.querySelectorAll("[data-flemo-devtools-panel]");
 const inRoot = (selector: string) =>
   [...hosts()].some((host) => host.shadowRoot?.querySelector(selector) !== null);
 
-const stub = (): FlightRecorderHandle => ({
+const stub = (): TransitionRecorderHandle => ({
   report: () =>
     ({
-      flights: [],
+      transitions: [],
       preconditions: [],
       environment: { rafCadence: { medianGapMs: 16.7, sampleCount: 20 } }
     }) as unknown as FlemoReport,

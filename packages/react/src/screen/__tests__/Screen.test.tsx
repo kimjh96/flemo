@@ -117,7 +117,7 @@ describe("Screen", () => {
     expect(outer.style.visibility).toBe("");
   });
 
-  // The "settled" clause is short-circuited away while a transition is mid-flight
+  // The "settled" clause is short-circuited away while a transition is running
   // (status !== COMPLETED), so the isPrev clauses decide whether a prev screen
   // stays frozen during a replace/pop. The prev screen sits one entry below the
   // top: zIndex 0, history index 2.
@@ -516,7 +516,7 @@ describe("Screen", () => {
     // element on every consumer render, and keying on it re-ran a layout
     // effect that disconnects the observer, reads offsetHeight (a forced
     // layout) and re-observes, all in the pre-paint window, once per consumer
-    // render. A screen that re-renders during a flight paid that on the frames
+    // render. A screen that re-renders during a transition paid that on the frames
     // the motion is watched.
     stores.history.setState({ index: 0, histories: [historyEntry("top")] });
     const OriginalResizeObserver = globalThis.ResizeObserver;
@@ -720,7 +720,7 @@ describe("Screen", () => {
     act(() => {
       stores.screen.setState({ screenSurfaces: { below: { opaqueBackground: false } } });
     });
-    // The surface re-reading translucent mid-flight must not un-mark it: the
+    // The surface re-reading translucent mid-transition must not un-mark it: the
     // screen is already parked and the head is what carries it home.
     expect(scope.getAttribute("data-flemo-park-head")).toBe("true");
   });
@@ -885,7 +885,7 @@ describe("Screen freeze deferral", () => {
         vi.advanceTimersByTime(400);
       });
       // A navigation starts before the freeze lands: the pending commit must
-      // not punch into the new flight.
+      // not punch into the new transition.
       act(() => {
         stores.navigate.setState({ status: "PUSHING", transitionTaskId: "t2" });
       });
@@ -893,7 +893,7 @@ describe("Screen freeze deferral", () => {
         vi.advanceTimersByTime(1000);
       });
       expect(frozenWrapperOf(getByTestId)).toBeNull();
-      // It lands one quiet window after the new flight settles.
+      // It lands one quiet window after the new transition settles.
       act(() => {
         stores.navigate.setState({ status: "COMPLETED", transitionTaskId: null });
       });

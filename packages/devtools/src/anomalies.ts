@@ -1,8 +1,8 @@
 import type {
-  FlightDriver,
+  TransitionDriver,
   FrameSampleStats,
   ImageActivity,
-  LandingAudit,
+  EndAudit,
   LongTaskSpan,
   MorphActivity,
   MotionProgress,
@@ -15,24 +15,24 @@ import type {
 
 /** A gap at/over this is at least one missed 60Hz frame (mirrors core). */
 export const LONG_GAP_MS = 30;
-/** A transitional status older than this is a stuck flight. */
+/** A transitional status older than this is a stuck transition. */
 export const STUCK_STATUS_MS = 10_000;
 /** Long tasks intersecting [t0 - lead, t0 + tail] threaten the opening. */
 export const OPENING_WINDOW_LEAD_MS = 50;
 export const OPENING_WINDOW_TAIL_MS = 120;
-/** Mid-flight long tasks at/over this get their own anomaly line. */
-export const MID_FLIGHT_TASK_MS = 100;
+/** Mid-transition long tasks at/over this get their own anomaly line. */
+export const MID_TRANSITION_TASK_MS = 100;
 /**
  * A stall this long is user-visible. Two dropped 60Hz frames is the smallest
  * run the eye reliably catches on a tracked slide; the release race that
- * motivated this rule froze flights for ~250ms.
+ * motivated this rule froze transitions for ~250ms.
  */
 export const STALL_MS = 48;
 
-export interface FlightAnomalyInput {
+export interface TransitionAnomalyInput {
   t0Ms: number;
   t1Ms: number;
-  driver: FlightDriver;
+  driver: TransitionDriver;
   frameSamples: FrameSampleStats;
   /** Long tasks intersecting the RELEASED (visible-motion) phase. */
   longTasks: LongTaskSpan[];
@@ -40,16 +40,16 @@ export interface FlightAnomalyInput {
   holdLongTasks: LongTaskSpan[];
   /** Hold release offset from t0 — the start of visible motion (null: no hold). */
   releasedAtMs: number | null;
-  landing: LandingAudit;
+  endAudit: EndAudit;
   motion: MotionProgress;
   images: ImageActivity;
   morphs: MorphActivity;
   tripwires: TripwireHit[];
 }
 
-export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
+export const deriveTransitionAnomalies = (input: TransitionAnomalyInput): string[] => {
   const anomalies: string[] = [];
-  const { t0Ms, driver, frameSamples, longTasks, holdLongTasks, landing } = input;
+  const { t0Ms, driver, frameSamples, longTasks, holdLongTasks, endAudit } = input;
   // The visible motion starts at the hold release, not the status flip —
   // the engine absorbs heavy commits INTO the hold on purpose, so both the
   // opening window and the gap rules key on the released phase.
@@ -58,7 +58,7 @@ export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
   if (frameSamples.released.over30Count > 0) {
     const suffix =
       driver === "compiled"
-        ? " (compiled/compositor flights can still present cleanly through main-thread gaps)"
+        ? " (compiled/compositor transitions can still present cleanly through main-thread gaps)"
         : "";
     anomalies.push(
       `main-thread rAF gap up to ${frameSamples.released.maxGapMs}ms ` +
@@ -75,92 +75,95 @@ export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
         `long task ${Math.round(task.durationMs)}ms overlapped the visible-motion start ` +
           "(opening-swallow risk: the first presented frames of the transition may have been lost)"
       );
-    } else if (task.durationMs >= MID_FLIGHT_TASK_MS) {
-      anomalies.push(`long task ${Math.round(task.durationMs)}ms mid-flight`);
+    } else if (task.durationMs >= MID_TRANSITION_TASK_MS) {
+      anomalies.push(`long task ${Math.round(task.durationMs)}ms mid-transition`);
     }
   }
 
   for (const task of holdLongTasks) {
-    if (task.durationMs >= MID_FLIGHT_TASK_MS) {
+    if (task.durationMs >= MID_TRANSITION_TASK_MS) {
       // Informational, not a defect: absorbing exactly these commits is what
       // the hold exists for — worth showing so an agent sees it working.
       anomalies.push(
         `long task ${Math.round(task.durationMs)}ms absorbed by the hold ` +
-          "(screen posed, not yet moving — the hold doing its job, not user-visible jank)"
+          "(the screen was held at its starting style, not yet moving: the hold doing its job, not user-visible jank)"
       );
     }
   }
 
   const { motion, images } = input;
 
-  // The pose/clock rules. These exist because frame timing can be perfect
-  // while nothing moves: the 2026-08-18 release race paused running flights
+  // The style/timing rules. These exist because frame timing can be perfect
+  // while nothing moves: the 2026-08-18 release race paused running transitions
   // for ~250ms with rAF ticking at a clean 16.7ms throughout.
   if (motion.holdReassertedAtMs !== null) {
     anomalies.push(
-      `hold re-asserted ${motion.holdReassertedAtMs}ms into the flight, after it had already ` +
+      `hold re-asserted ${motion.holdReassertedAtMs}ms into the transition, after it had already ` +
         "released (an interleaved commit wrote the stale paused hold attribute over a running " +
-        "flight — the flemo 2026-08-18 release-race signature; the motion pauses while every " +
+        "transition — the flemo 2026-08-18 release-race signature; the motion pauses while every " +
         "timing metric stays clean)"
     );
   }
   if (motion.pausedAfterRelease) {
     anomalies.push(
-      "compiled animation reported playState=paused after its release (the flight was posed " +
-        "and then stopped mid-motion, not merely starved of frames)"
+      "compiled animation reported playState=paused after its release (the transition was " +
+        "actually stopped mid-motion, not merely starved of frames)"
     );
   }
   if (motion.longestStallMs >= STALL_MS) {
     anomalies.push(
-      `motion stalled ${motion.longestStallMs}ms mid-flight ` +
+      `motion stalled ${motion.longestStallMs}ms mid-transition ` +
         `(${motion.stalledFrames}/${motion.sampledFrames} released frames advanced neither the ` +
-        "animation clock nor the pose — freeze, or freeze-then-leap if the flight still landed on time)"
+        "animation's current time nor the rendered style: a freeze, or a freeze then a jump if the " +
+        "transition still ended on time)"
     );
   }
   if (motion.sampledFrames === 0 && input.releasedAtMs !== null) {
     anomalies.push(
-      "no released frames were sampled (the flight ended at or before its own hold release — " +
+      "no released frames were sampled (the transition ended at or before its own hold release — " +
         "the visible motion, if any, was never observed)"
     );
   }
 
-  // The image rule. Glass-measured 2026-08-18: one mid-flight decode cost
+  // The image rule. Glass-measured 2026-08-18: one mid-transition decode cost
   // exactly one skipped present, and the engine answers it by holding
-  // still-loading images for the flight span.
+  // still-loading images for the transition span.
   if (images.completedUnheld > 0) {
     anomalies.push(
-      `${images.completedUnheld} image(s) finished loading mid-flight without a hold ` +
-        `(${images.completedDuringFlight} completed, ${images.heldDuringFlight} held; ` +
-        `${images.loadingAtStart} were loading at t0, ${images.addedDuringFlight} arrived ` +
-        "mid-flight) — each decode rasters on the moving layer and costs a present; this is " +
+      `${images.completedUnheld} image(s) finished loading mid-transition without a hold ` +
+        `(${images.completedDuringTransition} completed, ${images.heldDuringTransition} held; ` +
+        `${images.loadingAtStart} were loading at t0, ${images.addedDuringTransition} arrived ` +
+        "mid-transition) — each decode rasters on the moving layer and costs a present; this is " +
         "the warm-side image-hold regression"
     );
   }
 
-  if (landing.orphanedHolds.length > 0) {
+  if (endAudit.orphanedHolds.length > 0) {
     anomalies.push(
-      `hold markers left on the page at rest: ${landing.orphanedHolds.join("; ")} ` +
+      `hold markers left on the page at rest: ${endAudit.orphanedHolds.join("; ")} ` +
         "(whatever they hide has no owner left to reveal it — the permanently-blank-avatar class)"
     );
   }
 
-  if (landing.residualInlineTransforms.length > 0) {
+  if (endAudit.residualInlineTransforms.length > 0) {
     anomalies.push(
-      `residual inline style after COMPLETED: ${landing.residualInlineTransforms.join("; ")} ` +
-        "(landing cleanup failure — the landed scope belongs to the compiled rest rules)"
+      `residual inline style after COMPLETED: ${endAudit.residualInlineTransforms.join("; ")} ` +
+        "(cleanup failure at the end of the transition: once it ends, the screen's style belongs to " +
+        "the compiled rest rules)"
     );
   }
 
-  if (landing.offViewportAtRest) {
+  if (endAudit.offViewportAtRest) {
     anomalies.push(
-      "screen resting at from-pose while COMPLETED+active (blank-viewport signature — the flemo " +
-        "PR #259 class: a residual pose left the landed screen parked off-viewport)"
+      "screen resting at its starting style while COMPLETED+active (blank-viewport signature, the " +
+        "flemo PR #259 class: a leftover inline style kept the screen off the viewport after the " +
+        "transition ended)"
     );
   }
 
-  if (landing.stuckStatuses.length > 0) {
+  if (endAudit.stuckStatuses.length > 0) {
     anomalies.push(
-      `transitional status stuck >${STUCK_STATUS_MS / 1000}s: ${landing.stuckStatuses.join(", ")} ` +
+      `transitional status stuck >${STUCK_STATUS_MS / 1000}s: ${endAudit.stuckStatuses.join(", ")} ` +
         "(navigation queue lock or missed animationend — later navigations will be swallowed)"
     );
   }
@@ -176,19 +179,19 @@ export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
 
   if (morphs.skipped.length > 0) {
     anomalies.push(
-      `shared element(s) did not fly: ${morphs.skipped.join(", ")} ` +
-        `(${morphs.pairable.length} pairable key(s), ${morphs.flew.length} flew) — both ends were ` +
-        "registered on two different screens and neither was stamped with a flight role, so the " +
+      `shared element(s) did not move: ${morphs.skipped.join(", ")} ` +
+        `(${morphs.pairable.length} pairable key(s), ${morphs.moved.length} moved) — both ends were ` +
+        "registered on two different screens and neither was stamped with a transition role, so the " +
         "pair was never made"
     );
   }
 
   if (morphs.departureFrames > 2) {
     anomalies.push(
-      `a morph's departing end kept painting for ${morphs.departureFrames} frames ` +
-        `(up to opacity ${morphs.departureMaxOpacity.toFixed(2)}) — its \`exit\` pose is the cut ` +
-        "the runtime pins the departure at, and every preset ends that pose at opacity 0; a push " +
-        "hides this and a pop uncovers it as the flight lands"
+      `a morph's old-screen end stayed visible for ${morphs.departureFrames} frames ` +
+        `(up to opacity ${morphs.departureMaxOpacity.toFixed(2)}): its \`exit\` variant is the ` +
+        "style the runtime holds that end at, and every preset ends that variant at opacity 0; a " +
+        "push hides this and a pop uncovers it as the transition ends"
     );
   }
 
@@ -196,7 +199,7 @@ export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
     anomalies.push(
       `the part "${morphs.partGapName ?? "?"}" sat up to ${Math.round(morphs.partGapPx)}px ` +
         `narrower than the box carrying it, for ${morphs.partGapFrames} frames — a part is ` +
-        "pinned at the width it had when the flight staged it, which on a pop is the width it " +
+        "pinned at the width it had when the transition staged it, which on a pop is the width it " +
         "rests at on the side being returned to, so whatever is behind shows through the gap"
     );
   }
@@ -204,15 +207,15 @@ export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
   if (morphs.duplicatedKeys.length > 0) {
     anomalies.push(
       `pairing key(s) used twice inside one screen: ${morphs.duplicatedKeys.join(", ")} ` +
-        "(two ends under one screen are not a pair, so one of them can never fly — this is in " +
+        "(two ends under one screen are not a pair, so one of them can never move — this is in " +
         "the consuming app)"
     );
   }
 
   if (morphs.strandedRoles > 0) {
     anomalies.push(
-      `${morphs.strandedRoles} morph element(s) still carry a flight role at rest (the stranded ` +
-        "participant class: a role that outlives its flight stays in the layer and poisons the " +
+      `${morphs.strandedRoles} morph element(s) still carry a transition role at rest (the stranded ` +
+        "element class: a role that outlives its transition stays in the layer and poisons the " +
         "NEXT pairing, which is how one interrupted gesture turned into every later pop losing " +
         "its camera)"
     );
@@ -221,22 +224,22 @@ export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
   if (morphs.strandedStandIns > 0 || morphs.strandedGhosts > 0 || morphs.layerResidue > 0) {
     anomalies.push(
       `morph residue at rest: ${morphs.strandedStandIns} stand-in(s), ${morphs.strandedGhosts} ` +
-        `ghost(s), ${morphs.layerResidue} element(s) left in a flight layer (a stand-in is a ` +
-        "hole in the layout and a layer element is a corpse the next flight will pair against)"
+        `ghost(s), ${morphs.layerResidue} element(s) left in a transition layer (a stand-in is a ` +
+        "hole in the layout and a layer element is a corpse the next transition will pair against)"
     );
   }
 
   if (morphs.leakedSheetRules > 0) {
     anomalies.push(
-      `${morphs.leakedSheetRules} morph keyframe rule(s) were left in the per-flight sheet ` +
-        "(a flight that never landed keeps its keyframes; they accumulate for the life of the page)"
+      `${morphs.leakedSheetRules} morph keyframe rule(s) were left in the per-transition sheet ` +
+        "(a transition that never ended keeps its keyframes; they accumulate for the life of the page)"
     );
   }
 
   if (driver === "unknown") {
     anomalies.push(
       "driver could not be classified (no running flemo-* CSSAnimation and no player inline-style " +
-        "signature observed — zero-duration flight, or the sampler attached after motion ended)"
+        "signature observed — zero-duration transition, or the sampler attached after motion ended)"
     );
   }
 
@@ -246,9 +249,9 @@ export const deriveFlightAnomalies = (input: FlightAnomalyInput): string[] => {
 export interface ReportAnomalyInput {
   emulationSuspected: boolean;
   platform: string;
-  /** True when a flight is still transitional past STUCK_STATUS_MS. */
-  stuckFlightOpen: boolean;
-  flightAnomalies: string[][];
+  /** True when a transition is still transitional past STUCK_STATUS_MS. */
+  stuckTransitionOpen: boolean;
+  transitionAnomalies: string[][];
 }
 
 export const deriveReportAnomalies = (input: ReportAnomalyInput): string[] => {
@@ -265,19 +268,19 @@ export const deriveReportAnomalies = (input: ReportAnomalyInput): string[] => {
     );
   }
 
-  if (input.stuckFlightOpen) {
+  if (input.stuckTransitionOpen) {
     anomalies.push(
-      `a flight is still transitional after ${STUCK_STATUS_MS / 1000}s — the navigation queue is likely ` +
+      `a transition is still transitional after ${STUCK_STATUS_MS / 1000}s — the navigation queue is likely ` +
         "locked; subsequent navigations will be ignored"
     );
   }
 
-  const blankViewport = input.flightAnomalies.some((list) =>
+  const blankViewport = input.transitionAnomalies.some((list) =>
     list.some((entry) => entry.includes("blank-viewport"))
   );
   if (blankViewport) {
     anomalies.push(
-      "at least one flight landed with the blank-viewport signature (see that flight's anomalies)"
+      "at least one transition ended with the blank-viewport signature (see that transition's anomalies)"
     );
   }
 

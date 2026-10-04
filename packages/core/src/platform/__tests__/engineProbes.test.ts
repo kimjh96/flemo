@@ -195,7 +195,7 @@ describe("isDesktopBlink", () => {
 });
 
 // The legacy-Android-Blink probe: a touch Chromium that ships NO UA-CH brands
-// list. It selects the governed head kit from flight one, so a modern device
+// list. It selects the governed head kit from transition one, so a modern device
 // (brands present) must never match it and iOS must never match it at all.
 describe("isLegacyAndroidBlink", () => {
   const withNavigator = (patch: Record<string, unknown>, run: () => void) => {

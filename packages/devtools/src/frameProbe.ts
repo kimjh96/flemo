@@ -6,16 +6,16 @@ import type { MotionProgress } from "./types";
 //
 // Two questions, deliberately separate. Frame gaps answer the first; the pose
 // and clock readings answer the second. Keeping them apart is not tidiness —
-// the 2026-08-18 release race paused running flights for ~250ms while rAF
+// the 2026-08-18 release race paused running transitions for ~250ms while rAF
 // ticked at a perfect 16.7ms throughout, so an instrument that only measures
-// arrival calls that flight clean.
+// arrival calls that transition clean.
 //
 // Everything here reads state that is already computed: an animation's own
 // `currentTime` (no style flush) and the inline style attribute (already
 // parsed). The probe must never become the cost it is measuring.
 
 /**
- * A released frame counts as stalled only once the flight has moved at least
+ * A released frame counts as stalled only once the transition has moved at least
  * once — the first released frame has nothing to compare against, and a
  * compiled animation's clock legitimately reads 0 on it.
  */
@@ -25,7 +25,7 @@ const HOLD_KINDS = new Set<string>(HOLD_VALUES);
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
 
-/** Driver evidence gathered by the rAF sampler during a flight. */
+/** Driver evidence gathered by the rAF sampler during a transition. */
 export interface DriverEvidence {
   /** A running CSSAnimation named flemo-* was observed on a participant. */
   compiledAnimation: boolean;
@@ -35,7 +35,7 @@ export interface DriverEvidence {
   inlineAdvance: boolean;
 }
 
-/** Everything the frame probe accumulates for one flight. */
+/** Everything the frame probe accumulates for one transition. */
 export interface FrameProbeState {
   /** Frame gaps while any participant still carried an active anim-hold. */
   heldGaps: number[];
@@ -75,7 +75,7 @@ export const createFrameProbeState = (): FrameProbeState => ({
 
 /**
  * A hold is active while ANY participating element still carries an active
- * `data-flemo-anim-hold` value; the flight is "released" once every one of
+ * `data-flemo-anim-hold` value; the transition is "released" once every one of
  * them reads "false" (or drops the attribute). The engine deliberately absorbs
  * heavy commits INTO the hold — the screen is posed, not moving — so gaps and
  * long tasks are segmented on this boundary.
@@ -90,8 +90,8 @@ const poseOf = (style: CSSStyleDeclaration): string => `${style.transform}/${sty
 
 /**
  * Did this frame MOVE? Read from the cheapest honest source per tier: a
- * compiled flight's own animation clock (getAnimations, no style flush) and an
- * inline-driven flight's pose (already in the style attribute). A frame where
+ * compiled transition's own animation clock (getAnimations, no style flush) and an
+ * inline-driven transition's pose (already in the style attribute). A frame where
  * neither moved is a stall — the signature that timing metrics miss.
  */
 export const sampleProgress = (
@@ -102,7 +102,7 @@ export const sampleProgress = (
   state.releasedFrames += 1;
   let advanced = false;
   // A frame after the last animation has FINISHED is not a stall: the motion
-  // is over and the pose is meant to be still. Only the flight's own closing
+  // is over and the pose is meant to be still. Only the transition's own closing
   // latency is left, which is a different measurement (see tailFrames).
   let anyRunningClock = false;
   for (const element of elements) {
@@ -158,11 +158,11 @@ export const sampleDriverEvidence = (
     const cached = state.clocks.get(element);
     // getAnimations() allocates an array per call; once this element's
     // compiled animation is in hand, re-reading it every frame is pure
-    // overhead on the very thread the flight is competing for.
+    // overhead on the very thread the transition is competing for.
     if (cached !== undefined && cached.playState !== "finished") {
       // The cached animation still counts as evidence: it is usually CACHED
       // WHILE PAUSED (the hold poses the screen before releasing it), so
-      // skipping this would classify a perfectly normal compiled flight as
+      // skipping this would classify a perfectly normal compiled transition as
       // "unknown" the moment it starts running.
       if (cached.playState === "running") state.evidence.compiledAnimation = true;
       readInlineEvidence(state, element);

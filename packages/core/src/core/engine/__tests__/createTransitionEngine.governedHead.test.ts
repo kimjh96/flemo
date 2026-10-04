@@ -15,12 +15,12 @@ import type { TransitionEngineDeps } from "@core/engine/types";
 // — who must NOT.
 //
 // The kit (held head + `data-flemo-governed` gated keyframes) exists for a device
-// whose mount commits would age a bare compiled flight's clock past its whole
+// whose mount commits would age a bare compiled transition's clock past its whole
 // opening. `isLegacyAndroidBlink()` selects that class: Android, touch, no
 // UA-CH brands.
 //
 // A `css` force pin must not select it. The pin changes no routing on Blink
-// (every Blink flight already routes compiled), so if it also flipped the kit
+// (every Blink transition already routes compiled), so if it also flipped the kit
 // on, a pinned session would run a DIFFERENT motion than the same device runs
 // in production — an instrument that alters what it observes. The condition
 // carried exactly that bug through a `!playerAllowed()` term, which

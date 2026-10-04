@@ -6,55 +6,55 @@ import { transitionMap } from "@transition/transition";
 
 import createTransitionEngine from "@core/engine/createTransitionEngine";
 import {
-  beginFlightWindow,
-  flightWindowActive,
-  onFlightWindowIdle,
-  resetFlightWindowForTests
-} from "@core/engine/flightWindow";
+  beginTransitionWindow,
+  transitionWindowActive,
+  onTransitionWindowIdle,
+  resetTransitionWindowForTests
+} from "@core/engine/transitionWindow";
 import { learnedFrameIntervalMs, reportDisplayIntervalMs } from "@platform/displayCadence";
 
-// The global flight-window latch (flightWindow.ts): insertion-time machinery
-// outside the engine's drive learns a navigation is mid-flight and defers
+// The global transition-window latch (transitionWindow.ts): insertion-time machinery
+// outside the engine's drive learns a navigation is mid-transition and defers
 // visible reveals to its rest.
 
-describe("flightWindow", () => {
-  afterEach(resetFlightWindowForTests);
+describe("transitionWindow", () => {
+  afterEach(resetTransitionWindowForTests);
 
   it("runs an idle callback immediately when no window is open", () => {
     const callback = vi.fn();
-    onFlightWindowIdle(callback);
+    onTransitionWindowIdle(callback);
     expect(callback).toHaveBeenCalledTimes(1);
   });
 
   it("defers idle callbacks until every nested window releases", () => {
     const callback = vi.fn();
-    const releaseOuter = beginFlightWindow();
-    const releaseInner = beginFlightWindow();
-    onFlightWindowIdle(callback);
-    expect(flightWindowActive()).toBe(true);
+    const releaseOuter = beginTransitionWindow();
+    const releaseInner = beginTransitionWindow();
+    onTransitionWindowIdle(callback);
+    expect(transitionWindowActive()).toBe(true);
 
     releaseInner();
     expect(callback).not.toHaveBeenCalled();
     releaseOuter();
     expect(callback).toHaveBeenCalledTimes(1);
-    expect(flightWindowActive()).toBe(false);
+    expect(transitionWindowActive()).toBe(false);
   });
 
   it("a double release is a no-op (the composed release can run once per path)", () => {
-    const release = beginFlightWindow();
+    const release = beginTransitionWindow();
     release();
     release();
-    expect(flightWindowActive()).toBe(false);
+    expect(transitionWindowActive()).toBe(false);
     const callback = vi.fn();
-    onFlightWindowIdle(callback);
+    onTransitionWindowIdle(callback);
     expect(callback).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("engine wiring", () => {
-  afterEach(resetFlightWindowForTests);
+  afterEach(resetTransitionWindowForTests);
 
-  it("a transitional drive opens the flight window and its landing closes it", () => {
+  it("a transitional drive opens the transition window and its landing closes it", () => {
     const scope = document.createElement("div");
     document.body.appendChild(scope);
     const engine = createTransitionEngine({
@@ -71,7 +71,7 @@ describe("engine wiring", () => {
       isActive: true,
       animHoldReleased: true
     });
-    expect(flightWindowActive()).toBe(true);
+    expect(transitionWindowActive()).toBe(true);
     cleanup();
     // The hold outlives the drive; an interrupting transition with a flipped
     // role consumes the composed release before its own first frame.
@@ -83,7 +83,7 @@ describe("engine wiring", () => {
       isActive: true,
       animHoldReleased: true
     });
-    expect(flightWindowActive()).toBe(false);
+    expect(transitionWindowActive()).toBe(false);
     cleanupInterrupt();
     scope.remove();
   });
@@ -156,7 +156,7 @@ describe("compiled-tier routing", () => {
       });
       // SETTLED 2026-08-18: the desktop landing governor is GONE — its
       // one-device-px staircase was live-judged as the pop "드르륵" and its
-      // removal fixed it. Desktop compiled flights play the authored curve
+      // removal fixed it. Desktop compiled transitions play the authored curve
       // untouched; the governor remains a touch-tier mechanism only.
       expect(scope.style.animationTimingFunction).toBe("");
       cleanup();
@@ -188,7 +188,7 @@ describe("compiled-tier routing", () => {
       expect(scope.style.animation).toBe(""); // compiled path: no player suppression
       // SETTLED 2026-08-18: the desktop landing governor is GONE — its
       // one-device-px staircase was live-judged as the pop "드르륵" and its
-      // removal fixed it. Desktop compiled flights play the authored curve
+      // removal fixed it. Desktop compiled transitions play the authored curve
       // untouched; the governor remains a touch-tier mechanism only.
       expect(scope.style.animationTimingFunction).toBe("");
       cleanup();

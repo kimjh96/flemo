@@ -85,26 +85,26 @@ import {
 
 // THE MORPH RUNTIME.
 //
-// A morph is one element that exists on both screens of a flight under the same
-// `layoutId`. This module pairs the two, moves the arriving one into the FLIGHT
+// A morph is one element that exists on both screens of a transition under the same
+// `layoutId`. This module pairs the two, moves the arriving one into the TRANSITION
 // LAYER, and hands the travel to the compositor as CSS — then puts it back.
 //
 // Why it leaves its screen at all: a screen CLIPS its descendants (flemo's own
 // scope is a scroll container by default), COVERS what it replaces, and DRAGS
 // its contents along when the transition slides. All three would hide or cut a
 // travelling element, and all three are properties of being a DESCENDANT — so
-// for the length of the flight it stops being one. That is also what makes a
-// morph independent of which screen transition is flying: there is no screen
+// for the length of the transition it stops being one. That is also what makes a
+// morph independent of which screen transition is moving: there is no screen
 // motion left underneath it to cancel or compose with.
 //
-// It runs no frame loop and holds no clock: the flight's timing comes from the
+// It runs no frame loop and holds no clock: the transition's timing comes from the
 // compiled hold the screens already obey — the layer mirrors the arriving
 // screen's hold attribute, so the same `animation-play-state` rule pauses the
 // element and the release flip starts it on the same frame as its screen.
 //
 // It is framework-neutral by construction. A binding hands it an element and a
 // `layoutId`; everything else — which screen the element is on, which
-// transition is flying, whether this side is arriving or departing — is read
+// transition is moving, whether this side is arriving or departing — is read
 // from the DOM PROTOCOL, which every binding renders anyway.
 //
 // THE CONTRACT A BINDING MUST KEEP: call `attachMorph` before the browser
@@ -113,18 +113,18 @@ import {
 // `onMount`, and a Svelte action all sit in that window.
 
 export interface AttachMorphOptions {
-  /** The pairing key. Two elements sharing it across a flight are one thing moving. */
+  /** The pairing key. Two elements sharing it across a transition are one thing moving. */
   layoutId: string | number;
   /** A registered morph transition. Defaults to the built-in `shared` preset. */
   name?: MorphTransitionName;
   /** The navigate store of the Router scope this element belongs to. */
   navigateStore: NavigateStoreApi;
   /**
-   * Which side of which flight this end is on, from the binding.
+   * Which side of which transition this end is on, from the binding.
    *
    * Only ever needed where the DOM cannot answer: a shared bar is rendered
    * outside the screen scope it belongs to, so walking up from a morph in one
-   * leaves the screen entirely or lands on an enclosing Router's. Everything
+   * leaves the screen entirely or reaches an enclosing Router's. Everything
    * written inside a screen is answered by the walk and needs none of this.
    */
   ownership?: { status: NavigateStatus; active: boolean } | null;
@@ -140,13 +140,13 @@ interface MorphEntry {
    * natural arrival layout. It is what a nested size interpolation must END
    * on: the staged measurement is taken inside a container still at its
    * from-box, and a container whose width interpolates lays the child out
-   * slightly small there — the flight then froze 40px short and snapped the
+   * slightly small there — the transition then froze 40px short and snapped the
    * difference at the landing.
    */
   restSize: { width: number; height: number } | null;
 }
 
-interface MorphFlight {
+interface MorphRun {
   finish: () => void;
   /** The element in the air, so a morph nested inside it can find its clock. */
   element: HTMLElement;
@@ -158,11 +158,11 @@ interface MorphFlight {
   /**
    * Put the landing's safety net away, and set it again.
    *
-   * A flight lands on its travel's own `animationend`, and the backstop exists
+   * A transition lands on its travel's own `animationend`, and the backstop exists
    * for the ones that never get one — a screen frozen mid-air, a tab
    * backgrounded before the compositor reports back. It is armed for the
-   * flight's own length, which is the right guess for a flight on a clock and
-   * the wrong one for a flight on a FINGER: a drag that takes longer than the
+   * transition's own length, which is the right guess for a transition on a clock and
+   * the wrong one for a transition on a FINGER: a drag that takes longer than the
    * animation would have is not stuck, it is being held, and landing it there
    * puts the element back in its screen mid-gesture. So a gesture puts the net
    * away while it drives, and sets it again for the release it hands back.
@@ -174,36 +174,36 @@ interface MorphFlight {
 interface MorphScope {
   entries: Map<HTMLElement, MorphEntry>;
   /**
-   * Elements a landed flight is still holding — the element it CUT, and the
+   * Elements a landed transition is still holding — the element it CUT, and the
    * screen it drove as a camera — and how to let each go.
    *
    * A cut outlives the travel that wrote it (see `releaseDeparture`), which
-   * means it can still be on an element when the NEXT flight picks that same
-   * element up — a pop interrupting a push flies the very card the push had
-   * just cut. A flight records the inline style it found so it can put it back
+   * means it can still be on an element when the NEXT transition picks that same
+   * element up — a pop interrupting a push moves the very card the push had
+   * just cut. A transition records the inline style it found so it can put it back
    * at the landing, so a cut left in that style comes home with it and the
-   * element lands invisible. One cut per element, and a new flight supersedes
+   * element lands invisible. One cut per element, and a new transition supersedes
    * the old one.
    */
   residue: Map<HTMLElement, () => void>;
-  /** The last rest pose of each `layoutId`, taken the instant a flight began. */
+  /** The last rest pose of each `layoutId`, taken the instant a transition began. */
   snapshots: Map<string, { snapshot: MorphSnapshot; element: HTMLElement }>;
-  flights: Map<string, MorphFlight>;
+  transitions: Map<string, MorphRun>;
   /**
    * `layoutId`s a GESTURE already delivered, waiting for the navigation it
    * committed to catch up.
    *
-   * A swipe stages its own flights and plays them out on release; the
+   * A swipe stages its own transitions and plays them out on release; the
    * navigation that release commits then stages as usual and normally finds
-   * them still in the air, which `already-flying` declines. A FAST flick
+   * them still in the air, which `already-moving` declines. A FAST flick
    * breaks that: the release settle is scaled to what is left, so a gesture
    * carried to the far edge lands in ~120ms while the navigation arrives at
-   * ~150ms — and by then the flights map is empty, so the same element is
+   * ~150ms — and by then the transitions map is empty, so the same element is
    * staged again from its ORIGINAL rest pose and makes the whole trip a
    * second time. Measured: land at 149ms, a fresh `start` at 150ms, landing
    * again 723ms later.
    *
-   * A delivery is consumed by the first stage that would have re-flown it, so
+   * A delivery is consumed by the first stage that would have re-moved it, so
    * one gesture suppresses exactly one navigation's worth of staging.
    */
   delivered: Set<string>;
@@ -212,14 +212,14 @@ interface MorphScope {
 
 const scopes = new WeakMap<NavigateStoreApi, MorphScope>();
 
-let flightSequence = 0;
+let transitionSequence = 0;
 
 const SCREEN_SELECTOR = attrSelector(SCREEN_ATTR);
 
 // Properties a hoisted element would otherwise INHERIT from the subtree it
 // left. Its own rules travel with it (they are its own), but everything
 // cascading in from an ancestor does not — and a shared element that changes
-// typeface halfway through its flight is not a shared element.
+// typeface halfway through its transition is not a shared element.
 const INHERITED = [
   "color",
   "font",
@@ -236,7 +236,7 @@ const INHERITED = [
 // length, and stamping that length inline hands every descendant an absolute
 // leading where the tree they left gave them a factor. Measured on a paired
 // card: rows that set only a 13px font sat 20px tall at rest and 24px tall in
-// flight, because the card's own used 24px landed on them verbatim (the `font`
+// transition, because the card's own used 24px landed on them verbatim (the `font`
 // shorthand carries the same length, which is why `lineHeight` stamps after it
 // and wins). The RATIO reproduces the element's own leading exactly and keeps
 // a descendant's leading proportional to its own font, which is what unitless
@@ -259,7 +259,7 @@ const isTransitional = (status: NavigateStatus): boolean =>
 const closestScreen = (element: HTMLElement): HTMLElement | null =>
   element.closest<HTMLElement>(SCREEN_SELECTOR);
 
-// WHICH SIDE OF THE FLIGHT THIS END IS ON, AND WHOSE TRANSFORM IT WEARS.
+// WHICH SIDE OF THE TRANSITION THIS END IS ON, AND WHOSE TRANSFORM IT WEARS.
 //
 // One `closest('[data-flemo-screen]')` used to answer both, and for anything
 // written inside a screen it still does — the two are the same element. They
@@ -270,17 +270,17 @@ const closestScreen = (element: HTMLElement): HTMLElement | null =>
 // puts it OUTSIDE its own `[data-flemo-screen]`. Walking up from a morph in
 // that bar therefore finds no screen at all at the root, and some ENCLOSING
 // Router's screen when the bar belongs to a nested one. Either way the answer
-// is not this element's side of the flight: both ends of a bar-to-bar pair
+// is not this element's side of the transition: both ends of a bar-to-bar pair
 // resolved to the same non-transitional outer screen, no partner passed the
-// eligibility test, and the pair never flew.
+// eligibility test, and the pair never moved.
 //
 // So the two questions are asked separately, of two different things:
 //
-//   OWNER    — the flight this end belongs to. The binding stamps status and
+//   OWNER    — the transition this end belongs to. The binding stamps status and
 //              active on the element itself wherever it can (it knows, from the
 //              enclosing Screen, what structure cannot tell), so the element IS
 //              its own answer; anything unstamped falls back to the walk.
-//   PHYSICAL — which screen this end is ON, for the parts of a flight that act
+//   PHYSICAL — which screen this end is ON, for the parts of a transition that act
 //              on a whole screen (the camera). An element declaring a different
 //              Router than the screen above it is chrome sitting over someone
 //              else's screen, and that screen is not its to drive.
@@ -303,7 +303,7 @@ const physicalScreen = (element: HTMLElement): HTMLElement | null => {
 };
 
 /**
- * Which value of `data-flemo-active` marks the screen a flight is going TO.
+ * Which value of `data-flemo-active` marks the screen a transition is going TO.
  *
  * NOT always `"true"`. The active flag follows the STACK, not the direction of
  * travel: on a pop the screen being dismissed is still the top one and keeps
@@ -318,8 +318,8 @@ const arrivingActive = (status: NavigateStatus): string =>
 const isArriving = (screen: HTMLElement, status: NavigateStatus): boolean =>
   screen.getAttribute(ACTIVE_ATTR) === arrivingActive(status);
 
-/** The variant the arriving side of a flight animates under, and its partner's. */
-const flightVariants = (
+/** The variant the arriving side of a transition animates under, and its partner's. */
+const transitionVariants = (
   status: NavigateStatus
 ): { enter: TransitionVariant; exit: TransitionVariant } =>
   status === "POPPING"
@@ -365,7 +365,7 @@ const typeTravel = (
   const fontSize = channel(from.fontSize, to.fontSize, 0.5);
   const leading = channel(from.lineHeight, to.lineHeight, 0.25);
   // THE STAIRCASE FIRST, where the engine's face height turns out to climb one.
-  // It holds the rendered leading at ONE value for the whole flight, which is
+  // It holds the rendered leading at ONE value for the whole transition, which is
   // strictly more than the bias below can do, so the bias stands aside for it.
   const stairs = fontSize ? leadingStops(from, to, font, ease) : null;
   // A run's width against its size is one curve, and where a face draws it off
@@ -374,19 +374,19 @@ const typeTravel = (
   const drift = fontSize && run ? trackStops(run, from, to, font, ease) : null;
   // Owed only where the rendered half-leading MOVES, which is a leading that
   // interpolates or a size that does underneath one that does not. Both ends
-  // take the same amount, so what the flight travels is unchanged and only the
+  // take the same amount, so what the transition travels is unchanged and only the
   // pixel of half-leading it renders in moves (see morphLine).
   const bias = stairs === null && (fontSize || leading) ? leadingBias(from, to) : 0;
   return {
     fontSize,
     leading: stairs,
-    // THE FLIGHT MUST BEGIN ON THE LINE THE DEPARTURE DREW.
+    // THE TRANSITION MUST BEGIN ON THE LINE THE DEPARTURE DREW.
     //
-    // The staircase holds ONE leading for the whole flight so the rendered
+    // The staircase holds ONE leading for the whole transition so the rendered
     // half-leading cannot step, and the one it holds is the ARRIVAL's, because
     // that is the value the landing has to restore. At the other end that makes
     // the first frame render a line-height the departure never had: measured on
-    // the poster grid, a title resting at 20px began its flight at 18px and its
+    // the poster grid, a title resting at 20px began its transition at 18px and its
     // glyphs therefore began a whole pixel high, while its BOX sat exactly
     // where it should. Both engines, every bench, and invisible to a net that
     // watches boxes.
@@ -409,7 +409,7 @@ const typeTravel = (
     // for their other half. The emitter refuses it where the set writes a
     // transform of its own for it to fight with.
     lift: stairs,
-    // THE ARRIVAL RENDERS WHAT IT RESTS AT, WHATEVER THE FLIGHT NEEDED.
+    // THE ARRIVAL RENDERS WHAT IT RESTS AT, WHATEVER THE TRANSITION NEEDED.
     //
     // The bias holds the rendered half-leading off a grid line so it cannot
     // step while the size grows under it, and it was carried at BOTH ends on
@@ -417,7 +417,7 @@ const typeTravel = (
     // the arrival does. A device says otherwise: read off a consumer's phone at
     // the landing, the last painted frame of a meta line stood at a leading of
     // 17px and the line rests at 16px, and the words dropped 1.14px the instant
-    // the flight let go. The whole correction had bought a mid-flight step and
+    // the transition let go. The whole correction had bought a mid-transition step and
     // paid for it with a step at the landing, which is the worse of the two
     // because everything else has stopped by then.
     //
@@ -431,9 +431,9 @@ const typeTravel = (
     // the rendered leading is the size times that factor ROUNDED TO A WHOLE
     // PIXEL. So a size that animates re-rounds it on every frame, and where the
     // product lands near a half pixel the leading crosses a whole one somewhere
-    // in the flight. Device-read on a consumer's phone: the last painted frame
+    // in the transition. Device-read on a consumer's phone: the last painted frame
     // of a meta line stood at a size of 11.0006px, its leading rounded to 17px,
-    // and the moment the flight let go the size became 11.0000, the leading
+    // and the moment the transition let go the size became 11.0000, the leading
     // became 16px and the words dropped 1.03px. 11 x 1.5 is 16.5, and the ease
     // spends its last frames within a thousandth of that boundary.
     //
@@ -504,7 +504,7 @@ const resolveMorphMotion = (
 
 // The layer's BOX belongs to the binding — only a Router knows whether it is
 // the viewport (a root Router) or a contained region (a nested one), and a
-// fixed layer inside a contained region would fly its element out of the box.
+// fixed layer inside a contained region would move its element out of the box.
 // What the runtime insists on is the rest: nothing on the layer may take
 // pointer input, and it has to paint above the screens it stages over.
 const prepareLayer = (layer: HTMLElement) => {
@@ -535,7 +535,7 @@ const originOffset = (token: string | undefined, extent: number): number => {
 };
 
 /**
- * A screen's `transform-origin` in the flight layer's coordinates.
+ * A screen's `transform-origin` in the transition layer's coordinates.
  *
  * Read rather than assumed: the camera's translate is solved against whatever
  * point the screen actually scales about, so a consumer who moved it does not
@@ -567,7 +567,7 @@ const screenTransformOrigin = (
 // A keyframe set can ask the element to wear a declaration: a pinned travel
 // animates the position's coordinates and a pinned pose animates the pose's, and
 // neither is any use without the property that reads them. One place, so a
-// riding pair and a flying one cannot drift apart on it.
+// riding pair and a moving one cannot drift apart on it.
 const wear = (
   element: HTMLElement,
   set: {
@@ -588,46 +588,46 @@ const wear = (
   }
 };
 
-const startFlight = (
+const startMorphRun = (
   scope: MorphScope,
   entry: MorphEntry,
   captured: { snapshot: MorphSnapshot; element: HTMLElement },
   status: NavigateStatus,
-  /** The flight this end belongs to — its clock (see owningScreen). */
+  /** The transition this end belongs to — its clock (see owningScreen). */
   owner: HTMLElement | null,
   /** The screen whose transform displaces it, if it is inside one. */
   screen: HTMLElement | null,
   store: NavigateStoreApi,
-  carrying: MorphFlight | null
+  carrying: MorphRun | null
 ): void => {
   const named = morphTransitionMap.get(entry.name);
   if (!named && morphTransitionMap.size > 0) {
-    // A `<Morph transition>` nobody registered still flies, on the built-in
+    // A `<Morph transition>` nobody registered still moves, on the built-in
     // preset — which is a shared element that ignores what its author wrote
     // rather than one that does not move, so it is the quietest of the four.
     warnUnregistered(
       "morph transition",
       entry.name,
-      "The flight falls back to the built-in `shared` preset. Pass it to `<Router morphTransitions={[...]}>`."
+      "The transition falls back to the built-in `shared` preset. Pass it to `<Router morphTransitions={[...]}>`."
     );
   }
   const transition = named ?? morphTransitionMap.get(DEFAULT_MORPH_TRANSITION_NAME);
   if (!transition) return;
 
-  const { enter: enterVariant, exit: exitVariant } = flightVariants(status);
+  const { enter: enterVariant, exit: exitVariant } = transitionVariants(status);
   const enterMotion = resolveMorphMotion(transition, enterVariant);
   if (!enterMotion) return;
 
   // Supersede any cut still held on either side of the new pair, BEFORE
-  // anything is measured or recorded: the element about to fly must not carry
-  // a previous flight's hidden state into the style this one will restore, and
+  // anything is measured or recorded: the element about to move must not carry
+  // a previous transition's hidden state into the style this one will restore, and
   // the element about to be cut must not be under two cuts with two owners.
   scope.residue.get(entry.element)?.();
   scope.residue.get(captured.element)?.();
 
   // NESTED is the one case with no screen to ask at all: the container took
   // this element out of the screen tree when it was staged, and the container's
-  // flight is both the clock and the thing that displaces it. Every other end
+  // transition is both the clock and the thing that displaces it. Every other end
   // resolves through `resolveMorphSide`, which takes the two apart — the owner
   // for the clock, the physical screen (if any) for the pose to undo. Shared
   // chrome has the first and not the second, which is why they are two
@@ -649,7 +649,7 @@ const startFlight = (
           singleLine: own.singleLine,
           textHeight: own.textHeight,
           leadOffset: own.leadOffset,
-          // Nested: the container is the flight, and it is the container that
+          // Nested: the container is the transition, and it is the container that
           // shares (or does not share) a moving screen's clock.
           screenMoves: false,
           screenDuration: carrying.duration,
@@ -675,14 +675,14 @@ const startFlight = (
   }
 
   // A morph authors no timing of its own in the built-in preset, so it inherits
-  // the flying screen's: the shared element then lands with its screen under
+  // the moving screen's: the shared element then lands with its screen under
   // ANY transition, which is the whole point of not owning one.
   // A screen transition with no clock of its own (`none`, an instant replace)
   // must not silently take the morph down with it: the shared element is the
   // whole point of the navigation, and an author who wanted nothing to move
   // would not have paired one. Fall back to the preset's own length.
   const duration = enterMotion.options.duration ?? side.screenDuration;
-  const flightDuration = carrying
+  const transitionDuration = carrying
     ? carrying.duration
     : duration > 0
       ? duration
@@ -697,7 +697,7 @@ const startFlight = (
   // is a place ON the arriving screen, so a screen that slides or rises in
   // carries that place with it: the element is chasing a moving target, and
   // chasing it on a second clock leaves the two disagreeing in both position
-  // and size. Measured on a cupertino pop, at the same point in the flight:
+  // and size. Measured on a cupertino pop, at the same point in the transition:
   //
   //   two clocks:  the element falls from 75px behind its place to 118px
   //                behind before turning round, and is still 160px too wide
@@ -723,10 +723,10 @@ const startFlight = (
   // title's size was 22% of the way from 30px to 20px, so the title's baseline
   // stood 30px BELOW the bottom of the card carrying it — clipped in half by a
   // revealed box, and spilling onto the page under a laid-out one. It held for
-  // about 250ms in the middle of every pop, which is most of the flight.
+  // about 250ms in the middle of every pop, which is most of the transition.
   //
   // An author who wants a different shape for the child is asking for the two
-  // to disagree, and there is no amount of the flight where that reads as one
+  // to disagree, and there is no amount of the transition where that reads as one
   // object moving.
   const ease = carrying
     ? carrying.ease
@@ -755,8 +755,8 @@ const startFlight = (
   // READ BEFORE ANYTHING IS WRITTEN.
   //
   // The parts are held at the width they were laid out at, and reading that
-  // width after the flight has begun staging is a forced layout in the frame
-  // that can least afford one. Both readings this flight needs are taken here,
+  // width after the transition has begun staging is a forced layout in the frame
+  // that can least afford one. Both readings this transition needs are taken here,
   // together, before a single style is written.
   const unpinParts =
     Math.abs(origin.width - destination.width) >= 0.05 ? pinPartWidths(entry.element) : null;
@@ -764,9 +764,9 @@ const startFlight = (
   // ONE STYLE READ, NOT THREE.
   //
   // A computed style is LIVE: every property taken off it flushes whatever
-  // style the page owes, and a flight was asking three separate times, in the
+  // style the page owes, and a transition was asking three separate times, in the
   // frame the tap has just mutated. That frame is the one nothing has moved in
-  // yet, and it is where a flight's whole cost lands: measured on a consumer's
+  // yet, and it is where a transition's whole cost lands: measured on a consumer's
   // app it ran 87ms against 17ms for every frame after it, and building the
   // keyframes was 14ms of it. Read once, copied into plain values here, the
   // flush happens once.
@@ -780,7 +780,7 @@ const startFlight = (
         inherited: INHERITED.map((property) => [property, inheritedValue(own, property)] as const)
       }
     : null;
-  // The face the flight wears. Its height is what the leading is measured
+  // The face the transition wears. Its height is what the leading is measured
   // against, and on Blink it is quantised; the ratios come off a canvas rather
   // than a layout probe, once per face for the session (see morphFace).
   const face = ownStyle?.fontFamily
@@ -808,17 +808,17 @@ const startFlight = (
   // THE CORNER TRAVELS AS A PROPORTION when the box changes size enough for
   // px to lie. Interpolating 12px → 0px is linear in px, but the box under it
   // grows severalfold at the same time, so the ROUNDNESS the eye reads —
-  // radius over side — collapses in the first tenth of the flight: measured
+  // radius over side — collapses in the first tenth of the transition: measured
   // on a 48px thumb opening to a 346px hero, the ratio fell 25% → 10% inside
   // 90ms, which is reported as "the radius snaps to 0 and then the morph
   // starts". As a percentage the browser resolves the radius against the box
   // every frame, so a quarter-round thumb stays proportionally round and
-  // straightens over the whole flight instead of at its first step.
+  // straightens over the whole transition instead of at its first step.
   //
   // Only for a pair that is SQUARE-ish at both ends, because a percentage
   // radius is per-axis (width horizontally, height vertically): on a box far
   // from square it bends the corner elliptical, and on one whose aspect is
-  // also morphing (a list row opening into a page) the mid-flight ellipse is
+  // also morphing (a list row opening into a page) the mid-transition ellipse is
   // its own artifact — measured as a 16px card corner ballooning to 8×54.
   // Those keep the px interpolation.
   const corner = paint.find((channel) => channel.property === "border-radius");
@@ -851,7 +851,7 @@ const startFlight = (
     }
   }
 
-  // WHAT THE SCROLLPORT WAS HIDING at each end rides the flight as a clip.
+  // WHAT THE SCROLLPORT WAS HIDING at each end rides the transition as a clip.
   // A cell scrolled to the list's edge is half covered by the chrome stacked
   // against that edge; staged bare it becomes whole in one frame and crosses
   // the tab bar it was under — reported from a scrolled grid as the morph
@@ -861,7 +861,7 @@ const startFlight = (
   // are not given one: their container clips them itself.
   const edgeClip = clipTravel(visibleInset(captured.element), visibleInset(entry.element));
 
-  const id = `${(flightSequence += 1)}`;
+  const id = `${(transitionSequence += 1)}`;
 
   // THE BOX travels, not a scale.
   //
@@ -880,13 +880,13 @@ const startFlight = (
   // WHAT PAINTS DURING THE HEAD IS THE DEPARTURE.
   //
   // The head is the flat lead-in the governed tier bakes into every screen's
-  // keyframes: the flight is staged, warm and running, and nothing has moved
+  // keyframes: the transition is staged, warm and running, and nothing has moved
   // yet. What belongs on glass for those milliseconds is what was on glass
   // before the tap. The arrival does not qualify — it is the destination's
   // contents at the departure's size — and the only reason it was allowed to
   // paint there is that the GHOST, a copy of the departure, sits on top of it.
   //
-  // So the two facts are one fact: a flight hands over, and until it starts
+  // So the two facts are one fact: a transition hands over, and until it starts
   // moving the hand-over has not happened. Where there is a partner to hand
   // over from there is a ghost to paint it, and the arrival waits its turn.
   // A nested arrival is not covered by a ghost of its own — its container's
@@ -896,7 +896,7 @@ const startFlight = (
     !carrying && captured.element.isConnected && captured.element !== entry.element;
 
   // A REVEAL IS ONLY THE SAME PICTURE where nothing the box paints depends on
-  // its size (see morphReveal), and asked first it also spares the flight's
+  // its size (see morphReveal), and asked first it also spares the transition's
   // first frame the two probe layouts. A corner carried as a percentage
   // resolves against the revealed box, which is the larger end.
   const contentsHold =
@@ -916,7 +916,7 @@ const startFlight = (
       from: IDENTITY_POSE,
       authoredFrom: resolvePose(enterMotion.from, box) ?? IDENTITY_POSE,
       authoredTo: resolvePose(enterMotion.to, box) ?? IDENTITY_POSE,
-      duration: flightDuration,
+      duration: transitionDuration,
       start,
       head,
       ease
@@ -924,11 +924,11 @@ const startFlight = (
     box: { from: origin, to: destination },
     // Asked once, here, because this is the last moment the element is still in
     // its own layout and the answer decides which channel the size travels on.
-    // Measured from the corner the flight will anchor on: a box grows away from
+    // Measured from the corner the transition will anchor on: a box grows away from
     // that corner, and a child that never moved reads as having travelled the
     // whole growth if it is measured from any other one.
     contentsHold,
-    // The reveal draws the image to the size the flight is at rather than the
+    // The reveal draws the image to the size the transition is at rather than the
     // size the box is laid out at; `morphReveal` has already refused an image
     // the carry cannot draw, so asking whether there IS one is the whole test.
     paintsImage: !["", "none"].includes(reads(own, "background-image")),
@@ -974,11 +974,11 @@ const startFlight = (
     // of it, because fading both bleeds the background through the pair.
     fade:
       contentDecls(enterMotion.from).length > 0
-        ? { from: enterMotion.from, to: enterMotion.to, duration: flightDuration * crossFade }
+        ? { from: enterMotion.from, to: enterMotion.to, duration: transitionDuration * crossFade }
         : handingOver && head > 0 && crossFade === 0
-          ? // No entry pose, so the arrival is opaque for its whole flight and
+          ? // No entry pose, so the arrival is opaque for its whole transition and
             // the ghost dissolves on top of it. It still may not paint BEFORE
-            // the flight moves: under a ghost that is only as opaque as its own
+            // the transition moves: under a ghost that is only as opaque as its own
             // content, an arrival showing through is the departure's words and
             // the destination's words printed over each other for the length of
             // the head. A step at `start` costs nothing where the ghost is
@@ -993,14 +993,14 @@ const startFlight = (
     paint
   });
 
-  // ONE FLIGHT, ONE THREAD.
+  // ONE TRANSITION, ONE THREAD.
   //
-  // The parts of a flight are placed relative to each other, so they have to be
+  // The parts of a transition are placed relative to each other, so they have to be
   // drawn on the same frames. The element itself travels by its BOX, which no
   // compositor can interpolate, so those frames are the main thread's; anything
   // else here that is a bare transform would be run by the compositor instead
   // and would advance on frames the element never reached. Measured on the
-  // playground with the main thread blocked mid-flight: the ghost and the camera
+  // playground with the main thread blocked mid-transition: the ghost and the camera
   // both kept moving over a card that had stopped.
   //
   // So the principal decides, and every part follows it (see morphPose for what
@@ -1024,14 +1024,14 @@ const startFlight = (
             from: IDENTITY_POSE,
             authoredFrom: IDENTITY_POSE,
             authoredTo: IDENTITY_POSE,
-            duration: flightDuration,
+            duration: transitionDuration,
             start,
             ease
           },
           // CUT FROM THE FIRST FRAME, not over a window.
           //
-          // The departure is the one party to a flight that does not travel: it
-          // rides the screen it belongs to. The flight does not. So the instant
+          // The departure is the one party to a transition that does not travel: it
+          // rides the screen it belongs to. The transition does not. So the instant
           // that screen starts moving they are two different places, and
           // anything still painting at the old one is a second copy of the card
           // sliding away from the real one.
@@ -1043,19 +1043,19 @@ const startFlight = (
           // stale value the main thread last committed while the screen's
           // transform, which the compositor owns, has already carried the
           // element 15px away. What lands on glass is one frame of a
-          // half-opaque card offset from the flight — the "blade" beside the
+          // half-opaque card offset from the transition — the "blade" beside the
           // element, reported on both push and pop. Amplifying the window to
-          // 250ms reproduces it on every flight, in every engine, which is what
+          // 250ms reproduces it on every transition, in every engine, which is what
           // identified it.
           //
           // A window that can be missed cannot be made short enough; it has to
           // not exist. Both ends of the fade are the exit's END pose, so the
-          // backwards fill hides the departure from the moment the flight is
+          // backwards fill hides the departure from the moment the transition is
           // staged — before the head, before any motion — and no stale sample
           // can reveal it.
           //
-          // Nothing is lost by hiding it that early: for the whole flight the
-          // departure sits underneath the flyer, and under the GHOST, which is
+          // Nothing is lost by hiding it that early: for the whole transition the
+          // departure sits underneath the mover, and under the GHOST, which is
           // a copy of it painting the departure's own content at exactly that
           // box. The one case it is not covered is an arrival the author gave
           // an entry fade to WITHOUT a cross-fade — and that case already sees
@@ -1072,7 +1072,7 @@ const startFlight = (
   // paired with a list label has to grow into it on its own. That is the whole
   // nested job, and it is why nothing here is staged or moved.
   if (carrying) {
-    // WHERE THE FLIGHT BEGINS is part of the pair's contract for a nested
+    // WHERE THE TRANSITION BEGINS is part of the pair's contract for a nested
     // element too. Riding alone renders it at the ARRIVAL's own place inside
     // the travelling box from the first frame, so any difference between the
     // two ends' local arrangement — an inset kept on the element at one end
@@ -1080,7 +1080,7 @@ const startFlight = (
     // was a lurch at the tap: measured at 20px sideways on the playground's
     // caption, and at 16px on the demo it replaced, so it was never a
     // regression, just never corrected. The correction is a translate from
-    // the measured from-delta to identity on the flight's own curve: exact at
+    // the measured from-delta to identity on the transition's own curve: exact at
     // both ends, first-order in between, and the ride itself is untouched.
     // `side.rect` is this element measured where the staged container put it,
     // so the delta is against the box actually on glass at frame zero.
@@ -1139,7 +1139,7 @@ const startFlight = (
         from: travels ? { ...IDENTITY_POSE, x: dx, y: dy } : IDENTITY_POSE,
         authoredFrom: IDENTITY_POSE,
         authoredTo: IDENTITY_POSE,
-        duration: flightDuration,
+        duration: transitionDuration,
         start,
         ease
       },
@@ -1203,13 +1203,13 @@ const startFlight = (
       // `disposeOnce`): a nested pair is one of many landing together.
       if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => disposeNested());
       else disposeNested();
-      scope.flights.delete(entry.layoutId);
+      scope.transitions.delete(entry.layoutId);
     };
     function onGrown(event: AnimationEvent) {
       if (event.animationName !== growing.geometryName) return;
       // Same rule as the container's landing: an end that ran for no time is a
       // rebuilt animation, not a finished one (see `onEnd`).
-      if (flightDuration > 0 && event.elapsedTime === 0) {
+      if (transitionDuration > 0 && event.elapsedTime === 0) {
         return;
       }
       finishNested();
@@ -1221,12 +1221,12 @@ const startFlight = (
         },
         seconds * 1000 + 250
       );
-    let nestedBackstop = nestedNet(start + flightDuration);
+    let nestedBackstop = nestedNet(start + transitionDuration);
     entry.element.addEventListener("animationend", onGrown);
-    scope.flights.set(entry.layoutId, {
+    scope.transitions.set(entry.layoutId, {
       finish: finishNested,
       element: entry.element,
-      duration: flightDuration,
+      duration: transitionDuration,
       start,
       head,
       ease,
@@ -1240,12 +1240,12 @@ const startFlight = (
   }
 
   // THE GHOST: a copy of the element being replaced, carried along inside the
-  // flight.
+  // transition.
   //
   // Without it the travelling box can only ever show the ARRIVAL's content, at
   // the departure's size — a list card blown up to a detail panel leaves a void
   // where the panel's text would be, and a detail panel shrunk to a list card
-  // crushes type that was never laid out at that size. With it, the flight
+  // crushes type that was never laid out at that size. With it, the transition
   // starts as an exact copy of what was on glass and dissolves into the real
   // element while the box travels, which is the whole trick every platform
   // container transform is doing.
@@ -1255,10 +1255,10 @@ const startFlight = (
   //
   // A ZERO CROSS-FADE IS A CUT, NOT AN ABSENCE. `crossFade` says how long the
   // hand-over takes; asking for none of it asked for no ghost at all, and the
-  // flight then had nothing to show for its head but the arrival — the very
+  // transition then had nothing to show for its head but the arrival — the very
   // void this copy exists to fill. Device-read on a consumer's tab switch: the
   // pill swapped its label and its inner button jumped 25px the instant the
-  // flight was staged, then sat there until the head ran out and the box began
+  // transition was staged, then sat there until the head ran out and the box began
   // to move. The copy is made either way now, and a zero cross-fade cuts it at
   // the moment the box starts moving, which is where a cut belongs.
   // With no head there is nothing to cover, and a copy made anyway would only
@@ -1305,18 +1305,18 @@ const startFlight = (
           to: followPose(destination, origin),
           authoredFrom: IDENTITY_POSE,
           authoredTo: IDENTITY_POSE,
-          duration: flightDuration,
+          duration: transitionDuration,
           start,
           head,
           ease
         },
         // The copy is clipped exactly as the departure was, releasing (or
-        // gathering) with the flight, so it too emerges from under the chrome
+        // gathering) with the transition, so it too emerges from under the chrome
         // rather than popping whole over it.
         clip: edgeClip,
         fade:
           crossFade > 0
-            ? { from: { opacity: 1 }, to: { opacity: 0 }, duration: flightDuration * crossFade }
+            ? { from: { opacity: 1 }, to: { opacity: 0 }, duration: transitionDuration * crossFade }
             : // The other half of the step: the copy goes at the same instant
               // the arrival lands, on the same clock, so the pair is never
               // half-and-half on any frame that reaches the glass.
@@ -1330,9 +1330,9 @@ const startFlight = (
       })
     : null;
 
-  // THE CAMERA. `carry: "screen"` turns the flight into a container transform:
+  // THE CAMERA. `carry: "screen"` turns the transition into a container transform:
   // the screen the element is SMALL on is zoomed by exactly the amount that
-  // takes the element from one end of the flight to the other, so everything
+  // takes the element from one end of the transition to the other, so everything
   // else on it is dragged along and pushed out of frame.
   //
   // Which screen that is follows the SIZES, not the direction: on a push the
@@ -1367,20 +1367,20 @@ const startFlight = (
           small: settling ? destination : origin,
           big: settling ? origin : destination,
           settling,
-          duration: flightDuration,
+          duration: transitionDuration,
           start,
           head,
           ease,
           selector: attrValueSelector(MORPH_CAMERA_ATTR, `${id}c`),
           // The camera is the largest part of all: it carries a whole screen.
-          // It follows the same decision as everything else in the flight.
+          // It follows the same decision as everything else in the transition.
           accelerated: !pinned
         })
       : null;
 
   const disposeRules = insertMorphRules([
     ...arriving.rules,
-    /* v8 ignore start -- see the guard on `departing` above: every flight the
+    /* v8 ignore start -- see the guard on `departing` above: every transition the
        pairing produces has one. */
     ...(departing?.rules ?? []),
     /* v8 ignore stop */
@@ -1388,7 +1388,7 @@ const startFlight = (
     ...(camera?.rules ?? [])
   ]);
   if (cameraScreen && camera) {
-    // Supersede whatever a previous flight left on this screen before stamping
+    // Supersede whatever a previous transition left on this screen before stamping
     // ours: two cameras on one screen is two authors of one transform.
     scope.residue.get(cameraScreen)?.();
     cameraScreen.setAttribute(MORPH_CAMERA_ATTR, `${id}c`);
@@ -1401,7 +1401,7 @@ const startFlight = (
   // — once when the element goes and once when it comes back. A placeholder
   // measured in pixels gets that almost right, and "almost" is a layout shift
   // with a morph's exact timing: WebKit-measured, a card inside an
-  // `inline-block` button left its `<li>` 6.31px taller for the whole flight,
+  // `inline-block` button left its `<li>` 6.31px taller for the whole transition,
   // because an EMPTY block gives the button no baseline to synthesise from and
   // the line box then adds the strut's descender. Chromium adds that space at
   // rest too, so it never moved there and the bug was invisible on it.
@@ -1482,10 +1482,10 @@ const startFlight = (
   // A held box has a fixed width, so putting its left edge where the far edge
   // asks for it fixes that edge exactly, with no sum of two animated lengths to
   // oscillate. It must not be anchored on the layer's RIGHT instead: the layer
-  // is the Router's box, and that box CHANGES WIDTH mid-flight whenever the two
+  // is the Router's box, and that box CHANGES WIDTH mid-transition whenever the two
   // mounted screens take the page's scrollbar away and give it back. Anything
   // hung from its right edge rides that. Device-read on a consumer's pill, it
-  // drifted 7px out over the flight and snapped back on landing.
+  // drifted 7px out over the transition and snapped back on landing.
   //
   // AND THE HELD EDGE IS NOT A SUM. Where the two ends agree on a far edge, the
   // element is placed FROM that edge: `left` is derived from the very channel
@@ -1501,18 +1501,18 @@ const startFlight = (
   entry.element.style.top = `${laidOutAt.y}px`;
   // NO INLINE BOX. The travel keyframe carries `width`/`height` at both ends
   // and runs `both`, so it already states the box for every frame of the
-  // flight: the backwards fill holds the origin through the head, the
+  // transition: the backwards fill holds the origin through the head, the
   // interpolation owns the middle, and the forwards fill holds the destination
   // until the landing takes the animation off. Writing the origin here as well
   // said the same thing twice, in two places that disagree for the whole
-  // flight — and a duplicate only has to win once to break it.
+  // transition — and a duplicate only has to win once to break it.
   //
   // It did. An animation outranks inline style in the cascade, but WebKit
   // resolved this pair the other way and the inline origin won: the element
   // translated the full distance at its DEPARTURE width and then snapped to its
   // destination width in one frame at the landing. Device-measured on iOS
   // Safari and reproduced in WebKit on a real page (the box read 98.05px for
-  // every frame of a 98.05 -> 138.97 travel; removing this line mid-flight
+  // every frame of a 98.05 -> 138.97 travel; removing this line mid-transition
   // moved it to 136.38px on the very next frame and it finished the curve
   // correctly). Chromium followed the cascade, which is why the same build
   // looked right in Chrome and wrong in Safari.
@@ -1522,7 +1522,7 @@ const startFlight = (
   entry.element.style.margin = "0";
   // A CLAMP outranks the animation. `min-height: 100%` on the destination —
   // the ordinary way to write an element that fills its screen — pins the
-  // flyer at full height from the first frame, and the growth the morph is
+  // mover at full height from the first frame, and the growth the morph is
   // there to show never happens. The clamps describe where the element RESTS;
   // they are restored with the rest of the inline style at the landing.
   entry.element.style.minWidth = "0";
@@ -1533,7 +1533,7 @@ const startFlight = (
   entry.element.style.contain = "layout";
   entry.element.style.willChange = "left, top, width, height";
   // NESTED morphs stack by depth. A card and the title inside it are two
-  // flights on one layer, and DOM order alone would put whichever registered
+  // transitions on one layer, and DOM order alone would put whichever registered
   // last on top — which is the parent, because a binding's mount effects run
   // child-first. Depth is measured before the parent leaves, so the child is
   // still inside it.
@@ -1555,7 +1555,7 @@ const startFlight = (
     // tests make. It is inert and hidden from assistive technology on top.
     for (const node of [ghost, ...ghost.querySelectorAll<HTMLElement>("*")]) {
       // PAIRED descendants stop painting in the copy. The real pair is staged
-      // in the flight at the captured pose — the exact spot the copy would
+      // in the transition at the captured pose — the exact spot the copy would
       // have painted — so the dimmed copy is a WINDOW onto the real element,
       // not a hole. Printing the copy as well puts two nearly identical
       // things in one place: the copy rides the ghost's TRANSFORM, so type
@@ -1567,10 +1567,10 @@ const startFlight = (
       // This dimming was removed once, on the diagnosis that the copy was a
       // hole: artwork read as a hero collapsing to a strip, type read as the
       // title vanishing at the tap. Both were real, and both were THIS pair's
-      // flight having silently DECLINED (a zero-width destination, measured
+      // transition having silently DECLINED (a zero-width destination, measured
       // while a sibling's staged size squeezed it), so nothing was underneath
-      // the window. With no real flight, a hidden copy IS a hole; the fix
-      // belonged to the declined flight, not to the ghost.
+      // the window. With no real transition, a hidden copy IS a hole; the fix
+      // belonged to the declined transition, not to the ghost.
       if (node !== ghost && node.hasAttribute(MORPH_ATTR)) node.style.opacity = "0";
       node.removeAttribute(MORPH_ATTR);
       node.removeAttribute(MORPH_ID_ATTR);
@@ -1623,7 +1623,7 @@ const startFlight = (
     layer.appendChild(ghost);
   }
 
-  /* v8 ignore next -- as above: `departing` exists for every paired flight. */
+  /* v8 ignore next -- as above: `departing` exists for every paired transition. */
   if (departing) {
     partner.style.setProperty("animation", departing.animation);
     partner.setAttribute(MORPH_ATTR, MORPH_ROLE.EXIT);
@@ -1634,18 +1634,18 @@ const startFlight = (
   // The departure is cut, not faded, and the cut fills BOTH ways: it pins the
   // element at hidden for as long as it is applied. Lifting it when the travel
   // ends assumes the screen it belongs to is already gone by then, and usually
-  // it is — the flight borrows the screen's own clock. But it does not have to
+  // it is — the transition borrows the screen's own clock. But it does not have to
   // be. A screen transition with no motion of its own (`none`) is spanned by
   // whatever else the author gave that screen — a `<Part>`'s choreography —
-  // and that span can outlast the flight. For those frames the element the
-  // user just watched fly away comes BACK, at full size, in the middle of a
+  // and that span can outlast the transition. For those frames the element the
+  // user just watched move away comes BACK, at full size, in the middle of a
   // screen that is about to vanish.
   //
-  // So the cut is lifted when the FLIGHT is over, not when the travel is: the
+  // So the cut is lifted when the TRANSITION is over, not when the travel is: the
   // first non-transitional status, or the element leaving the document.
   //
-  // And the cut is only as real as its KEYFRAMES: this flight's rules are
-  // dropped from the per-flight sheet at the landing, and an `animation`
+  // And the cut is only as real as its KEYFRAMES: this transition's rules are
+  // dropped from the per-transition sheet at the landing, and an `animation`
   // naming keyframes that no longer exist animates nothing at all. Dropping
   // them is therefore part of lifting the cut, not part of landing.
   // The CAMERA is held on exactly the same terms, and for exactly the same
@@ -1655,10 +1655,10 @@ const startFlight = (
   let disposed = false;
   // DROPPING THE RULES IS NOT PART OF THE LANDING.
   //
-  // Taking a flight's keyframes out of the document invalidates style for
-  // everything in it, and a flight lands with every one of its participants
+  // Taking a transition's keyframes out of the document invalidates style for
+  // everything in it, and a transition lands with every one of its participants
   // doing that in the same frame as the re-parenting and the style restore.
-  // Measured on the reference grid, the frame the flight landed on ran 76ms:
+  // Measured on the reference grid, the frame the transition landed on ran 76ms:
   // four frames of nothing, on the one frame where everything else has stopped
   // and the eye is looking straight at it. The words were in exactly the right
   // place, which is why every measurement of a rectangle called it clean.
@@ -1667,7 +1667,7 @@ const startFlight = (
   // dropped on the NEXT frame, when the landing is already on glass.
   const disposeOnce = () => {
     /* v8 ignore next -- the landing and the residue release can both reach it,
-       and dropping a flight's rules twice would take the next flight's. */
+       and dropping a transition's rules twice would take the next transition's. */
     if (disposed) return;
     disposed = true;
     if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => disposeRules());
@@ -1684,8 +1684,8 @@ const startFlight = (
     }
     if (cameraScreen) {
       if (scope.residue.get(cameraScreen) === release) scope.residue.delete(cameraScreen);
-      /* v8 ignore next 2 -- a camera marker that is not this flight's belongs
-         to the flight that superseded it, and is that flight's to remove. */
+      /* v8 ignore next 2 -- a camera marker that is not this transition's belongs
+         to the transition that superseded it, and is that transition's to remove. */
       if (cameraScreen.getAttribute(MORPH_CAMERA_ATTR) === `${id}c`)
         cameraScreen.removeAttribute(MORPH_CAMERA_ATTR);
     }
@@ -1704,9 +1704,9 @@ const startFlight = (
       release();
     });
     // A screen that is still transitional when its store goes quiet — an
-    // aborted navigation, a scope torn down mid-flight — would keep the
+    // aborted navigation, a scope torn down mid-transition — would keep the
     // element hidden (and the background zoomed) forever otherwise.
-    const stranded = setTimeout(release, (start + flightDuration) * 1000 + 1000);
+    const stranded = setTimeout(release, (start + transitionDuration) * 1000 + 1000);
     const unsubscribe = unwatchResidue;
     unwatchResidue = () => {
       clearTimeout(stranded);
@@ -1714,29 +1714,29 @@ const startFlight = (
     };
   };
 
-  // ONE FLIGHT, ONE START.
+  // ONE TRANSITION, ONE START.
   //
   // The layer is outside the screens, so the compiled hold rule cannot reach
   // the element through them. Mirroring a hold onto the layer puts the element
   // back under the same pause, which is what keeps a morph starting on the same
   // frame as the choreography around it instead of on a clock of its own.
   //
-  // EVERY screen this flight belongs to, not just the one whose transform
-  // displaces it. A flight has two ends and they are not held alike: measured
+  // EVERY screen this transition belongs to, not just the one whose transform
+  // displaces it. A transition has two ends and they are not held alike: measured
   // on a consumer's tab switch, the displacing screen read RELEASED while the
   // other end sat at `park-under` for 90ms, so the layer mirrored `false` and
   // the morph ran alone. By the time the bar's parts started their cross-fade
-  // the button had already travelled 42% of its flight, which is the whole
+  // the button had already travelled 42% of its transition, which is the whole
   // transition arriving in two pieces.
   //
   // A hold is a pause, so the strongest one wins: while ANY end is still held,
-  // the flight has not been let go.
+  // the transition has not been let go.
   //
   // The hold is written on the box that CARRIES a screen, which is not the
-  // element a flight names as its owner: an end resolves to the scope it was
+  // element a transition names as its owner: an end resolves to the scope it was
   // declared in, and the pause sits on an ancestor of that. So each end is
   // asked for the nearest hold above it, which is the one that applies to where
-  // the element came from, and a nested Router's flight finds its own rather
+  // the element came from, and a nested Router's transition finds its own rather
   // than the outer screen's (which is IDLE and holds nothing).
   // NEVER THE LAYER ITSELF. An end already in the air has the layer as its
   // nearest hold, and the layer is what this WRITES: observing it would make
@@ -1764,7 +1764,7 @@ const startFlight = (
     layer.removeAttribute(ANIM_HOLD_ATTR);
 
     // Home again, and exactly as it was: the element carries no trace of the
-    // flight, so what the consumer laid out is what remains. The parts are
+    // transition, so what the consumer laid out is what remains. The parts are
     // their own elements and carry their own inline style, so they are let go
     // of separately.
     unpinParts?.();
@@ -1775,7 +1775,7 @@ const startFlight = (
       else standIn.replaceWith(entry.element);
     } else entry.element.remove();
     standIn.remove();
-    // The carrier only ever held the flying element, which has just gone home.
+    // The carrier only ever held the moving element, which has just gone home.
     carrier?.remove();
     entry.element.setAttribute(MORPH_ATTR, "");
 
@@ -1786,21 +1786,21 @@ const startFlight = (
        rules are always dropped by the residue rather than by the landing. */
     if (departing || cameraScreen) releaseResidue();
     else disposeOnce();
-    scope.flights.delete(entry.layoutId);
+    scope.transitions.delete(entry.layoutId);
   };
   function onEnd(event: AnimationEvent) {
     if (event.animationName !== arriving.geometryName) return;
     // AN END THAT RAN FOR NO TIME IS NOT A LANDING.
     //
     // `elapsedTime` is how long the animation actually ran, and a real landing
-    // reports the flight's own duration. Zero means the animation was torn
+    // reports the transition's own duration. Zero means the animation was torn
     // down and rebuilt rather than finished — WebKit reports that as an end,
     // not a cancel, and it arrives with the keyframes, the name and the
     // duration all still intact, so nothing else about the event tells the two
-    // apart. Measured on desktop Safari: every animation of a flight ending
+    // apart. Measured on desktop Safari: every animation of a transition ending
     // together ~7ms after the release, each with `elapsedTime: 0`, the
     // departure's cut then restarting from zero and running normally — while
-    // the flight, having been landed by the first of those ends, was already
+    // the transition, having been landed by the first of those ends, was already
     // home. What that looks like is a morph that never happened under a screen
     // transition that did.
     //
@@ -1809,12 +1809,12 @@ const startFlight = (
     // and if it was not, the backstop still brings the element home. Landing on
     // it, on the other hand, is unrecoverable — the element is back in its
     // screen before it has moved a pixel.
-    if (flightDuration > 0 && event.elapsedTime === 0) {
+    if (transitionDuration > 0 && event.elapsedTime === 0) {
       return;
     }
     finish();
   }
-  // The travel's own end is the landing. The backstop covers the flights that
+  // The travel's own end is the landing. The backstop covers the transitions that
   // never get one — a screen frozen mid-air, a tab backgrounded before the
   // compositor reports back — because a morph that never lands leaves the
   // element in the layer, outside the tree its consumer wrote.
@@ -1825,13 +1825,13 @@ const startFlight = (
       },
       seconds * 1000 + 250
     );
-  let backstop = net(start + flightDuration);
+  let backstop = net(start + transitionDuration);
   entry.element.addEventListener("animationend", onEnd);
 
-  scope.flights.set(entry.layoutId, {
+  scope.transitions.set(entry.layoutId, {
     finish,
     element: entry.element,
-    duration: flightDuration,
+    duration: transitionDuration,
     start,
     head,
     ease,
@@ -1844,7 +1844,7 @@ const startFlight = (
 };
 
 /**
- * Is this element the OTHER SIDE of the flight that is starting?
+ * Is this element the OTHER SIDE of the transition that is starting?
  *
  * A `layoutId` is a NAME, not an address. The same one legitimately sits on
  * several screens of a stack — a list card on screen A, the same card opened
@@ -1858,22 +1858,22 @@ const startFlight = (
  *   appearing full size in the middle of nowhere before its own screen has
  *   arrived, because snapshots outlive the screens they were taken from.
  *
- * So a partner has to be ON the flight: still in the document, and on a screen
+ * So a partner has to be ON the transition: still in the document, and on a screen
  * that is transitioning right now, on the side the arrival is not. A deep
  * resting screen pins its status to COMPLETED (the binding does this for every
  * stacked screen), which is exactly the discriminator.
  *
  * No screen at all is allowed and is not a loophole: it means either persistent
  * chrome that lives outside the screens, or an element already hoisted into the
- * flight layer by a flight this one is interrupting. Both are real partners.
+ * transition layer by a transition this one is interrupting. Both are real partners.
  */
-const isFlightPartner = (
+const isTransitionPartner = (
   element: HTMLElement,
   status: NavigateStatus,
   scope: MorphScope,
   // A GESTURE has no navigation behind it. The status requirement below exists
   // to stop a pair forming across screens that are merely stacked — two entries
-  // of the same route deep in a stack, say — and for a flight driven by a
+  // of the same route deep in a stack, say — and for a transition driven by a
   // status flip the screens carrying that status ARE the two taking part. A
   // drag has no such flip: the screens sit at rest under the finger. What still
   // holds is the side test, which is the half that identifies the pair, so that
@@ -1889,28 +1889,29 @@ const isFlightPartner = (
   // partner that is genuinely leaving. Device-read on the poster grid: a fast
   // pop's container `card-` found its detail twin only in the snapshot, the twin
   // still on a COMPLETED screen, so the gate said "not a partner" — the
-  // container never flew, its camera never ran, and its children flew on their
+  // container never moved, its camera never ran, and its children moved on their
   // own as bare type morphs. The side test still holds, so the pair is still
   // identified; only the not-yet-flipped status is tolerated.
   fromSnapshot = false
 ): boolean => {
   if (!element.isConnected) return false;
-  // ALREADY IN THE AIR — BUT ONLY IF A LIVE FLIGHT IS HOLDING IT.
+  // ALREADY IN THE AIR — BUT ONLY IF A LIVE TRANSITION IS HOLDING IT.
   //
-  // An element a flight hoisted into the layer is a real partner while that
-  // flight lives — a pop interrupting a push flies the very card the push was
+  // An element a transition hoisted into the layer is a real partner while that
+  // transition lives — a pop interrupting a push moves the very card the push was
   // carrying. A CORPSE looks identical: an interrupted storm (a tab switch
-  // tearing a screen down mid-flight) strands a hoisted element in the layer,
-  // still wearing its role, its flight already gone. It has no owning screen to
+  // tearing a screen down mid-transition) strands a hoisted element in the layer,
+  // still wearing its role, its transition already gone. It has no owning screen to
   // be judged by, so the `!screen` fall-through below would call it a partner —
   // and then every pop after it pairs against the corpse instead of the grid,
   // swallowing the camera and blinking the text until reload. So a role-bearing
-  // element in the layer is a partner only if the map still knows its flight;
+  // element in the layer is a partner only if the map still knows its transition;
   // otherwise it is a corpse and no partner at all. A role-bearing element still
   // in its screen (an EXIT side mid-trade) is untouched by this.
   if (element.getAttribute(MORPH_ATTR)) {
     if (element.closest(attrSelector(MORPH_LAYER_ATTR)) === null) return true;
-    for (const flight of scope.flights.values()) if (flight.element === element) return true;
+    for (const transition of scope.transitions.values())
+      if (transition.element === element) return true;
     return false;
   }
   const screen = owningScreen(element);
@@ -1956,9 +1957,9 @@ const measurePartnerNow = (
   for (const candidate of scope.entries.values()) {
     if (candidate.element === entry.element) continue;
     if (candidate.layoutId !== entry.layoutId) continue;
-    if (!isFlightPartner(candidate.element, status, scope, gesture)) continue;
+    if (!isTransitionPartner(candidate.element, status, scope, gesture)) continue;
     const partnerOwner = owningScreen(candidate.element);
-    const side = resolveMorphSide(candidate.element, partnerOwner, flightVariants(status).exit);
+    const side = resolveMorphSide(candidate.element, partnerOwner, transitionVariants(status).exit);
     return {
       snapshot: {
         rect: side.rect,
@@ -1988,7 +1989,7 @@ const evaluate = (
   store: NavigateStoreApi,
   entry: MorphEntry,
   deferred = false,
-  // A DRAG has no status to read. A swipe stages its flights before the
+  // A DRAG has no status to read. A swipe stages its transitions before the
   // navigation exists — that is the whole point of an interactive one — so the
   // direction is passed in instead of inferred from the store. Everything
   // downstream (which side arrives, which variant each end animates under)
@@ -2000,8 +2001,8 @@ const evaluate = (
   if (!forcedStatus && !isTransitional(status)) {
     return;
   }
-  if (scope.flights.has(entry.layoutId)) {
-    // The gesture's flight is still in the air and this navigation is riding
+  if (scope.transitions.has(entry.layoutId)) {
+    // The gesture's transition is still in the air and this navigation is riding
     // it, so the delivery mark has done its job and must not outlive it.
     scope.delivered.delete(entry.layoutId);
     return;
@@ -2009,7 +2010,7 @@ const evaluate = (
 
   // A morph INSIDE another morph rides it.
   //
-  // Letting both fly independently is what tears a card apart mid-flight: the
+  // Letting both move independently is what tears a card apart mid-transition: the
   // card, the artwork and the title each match their own partner exactly at
   // both ends, but they get there on their own curves and their own anchors,
   // so between the ends the artwork drifts out of the card and the title
@@ -2018,11 +2019,11 @@ const evaluate = (
   //
   // The check has to wait one microtask: a binding mounts effects child-first,
   // so at the child's own registration its parent has not started (or declined)
-  // a flight yet. A microtask still lands before paint, so the from-pose is in
+  // a transition yet. A microtask still lands before paint, so the from-pose is in
   // place for the first frame either way.
-  // A morph INSIDE another morph rides it, and does not fly on its own.
+  // A morph INSIDE another morph rides it, and does not move on its own.
   //
-  // Both alternatives were tried on glass and both fail. Letting the child fly
+  // Both alternatives were tried on glass and both fail. Letting the child move
   // free tears the container apart in the air. Correcting for the container's
   // transform so the child keeps its own path holds the container together but
   // breaks its INSIDE: the box is scaled from its own layout while the children
@@ -2035,24 +2036,26 @@ const evaluate = (
   //
   // The check waits one microtask: a binding mounts effects child-first, so at
   // the child's registration its container has not yet started (or declined) a
-  // flight. A microtask still lands before paint.
+  // transition. A microtask still lands before paint.
   const enclosing = entry.element.parentElement?.closest<HTMLElement>(MORPH_SELECTOR) ?? null;
-  let carrying: MorphFlight | null = null;
+  let carrying: MorphRun | null = null;
   if (enclosing) {
     if (!deferred) {
       queueMicrotask(() => evaluate(scope, store, entry, true, forcedStatus));
       return;
     }
-    carrying = [...scope.flights.values()].find((flight) => flight.element === enclosing) ?? null;
+    carrying =
+      [...scope.transitions.values()].find((transition) => transition.element === enclosing) ??
+      null;
   }
 
   // A nested morph asks nothing of the screen: its container is already
-  // carrying it, and the container's flight is the clock it grows on. Looking
+  // carrying it, and the container's transition is the clock it grows on. Looking
   // for a screen ancestor would find none anyway — the container took its
   // subtree out of the screen tree when it was staged.
   const owner = carrying ? null : owningScreen(entry.element);
   const screen = carrying ? null : physicalScreen(entry.element);
-  // Only the ARRIVING side drives a flight. Both elements are registered at
+  // Only the ARRIVING side drives a transition. Both elements are registered at
   // once mid-navigation, and letting either start one would run the pairing
   // twice, in two directions. Asked of the OWNER: the physical screen above a
   // shared bar is not the side this end is on, and answering from it made both
@@ -2062,12 +2065,12 @@ const evaluate = (
   }
 
   // AFTER the arriving gate, deliberately: only the side that would actually
-  // start a flight may consume the mark. Consuming it on the dismissing side —
+  // start a transition may consume the mark. Consuming it on the dismissing side —
   // which reaches this function first and always declines — would spend it a
   // moment before the arriving side asks, and the trip would repeat anyway.
   if (scope.delivered.delete(entry.layoutId)) {
-    // A gesture already carried this element to the very place this flight
-    // would take it, and landed it a frame or two ago. Flying it again would
+    // A gesture already carried this element to the very place this transition
+    // would take it, and landed it a frame or two ago. Moving it again would
     // put it back where it started and repeat the whole trip.
     return;
   }
@@ -2077,14 +2080,14 @@ const evaluate = (
   const captured =
     snapshot &&
     snapshot.element !== entry.element &&
-    isFlightPartner(snapshot.element, status, scope, gesture, true)
+    isTransitionPartner(snapshot.element, status, scope, gesture, true)
       ? snapshot
       : measurePartnerNow(scope, entry, status, gesture);
   if (!captured) {
     return;
   }
 
-  startFlight(scope, entry, captured, status, owner, screen, store, carrying);
+  startMorphRun(scope, entry, captured, status, owner, screen, store, carrying);
 };
 
 // Freeze every registered element's pose at the instant a navigation starts.
@@ -2092,32 +2095,34 @@ const evaluate = (
 // This is the one moment the source is guaranteed to be where the user last saw
 // it: the store has flipped, but nothing has re-rendered, so the screens still
 // wear their resting poses. Waiting until the arriving element mounts would be
-// too late — by then its partner is already dressed for the flight.
-// A HOISTED ELEMENT LEFT IN THE LAYER POISONS EVERY FLIGHT AFTER IT.
+// too late — by then its partner is already dressed for the transition.
+// A HOISTED ELEMENT LEFT IN THE LAYER POISONS EVERY TRANSITION AFTER IT.
 //
-// A flight hoists its element into the layer, stamps it with a role, and on
+// A transition hoists its element into the layer, stamps it with a role, and on
 // landing clears the role and carries it home. An interrupted storm can take
 // that landing away: a tab switch (REPLACING) tears down the home screen while
 // a card's nested morphs are still in the air, so their `finish` runs against a
 // home that is gone and their elements strand in the layer — connected, still
-// wearing `enter`, their flight already dropped from the map. Device-read on
+// wearing `enter`, their transition already dropped from the map. Device-read on
 // the poster grid, tab-flipping between cards: the artwork, the name and the
 // date of the just-popped card sat in the layer at IDLE, and because
-// `isFlightPartner` reads any role-bearing element as "a partner already in the
+// `isTransitionPartner` reads any role-bearing element as "a partner already in the
 // air", every subsequent pop paired against the corpse instead of the grid —
 // no camera, the texts blinking through a bare cross-fade, on every pop from
 // then on.
 //
 // So each navigation sweeps the scope's layer first: a role-bearing element in
-// it whose flight is no longer live is a corpse — the standIn left in the
+// it whose transition is no longer live is a corpse — the standIn left in the
 // screen and the ghost both drop their roles at birth (see the clone above and
 // the ghost's own subtree), so nothing legitimately in the layer wears a role
-// except an element a LIVE flight is holding, which the map still knows.
+// except an element a LIVE transition is holding, which the map still knows.
 const sweepLayerCorpses = (scope: MorphScope, layer: HTMLElement | null): void => {
   /* v8 ignore next -- both callers pass `resolveMorphLayer`, which yields null
      only under SSR; in a browser it always resolves or creates a layer. */
   if (!layer) return;
-  const live = new Set<HTMLElement>([...scope.flights.values()].map((flight) => flight.element));
+  const live = new Set<HTMLElement>(
+    [...scope.transitions.values()].map((transition) => transition.element)
+  );
   for (const node of layer.querySelectorAll<HTMLElement>(MORPH_SELECTOR)) {
     if (!node.getAttribute(MORPH_ATTR) || live.has(node)) continue;
     // A cut or a camera this corpse was still holding goes with it.
@@ -2129,7 +2134,7 @@ const sweepLayerCorpses = (scope: MorphScope, layer: HTMLElement | null): void =
 
 const capture = (scope: MorphScope, layer: HTMLElement | null): void => {
   sweepLayerCorpses(scope, layer);
-  // Snapshots outlive the flight that took them, which is what lets an
+  // Snapshots outlive the transition that took them, which is what lets an
   // interrupted navigation continue from where the eye last had the element.
   // They must not outlive the ELEMENT: a stack walked twice would otherwise
   // measure its second walk against rects taken on screens that are gone.
@@ -2153,42 +2158,42 @@ const capture = (scope: MorphScope, layer: HTMLElement | null): void => {
 };
 
 /**
- * Stage every registered pair as a flight the CALLER drives, and hand back the
+ * Stage every registered pair as a transition the CALLER drives, and hand back the
  * elements holding it.
  *
- * A programmatic navigation stages its flights when the status flips and lets
+ * A programmatic navigation stages its transitions when the status flips and lets
  * the compiled hold clock run them. A DRAG has neither: the navigation does not
  * exist yet (it is committed on release, if at all) and there is no hold to
  * mirror. So this takes the same snapshot the status flip would take, stages
- * the same flights under an explicit direction, and leaves them PAUSED at zero
+ * the same transitions under an explicit direction, and leaves them PAUSED at zero
  * for the gesture to move by hand.
  *
  * Exported for `morphSwipe`, which owns the scrubbing; nothing else should
- * stage a flight the runtime does not clock.
+ * stage a transition the runtime does not clock.
  */
-export const stageHeldFlights = (
+export const stageHeldTransitions = (
   store: NavigateStoreApi,
   status: NavigateStatus
-): MorphFlight[] => {
+): MorphRun[] => {
   const scope = ensureScope(store);
   capture(scope, resolveMorphLayer(store));
   for (const entry of [...scope.entries.values()]) {
     if (!entry.element.isConnected) continue;
     evaluate(scope, store, entry, false, status);
   }
-  return [...scope.flights.values()];
+  return [...scope.transitions.values()];
 };
 
 /**
  * Forget any delivery the navigation never came to collect. A NEW gesture
  * supersedes the last one; only the gesture's own entry point may do this,
- * because the navigation reaches the scope through `stageHeldFlights` too and
+ * because the navigation reaches the scope through `stageHeldTransitions` too and
  * clearing there would erase the mark a moment before reading it.
  */
 
 /**
  * Record that a gesture's release has DELIVERED whatever it is carrying — it
- * plays those flights out to the arrival itself, so the navigation it commits
+ * plays those transitions out to the arrival itself, so the navigation it commits
  * must not stage them again. Whatever is in the air at the release is exactly
  * what the gesture delivers. See `MorphScope.delivered`.
  */
@@ -2198,15 +2203,15 @@ export const clearGestureDeliveries = (store: NavigateStoreApi): void => {
 
 export const markGestureDelivered = (store: NavigateStoreApi): void => {
   const scope = ensureScope(store);
-  for (const layoutId of scope.flights.keys()) scope.delivered.add(layoutId);
+  for (const layoutId of scope.transitions.keys()) scope.delivered.add(layoutId);
 };
 
-/** The flights a scope currently holds — the nested ones included. */
-export const heldFlights = (store: NavigateStoreApi): MorphFlight[] => [
-  ...ensureScope(store).flights.values()
+/** The transitions a scope currently holds — the nested ones included. */
+export const heldTransitions = (store: NavigateStoreApi): MorphRun[] => [
+  ...ensureScope(store).transitions.values()
 ];
 
-export type { MorphFlight };
+export type { MorphRun };
 
 const ensureScope = (store: NavigateStoreApi): MorphScope => {
   const existing = scopes.get(store);
@@ -2216,7 +2221,7 @@ const ensureScope = (store: NavigateStoreApi): MorphScope => {
     entries: new Map(),
     residue: new Map(),
     snapshots: new Map(),
-    flights: new Map(),
+    transitions: new Map(),
     delivered: new Set(),
     /* v8 ignore next -- replaced on the line below; it exists so the field is
        never undefined between construction and subscription. */
@@ -2225,12 +2230,12 @@ const ensureScope = (store: NavigateStoreApi): MorphScope => {
   scope.unsubscribe = store.subscribe((state, previous) => {
     if (state.status === previous.status) return;
     if (!isTransitional(state.status)) return;
-    // Order matters: the snapshot has to be taken while a flight already in the
+    // Order matters: the snapshot has to be taken while a transition already in the
     // air is still in the air, so an interrupted navigation continues from
     // where the eye last had the element rather than from where it would have
     // landed.
     capture(scope, resolveMorphLayer(store));
-    for (const flight of [...scope.flights.values()]) flight.finish();
+    for (const transition of [...scope.transitions.values()]) transition.finish();
   });
   scopes.set(store, scope);
   return scope;
@@ -2239,8 +2244,8 @@ const ensureScope = (store: NavigateStoreApi): MorphScope => {
 /**
  * Register one element as a morph, and return the disposer.
  *
- * Call it before the paint of the frame the element mounts in, and again
- * whenever its screen's status changes — re-registering is cheap and is what
+ * Call it before the frame the element mounts in is rendered, and again
+ * whenever its screen's status changes. Re-registering is cheap and is what
  * lets a screen that was never frozen still take its side of a pop.
  */
 export default function attachMorph(element: HTMLElement, options: AttachMorphOptions): () => void {
@@ -2264,13 +2269,13 @@ export default function attachMorph(element: HTMLElement, options: AttachMorphOp
   // THE REGISTRATION MEASUREMENT IS FOR A CONTAINER, and only a nested element
   // has one.
   //
-  // AN ELEMENT IN FLIGHT IS NOT AN ELEMENT AT REST. This answers "what is this
+  // AN ELEMENT RUNNING IS NOT AN ELEMENT AT REST. This answers "what is this
   // box when nothing around it is staged", and a registration that lands while
-  // the element is in the flight layer answers with the box the flight is
-  // holding it at. Cached, every later flight then ends on it: read off a
-  // consumer's phone, a grid cell's title flew with its box pinned at 31px and
+  // the element is in the transition layer answers with the box the transition is
+  // holding it at. Cached, every later transition then ends on it: read off a
+  // consumer's phone, a grid cell's title moved with its box pinned at 31px and
   // rested at 20px, so the landing dropped it eleven pixels and took the line
-  // under it down too. A re-registration mid-flight keeps what was measured at
+  // under it down too. A re-registration mid-transition keeps what was measured at
   // rest instead.
   const nested = element.parentElement?.closest(MORPH_SELECTOR) ?? null;
   const staged = element.closest(`[${MORPH_LAYER_ATTR}]`) !== null;
@@ -2304,7 +2309,7 @@ export default function attachMorph(element: HTMLElement, options: AttachMorphOp
   // OWNERSHIP IS WRITTEN WHERE IT IS READ, WHICH IS ALMOST NOWHERE.
   //
   // The status and the active flag are how this runtime tells which side of a
-  // flight an end is on, and for anything inside a screen the screen already
+  // transition an end is on, and for anything inside a screen the screen already
   // says both. The binding used to stamp them on EVERY morph, which meant every
   // morph on the page had two attributes rewritten on every navigation — and an
   // attribute write invalidates that element's style. Device-read on the
@@ -2337,8 +2342,8 @@ export default function attachMorph(element: HTMLElement, options: AttachMorphOp
   // Deliberately narrow: it drops the registration and NOTHING else. A binding
   // re-registers on every status change (that is the contract), and React runs
   // the previous effect's cleanup before the next one's setup — so tearing a
-  // flight down here would abort every morph at the moment its own screen
-  // changed status. A flight ends when its travel ends, or at the backstop.
+  // transition down here would abort every morph at the moment its own screen
+  // changed status. A transition ends when its travel ends, or at the backstop.
   return () => {
     if (scope.entries.get(element) === entry) scope.entries.delete(element);
   };

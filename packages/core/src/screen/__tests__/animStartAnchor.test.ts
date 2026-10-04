@@ -418,7 +418,7 @@ describe("createAnimHoldCoordinator", () => {
     flushPaintAnchor();
     await flushMicrotasks();
     // The exiting top is ready in two frames but must NOT start without its
-    // revealed partner (whose decode is still in flight).
+    // revealed partner (whose decode is still running).
     expect(fast).not.toHaveBeenCalled();
     expect(slow).not.toHaveBeenCalled();
 
@@ -440,7 +440,7 @@ describe("createAnimHoldCoordinator", () => {
     flushPaintAnchor();
     await flushMicrotasks();
     // Push now pair-gates exactly like pop (the crossfade-desync fix): `first`
-    // is ready in two frames but must wait on `second`'s in-flight decode
+    // is ready in two frames but must wait on `second`'s running decode
     // instead of starting ~100ms ahead of it.
     expect(first).not.toHaveBeenCalled();
     expect(second).not.toHaveBeenCalled();
@@ -700,7 +700,7 @@ describe("scheduleAnimHoldReadiness content settle", () => {
     expect(onReady).toHaveBeenCalledTimes(1);
   });
 
-  it("a shell with nothing in flight gives up on the short grace", () => {
+  it("a shell with nothing running gives up on the short grace", () => {
     const onReady = vi.fn();
     scheduleAnimHoldReadiness(onReady, { scope: shellScope(), contentSettle: SETTLE });
     flushFrame();
@@ -737,7 +737,7 @@ describe("scheduleAnimHoldReadiness content settle", () => {
     expect(onReady).toHaveBeenCalledTimes(1);
   });
 
-  it("the cap bounds the whole wait even while requests stay in flight", () => {
+  it("the cap bounds the whole wait even while requests stay running", () => {
     setPendingForTests(true);
     const onReady = vi.fn();
     scheduleAnimHoldReadiness(onReady, { scope: shellScope(), contentSettle: SETTLE });
@@ -799,7 +799,7 @@ describe("scheduleAnimHoldReadiness settle beats", () => {
     setPendingForTests(false);
   });
 
-  it("quiet frames that end while requests are still in flight re-arm the wait", async () => {
+  it("quiet frames that end while requests are still running re-arm the wait", async () => {
     setPendingForTests(true);
     const scope = shellScope();
     const onReady = vi.fn();
@@ -822,7 +822,7 @@ describe("scheduleAnimHoldReadiness settle beats", () => {
     expect(onReady).toHaveBeenCalledTimes(1);
   });
 
-  it("the first-wave deadline keeps retrying while requests are in flight", () => {
+  it("the first-wave deadline keeps retrying while requests are running", () => {
     setPendingForTests(true);
     const onReady = vi.fn();
     scheduleAnimHoldReadiness(onReady, { scope: shellScope(), contentSettle: SETTLE });
@@ -971,7 +971,7 @@ describe("scheduleAnimHoldReadiness settle boundaries", () => {
     expect(onReady).toHaveBeenCalledTimes(1);
   });
 
-  it("a near-empty screen with requests in flight waits for its content", async () => {
+  it("a near-empty screen with requests running waits for its content", async () => {
     setPendingForTests(true);
     const scope = document.createElement("div");
     scope.appendChild(document.createElement("div"));
@@ -1265,7 +1265,7 @@ describe("scheduleAnimHoldRelease backstop with a content settle", () => {
     flushFrame();
     flushFrame(); // paint anchor → the settle gate arms
 
-    // The gate is legitimately waiting (requests in flight): the plain 300ms
+    // The gate is legitimately waiting (requests running): the plain 300ms
     // backstop must NOT fire underneath it.
     vi.advanceTimersByTime(301);
     expect(release).not.toHaveBeenCalled();
@@ -1533,7 +1533,7 @@ describe("settle gate image loads", () => {
 // the unfreeze commits almost no added nodes, so the grace/firstWait give-up
 // timers were the release path and released on a wall clock while the
 // unfreeze's style/layout/paint block was still due. Device-measured: every
-// heavy-list pop opened with one ~50-60ms frame gap overlapping flight start.
+// heavy-list pop opened with one ~50-60ms frame gap overlapping transition start.
 // In render-settle mode a give-up release now requires TWO consecutive fast
 // frames; a slow frame restarts the pair; capMs bounds the wait.
 describe("render-settle give-up raster guard", () => {

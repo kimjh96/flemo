@@ -7,7 +7,7 @@ import { beginRiderSwipe, type RiderMotion } from "@core/engine/riderSwipe";
 
 import { SKIP_ANIMATION_ATTR } from "@dom/attributes";
 
-// WHAT RIDES A FLIGHT FOLLOWS THE FINGER.
+// WHAT RIDES A TRANSITION FOLLOWS THE FINGER.
 //
 // A drag flips no status — `isReadyForDrag` requires COMPLETED and the
 // navigation only begins at `back()` — so the compiled rules never match and a
@@ -88,11 +88,11 @@ afterEach(() => {
 });
 
 describe("beginRiderSwipe", () => {
-  // A DECLARED DELAY IS DEAD TIME IN A FLIGHT AND NO TIME AT ALL UNDER A FINGER.
+  // A DECLARED DELAY IS DEAD TIME IN A TRANSITION AND NO TIME AT ALL UNDER A FINGER.
   //
   // A part can author one: the playground's card chrome waits a quarter of a
   // second before it goes, so it is still there while the card is large enough
-  // to hold it. In a FLIGHT that is exactly what it should be — the element
+  // to hold it. In a TRANSITION that is exactly what it should be — the element
   // sits at its from-pose and then moves.
   //
   // A DRAG cannot spend the finger on it. The chrome above declares 0.24s of
@@ -107,7 +107,7 @@ describe("beginRiderSwipe", () => {
     const swipe = beginRiderSwipe([{ element, motion: delayed }])!;
     const [drag, commitLeg, cancelLeg] = animations;
 
-    // The delay is carried, so a flight staged from these keyframes waits.
+    // The delay is carried, so a transition staged from these keyframes waits.
     expect(drag!.options.delay).toBe(240);
     expect(drag!.options.duration).toBe(160);
 
@@ -221,7 +221,7 @@ describe("beginRiderSwipe", () => {
     swipe!.settle(true, 0.2);
 
     expect(element.getAttribute(SKIP_ANIMATION_ATTR)).toBe("true");
-    // The COMMIT leg flies, forward, and the drag animation is left where the
+    // The COMMIT leg moves, forward, and the drag animation is left where the
     // finger put it until the landing clears everything.
     expect(animations[1]!.played).toBe(true);
     expect(animations[1]!.playbackRate).toBeGreaterThan(0);
@@ -231,7 +231,7 @@ describe("beginRiderSwipe", () => {
   it("hands the element back when a COMMITTED settle finishes", () => {
     // A staged animation carries `fill: both`, so one left behind holds its end
     // pose for good. The screen a swipe returns to SURVIVES, and its parts then
-    // wore that pose into the next flight and fought the compiled rule meant to
+    // wore that pose into the next transition and fought the compiled rule meant to
     // move them: reported as the previous element overlapping and then
     // vanishing on the next push.
     const swipe = beginRiderSwipe([{ element, motion: motion() }]);
@@ -240,12 +240,12 @@ describe("beginRiderSwipe", () => {
 
     animations[1]!.listeners.finish?.forEach((fn) => fn());
 
-    // Everything the gesture staged goes, not just the one that flew.
+    // Everything the gesture staged goes, not just the one that moved.
     for (const animation of animations) expect(animation.cancelled).toBe(true);
     expect(element.hasAttribute(SKIP_ANIMATION_ATTR)).toBe(false);
   });
 
-  it("flies the reversed leg FORWARD on cancel, so the return has a landing", () => {
+  it("moves the reversed leg FORWARD on cancel, so the return has a landing", () => {
     // Playing the drag backwards is what left a cancel with no easing at all:
     // it walks back through the authored curve's opening, which is that curve's
     // own tangent, and the deceleration the author drew is at the far end where
@@ -388,7 +388,7 @@ describe("beginRiderSwipe", () => {
     });
 
     it("keeps the drag holding the pose when there is no leg to play", () => {
-      // Nothing left to fly: the drag animation is what holds the pose until
+      // Nothing left to move: the drag animation is what holds the pose until
       // the landing hands the element back, so it must not be let go early.
       const swipe = beginRiderSwipe([{ element, motion: motion() }])!;
       swipe.scrub(0);
@@ -400,10 +400,10 @@ describe("beginRiderSwipe", () => {
     });
   });
 
-  it("leaves a rider the release has nothing left to fly", () => {
+  it("leaves a rider the release has nothing left to move", () => {
     // Cancelled without ever having moved: the leg is already standing on the
     // pose it would land at, and the landing below still hands the element
-    // back. Flying a zero-length leg would only delay it.
+    // back. Moving a zero-length leg would only delay it.
     const swipe = beginRiderSwipe([{ element, motion: motion() }]);
     swipe!.scrub(0);
 
@@ -444,7 +444,7 @@ describe("beginRiderSwipe", () => {
 //
 // Seeking a rider through the inverse of its OWN curve cancels that curve: the
 // rider then sits at the gesture's own fraction of its travel whatever it
-// authored. A flight cancels nothing, so a drag and the pop it walks were two
+// authored. A transition cancels nothing, so a drag and the pop it walks were two
 // different motions, and the curve an author wrote only ever appeared on
 // release. Reported from the playground as a swipe that looked like a different
 // transition from the pop.
@@ -464,16 +464,16 @@ describe("a rider reads the gesture through the screen it rides", () => {
   });
 
   /**
-   * Where a screen on `CUPERTINO` is in its own flight, in seconds, when it is
+   * Where a screen on `CUPERTINO` is in its own transition, in seconds, when it is
    * `p` across.
    *
    * Computed here rather than read back off the animation: an expectation taken
    * from the thing under test moves with it, and the first draft of these
    * passed against the arithmetic they were written to rule out.
    */
-  const flightSeconds = (p: number, duration = 0.4) => invertEasing(CUPERTINO)(p) * duration;
+  const transitionSeconds = (p: number, duration = 0.4) => invertEasing(CUPERTINO)(p) * duration;
 
-  it("puts a rider at the flight time its screen is at, not at the gesture's", () => {
+  it("puts a rider at the transition time its screen is at, not at the gesture's", () => {
     const swipe = beginRiderSwipe([
       { element, motion: motion({ ease: "linear" }), phase: screen() }
     ]);
@@ -481,10 +481,10 @@ describe("a rider reads the gesture through the screen it rides", () => {
     swipe!.scrub(0.5);
 
     // Cupertino's curve is half travelled about a sixth of the way through its
-    // clock, so a screen half-way across is a flight barely started and the
+    // clock, so a screen half-way across is a transition barely started and the
     // chrome on it has barely moved. Seeked through its OWN linear curve this
     // rider would have been at 0.5.
-    expect(timeFraction(0)).toBeCloseTo(flightSeconds(0.5) / 0.4, 5);
+    expect(timeFraction(0)).toBeCloseTo(transitionSeconds(0.5) / 0.4, 5);
     expect(timeFraction(0)).toBeLessThan(0.25);
   });
 
@@ -493,7 +493,7 @@ describe("a rider reads the gesture through the screen it rides", () => {
   // The playground's `detail-chrome` runs 0.16s against cupertino's 0.7s, so
   // the seconds a screen position stands for cover four times as much of the
   // part's travel. Reading the screen's fraction as if it were the part's put
-  // that header at 3% of its travel where the flight has it at 49%, which is
+  // that header at 3% of its travel where the transition has it at 49%, which is
   // the same class of mistake as the curve cancelling: a number carried across
   // a boundary it does not belong to.
   it("converts the screen's progress into seconds before reading its own clock", () => {
@@ -509,13 +509,13 @@ describe("a rider reads the gesture through the screen it rides", () => {
 
     // A quarter of the screen's clock is the whole of this rider's, so the
     // seconds the screen is at put it most of the way along.
-    const seconds = flightSeconds(0.5);
+    const seconds = transitionSeconds(0.5);
     expect(timeFraction(0, 100)).toBeCloseTo(seconds / 0.1, 5);
     expect(timeFraction(0, 100)).toBeGreaterThan(0.5);
   });
 
   it("holds a rider that finishes before the drag does", () => {
-    // Its own clock runs out inside the flight, which is what the pop does too:
+    // Its own clock runs out inside the transition, which is what the pop does too:
     // the chrome is gone and the screen is still sliding.
     const short = beginRiderSwipe([
       {
@@ -534,7 +534,7 @@ describe("a rider reads the gesture through the screen it rides", () => {
   });
 
   it("changes nothing for a rider whose curve is already its screen's", () => {
-    // Which, after `resolvePartClock`, is every part that does not name one.
+    // Which, after `resolvePartTiming`, is every part that does not name one.
     // The two arithmetics have to agree exactly there or this would be a
     // silent change to every existing drag.
     const own = beginRiderSwipe([{ element, motion: motion({ ease: CUPERTINO }) }]);
@@ -600,10 +600,10 @@ describe("a rider reads the gesture through the screen it rides", () => {
 
     swipe!.settle(true, 0.2);
 
-    // The commit leg is the same path forward, so it picks up at the flight
+    // The commit leg is the same path forward, so it picks up at the transition
     // time the drag left. Seeking it to the gesture's 0.5 instead would jump
     // the chrome the moment the finger lifts.
-    expect(animations[1]!.currentTime! / 400).toBeCloseTo(flightSeconds(0.5) / 0.4, 5);
+    expect(animations[1]!.currentTime! / 400).toBeCloseTo(transitionSeconds(0.5) / 0.4, 5);
     expect(animations[1]!.currentTime! / 400).not.toBeCloseTo(0.5, 2);
   });
 
@@ -619,7 +619,7 @@ describe("a rider reads the gesture through the screen it rides", () => {
 
     swipe!.settle(false, 0.2);
 
-    expect(animations[2]!.currentTime! / 400).toBeCloseTo(1 - flightSeconds(0.5) / 0.4, 5);
+    expect(animations[2]!.currentTime! / 400).toBeCloseTo(1 - transitionSeconds(0.5) / 0.4, 5);
     expect(animations[2]!.currentTime! / 400).not.toBeCloseTo(0.5, 2);
   });
 });

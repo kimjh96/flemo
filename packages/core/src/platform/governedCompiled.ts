@@ -10,19 +10,19 @@ import { detectBlinkEngine } from "@platform/engineProbes";
 // rAF-driven player could only ever produce half the frames there, and slides
 // were routed to the compiled tier WHEN LPM WAS DETECTED. Detecting it was a
 // whole apparatus: a probe fired at module evaluation and again per routed
-// flight, a continuous rAF monitor kept a rolling window of frame gaps so a
+// transition, a continuous rAF monitor kept a rolling window of frame gaps so a
 // verdict was ready before the first navigation, and the last verdict
 // persisted in sessionStorage across reloads.
 //
 // The treatment then proved right whether or not the device was in Low Power
 // Mode (device-confirmed 2026-08 on a 60Hz iPhone with LPM off), so it became
-// the default for every touch-WebKit flight — and the detection had nothing
+// the default for every touch-WebKit transition — and the detection had nothing
 // left to gate. It was kept "fresh" for another campaign or two, read by
 // nobody, until the 2026-08-22 audit found `lowPowerCadenceActive` with zero
 // internal callers and `lowPowerFrameIntervalMs` with none at all.
 //
 // It was not free while it lasted: a rAF loop from module load to the end of
-// the session, six more frames per routed flight, a probe per visibility
+// the session, six more frames per routed transition, a probe per visibility
 // return, and sessionStorage on both. That is per-frame main-thread work on
 // exactly the devices where the main thread is the scarce resource — the
 // finding the swipe campaign closed on (see createSwipeController). Retired

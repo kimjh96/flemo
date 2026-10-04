@@ -1,4 +1,4 @@
-// How long this session takes to put a flight's FIRST FRAME on the glass, per
+// How long this session takes to put a transition's FIRST FRAME on the glass, per
 // navigation status, in milliseconds.
 //
 // The flat head exists to cover exactly this: a compiled clock is born at the
@@ -10,7 +10,7 @@
 // A head is therefore a cover for a latency, and a cover for a latency that is
 // not there is dead time: the screen sits still after it could already have
 // moved. The lengths are literal in the compiled CSS and cannot be dialled per
-// flight, so what is decided per flight is whether to wear one at all — and
+// transition, so what is decided per transition is whether to wear one at all — and
 // that is a question about a measured number, not about a platform.
 //
 // Measured rather than assumed, because the number is a property of the app,
@@ -29,7 +29,7 @@
 const MIN_SAMPLE_MS = 0;
 const MAX_SAMPLE_MS = 250;
 
-/** How much of the remembered worst survives each later, cheaper flight. */
+/** How much of the remembered worst survives each later, cheaper transition. */
 const DECAY = 0.85;
 
 const learned = new Map<string, number>();
@@ -44,7 +44,7 @@ const learned = new Map<string, number>();
 export const learnedReleaseLatencyMs = (status: string): number | null =>
   learned.get(status) ?? null;
 
-/** One flight's release-to-first-frame, as measured by the engine. */
+/** One transition's release-to-first-frame, as measured by the engine. */
 export const reportReleaseLatencyMs = (status: string, latencyMs: number): void => {
   if (!Number.isFinite(latencyMs)) return;
   if (latencyMs < MIN_SAMPLE_MS || latencyMs > MAX_SAMPLE_MS) return;

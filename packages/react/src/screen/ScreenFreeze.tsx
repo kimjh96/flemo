@@ -8,11 +8,10 @@ interface ScreenFreezeProps {
    * WHY this screen is freezing, which decides whether the hide may wait.
    *
    * Only the JUST-COVERED screen can be re-revealed by a pop, so only its hide
-   * can be the one a pop has to undo — and the debounce below exists for
-   * exactly that round trip. A DEEP screen is never what a pop wakes, so
-   * waiting buys it nothing and costs the thing the delay is invisible for
-   * right up until it is not: for the length of the wait it is still PAINTING,
-   * under whatever is on top of it.
+   * can be the one a pop has to undo, and the debounce exists for exactly
+   * that round trip. A DEEP screen is never what a pop shows again, so waiting
+   * gains it nothing and has a cost: for the length of the wait it is still
+   * RENDERING, under whatever is on top of it.
    */
   mode?: ScreenFreezeMode;
   children: ReactNode;
@@ -60,7 +59,7 @@ const FREEZE_REST_DEBOUNCE_MS = 3000;
 // comes back.
 /**
  * Suspends a covered screen's rendering with React's `Activity`, keeping its
- * state and scroll while it stops painting and laying out.
+ * state and scroll while it stops rendering and laying out.
  *
  * `Screen` decides when to freeze and composes this; an app renders `Screen`.
  * The `freeze` prop is that decision, and `mode` says whether the hide may wait
@@ -94,7 +93,7 @@ function ScreenFreeze({ freeze, mode = "deferred", children }: ScreenFreezeProps
     // rate. It keyed on the steady-60 verdict until 2026-08-21 only because
     // that verdict once routed the driver and every desktop default hung off
     // it; a desktop pays the same raster either way, and no longer waits two
-    // flights to stop paying it.
+    // transitions to stop paying it.
     if (mode === "immediate" || !isDesktopBlink()) {
       setApplied(true);
       return undefined;

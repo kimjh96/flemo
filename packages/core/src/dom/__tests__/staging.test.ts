@@ -91,7 +91,7 @@ describe("preserveAnimations", () => {
 
   it("leaves the root's own animations to the runtime", () => {
     // The travel is written by attachMorph on both sides of the move; seeking
-    // it here would fight the author of the flight.
+    // it here would fight the author of the transition.
     let live = [animation(root, "flemo-morph-1i-travel", 200)];
     stubAnimations(root, () => live);
 
@@ -105,7 +105,7 @@ describe("preserveAnimations", () => {
 
   it("carries a descendant while still leaving the root's own animation alone", () => {
     // The shape a morph actually travels in: the shared element runs its own
-    // travel animation AND contains a <Part> running the flight's keyframes.
+    // travel animation AND contains a <Part> running the transition's keyframes.
     // The descendant has to come back to where it was; the root must not,
     // because the morph runtime writes that one on both sides of the move.
     let live = [
@@ -208,7 +208,7 @@ describe("preserveAnimations", () => {
 
   it("lets a refused seek stand rather than failing the move", () => {
     // An animation whose timeline has not resolved yet rejects the seek.
-    // Restarting it is the wrong result, but a thrown error mid-flight would
+    // Restarting it is the wrong result, but a thrown error mid-transition would
     // leave the element in the layer.
     let live: FakeAnimation[] = [animation(child, "flemo-part-a", 120)];
     stubAnimations(root, () => live);
@@ -241,7 +241,7 @@ describe("preserveAnimations", () => {
 describe("intoLayerSpace", () => {
   // A staging layer can sit inside a transformed ancestor: a device bezel, a
   // scaled preview. A px it is positioned by is then not a px on the glass, and
-  // a flight expressed in viewport coordinates lands somewhere else entirely.
+  // a transition expressed in viewport coordinates lands somewhere else entirely.
   const layerAt = (measured: Partial<DOMRect>, laidOut: { width: number; height: number }) => {
     const layer = document.createElement("div");
     layer.getBoundingClientRect = () =>
@@ -295,7 +295,7 @@ describe("intoLayerSpace", () => {
     // whose LAYOUT width is fractional — a stage sized by `aspect-ratio` on a
     // viewport that is not a round number — reports a ratio where there is no
     // transform. Divided into every staged rect, half a pixel over a 342px
-    // layer inflated a 314px arrival by 0.46px, and the flight then stepped
+    // layer inflated a 314px arrival by 0.46px, and the transition then stepped
     // that far at the landing.
     const layer = layerAt(
       { left: 0, top: 0, width: 341.5, height: 719.375 },

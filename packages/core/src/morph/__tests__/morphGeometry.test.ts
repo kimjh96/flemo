@@ -30,7 +30,7 @@ afterEach(() => {
 describe("untransformRect", () => {
   it("refuses to divide a rect by a zero scale", () => {
     // A screen held at `scale: 0` is a legal authored pose, and dividing by it
-    // sends the flight to infinity.
+    // sends the transition to infinity.
     const collapsed = { x: 0, y: 0, scaleX: 0, scaleY: 0, rotate: 0 };
     expect(untransformRect(rect(10, 20, 30, 40), collapsed, { x: 0, y: 0 })).toEqual(
       rect(10, 20, 30, 40)
@@ -38,7 +38,7 @@ describe("untransformRect", () => {
   });
 
   it("undoes a screen that is held one width off-stage", () => {
-    // The arriving screen sits at its from-pose while the flight is held, so
+    // The arriving screen sits at its from-pose while the transition is held, so
     // everything measured inside it is a screen-width to the right.
     const screenPose = { x: 400, y: 0, scaleX: 1, scaleY: 1, rotate: 0 };
     const screenCentre = untransformedCentre(rect(400, 0, 400, 800), screenPose);
@@ -136,7 +136,7 @@ describe("captureMorphSnapshot", () => {
   });
 
   it("still returns a snapshot where computed styles are unavailable", () => {
-    // The rect is the one thing a flight cannot do without; everything else
+    // The rect is the one thing a transition cannot do without; everything else
     // degrades to "do not animate this channel".
     vi.stubGlobal("getComputedStyle", undefined);
 

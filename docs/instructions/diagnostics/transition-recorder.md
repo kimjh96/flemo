@@ -1,12 +1,12 @@
-# Flight recorder, residue, and retired diagnostics
+# Transition recorder, residue, and retired diagnostics
 
-## Start with the flight recorder
+## Start with the transition recorder
 
 Attach `@flemo/devtools` before changing anything and reproduce once. The playground entrypoint is `/playground?devtools=on`. `window.flemo.report()` returns the driver tier, A/B residue, observation trustworthiness, and known 2026 defect classes.
 
 Read these report sections carefully:
 
-- `flights[].motion` reports whether the pose advanced, not just whether frames arrived. Release races, hold re-assertions, and freeze-then-leap defects can leave the screen stationary despite clean frame timing.
+- `transitions[].motion` reports whether the pose advanced, not just whether frames arrived. Release races, hold re-assertions, and freeze-then-leap defects can leave the screen stationary despite clean frame timing.
 - `judgingProtocol` requires DevTools closed, no capture, and real input—conditions the page cannot verify. A clean report collected with DevTools open is not evidence.
 
 ## There are no `flemo:*` engine flags
@@ -28,8 +28,8 @@ Former engine keys are inert, but devtools enumerates them to prevent mistaking 
 
 ## Inspecting residue
 
-Use `Object.entries(sessionStorage).filter(([k]) => k.startsWith("flemo:"))` or the recorder report to inspect stored keys. No discovered engine key can affect flight behavior; treat it as archaeology, clear it, and continue.
+Use `Object.entries(sessionStorage).filter(([k]) => k.startsWith("flemo:"))` or the recorder report to inspect stored keys. No discovered engine key can affect transition behavior; treat it as archaeology, clear it, and continue.
 
 ## There are no `window.__flemo*` globals
 
-`window.__flemoPlayerGaps` mirrored the rAF motion player's frame gaps. Both the global and `transitionPlayer.ts` were removed when the player was retired. Nothing replaced them: a compiled flight has no main-thread clock to read. Frame evidence now comes from a recording or a screenshot-energy probe, not a global.
+`window.__flemoPlayerGaps` mirrored the rAF motion player's frame gaps. Both the global and `transitionPlayer.ts` were removed when the player was retired. Nothing replaced them: a compiled transition has no main-thread clock to read. Frame evidence now comes from a recording or a screenshot-energy probe, not a global.
