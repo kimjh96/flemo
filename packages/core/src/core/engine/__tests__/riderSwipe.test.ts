@@ -357,6 +357,49 @@ describe("beginRiderSwipe", () => {
     expect((cancelLeg as unknown as { startTime?: number }).startTime).toBeLessThan(5_000);
   });
 
+  describe("the playing leg is the only animation left", () => {
+    // The drag animation (paused, `fill: both`) and the leg not taken stayed
+    // on the element under the leg that plays. Blink would not composite the
+    // leg beside them and stepped it by whole pixels; WebKit kept drawing the
+    // paused drag pose, so the dim and the header Parts froze for the whole
+    // release and cut at COMPLETED. Both were measured off the glass.
+    it("lets go of the drag and the commit leg when a cancel plays", () => {
+      const swipe = beginRiderSwipe([{ element, motion: motion() }])!;
+      const [drag, commitLeg, cancelLeg] = animations;
+      swipe.scrub(0.5);
+
+      swipe.settle(false, 0.2);
+
+      expect(drag!.cancelled).toBe(true);
+      expect(commitLeg!.cancelled).toBe(true);
+      expect(cancelLeg!.cancelled).toBe(false);
+    });
+
+    it("lets go of the drag and the cancel leg when a commit plays", () => {
+      const swipe = beginRiderSwipe([{ element, motion: motion() }])!;
+      const [drag, commitLeg, cancelLeg] = animations;
+      swipe.scrub(0.5);
+
+      swipe.settle(true, 0.2);
+
+      expect(drag!.cancelled).toBe(true);
+      expect(cancelLeg!.cancelled).toBe(true);
+      expect(commitLeg!.cancelled).toBe(false);
+    });
+
+    it("keeps the drag holding the pose when there is no leg to play", () => {
+      // Nothing left to fly: the drag animation is what holds the pose until
+      // the landing hands the element back, so it must not be let go early.
+      const swipe = beginRiderSwipe([{ element, motion: motion() }])!;
+      swipe.scrub(0);
+
+      swipe.settle(false, 0.2);
+
+      expect(animations[0]!.cancelled).toBe(false);
+      expect(animations[0]!.paused).toBe(true);
+    });
+  });
+
   it("leaves a rider the release has nothing left to fly", () => {
     // Cancelled without ever having moved: the leg is already standing on the
     // pose it would land at, and the landing below still hands the element

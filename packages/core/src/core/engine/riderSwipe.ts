@@ -392,6 +392,35 @@ export const beginRiderSwipe = (
           // One copy of the placement arithmetic, shared with the morph's own
           // return: what is left of the leg's clock covers the release.
           placeLeg(leg, at, remaining, seconds);
+          // THE LEG HAS TO BE THE ONLY ANIMATION LEFT, ON EVERY ENGINE.
+          //
+          // The drag animation stays paused with `fill: both` and the leg not
+          // taken stays parked, both on the same properties as the leg now
+          // playing. Neither engine draws the playing leg as it should beside
+          // them, and the two fail differently:
+          //
+          //   Blink refuses to composite it (a CDP trace reads
+          //   `compositeFailed: 64`, target has incompatible animations), so
+          //   the release runs on the main thread and Blink snaps each frame's
+          //   static translate to whole device pixels: the returning screen's
+          //   slow tail stepped +1, 0, 0, +1 px where a button pop glides by
+          //   fractions (3/3 runs, per lossless screencast frame).
+          //
+          //   WebKit keeps drawing the paused drag animation's pose. Script
+          //   reads the leg's values falling as they should while the glass
+          //   holds the pose the finger left: on Safari 26 the covered screen's
+          //   dim stayed at its drag value for the whole release and vanished
+          //   in one frame at COMPLETED, and the composition bench's header
+          //   title and action Parts held their drag pose the same way (6/6
+          //   runs, real pointer input, measured off screen captures).
+          //
+          // The placed leg is already in effect at the pose on screen and both
+          // others sit under it, so letting them go here changes nothing drawn
+          // except that the leg is now what is drawn. Nothing about the playing
+          // leg's own timing is touched, which is the line the motion-jank
+          // postmortem's do-not-retry list draws for WebKit.
+          rider.animation.cancel();
+          (commit ? rider.cancelLeg : rider.commitLeg)?.cancel();
         }
       }
       return Promise.all(landings).then(() => undefined);
