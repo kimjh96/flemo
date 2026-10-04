@@ -1,12 +1,12 @@
 import type { DocBlock, LocalizedDocPage } from "../docTypes";
 
-// The whole library in pictures, for someone who has never used it. Every
+// The whole library for someone who has never used it. Every
 // claim here is a plain restatement of a page further on; link there for the
 // details instead of adding them here.
 const enBlocks: DocBlock[] = [
   {
     type: "p",
-    text: "flemo moves screens the way a phone app does. This page shows how, one picture at a time, without any code."
+    text: "flemo moves screens the way a phone app does. Here is what happens under the hood, from the stack of screens to the swipe that takes you back."
   },
   { type: "h", text: "Screens are a stack of cards" },
   {
@@ -128,7 +128,7 @@ const enBlocks: DocBlock[] = [
 const koBlocks: DocBlock[] = [
   {
     type: "p",
-    text: "flemo는 휴대폰 앱처럼 화면을 움직여요. 이 페이지는 코드 없이, 그림 하나씩 보면서 어떻게 움직이는지 설명해요."
+    text: "flemo는 휴대폰 앱처럼 화면을 움직여요. 화면 스택부터 뒤로 가는 스와이프까지, 그 안에서 어떤 일이 일어나는지 알아봐요."
   },
   { type: "h", text: "화면은 카드 더미예요" },
   {
@@ -250,14 +250,14 @@ const page: LocalizedDocPage = {
     slug: "how-it-works",
     title: "How it works",
     summary:
-      "How flemo moves screens, in pictures: a stack of cards, a movement written down once, a swipe your finger drives, and a few pieces that stay still.",
+      "How flemo moves screens: a stack of cards, a movement written down once, a swipe your finger drives, and the pieces that stay still.",
     blocks: enBlocks
   },
   ko: {
     slug: "how-it-works",
     title: "How it works",
     summary:
-      "flemo가 화면을 움직이는 방식을 그림으로 설명해요. 카드 더미, 한 번 적어 두는 움직임, 손가락이 움직이는 스와이프, 그리고 그대로 있는 부분들까지 차례로 봐요.",
+      "flemo가 화면을 움직이는 방식이에요. 카드 더미, 한 번 적어 두는 움직임, 손가락이 움직이는 스와이프, 그리고 그대로 있는 부분까지 차례로 봐요.",
     blocks: koBlocks
   }
 };

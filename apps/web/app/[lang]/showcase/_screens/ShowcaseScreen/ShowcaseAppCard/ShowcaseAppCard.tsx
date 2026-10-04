@@ -32,8 +32,20 @@ function ShowcaseAppCard({ app }: ShowcaseAppCardProps) {
         </div>
         <p className="text-body text-fg-muted">{copy.description}</p>
         <div className="mt-auto flex flex-wrap items-center gap-2">
+          {app.webUrl && (
+            <ButtonLink href={app.webUrl} target="_blank" rel="noreferrer" size="sm">
+              {t.web}
+              <Icon name="arrowUpRight" size={13} />
+            </ButtonLink>
+          )}
           {app.appStoreUrl && (
-            <ButtonLink href={app.appStoreUrl} target="_blank" rel="noreferrer" size="sm">
+            <ButtonLink
+              href={app.appStoreUrl}
+              target="_blank"
+              rel="noreferrer"
+              size="sm"
+              variant="secondary"
+            >
               {t.appStore}
               <Icon name="arrowUpRight" size={13} />
             </ButtonLink>

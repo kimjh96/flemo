@@ -258,6 +258,7 @@ export const dict = {
       flemoUsageLabel: "How it uses flemo",
       languagesLabel: "Languages",
       languageNames: { ko: "Korean" },
+      web: "Web",
       appStore: "App Store",
       playStore: "Google Play",
       submit: {
@@ -514,6 +515,7 @@ export const dict = {
       flemoUsageLabel: "How it uses flemo",
       languagesLabel: "Languages",
       languageNames: { ko: "Korean" },
+      web: "Web",
       appStore: "App Store",
       playStore: "Google Play",
       submit: {
