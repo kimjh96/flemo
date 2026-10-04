@@ -5,7 +5,7 @@
 // `box-shadow` paints OUTSIDE the border box, so a revealed box loses its
 // shadow entirely. That is why a shadow used to refuse the reveal outright, and
 // it cost every shadowed card in the wild a layout and a fresh raster of its
-// whole subtree on every frame of every flight.
+// whole subtree on every frame of every transition.
 //
 // A filter on the element does not help: filters are applied BEFORE the clip,
 // so `drop-shadow` is cut away with everything else. Device-measured, both
@@ -17,12 +17,12 @@
 // spread, and every shadow in the wild uses one; and a stack of them is applied
 // in SEQUENCE, so the second is cast from the first's blurred output rather
 // than from the box. Traced through a push, the shadow under the card thinned
-// from a tint of 27.6 at rest to 17 for the whole flight and snapped back on
+// from a tint of 27.6 at rest to 17 for the whole transition and snapped back on
 // landing, which is a shadow that pops. It also asks for a Gaussian blur of the
 // whole card on every frame, which is the cost the reveal was bought to avoid.
 //
 // So the carrier is a BOX instead: an empty one, travelling the same rects
-// underneath the flying element, wearing the card's own `box-shadow` unchanged
+// underneath the moving element, wearing the card's own `box-shadow` unchanged
 // (see the shade keyframe in morphKeyframes). It is laid out per frame, and
 // that is affordable precisely because it holds nothing — there is no subtree
 // to lay out, and a shadow has no hard edge for the device grid to step.

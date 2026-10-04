@@ -1,0 +1,261 @@
+import { describe, expect, it } from "vitest";
+
+import { compileTransitionStyles, dedupeKeyframeBlocks } from "@transition/compileTransitionStyles";
+import createRawTransition from "@transition/createRawTransition";
+
+import createRawPartTransition from "@transition/partTransition/createRawPartTransition";
+import { resolvePartTiming } from "@transition/partTransition/resolvePartTiming";
+
+// A PART DECLARES A POSE, NOT A LENGTH.
+//
+// How long the hand-over takes is the screen transition's answer and the screen
+// transition already gave it, so a part with no authored duration runs at the screen's — the rule
+// decorators already follow (resolveDecoratorTiming), by the same SAME VARIANT
+// KEY mapping. Before this, an omitted duration resolved to zero and the part
+// SNAPPED under a screen that ran for three quarters of a second, and a part
+// authored LONGER than its screen held the whole transition open, which disables
+// swipe-back for as long as it runs.
+
+const screen = (name: string, duration: number) =>
+  createRawTransition({
+    name: name as never,
+    initial: { x: "100%" },
+    idle: { value: { x: 0 }, options: { duration: 0 } },
+    pushOnEnter: { value: { x: 0 }, options: { duration } },
+    pushOnExit: { value: { x: "-30%" }, options: { duration } },
+    replaceOnEnter: { value: { x: 0 }, options: { duration } },
+    replaceOnExit: { value: { x: "-30%" }, options: { duration } },
+    // Direction asymmetry, so the inheritance is provably per variant rather
+    // than one number copied across the table.
+    popOnEnter: { value: { x: "100%" }, options: { duration: duration / 2 } },
+    popOnExit: { value: { x: 0 }, options: { duration: duration / 2 } },
+    completedOnEnter: { value: { x: 0 }, options: { duration: 0 } },
+    completedOnExit: { value: { x: 0 }, options: { duration: 0 } }
+  });
+
+/** A part that states only where it starts and ends. */
+const poseOnly = createRawPartTransition({
+  name: "pose-only" as never,
+  initial: { opacity: 0 },
+  idle: { value: { opacity: 1 }, options: { duration: 0 } },
+  pushOnEnter: { value: { opacity: 1 } },
+  pushOnExit: { value: { opacity: 0 } },
+  replaceOnEnter: { value: { opacity: 1 } },
+  replaceOnExit: { value: { opacity: 0 } },
+  popOnEnter: { value: { opacity: 0 } },
+  popOnExit: { value: { opacity: 1 } },
+  completedOnEnter: { value: { opacity: 1 }, options: { duration: 0 } },
+  completedOnExit: { value: { opacity: 0 }, options: { duration: 0 } }
+});
+
+// The rule's own body. A compiled block prepends its `@keyframes`, so the
+// selector is not where the block starts.
+const ruleFor = (css: string, selector: string): string | undefined => {
+  const lines = css.split("\n");
+  const start = lines.findIndex((line) => line === `${selector} {`);
+  if (start === -1) return undefined;
+  const end = lines.indexOf("}", start);
+  return lines.slice(start, end + 1).join("\n");
+};
+
+describe("a part's clock comes from the transition", () => {
+  it("fills an omitted duration from the screen's SAME variant", () => {
+    const css = compileTransitionStyles([screen("clock-a", 0.7)], [], [poseOnly]);
+
+    const rule = ruleFor(
+      css,
+      '[data-flemo-transition="clock-a"][data-flemo-part-name="pose-only"]' +
+        '[data-flemo-status="PUSHING"][data-flemo-active="true"]'
+    );
+    expect(rule).toBeDefined();
+    expect(rule).toContain("0.7s");
+  });
+
+  it("carries the screen's direction asymmetry without the author restating it", () => {
+    // The pop half of this screen runs at half the push. A part that named no
+    // length gets both, because the mapping is per variant.
+    const css = compileTransitionStyles([screen("clock-b", 0.8)], [], [poseOnly]);
+
+    const push = ruleFor(
+      css,
+      '[data-flemo-transition="clock-b"][data-flemo-part-name="pose-only"]' +
+        '[data-flemo-status="PUSHING"][data-flemo-active="true"]'
+    );
+    const pop = ruleFor(
+      css,
+      '[data-flemo-transition="clock-b"][data-flemo-part-name="pose-only"]' +
+        '[data-flemo-status="POPPING"][data-flemo-active="true"]'
+    );
+    expect(push).toContain("0.8s");
+    expect(pop).toContain("0.4s");
+  });
+
+  it("gives the same part a different clock under a different transition", () => {
+    // The reason a part cannot be resolved once the way a decorator is: it is
+    // referenced by name and may appear under any transition in the Router.
+    const css = compileTransitionStyles(
+      [screen("clock-fast", 0.2), screen("clock-slow", 1)],
+      [],
+      [poseOnly]
+    );
+
+    expect(
+      ruleFor(
+        css,
+        '[data-flemo-transition="clock-fast"][data-flemo-part-name="pose-only"]' +
+          '[data-flemo-status="PUSHING"][data-flemo-active="true"]'
+      )
+    ).toContain("0.2s");
+    expect(
+      ruleFor(
+        css,
+        '[data-flemo-transition="clock-slow"][data-flemo-part-name="pose-only"]' +
+          '[data-flemo-status="PUSHING"][data-flemo-active="true"]'
+      )
+    ).toContain("1s");
+  });
+
+  it("leaves an authored length alone", () => {
+    const authored = createRawPartTransition({
+      name: "authored" as never,
+      initial: { opacity: 0 },
+      idle: { value: { opacity: 1 }, options: { duration: 0 } },
+      pushOnEnter: { value: { opacity: 1 }, options: { duration: 0.12 } },
+      pushOnExit: { value: { opacity: 0 }, options: { duration: 0.12 } },
+      replaceOnEnter: { value: { opacity: 1 }, options: { duration: 0.12 } },
+      replaceOnExit: { value: { opacity: 0 }, options: { duration: 0.12 } },
+      popOnEnter: { value: { opacity: 0 }, options: { duration: 0.12 } },
+      popOnExit: { value: { opacity: 1 }, options: { duration: 0.12 } },
+      completedOnEnter: { value: { opacity: 1 }, options: { duration: 0 } },
+      completedOnExit: { value: { opacity: 0 }, options: { duration: 0 } }
+    });
+    const css = compileTransitionStyles([screen("clock-c", 0.7)], [], [authored]);
+
+    // A part that authored its OWN length resolves to the same clock under every
+    // transition, so its by-name rule already carries 0.12s and the
+    // (transition x part) twin would say exactly the same thing — it is dropped
+    // rather than re-emitted per transition (that repetition is what inflated the
+    // compiled sheet the browser re-matches on every navigation). The authored
+    // length is left alone all the same: the by-name rule carries it, and no
+    // rule anywhere overrides it with the screen's 0.7s.
+    expect(
+      ruleFor(
+        css,
+        '[data-flemo-part-name="authored"]' +
+          '[data-flemo-status="PUSHING"][data-flemo-active="true"]'
+      )
+    ).toContain("0.12s");
+    // The redundant twin is gone: no (transition x part) rule is emitted for a
+    // part whose clock does not change under the transition.
+    expect(
+      ruleFor(
+        css,
+        '[data-flemo-transition="clock-c"][data-flemo-part-name="authored"]' +
+          '[data-flemo-status="PUSHING"][data-flemo-active="true"]'
+      )
+    ).toBeUndefined();
+  });
+
+  it("keeps an authored zero as the snap the author asked for", () => {
+    // `??`, not `||`. A part deliberately written to jump must survive a screen
+    // that runs for three quarters of a second.
+    const snap = resolvePartTiming(screen("clock-d", 0.7), {
+      initial: { opacity: 0 },
+      variants: {
+        ...poseOnly.variants,
+        "PUSHING-true": { value: { opacity: 1 }, options: { duration: 0 } }
+      }
+    });
+
+    expect(snap.variants["PUSHING-true"].options?.duration).toBe(0);
+    expect(snap.variants["PUSHING-false"].options?.duration).toBe(0.7);
+  });
+
+  // AND NOT THE CURVE, which is the same answer a decorator gives and for a
+  // related reason.
+  //
+  // The LENGTH is inherited because an omitted one resolved to zero and the
+  // part snapped; that is a broken default. An omitted curve resolves to CSS
+  // `ease`, which is a working one. A part is also INSIDE its screen, so it
+  // rides that screen's transform and has no gap with it to close. The
+  // participant that does need the screen's curve is a MORPH, and only because
+  // it left the screen for the transition layer and has to reproduce that motion
+  // itself (`attachMorph` gates it on `screenMoves`).
+  //
+  // A part is reached by NAME under any transition in the Router, so inheriting
+  // here would make one named part move differently everywhere it appears.
+  it("never inherits the screen's EASE", () => {
+    const eased = screen("curve-a", 0.7);
+    eased.variants["PUSHING-true"].options = {
+      ...eased.variants["PUSHING-true"].options,
+      ease: [0.32, 0.72, 0, 1]
+    };
+
+    const clock = resolvePartTiming(eased, poseOnly);
+
+    expect(clock.variants["PUSHING-true"].options?.ease).toBeUndefined();
+  });
+
+  it("leaves an authored curve exactly as authored", () => {
+    const clock = resolvePartTiming(screen("curve-b", 0.7), {
+      initial: poseOnly.initial,
+      variants: {
+        ...poseOnly.variants,
+        "PUSHING-true": { value: { opacity: 1 }, options: { ease: "linear" } }
+      }
+    });
+
+    expect(clock.variants["PUSHING-true"].options?.ease).toBe("linear");
+  });
+
+  it("still emits the by-name rule, which is what a part outside any screen matches", () => {
+    // <Part> supports that position on purpose (persistent chrome beside a
+    // Slot, a portal). Such a part carries no transition, so only the base
+    // selector can reach it, and it keeps exactly what it authored.
+    const css = compileTransitionStyles([screen("clock-e", 0.7)], [], [poseOnly]);
+
+    expect(css).toContain(
+      '[data-flemo-part-name="pose-only"][data-flemo-status="PUSHING"][data-flemo-active="true"]'
+    );
+  });
+});
+
+describe("dedupeKeyframeBlocks", () => {
+  it("keeps one of each identical block and leaves the rules between them", () => {
+    // A part's keyframes are its pose, which does not vary with the transition
+    // carrying it, so every pair re-emits a byte-identical set.
+    const css = [
+      "@keyframes a {\n  from {\n    opacity: 0;\n  }\n  to {\n    opacity: 1;\n  }\n}",
+      ".one { animation: a; }",
+      "@keyframes a {\n  from {\n    opacity: 0;\n  }\n  to {\n    opacity: 1;\n  }\n}",
+      ".two { animation: a; }"
+    ].join("\n\n");
+
+    const out = dedupeKeyframeBlocks(css);
+
+    expect(out.match(/@keyframes a \{/g)).toHaveLength(1);
+    expect(out).toContain(".one { animation: a; }");
+    expect(out).toContain(".two { animation: a; }");
+  });
+
+  it("keeps two blocks that share a name but differ in body", () => {
+    const css = [
+      "@keyframes a {\n  from {\n    opacity: 0;\n  }\n}",
+      "@keyframes a {\n  from {\n    opacity: 1;\n  }\n}"
+    ].join("\n\n");
+
+    expect(dedupeKeyframeBlocks(css).match(/@keyframes a \{/g)).toHaveLength(2);
+  });
+
+  it("passes through css with no keyframes at all", () => {
+    expect(dedupeKeyframeBlocks(".a { color: red; }")).toBe(".a { color: red; }");
+  });
+
+  it("passes through a keyframes header with no body to scan", () => {
+    // A truncated sheet has no block to compare, and the pass must hand back
+    // what it was given rather than drop the tail looking for a brace.
+    const css = ".a { color: red; }\n@keyframes truncated";
+
+    expect(dedupeKeyframeBlocks(css)).toBe(css);
+  });
+});

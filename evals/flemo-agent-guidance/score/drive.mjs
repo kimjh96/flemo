@@ -2,7 +2,7 @@
 //
 // The engine publishes its whole state on the DOM: which screens exist, which
 // Router owns each one, what status it is in, which side is the stack's top,
-// and what is currently staged in the flight layers. `@flemo/devtools` is built
+// and what is currently staged in the transition layers. `@flemo/devtools` is built
 // on exactly these surfaces, and so is this scorer. Nothing here imports the
 // library, reads a submission's source, or depends on a build's internals: a
 // criterion that cannot be seen from the page is not a criterion this
@@ -10,7 +10,7 @@
 
 import { resolve } from "./contract.mjs";
 
-/** Statuses that mean a flight is still in the air. */
+/** Statuses that mean a transition is still in the air. */
 export const MOVING = ["PUSHING", "POPPING", "REPLACING"];
 
 /** Network noise that is not a submission defect (see the repository's e2e helpers). */
@@ -34,7 +34,7 @@ export const watchErrors = (page) => {
   return errors;
 };
 
-/** Wait until no screen is mid-flight, then let the landing commit. */
+/** Wait until no screen is mid-transition, then let the landing commit. */
 export const settled = async (page) => {
   await page.waitForFunction((moving) => {
     for (const screen of document.querySelectorAll("[data-flemo-screen]")) {
@@ -98,7 +98,7 @@ export const signature = (state, scope) => {
 // THE VISIBLE ONE IS THE REAL ONE.
 //
 // A role can legitimately match more than one node while the engine is mid-
-// flight or just after it: a shared bar's part is staged into the part layer
+// transition or just after it: a shared bar's part is staged into the part layer
 // and leaves a hidden stand-in behind in its own screen, and a morph leaves one
 // too. Both carry the submission's own attributes, because they are copies of
 // its markup. Taking the first node in document order therefore picks a
@@ -191,14 +191,14 @@ export const act = async (page, map, name) => {
 // unloads the page instead of popping a stack.
 export const pop = async (page, map) => act(page, map, "shared-action");
 
-// SAMPLING A FLIGHT.
+// SAMPLING A TRANSITION.
 //
 // Every criterion that judges motion needs the same thing: a probe read once
-// per frame from the moment an action is taken until the flight lands. The
+// per frame from the moment an action is taken until the transition lands. The
 // probe runs in the page and returns plain data; the samples come back with
-// their own timestamps so a criterion can speak in fractions of the flight
+// their own timestamps so a criterion can speak in fractions of the transition
 // rather than in frames, which differ between a 60Hz and a 120Hz reviewer.
-export const sampleFlight = async (page, probe, { trigger, timeout = 2500 }) => {
+export const sampleTransition = async (page, probe, { trigger, timeout = 2500 }) => {
   await page.evaluate((source) => {
     const read = new Function(`return (${source})`)();
     window.__evalSamples = [];

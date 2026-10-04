@@ -5,7 +5,7 @@
 // panel that throws on a missing key is worse than no panel. So every reader
 // takes the value as possibly-absent and renders `—` instead of crashing.
 
-import type { FlemoReport, FlightRecord, FrameSampleStats } from "../types";
+import type { FlemoReport, TransitionRecord, FrameSampleStats } from "../types";
 
 /** What a missing/unreadable value renders as. Never blank — an empty cell
  *  reads as "zero", a dash reads as "the recorder did not see this". */
@@ -14,7 +14,7 @@ export const DASH = "—";
 export const formatText = (value: string | number | null | undefined): string =>
   value === null || value === undefined || value === "" ? DASH : String(value);
 
-/** Whole milliseconds — flight durations, long-task spans. */
+/** Whole milliseconds — transition durations, long-task spans. */
 export const formatMs = (value: number | null | undefined): string =>
   typeof value === "number" && Number.isFinite(value) ? `${Math.round(value)}ms` : DASH;
 
@@ -46,19 +46,19 @@ export const environmentSummary = (report: FlemoReport | null): string => {
   ].join(" · ");
 };
 
-/** Cheap change key for the flight LIST. Rebuilding rows costs nothing when
+/** Cheap change key for the transition LIST. Rebuilding rows costs nothing when
  *  it is actually needed and everything when it is not, so the list is only
  *  rebuilt when one of these visible values moved. */
-export const flightListSignature = (
-  flights: readonly FlightRecord[],
+export const transitionListSignature = (
+  transitions: readonly TransitionRecord[],
   selectedId: string | null
 ): string =>
-  `${selectedId ?? ""}#${flights
+  `${selectedId ?? ""}#${transitions
     .map(
-      (flight) =>
-        `${flight?.id ?? ""}|${flight?.kind ?? ""}|${flight?.driver ?? ""}|` +
-        `${Math.round(flight?.durationMs ?? 0)}|${flight?.participants?.screens ?? 0}|` +
-        `${flight?.anomalies?.length ?? 0}`
+      (transition) =>
+        `${transition?.id ?? ""}|${transition?.kind ?? ""}|${transition?.driver ?? ""}|` +
+        `${Math.round(transition?.durationMs ?? 0)}|${transition?.participants?.screens ?? 0}|` +
+        `${transition?.anomalies?.length ?? 0}`
     )
     .join(",")}`;
 

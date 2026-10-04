@@ -10,42 +10,43 @@ import type {
 interface CreateRawMorphProps {
   /** Public name registered on a Router and selected by a `Morph`. */
   name: MorphTransitionName;
-  /** Additional from-pose for each arriving element over the measured departure box. */
+  /** Additional starting style for each element on the new screen, over the measured box of the element on the old screen. */
   initial: InitialTarget;
   /**
-   * Resting pose and each departing element's pose before its cut. It also
+   * Resting style, and the style of each element on the old screen before it
+   * disappears. It also
    * fills `IDLE-true`, `IDLE-false`, `COMPLETED-true` and `COMPLETED-false`,
-   * because a pair exists only during a flight.
+   * because a pair exists only during a transition.
    */
   idle: TransitionVariantValue;
   /**
-   * Target for `PUSHING-true`, the arriving element that flies during a push. A
-   * nested Morph grows on its container's flight clock rather than an authored
-   * duration.
+   * Target for `PUSHING-true`, the element on the new screen that moves during
+   * a push. A nested Morph grows with its container's transition timing rather
+   * than an authored duration.
    */
   pushOnEnter: TransitionVariantValue;
-  /** End-pose for `PUSHING-false`, cutting the departing element on a push. */
+  /** End style for `PUSHING-false`, applied at once to the element on the old screen on a push. */
   pushOnExit: TransitionVariantValue;
-  /** Target for `REPLACING-true`, the arriving element that flies on a replace. */
+  /** Target for `REPLACING-true`, the element on the new screen that moves on a replace. */
   replaceOnEnter: TransitionVariantValue;
-  /** End-pose for `REPLACING-false`, cutting the departing element on a replace. */
+  /** End style for `REPLACING-false`, applied at once to the element on the old screen on a replace. */
   replaceOnExit: TransitionVariantValue;
   /**
-   * Target for `POPPING-false`, the returning element that flies on a pop. Note
-   * the flag: a morph's entering side is the element that FLIES, and on a pop
+   * Target for `POPPING-false`, the returning element that moves on a pop. Note
+   * the flag: a morph's entering side is the element that MOVES, and on a pop
    * that element sits on the inactive screen being returned to.
    */
   popOnEnter: TransitionVariantValue;
-  /** End-pose for `POPPING-true`, cutting the dismissed top element on a pop. */
+  /** End style for `POPPING-true`, applied at once to the element on the closing top screen on a pop. */
   popOnExit: TransitionVariantValue;
-  /** Geometry, cross-fade, radius, and screen-carrying behavior for each pair. */
+  /** Geometry, cross-fade, radius, and whole-screen (`carry`) behavior for each pair. */
   options?: MorphTransitionOptions;
 }
 
 /**
- * Creates shared-element motion with separate arriving and departing targets
- * for push, replace, and pop. Rest variants stay `idle` because the pair exists
- * only during a flight.
+ * Creates shared-element motion with separate targets for the element on the
+ * new screen and the element on the old screen, for push, replace, and pop. Rest variants stay `idle` because the pair exists
+ * only during a transition.
  */
 export default function createRawMorphTransition({
   name,

@@ -35,7 +35,7 @@ describe("production entry", () => {
     // every export condition, so `report().environment.engine` type-checked
     // and threw only in a production build. Reaching THROUGH each section is
     // what catches that; checking a couple of arrays does not.
-    const report = inert.attachFlightRecorder().report();
+    const report = inert.attachTransitionRecorder().report();
 
     expect(report.environment.engine).toBe("unknown");
     expect(report.environment.observation.longTasks).toBe(false);
@@ -46,15 +46,15 @@ describe("production entry", () => {
     // Every key the real report carries must be present, so a section added
     // to FlemoReport cannot be forgotten here without the compiler or this
     // test noticing.
-    const realKeys = Object.keys(real.attachFlightRecorder().report()).sort();
+    const realKeys = Object.keys(real.attachTransitionRecorder().report()).sort();
     expect(Object.keys(report).sort()).toEqual(realKeys);
   });
 
   it("records nothing and says so, rather than fabricating a report", () => {
-    const handle = inert.attachFlightRecorder({ log: true });
+    const handle = inert.attachTransitionRecorder({ log: true });
     const report = handle.report();
 
-    expect(report.flights).toEqual([]);
+    expect(report.transitions).toEqual([]);
     expect(report.version).toBe("inert");
     // The report must announce its own emptiness: a silent empty report reads
     // as "clean run" to whoever receives it.

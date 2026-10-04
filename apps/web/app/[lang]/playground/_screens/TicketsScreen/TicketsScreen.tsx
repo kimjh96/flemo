@@ -13,7 +13,7 @@ import { ACTS, artworkFor } from "../../_data/acts";
 // still while the two tabs move laterally under it: the other half of the
 // ride-or-hold rule the detail screen exercises.
 //
-// Nothing is paired here: no flight starts from this list, so its artwork is a
+// Nothing is paired here: no transition starts from this list, so its artwork is a
 // plain span. A <Morph> with no partner on the other side is not a shared
 // element, it is a promise flemo cannot keep.
 function TicketsScreen() {
@@ -25,15 +25,13 @@ function TicketsScreen() {
     <Screen
       statusBarHeight="0px"
       systemNavigationBarHeight="0px"
-      backgroundColor="var(--color-bg)"
+      backgroundColor="var(--bg)"
       sharedBottomBar={<TabBar />}
     >
       <div className="flex h-full flex-col">
         <header className="shrink-0 px-5 pt-6 pb-3">
-          <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
-            {t.app.tabTickets}
-          </h2>
-          <p className="mt-0.5 text-sm text-[var(--color-text-disabled)]">{t.app.ticketsNote}</p>
+          <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-fg">{t.app.tabTickets}</h2>
+          <p className="mt-0.5 text-sm text-fg-subtle">{t.app.ticketsNote}</p>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
@@ -42,10 +40,7 @@ function TicketsScreen() {
               than as a ticket. */}
           <ul className="flex flex-col gap-3">
             {held.map((act) => (
-              <li
-                key={act.id}
-                className="overflow-hidden rounded-2xl bg-[var(--color-layer)] shadow-sm"
-              >
+              <li key={act.id} className="overflow-hidden rounded-2xl bg-surface-2 shadow-sm">
                 <div className="flex items-center gap-3 px-3.5 py-3">
                   <span
                     className="size-12 shrink-0 rounded-xl"
@@ -53,30 +48,28 @@ function TicketsScreen() {
                     aria-hidden="true"
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-[var(--color-text-primary)]">
+                    <span className="block truncate text-sm font-semibold text-fg">
                       {act.artist}
                     </span>
-                    <span className="block truncate text-xs text-[var(--color-text-disabled)]">
+                    <span className="block truncate text-xs text-fg-subtle">
                       {act.venue} · {act.day} {act.time}
                     </span>
                   </span>
-                  <span className="shrink-0 rounded-full bg-[var(--color-primary)]/15 px-2.5 py-1 text-[11px] font-semibold text-[var(--color-primary)]">
+                  <span className="shrink-0 rounded-full bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-accent">
                     {t.app.held}
                   </span>
                 </div>
-                <div className="flex items-center justify-between border-t border-dashed border-[var(--color-border)] px-3.5 py-2.5 text-[11px]">
-                  <span className="tracking-[0.08em] text-[var(--color-text-disabled)] uppercase">
+                <div className="flex items-center justify-between border-t border-dashed border-line px-3.5 py-2.5 text-[11px]">
+                  <span className="tracking-[0.08em] text-fg-subtle uppercase">
                     {t.app.order} {act.order}
                   </span>
-                  <span className="font-semibold text-[var(--color-text-secondary)]">
-                    ₩{act.price}
-                  </span>
+                  <span className="font-semibold text-fg-muted">₩{act.price}</span>
                 </div>
               </li>
             ))}
           </ul>
 
-          <h3 className="mt-6 mb-2 px-1 text-[11px] font-bold tracking-[0.12em] text-[var(--color-text-disabled)] uppercase">
+          <h3 className="mt-6 mb-2 px-1 text-[11px] font-bold tracking-[0.12em] text-fg-subtle uppercase">
             {t.app.past}
           </h3>
           <ul className="flex flex-col gap-1">
@@ -88,16 +81,14 @@ function TicketsScreen() {
                   aria-hidden="true"
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-semibold text-[var(--color-text-primary)]">
+                  <span className="block truncate text-[13px] font-semibold text-fg">
                     {act.artist}
                   </span>
-                  <span className="block truncate text-[11px] text-[var(--color-text-disabled)]">
+                  <span className="block truncate text-[11px] text-fg-subtle">
                     {act.venue} · {act.day} {act.time}
                   </span>
                 </span>
-                <span className="shrink-0 text-[11px] text-[var(--color-text-disabled)]">
-                  {t.app.used}
-                </span>
+                <span className="shrink-0 text-[11px] text-fg-subtle">{t.app.used}</span>
               </li>
             ))}
           </ul>

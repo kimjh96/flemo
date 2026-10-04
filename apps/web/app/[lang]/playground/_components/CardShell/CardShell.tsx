@@ -30,7 +30,7 @@ export interface CardShellProps {
 //     "Pairing the container asks flemo to carry one layout into the other, so
 //      every intermediate frame is a stretched hybrid."
 //
-// So under `zoom` the whole card flies and becomes the page, which is what a
+// So under `zoom` the whole card moves and becomes the page, which is what a
 // container transform is. Under everything else this is a plain box and only
 // the artwork inside it travels.
 function CardShell({ layoutId, className, children }: PropsWithChildren<CardShellProps>) {
@@ -39,8 +39,8 @@ function CardShell({ layoutId, className, children }: PropsWithChildren<CardShel
   if (cardMorph === null || layoutId === null) return <div className={className}>{children}</div>;
 
   // The artwork inside pairs as well, and that is required rather than extra:
-  // a nested morph RIDES its container, and letting the two fly on their own
-  // curves is what tears a card apart mid-flight (see `attachMorph`).
+  // a nested morph RIDES its container, and letting the two move on their own
+  // curves is what tears a card apart mid-transition (see `attachMorph`).
   // `overflow: hidden` is what makes the growth READ as growth. flemo animates
   // the layout BOX and lets the subtree lay itself out at every size on the way
   // ("A box, not a scale ... text becomes a blown-up bitmap and the contents

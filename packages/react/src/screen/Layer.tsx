@@ -19,7 +19,7 @@ export type LayerProps = PropsWithChildren;
  * Render an overlay beside the screen instead of inside it, so it can cover
  * the shared bars.
  *
- * A screen that is moving carries a transform, and a transform is both a
+ * A screen that is moving has a transform, and a transform is both a
  * containing block for `position: fixed` descendants and a stacking context
  * around all of them. The shared bars live outside the screen, as siblings. So
  * a sheet written inside the screen is ONE atom with the screen's content as
@@ -36,17 +36,17 @@ export type LayerProps = PropsWithChildren;
  * </Screen>
  * ```
  *
- * What leaves the screen is the PAINT ORDER, and only that. The slot keeps its
- * owner's stack position, its status and transition (so it moves with the
- * screen and leaves with it), its animation hold, and its paint-hidden state.
+ * What leaves the screen is the RENDER ORDER, and only that. The slot keeps its
+ * screen's stack position, its status and transition (so it moves with the
+ * screen and leaves with it), its paused-animation state, and its hidden state.
  * It is rendered from inside the screen's own React subtree, so React freezes
  * it with the screen and unmounts it with the screen without being asked.
  *
- * At rest none of this is needed: a screen at rest carries no transform, so a
+ * When no transition is running none of this is needed: a still screen has no transform, so a
  * consumer's `position: fixed` overlay already resolves against the viewport
  * and already outranks the bars with a z-index of its own. `<Layer>` is for
  * the overlay that has to survive the screen MOVING under it, and for the one
- * that has to clear chrome an ancestor screen declared.
+ * that has to cover a header or tab bar an ancestor screen declared.
  *
  * Children keep whatever positioning they had. On the server, and for the
  * first render before the host mounts, this renders nothing.
@@ -62,7 +62,7 @@ function Layer({ children }: LayerProps) {
       ref={owner.registerSlot}
       {...{ [LAYER_SLOT_ATTR]: "", [LAYER_OWNER_ATTR]: owner.screenId }}
       {...(owner.rendersHost
-        ? // The host is this screen's own and already rides this flight. Riding
+        ? // The host is this screen's own and already rides this transition. Riding
           // here too would compose the two transforms and send the overlay
           // twice as far as the screen it belongs to.
           {}
@@ -79,7 +79,7 @@ function Layer({ children }: LayerProps) {
         // belongs to the OUTERMOST screen, and the outermost screen is the
         // root Router's, which is `position: fixed` at full size. So a
         // consumer's `bottom: 0` resolves to the same edge whether the slot is
-        // mid-flight or at rest, and nothing jumps at the start or end of a
+        // mid-transition or at rest, and nothing jumps at the start or end of a
         // transition.
         position: "absolute",
         inset: 0,

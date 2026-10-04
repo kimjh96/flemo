@@ -6,10 +6,10 @@ import createTransition from "@transition/createTransition";
 import { transitionMap } from "@transition/transition";
 
 import createTransitionEngine from "@core/engine/createTransitionEngine";
-import { landingClearFrames } from "@core/engine/flightRouting";
+import { landingClearFrames } from "@core/engine/transitionRouting";
 import { MORPH_CAMERA_ATTR } from "@dom/attributes";
 
-// A STILL screen's flight lands on its participants' real end, not on the
+// A STILL screen's transition lands on its participants' real end, not on the
 // wall-clock span. The span is armed at the release commit and the motion
 // starts a frame or two after it, so the span carries a margin; landing on it
 // held the last motion frame still for that margin before the COMPLETED flip
@@ -104,7 +104,7 @@ const drive = (taskId: string, durationMs: number) => {
   return { resolveSpy, camera, cleanup };
 };
 
-describe("a still screen's flight lands on its real end", () => {
+describe("a still screen's transition lands on its real end", () => {
   it("resolves the pipeline's frames after the camera finishes, before the span's margin", async () => {
     const { resolveSpy, camera, cleanup } = drive("still-task", 400);
 
@@ -153,7 +153,7 @@ describe("a still screen's flight lands on its real end", () => {
     cleanup();
   });
 
-  it("lands nothing once the flight is torn down, even with the landing frames pending", async () => {
+  it("lands nothing once the transition is torn down, even with the landing frames pending", async () => {
     const { resolveSpy, camera, cleanup } = drive("torn-task", 400);
 
     camera.finish();

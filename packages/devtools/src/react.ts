@@ -5,7 +5,7 @@ import { attachDevtoolsPanel } from "./panel";
 
 import type { DevtoolsHudOptions } from "./hud";
 import type { DevtoolsPanelOptions } from "./panel";
-import type { FlightRecorderHandle } from "./types";
+import type { TransitionRecorderHandle } from "./types";
 
 // THE SHAPE A CONSUMER SHOULD ACTUALLY HAVE TO WRITE.
 //
@@ -34,7 +34,7 @@ export interface FlemoDevtoolsProps {
    * Recorder to read. Defaults to this package's `window.flemo` when one is
    * installed, otherwise the surfaces attach one and take it down with them.
    */
-  recorder?: FlightRecorderHandle;
+  recorder?: TransitionRecorderHandle;
   /** Mount the on-device readout. Default true — it is the half a phone needs. */
   hud?: boolean;
   /** Mount the drawer. Default true. */

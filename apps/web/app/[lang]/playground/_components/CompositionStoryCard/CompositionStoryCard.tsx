@@ -15,15 +15,15 @@ const TITLE_ID = "composition-featured-title";
 // WHAT IS SHARED GOES IN THE BOX; WHAT IS NOT GOES BESIDE IT.
 //
 // The panel is one object on both screens and the title is one line of type on
-// both, so those are the identity the flight carries: a Morph for the box, a
+// both, so those are the identity the transition carries: a Morph for the box, a
 // text Morph for the line. The eyebrow and the summary are DIFFERENT SENTENCES
 // at the two ends — "Today" against "Message 42" — and a Morph asserts one
-// identity, so they are not the flight's to carry.
+// identity, so they are not the transition's to carry.
 //
 // They used to be inside it anyway, and the card paid for that twice. The ghost
 // follows the arriving box by one transform, so unshared copy it carried
 // stretched with the box and printed over the arrival's own words; the mitigation
-// was to cut the hand-over to 0.13s of a 0.7s flight, which reads as the copy
+// was to cut the hand-over to 0.13s of a 0.7s transition, which reads as the copy
 // being switched off and the card travelling empty for the rest. Beside the box
 // there is nothing to stretch and nothing to print over, so the two sentences
 // hand over on the screen's own clock, for as long as the screen takes.
@@ -54,7 +54,7 @@ function CompositionStoryCard({ paired, variant }: CompositionStoryCardProps) {
   //
   // A Part carries `contain: layout` while its screen is moving, and that stops
   // a child's margin collapsing out of it. So a paragraph spaced by `mt-*`
-  // inside a Part sits in one place while the flight runs and moves by exactly
+  // inside a Part sits in one place while the transition runs and moves by exactly
   // that margin when the status settles and the containment is dropped —
   // measured here as the summary falling 12px some 60ms AFTER the card landed,
   // which is the late drop at the end of the convergence. Padding does not

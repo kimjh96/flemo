@@ -40,7 +40,7 @@ describe("responseHold", () => {
     resolvers[0]!(res());
     await Promise.resolve();
     await Promise.resolve();
-    expect(seen).toEqual([]); // parked: the flight owns the main thread
+    expect(seen).toEqual([]); // parked: the transition owns the main thread
     expect(heldResponseCount()).toBe(1);
 
     release();
@@ -51,10 +51,10 @@ describe("responseHold", () => {
 
   it("parks non-GET READS too (Supabase RPC = POST, count = HEAD)", async () => {
     // GET-only was device-falsified: an instrumented member-detail push showed
-    // six HEAD count queries and one POST RPC resolving mid-flight past the
+    // six HEAD count queries and one POST RPC resolving mid-transition past the
     // filter, each landing a render on the convergence frames. Reads and
     // mutations are indistinguishable at the fetch layer, so both park —
-    // bounded by the flight-span backstop.
+    // bounded by the transition-span backstop.
     const release = beginResponseHold();
     const seen: string[] = [];
     const rpc = window
@@ -65,7 +65,7 @@ describe("responseHold", () => {
     resolvers[1]!(res());
     await Promise.resolve();
     await Promise.resolve();
-    expect(seen).toEqual([]); // parked mid-flight
+    expect(seen).toEqual([]); // parked mid-transition
     release();
     await Promise.all([rpc, count]);
     expect(seen.sort()).toEqual(["count", "rpc"]);
@@ -124,7 +124,7 @@ describe("responseHold", () => {
     expect(seen).toEqual(["n"]);
   });
 
-  it("the backstop releases a stranded hold at the flight span, not a fixed 2s", async () => {
+  it("the backstop releases a stranded hold at the transition span, not a fixed 2s", async () => {
     vi.useFakeTimers();
     beginResponseHold(4500); // a 3s transition + margin: must not flush at 2s
     const seen: string[] = [];

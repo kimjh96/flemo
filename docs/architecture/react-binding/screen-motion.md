@@ -28,7 +28,7 @@ A stable core `createSwipeController` reads live render values through the lates
 
 Recognition requires 8px of movement and a 3:1 primary-axis lead, preventing vertical scroll jitter from becoming page-wide horizontal back. `pointercancel` always settles without navigation.
 
-PUSHING/REPLACING destinations remain hit-testable so a touch started during flight can scroll after landing. The outer capture handler stops `click` before it reaches the target, suppressing both React handlers and native listeners on descendants of the React root until the transition completes. Listeners above the root (`document`/`window`) still observe the click. Lower-level pointer/mouse events remain observable to preserve native scroll targeting. Consumers should commit navigation from `click`, not `pointerdown`/`pointerup`.
+PUSHING/REPLACING destinations remain hit-testable so a touch started during transition can scroll after landing. The outer capture handler stops `click` before it reaches the target, suppressing both React handlers and native listeners on descendants of the React root until the transition completes. Listeners above the root (`document`/`window`) still observe the click. Lower-level pointer/mouse events remain observable to preserve native scroll targeting. Consumers should commit navigation from `click`, not `pointerdown`/`pointerup`.
 
 ## Bar riding and identity
 

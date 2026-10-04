@@ -21,7 +21,7 @@ import type { TransitionEngineDeps } from "@core/engine/types";
 // Two things must hold, and both are why this file exists. The gate must select
 // desktop Mac WebKit and nothing else — a touch session already has its own head
 // under a different attribute with different lengths. And arming it must RETIRE
-// the birth anchor for the same flight: the anchor rewinds the clock the head has
+// the birth anchor for the same transition: the anchor rewinds the clock the head has
 // already covered, and two corrections of one clock fight each other.
 
 const anchorCalls = vi.hoisted(() => ({ atRelease: 0 }));
@@ -30,11 +30,11 @@ vi.mock("@core/engine/nativeStallAnchor", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@core/engine/nativeStallAnchor")>();
   return {
     ...actual,
-    armFlightStartAnchorAtRelease: (
-      ...args: Parameters<typeof actual.armFlightStartAnchorAtRelease>
+    armTransitionStartAnchorAtRelease: (
+      ...args: Parameters<typeof actual.armTransitionStartAnchorAtRelease>
     ) => {
       anchorCalls.atRelease += 1;
-      return actual.armFlightStartAnchorAtRelease(...args);
+      return actual.armTransitionStartAnchorAtRelease(...args);
     }
   };
 });
@@ -119,7 +119,7 @@ describe("desktop flat head", () => {
     expect(document.documentElement.hasAttribute(LPM_ATTR)).toBe(false);
   });
 
-  it("retires the birth anchor while the head covers the flight", () => {
+  it("retires the birth anchor while the head covers the transition", () => {
     asDesktopSafari();
     drive();
     expect(anchorCalls.atRelease).toBe(0);

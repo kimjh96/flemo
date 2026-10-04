@@ -10,9 +10,9 @@ import { transitionMap } from "@transition/transition";
 import { resolveVariantMotion } from "@transition/variantMotion";
 
 import createTransitionEngine from "@core/engine/createTransitionEngine";
-import { resetFlightWindowForTests } from "@core/engine/flightWindow";
 import { LAYER_SETTLE_MS } from "@core/engine/layerSettleHold";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
+import { resetTransitionWindowForTests } from "@core/engine/transitionWindow";
 import { SKIP_ANIMATION_ATTR } from "@core/engine/types";
 import createPartTransition from "@transition/partTransition/createPartTransition";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
@@ -40,7 +40,7 @@ const elements = () => {
 };
 
 describe("native-clock stall watch wiring", () => {
-  it("a stall during a native-driven flight re-anchors the scope's animations and re-arms the deadlines", () => {
+  it("a stall during a native-driven transition re-anchors the scope's animations and re-arms the deadlines", () => {
     // Controllable rAF clock so the stall watcher sees an explicit gap.
     const frames = new Map<number, FrameRequestCallback>();
     let frameId = 0;
@@ -58,7 +58,7 @@ describe("native-clock stall watch wiring", () => {
     };
     try {
       const { scope } = elements();
-      // An authored driver:'native' pin opts this flight into clock surgery,
+      // An authored driver:'native' pin opts this transition into clock surgery,
       // so the recovery wiring (jsdom reads as non-Blink) arms the stall watch.
       transitionMap.set(
         "branches-stall-pin" as never,
@@ -197,14 +197,14 @@ describe("createTransitionEngine branches", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
       const { scope, decorator, bar } = elements();
-      // A riding bar the engine actually stamps during the flight (the layer
+      // A riding bar the engine actually stamps during the transition (the layer
       // settle hold only manages elements it promoted — a will-change the
       // engine never wrote is a consumer's and is left untouched).
       bar.setAttribute("data-flemo-bar-riding", "true");
       const d = deps();
       const engine = createTransitionEngine(d);
 
-      // Flight: the engine stamps the riding bar's promotion.
+      // Transition: the engine stamps the riding bar's promotion.
       engine.driveScreenLifecycle({
         getElements: () => ({ scope, decorator, bars: [bar, null] }),
         transitionName: "cupertino" as never,
@@ -233,9 +233,9 @@ describe("createTransitionEngine branches", () => {
       // The bar's promoted layer demotes off-cadence, LAYER_SETTLE_MS past
       // the flip (see layerSettleHold.ts) — never in the flip commit itself.
       expect(bar.style.willChange).toBe("transform");
-      // jsdom + fake timers never run the landing's composed flight-window
+      // jsdom + fake timers never run the landing's composed transition-window
       // release (it rides the real rAF clock) — close it as the landing does.
-      resetFlightWindowForTests();
+      resetTransitionWindowForTests();
       vi.advanceTimersByTime(LAYER_SETTLE_MS);
       expect(bar.style.willChange).toBe("");
       expect(d.setDragStatus).toHaveBeenCalledWith("IDLE");
@@ -342,7 +342,7 @@ describe("createTransitionEngine branches", () => {
     const engine = createTransitionEngine(d);
 
     // exit (PUSHING-false) has zero duration: resolveVariantMotion yields
-    // null, so the flight carries no screen motion of its own.
+    // null, so the transition carries no screen motion of its own.
     transitionMap.set(
       "branches-still-exit" as never,
       createTransition({
@@ -560,7 +560,7 @@ describe("createTransitionEngine branches", () => {
     });
 
     // The SCREEN is promoted — a full-viewport surface moving for the whole
-    // flight is what the promotion was written for. No part is, whatever it
+    // transition is what the promotion was written for. No part is, whatever it
     // animates: not the unregistered one, not the motionless one, and not the
     // one that genuinely moves.
     expect(scope.style.willChange).not.toBe("");
@@ -709,9 +709,9 @@ describe("createTransitionEngine branches", () => {
   });
 
   it("resolves on a head tier's suffixed animation name", async () => {
-    // A head tier (LPM, desktop) plays the SAME flight under a copied keyframe
+    // A head tier (LPM, desktop) plays the SAME transition under a copied keyframe
     // set, so its end event carries `<name>-gov` / `<name>-deskhead`. A
-    // listener that only knows the base name never resolves the flight, and
+    // listener that only knows the base name never resolves the transition, and
     // the restart watchdog replays the whole transition — glass-visible on
     // desktop Safari as a second fade after a tab REPLACE (2026-08-20).
     const TaskManager = (await import("@core/TaskManager")).default;
@@ -751,7 +751,7 @@ describe("createTransitionEngine branches", () => {
       // THE CALL rather than sleeping a span that looks long enough: a loaded
       // CI runner outran a fixed 80ms sleep, which failed here AND leaked the
       // late resolve into a later test's spy (a spy this one had already
-      // restored). Polling ends the wait the moment the flight resolves, and
+      // restored). Polling ends the wait the moment the transition resolves, and
       // the teardown below runs whether or not it did.
       const resolvedWithin = await (async () => {
         for (let attempt = 0; attempt < 100; attempt++) {
@@ -762,7 +762,7 @@ describe("createTransitionEngine branches", () => {
       })();
 
       try {
-        expect(resolvedWithin, `suffix "${suffix}" must resolve the flight`).toBe(true);
+        expect(resolvedWithin, `suffix "${suffix}" must resolve the transition`).toBe(true);
       } finally {
         cleanup();
         resolved.mockRestore();
@@ -933,7 +933,7 @@ describe("createTransitionEngine gate-phase reporting", () => {
 
   it("spans the OPPOSITE screen's part across per-screen wrappers (the real React shape)", async () => {
     // Each screen sits in its own wrapper div — the two screens of ONE
-    // flight share no parentElement. The boundary is the explicit
+    // transition share no parentElement. The boundary is the explicit
     // data-flemo-router marker, not DOM structure.
     const TaskManager = (await import("@core/TaskManager")).default;
     const anchored = vi.spyOn(TaskManager, "anchorGate");
@@ -969,7 +969,7 @@ describe("createTransitionEngine gate-phase reporting", () => {
     stack.append(wrapperA, wrapperB);
     document.body.appendChild(stack);
     // An UNRELATED Router's 3s bar-mounted part (its own marker): must NOT
-    // inflate this flight's span.
+    // inflate this transition's span.
     const foreignBar = document.createElement("div");
     foreignBar.setAttribute("data-flemo-bar", "app");
     foreignBar.setAttribute("data-flemo-router", "r2");
@@ -1012,7 +1012,7 @@ describe("createTransitionEngine gate-phase reporting", () => {
   });
 
   it("anchors the gate across a longer-authored DECORATOR (a full participant)", async () => {
-    // A 3s custom dim over a 0.7s screen: every flight deadline must span
+    // A 3s custom dim over a 0.7s screen: every transition deadline must span
     // the decorator too — it joins the shared player like any participant,
     // and a screen-only span would cut it at ~23%.
     const TaskManager = (await import("@core/TaskManager")).default;
@@ -1054,7 +1054,7 @@ describe("createTransitionEngine gate-phase reporting", () => {
 describe("the perceptual cut and a PRESENT decorator", () => {
   // The decorator is a full participant, so it gets a full participant's vote:
   // a motion the band math cannot reason about VETOES the early cut, exactly
-  // like an unanalyzable part. Cutting a flight while a dim is still visibly
+  // like an unanalyzable part. Cutting a transition while a dim is still visibly
   // moving is the failure this prevents.
   const withDecorator = async (
     decoratorValue: Record<string, string | number>,
@@ -1135,7 +1135,7 @@ describe("the perceptual cut and a PRESENT decorator", () => {
           animHoldReleased: true
         });
         vi.advanceTimersByTime(720);
-        // The clean end owns this flight now — no early resolution happened.
+        // The clean end owns this transition now — no early resolution happened.
         expect(resolveSpy).not.toHaveBeenCalledWith(taskId);
         cleanup();
         resolveSpy.mockRestore();
@@ -1313,7 +1313,7 @@ describe("reveal-path gate branches", () => {
     }
   });
 
-  it("a reveal-shaped flight with NO task neither marks nor anchors the gate", async () => {
+  it("a reveal-shaped transition with NO task neither marks nor anchors the gate", async () => {
     const TaskManager = (await import("@core/TaskManager")).default;
     const heldSpy = vi.spyOn(TaskManager, "markGateHeld");
     const anchorSpy = vi.spyOn(TaskManager, "anchorGate");
@@ -1425,7 +1425,7 @@ describe("native stall re-anchor coverage", () => {
   });
 });
 
-describe("a flight with no navigation task", () => {
+describe("a transition with no navigation task", () => {
   it("drives the compiled path and writes nothing inline", () => {
     const { scope } = elements();
     document.body.appendChild(scope);
@@ -1620,7 +1620,7 @@ describe("choreography-span deferral", () => {
       scope.dispatchEvent(
         animationEndEvent(animationName("screen", "short-screen-long-part", "PUSHING-true"))
       );
-      // Deep into the part's motion, far past the old 1000ms cap: still flying.
+      // Deep into the part's motion, far past the old 1000ms cap: still moving.
       vi.advanceTimersByTime(2400);
       expect(resolveSpy).not.toHaveBeenCalled();
 
@@ -1715,7 +1715,7 @@ describe("choreography-span deferral", () => {
   });
 });
 
-describe("in-flight arrival hold wiring", () => {
+describe("running arrival hold wiring", () => {
   const observerFlush = () => new Promise((resolve) => setTimeout(resolve, 0));
   // The landing is deferred two frames past COMPLETED (off the convergence
   // commit); tests flush both rAFs plus a macrotask.
@@ -1724,7 +1724,7 @@ describe("in-flight arrival hold wiring", () => {
       requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 0)))
     );
 
-  it("holds a mid-flight swap on the entering screen and reflects it at COMPLETED", async () => {
+  it("holds a mid-transition swap on the entering screen and reflects it at COMPLETED", async () => {
     const { scope } = elements();
     document.body.appendChild(scope);
     const skeleton = document.createElement("div");
@@ -1735,7 +1735,7 @@ describe("in-flight arrival hold wiring", () => {
     // commit task landing just before the release frame's vsync would join
     // that frame's rendering update UNHELD and age the compiled clock before
     // first paint (the "gathers then rushes" opening), so pre-release
-    // arrivals are held exactly like mid-flight ones.
+    // arrivals are held exactly like mid-transition ones.
     engine.driveScreenLifecycle({
       getElements: () => ({ scope, decorator: null, bars: [] }),
       transitionName: "cupertino" as never,
@@ -1982,7 +1982,7 @@ describe("arrival-hold landing placement", () => {
 });
 
 describe("arrival-hold interrupt and SSR landing paths", () => {
-  it("an interrupt lands held content immediately, before the new flight's first frame", async () => {
+  it("an interrupt lands held content immediately, before the new transition's first frame", async () => {
     const { scope } = elements();
     document.body.appendChild(scope);
     const engine = createTransitionEngine(deps());
@@ -2002,7 +2002,7 @@ describe("arrival-hold interrupt and SSR landing paths", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(arriving.hasAttribute("data-flemo-held-arrival")).toBe(true);
 
-    // The screen's role flips mid-flight (a pop interrupts the push): the
+    // The screen's role flips mid-transition (a pop interrupts the push): the
     // held content must land in the SAME commit, not two frames later.
     drive("POPPING", true)();
     expect(arriving.hasAttribute("data-flemo-held-arrival")).toBe(false);

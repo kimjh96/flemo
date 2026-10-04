@@ -4,7 +4,7 @@ import { navButton, trackConsoleErrors, waitForNavIdle } from "./helpers/flemo";
 
 // flemo runs one navigation at a time: a push is ignored while the previous
 // transition is still animating. Real users pause between taps; the tests wait
-// for the engine to report the flight over (a fixed pause cannot bound a
+// for the engine to report the transition over (a fixed pause cannot bound a
 // stalled CI runner's honest wall-clock completion) before the next click.
 
 test.describe("shell navigation", () => {

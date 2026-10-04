@@ -230,7 +230,7 @@ test.describe("a swipe release continues the gesture", () => {
     // The landing may be quick; it may not be a cut.
     //
     // AGAINST THE TRAVEL, NOT THE BOX. A step is only large relative to how
-    // coarsely the sampler happened to catch the flight: a rAF that ticks
+    // coarsely the sampler happened to catch the transition: a rAF that ticks
     // further apart sees the same landing in bigger pieces, so a bound in
     // pixels of the screen measures the runner rather than the motion. It was
     // one, and it failed on a slow CI machine while passing fourteen times in

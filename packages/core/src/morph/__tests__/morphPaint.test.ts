@@ -4,7 +4,7 @@ import { capturePaint, paintTravel } from "@morph/morphPaint";
 
 // WHAT THE TWO ENDS PAINT DIFFERENTLY.
 //
-// The arriving element is the destination's tree, so on the flight's first
+// The arriving element is the destination's tree, so on the transition's first
 // frame it already wears the destination's corner, surface and border — each
 // one steps at the instant of the tap and then holds while only the box moves.
 // This table is what carries them instead, and it is a TABLE precisely because
@@ -46,7 +46,7 @@ describe("capturePaint", () => {
   it("captures an unset gap as 0px so the channel interpolates", () => {
     // An unset flex/grid gap computes to the keyword `normal`, and
     // `normal → 12px` has no midpoint: CSS swaps it discretely at the eased
-    // 50%, which landed the playground row's two gaps in a single mid-flight
+    // 50%, which landed the playground row's two gaps in a single mid-transition
     // frame — +12px into the label's left edge, −24px off its width. As 0px
     // the channel is numeric and rides the paint animation like everything
     // else. A declared length is left exactly as captured.

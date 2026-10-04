@@ -143,7 +143,7 @@ describe("an unregistered name", () => {
   });
 
   it("says so for a morph transition, the quietest of the four", () => {
-    // A morph named after nothing still FLIES, on the built-in preset — a
+    // A morph named after nothing still MOVES, on the built-in preset — a
     // shared element that ignores what its author wrote rather than one that
     // stands still, which is the hardest of the four to notice.
     morphTransitionMap.set(

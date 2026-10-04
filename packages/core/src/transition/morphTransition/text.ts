@@ -13,16 +13,16 @@ const EASE: [number, number, number, number] = [0.4, 0, 0.2, 1];
 /**
  * The morph for TEXT, registered as `"text"` (the export is `textMorph`).
  *
- * It differs from `shared` in carrying no ghost: a heading and the label it
+ * It differs from `shared` in having no fading copy: a heading and the label it
  * came from are the same words at two sizes, so the type simply grows into
  * place and a copy fading over it would show the same words twice. Use it for
- * the paired text inside a container Morph, where ordinary text would ghost
- * departure glyphs over arrival glyphs.
+ * the paired text inside a container Morph, where ordinary text would show the
+ * old screen's letters fading over the new screen's.
  */
 const text = createMorphTransition({
   name: "text",
   // No opacity on the arrival: it is opaque from its first frame, and the GHOST
-  // — the copy of what was there, carried inside the flight — is what dissolves
+  // — the copy of what was there, carried inside the transition — is what dissolves
   // away on top of it. Fading both would bleed the background through the pair
   // by a(1 - a), right in the middle of the hand-over.
   initial: {},

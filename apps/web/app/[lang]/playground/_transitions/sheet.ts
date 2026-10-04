@@ -13,8 +13,8 @@ import "./sheet.types";
 // the same ground (an authored transition that is neither a lateral slide nor
 // a zoom) with a gesture every phone user already knows.
 //
-// The shared element still flies: a morph composes with a screen slide the
-// same way it does under cupertino, since the flight runs in the layer and
+// The shared element still moves: a morph composes with a screen slide the
+// same way it does under cupertino, since the transition runs in the layer and
 // only borrows this transition's clock. (`zoom` is the one that must not pair
 // with a slide, and it carries its own still partner.)
 //

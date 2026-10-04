@@ -8,7 +8,7 @@ import { registerPartLayer, resolvePartLayer } from "@screen/partLayer";
 
 // WHERE A MATCHED BAR'S PARTS ARE STAGED.
 //
-// Per Router SCOPE rather than per document, for the reason the flight layer is:
+// Per Router SCOPE rather than per document, for the reason the transition layer is:
 // a nested Router draws inside a box of its own, and a document-level layer
 // would stage its parts straight out of it. The fallback exists for a binding
 // that publishes none — right for a root Router, wrong for a contained one,
@@ -75,7 +75,7 @@ describe("resolvePartLayer", () => {
 
   it("does not share a box with the morph layer", () => {
     // Two lifetimes, two boxes. A morph owns the layer it stages in — it writes
-    // the z-index and strips the mirrored hold on landing — and a part flight
+    // the z-index and strips the mirrored hold on landing — and a part transition
     // outliving that landing would have its hold torn out from under it.
     const store = createNavigateStore();
     const partLayer = resolvePartLayer(store);

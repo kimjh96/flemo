@@ -59,7 +59,7 @@ for (const [label, reach] of [
       await page.mouse.move(box!.x + 4 + box!.width * reach * (step / 12), y);
     }
     await page.mouse.up();
-    // Mid-release: every element the gesture moved is flying its leg.
+    // Mid-release: every element the gesture moved is moving its leg.
     await page.waitForTimeout(80);
 
     const counts = await page.evaluate(() => {

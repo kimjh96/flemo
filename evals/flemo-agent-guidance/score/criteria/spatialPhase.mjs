@@ -19,7 +19,7 @@ import {
   appBox,
   pop,
   releaseSwipe,
-  sampleFlight,
+  sampleTransition,
   scopeOf,
   settled,
   swipeTo,
@@ -91,7 +91,7 @@ export const run = async ({ page, map }) => {
   // THE POP'S OWN CURVE, sampled every frame it is painted on.
   await (await target(page, map, "shared-object")).click();
   await settled(page);
-  const samples = await sampleFlight(page, readScript, { trigger: () => pop(page, map) });
+  const samples = await sampleTransition(page, readScript, { trigger: () => pop(page, map) });
   const popCurve = samples
     .map((sample) => sample.value)
     .filter((point) => point && Number.isFinite(point.displacement));

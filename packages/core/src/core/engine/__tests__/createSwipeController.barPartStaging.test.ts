@@ -10,14 +10,14 @@ import { PART_HOME_ATTR, PART_NAME_ATTR, PART_STAND_IN_ATTR } from "@dom/attribu
 
 import { fullVariants } from "./variantStub";
 
-// THE DRAG IS A FLIGHT THE ENGINE NEVER SEES.
+// THE DRAG IS A TRANSITION THE ENGINE NEVER SEES.
 //
 // `isReadyForDrag` requires the navigate status to be COMPLETED, and nothing in
 // the gesture changes it: the controller only flips its own drag status, and the
-// real flight starts at `back()`. So `driveScreenLifecycle` never reports a
+// real transition starts at `back()`. So `driveScreenLifecycle` never reports a
 // transitional status while the finger is down, its staging never arms, and the
 // covered screen's matched-bar parts cross-fade underneath the screen being
-// dragged off them — the same occlusion the flight path exists to fix, on the
+// dragged off them — the same occlusion the transition path exists to fix, on the
 // one path it could not reach.
 
 function buildDom() {
@@ -197,9 +197,9 @@ describe("createSwipeController shared-bar part staging", () => {
     expect(dom.prevPart.parentElement).toBe(dom.prevBar);
   });
 
-  it("hands the part back BEFORE the commit, so the landing flight can stage it", async () => {
+  it("hands the part back BEFORE the commit, so the landing transition can stage it", async () => {
     // stageBarParts collects from the bar, so a part already up in the layer
-    // reads to the flight as nothing to stage. Handing it across would leave
+    // reads to the transition as nothing to stage. Handing it across would leave
     // the drag's own release to pull it home in the middle of the pop.
     const controller = createSwipeController(buildConfig(true));
     drag(controller);

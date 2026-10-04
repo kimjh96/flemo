@@ -16,7 +16,7 @@ import type { TransitionTarget } from "@transition/cssTypes";
 //
 // Under material's `y: "100%"` a 104px bar travelled 104px while its 770px
 // screen travelled 770px: same clock, same easing, one seventh of the distance.
-// Measured on a 588x770 window, 9% into the flight, the bar was 94px from home
+// Measured on a 588x770 window, 9% into the transition, the bar was 94px from home
 // and the screen was 700px from home, so the bar landed at the top of a screen
 // still off the bottom of the viewport and read as a detached strip over the
 // outgoing screen.
@@ -49,7 +49,7 @@ export const percentRatio = (value: unknown): number | null => {
 // once to custom properties in animation TIMING (2026-08-13), so the flagship
 // path keeps nothing that could repeat it. Keyframe VALUES were re-measured for
 // this change on both engines (chromium and webkit, video captured while the
-// main thread was blocked for 1500ms mid-flight): a literal box and a
+// main thread was blocked for 1500ms mid-transition): a literal box and a
 // `calc(var(...))` box advanced within 1px of each other through the whole
 // block, 3 runs each, so the value form composites. Re-run that probe before
 // widening this to timing or to the screen scope.

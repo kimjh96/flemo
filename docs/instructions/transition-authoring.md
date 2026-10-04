@@ -6,5 +6,5 @@ They describe runtime behavior. Violations can pass types, produce correct DOM, 
 
 - [Router topology](transition-authoring/topology.md): choose the navigation owner and visual boundary.
 - [Motion semantics and slots](transition-authoring/semantics.md): understand morph behavior and select poses by factory, status, and stack position.
-- [Clocks and options](transition-authoring/timing-options.md): inherit timing and configure flight behavior.
+- [Clocks and options](transition-authoring/timing-options.md): inherit timing and configure transition behavior.
 - [Diagnostics and completion](transition-authoring/validation.md): trace symptoms and verify the result.

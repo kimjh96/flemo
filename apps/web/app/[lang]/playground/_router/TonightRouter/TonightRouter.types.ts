@@ -12,6 +12,12 @@ declare module "@flemo/react" {
     // whichever one opened it.
     "/tonight/act/:id": { id: string; from: "row" | "cell" };
   }
+
+  // The tab bar's lateral move between the app's tabs.
+  interface RegisterTransition {
+    "shared-axis-forward": "shared-axis-forward";
+    "shared-axis-backward": "shared-axis-backward";
+  }
 }
 
 export {};

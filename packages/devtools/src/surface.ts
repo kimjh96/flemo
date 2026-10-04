@@ -6,29 +6,30 @@ import {
   STATUS_ATTR,
   TRANSITIONAL_STATUSES
 } from "./domProtocol";
-import { attachFlightRecorder } from "./recorder";
+import { attachTransitionRecorder } from "./recorder";
 
 import type { FlemoGlobal } from "./recorder";
-import type { FlightRecorderHandle } from "./types";
+import type { TransitionRecorderHandle } from "./types";
 
 // What every VISIBLE surface in this package shares.
 //
-// THE ONE RULE: a measurement surface must never touch the DOM while a flight
+// THE ONE RULE: a measurement surface must never touch the DOM while a transition
 // is in progress. This project spent weeks chasing a stutter that was finally
 // attributed to DevTools being OPEN — inspector overhead and panel repaints,
 // not the library. A panel that repaints, reflows or animates during a
 // transition reproduces that artifact and then reports it as a finding.
 //
 // So both surfaces (the drawer and the on-device readout) are built on this:
-// the same in-flight gate, the same zero-sized shadow host that cannot join a
-// flight, and the same recorder adoption rule.
+// the same running gate, the same zero-sized shadow host that cannot join a
+// transition, and the same recorder adoption rule.
 
 /** Any screen mid-transition: while this matches, every surface stays frozen. */
-export const IN_FLIGHT_SELECTOR = TRANSITIONAL_STATUSES.map(
+export const IN_TRANSITION_SELECTOR = TRANSITIONAL_STATUSES.map(
   (status) => attrSelector(SCREEN_ATTR) + attrValueSelector(STATUS_ATTR, status)
 ).join(",");
 
-export const flightInProgress = (): boolean => document.querySelector(IN_FLIGHT_SELECTOR) !== null;
+export const transitionInProgress = (): boolean =>
+  document.querySelector(IN_TRANSITION_SELECTOR) !== null;
 
 export interface ShadowHost {
   host: HTMLElement;
@@ -41,7 +42,7 @@ export interface ShadowHost {
  * Zero-sized so it participates in no layout, and its fixed children position
  * against the viewport instead. It carries the devtools marker and NO
  * `data-flemo-*` screen attribute, so the recorder can never mistake its own
- * surface for a flight participant.
+ * surface for a transition participant.
  */
 /**
  * The palette and the type every surface is drawn in.
@@ -121,8 +122,8 @@ const NOOP = () => {};
  * detaches the app's recorder when a panel closes, which loses the trace.
  */
 export const resolveRecorder = (
-  provided?: FlightRecorderHandle
-): { recorder: FlightRecorderHandle; ownsRecorder: boolean } => {
+  provided?: TransitionRecorderHandle
+): { recorder: TransitionRecorderHandle; ownsRecorder: boolean } => {
   if (provided) return { recorder: provided, ownsRecorder: false };
   const installed = (window as unknown as { flemo?: Partial<FlemoGlobal> }).flemo;
   if (installed?.__flemoDevtools === true && typeof installed.report === "function") {
@@ -135,8 +136,8 @@ export const resolveRecorder = (
       ownsRecorder: false
     };
   }
-  // attachFlightRecorder is idempotent, so this adopts an already-attached
+  // attachTransitionRecorder is idempotent, so this adopts an already-attached
   // recorder that simply didn't install the global — and then takes it down
   // on detach(). Pass `recorder` explicitly to keep ownership.
-  return { recorder: attachFlightRecorder(), ownsRecorder: true };
+  return { recorder: attachTransitionRecorder(), ownsRecorder: true };
 };

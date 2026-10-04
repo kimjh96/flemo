@@ -8,7 +8,7 @@ import { waitForNavIdle } from "./helpers/flemo";
 // those screens therefore has two ways to be driven, and until this they did
 // not agree:
 //
-//   the flight  runs every participant on one clock, each on its own curve
+//   the transition  runs every participant on one clock, each on its own curve
 //   the drag    seeked each participant through the inverse of ITS OWN curve,
 //               which cancels that curve and leaves it at the gesture's own
 //               fraction of its travel
@@ -80,12 +80,12 @@ test.describe("a part under a finger and the same part in the air", () => {
     const box = await enterCase(page, "cupertino");
     test.skip(box === null, "no pushed screen on this bench");
 
-    // THE FLIGHT FIRST, sampled every frame of a real pop. `detail-chrome` runs
+    // THE TRANSITION FIRST, sampled every frame of a real pop. `detail-chrome` runs
     // 0.16s against cupertino's 0.7s, so it is done while the screen is still
     // going: the curve of this trace is the thing the drag has to reproduce.
     await page.evaluate((selector) => {
       const trace: { across: number; opacity: number }[] = [];
-      (window as unknown as { __flight: typeof trace }).__flight = trace;
+      (window as unknown as { __transition: typeof trace }).__transition = trace;
       const read = () => {
         const screen = [
           ...document.querySelectorAll("[data-flemo-screen][data-flemo-router]")
@@ -111,21 +111,23 @@ test.describe("a part under a finger and the same part in the air", () => {
     await page.getByRole("button", { name: "Back" }).click();
     await page.waitForTimeout(1100);
 
-    const flight = (
+    const transition = (
       await page.evaluate(
-        () => (window as unknown as { __flight: { across: number; opacity: number }[] }).__flight
+        () =>
+          (window as unknown as { __transition: { across: number; opacity: number }[] })
+            .__transition
       )
     ).filter((sample) => Number.isFinite(sample.across) && sample.across >= 0);
-    expect(flight.length).toBeGreaterThan(10);
+    expect(transition.length).toBeGreaterThan(10);
     // It went somewhere and the chrome went with it, or there is nothing here
     // to compare a drag against.
-    expect(Math.max(...flight.map((sample) => sample.across))).toBeGreaterThan(0.5);
-    expect(Math.min(...flight.map((sample) => sample.opacity))).toBeLessThan(0.2);
+    expect(Math.max(...transition.map((sample) => sample.across))).toBeGreaterThan(0.5);
+    expect(Math.min(...transition.map((sample) => sample.opacity))).toBeLessThan(0.2);
 
     /**
-     * What the flight had the chrome at when the screen was this far across.
+     * What the transition had the chrome at when the screen was this far across.
      *
-     * INTERPOLATED, not nearest. The flight is sampled per frame, and a frame
+     * INTERPOLATED, not nearest. The transition is sampled per frame, and a frame
      * is a long way in `across` exactly where cupertino's curve moves fastest:
      * the screen covers half its travel in the first sixth of the clock. Taking
      * the nearest sample there compares two different screen positions and
@@ -133,8 +135,8 @@ test.describe("a part under a finger and the same part in the air", () => {
      * 0.09 error against a 0.03 one locally, which is the resolution of the
      * trace rather than anything the drag did.
      */
-    const flightAt = (across: number) => {
-      const sorted = [...flight].sort((a, b) => a.across - b.across);
+    const transitionAt = (across: number) => {
+      const sorted = [...transition].sort((a, b) => a.across - b.across);
       const after = sorted.findIndex((sample) => sample.across >= across);
       if (after <= 0) return sorted[0]!.opacity;
       const low = sorted[after - 1]!;
@@ -158,19 +160,19 @@ test.describe("a part under a finger and the same part in the air", () => {
       await page.waitForTimeout(120);
       const pair = await readPair(page, CHROME);
       expect(pair).not.toBeNull();
-      compared.push({ across: pair!.across, drag: pair!.opacity, air: flightAt(pair!.across) });
+      compared.push({ across: pair!.across, drag: pair!.opacity, air: transitionAt(pair!.across) });
     }
     await page.mouse.up();
 
-    // The finger and the flight put the chrome in the same place. Measured at
+    // The finger and the transition put the chrome in the same place. Measured at
     // the three points above, screen position against chrome opacity:
     //
-    //   across  flight   drag now   drag before
+    //   across  transition   drag now   drag before
     //   0.25    0.763    0.763      0.748
     //   0.50    0.431    0.432      0.498
     //   0.75    0.007    0.001      0.248
     //
-    // The last row is the whole report in one number: the flight has this
+    // The last row is the whole report in one number: the transition has this
     // header gone by three quarters of the way across, because it runs 0.16s of
     // cupertino's 0.7s, and the drag used to still be showing a quarter of it.
     //
@@ -193,8 +195,8 @@ test.describe("a part under a finger and the same part in the air", () => {
 //
 // `overlay` used to drive its own drag with `onSwipe: 1 - progress / 100`,
 // which opts a decorator out of the declarative rider entirely. So the wash was
-// linear in the SCREEN'S POSITION under a finger while the flight ran it on the
-// clock it inherits: at a screen three quarters across the flight had it at
+// linear in the SCREEN'S POSITION under a finger while the transition ran it on the
+// clock it inherits: at a screen three quarters across the transition had it at
 // 0.62 and the drag at 0.245. Removing the hooks puts it on the same phase as
 // everything else riding the gesture.
 test.describe("the dim under a finger and the same dim in the air", () => {
@@ -253,18 +255,18 @@ test.describe("the dim under a finger and the same dim in the air", () => {
     await page.getByRole("button", { name: "Back" }).click();
     await page.waitForTimeout(1200);
 
-    const flight = (
+    const transition = (
       await page.evaluate(
         () => (window as unknown as { __dim: { across: number; opacity: number }[] }).__dim
       )
     ).filter((sample) => Number.isFinite(sample.across) && sample.across >= 0);
-    expect(flight.length).toBeGreaterThan(10);
+    expect(transition.length).toBeGreaterThan(10);
     // The wash cleared as the screen went, or there is nothing to compare.
-    expect(Math.max(...flight.map((sample) => sample.opacity))).toBeGreaterThan(0.8);
-    expect(Math.min(...flight.map((sample) => sample.opacity))).toBeLessThan(0.2);
+    expect(Math.max(...transition.map((sample) => sample.opacity))).toBeGreaterThan(0.8);
+    expect(Math.min(...transition.map((sample) => sample.opacity))).toBeLessThan(0.2);
 
-    const flightAt = (across: number) => {
-      const sorted = [...flight].sort((a, b) => a.across - b.across);
+    const transitionAt = (across: number) => {
+      const sorted = [...transition].sort((a, b) => a.across - b.across);
       const after = sorted.findIndex((sample) => sample.across >= across);
       if (after <= 0) return sorted[0]!.opacity;
       const low = sorted[after - 1]!;
@@ -286,7 +288,7 @@ test.describe("the dim under a finger and the same dim in the air", () => {
       await page.waitForTimeout(120);
       const pair = await readDim(page);
       expect(pair).not.toBeNull();
-      compared.push({ drag: pair!.opacity, air: flightAt(pair!.across) });
+      compared.push({ drag: pair!.opacity, air: transitionAt(pair!.across) });
     }
     await page.mouse.up();
 

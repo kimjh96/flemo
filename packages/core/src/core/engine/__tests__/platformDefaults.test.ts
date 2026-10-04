@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resolvePlatformProfile, settleGateActive } from "@platform/profile";
-import { reportInFlightCadence, resetSteadySixtyForTests } from "@platform/steadySixtyCadence";
+import { reportInTransitionCadence, resetSteadySixtyForTests } from "@platform/steadySixtyCadence";
 
 // EVERY PER-BROWSER DECISION, ASSERTED PER ENVIRONMENT.
 //
@@ -41,10 +41,10 @@ const setEnv = (over: {
   Object.defineProperty(window, "devicePixelRatio", { value: dpr, configurable: true });
 };
 
-/** Two qualifying in-flight medians: what the steady-60 verdict needs. */
+/** Two qualifying running medians: what the steady-60 verdict needs. */
 const verifySteadySixty = () => {
-  reportInFlightCadence(16.7);
-  reportInFlightCadence(16.7);
+  reportInTransitionCadence(16.7);
+  reportInTransitionCadence(16.7);
 };
 
 beforeEach(() => {
@@ -156,7 +156,7 @@ describe("the touch-WebKit opening set", () => {
   });
 
   it("are OFF for Blink and for desktop WebKit", () => {
-    // Blink composites the flight, so a main-thread commit never eats a
+    // Blink composites the transition, so a main-thread commit never eats a
     // present there; the head these are shaped around is a touch-WebKit tier.
     setEnv({ blink: true, touch: true });
     let profile = resolvePlatformProfile();

@@ -5,17 +5,17 @@ import { ANIM_HOLD, ANIM_HOLD_ATTR } from "@dom/attributes";
 // A layer sits outside the screens, so the compiled hold rule cannot reach what
 // it carries through one. Both layers this engine lifts into — the morph's and
 // the bar parts' — mirror the screen's hold attribute onto themselves, which is
-// what keeps what they carry starting on the same frame as the flight around it
+// what keeps what they carry starting on the same frame as the transition around it
 // rather than on a clock of its own.
 //
 // A HOLD IS A PAUSE, SO THE STRONGEST ONE WINS: while any source is still held,
-// the flight has not been let go.
+// the transition has not been let go.
 //
 // AND A SOURCE THAT HAS LEFT THE DOCUMENT IS NOT STILL HOLDING, it is gone. A
-// screen that unmounts mid-flight keeps whatever hold it wore, and an attribute
+// screen that unmounts mid-transition keeps whatever hold it wore, and an attribute
 // observer on a removed node never fires again, so the mirror went on reading
 // the value that screen left wearing. What it carried stayed paused at time
-// zero for the whole flight and was then cut into place by a backstop.
+// zero for the whole transition and was then cut into place by a backstop.
 //
 // Reported on a `none` pop, where a transition with no clock of its own takes
 // the departing screen out inside the same frame it was held in. Every

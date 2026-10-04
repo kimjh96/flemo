@@ -6,10 +6,10 @@ import { MORPH_LAYER_ATTR } from "@dom/attributes";
 
 import { registerMorphLayer, resolveMorphLayer } from "@morph/morphLayer";
 
-// WHERE A FLIGHT IS STAGED.
+// WHERE A TRANSITION IS STAGED.
 //
 // The layer is per Router SCOPE rather than per document, because a nested
-// Router draws inside a box of its own and a document-level layer would fly its
+// Router draws inside a box of its own and a document-level layer would move its
 // shared elements straight out of it. The fallback exists for a binding that
 // publishes none — right for a root Router, wrong for a contained one, which is
 // exactly the case a binding is expected to publish.
@@ -51,7 +51,7 @@ describe("resolveMorphLayer", () => {
 
   it("falls back when the published layer has left the document", () => {
     // A Router unmounts without unregistering — a frozen zone, a hot reload —
-    // and a flight staged in a detached node would never be seen.
+    // and a transition staged in a detached node would never be seen.
     const store = createNavigateStore();
     const published = document.createElement("div");
     document.body.appendChild(published);
@@ -73,7 +73,7 @@ describe("resolveMorphLayer", () => {
     expect(resolveMorphLayer(store)).not.toBe(published);
   });
 
-  it("has nowhere to stage a flight on the server", () => {
+  it("has nowhere to stage a transition on the server", () => {
     vi.stubGlobal("document", undefined);
     expect(resolveMorphLayer(createNavigateStore())).toBeNull();
   });

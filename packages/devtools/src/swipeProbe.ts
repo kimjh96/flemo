@@ -3,14 +3,14 @@ import { parseTranslateX } from "./sampling";
 
 // THE SWIPE PROBE: what the RELEASE did to the screens.
 //
-// A drag is not a flight. The navigate status stays COMPLETED for its whole
+// A drag is not a transition. The navigate status stays COMPLETED for its whole
 // length, so the recorder never opens a window for one and every other probe
 // here looks straight past the moment that decides how a swipe feels: the frame
 // the finger comes off.
 //
 // It exists because that moment cost this project a day. A cancelled swipe was
 // reported as returning "with no transition at all", and every instrument the
-// package had said the flight was clean, because a cancel is not a flight. The
+// package had said the transition was clean, because a cancel is not a transition. The
 // release clock was right the whole time. What was wrong was the SHAPE: the
 // return crossed its last hundred pixels at a dead constant speed and stopped,
 // where a landing has to decelerate into rest. A duration is not evidence that
@@ -19,13 +19,13 @@ import { parseTranslateX } from "./sampling";
 // It cannot be sampled at the panel's 3Hz. The defect it is built for is one
 // frame wide, so it runs a rAF loop for the length of a settle and then stops.
 
-/** How long after a release the probe keeps watching. Longer than any settle. */
+/** How long after a release the probe keeps watching. Longer than any return animation after a swipe. */
 export const SWIPE_PROBE_MS = 1200;
 
 /** Below this the screens were not displaced enough for a release to mean anything. */
 const MEANINGFUL_TRAVEL_PX = 2;
 
-/** One screen's pose on one frame after a release. */
+/** Where the screens were on one frame after a release. */
 export interface SwipeSample {
   /** Milliseconds since the release. */
   readonly t: number;
@@ -49,9 +49,10 @@ export interface SwipeReleaseAudit {
   readonly openingStepPx: number;
   readonly closingStepPx: number;
   /**
-   * A landing decelerates: its closing frames are a fraction of its opening
-   * ones. A release handed back as a constant rate makes these equal, which is
-   * the defect this probe was built for and reads as no transition at all.
+   * A transition slows down as it ends: its closing frames are a fraction of
+   * its opening ones. A release that returns at a constant speed makes these
+   * equal, which is the defect this probe was built for and looks like no
+   * transition at all.
    */
   readonly eased: boolean;
   /** A release that put a screen home in one frame. */
@@ -90,7 +91,7 @@ const round = (value: number) => Math.round(value * 100) / 100;
 export interface SwipeProbeOptions {
   /** Called once the watch window closes, with what the release did. */
   readonly onRelease: (audit: SwipeReleaseAudit) => void;
-  /** Test seam for the clock. */
+  /** Test seam for the time source. */
   readonly now?: () => number;
   /** Test seam for the frame source. */
   readonly schedule?: (run: () => void) => void;

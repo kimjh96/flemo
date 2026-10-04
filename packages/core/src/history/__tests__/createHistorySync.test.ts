@@ -244,7 +244,7 @@ describe("createHistorySync (headless, no React)", () => {
   });
 
   it("a task queued before disposal aborts instead of deadlocking the queue", async () => {
-    // The zombie scenario: a traversal for router A queues behind an in-flight
+    // The zombie scenario: a traversal for router A queues behind an running
     // transition; router A unmounts (sync disposed) before the task runs. The
     // task must abort on arrival — if it started a transition, no screen would
     // ever fire animationend and the SHARED queue would stall forever.
@@ -482,7 +482,7 @@ describe("createHistorySync fold guards", () => {
     const { stores } = setup([root, a], 1);
 
     // Park the traversal behind a blocked queue, the way a real one queues
-    // behind an in-flight transition.
+    // behind an running transition.
     let releaseBlocker!: () => void;
     const blockerDone = TaskManager.addTask(
       async () => {

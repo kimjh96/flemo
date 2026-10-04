@@ -286,10 +286,10 @@ export default function createNavigationController(deps: NavigationControllerDep
   const replace = async (path: string, params?: object, options?: NavigateOptions) => {
     // HARD GUARD, identical to push (user policy 2026-08-13, superseding
     // the brief queue-everything policy of the same day): input landing
-    // while a transition is in flight is IGNORED — the first tap wins,
+    // while a transition is running is IGNORED — the first tap wins,
     // rapid taps never stack a replay queue, and a double-tap can never
     // run the same switch twice. (#220's supersede — cutting the running
-    // flight — and the queue policy were both device-rejected: supersede
+    // transition — and the queue policy were both device-rejected: supersede
     // read as "연타 시 전부 스킵", the queue as replay lag.)
     const { status } = stores.navigate.getState();
     if (status !== "COMPLETED" && status !== "IDLE") {
@@ -444,10 +444,10 @@ export default function createNavigationController(deps: NavigationControllerDep
     transitionName?: TransitionName
   ) => {
     // HARD GUARD, the same one push and replace carry (user policy 2026-08-13:
-    // input landing while a transition is in flight is IGNORED — the first tap
+    // input landing while a transition is running is IGNORED — the first tap
     // wins). Pop never had it, and the click gate only covers PUSHING and
     // REPLACING screens, so a back tapped during a pop reached here and QUEUED
-    // behind the running flight. The queued pop then ran against a half-cleaned
+    // behind the running transition. The queued pop then ran against a half-cleaned
     // stack the moment its predecessor resolved: no snapshot, no pair, no
     // camera — a zoomed pop cutting to rest with the texts blinking through a
     // bare cross-fade. Reproduced by tapping back mid-pop on the poster grid;

@@ -4,7 +4,7 @@ Symptom: on `?driver=raf`-pinned desktop Chromium, push→pop→push re-entry le
 
 First response (PR #256) *reverted the pin pierce* — correct triage, since the production default was never affected, but it treated the player as the defect.
 
-PR #259 (merged 2026-08-17) instrumented instead of assuming: a frame-by-frame trace showed the flight drove perfectly (1280→0, landing inline `none`) and the screen blanked ONE COMMIT LATER. Root cause was a three-part cleanup interaction, not a player bug:
+PR #259 (merged 2026-08-17) instrumented instead of assuming: a frame-by-frame trace showed the transition drove perfectly (1280→0, landing inline `none`) and the screen blanked ONE COMMIT LATER. Root cause was a three-part cleanup interaction, not a player bug:
 
 1. The player track's detach restored its `transform` lease "original" — which, for the actively-entered scope, is the **flemo-rendered entering-initial from-pose** (`translate3d(100%,0,0)`), not a consumer value.
 2. The COMPLETED force clear iterates only keys still in the lease map, and the restore had just dropped the transform entry.
@@ -14,6 +14,6 @@ Touch sessions were saved by accident (empty map → fallback). The shipped fix 
 
 Lessons:
 
-1. A clean flight plus a broken rest state means look at the CLEANUP path, not the driver.
+1. A clean transition plus a broken rest state means look at the CLEANUP path, not the driver.
 2. "Works on touch" can be an accident of map contents, not a design.
 3. Revert-first is fine for triage, but the root cause must be paid down before the capability returns.

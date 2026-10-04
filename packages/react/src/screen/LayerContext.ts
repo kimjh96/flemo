@@ -52,7 +52,7 @@ export interface LayerOwner {
   isActive: boolean;
   /**
    * The owner's animation hold. The slot pauses at the same from-pose as the
-   * screen, so a flight that is held opens with its overlay rather than after
+   * screen, so a transition that is held opens with its overlay rather than after
    * it.
    */
   animHold: string;
@@ -60,7 +60,7 @@ export interface LayerOwner {
    * Whether this owner is ALSO the screen that renders the host.
    *
    * An overlay has to travel with whatever is actually moving under it, and
-   * that is not always its owner. When an ancestor screen flies — a push on an
+   * that is not always its owner. When an ancestor screen moves — a push on an
    * outer Router, with the owner sitting inside it at rest — the thing that
    * moves is the ancestor, and the host is inside the ancestor's container. So
    * the HOST rides the screen that renders it, and a slot rides its owner only
@@ -69,7 +69,7 @@ export interface LayerOwner {
    *
    * Measured in a consumer app before this existed: a sheet in a nested screen
    * sat perfectly still while the whole region slid out from under it, because
-   * its owner's status was IDLE for the entire flight and the compiled rule had
+   * its owner's status was IDLE for the entire transition and the compiled rule had
    * nothing to match.
    */
   rendersHost: boolean;
@@ -94,7 +94,7 @@ export interface LayerOwner {
    * sheet floats untouched is not a cosmetic difference.
    *
    * The dim copy exists only while a slot does. Rendered unconditionally it
-   * would paint over the shared bars for every flight, overlay or not.
+   * would paint over the shared bars for every transition, overlay or not.
    */
   registerSlot: (element: HTMLElement | null) => void;
 }

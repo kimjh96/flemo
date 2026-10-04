@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { useEffect, useState } from "react";
 
+import { buttonClass } from "@/components/Button";
 import { getDict, i18n } from "@/lib/i18n";
 
 interface ErrorProps {
@@ -33,27 +34,24 @@ export default function Error({ error, reset }: ErrorProps) {
   const handleReset = () => reset();
 
   return (
-    <main className="flex min-h-[100dvh] items-center justify-center bg-[var(--color-bg)] px-6">
-      <div className="flex max-w-[480px] flex-col items-center text-center">
-        <div className="text-[112px] font-bold leading-none tracking-[-0.04em] text-[var(--color-text-primary)] sm:text-[140px]">
+    <main className="bg-grid flex min-h-[100dvh] items-center justify-center bg-bg px-6">
+      <div className="flex max-w-[460px] flex-col items-center text-center">
+        <p className="label flex items-center gap-2 text-fg-subtle">
+          <span aria-hidden="true" className="size-1.5 rounded-full bg-danger" />
           500
-        </div>
-        <h1 className="mt-4 text-[24px] font-bold tracking-[-0.02em] text-[var(--color-text-primary)] sm:text-[28px]">
-          {t.title}
-        </h1>
-        <p className="mt-3 text-[15px] leading-[1.6] text-[var(--color-text-secondary)]">
-          {t.body}
         </p>
+        <h1 className="mt-4 text-h1 text-fg">{t.title}</h1>
+        <p className="mt-3 text-body text-fg-muted">{t.body}</p>
         {error.digest && (
-          <code className="mt-3 rounded-md bg-[var(--color-layer)] px-2 py-1 font-mono text-[11.5px] text-[var(--color-text-secondary)]">
+          <code className="mt-3 rounded-xs border border-line bg-surface-2 px-2 py-1 font-mono text-xs text-fg-muted">
             {error.digest}
           </code>
         )}
-        <div className="mt-8 flex flex-wrap items-center gap-2">
-          <button type="button" onClick={handleReset} className="cta-pill">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
+          <button type="button" onClick={handleReset} className={buttonClass("primary", "md")}>
             {t.cta}
           </button>
-          <Link href={homeHref} className="cta-ghost">
+          <Link href={homeHref} className={buttonClass("ghost", "md")}>
             {t.home}
           </Link>
         </div>

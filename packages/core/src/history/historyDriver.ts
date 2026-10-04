@@ -57,7 +57,7 @@ export interface HistoryDriver {
   // for, and making it queue behind unrelated Routers is pure latency: measured
   // on the marketing site, whose landing runs two looping memory-history demo
   // mockups, a real navigation started in 63ms when the mockups were idle and
-  // in 246-868ms when one was mid-flight. Set by the memory driver.
+  // in 246-868ms when one was mid-transition. Set by the memory driver.
   readonly isolated?: boolean;
 }
 

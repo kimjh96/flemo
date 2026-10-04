@@ -8,7 +8,7 @@ export interface MorphRect {
   height: number;
 }
 
-// What a morph element looks like at the instant a flight starts: where it sits
+// What a morph element looks like at the instant a transition starts: where it sits
 // and the corner it holds. Captured for BOTH sides — the arriving element reads
 // its partner's snapshot to know where to come from.
 export interface MorphSnapshot {
@@ -45,7 +45,7 @@ export interface MorphSnapshot {
    * The element's own box model at capture: the padding it holds its contents
    * in, and the margin that holds it away from its neighbours.
    *
-   * Interpolating the outer box is not enough. The element in flight is the
+   * Interpolating the outer box is not enough. The element running is the
    * ARRIVAL's tree, so on the first frame it is already wearing the arrival's
    * spacing — a list card with `p-2` handing over to a panel with `p-3` starts
    * with its contents 8px narrower than the ones it is replacing, which is a
@@ -63,16 +63,16 @@ export interface MorphSnapshot {
   /**
    * Whether this end is ONE LINE of text.
    *
-   * A flight animates the element's box, and the element in flight is the
+   * A transition animates the element's box, and the element running is the
    * ARRIVAL's tree — so it re-wraps at every width on the way, under the
    * arrival's own line-breaking rules rather than the departure's. Where both
    * ends are single lines that is always wrong: the label was one line, the
-   * heading is one line, and the flight puts a second one in between. Measured
+   * heading is one line, and the transition puts a second one in between. Measured
    * on the playground's poster grid, on an iPhone: a cell's meta line broke
    * after the middle dot for the first four frames of a push, because the
    * detail's span has no `truncate` and the cell's width does not fit it.
    *
-   * Read for both ends so the flight can hold a single line when it knows the
+   * Read for both ends so the transition can hold a single line when it knows the
    * journey has no honest reason to have two (see `holdsOneLine`).
    */
   singleLine: boolean;
@@ -82,7 +82,7 @@ export interface MorphSnapshot {
    *
    * It is the other half of where a line SITS in its box: the half-leading is
    * `(line-height - this) / 2`, and both engines render that floored to whole
-   * pixels. A flight that interpolates the leading has to know where those
+   * pixels. A transition that interpolates the leading has to know where those
    * boundaries are to avoid ending on one (see morphLine's `leadingBias`).
    *
    * Null for anything that is not one run of text, and for a measurement taken
@@ -110,7 +110,7 @@ const SINGLE_LENGTH = /^(-?[\d.]+)px$/;
 
 // `letter-spacing: normal` is font-defined rather than a length, so it has no
 // value to interpolate against a px one. Those elements keep their authored
-// tracking through the flight.
+// tracking through the transition.
 const readLength = (computed: string | null | undefined): number | null => {
   if (!computed) return null;
   const match = SINGLE_LENGTH.exec(computed.trim());
@@ -151,7 +151,7 @@ export const isSingleLine = (
 // wearing that type reports the same number — and a navigation captures EVERY
 // registered morph, which on the playground's poster grid is twenty runs of
 // text. Measuring each of them is a forced layout each, on the one frame that
-// has a flight to start: device-measured as a transition that skipped its
+// has a transition to start: device-measured as a transition that skipped its
 // opening entirely.
 //
 // So it is measured once per distinct type style and remembered. The font
@@ -260,7 +260,7 @@ export const captureMorphSnapshot = (element: HTMLElement): MorphSnapshot => {
     letterSpacing: readLength(styles?.letterSpacing),
     wordSpacing: readLength(styles?.wordSpacing),
     // `line-height: normal` is font-defined rather than a length, so readLength
-    // declines it and those elements keep their own leading through the flight.
+    // declines it and those elements keep their own leading through the transition.
     lineHeight,
     aspectRatio: ratio && ratio !== "auto" ? ratio : null,
     padding: sides("padding"),
@@ -281,7 +281,7 @@ export const captureMorphSnapshot = (element: HTMLElement): MorphSnapshot => {
  * A painted rect mapped back into the space its ancestor's transform is applied
  * FROM.
  *
- * A screen that is mid-flight (or held at its from-pose) carries a transform,
+ * A screen that is mid-transition (or held at its from-pose) carries a transform,
  * so every rect measured inside it is already displaced. The morph's own
  * transform composes with that displacement rather than replacing it, so the
  * travel has to be computed against the element's undisplaced box — otherwise
@@ -322,7 +322,7 @@ const TRANSLATE = /^translate(?:3d)?\(([^)]+)\)$/;
  * (so the browser rasterises the tiles the animation is about to reveal), and a
  * measurement corrected for a displacement the screen was not wearing lands a
  * screen-height away from where anything is. The matrix is true in every one of
- * those states — parked, held, mid-flight, at rest.
+ * those states — parked, held, mid-transition, at rest.
  *
  * Rotation and skew are not represented: nothing in the library rotates a
  * screen, and a rect is not a rotated shape anyway.

@@ -19,7 +19,7 @@ The scorer may know only the eleven `data-eval` roles at the end of every task p
 Two roles are interpreted as written in the prompts, rather than as separate attributes:
 
 - The header's leading control is the way back, so a programmatic pop is a click on `shared-action`.
-- The shared object opens the detail, so the identity flight is the one that object starts.
+- The shared object opens the detail, so the identity transition is the one that object starts.
 
 ## Validate rubric separation
 

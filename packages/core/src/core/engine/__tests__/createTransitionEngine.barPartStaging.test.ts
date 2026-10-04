@@ -120,7 +120,7 @@ describe("staging the covered side's shared-bar parts", () => {
     resolveSpy.mockRestore();
   });
 
-  // One engine per screen for the whole flight, as the binding does.
+  // One engine per screen for the whole transition, as the binding does.
   const drive = (status: string, isActive: boolean, animHoldReleased = false) => {
     disposers.push(
       engine.driveScreenLifecycle({
@@ -163,7 +163,7 @@ describe("staging the covered side's shared-bar parts", () => {
     expect(barPart.parentElement).toBe(layer);
   });
 
-  it("stages once for a flight, not once per hold flip", () => {
+  it("stages once for a transition, not once per hold flip", () => {
     drive("PUSHING", false);
     const home = barPart.getAttribute(HOME);
     drive("PUSHING", false, true);
@@ -173,7 +173,7 @@ describe("staging the covered side's shared-bar parts", () => {
     expect(layer.childElementCount).toBe(1);
   });
 
-  it("brings the part home when the flight completes", () => {
+  it("brings the part home when the transition completes", () => {
     drive("PUSHING", false);
     drive("COMPLETED", false);
 
@@ -184,7 +184,7 @@ describe("staging the covered side's shared-bar parts", () => {
   it("brings a pop's parts home even though that screen is ACTIVE by the landing", () => {
     // The side that staged is the passive one, and on a pop the passive side is
     // the RETURNING screen — which is the top, and therefore active, by the time
-    // the flight completes. Releasing from the passive branch never reached it:
+    // the transition completes. Releasing from the passive branch never reached it:
     // the parts sat in the layer until the stranded backstop fired seconds
     // later, and the bar they left kept the hole where they had been.
     barPart.setAttribute("data-flemo-status", "POPPING");
@@ -197,14 +197,14 @@ describe("staging the covered side's shared-bar parts", () => {
     expect(barPart.hasAttribute(HOME)).toBe(false);
   });
 
-  it("brings them home on any status that is not a flight", () => {
+  it("brings them home on any status that is not a transition", () => {
     drive("PUSHING", false);
     drive("IDLE", false);
 
     expect(barPart.parentElement).toBe(bar);
   });
 
-  it("stages again on the next flight after landing", () => {
+  it("stages again on the next transition after landing", () => {
     drive("PUSHING", false);
     drive("COMPLETED", false);
     drive("POPPING", false);

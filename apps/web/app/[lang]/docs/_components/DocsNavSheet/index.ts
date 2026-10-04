@@ -1,1 +1,1 @@
-export { default } from "./DocsNavSheet";
+export { default, type DocsNavSheetProps } from "./DocsNavSheet";

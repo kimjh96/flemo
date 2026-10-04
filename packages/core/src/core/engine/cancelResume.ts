@@ -1,5 +1,5 @@
 import { clearInlineAnimation, trackInlineWrite } from "@transition/animateInline";
-import { matchesFlightAnimationName } from "@transition/compileTransitionStyles";
+import { matchesTransitionAnimationName } from "@transition/compileTransitionStyles";
 import type { VariantMotion } from "@transition/variantMotion";
 
 // CANCEL-RESUME: putting a browser-cancelled compiled animation back on its
@@ -7,8 +7,8 @@ import type { VariantMotion } from "@transition/variantMotion";
 //
 // WebKit cancels a running CSS animation whenever a commit invalidates the
 // element's style in a way that drops the animation — a suspended mount
-// resolving mid-flight is the common one. Left alone the participant simply
-// stops where it was and the flight dies silently under the incoming screen.
+// resolving mid-transition is the common one. Left alone the participant simply
+// stops where it was and the transition dies silently under the incoming screen.
 //
 // The fix is to restart it with a NEGATIVE inline `animation-delay` equal to
 // the elapsed time, so the replay rejoins the original clock instead of
@@ -33,7 +33,7 @@ const cssSeconds = (seconds: number) => `${Math.round(seconds * 1000) / 1000}s`;
 // recovery below then "rejoins the original clock" by writing a negative inline
 // `animation-delay`. That write lands on top of the AUTHORED delay and erases
 // it: a part written to arrive late started immediately instead, measured on a
-// real flight as a 2.2s delay replaced by -0.083s.
+// real transition as a 2.2s delay replaced by -0.083s.
 //
 // Nothing needs recovering there. The move carries the animation's own clock
 // across it (see @dom/staging preserveAnimations), so the mark says "this one
@@ -50,10 +50,10 @@ export const expectAnimationCancel = (element: HTMLElement): void => {
   expectedCancels.add(element);
 };
 
-// Whether the element is running another animation of this flight than the one
+// Whether the element is running another animation of this transition than the one
 // the event cancelled. The cancelled animation is already idle when the event
-// is dispatched, so any live one of the flight's name is its successor.
-const hasFlightSuccessor = (element: HTMLElement, expectedName: string): boolean => {
+// is dispatched, so any live one of the transition's name is its successor.
+const hasTransitionSuccessor = (element: HTMLElement, expectedName: string): boolean => {
   if (typeof element.getAnimations !== "function") return false;
   return element
     .getAnimations()
@@ -61,7 +61,7 @@ const hasFlightSuccessor = (element: HTMLElement, expectedName: string): boolean
       (animation) =>
         animation.playState !== "idle" &&
         animation.playState !== "finished" &&
-        matchesFlightAnimationName(
+        matchesTransitionAnimationName(
           (animation as { animationName?: string }).animationName ?? "",
           expectedName
         )
@@ -96,7 +96,7 @@ export interface CancelResumeConfig {
 // re-establishes the compiled animation rejoined to its ORIGINAL timeline: the
 // standard drop-reflow-restore trick plus an inline `animation-delay` that
 // rewinds the clock to where the cancel landed (negative past the delay phase,
-// so the resume picks up mid-flight and ends on the original schedule).
+// so the resume picks up mid-transition and ends on the original schedule).
 export const wireCancelResume = (config: CancelResumeConfig) => {
   const { element, expectedName, motion } = config;
   // True only during our own drop-reflow-restore mutation, so a synchronous
@@ -114,7 +114,7 @@ export const wireCancelResume = (config: CancelResumeConfig) => {
   // one of three treatments for the inline rejoin delay:
   //   "keep"  — leave it untouched (a plain restart of an animation that never
   //             entered its active phase, so there's no rejoin delay to manage);
-  //   "set"   — write the negative rejoin delay that resumes mid-flight;
+  //   "set"   — write the negative rejoin delay that resumes mid-transition;
   //   "clear" — strip any rejoin delay (a watchdog full-restart from `from`).
   const restart = (delay: { mode: "keep" | "clear" } | { mode: "set"; seconds: number }) => {
     midRestart = true;
@@ -135,10 +135,10 @@ export const wireCancelResume = (config: CancelResumeConfig) => {
   const onCancel = (event: AnimationEvent) => {
     if (midRestart) return;
     // A head tier fires under a suffixed keyframe name (`<name>-gov`,
-    // `<name>-deskhead`) — same flight, same resolver.
+    // `<name>-deskhead`) — same transition, same resolver.
     if (
       event.target !== element ||
-      !matchesFlightAnimationName(event.animationName, expectedName)
+      !matchesTransitionAnimationName(event.animationName, expectedName)
     ) {
       return;
     }
@@ -149,22 +149,22 @@ export const wireCancelResume = (config: CancelResumeConfig) => {
     }
     // A CANCEL WITH A SUCCESSOR IS A SWAP, NOT A LOSS.
     //
-    // The recovery exists for an element left with NO flight animation. When
+    // The recovery exists for an element left with NO transition animation. When
     // the cancelled one has already been replaced by another of the same
-    // flight (the rule matching it changed: a head tier's suffixed keyframes
+    // transition (the rule matching it changed: a head tier's suffixed keyframes
     // swapped for the bare ones, or the restart below), the element is still
-    // flying and there is nothing to put back.
+    // moving and there is nothing to put back.
     //
     // The restart below is itself such a swap, and the browser does not tell
     // us so in time: dropping the animation cancels the running one inside the
     // synchronous reflow, but Blink dispatches that `animationcancel` on the
     // NEXT frame, after `midRestart` has long been cleared. Read as a fresh
     // loss, it restarted again, which cancelled the animation it had just
-    // made, one frame at a time, until the budget ran out and the flight was
+    // made, one frame at a time, until the budget ran out and the transition was
     // resolved as dead. Traced on desktop Chrome: a pop's head swap at the
     // release became five cancels on five consecutive frames and a COMPLETED
-    // flip 80ms into a 700ms flight.
-    if (hasFlightSuccessor(element, expectedName)) return;
+    // flip 80ms into a 700ms transition.
+    if (hasTransitionSuccessor(element, expectedName)) return;
     if (!config.isLive() || config.budgetUsed() >= RESUME_BUDGET) {
       config.onTerminal();
       return;

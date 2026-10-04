@@ -9,9 +9,9 @@ const LEAVE = [0, 0, 0.2, 1] as const;
 // shared box rather than inside it (see CompositionStoryCard). Nothing carries
 // it, so nothing stretches it and nothing prints one sentence over the other:
 // the departing sentence leaves while the arriving one comes in, over the
-// flight, the way any pair of screen fields does. The 0.13s cut this used to
+// transition, the way any pair of screen fields does. The 0.13s cut this used to
 // run was the price of keeping unshared copy in the box, and the card read as
-// switched off and then travelling empty for the rest of the flight.
+// switched off and then travelling empty for the rest of the transition.
 const compositionCardCopy = createPartTransition({
   name: "composition-card-copy",
   initial: { opacity: 0 },

@@ -17,3 +17,5 @@ export const showcaseApps: ShowcaseAppConfig[] = [
     playStoreUrl: "https://play.google.com/store/apps/details?id=com.shiflo&hl=ko"
   }
 ];
+
+export const SUBMIT_URL = "https://github.com/kimjh96/flemo/issues/new";

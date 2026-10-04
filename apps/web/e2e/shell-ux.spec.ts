@@ -19,10 +19,10 @@ test.describe("shell ux", () => {
     await expect(page.getByRole("heading", { name: "Introduction", level: 1 })).toBeVisible();
 
     await siteHeader(page).getByRole("button", { name: "한국어" }).click();
-    await expect(page.getByRole("heading", { name: "소개", level: 1 })).toBeVisible();
+    await expect(page.getByText("flemo는 웹 앱에 네이티브 같은 화면 스택을")).toBeVisible();
 
     await page.reload();
-    await expect(page.getByRole("heading", { name: "소개", level: 1 })).toBeVisible();
+    await expect(page.getByText("flemo는 웹 앱에 네이티브 같은 화면 스택을")).toBeVisible();
   });
 
   // The 404 localizes by the URL prefix, not just the cookie/browser language —

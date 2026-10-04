@@ -20,7 +20,7 @@
 // the nested screens included, whose containers number themselves by stack
 // position and climb as the stack grows.
 
-/** The scope, the bars and the dim: ordered by paint order, not by number. */
+/** The scope, the bars and the dim: ordered by render order, not by number. */
 export const UNNUMBERED_LEVEL = "auto";
 
 /**

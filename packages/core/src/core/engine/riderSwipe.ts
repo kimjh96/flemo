@@ -6,7 +6,7 @@ import type { VariantMotion } from "@transition/variantMotion";
 
 import { SKIP_ANIMATION_ATTR } from "@dom/attributes";
 
-// WHAT RIDES A FLIGHT FOLLOWS THE FINGER.
+// WHAT RIDES A TRANSITION FOLLOWS THE FINGER.
 //
 // A `<Part>` and a decorator declare a pose for each side of a hand-over, and a
 // compiled `@keyframes` plays it whenever the engine flips a status. A DRAG
@@ -62,7 +62,7 @@ export interface RiderSwipe {
    * RESOLVES WHEN THE LANDING HAS LANDED. A caller that commits a navigation
    * off the back of a release has to wait for it: the screens are staged
    * animations now, so committing while they still play removes the screen
-   * mid-flight and it vanishes rather than leaving. Device-reported the first
+   * mid-transition and it vanishes rather than leaving. Device-reported the first
    * time the declarative path shipped without this.
    */
   settle: (commit: boolean, seconds: number) => Promise<void>;
@@ -76,7 +76,7 @@ export interface RiderMotion {
    *
    * A SCREEN IS ITS OWN PHASE, so it omits this and nothing changes for it.
    * Everything riding a screen names it, and that is what keeps a drag and the
-   * flight it walks reading as the same motion. See `scrub`.
+   * transition it walks reading as the same motion. See `scrub`.
    */
   readonly phase?: {
     /** Which of a drag's two progress numbers this rider reads. */
@@ -86,7 +86,7 @@ export interface RiderMotion {
     /**
      * How long that pop runs, which is what turns the screen's own progress
      * into SECONDS. A rider on a shorter clock of its own covers those seconds
-     * faster, exactly as it does in the flight.
+     * faster, exactly as it does in the transition.
      */
     readonly duration: number;
   };
@@ -264,7 +264,7 @@ export const beginRiderSwipe = (
     // That is right for the screen and it was wrong for everything riding it,
     // because inverting a rider through its OWN curve cancels that curve: every
     // rider then sat at the same fraction of its travel as the gesture, whatever
-    // it had authored. A flight cancels nothing. So the same hand-over was two
+    // it had authored. A transition cancels nothing. So the same hand-over was two
     // different motions depending on whether a finger or a status started it,
     // and the curve an author wrote only ever appeared on release.
     //
@@ -272,17 +272,17 @@ export const beginRiderSwipe = (
     // transition from the pop it walks. Measured with this package's own
     // sampler, a part left on the CSS default under cupertino's
     // `[0.32, 0.72, 0, 1]` is 37.5 percentage points from where the same
-    // gesture would put it, at 161ms of a 0.7s flight.
+    // gesture would put it, at 161ms of a 0.7s transition.
     //
     // So a rider reads the gesture through the SCREEN'S curve, which answers
-    // WHERE IN THE FLIGHT that screen position is, in seconds. Its own clock
+    // WHERE IN THE TRANSITION that screen position is, in seconds. Its own clock
     // then says how far along its own travel those seconds put it, and its own
     // curve does the rest. A rider that inherits the screen's clock, which is
     // every part that authors no length, therefore lands exactly where the pop
     // would have it; one on a shorter clock of its own covers those seconds
     // faster and finishes early, which is also what the pop does.
     //
-    // WHAT IS STILL NOT THE FLIGHT is a declared DELAY. The finger starts the
+    // WHAT IS STILL NOT THE TRANSITION is a declared DELAY. The finger starts the
     // travel immediately, because a drag that does nothing for the first sixty
     // per cent of its length reads as broken; that rule is older than this and
     // is pinned in this file's first test.
@@ -294,7 +294,7 @@ export const beginRiderSwipe = (
       for (const rider of staged) {
         const reported = typeof progress === "number" ? progress : progress[rider.side];
         const clamped = reported < 0 ? 0 : reported > 1 ? 1 : reported;
-        // Seconds into the flight, then that as a fraction of this rider's own
+        // Seconds into the transition, then that as a fraction of this rider's own
         // travel. The two are the same number only when the clocks are, which
         // is why the phase carries a length as well as a curve.
         const seconds = invertEasing(rider.phaseEase)(clamped) * rider.phaseDuration;
@@ -315,7 +315,7 @@ export const beginRiderSwipe = (
         // end pose for good — and a gesture-driven rider is not a throwaway
         // like the departing screen's parts: the screen a swipe RETURNS to
         // survives, and its parts then wore the finished pose into the next
-        // flight, where they fought the compiled rule that was supposed to move
+        // transition, where they fought the compiled rule that was supposed to move
         // them. Reported as the previous element overlapping and then vanishing
         // on the next push, and as a pop that would not run its whole way.
         //
@@ -334,7 +334,7 @@ export const beginRiderSwipe = (
                 //
                 // Cancelling returns an element to its own REST style, and on a
                 // committed swipe that style is not where the gesture left it:
-                // the screen that flew out rests where it started, and the
+                // the screen that moved out rests where it started, and the
                 // screen that came home rests at the parallax the pop was
                 // supposed to take it out of. Both blinked — measured on the
                 // bench as the returning screen dropping to -117px for two
@@ -343,7 +343,7 @@ export const beginRiderSwipe = (
                 // Holding the animation's own fill instead was tried first and
                 // WebKit did not honour it. An inline write does, and it is
                 // what this path left behind before the drag became an
-                // animation; the flight's COMPLETED cleanup strips it.
+                // animation; the transition's COMPLETED cleanup strips it.
                 void animateInline(rider.element, rider.to, { duration: 0 }, writer);
               }
               rider.animation.cancel();
@@ -356,7 +356,7 @@ export const beginRiderSwipe = (
                the staging seek, which is the ignored branch in `leg` above. */
             const landing = (commit ? rider.commitLeg : rider.cancelLeg) ?? rider.animation;
             landing.addEventListener("finish", land, { once: true });
-            // The backstop the flight's own resolver keeps, for the same
+            // The backstop the transition's own resolver keeps, for the same
             // reason: an animation torn down before it finishes fires nothing,
             // and a caller waiting on this must not wait for ever.
             if (typeof setTimeout === "function") {
@@ -385,7 +385,7 @@ export const beginRiderSwipe = (
           : invertEasing(rider.clock.ease)(1 - pose) * durationMs;
         const remaining = durationMs - at;
         if (!leg || remaining <= 0) {
-          // Nothing left to fly, or a host that refused the staging: the drag
+          // Nothing left to move, or a host that refused the staging: the drag
           // animation still holds the pose and the landing below lands it.
           rider.animation.pause();
         } else {

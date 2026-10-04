@@ -9,7 +9,7 @@ import { resolveVariantMotion } from "@transition/variantMotion";
 
 import isServer from "@utils/isServer";
 
-import { resolveHeadKit } from "@core/engine/flightRouting";
+import { resolveHeadKit } from "@core/engine/transitionRouting";
 
 import { TRANSITION_ATTR } from "@dom/attributes";
 
@@ -22,7 +22,7 @@ import {
 } from "@morph/morphGeometry";
 
 /**
- * How long after the release the flight's motion actually begins, in seconds.
+ * How long after the release the transition's motion actually begins, in seconds.
  *
  * The platform head kits bake a flat opening into a COPY of the screen's
  * keyframes so a commit that ages the wall clock eats the head instead of the
@@ -45,13 +45,13 @@ export const headSeconds = (status: NavigateStatus): number => {
   // From the ROUTING, not from the root's attribute. The engine announces the
   // head kit by stamping that attribute, and it does so from the same commit a
   // morph is staged in — after the morph, because React runs a descendant's
-  // layout effect first. Reading it there answers with the PREVIOUS flight's
+  // layout effect first. Reading it there answers with the PREVIOUS transition's
   // kit: right by luck from the second navigation on, and wrong on the first,
   // which is what made a first push run its element 33ms ahead of the screen
   // carrying it while every push after it was aligned. Same predicates, same
   // answer, no ordering to lose.
   const { governedHead, headMs } = resolveHeadKit(status);
-  // The governed kit's flat head is counted twice where the flight SLIDES: its
+  // The governed kit's flat head is counted twice where the transition SLIDES: its
   // keyframes carry the head and its rule shifts the delay by another. A
   // REPLACE is not a slide and its rule shifts nothing, so counting two there
   // put the morph a whole head behind the screen it belongs to.
@@ -63,7 +63,7 @@ export interface MorphSide {
   /**
    * Where the element's box belongs AT REST, in viewport coordinates.
    *
-   * Not simply its measured rect: a screen mid-flight (or held at its from-pose)
+   * Not simply its measured rect: a screen mid-transition (or held at its from-pose)
    * carries a transform, and every rect measured inside it is displaced by it.
    * The travel has to be computed against the undisplaced box, or a push under a
    * sliding transition would aim a screen-width away from where the element ends.
@@ -86,7 +86,7 @@ export interface MorphSide {
   leadOffset: number | null;
   /**
    * Whether this screen's transition MOVES it — read from the DEFINITION, not
-   * from the element: at the moment a flight is staged the arriving screen is
+   * from the element: at the moment a transition is staged the arriving screen is
    * parked at its DESTINATION with no transform on it yet (`park-under`), so
    * asking the DOM answers no for every screen that is about to slide in.
    */
@@ -105,7 +105,7 @@ export interface MorphSide {
  *
  * TWO SCREENS, BECAUSE THEY ARE TWO DIFFERENT QUESTIONS.
  *
- * `owner` answers WHICH FLIGHT this end is part of, and therefore how long it
+ * `owner` answers WHICH TRANSITION this end is part of, and therefore how long it
  * runs. `screen` answers WHOSE TRANSFORM the measured rect is displaced by, and
  * therefore what has to be undone to get back to rest space.
  *
@@ -120,7 +120,7 @@ export interface MorphSide {
 /**
  * The rect with EVERY ancestor transform taken back off it.
  *
- * Rest space is not "the measurement minus one named box's pose". A flight is
+ * Rest space is not "the measurement minus one named box's pose". A transition is
  * staged in the middle of a transition, and the transition puts its from-pose
  * on whatever its selector list names — the screen, the layer host, the layer
  * SLOT, a riding shared bar. Any of those can be the thing standing between the
@@ -128,7 +128,7 @@ export interface MorphSide {
  * is. Asking one kind of box answers the question only when that kind happens
  * to be the one carrying the pose.
  *
- * Device-read on a consumer's tab switch: at the frame the flight was staged
+ * Device-read on a consumer's tab switch: at the frame the transition was staged
  * the only transformed box above the pill was a `[data-flemo-layer-slot]`, and
  * every screen above it read identity. The arrival was placed a whole 1% out
  * and snapped back at the landing.

@@ -2,7 +2,7 @@ import type { BaseTransition, Transition } from "@transition/typing";
 
 import { warnUnregistered } from "@utils/devWarn";
 
-import { resolvePartClock } from "@transition/partTransition/resolvePartClock";
+import { resolvePartTiming } from "@transition/partTransition/resolvePartTiming";
 
 import type { PartTransition, PartTransitionName } from "@transition/partTransition/typing";
 
@@ -14,17 +14,17 @@ import type { PartTransition, PartTransitionName } from "@transition/partTransit
 export const partTransitionMap = new Map<PartTransitionName, PartTransition>();
 
 /**
- * A registered part, with the clock the CURRENT flight gives it.
+ * A registered part, with the clock the CURRENT transition gives it.
  *
  * Every reader of a part's timing goes through here, because the compiled CSS
  * does: the rule a part actually runs carries the resolved clock (see
- * resolvePartClock and the pair pass in compileTransitionStyles), so a reader
+ * resolvePartTiming and the pair pass in compileTransitionStyles), so a reader
  * that resolved the authored variants instead would disagree with the glass.
  * That disagreement is not cosmetic — the choreography span decides how long
- * the whole flight stays open, and the layer pin decides what stays promoted
+ * the whole transition stays open, and the layer pin decides what stays promoted
  * across the COMPLETED flip.
  *
- * `transition` is null only where there is no flight to inherit from, which is
+ * `transition` is null only where there is no transition to inherit from, which is
  * a part mounted outside any screen. It then reads exactly what it authored,
  * matching the by-name rule that is the only one such a part selects.
  */
@@ -47,5 +47,5 @@ export const resolvePartDefinition = (
     }
     return undefined;
   }
-  return resolvePartClock(transition, authored);
+  return resolvePartTiming(transition, authored);
 };

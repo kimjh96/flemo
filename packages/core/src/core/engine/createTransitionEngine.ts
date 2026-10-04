@@ -2,7 +2,7 @@ import TaskManager from "@core/TaskManager";
 
 import { clearInlineAnimation } from "@transition/animateInline";
 import {
-  matchesFlightAnimationName,
+  matchesTransitionAnimationName,
   animationName,
   decoratorAnimationName,
   variantHasAnimation
@@ -14,30 +14,30 @@ import { resolveVariantMotion, type VariantMotion } from "@transition/variantMot
 
 import { stageBarParts, type StagedBarParts } from "@core/engine/barPartStaging";
 import { wireCancelResume } from "@core/engine/cancelResume";
-import { createFlightHolds } from "@core/engine/flightHolds";
-import {
-  collectFlightAnimations,
-  collectFlightParts,
-  collectScreenParts,
-  collectStampedOuterParts,
-  collectUnheldOuterParts,
-  collectVariantParts,
-  statusChoreographySpanMs
-} from "@core/engine/flightParticipants";
-import { landingClearFrames, resolveFlightRouting } from "@core/engine/flightRouting";
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
 
 import { collectLayerRiders, isRider } from "@core/engine/layerRiders";
 import {
-  armFlightStartAnchorAtRelease,
+  armTransitionStartAnchorAtRelease,
   holdNativeClocksToFirstFrame,
   watchNativeStalls
 } from "@core/engine/nativeStallAnchor";
 import { holdParticipantLayers, releaseParticipantLayers } from "@core/engine/participantLayers";
 import { perceptualCutMs } from "@core/engine/perceptualSpan";
+import { createTransitionHolds } from "@core/engine/transitionHolds";
+import {
+  collectTransitionAnimations,
+  collectTransitionParts,
+  collectScreenParts,
+  collectStampedOuterParts,
+  collectUnheldOuterParts,
+  collectVariantParts,
+  statusChoreographySpanMs
+} from "@core/engine/transitionParticipants";
+import { landingClearFrames, resolveTransitionRouting } from "@core/engine/transitionRouting";
 // The engine no longer consults the steady-60 verdict at all: the landing
 // placement is uniform and the image hold is opt-in. It still FEEDS it — the
-// display probe below reports the in-flight cadence the settle-gate default
+// display probe below reports the running cadence the settle-gate default
 // reads.
 import {
   SKIP_ANIMATION_ATTR,
@@ -63,7 +63,7 @@ import {
 import { detectBlinkEngine } from "@platform/engineProbes";
 import { reportReleaseLatencyMs } from "@platform/releaseLatency";
 import { decoratorMap } from "@transition/decorator/decorator";
-import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
+import { resolveDecoratorTiming } from "@transition/decorator/resolveDecoratorTiming";
 import { resolvePartDefinition } from "@transition/partTransition/partTransition";
 
 const noop = () => {};
@@ -82,7 +82,7 @@ const GATE_MOTION_MARGIN_MS = 1500;
 // The first-frame clock hold resolves on its own rAF, potentially after the
 // release run has armed its wall-clock deadlines — this slot lets the hold
 // push THAT run's deadlines the same way a stall shift would (the closures
-// are per-effect-run, the hold is per-flight).
+// are per-effect-run, the hold is per-transition).
 const startHoldDisarms = new WeakMap<HTMLElement, () => void>();
 
 // High-refresh threshold for the compiled tier's landing governor (see
@@ -95,9 +95,9 @@ const startHoldDisarms = new WeakMap<HTMLElement, () => void>();
 // initial/content styles) stays in the binding's render.
 //
 // Motion is driven by the COMPILED animation, everywhere — the rAF player that
-// once shared this job was retired in 2026-08. What varies per flight is how
-// its OPENING is protected (see flightRouting.ts) and how its participants are
-// found, held and released (flightParticipants.ts, participantLayers.ts,
+// once shared this job was retired in 2026-08. What varies per transition is how
+// its OPENING is protected (see transitionRouting.ts) and how its participants are
+// found, held and released (transitionParticipants.ts, participantLayers.ts,
 // cancelResume.ts). This file is what is left once those are named: the
 // navigation-task lifecycle, the holds, and the resolution.
 export { resetDisplayProbeForTests };
@@ -110,30 +110,30 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   const layerOwner = Symbol("flemo-engine-layer");
 
   // Cancel-resume budget for the ACTIVE scope's compiled-CSS liveness recovery
-  // (see the active path below): how many resumes each in-flight task has spent
+  // (see the active path below): how many resumes each running task has spent
   // on its screen animation. Keyed by task id, NOT by effect run — the anim-hold
   // release re-runs the driver effect, and a per-run counter would hand the same
   // transition a fresh budget each re-run. Pruned on task resolution and on
   // stale teardown (a resolved or superseded task's entry is dropped), so it
-  // tracks only the handful of genuinely-recovering in-flight tasks and never
+  // tracks only the handful of genuinely-recovering running tasks and never
   // grows unbounded the way the old add-only Set did. Pure-resume participants
   // (decorator, bars, parts, the passive scope) budget per drive-run instead —
   // their counters live and die with the wiring closure.
   const activeResumeCounts = new Map<string, number>();
-  // Every hold this screen owns across drive runs — the in-flight arrival
-  // armor and the warm side's image hold. See flightHolds.ts; the two
+  // Every hold this screen owns across drive runs — the running arrival
+  // armor and the warm side's image hold. See transitionHolds.ts; the two
   // callbacks below are this engine's.
-  const holds = createFlightHolds({
+  const holds = createTransitionHolds({
     landNow: () => landNow(),
     scheduleLanding: (land) => scheduleLanding(land)
   });
 
-  // The in-flight commit hold for this screen's CURRENT transition (see
+  // The running commit hold for this screen's CURRENT transition (see
   // arrivalHold.ts). Engine-level, not per drive-run: the driver effect
   // re-runs mid-transition (the anim-hold release), and the hold must span
   // A landing scheduled two frames past COMPLETED (see below). Tracked so a
   // navigation starting inside that window can land it immediately instead of
-  // letting it punch into the new flight.
+  // letting it punch into the new transition.
   let pendingLanding: { land: () => void; cancel: () => void } | null = null;
 
   const landNow = () => {
@@ -168,7 +168,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
 
   // This screen's matched shared-bar parts while they are up in the Router's
   // part layer (see barPartStaging.ts). Held across drive calls because the
-  // staging spans a whole flight: it is armed on the first transitional drive
+  // staging spans a whole transition: it is armed on the first transitional drive
   // and returned on the COMPLETED one, with several hold-flip drives between.
   let stagedBarParts: StagedBarParts | null = null;
 
@@ -190,10 +190,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
 
     const isTransitional = status === "PUSHING" || status === "POPPING" || status === "REPLACING";
 
-    // Bring staged bar parts home the moment this screen leaves the flight,
+    // Bring staged bar parts home the moment this screen leaves the transition,
     // WHICHEVER side it is by then. Not in the passive COMPLETED branch, where
     // this used to live: a pop's passive screen is the returning one, so it is
-    // ACTIVE by the time the flight completes and never reached that branch at
+    // ACTIVE by the time the transition completes and never reached that branch at
     // all. Its parts sat in the layer until the stranded backstop fired
     // seconds later, and the bar they left kept the hole where they had been —
     // observed as the title sitting shifted for the rest of the landing.
@@ -202,18 +202,18 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       stagedBarParts = null;
     }
 
-    // Mirror the flight's hold onto Parts that live OUTSIDE any screen, which
+    // Mirror the transition's hold onto Parts that live OUTSIDE any screen, which
     // the compiled hold rule's descendant selector cannot reach (see
     // collectUnheldOuterParts). Owned by the ACTIVE side only: both screens of
-    // a flight render a hold, and two owners writing one persistent element
+    // a transition render a hold, and two owners writing one persistent element
     // means whichever releases first un-holds it for the other. This runs in
     // the binding's layout effect, which re-runs on the hold flip, so the
     // stamp and the screens' own attribute land in the same commit — the part
-    // must not lead or trail the flight by a frame either. Stamp and sweep use
+    // must not lead or trail the transition by a frame either. Stamp and sweep use
     // different predicates on purpose; see collectStampedOuterParts.
     //
     // AND THE STAMP MUST NOT OUTLIVE THE SCREEN THAT WROTE IT. The chrome is
-    // persistent and the screen is not: on a pop the flying side is the one
+    // persistent and the screen is not: on a pop the moving side is the one
     // that goes away, and a transition with no clock of its own takes it out
     // inside the frame it stamped in. The release pass that would have swept
     // this never runs, and the part stays paused for the rest of the session
@@ -247,13 +247,13 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
 
     // AND THE HOLDS THIS SCREEN ARMED, if the screen is what went away.
     //
-    // Every hold `flightHolds` arms is released by a LATER sync pass, and a
-    // screen that unmounts mid-flight never has one — so the response park and
-    // the session-global flight window stayed latched with nothing in the air
-    // (see flightHolds.abandon).
+    // Every hold `transitionHolds` arms is released by a LATER sync pass, and a
+    // screen that unmounts mid-transition never has one — so the response park and
+    // the session-global transition window stayed latched with nothing in the air
+    // (see transitionHolds.abandon).
     //
     // A cleanup runs on every effect RE-RUN as well as on unmount, and
-    // releasing the arrival armor between two passes of the same flight would
+    // releasing the arrival armor between two passes of the same transition would
     // be worse than the leak. The two are told apart by the only thing that
     // differs: a re-run leaves the screen in the document and an unmount does
     // not. The check is repeated on a microtask because React's own commit
@@ -274,7 +274,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       });
     });
 
-    // EVERY flight participant — active or passive, before any early-return
+    // EVERY transition participant — active or passive, before any early-return
     // fork below (the passive player join returns long before the active
     // path) — gets async image decoding before its tiles paint mid-motion:
     // the one main-thread stall the response/arrival armor cannot reach (see
@@ -285,8 +285,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       const earlyRiders = [...(earlyBars ?? []), ...collectLayerRiders(earlyContainer ?? null)];
       if (early) {
         stampAsyncImageDecode(early);
-        // Release a PREVIOUS flight's landing-snap easing stake (this engine
-        // instance's only) BEFORE this flight stamps its own: an interrupted
+        // Release a PREVIOUS transition's landing-snap easing stake (this engine
+        // instance's only) BEFORE this transition stamps its own: an interrupted
         // snappable slide must not bend a following unsnappable variant's
         // curve. Done once at drive entry — a per-stamp-site else-clear
         // fought the sibling holdParticipantLayers call of the SAME drive
@@ -326,16 +326,16 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // The display-interval probe. Its samples feed two live consumers — the
     // compiled tier's landing governor (learnedFrameIntervalMs, see
     // landingGovernor.ts) and the steady-60 desktop profile
-    // (reportInFlightCadence -> the settle-gate default) — and both need a
-    // reading taken IN FLIGHT, while the
+    // (reportInTransitionCadence -> the settle-gate default) — and both need a
+    // reading taken RUNNING, while the
     // compositor animation is running: an adaptive panel idles at 60Hz and only
     // shows its true rate once something is animating.
     //
     // The arming used to sit inside the driver-routing gate that sent Blink to
     // the compiled tier. The player is gone and so is that gate, so the arming
     // is kept here on EXACTLY the condition it used to run under: a Blink
-    // flight that is not chained behind another pending navigation.
-    const armDisplayProbeForFlight = () => {
+    // transition that is not chained behind another pending navigation.
+    const armDisplayProbeForTransition = () => {
       if (!detectBlinkEngine()) return;
       const taskId = deps.getTransitionTaskId();
       if (!taskId) return;
@@ -395,7 +395,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         // cancel/resume controller reproduces has to be read the same way the
         // compiler wrote it.
         const decoratorMotion = decoratorDefinition
-          ? resolveVariantMotion(resolveDecoratorClock(transition, decoratorDefinition), variant)
+          ? resolveVariantMotion(resolveDecoratorTiming(transition, decoratorDefinition), variant)
           : null;
         if (decoratorMotion) {
           wirePure(
@@ -435,7 +435,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         if (decorator) clearInlineAnimation(decorator);
         for (const bar of riders) {
           // Bars are the one participant class SHARABLE across drivers (an
-          // engine flight and a swipe both promote riding bars), so their
+          // engine transition and a swipe both promote riding bars), so their
           // COMPLETED cleanup releases only THIS engine's stakes — the
           // player's per-track writer and a swipe's own token clean up on
           // their own paths. Scope and decorator are never shared: force.
@@ -455,7 +455,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       if (status === "REPLACING" && isTransitionDiffOnReplace) {
         deps.setReplaceTransitionStatus("PENDING");
       }
-      // Pin this side's compiled promotions inline for the flight (see
+      // Pin this side's compiled promotions inline for the transition (see
       // layerSettleHold.ts), so the COMPLETED flip's rule un-match cannot
       // demote-and-repaint any participant's layer on the convergence
       // frames. Stamped from the FIRST transitional effect — the rules
@@ -478,7 +478,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           // z-index with an opaque surface, so this screen's shared-bar parts
           // animate where nobody can see them. When the two screens share a bar
           // id the bar is non-riding and the parts are supposed to cross-fade
-          // with their partners — so for the flight they are staged above both
+          // with their partners — so for the transition they are staged above both
           // screens instead. Armed from the FIRST transitional drive, beside
           // the layer pin, so the lift happens while the hold still has every
           // animation paused at its from-pose.
@@ -502,7 +502,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // life is exhausted it just stops.
       if (isTransitional && animHoldReleased) {
         const variant = `${status}-false` as TransitionVariant;
-        armDisplayProbeForFlight();
+        armDisplayProbeForTransition();
 
         const { scope } = getElements();
         if (scope) {
@@ -538,7 +538,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     }
 
     if (status === "COMPLETED") {
-      // A probe still mid-window at the flip would go on to sample post-flight
+      // A probe still mid-window at the flip would go on to sample post-transition
       // idle gaps — discard it (see cancelDisplayIntervalProbe).
       cancelDisplayIntervalProbe();
       deps.setDragStatus("IDLE");
@@ -573,7 +573,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           // A swipe marks its riders so the landing does not replay them from
           // their start (riderSwipe). The rider clears its own mark when its
           // animation finishes; this is for the one torn down before it could —
-          // a mark left behind would suppress the NEXT flight's part animation
+          // a mark left behind would suppress the NEXT transition's part animation
           // on an element that outlives this navigation.
           part.removeAttribute(SKIP_ANIMATION_ATTR);
         }
@@ -602,7 +602,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const { scope } = getElements();
     if (!scope) return noop;
 
-    // NOTE (consumer animation pause, REMOVED 2026-08-18): a flight-scoped
+    // NOTE (consumer animation pause, REMOVED 2026-08-18): a transition-scoped
     // pause of running consumer CSS animations (skeleton pulses) was tried
     // here for steady-60 desktops and removed the same day on the user's
     // direction — flemo does not manipulate consumer-authored animation
@@ -614,27 +614,27 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // budget.
     const flooredTaskId = deps.getTransitionTaskId();
 
-    // Released when the flight resolves or is torn down (see armFramePacingKeepalive).
+    // Released when the transition resolves or is torn down (see armFramePacingKeepalive).
     let stopKeepalive = noop;
     const resolve = () => {
       stopKeepalive();
-      // Resolve THIS flight's captured task, never the live one. Reading the
-      // live id let a STALE resolver (a previous flight's animationend/cancel
-      // firing a frame into the NEXT flight) resolve whatever task is now
-      // current — the new flight's — flipping data-flemo-status to COMPLETED at
-      // the exact frame the new flight releases its hold. The compiled
+      // Resolve THIS transition's captured task, never the live one. Reading the
+      // live id let a STALE resolver (a previous transition's animationend/cancel
+      // firing a frame into the NEXT transition) resolve whatever task is now
+      // current — the new transition's — flipping data-flemo-status to COMPLETED at
+      // the exact frame the new transition releases its hold. The compiled
       // @keyframes rule matches on `[data-flemo-status="PUSHING"]`, so that flip
       // un-matches the just-started animation and cancels it mid-opening: the
       // slide is swallowed while the navigation still commits (device: "연타할
       // 때 트랜지션이 씹히고 전환된다", desktop Blink compiled tier, ~50% of
       // rapid pushes). `resolveTask` is already a no-op on a non-current task,
       // so a stale resolver now settles only its own (already-done) task and
-      // can never cut a newer flight — exactly what the flooredTaskId capture
+      // can never cut a newer transition — exactly what the flooredTaskId capture
       // was for (see its comment above).
       if (flooredTaskId) {
         void TaskManager.resolveTask(flooredTaskId);
         // The task is settling — drop its resume-budget entry so the map only
-        // ever holds the handful of genuinely in-flight tasks.
+        // ever holds the handful of genuinely running tasks.
         activeResumeCounts.delete(flooredTaskId);
       }
     };
@@ -644,7 +644,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     const skipAnimation = scope.getAttribute(SKIP_ANIMATION_ATTR) === "true";
     const hasAnimation = !skipAnimation && variantHasAnimation(currentTransition, variantKey);
 
-    // Pin the compiled rules' promotions inline for the flight (see
+    // Pin the compiled rules' promotions inline for the transition (see
     // layerSettleHold.ts): the COMPLETED flip un-matches the variant rules
     // in its own commit, and on Blink each demotion repaints its element
     // right on the convergence frames. Gated on skipAnimation only — the
@@ -673,7 +673,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       ? resolveVariantMotion(currentTransition, passiveVariantKey)
       : null;
     const statusPartMotions: { element: HTMLElement; motion: VariantMotion }[] = [];
-    for (const part of collectFlightParts(scope, status)) {
+    for (const part of collectTransitionParts(scope, status)) {
       const definition = resolvePartDefinition(
         part.getAttribute(PART_NAME_ATTR),
         currentTransition
@@ -701,10 +701,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         ? decoratorMap.get(currentTransition.decoratorName)
         : undefined;
       if (decoratorDefinition) {
-        // On this transition's clock (resolveDecoratorClock), which is what
+        // On this transition's clock (resolveDecoratorTiming), which is what
         // makes the span it contributes below the SCREEN's span unless the
         // decorator's author asked for a longer one outright.
-        const decoratorClock = resolveDecoratorClock(currentTransition, decoratorDefinition);
+        const decoratorClock = resolveDecoratorTiming(currentTransition, decoratorDefinition);
         for (const decoratorVariant of [
           `${status}-true`,
           `${status}-false`
@@ -792,20 +792,20 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
           // desktop Chrome over the bench's container transform, every push and
           // pop held its last motion frame for 40 to 70ms before landing.
           //
-          // So the flight lands where a clean end does: when its participants'
+          // So the transition lands where a clean end does: when its participants'
           // animations have actually finished, plus the frames the engine's
-          // presentation pipeline needs (flightRouting's landingClearFrames).
+          // presentation pipeline needs (transitionRouting's landingClearFrames).
           // The span still fires if an animation is cancelled, lost, or
           // outlived by the estimate, which is exactly what it did before.
           const landingFrames: number[] = [];
-          const flight = collectFlightAnimations(
+          const transition = collectTransitionAnimations(
             scope,
             status,
             [getElements().decorator],
             cameraAnimations
           );
-          if (flight.length > 0 && typeof requestAnimationFrame === "function") {
-            Promise.all(flight.map((animation) => animation.finished)).then(() => {
+          if (transition.length > 0 && typeof requestAnimationFrame === "function") {
+            Promise.all(transition.map((animation) => animation.finished)).then(() => {
               const land = (remaining: number) => {
                 if (settled) return;
                 if (remaining <= 0) {
@@ -859,9 +859,9 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         TaskManager.markGateHeld(flooredTaskId);
       }
     }
-    // HOW THIS FLIGHT IS FLOWN — one decision, resolved once (see
-    // flightRouting.ts, where the evidence for each field lives).
-    const routing = resolveFlightRouting({
+    // HOW THIS TRANSITION IS MOVED — one decision, resolved once (see
+    // transitionRouting.ts, where the evidence for each field lives).
+    const routing = resolveTransitionRouting({
       status,
       transition: currentTransition,
       skipAnimation,
@@ -878,7 +878,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       governedSlide,
       birthHoldMs: governedBirthHoldMs
     } = routing;
-    // Steady Chrome's ProMotion frame pacing for a compositor-driven flight
+    // Steady Chrome's ProMotion frame pacing for a compositor-driven transition
     // (see armFramePacingKeepalive): the idle main thread otherwise lets the
     // presentation drop and duplicate frames. Released in resolve() and in the
     // teardown below.
@@ -890,10 +890,10 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // fresh/pending gate makes re-arming across effect re-runs a no-op.
     // Captured so the effect cleanup can tear it down: the hold owns a
     // MutationObserver, a pending rAF, a resume backstop, AND a
-    // document-wide early stall watcher that traverses the NEXT flight's
+    // document-wide early stall watcher that traverses the NEXT transition's
     // animations for up to 3s if left running. An interrupt/unmount must
     // stop all of it, not leak it into the following navigation.
-    // Birth anchor for DESKTOP non-Blink compiled flights (macOS Safari — the
+    // Birth anchor for DESKTOP non-Blink compiled transitions (macOS Safari — the
     // 1.23.0 gate, briefly lost in a refactor and eye-caught as the compiled
     // tier turning "whooshy": without it the release block's clock aging
     // swallows the opening). Armed at the PRE-release run so its observer
@@ -917,22 +917,22 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       !nativeSurgeryAllowed &&
       !routedTouchGoverned &&
       !routedForceCompiled &&
-      // The desktop head covers this flight by STYLE. Rewinding the clock
+      // The desktop head covers this transition by STYLE. Rewinding the clock
       // underneath it would correct a latency the head has already covered —
       // two interventions on one clock, which is the pairing the touch tier
       // was built to avoid.
       !routedDesktopHead
     ) {
-      detachGovernedBirthAnchor = armFlightStartAnchorAtRelease(
+      detachGovernedBirthAnchor = armTransitionStartAnchorAtRelease(
         scope,
         () => [scope.ownerDocument.documentElement],
         () => startHoldDisarms.get(scope)?.(),
         false
       );
     }
-    // Governed-tier flights run the compiled animation COMPLETELY untouched — not even
+    // Governed-tier transitions run the compiled animation COMPLETELY untouched — not even
     // the birth anchor. Device-falsified in sequence (iPhone LPM 2026-08):
-    // the co-flush watch's capped-rAF eyes rewound healthy flights (backward
+    // the co-flush watch's capped-rAF eyes rewound healthy transitions (backward
     // jump every push, up to 570dpx), and the corrected first-tick-only
     // rewind is still a WAAPI startTime write on a running animation — the
     // intervention class the falsification series implicated for WebKit's
@@ -999,12 +999,12 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       }
       // WHAT THE HEAD IS COVERING, measured rather than assumed.
       //
-      // This IS the release: the styles that start the flight are resolved from
+      // This IS the release: the styles that start the transition are resolved from
       // here, and the first frame of it reaches the glass a paint, a commit and
-      // a vsync later. The gap is what the next flight of this status decides
+      // a vsync later. The gap is what the next transition of this status decides
       // its head from, so an app whose screens are already mounted stops paying
       // for a latency it does not have (see releaseLatency, and the head kit in
-      // flightRouting that reads it).
+      // transitionRouting that reads it).
       //
       // One frame's callback time is the honest reading available here: it is
       // the moment the browser is about to produce the frame this release will
@@ -1021,7 +1021,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // bare one at the release. Traced on desktop Chrome as the first pop of
       // a session on the composition bench, in one to four loads of twelve.
       // A sample taken here describes the release it follows, and only a
-      // later flight of this status reads it.
+      // later transition of this status reads it.
       if (
         animHoldReleased &&
         typeof requestAnimationFrame === "function" &&
@@ -1081,7 +1081,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
 
     // The whole choreography's span can outlive the ACTIVE screen's own
     // motion: a passive side or a <Part> with a longer registered duration
-    // was, until now, truncated mid-flight by the COMPLETED flip at the
+    // was, until now, truncated mid-transition by the COMPLETED flip at the
     // active animationend — visible as the part snapping right at the
     // convergence (measured: a 0.6s part riding a 0.35s material screen cut
     // at 58% of its motion). A CLEAN end now defers the task resolution by
@@ -1100,7 +1100,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // fallback for suspended rAF (background tab). HOW MANY is the engine's
     // presentation pipeline and nothing more, because the deferral is only
     // invisible while the picture cannot change under it (see
-    // flightRouting's landingClearFrames). Recovery paths (watchdog, floor,
+    // transitionRouting's landingClearFrames). Recovery paths (watchdog, floor,
     // resume-terminal) keep resolving immediately — something is already
     // wrong there.
     let landingClearHandles: number[] = [];
@@ -1150,14 +1150,14 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     let disarmPerceptualCut = noop;
     const onEnd = (event: AnimationEvent) => {
       if (event.target !== scope) return;
-      // Same-flight match across every head tier's suffixed keyframe name: a
-      // miss here does not just skip a resolve, it strands the flight until
+      // Same-transition match across every head tier's suffixed keyframe name: a
+      // miss here does not just skip a resolve, it strands the transition until
       // the restart watchdog replays it.
-      if (!matchesFlightAnimationName(event.animationName, expectedName)) return;
+      if (!matchesTransitionAnimationName(event.animationName, expectedName)) return;
       // AN END THAT RAN FOR NO TIME IS NOT AN END.
       //
       // `elapsedTime` is how long the animation actually ran. A real end
-      // reports the flight's own active duration; zero means the animation was
+      // reports the transition's own active duration; zero means the animation was
       // torn down and rebuilt rather than finished, and WebKit reports that as
       // an `animationend` with the name, the keyframes and the duration all
       // still intact, so nothing else about the event tells the two apart.
@@ -1165,7 +1165,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // Resolving on one commits the store move and flips the screen to
       // COMPLETED while the motion is still at its from-pose: the navigation
       // lands, and what the eye gets is a cut. It is the same defect the morph
-      // runtime was landing flights on, in the same shape, and the fix is the
+      // runtime was landing transitions on, in the same shape, and the fix is the
       // same: wait for an end that ran.
       //
       // Guarded on there BEING a motion, because a variant with none of its
@@ -1180,8 +1180,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     scope.addEventListener("animationend", onEnd);
 
     // Sample the display cadence, once the hold has released and the compiled
-    // animation is actually running (see armDisplayProbeForFlight).
-    if (hasDrivableMotion && animHoldReleased) armDisplayProbeForFlight();
+    // animation is actually running (see armDisplayProbeForTransition).
+    if (hasDrivableMotion && animHoldReleased) armDisplayProbeForTransition();
 
     // Liveness FLOOR — the guarantee that the manual task ALWAYS resolves. A
     // rapid back/forward storm can orphan or freeze the element this transition
@@ -1227,7 +1227,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // arms only when the player is NOT the driver AND the hold has released (a
     // paused, held animation is not lost — nothing to recover, and the watchdog
     // must never fire against a legitimate pause). On WebKit a screen animation
-    // the browser silently cancels mid-flight (a data/suspense commit racing
+    // the browser silently cancels mid-transition (a data/suspense commit racing
     // the transition) fires NEITHER `animationend` nor a player onComplete.
     //
     // Two independent mechanisms cover the two ways the signal is lost:
@@ -1316,7 +1316,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // pushes the wall-clock deadlines out of the way: the watchdog re-arms
     // on the stretched timeline and the perceptual cut (a wall-clock timer)
     // stands down exactly as it does for any recovery event.
-    // Flight-start anchor (see nativeStallAnchor): the release commit's own
+    // Transition-start anchor (see nativeStallAnchor): the release commit's own
     // render pass is the one block the stall watcher has no baseline for —
     // the swallowed opening of the covered screen's parallax. Same non-Blink
     // gate, same deadline pushes as a stall shift.
@@ -1326,8 +1326,8 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
         if (flooredTaskId && watchdog !== undefined) armWatchdog();
       });
     }
-    // Flight-START anchor: armed for EVERY routed-native flight, not only
-    // authored pins. Unlike the mid-flight surgeries (pause/play, stall
+    // Transition-START anchor: armed for EVERY routed-native transition, not only
+    // authored pins. Unlike the mid-transition surgeries (pause/play, stall
     // shifting) this is the one clock intervention the 2026-08 falsification
     // series never implicated: a one-shot, birth-window startTime rewind
     // leaves an animation indistinguishable from one that was simply born a
@@ -1340,14 +1340,14 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // before, or at worst one frame after, the animation's first
     // presentation — and pulls the clock back to one step, so the opening
     // plays in full.
-    // (Flight-start anchor: armed on the PRE-release run — see
+    // (Transition-start anchor: armed on the PRE-release run — see
     // detachReleaseAnchor above; the recovering-run arming inherited the
     // effect's race with the release block and was retired for it.)
     const detachStallWatch =
       // LPM stays OUT of the continuous watch: its rAF gaps (33-62ms under
       // load) are not presentation gaps — the compositor keeps presenting
       // at panel rate, which is the very reason LPM routes to compiled. Each
-      // gap-excess shift there yanked a smoothly-presenting flight back
+      // gap-excess shift there yanked a smoothly-presenting transition back
       // 5-29ms at 30Hz — device-measured micro-jerk texture. Same physics
       // as the Blink exclusion below, one tier down.
       //
@@ -1355,12 +1355,12 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       // watch. Device measurement retired it as a net negative there: the
       // watch is a gap-based clock rewind, and on touch WebKit an rAF gap is
       // NOT a presentation gap — the compositor keeps presenting at panel rate
-      // through it — so the rewind yanks a smoothly-presenting flight
+      // through it — so the rewind yanks a smoothly-presenting transition
       // backwards and WebKit answers the running-clock write by cutting the
-      // flight to its end. Worse, before LPM is DETECTED (the first flight of
-      // a session) a force-compiled flight read !routedTouchGoverned as true
+      // transition to its end. Worse, before LPM is DETECTED (the first transition of
+      // a session) a force-compiled transition read !routedTouchGoverned as true
       // and armed the watch, so the very first push of every LPM session
-      // jumped (probe: clock rewound 322→113 on flight 0 while flights 1+,
+      // jumped (probe: clock rewound 322→113 on transition 0 while transitions 1+,
       // LPM-detected and watch-free, held a perfect maxdx=0). The reveal-block
       // opening is protected by the pre-raster (the content layer rasters
       // during the hold) and the governed head instead — never by surgery.
@@ -1417,7 +1417,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // tracks the wall clock. On touch WebKit the animation presents
     // out-of-process, and a main-thread block (a rapid chain's heavy commit)
     // lags that presentation behind the clock — so the cut fires while the
-    // screen is still visibly mid-flight, resolves the flight, and the rest
+    // screen is still visibly mid-transition, resolves the transition, and the rest
     // rule snaps it to the end (device-reproduced as a rapid tab→detail
     // jump-to-completion). The clean animationend, which the compositor raises
     // only when the pixels actually finish, is the sole safe completion here.
@@ -1450,7 +1450,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       let decoratorCut: number | null = 0;
       if (statusDecoratorMotions.length > 0) {
         // No decorator ELEMENT means the decorator simply isn't participating
-        // in this flight (nothing renders, nothing animates) — skip, don't
+        // in this transition (nothing renders, nothing animates) — skip, don't
         // veto. An unanalyzable motion on a PRESENT decorator vetoes.
         const decoratorElement = getElements().decorator;
         if (decoratorElement) {
@@ -1492,7 +1492,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       }
     }
 
-    // Early landing of the in-flight arrival hold (the hold itself:
+    // Early landing of the running arrival hold (the hold itself:
     // arrivalHold.ts). The release commit — parked skeletons removed, held
     // content revealed, frozen writes replayed — is the settle window's
     // single biggest main-thread item (measured on the consumer app: ~10ms of
@@ -1554,7 +1554,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
   };
 
   /**
-   * One screen's flight, for as long as the binding renders it.
+   * One screen's transition, for as long as the binding renders it.
    *
    * The returned disposer runs the pass's own sweeps first: a hold this pass
    * wrote onto something that OUTLIVES the screen has to come off when the
@@ -1571,7 +1571,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
 
   return {
     driveScreenLifecycle,
-    // Internal, for the leak-regression test: how many in-flight tasks hold an
+    // Internal, for the leak-regression test: how many running tasks hold an
     // active-scope resume-budget entry. Not part of the binding contract.
     activeResumeEntryCount: () => activeResumeCounts.size
   };

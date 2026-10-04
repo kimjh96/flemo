@@ -100,7 +100,7 @@ describe("createInvisibleAnimationHold", () => {
     scope.remove();
   });
 
-  it("catches a mid-flight restart through its mutation watcher (the parked-skeleton case)", async () => {
+  it("catches a mid-transition restart through its mutation watcher (the parked-skeleton case)", async () => {
     const scope = scopeWith([]);
     const { section } = invisibleChild(scope);
     // A nameless (WAAPI) animation held from the start; the rescan must skip
@@ -160,7 +160,7 @@ describe("createInvisibleAnimationHold", () => {
     }
   });
 
-  it("a release survives animations that died during the flight", async () => {
+  it("a release survives animations that died during the transition", async () => {
     const scope = scopeWith([]);
     const { section } = invisibleChild(scope);
     const dying = fakeAnimation(section, { failPlay: true });

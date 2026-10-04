@@ -24,8 +24,8 @@ import { useBench } from "../../_providers/BenchContext";
 // So: ONE paired element, the SAME SHAPE at both ends, and nothing about the
 // screen or the transition altered to accommodate it. An earlier version of
 // this page paired three things (the row, the artwork and the title) across two
-// different layouts, which is what the Morph docs call "letting both fly on
-// their own curves ... what tears a card apart mid-flight".
+// different layouts, which is what the Morph docs call "letting both move on
+// their own curves ... what tears a card apart mid-transition".
 //
 // It declares the tab bar; the detail screen declares none, so the bar rides
 // out with this screen and back on the pop. That is the wallet demo's
@@ -42,15 +42,13 @@ function ActsScreen() {
       // of the stage region rather than to a status bar that is not there.
       statusBarHeight="0px"
       systemNavigationBarHeight="0px"
-      backgroundColor="var(--color-bg)"
+      backgroundColor="var(--bg)"
       sharedBottomBar={<TabBar />}
     >
       <div className="flex h-full flex-col">
         <header className="shrink-0 px-5 pt-6 pb-3">
-          <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
-            {t.app.title}
-          </h2>
-          <p className="mt-0.5 text-sm text-[var(--color-text-disabled)]">{t.app.subtitle}</p>
+          <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-fg">{t.app.title}</h2>
+          <p className="mt-0.5 text-sm text-fg-subtle">{t.app.subtitle}</p>
         </header>
 
         {/* The shared bar STACKS below this list rather than covering it: the
@@ -69,11 +67,11 @@ function ActsScreen() {
                     { transitionName: transition }
                   )
                 }
-                className="block w-full cursor-pointer rounded-2xl text-left transition-colors hover:bg-[var(--color-layer)]"
+                className="block w-full cursor-pointer rounded-2xl text-left transition-colors hover:bg-surface-2"
               >
                 {/* THE ROW IS A CONTAINER TOO. The container transform's pair
                     and camera live on CardShell, and until the row drew one,
-                    zoom from this tab flew a lone artwork over a plain fade:
+                    zoom from this tab moved a lone artwork over a plain fade:
                     no card, no camera. The id is surface-scoped (rowcard-, not
                     card-) so the two tabs never pair with each other while a
                     tab switch has both mounted. */}
@@ -87,11 +85,11 @@ function ActsScreen() {
                       this flex row that animated box IS layout. Measured on a
                       pop: the arriving thumb staged at detail size (390px wide)
                       squeezed the label's flex-1 slot to width 0, the label's
-                      own flight DECLINED on that measurement (zero-destination
+                      own transition DECLINED on that measurement (zero-destination
                       in the morph trace), and the title just grew back in from
                       the right with the reflow instead of re-typesetting home
                       along the push's path. Held, the row never feels the
-                      thumb's flight. */}
+                      thumb's transition. */}
                   <span className="block size-12 shrink-0">
                     <Morph
                       as="span"
@@ -101,7 +99,7 @@ function ActsScreen() {
                       // backwards. Both sides of a pair must name the same morph.
                       //
                       // The id is scoped to THIS surface. The posters tab shows the
-                      // same acts, and when the two tabs are in a flight together
+                      // same acts, and when the two tabs are in a transition together
                       // one shared id would pair all ten of them: measured at 50
                       // morph animations on a single tab switch, which is load this
                       // stage manufactures for nothing.
@@ -118,22 +116,22 @@ function ActsScreen() {
                     <span className="block h-5">
                       <CardTitle
                         layoutId={`rowname-${act.id}`}
-                        className="block truncate text-sm leading-5 font-semibold text-[var(--color-text-primary)]"
+                        className="block truncate text-sm leading-5 font-semibold text-fg"
                       >
                         {act.artist}
                       </CardTitle>
                     </span>
                     {/* `act-row-late` matters only while this row is STAGED IN
-                        THE FLIGHT LAYER (a zoom pop): unpaired, these lines
+                        THE TRANSITION LAYER (a zoom pop): unpaired, these lines
                         would otherwise print at full strength through the
-                        ghost's empty regions on the flight's first frame. At
+                        ghost's empty regions on the transition's first frame. At
                         rest, and on every other case, the class matches
                         nothing. See global.css. */}
-                    <span className="act-row-late block truncate text-xs text-[var(--color-text-disabled)]">
+                    <span className="act-row-late block truncate text-xs text-fg-subtle">
                       {act.venue} · {act.day} {act.time}
                     </span>
                   </span>
-                  <span className="act-row-late shrink-0 font-mono text-xs font-semibold text-[var(--color-text-secondary)] tabular-nums">
+                  <span className="act-row-late shrink-0 font-mono text-xs font-semibold text-fg-muted tabular-nums">
                     ₩{act.price}
                   </span>
                 </CardShell>

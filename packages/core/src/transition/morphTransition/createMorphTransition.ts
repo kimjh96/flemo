@@ -11,32 +11,36 @@ interface CreateMorphProps {
   /** Public name registered on a Router and selected by a `Morph`. */
   name: MorphTransitionName;
   /**
-   * Additional from-pose for the arriving element while it starts over the
-   * measured departure box. `{ opacity: 0 }` starts a cross-fade.
+   * Additional starting style for the element on the new screen while it starts
+   * over the measured box of the element on the old screen. `{ opacity: 0 }`
+   * starts a cross-fade.
    */
   initial: InitialTarget;
-  /** Resting pose and the departing element's pose before the cut. */
+  /** Resting style, and the style of the element on the old screen before it disappears. */
   idle: TransitionVariantValue;
   /**
-   * Target for the arriving side, which is the element that flies. Its own
-   * duration times the flight; otherwise the screen clock, then 0.4s, wins. A
-   * NESTED Morph is the exception: its container's flight is already carrying
-   * it, so it grows on that clock and its own duration is not consulted.
+   * Target for the element on the new screen, which is the element that moves.
+   * Its own duration sets the length; otherwise the screen transition's timing,
+   * then 0.4s, is used. A NESTED Morph is the exception: its container's
+   * transition already moves it, so it grows with that timing and its own
+   * duration is not consulted.
    */
   enter: TransitionVariantValue;
   /**
-   * End-pose used to cut the departing side from the first frame. End hidden
-   * unless intentionally painting the departure behind the flight.
+   * End style the element on the old screen takes at once, from the first
+   * frame. End hidden unless you intentionally want that element rendered
+   * behind the transition.
    */
   exit: TransitionVariantValue;
-  /** Geometry, cross-fade, radius, and screen-carrying behavior for the pair. */
+  /** Geometry, cross-fade, radius, and whole-screen (`carry`) behavior for the pair. */
   options?: MorphTransitionOptions;
 }
 
 /**
  * Creates shared-element motion for two `Morph` elements with one `layoutId`.
- * `enter` and `exit` are simultaneous sides: the arriving element flies while
- * the departing element is cut. Pop reverses which active flag owns each side.
+ * `enter` and `exit` are simultaneous sides: the element on the new screen moves
+ * while the element on the old screen disappears at once. Pop reverses which
+ * active flag each side uses.
  */
 export default function createMorphTransition({
   name,

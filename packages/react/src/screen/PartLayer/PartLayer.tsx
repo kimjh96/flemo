@@ -14,7 +14,7 @@ export interface PartLayerProps {
 // over — but each one lives inside its own screen container, and a screen
 // container is an isolated stacking context carrying the screen's z-index. So
 // the covered screen's parts run their cross-fade under the other screen's
-// opaque surface, where nothing can see them. For the flight they come up here
+// opaque surface, where nothing can see them. For the transition they come up here
 // instead, and go back the moment it lands.
 //
 // It is ABSOLUTE for the same reason the morph layer is: it anchors to the

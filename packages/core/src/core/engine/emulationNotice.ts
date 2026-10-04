@@ -43,7 +43,7 @@ export const noticeDeviceEmulationOnce = () => {
   console.warn(
     "[flemo] DevTools device emulation detected. The emulated view is " +
       "composited through an extra scaling pass, so transitions can show " +
-      "text shimmer and settle flashes that do NOT exist in a plain window " +
+      "text shimmer and a flash when a transition ends that do NOT exist in a plain window " +
       "or on a real device. Judge motion quality outside device emulation."
   );
 };

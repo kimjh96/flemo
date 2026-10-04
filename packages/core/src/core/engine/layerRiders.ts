@@ -14,7 +14,7 @@ import {
 // move when it moves: a riding shared bar, and a `<Layer>` overlay. They came
 // from opposite directions and end up needing the identical treatment — the
 // compiled rule pairs them with the screen rule, the gesture mirrors every
-// inline write onto them, and the engine promotes them for the flight and
+// inline write onto them, and the engine promotes them for the transition and
 // demotes them off-cadence afterwards.
 //
 // They differ in exactly one thing: WHERE they are.
@@ -68,10 +68,10 @@ export const collectLayerRiders = (container: HTMLElement | null): HTMLElement[]
 };
 
 /**
- * Whether an element beside a scope is riding this flight.
+ * Whether an element beside a scope is riding this transition.
  *
  * A bar rides only when its partner screen does not own it, so it says so with
- * an attribute the binding flips per flight. An overlay has exactly one screen
+ * an attribute the binding flips per transition. An overlay has exactly one screen
  * and always leaves with it, so being a host or a slot is the whole answer.
  */
 export const isRider = (element: HTMLElement | null | undefined): element is HTMLElement => {

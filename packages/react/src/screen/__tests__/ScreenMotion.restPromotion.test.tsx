@@ -82,7 +82,7 @@ describe("the resting top screen's scope", () => {
     expect(scope.style.willChange).toBe("");
   });
 
-  it("renders no promotion of its own for a flight either", () => {
+  it("renders no promotion of its own for a transition either", () => {
     // A transition that animates nothing gets no engine stamp (the engine
     // gates every participant on its own definition), so whatever `will-change`
     // is on the scope here came from the BINDING. There must be none: a

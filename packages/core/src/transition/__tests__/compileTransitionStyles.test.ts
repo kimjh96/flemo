@@ -5,7 +5,7 @@ import {
   collectAnimatedProperties,
   compileTransitionStyles,
   HEAD_ANIMATION_SUFFIXES,
-  matchesFlightAnimationName,
+  matchesTransitionAnimationName,
   decoratorAnimationName,
   easingToCss,
   targetToDecls,
@@ -22,7 +22,7 @@ import type { TransitionName, TransitionVariant } from "@transition/typing";
 
 import createDecorator from "@transition/decorator/createDecorator";
 import overlay from "@transition/decorator/overlay";
-import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
+import { resolveDecoratorTiming } from "@transition/decorator/resolveDecoratorTiming";
 import createPartTransition from "@transition/partTransition/createPartTransition";
 
 import type { Decorator, DecoratorName } from "@transition/decorator/typing";
@@ -74,7 +74,7 @@ const compileDecorator = (decorator: Decorator, seconds: number) => {
     transitionName: carrier.name,
     // The decorator's variant table with the carrier's clock folded in — the
     // shape the engine reads, and the only one variantHasAnimation accepts.
-    clock: resolveDecoratorClock(carrier, decorator)
+    clock: resolveDecoratorTiming(carrier, decorator)
   };
 };
 
@@ -310,9 +310,9 @@ describe("compileTransitionStyles", () => {
       // A pop's desktop head is 17ms.
       const headPct = ((0.017 / seconds) * 100).toFixed(3);
       expect(bodies[0]).toContain(`0%, ${headPct}% {`);
-      // Still a head of the part's own flight, so its events resolve the part.
+      // Still a head of the part's own transition, so its events resolve the part.
       expect(
-        matchesFlightAnimationName(
+        matchesTransitionAnimationName(
           name,
           animationName("part", "test-clocked-title", "POPPING-false")
         )
@@ -322,11 +322,11 @@ describe("compileTransitionStyles", () => {
 
   it("matches a clock-tagged head name, and nothing else after the suffix", () => {
     const base = animationName("part", "x", "POPPING-true");
-    expect(matchesFlightAnimationName(`${base}-deskhead-717ms`, base)).toBe(true);
-    expect(matchesFlightAnimationName(`${base}-gov-780ms`, base)).toBe(true);
-    expect(matchesFlightAnimationName(`${base}-deskhead-717`, base)).toBe(false);
-    expect(matchesFlightAnimationName(`${base}-deskhead-other`, base)).toBe(false);
-    expect(matchesFlightAnimationName(`${base}-extra-717ms`, base)).toBe(false);
+    expect(matchesTransitionAnimationName(`${base}-deskhead-717ms`, base)).toBe(true);
+    expect(matchesTransitionAnimationName(`${base}-gov-780ms`, base)).toBe(true);
+    expect(matchesTransitionAnimationName(`${base}-deskhead-717`, base)).toBe(false);
+    expect(matchesTransitionAnimationName(`${base}-deskhead-other`, base)).toBe(false);
+    expect(matchesTransitionAnimationName(`${base}-extra-717ms`, base)).toBe(false);
   });
 
   it("keeps part easing authored — no LPM ease var outside the screen scope", () => {
@@ -1500,7 +1500,7 @@ describe("consumer animations", () => {
 
 describe("morph rules", () => {
   it("pauses a morph with the screen carrying it", () => {
-    // A morph's keyframes are emitted per flight rather than compiled, but its
+    // A morph's keyframes are emitted per transition rather than compiled, but its
     // CLOCK is the one every other participant obeys. This selector is the
     // entire reason a shared element starts on the same frame as its screen
     // with no timing code on either side.
@@ -1510,7 +1510,7 @@ describe("morph rules", () => {
     expect(css).toContain('[data-flemo-anim-hold="park-under"] [data-flemo-morph]');
     // The ghost too: it is stripped of every morph marker so nothing mistakes
     // the copy for the real element, which also took it out of the selector
-    // above — and a copy that dissolves while the flight is still held is an
+    // above — and a copy that dissolves while the transition is still held is an
     // afterimage of the thing that has not moved yet.
     expect(css).toContain('[data-flemo-anim-hold="true"] [data-flemo-morph-ghost]');
   });
@@ -1519,7 +1519,7 @@ describe("morph rules", () => {
     // The carrier is not the morph, not a Part and not the ghost, so it
     // matched none of the selectors above and was the one participant the
     // hold never reached. Unheld it starts at the style commit while
-    // everything around it waits for the release, and runs the whole flight
+    // everything around it waits for the release, and runs the whole transition
     // ahead by however long the hold lasted: measured on a desktop Chrome pop,
     // the shade ended at 760ms and the card's travel at 827ms, both reporting
     // 0.7s of elapsed time. A shadow detached from its card, every frame.
@@ -1530,7 +1530,7 @@ describe("morph rules", () => {
   });
 });
 
-describe("in-flight arrival hold rule", () => {
+describe("running arrival hold rule", () => {
   it("holds stamped arrivals off-glass", () => {
     const css = compileTransitionStyles([], [], []);
     const idx = css.indexOf("[data-flemo-held-arrival]");
@@ -1748,7 +1748,7 @@ describe("easingToCss", () => {
       // duration and the variant becomes a rest rule holding the constants.
       //
       // The rule this test used to pin was the opposite one: emit the
-      // animation anyway, because "the flight resolves on `animationend`" and
+      // animation anyway, because "the transition resolves on `animationend`" and
       // dropping it would strand the variant until the recovery watchdog
       // replayed it. That reasoning only held while the compiler was the ONE
       // side being changed. `variantHasAnimation` is the single gate every
@@ -2050,7 +2050,7 @@ describe("a shared bar's ride distance", () => {
 // `will-change` gives an element its own compositing layer, and real Safari
 // then presents a part's layer at its STATIC opacity while the animation runs.
 // Device-measured on a matched shared bar: the departing glyph held full colour
-// through the whole flight and was cut at unmount instead of fading, while
+// through the whole transition and was cut at unmount instead of fading, while
 // `getComputedStyle` reported a perfectly interpolated 0.46 throughout — the
 // reason every automated check passed. Headless WebKit composites through
 // another path and reproduces none of it, so this rule is the only thing
@@ -2113,7 +2113,7 @@ describe("compileTransitionStyles: parts are not promoted", () => {
 // EVERY HEAD THE COMPILER EMITS MUST BE RECOGNIZED.
 //
 // `animationend` carries the SUFFIXED keyframe name, and a listener that does
-// not recognize it silently stops resolving the flight — the restart watchdog
+// not recognize it silently stops resolving the transition — the restart watchdog
 // then replays the whole transition. That is not hypothetical: `govpark` and
 // `deskpark` shipped without ever being added to the suffix list, and on an
 // iPhone every parked push ran its animation twice (device-traced: the park
@@ -2143,7 +2143,7 @@ describe("compileTransitionStyles: every emitted head is matchable", () => {
       .filter((name) => /-(gov|desk)[a-z]*$/.test(name))
       .filter((name) => {
         const base = name.replace(/-(gov|desk)[a-z]*$/, "");
-        return !matchesFlightAnimationName(name, base);
+        return !matchesTransitionAnimationName(name, base);
       });
 
     expect(unmatched).toEqual([]);
@@ -2153,13 +2153,13 @@ describe("compileTransitionStyles: every emitted head is matchable", () => {
     expect(HEAD_ANIMATION_SUFFIXES).toContain("-govpark");
     expect(HEAD_ANIMATION_SUFFIXES).toContain("-deskpark");
     expect(
-      matchesFlightAnimationName(
+      matchesTransitionAnimationName(
         "flemo-screen-x-PUSHING-true-govpark",
         "flemo-screen-x-PUSHING-true"
       )
     ).toBe(true);
     expect(
-      matchesFlightAnimationName(
+      matchesTransitionAnimationName(
         "flemo-screen-x-PUSHING-true-deskpark",
         "flemo-screen-x-PUSHING-true"
       )

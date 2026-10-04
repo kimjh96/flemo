@@ -25,7 +25,7 @@ import { intoLayerSpace, preserveAnimations } from "@dom/staging";
 // background, its title, its progress — anything meant to sit still.
 //
 // It is wrong for a <Part>. A part is the piece of the bar that is SUPPOSED to
-// change across the flight (a close icon becoming a back chevron), and a
+// change across the transition (a close icon becoming a back chevron), and a
 // cross-fade needs both sides visible at once. They are not: a screen container
 // is an isolated stacking context carrying the screen's z-index, so the lower
 // screen's bar — parts and all — is painted under the upper screen's opaque
@@ -34,7 +34,7 @@ import { intoLayerSpace, preserveAnimations } from "@dom/staging";
 // returning part finishes its enter animation while occluded and then appears,
 // un-transitioned, at the moment the departing screen is released.
 //
-// So the covered side's parts leave. For the duration of the flight they are
+// So the covered side's parts leave. For the duration of the transition they are
 // staged in the Router's part layer, above both screens, at the rect they
 // occupied — and then they go home exactly as they were.
 //
@@ -47,7 +47,7 @@ import { intoLayerSpace, preserveAnimations } from "@dom/staging";
 /**
  * Above the screens, below a morph.
  *
- * A morph is the focal shared element of a flight — an element the consumer
+ * A morph is the focal shared element of a transition — an element the consumer
  * pointed at — and a bar's chrome passing over it would be exactly backwards.
  * The morph layer's own number (see @morph/attachMorph's `prepareLayer`) is the
  * ceiling this sits under.
@@ -55,9 +55,9 @@ import { intoLayerSpace, preserveAnimations } from "@dom/staging";
 export const PART_LAYER_LEVEL = 2147482000;
 
 // Who currently owns the hold value written on a layer. A navigation that
-// interrupts another mid-flight stages over the top of it, and the interrupted
-// flight's release must not then strip the hold out from under the live one.
-// Counting the layer's children cannot tell them apart — an interrupting flight
+// interrupts another mid-transition stages over the top of it, and the interrupted
+// transition's release must not then strip the hold out from under the live one.
+// Counting the layer's children cannot tell them apart — an interrupting transition
 // stages the SAME parts of the SAME bar, so the count matches exactly.
 const holdOwners = new WeakMap<HTMLElement, symbol>();
 
@@ -76,7 +76,7 @@ interface StagedPart {
 // Without it the bar simply loses the part's width and everything after it
 // slides over. On a push that happens to the covered screen, where nobody can
 // see it; on a pop it happens to the RETURNING screen, whose bar is exactly the
-// one left on the glass when the flight lands.
+// one left on the glass when the transition lands.
 //
 // It copies the border-box size and the margins because those are the part's
 // whole contribution to its bar's layout, and `flex: 0 0 auto` so a flex bar
@@ -107,7 +107,7 @@ export interface StagedBarParts {
 }
 
 export interface StageBarPartsInput {
-  /** The screen scope the parts belong to — the passive side of the flight. */
+  /** The screen scope the parts belong to — the passive side of the transition. */
   readonly scope: HTMLElement;
   /** This screen's shared bars; riding and absent ones are skipped. */
   readonly bars: readonly (HTMLElement | null | undefined)[];
@@ -120,7 +120,7 @@ export interface StageBarPartsInput {
    * navigation, a replace that unmounts the side it replaced — never runs the
    * COMPLETED drive that would return its parts, and a part left in the layer
    * is a stale icon floating over the app for the rest of the session. The
-   * caller passes this flight's choreography span plus its own slack, so a
+   * caller passes this transition's choreography span plus its own slack, so a
    * long-authored part is never cut short by the backstop.
    */
   readonly strandedMs: number;
@@ -144,7 +144,7 @@ const prepareLayer = (layer: HTMLElement): void => {
 //
 // It cannot be read from that attribute here. The binding computes it from the
 // partner's REGISTRATION, and a registration is a store write from an effect:
-// on the commit that starts the flight the covered bar still reads `riding`,
+// on the commit that starts the transition the covered bar still reads `riding`,
 // and it settles one render later. Staging waited for that, so it moved a part
 // that two frames had already been painted with, and WebKit rebuilds the layer
 // of a live element it re-parents. Reported from a consumer's tab switch as the
@@ -189,8 +189,8 @@ const matchedBarParts = (bars: StageBarPartsInput["bars"]): HTMLElement[] => {
 
 /**
  * Lift this screen's matched-bar parts into the Router's part layer for the
- * flight. Returns null when there is nothing to stage — no layer, no screen
- * identity, or no part in a matched bar — so a flight that needs none of this
+ * transition. Returns null when there is nothing to stage — no layer, no screen
+ * identity, or no part in a matched bar — so a transition that needs none of this
  * pays for none of it.
  */
 export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null => {
@@ -199,7 +199,7 @@ export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null 
 
   const screenId = scope.getAttribute(SCREEN_ATTR);
   // The home marker is what keeps a staged part inside its screen's participant
-  // set (see flightParticipants.collectScreenParts). Without an identity to
+  // set (see transitionParticipants.collectScreenParts). Without an identity to
   // stamp, staging would silently drop the part out of the layer pin and the
   // COMPLETED inline clear, so it does not happen at all.
   if (screenId === null) return null;
@@ -218,12 +218,12 @@ export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null 
     // THE PLACE, NOT THE PAINTED ELEMENT.
     //
     // `getBoundingClientRect` reports where the element is DRAWN, and by the
-    // time a flight stages anything the compiled rule has already applied its
+    // time a transition stages anything the compiled rule has already applied its
     // `from` pose with `fill: both`. For a part whose variant moves it, that
     // pose is a transform: measuring there pins the element at its own offset
     // and the animation then applies the same offset again, so it lands beside
     // where it belongs. Device-measured as a badge arriving 24px right of its
-    // place and snapping back when the flight released it — the authored
+    // place and snapping back when the transition released it — the authored
     // `x: 24` counted twice.
     //
     // `offsetWidth/Height` are the LAYOUT box, which no transform touches, and
@@ -234,7 +234,7 @@ export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null 
     const height = element.offsetHeight;
     // NEVER STAGE WHAT CANNOT BE MEASURED.
     //
-    // A covered screen is Activity-hidden once its flight settles, and hidden
+    // A covered screen is Activity-hidden once its transition settles, and hidden
     // means `display: none`: every box inside it reads zero. Pinning a part at
     // that measurement puts it at the layer's ORIGIN with no size — observed on
     // a real swipe as the returning screen's icon and badge drawn clipped in
@@ -260,7 +260,7 @@ export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null 
     // structural term, so the move does not stop the animation from applying —
     // it restarts it, because a CSS animation belongs to the element's place in
     // the document. `includeRoot` carries the part's OWN clock across, which is
-    // the one the flight is being watched for, and the mark tells cancel-resume
+    // the one the transition is being watched for, and the mark tells cancel-resume
     // the cancel this causes is ours and already answered — its own recovery
     // writes a negative inline `animation-delay` that would erase the part's
     // AUTHORED one.
@@ -304,7 +304,7 @@ export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null 
   // staged part through it. Mirroring the owning screen's hold attribute onto
   // the LAYER puts the parts back under the same pause (the rule pauses a held
   // element and its `[data-flemo-part-name]` descendants alike), which is what
-  // keeps them starting on the same frame as the flight instead of on a clock
+  // keeps them starting on the same frame as the transition instead of on a clock
   // of their own — the defect the decorator once had, and the reason
   // collectUnheldOuterParts exists at all.
   //
@@ -321,7 +321,7 @@ export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null 
 
   let released = false;
   const release = () => {
-    /* v8 ignore next -- the flight's end and an interrupting navigation race;
+    /* v8 ignore next -- the transition's end and an interrupting navigation race;
        whichever arrives second must not restore the parts twice. */
     if (released) return;
     released = true;
@@ -336,7 +336,7 @@ export const stageBarParts = (input: StageBarPartsInput): StagedBarParts | null 
     for (const entry of staged) {
       entry.element.removeAttribute(PART_HOME_ATTR);
       // Home again, and exactly as it was: the part carries no trace of the
-      // flight, so what the consumer laid out is what remains.
+      // transition, so what the consumer laid out is what remains.
       if (entry.inlineStyle === null) entry.element.removeAttribute("style");
       else entry.element.setAttribute("style", entry.inlineStyle);
 

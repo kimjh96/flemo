@@ -2,69 +2,48 @@
 
 import { Screen } from "@flemo/react";
 
+import { ButtonLink } from "@/components/Button";
+import Icon from "@/components/Icon";
+import SiteFooter from "@/app/[lang]/_components/SiteFooter";
+import { useDict } from "@/app/[lang]/_providers/ShellIntlProvider";
+
 import ShowcaseAppCard from "./ShowcaseAppCard";
-import { showcaseApps } from "./showcaseApps";
-import ShowcaseSubmitCard from "./ShowcaseSubmitCard";
-import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
-import { getDict } from "@/lib/i18n";
+import { showcaseApps, SUBMIT_URL } from "./showcaseApps";
 
-const SUBMIT_URL = "https://github.com/kimjh96/flemo/issues/new";
-
-// The Showcase peer: real production apps shipping flemo, laid out as a card
-// grid. The showcase data and the card live next to each other so the content
-// stays in one place; shiflo (the flagship) carries the "how it uses flemo" copy.
 function ShowcaseScreen() {
-  const lang = useShellLang();
-  const t = getDict(lang).showcase;
+  const t = useDict().showcase;
 
   return (
-    <Screen hideStatusBar hideSystemNavigationBar backgroundColor="transparent">
-      <div className="h-full overflow-y-auto">
-        <div className="mx-auto flex max-w-[1080px] flex-col gap-10 px-6 pt-24 pb-20 lg:pt-28 lg:pb-28">
-          <div className="flex flex-col items-start gap-4">
-            <span className="text-[13px] font-bold tracking-[0.08em] text-[var(--color-text-primary)] uppercase">
-              {t.kicker}
-            </span>
-            <h1 className="text-[clamp(2.25rem,5vw,3.5rem)] font-extrabold tracking-[-0.025em] text-[var(--color-text-primary)]">
-              {t.title}
-            </h1>
-            <p className="max-w-[44ch] text-base leading-relaxed text-[var(--color-text-secondary)]">
-              {t.subtitle}
+    <Screen hideStatusBar hideSystemNavigationBar backgroundColor="var(--bg)">
+      <div className="h-full overflow-y-auto pt-14">
+        <div className="mx-auto flex max-w-[1280px] flex-col gap-12 px-4 py-16 sm:px-6 lg:py-24">
+          <div className="flex flex-col gap-4">
+            <p className="label flex items-center gap-2 text-fg-subtle">
+              <span aria-hidden="true" className="h-px w-4 bg-accent" />
+              {t.eyebrow}
             </p>
+            <h1 className="text-h1 text-fg">{t.title}</h1>
+            <p className="max-w-[52ch] text-lead text-fg-muted">{t.subtitle}</p>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            {showcaseApps.map((app) => {
-              const copy = t.apps[app.id];
-              return (
-                <ShowcaseAppCard
-                  key={app.id}
-                  name={copy.name}
-                  tagline={copy.tagline}
-                  description={copy.description}
-                  flemoUsageLabel={t.flemoUsageLabel}
-                  flemoUsage={copy.flemoUsage}
-                  languagesLabel={t.languagesLabel}
-                  languages={app.languages.map((code) => t.languageNames[code])}
-                  logo={app.logo}
-                  appStore={
-                    app.appStoreUrl ? { label: t.appStore, href: app.appStoreUrl } : undefined
-                  }
-                  playStore={
-                    app.playStoreUrl ? { label: t.playStore, href: app.playStoreUrl } : undefined
-                  }
-                />
-              );
-            })}
+          <div className="flex flex-col gap-4">
+            {showcaseApps.map((app) => (
+              <ShowcaseAppCard key={app.id} app={app} />
+            ))}
+          </div>
 
-            <ShowcaseSubmitCard
-              title={t.submit.title}
-              body={t.submit.body}
-              cta={t.submit.cta}
-              href={SUBMIT_URL}
-            />
+          <div className="flex flex-col items-start justify-between gap-4 rounded-xl border border-dashed border-line-strong p-8 sm:flex-row sm:items-center">
+            <div>
+              <p className="text-h3 text-fg">{t.submit.title}</p>
+              <p className="text-sm text-fg-muted">{t.submit.body}</p>
+            </div>
+            <ButtonLink href={SUBMIT_URL} target="_blank" rel="noreferrer" variant="secondary">
+              {t.submit.cta}
+              <Icon name="arrowUpRight" size={14} />
+            </ButtonLink>
           </div>
         </div>
+        <SiteFooter />
       </div>
     </Screen>
   );

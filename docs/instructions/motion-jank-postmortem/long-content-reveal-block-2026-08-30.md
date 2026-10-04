@@ -1,10 +1,10 @@
 # 2026-08-30: Long-content reveal block on iOS Safari
 
-During a push, an entering screen longer than the viewport appeared blank below roughly one tile row, then filled near the slide's end. This resembled delayed release of the pushed page's `overflow: hidden`, but was a raster problem: the flight maintained 60fps while the completed pre-raster was discarded.
+During a push, an entering screen longer than the viewport appeared blank below roughly one tile row, then filled near the slide's end. This resembled delayed release of the pushed page's `overflow: hidden`, but was a raster problem: the transition maintained 60fps while the completed pre-raster was discarded.
 
 ## Frame evidence
 
-Frame-by-frame analysis of a 60fps iPhone recording at 1284×2778 found exact 16.7ms PTS intervals throughout the flight and no dropped frames.
+Frame-by-frame analysis of a 60fps iPhone recording at 1284×2778 found exact 16.7ms PTS intervals throughout the transition and no dropped frames.
 
 | Frames | Visible result |
 | --- | --- |

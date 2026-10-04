@@ -12,7 +12,7 @@ import { RIDE_HEIGHT_VAR } from "@transition/rideOffset";
 //
 // A height of 0 is IGNORED, on the same reasoning observeBarHeight documents: a
 // frozen screen measures 0 and would otherwise publish a distance of nothing,
-// collapsing the next flight's bar travel to zero. Keeping the last real height
+// collapsing the next transition's bar travel to zero. Keeping the last real height
 // is right, because the box a frozen screen returns to is the one it left.
 //
 // Framework-neutral: the binding decides which element to publish on and when

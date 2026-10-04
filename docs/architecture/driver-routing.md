@@ -1,10 +1,10 @@
-# Flight routing: which opening a flight gets
+# Transition routing: which opening a transition gets
 
-Based on `core/engine/flightRouting.ts` and the platform predicates it reads.
+Based on `core/engine/transitionRouting.ts` and the platform predicates it reads.
 
-Every flight uses the compiled CSS animation; there is no driver selection. The rAF motion player, demotion strike machinery, `driver: "player"` pin, and entire `flemo:*` override surface were retired (`f32c2cc`, `28d0377`, `47332c9`, `2be1e05`). Descriptions of a choice between two driver tiers are obsolete.
+Every transition uses the compiled CSS animation; there is no driver selection. The rAF motion player, demotion strike machinery, `driver: "player"` pin, and entire `flemo:*` override surface were retired (`f32c2cc`, `28d0377`, `47332c9`, `2be1e05`). Descriptions of a choice between two driver tiers are obsolete.
 
-`resolveFlightRouting` determines the opening treatment and whether the engine may touch the flight's clock, given the browser, navigation status, and authored transition options. It runs once per drive run and reads probes live, so a verdict formed mid-session applies on the next navigation.
+`resolveTransitionRouting` determines the opening treatment and whether the engine may touch the transition's clock, given the browser, navigation status, and authored transition options. It runs once per drive run and reads probes live, so a verdict formed mid-session applies on the next navigation.
 
 ## Inputs
 
@@ -12,7 +12,7 @@ Every flight uses the compiled CSS animation; there is no driver selection. The 
 | --- | --- |
 | `status` | `PUSHING` / `POPPING` / `REPLACING` / `COMPLETED` / `IDLE` |
 | `transition` | Authored transition; read only for `driver: "native"` |
-| `skipAnimation` | Scope carries the skip marker for this flight |
+| `skipAnimation` | Scope carries the skip marker for this transition |
 | `hasActiveMotion` | Active variant resolves a motion |
 | `hasAnimation` | Active variant has any authored animation |
 
@@ -21,7 +21,7 @@ Every flight uses the compiled CSS animation; there is no driver selection. The 
 | Field | Condition or value | Effect |
 | --- | --- | --- |
 | `hasDrivableMotion` | Not skipped and active variant resolves a motion | Motion exists to drive |
-| `nativeSurgeryAllowed` | `driver: "native"` and not Blink | Allows holding, anchoring, and re-anchoring the flight's clock |
+| `nativeSurgeryAllowed` | `driver: "native"` and not Blink | Allows holding, anchoring, and re-anchoring the transition's clock |
 | `touchGoverned` | Non-Blink and touch | Enables the governed compiled tier |
 | `forceCompiled` | Non-Blink and touch, with `POPPING` or with `PUSHING` and the settle gate on | Disables wall-clock accelerators |
 | `governedHead` | `touchGoverned`, legacy Android Blink, or `forceCompiled` | Bakes a flat opening segment into keyframes |
@@ -42,15 +42,15 @@ Desktop lengths derive from a 60Hz pipeline: two frames for entry and one for po
 
 ## Clock surgery is opt in
 
-`nativeSurgeryAllowed` is the only field an author can change and is off by default. First-frame holding, flight-start anchoring, and stall re-anchoring mutate a running animation's timing. The 2026-08 iPhone falsification series established that any such timing touch on WebKit costs the accelerated out-of-process path or desynchronizes its re-sync.
+`nativeSurgeryAllowed` is the only field an author can change and is off by default. First-frame holding, transition-start anchoring, and stall re-anchoring mutate a running animation's timing. The 2026-08 iPhone falsification series established that any such timing touch on WebKit costs the accelerated out-of-process path or desynchronizes its re-sync.
 
 By default, the compiled animation runs untouched, with release scheduling protecting its opening. `driver: "native"` knowingly accepts the main-thread-presentation tradeoff; it never permits clock surgery on Blink.
 
 ## Shared head kit
 
-`resolveHeadKit(status)` is a pure function of platform and status, independent of the flight. The morph runtime needs this answer before it can reliably read it from the DOM.
+`resolveHeadKit(status)` is a pure function of platform and status, independent of the transition. The morph runtime needs this answer before it can reliably read it from the DOM.
 
-The engine writes the head's root attribute in the same commit that stages a morph, but React runs descendant layout effects first. A morph reading that attribute therefore sees the previous flight's answer: correct by luck from the second navigation onward, but wrong on the first. This caused an element on the first push to run 33ms ahead of its screen while later pushes aligned.
+The engine writes the head's root attribute in the same commit that stages a morph, but React runs descendant layout effects first. A morph reading that attribute therefore sees the previous transition's answer: correct by luck from the second navigation onward, but wrong on the first. This caused an element on the first push to run 33ms ahead of its screen while later pushes aligned.
 
 ## Predicates
 
