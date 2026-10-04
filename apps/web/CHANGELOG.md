@@ -1,5 +1,29 @@
 # @flemo/web
 
+## 0.12.0
+
+### Minor Changes
+
+- [`7c245b5`](https://github.com/kimjh96/flemo/commit/7c245b558e29ce084c5b40daac702ab0ca33e523) Rebuild flemo.dev on a new design system, with live nested-Router demos on the landing and a redesigned playground. Rewrite the docs in plain English and Korean, and add How it works, Decorator and Putting it together pages.
+
+- [`204f5bf`](https://github.com/kimjh96/flemo/commit/204f5bf4f50663266073c1d9d8bec1522992e9a7) Publish generated LLM documentation endpoints, a topology-first portable skill, a four-arm agent evaluation protocol, and a visual composition bench for nested routing, shared motion, and overlays that cross chrome boundaries.
+
+### Patch Changes
+
+- [`12c15ef`](https://github.com/kimjh96/flemo/commit/12c15ef4f3462ecdb9c2b4a7a140450dbf4fe913) Lay out the preregistered agent ladder: a balanced full-factorial plan over provider families, arms and task variants from a recorded seed, one self-contained directory per session with the arm's corpus under a name that is the same in every arm, a buildable starter pinned to the corpus release, and a ledger written outside the session tree. Each session is audited as it is written, so a leak stops the layout instead of invalidating the runs.
+
+- [`9da6964`](https://github.com/kimjh96/flemo/commit/9da6964f7e2938fdc54970dcee1277b28afc20e8) Read the agent ladder out the way it was registered: first-pass success per arm, the registered comparison against its threshold, and the blind visual sample. The primary comparison is withheld until every planned session has a report, a session that produced none counts against its arm rather than leaving the denominator, and the networked pool is never merged with the primary one.
+
+- [`a37242d`](https://github.com/kimjh96/flemo/commit/a37242d19ae6f4aea31fa9e98c29b4519c2fc119) Score an agent submission's production build against the registered rubric, reading only the eleven `data-eval` roles the task prompts require and the `data-flemo-*` attributes the engine already publishes. A self-test runs every criterion against one real application twice, untouched and with the defect its own sentence names, so a rubric that cannot separate the two fails before it scores anyone.
+
+- [`9c218f4`](https://github.com/kimjh96/flemo/commit/9c218f42f6cd8400a3e5d71ad55029f66ad0560f) Keep the playground stage's and the hero's gradient blob on its own compositing layer. WebKit re-rastered its 64px blur at the first and last frame of every transition inside the bezel, which stalled a pop's start and landing by 50 to 90ms on a Retina display.
+
+- [`dd0ed51`](https://github.com/kimjh96/flemo/commit/dd0ed510de30dce5cdf2e19999d68df549206977) Hand the composition card's eyebrow and summary over beside its shared box instead of inside it, and space them with padding rather than a margin on the Part's child. Two different sentences carried by one Morph had to be cut to 0.13s of a 0.7s transition so they would not print over each other, which read as the copy switching off and the card travelling empty; a margin inside a Part does not collapse while the screen is moving and does once it settles, which dropped the summary 12px some 60ms after the card had landed.
+- Updated dependencies ([`9c06f27`](https://github.com/kimjh96/flemo/commit/9c06f27ff5b676a3c620bc7454601c6a903896f9), [`9739e2b`](https://github.com/kimjh96/flemo/commit/9739e2bf2735d211760374fd46cd5ebfe603b41f), [`e2bd27c`](https://github.com/kimjh96/flemo/commit/e2bd27cc98e8aa8a361a872262fe5191cc44b8fa), [`dc0136e`](https://github.com/kimjh96/flemo/commit/dc0136ee6273a696362074fac0ce52f63b169b60), [`9f13447`](https://github.com/kimjh96/flemo/commit/9f134477455ab2c1e6ddacd0a8913f4e9c3005ec), [`3cbbbe7`](https://github.com/kimjh96/flemo/commit/3cbbbe75a5dfc2e10acff1b973783386109034b6), [`8b6085f`](https://github.com/kimjh96/flemo/commit/8b6085f7a80d1e67cc4ed1254a0280ecf96245c7), [`feca913`](https://github.com/kimjh96/flemo/commit/feca9136faabdf9b403fec9a9e7d661eeba9d0cf), [`839b458`](https://github.com/kimjh96/flemo/commit/839b458fa7b01a0598fd25c53923716742274bdb), [`8a3ef73`](https://github.com/kimjh96/flemo/commit/8a3ef735564cdd1e4abe4551916eae4c7571cc2d), [`dad2fe6`](https://github.com/kimjh96/flemo/commit/dad2fe69cf332c38174481cd60cbbe51f62c21e0), [`2eefb5e`](https://github.com/kimjh96/flemo/commit/2eefb5ee0cfc53e4557d58c9ab008cddf8c5265b), [`ae91899`](https://github.com/kimjh96/flemo/commit/ae9189933af4f2b4e1d476e2c0f4cbe5edae5762), [`5db710f`](https://github.com/kimjh96/flemo/commit/5db710fc6ecd2e135864c0bf7d57623621ba1abc), [`ef903e0`](https://github.com/kimjh96/flemo/commit/ef903e0f1dbdf43807bb0b45bebd96416976454e), [`cbdf4aa`](https://github.com/kimjh96/flemo/commit/cbdf4aab3ba9ab9fde29a8ad67db755f651851ae), [`6cdda6f`](https://github.com/kimjh96/flemo/commit/6cdda6ff77dd96405a2143ed7d07ff93ee8a9cdc), [`2f94c07`](https://github.com/kimjh96/flemo/commit/2f94c07fb5509cf81efbdf7fd618e5b008981f4b), [`ee67e95`](https://github.com/kimjh96/flemo/commit/ee67e95d2e6489f25105281d4eb3f6f6c96cf94c), [`b9ab611`](https://github.com/kimjh96/flemo/commit/b9ab6116d14b40e62dd9883afe6d9dd03cdded21), [`05dc791`](https://github.com/kimjh96/flemo/commit/05dc7912002f33fb64f840f9e498b9b2b54b6f1b), [`97bb80a`](https://github.com/kimjh96/flemo/commit/97bb80adaa45828809f7706cb6825db8a764f02a), [`12d8515`](https://github.com/kimjh96/flemo/commit/12d851515cf0ae52329b0576861e89a9bca839d7)):
+  - @flemo/core@2.8.0
+  - @flemo/react@2.5.0
+  - @flemo/devtools@0.10.0
+
 ## 0.11.15
 
 ### Patch Changes

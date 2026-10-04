@@ -1,5 +1,17 @@
 # @flemo/devtools
 
+## 0.10.0
+
+### Minor Changes
+
+- [`dc0136e`](https://github.com/kimjh96/flemo/commit/dc0136ee6273a696362074fac0ce52f63b169b60) Rename the "flight" vocabulary to "transition" everywhere. A Part that waits for the screen transition now takes `after: "transition"`, `resolveDecoratorClock` is `resolveDecoratorTiming`, and devtools exports `attachTransitionRecorder`, `TransitionRecord` and the other `Transition*` names, with reports on schema v4 (`transitions[]`, `morphs.moved`, `endAudit`). Messages, warnings and declaration docs use the same plain words as flemo.dev.
+
+### Patch Changes
+
+- [`8b6085f`](https://github.com/kimjh96/flemo/commit/8b6085f7a80d1e67cc4ed1254a0280ecf96245c7) Cap the panel header at half the drawer and scroll it there, so a session with many findings no longer squeezes the transition list and detail to nothing, and chip a warned override once instead of twice.
+
+- [`feca913`](https://github.com/kimjh96/flemo/commit/feca9136faabdf9b403fec9a9e7d661eeba9d0cf) Measure a part's gap against the padded room it is laid out in, recognize a Next 16 Turbopack dev server, report the recorder's own trace key by size instead of as an unknown override, and keep wrapped header chips as rounded boxes.
+
 ## 0.9.0
 
 ### Minor Changes
