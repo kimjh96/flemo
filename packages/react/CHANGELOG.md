@@ -1,5 +1,16 @@
 # @flemo/react
 
+## 2.6.0
+
+### Minor Changes
+
+- [`db39715`](https://github.com/kimjh96/flemo/commit/db397157a33314b4c452bcd7518ff0446ae8f991) Add `ownsLayers` to `Router`. A nested Router that runs a whole app inside another, such as a preview or a demo, can now host its own `Layer` overlays inside its box instead of in the outermost screen.
+
+### Patch Changes
+
+- Updated dependencies ([`c794bee`](https://github.com/kimjh96/flemo/commit/c794beea79892f21570ac34515e27361d477e319)):
+  - @flemo/core@2.8.1
+
 ## 2.5.0
 
 ### Minor Changes
