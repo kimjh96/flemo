@@ -6,8 +6,6 @@ import { useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 
 import { getDocPages } from "../_data/docPages";
 
-const PHONE = "(max-width: 767px)";
-
 // The doc page a docs-Router pathname shows: /docs/router -> router, and the
 // bare /docs (the section's own entry) -> introduction.
 export function slugOf(pathname: string): string {
@@ -15,10 +13,11 @@ export function slugOf(pathname: string): string {
   return match ? match[1]! : "introduction";
 }
 
-// Moves between doc pages inside the docs Router. On a wide screen the sidebar
-// stays and the page turns (doc-forward / doc-backward, by reading order). On a
-// phone there is no sidebar to hold still, so a page pushes like an app screen
-// with cupertino, and the edge swipe takes the reader back.
+// Moves between doc pages inside the docs Router: the page turns (doc-forward /
+// doc-backward, by reading order) and whatever sits around it holds still. A
+// phone turns the page the same way. A doc page is a page of a site, not a
+// screen of an app, so it does not push like one, and most moves come from the
+// page list or the search, which cover the page and close as it turns.
 export default function useDocsNavigate() {
   const navigate = useNavigate();
   // Read from the docs Router's pathname, not from screen params: the sidebar
@@ -32,11 +31,10 @@ export default function useDocsNavigate() {
     if (slug === current) return;
     const order = getDocPages(lang).map((page) => page.slug);
     const forward = order.indexOf(slug) >= order.indexOf(current);
-    const phone = typeof window !== "undefined" && window.matchMedia(PHONE).matches;
     navigate.push(
       "/docs/:slug",
       { slug },
-      { transitionName: phone ? "cupertino" : forward ? "doc-forward" : "doc-backward" }
+      { transitionName: forward ? "doc-forward" : "doc-backward" }
     );
   };
 }

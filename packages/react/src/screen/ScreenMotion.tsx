@@ -176,8 +176,13 @@ function ScreenMotion({
     coordinatorRef.current = getScopeAnimHoldCoordinator(stores.navigate);
   }
 
-  const currentTransition = resolveTransition(transitionName);
+  // Quiet during render: this Router may not have registered its transitions
+  // yet (see resolveTransition). The effect below asks again after the commit.
+  const currentTransition = resolveTransition(transitionName, { quiet: true });
   const { initial, decoratorName } = currentTransition;
+  useEffect(() => {
+    resolveTransition(transitionName);
+  }, [transitionName]);
   // Through the resolver, because a transition may declare its swipe either
   // way (see resolveSwipeOptions): reading `swipeDirection` directly would
   // miss every transition written as `swipe: { direction }`.

@@ -592,9 +592,18 @@ function Router({
   // which box bounds its screens. It is absolute in both cases: a nested region
   // has the wrapper below, and a root Router inherits the app's own frame —
   // which is exactly what <Slot> does for the screens themselves.
+  // The region is also its own stacking context. The layers carry a z-index
+  // high enough to paint over every screen they stage above, and without one
+  // that z-index competes with the page AROUND the region: a menu or sheet the
+  // app lays over a live demo was painted under the demo's moving Morph. The
+  // region already clips them to its box, so nothing in it is meant to paint
+  // above what sits over that box.
   if (isNested) {
     return (
-      <div className={className} style={{ position: "relative", overflow: "hidden", ...style }}>
+      <div
+        className={className}
+        style={{ position: "relative", overflow: "hidden", isolation: "isolate", ...style }}
+      >
         {ownsLayers ? (
           // No host inherited, so this Router's outermost screen renders its own
           // (see ScreenMotion), inside this region and clipped with it.
