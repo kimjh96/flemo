@@ -1,6 +1,6 @@
 {
   "name": "@flemo/devtools",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Zero-config transition recorder, on-device readout and visual panel for flemo screen transitions: records how each transition was driven, frame pacing, long tasks, shared-element pairing, what is left behind after a transition ends, and judging preconditions, in one JSON report readable by people and coding agents.",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",

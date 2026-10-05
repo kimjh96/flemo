@@ -1,5 +1,13 @@
 # @flemo/devtools
 
+## 0.10.1
+
+### Patch Changes
+
+- [`a416707`](https://github.com/kimjh96/flemo/commit/a4167076e34191126067b2e742bc243826090d0e) Stop reporting the engine's own head swaps and perceptual landing cuts as `animation-cancel` tripwires; a transition resolved early still trips. Core exports `HEAD_ANIMATION_SUFFIXES` so the recorder's copy stays pinned to it.
+
+- [`4aaceea`](https://github.com/kimjh96/flemo/commit/4aaceea2051116608ff21c8f35cf92f1a3818b30) Record each Router's navigations as their own transitions, so a page with several Routers moving at once no longer reports merged screens, false stalls, re-asserted holds or other Routers' animation events.
+
 ## 0.10.0
 
 ### Minor Changes

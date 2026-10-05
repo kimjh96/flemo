@@ -1,5 +1,17 @@
 # @flemo/web
 
+## 0.12.4
+
+### Patch Changes
+
+- [`f2bf355`](https://github.com/kimjh96/flemo/commit/f2bf355a526fbc0c6f13cc560cdc745c6612d481) Stop live demos autoplaying on a doc page that another page covers.
+
+- [`cb46cc4`](https://github.com/kimjh96/flemo/commit/cb46cc45c2b8ccc91c35d4668fcf32d09c9e763b) Animate the docs page list on phones, and move the site like a site on phones: the home calls to action shove the page and doc pages turn instead of pushing with cupertino.
+- Updated dependencies ([`a416707`](https://github.com/kimjh96/flemo/commit/a4167076e34191126067b2e742bc243826090d0e), [`4aaceea`](https://github.com/kimjh96/flemo/commit/4aaceea2051116608ff21c8f35cf92f1a3818b30), [`6d5dcdb`](https://github.com/kimjh96/flemo/commit/6d5dcdbd15e1721473710d16eebe7f24023e4fa7), [`843225c`](https://github.com/kimjh96/flemo/commit/843225ca8084fa086204f1a50b0caa4b458fd19c)):
+  - @flemo/core@2.8.3
+  - @flemo/devtools@0.10.1
+  - @flemo/react@2.6.2
+
 ## 0.12.3
 
 ### Patch Changes
