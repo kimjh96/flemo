@@ -1,4 +1,9 @@
-import { FLEMO_ANIMATION_PREFIX } from "./domProtocol";
+import {
+  FLEMO_ANIMATION_PREFIX,
+  HEAD_ANIMATION_SUFFIXES,
+  STATUS_ATTR,
+  TRANSITIONAL_STATUSES
+} from "./domProtocol";
 
 import type { InputEvidence, TripwireHit } from "./types";
 
@@ -57,6 +62,33 @@ export interface TripwireOptions {
   onAnimationStart: (atMs: number, target: EventTarget | null) => void;
 }
 
+/**
+ * A keyframe name without its head tier: `<name>-deskhead-717ms` and
+ * `<name>-deskhead` both read as `<name>`.
+ */
+export const transitionBaseName = (name: string): string => {
+  const untagged = name.replace(/-\d+ms$/, "");
+  for (const suffix of HEAD_ANIMATION_SUFFIXES) {
+    if (untagged.endsWith(suffix)) return untagged.slice(0, -suffix.length);
+  }
+  return name;
+};
+
+/**
+ * How far into its active duration a cancel has to land, after the engine has
+ * already resolved the transition, to be the engine's own landing rather than
+ * a loss.
+ *
+ * The engine ends a transition once every channel's remaining motion is below
+ * one device pixel (the perceptual cut, see core's perceptualSpan.ts), which
+ * removes the still-running animation and cancels it. On the presets that is
+ * about 93% in. A transition resolved halfway is not a cut: the 2026-09-23
+ * defect flipped COMPLETED 80ms into a 700ms pop, and that must stay loud.
+ */
+export const LANDING_CUT_MIN_FRACTION = 0.5;
+
+const TRANSITIONAL = new Set<string>(TRANSITIONAL_STATUSES);
+
 const isFlemoAnimation = (event: AnimationEvent): boolean =>
   typeof event.animationName === "string" && event.animationName.startsWith(FLEMO_ANIMATION_PREFIX);
 
@@ -84,16 +116,63 @@ export const attachTripwires = (options: TripwireOptions): TripwireHandle => {
 
   const inputs: InputSample[] = [];
   let sawAnimation = false;
+  // Each running flemo animation's active duration, read when it starts: the
+  // cancel event carries the time elapsed but not the length it was cut from.
+  const durations = new WeakMap<EventTarget, Map<string, number>>();
 
   const onAnimationStart = (event: AnimationEvent): void => {
     if (!isFlemoAnimation(event)) return;
     sawAnimation = true;
+    const target = event.target;
+    if (target instanceof Element && typeof target.getAnimations === "function") {
+      const animation = target
+        .getAnimations()
+        .find((running) => (running as CSSAnimation).animationName === event.animationName);
+      const active = animation?.effect?.getComputedTiming().activeDuration;
+      if (typeof active === "number") {
+        const known = durations.get(target) ?? new Map<string, number>();
+        known.set(event.animationName, active);
+        durations.set(target, known);
+      }
+    }
     options.onAnimationStart(performance.now(), event.target);
+  };
+
+  // A cancel the engine made on purpose, which every transition produces and
+  // which is not the loss the tripwire exists for (see cancelResume in core):
+  //   a SWAP, where the element already plays the same transition under
+  //   another head tier's name (Blink dispatches the cancel a frame later,
+  //   so the successor is running by then), and
+  //   a LANDING, where the element has already left the transitional statuses
+  //   and the animation was cut late in its run.
+  const engineOwnedCancel = (event: AnimationEvent): boolean => {
+    const target = event.target;
+    if (!(target instanceof Element)) return false;
+    const base = transitionBaseName(event.animationName);
+    const successor =
+      typeof target.getAnimations === "function" &&
+      target
+        .getAnimations()
+        .some(
+          (running) =>
+            transitionBaseName((running as CSSAnimation).animationName ?? "") === base &&
+            (running as CSSAnimation).animationName !== event.animationName
+        );
+    if (successor) return true;
+    const status = target.closest(`[${STATUS_ATTR}]`)?.getAttribute(STATUS_ATTR) ?? "";
+    const durationMs = durations.get(target)?.get(event.animationName);
+    return (
+      !TRANSITIONAL.has(status) &&
+      durationMs !== undefined &&
+      durationMs > 0 &&
+      (event.elapsedTime * 1000) / durationMs >= LANDING_CUT_MIN_FRACTION
+    );
   };
 
   const onAnimationCancel = (event: AnimationEvent): void => {
     if (!isFlemoAnimation(event)) return;
     sawAnimation = true;
+    if (engineOwnedCancel(event)) return;
     options.onHit(
       {
         kind: "animation-cancel",
