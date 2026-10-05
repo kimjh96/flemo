@@ -1,5 +1,11 @@
 # @flemo/web
 
+## 0.12.3
+
+### Patch Changes
+
+- [`d119a90`](https://github.com/kimjh96/flemo/commit/d119a90fb4dc026b119367ee2f32ccc7ca4fc7a1) Open the docs search as a flemo step, so Back closes it, and animate the search and the mobile menu in and out; Escape closes either one, and the search input takes the focus as it opens.
+
 ## 0.12.2
 
 ### Patch Changes
