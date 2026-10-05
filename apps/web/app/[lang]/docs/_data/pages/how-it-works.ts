@@ -1,12 +1,12 @@
 import type { DocBlock, LocalizedDocPage } from "../docTypes";
 
-// The whole library in pictures, for someone who has never used it. Every
+// The whole library for someone who has never used it. Every
 // claim here is a plain restatement of a page further on; link there for the
 // details instead of adding them here.
 const enBlocks: DocBlock[] = [
   {
     type: "p",
-    text: "flemo moves screens the way a phone app does. This page shows how, one picture at a time, without any code."
+    text: "flemo moves screens the way a phone app does. Here is what happens under the hood, from the stack of screens to the swipe that takes you back."
   },
   { type: "h", text: "Screens are a stack of cards" },
   {
@@ -18,6 +18,10 @@ const enBlocks: DocBlock[] = [
     diagram: "stack",
     caption:
       "push lays a new screen on top. pop lifts the top one off and the screen below comes back."
+  },
+  {
+    type: "p",
+    text: "The cards underneath are never thrown away. They stay mounted while a new one sits on top, so when you come back, a list is still scrolled where you left it and a half-filled form still has its text."
   },
   {
     type: "p",
@@ -36,7 +40,11 @@ const enBlocks: DocBlock[] = [
   },
   {
     type: "p",
-    text: "Because the browser plays the CSS, no JavaScript has to run on every frame while screens move. That keeps the motion smooth even when the page is busy. See [Transitions](transitions)."
+    text: "Because the browser plays the CSS, no JavaScript runs on every frame of a push or a pop. That keeps the motion smooth even when the page is busy."
+  },
+  {
+    type: "p",
+    text: "Which recipe plays is decided by each move, not by the screen: the `Router` has a default, and a push can name another one with `transitionName`. See [Transitions](transitions)."
   },
   { type: "h", text: "One push, step by step" },
   {
@@ -61,12 +69,16 @@ const enBlocks: DocBlock[] = [
   },
   {
     type: "p",
-    text: "A pop plays the same steps backwards."
+    text: "A pop runs the same movement in reverse, without the wait in step 2: the screen underneath never left, so it is ready at once."
+  },
+  {
+    type: "p",
+    text: "Only one move runs at a time. A tap that asks for another push or pop while one is running is ignored rather than saved for later, so tapping a button twice moves once."
   },
   { type: "h", text: "Your finger drives the swipe" },
   {
     type: "p",
-    text: "When you start swiping from the left edge, flemo prepares the pop but does not play it. Instead, the distance your finger has moved decides how far along the pop is. Move your finger back and the screens move back with it."
+    text: "When you start swiping back (from the left edge with `cupertino`), flemo prepares the pop but does not play it. Instead, the distance your finger has moved decides how far along the pop is. Move your finger back and the screens move back with it."
   },
   {
     type: "diagram",
@@ -121,14 +133,14 @@ const enBlocks: DocBlock[] = [
   },
   {
     type: "p",
-    text: "[Putting it together](composition) builds an app with all of these, one step at a time."
+    text: "[Putting it together](putting-it-together) builds an app with all of these, one step at a time."
   }
 ];
 
 const koBlocks: DocBlock[] = [
   {
     type: "p",
-    text: "flemo는 휴대폰 앱처럼 화면을 움직여요. 이 페이지는 코드 없이, 그림 하나씩 보면서 어떻게 움직이는지 설명해요."
+    text: "flemo는 휴대폰 앱처럼 화면을 움직여요. 화면 스택부터 뒤로 가는 스와이프까지, 그 안에서 어떤 일이 일어나는지 알아봐요."
   },
   { type: "h", text: "화면은 카드 더미예요" },
   {
@@ -139,6 +151,10 @@ const koBlocks: DocBlock[] = [
     type: "diagram",
     diagram: "stack",
     caption: "push는 새 화면을 맨 위에 올려요. pop은 맨 위 화면을 치우고, 아래 화면이 다시 보여요."
+  },
+  {
+    type: "p",
+    text: "아래에 깔린 카드는 버려지지 않아요. 새 카드가 위에 올라가 있는 동안에도 마운트된 채로 남아 있어서, 돌아오면 목록은 보던 위치 그대로 스크롤돼 있고 쓰다 만 입력도 그대로 남아 있어요."
   },
   {
     type: "p",
@@ -157,7 +173,11 @@ const koBlocks: DocBlock[] = [
   },
   {
     type: "p",
-    text: "브라우저가 CSS를 재생하기 때문에, 화면이 움직이는 동안 프레임마다 JavaScript를 실행할 필요가 없어요. 그래서 페이지가 바쁠 때도 움직임이 부드러워요. 자세한 내용은 [Transitions](transitions)를 보세요."
+    text: "브라우저가 CSS를 재생하기 때문에, push나 pop을 하는 동안 프레임마다 JavaScript가 실행되지 않아요. 그래서 페이지가 바쁠 때도 움직임이 부드러워요."
+  },
+  {
+    type: "p",
+    text: "어떤 레시피를 재생할지는 화면이 아니라 이동마다 정해요. `Router`에 기본값이 있고, push할 때 `transitionName`으로 다른 트랜지션을 고를 수 있어요. 자세한 내용은 [Transitions](transitions)를 보세요."
   },
   { type: "h", text: "push 한 번을 단계별로" },
   {
@@ -182,12 +202,16 @@ const koBlocks: DocBlock[] = [
   },
   {
     type: "p",
-    text: "pop은 같은 단계를 거꾸로 밟아요."
+    text: "pop은 같은 움직임을 거꾸로 재생해요. 다만 2단계처럼 기다리지 않아요. 아래 화면은 처음부터 떠나지 않았으니 바로 움직일 수 있어요."
   },
-  { type: "h", text: "스와이프는 손가락이 움직여요" },
   {
     type: "p",
-    text: "왼쪽 가장자리에서 스와이프를 시작하면, flemo는 pop을 준비만 하고 재생하지는 않아요. 대신 손가락이 움직인 거리만큼 pop이 진행돼요. 손가락을 되돌리면 화면도 같이 되돌아와요."
+    text: "이동은 한 번에 하나만 일어나요. 화면이 움직이는 동안 들어온 push나 pop은 나중으로 미뤄지지 않고 무시돼요. 그래서 버튼을 두 번 눌러도 한 번만 이동해요."
+  },
+  { type: "h", text: "스와이프는 손가락을 따라가요" },
+  {
+    type: "p",
+    text: "뒤로 가는 스와이프를 시작하면(`cupertino`에서는 왼쪽 가장자리에서), flemo는 pop을 준비만 하고 재생하지는 않아요. 대신 손가락이 움직인 거리만큼 pop이 진행돼요. 손가락을 되돌리면 화면도 같이 되돌아와요."
   },
   {
     type: "diagram",
@@ -241,7 +265,7 @@ const koBlocks: DocBlock[] = [
   },
   {
     type: "p",
-    text: "[Putting it together](composition)에서 이 모든 것을 한 단계씩 써서 앱을 만들어 봐요."
+    text: "[Putting it together](putting-it-together)에서 이 모든 것을 한 단계씩 써서 앱을 만들어 봐요."
   }
 ];
 
@@ -250,14 +274,14 @@ const page: LocalizedDocPage = {
     slug: "how-it-works",
     title: "How it works",
     summary:
-      "How flemo moves screens, in pictures: a stack of cards, a movement written down once, a swipe your finger drives, and a few pieces that stay still.",
+      "How flemo moves screens: a stack of cards, a movement written down once, a swipe your finger drives, and the pieces that stay still.",
     blocks: enBlocks
   },
   ko: {
     slug: "how-it-works",
     title: "How it works",
     summary:
-      "flemo가 화면을 움직이는 방식을 그림으로 설명해요. 카드 더미, 한 번 적어 두는 움직임, 손가락이 움직이는 스와이프, 그리고 그대로 있는 부분들까지 차례로 봐요.",
+      "flemo가 화면을 움직이는 방식이에요. 카드 더미, 한 번 적어 두는 움직임, 손가락이 움직이는 스와이프, 그리고 그대로 있는 부분까지 차례로 봐요.",
     blocks: koBlocks
   }
 };

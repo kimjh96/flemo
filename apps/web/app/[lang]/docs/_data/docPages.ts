@@ -1,7 +1,7 @@
 import type { DocBlock, DocPage, DocSection, LocalizedDocPage } from "./docTypes";
 
 import api from "./pages/api";
-import composition from "./pages/composition";
+import puttingItTogether from "./pages/putting-it-together";
 import decorator from "./pages/decorator";
 import gettingStarted from "./pages/getting-started";
 import howItWorks from "./pages/how-it-works";
@@ -27,7 +27,7 @@ const OUTLINE: { title: { en: string; ko: string }; pages: LocalizedDocPage[] }[
   { title: { en: "Core", ko: "Core" }, pages: [router, slot, screen, navigation] },
   {
     title: { en: "Motion", ko: "Motion" },
-    pages: [transitions, decorator, part, morph, layer, composition]
+    pages: [transitions, decorator, part, morph, layer, puttingItTogether]
   },
   { title: { en: "Reference", ko: "Reference" }, pages: [api] }
 ];

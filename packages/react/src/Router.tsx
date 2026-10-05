@@ -33,6 +33,7 @@ import HistoryListener from "@history/HistoryListener";
 
 import Renderer from "@renderer/Renderer";
 
+import { LayerHostContext } from "@screen/LayerContext";
 import MorphLayer from "@screen/MorphLayer";
 import PartLayer from "@screen/PartLayer";
 import ScreenContext from "@screen/ScreenContext";
@@ -151,6 +152,19 @@ interface RouterProps {
   className?: string;
   /** Sizes the region box of a nested Router. See `className`. */
   style?: CSSProperties;
+  /**
+   * Give this Router's screens their own `Layer` host instead of the
+   * outermost screen's.
+   *
+   * By default every `Layer` in a chain of nested Routers renders in one host
+   * owned by the outermost screen, so an overlay can cover the header or tab
+   * bar an ancestor screen declared. A Router that runs as a self-contained app
+   * inside another one, such as a preview, a demo or an embedded widget, wants
+   * the opposite: its overlays belong inside its own box. Set `ownsLayers` on
+   * that Router and its outermost screen hosts the `Layer`s of everything
+   * inside it, clipped to its region like the rest of its screens.
+   */
+  ownsLayers?: boolean;
 }
 
 // useLayoutEffect warns when rendered on the server; the server never needs the
@@ -229,7 +243,8 @@ function Router({
   history = "browser",
   createDriver,
   className,
-  style
+  style,
+  ownsLayers = false
 }: PropsWithChildren<RouterProps>) {
   // A <Router> rendered inside another is a nested transition region: it contains
   // its screens to its box. Detected via depth, NOT the store context, since a
@@ -580,7 +595,13 @@ function Router({
   if (isNested) {
     return (
       <div className={className} style={{ position: "relative", overflow: "hidden", ...style }}>
-        {content}
+        {ownsLayers ? (
+          // No host inherited, so this Router's outermost screen renders its own
+          // (see ScreenMotion), inside this region and clipped with it.
+          <LayerHostContext.Provider value={null}>{content}</LayerHostContext.Provider>
+        ) : (
+          content
+        )}
         <MorphLayer stores={stores} />
         <PartLayer stores={stores} />
       </div>

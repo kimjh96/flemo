@@ -97,10 +97,10 @@ describe("captureMorphSnapshot", () => {
     expect(snapshot.paint["border-radius"]).toBe("8px");
   });
 
-  it("declines the font-defined keywords rather than guessing a length", () => {
-    // `normal` leading and tracking are computed from the face, not from a
-    // number, so there is no midpoint between one end's keyword and the other
-    // end's px. Those elements keep what they were authored with.
+  it("reads spacing's `normal` as zero and declines the font-defined leading", () => {
+    // `normal` letter and word spacing add no space, exactly like `0`, so an
+    // untracked end still interpolates against a tracked one. `normal`
+    // leading is the face's own height, which the keyword does not state.
     stubStyles({
       fontSize: "16px",
       fontWeight: "400",
@@ -111,8 +111,8 @@ describe("captureMorphSnapshot", () => {
     });
 
     expect(captureMorphSnapshot(document.createElement("div"))).toMatchObject({
-      letterSpacing: null,
-      wordSpacing: null,
+      letterSpacing: 0,
+      wordSpacing: 0,
       lineHeight: null,
       aspectRatio: null
     });

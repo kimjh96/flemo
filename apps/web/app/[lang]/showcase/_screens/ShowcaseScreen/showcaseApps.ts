@@ -4,6 +4,7 @@ export interface ShowcaseAppConfig {
   id: ShowcaseAppId;
   logo: string;
   languages: ShowcaseLanguageCode[];
+  webUrl?: string;
   appStoreUrl?: string;
   playStoreUrl?: string;
 }
@@ -13,6 +14,7 @@ export const showcaseApps: ShowcaseAppConfig[] = [
     id: "shiflo",
     logo: "/shiflo/logo.png",
     languages: ["ko"],
+    webUrl: "https://shiflo.team",
     appStoreUrl: "https://apps.apple.com/kr/app/%EC%8B%9C%ED%94%8C%EB%A1%9C/id6757798018",
     playStoreUrl: "https://play.google.com/store/apps/details?id=com.shiflo&hl=ko"
   }

@@ -162,6 +162,17 @@ export const dict = {
           lisbon: "Portugal",
           oaxaca: "Mexico",
           reykjavik: "Iceland"
+        },
+        trip: {
+          featured: "This week",
+          saved: "Saved",
+          filter: "Filter",
+          more: "More",
+          filters: "Filters",
+          filterOptions: ["Coast", "Old town", "Mountains", "Food"],
+          menuTitle: "Saved places",
+          menuItems: ["Share list", "Sort by distance", "Clear visited"],
+          close: "Close"
         }
       },
       readout: {
@@ -258,6 +269,7 @@ export const dict = {
       flemoUsageLabel: "How it uses flemo",
       languagesLabel: "Languages",
       languageNames: { ko: "Korean" },
+      web: "Web",
       appStore: "App Store",
       playStore: "Google Play",
       submit: {
@@ -418,6 +430,17 @@ export const dict = {
           lisbon: "포르투갈",
           oaxaca: "멕시코",
           reykjavik: "아이슬란드"
+        },
+        trip: {
+          featured: "이번 주 추천",
+          saved: "저장함",
+          filter: "필터",
+          more: "더 보기",
+          filters: "필터",
+          filterOptions: ["바다", "구시가지", "산", "음식"],
+          menuTitle: "저장한 장소",
+          menuItems: ["목록 공유", "거리순 정렬", "다녀온 곳 지우기"],
+          close: "닫기"
         }
       },
       readout: {
@@ -514,6 +537,7 @@ export const dict = {
       flemoUsageLabel: "How it uses flemo",
       languagesLabel: "Languages",
       languageNames: { ko: "Korean" },
+      web: "Web",
       appStore: "App Store",
       playStore: "Google Play",
       submit: {

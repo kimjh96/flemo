@@ -108,9 +108,6 @@ const rectCentre = (rect: MorphRect): PosePoint => ({
 
 const SINGLE_LENGTH = /^(-?[\d.]+)px$/;
 
-// `letter-spacing: normal` is font-defined rather than a length, so it has no
-// value to interpolate against a px one. Those elements keep their authored
-// tracking through the transition.
 const readLength = (computed: string | null | undefined): number | null => {
   if (!computed) return null;
   const match = SINGLE_LENGTH.exec(computed.trim());
@@ -118,6 +115,20 @@ const readLength = (computed: string | null | undefined): number | null => {
   const value = Number.parseFloat(match[1]!);
   return Number.isFinite(value) ? value : null;
 };
+
+// SPACING'S `normal` IS ZERO.
+//
+// `letter-spacing` and `word-spacing` compute to `normal` when nothing is
+// authored, and `normal` adds no space: CSS Text defines it as the font's own
+// spacing, rendered exactly as `0`. Declining it as a keyword dropped the whole
+// channel whenever one end was untracked, so the arrival wore its destination's
+// tracking from the first frame. A label at `normal` growing into a heading at
+// `-0.02em` started 0.28px per gap tight on a push and wide on the pop, before
+// the size had moved at all. Read as 0px it interpolates like any length.
+// (`line-height: normal` is different: it is the face's own leading, a real
+// height the keyword does not state, so readLength still declines it.)
+const readSpacing = (computed: string | null | undefined): number | null =>
+  computed?.trim() === "normal" ? 0 : readLength(computed);
 
 // A line's worth of height, from the leading where there is one and from the
 // type's own size where `line-height: normal` leaves none to read.
@@ -257,8 +268,8 @@ export const captureMorphSnapshot = (element: HTMLElement): MorphSnapshot => {
     rect,
     fontSize: Number.isFinite(fontSize) ? fontSize : null,
     fontWeight: Number.isFinite(fontWeight) ? fontWeight : null,
-    letterSpacing: readLength(styles?.letterSpacing),
-    wordSpacing: readLength(styles?.wordSpacing),
+    letterSpacing: readSpacing(styles?.letterSpacing),
+    wordSpacing: readSpacing(styles?.wordSpacing),
     // `line-height: normal` is font-defined rather than a length, so readLength
     // declines it and those elements keep their own leading through the transition.
     lineHeight,

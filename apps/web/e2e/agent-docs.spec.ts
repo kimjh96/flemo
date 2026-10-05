@@ -21,9 +21,13 @@ test.describe("agent documentation", () => {
     expect(response.ok()).toBe(true);
     expect(body).toContain("# flemo complete documentation");
     expect(body).toContain("## English: Core");
-    expect(body).toContain("### [Putting it together](https://flemo.dev/en/docs/composition)");
+    expect(body).toContain(
+      "### [Putting it together](https://flemo.dev/en/docs/putting-it-together)"
+    );
     expect(body).toContain("## 한국어: Core");
-    expect(body).toContain("### [Putting it together](https://flemo.dev/ko/docs/composition)");
+    expect(body).toContain(
+      "### [Putting it together](https://flemo.dev/ko/docs/putting-it-together)"
+    );
     expect(body).toContain("A Part with no swipe hooks follows the same POPPING progress");
     expect(body).toContain(
       "The menu opens from the panel but should cover the whole app, header included."
