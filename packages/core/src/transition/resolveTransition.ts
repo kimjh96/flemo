@@ -13,9 +13,19 @@ import { warnUnregistered } from "@utils/devWarn";
 // screen that simply cuts. Said once per name, and only once the registry has
 // anything in it — an empty map means the Router has not registered yet, which
 // is a render order, not a mistake.
-export default function resolveTransition(transitionName: TransitionName): Transition {
+//
+// A non-empty map does not prove that either. A nested Router that mounts after
+// another one has registered renders its screens BEFORE its own registration
+// runs, and those screens resolve their Router's own names into a map holding
+// only the other Router's. A binding resolving during render passes `quiet`
+// and asks again once its commit is done, when every Router in it has
+// registered.
+export default function resolveTransition(
+  transitionName: TransitionName,
+  { quiet = false }: { quiet?: boolean } = {}
+): Transition {
   const registered = transitionMap.get(transitionName);
-  if (!registered && transitionMap.size > 0) {
+  if (!registered && !quiet && transitionMap.size > 0) {
     warnUnregistered(
       "transition",
       transitionName,

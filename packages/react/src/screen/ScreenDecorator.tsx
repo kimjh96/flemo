@@ -27,7 +27,9 @@ function ScreenDecorator({ ref, style, ...props }: ComponentPropsWithRef<"div">)
   // re-triggered their compiled decorator keyframes.
   const status = useNavigateStore((state) => (isPrev ? "COMPLETED" : state.status));
 
-  const currentTransition = resolveTransition(transitionName);
+  // Quiet: ScreenMotion, beside it, reports an unregistered name after its
+  // commit (see resolveTransition).
+  const currentTransition = resolveTransition(transitionName, { quiet: true });
   const { decoratorName } = currentTransition;
   const decorator = decoratorMap.get(decoratorName!);
 
