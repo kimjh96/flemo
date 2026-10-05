@@ -1,5 +1,11 @@
 # @flemo/core
 
+## 2.8.2
+
+### Patch Changes
+
+- [`624ef2f`](https://github.com/kimjh96/flemo/commit/624ef2fbc027b122c2f94c5cf2834ae53bb4ff0b) Land Back onto an in-page `#anchor` entry on the screen it belongs to instead of ignoring it, and keep a running transition in one Router from restarting when another Router starts a transition on desktop Chrome.
+
 ## 2.8.1
 
 ### Patch Changes
