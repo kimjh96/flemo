@@ -19,18 +19,11 @@ export function sectionOf(pathname: string): SectionPath {
 //
 //   goSection   a peer move from the header. Lateral, short, no swipe.
 //   drillInto   going deeper from inside a page (a call to action, a card,
-//               a search result). On a wide screen the page is shoved a full
-//               width (site-drill); on a phone it is the cupertino push, so
-//               the visitor can swipe back to where they came from.
+//               a search result). The page is shoved a full width
+//               (site-drill), on a phone as on a wide screen: this is a
+//               site, so going deeper never borrows an app screen's push.
 //
 // Both are no-ops when the destination is already on screen.
-const PHONE = "(max-width: 767px)";
-
-function drillTransition() {
-  const phone = typeof window !== "undefined" && window.matchMedia(PHONE).matches;
-  return phone ? "cupertino" : "site-drill";
-}
-
 export default function useSiteNavigate() {
   const navigate = useNavigate();
   const pathname = usePathname();
@@ -43,12 +36,12 @@ export default function useSiteNavigate() {
   };
 
   const drillIntoDocs = (slug: string) => {
-    navigate.push("/docs/:slug", { slug }, { transitionName: drillTransition() });
+    navigate.push("/docs/:slug", { slug }, { transitionName: "site-drill" });
   };
 
   const drillIntoPlayground = () => {
     if (pathname === "/playground") return;
-    navigate.push("/playground", {}, { transitionName: drillTransition() });
+    navigate.push("/playground", {}, { transitionName: "site-drill" });
   };
 
   return { pathname, section, goSection, drillIntoDocs, drillIntoPlayground };

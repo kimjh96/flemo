@@ -28,6 +28,7 @@ function DocsRouter({ initPath }: DocsRouterProps) {
     <Router
       initPath={initPath}
       createDriver={(key) => createLocaleHistoryDriver(key, getLocale)}
+      defaultTransitionName="doc-forward"
       transitions={[docForward, docBackward]}
       className="mx-auto flex h-full w-full max-w-[1280px] bg-bg"
     >
