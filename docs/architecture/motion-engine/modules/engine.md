@@ -6,6 +6,7 @@ Modules in `packages/core/src/core/engine/`:
 | --- | --- |
 | `createTransitionEngine.ts` | Per-screen lifecycle conductor: hold and armor setup, resolution, and COMPLETED cleanup. Its routing comments are the campaign ledger; read them before changing routing. |
 | `transitionRouting.ts` | Determines opening treatment and whether the engine may touch a transition's clock. Shares `resolveHeadKit` with the morph runtime to prevent drift. |
+| `headGate.ts` | Holds the page-wide desktop head gate still while any transition runs under it, so a transition starting in another Router routes with the same answer instead of flipping the root attribute and restarting the running animation. |
 | `arrivalHold.ts` | Holds mid-transition swaps, additions, and in-place writes, then reflects them at rest under the delayed-but-complete contract. |
 | `responseHold.ts` | Parks nonstream fetch resolutions for all methods and delivers them in one rest batch. |
 | `invisibleAnimationHold.ts` | Pauses invisible consumer animations during transitions. |
