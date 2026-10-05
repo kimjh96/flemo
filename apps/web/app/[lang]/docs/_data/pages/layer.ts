@@ -50,7 +50,7 @@ const enBlocks: DocBlock[] = [
     type: "note",
     kind: "warn",
     title: "Inside a nested Router",
-    text: "The host belongs to the outermost screen, so `bottom: 0` resolves against the root `Router`'s viewport-sized region, not the nested box. To stay inside the box, omit `Layer` and render ordinary content."
+    text: "The host belongs to the outermost screen, so `bottom: 0` resolves against the root `Router`'s viewport-sized region, not the nested box. To stay inside the box, omit `Layer` and render ordinary content. When the nested Router is a whole app embedded in another, such as a preview or a demo, set `ownsLayers` on it instead: its outermost screen then hosts the overlays of everything inside it, inside its box."
   },
   {
     type: "details",
@@ -116,7 +116,7 @@ const koBlocks: DocBlock[] = [
     type: "note",
     kind: "warn",
     title: "중첩 Router 안에서",
-    text: "호스트는 가장 바깥 화면에 있어서, `bottom: 0`은 중첩된 영역이 아니라 루트 `Router`의 뷰포트 크기 영역을 기준으로 계산돼요. 오버레이를 중첩된 영역 안에 두려면 `Layer`를 빼고 일반 콘텐츠로 그리세요."
+    text: "호스트는 가장 바깥 화면에 있어서, `bottom: 0`은 중첩된 영역이 아니라 루트 `Router`의 뷰포트 크기 영역을 기준으로 계산돼요. 오버레이를 중첩된 영역 안에 두려면 `Layer`를 빼고 일반 콘텐츠로 그리세요. 미리보기나 데모처럼 다른 앱 안에 앱 하나를 통째로 넣은 경우라면, 대신 그 중첩 Router에 `ownsLayers`를 주세요. 그러면 그 Router의 가장 바깥 화면이 안쪽 모든 오버레이의 호스트가 되고, 오버레이가 그 영역 안에 그려져요."
   },
   {
     type: "details",

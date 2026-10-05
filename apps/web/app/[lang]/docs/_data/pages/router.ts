@@ -132,7 +132,12 @@ const page: LocalizedDocPage = {
           ["`initPath`", "`/`", "Start path when the URL is not read: server, nested, or memory"],
           ["`name`", "none", "Name that navigation from another Router uses to target this one"],
           ["`strictRoutes`", "`false`", "Makes the missing-route warning an error"],
-          ["`className` / `style`", "none", "Size a nested Router's box"]
+          ["`className` / `style`", "none", "Size a nested Router's box"],
+          [
+            "`ownsLayers`",
+            "`false`",
+            "Give a nested Router its own [Layer](layer) host, so the overlays of an app embedded in another stay inside its box"
+          ]
         ]
       },
       { type: "h", text: "Nested and named Routers" },
@@ -292,7 +297,12 @@ const page: LocalizedDocPage = {
           ],
           ["`name`", "없음", "다른 Router에서 이 Router로 이동할 때 대상을 가리키는 이름"],
           ["`strictRoutes`", "`false`", "라우트 누락 경고를 에러로 바꿔요"],
-          ["`className` / `style`", "없음", "중첩 Router 영역의 크기를 정해요"]
+          ["`className` / `style`", "없음", "중첩 Router 영역의 크기를 정해요"],
+          [
+            "`ownsLayers`",
+            "`false`",
+            "중첩 Router가 자기 [Layer](layer) 호스트를 갖게 해요. 다른 앱 안에 넣은 앱의 오버레이가 그 영역 안에 그려져요"
+          ]
         ]
       },
       { type: "h", text: "중첩 Router와 이름" },

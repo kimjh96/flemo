@@ -1,9 +1,8 @@
 "use client";
 
-import DeviceFrame from "@/components/DeviceFrame";
 import MiniDemo from "@/app/[lang]/_components/MiniDemo";
+import TripDemo from "@/app/[lang]/_components/TripDemo";
 import type { MiniConfig } from "@/app/[lang]/_demo/_providers/MiniContext";
-import CompositionRouter from "@/app/[lang]/playground/_router/CompositionRouter";
 
 import type { DemoId } from "../../_data/docTypes";
 import InlineText from "../InlineText";
@@ -23,16 +22,13 @@ export interface DocDemoProps {
 
 // A live demo inside a doc page: the Places app running the exact piece the
 // page explains, with the readout under it and one line on what to try. The
-// composition demo is the larger inbox app instead, the same one the
-// playground's composition bench runs.
+// composition demo is the same app with every piece of it switched on at once.
 function DocDemo({ demo, caption }: DocDemoProps) {
   return (
     <figure className="my-8 overflow-hidden rounded-xl border border-line">
       <div className="bg-grid flex justify-center bg-bg-subtle px-4 py-8">
         {demo === "composition" ? (
-          <DeviceFrame height="600px">
-            <CompositionRouter />
-          </DeviceFrame>
+          <TripDemo height="420px" />
         ) : (
           <MiniDemo config={CONFIG[demo]} height="420px" readout />
         )}
