@@ -6,6 +6,7 @@ import { usePathname, useStep } from "@flemo/react";
 
 import Icon from "@/components/Icon";
 import Kbd from "@/components/Kbd";
+import useExitPresence from "@/app/[lang]/_hooks/useExitPresence";
 import useSiteNavigate from "@/app/[lang]/_hooks/useSiteNavigate";
 import { useDict, useShellLang } from "@/app/[lang]/_providers/ShellIntlProvider";
 
@@ -42,10 +43,6 @@ export function openDocsSearch() {
 
 const plain = (text: string) => text.replace(/`/g, "");
 
-// How long the close animation may take before the dialog unmounts anyway: a
-// backstop for an `animationend` that never arrives (a hidden tab).
-const CLOSE_BACKSTOP_MS = 300;
-
 // Opens on the site's out curve, dropping a few pixels into place, and closes
 // faster than it opens so a dismiss never waits. Under reduced motion it is
 // only a fade, and still an animation, so the close still ends in the
@@ -53,8 +50,8 @@ const CLOSE_BACKSTOP_MS = 300;
 const PANEL_MOTION = [
   "data-[state=open]:animate-[search-panel-in_220ms_var(--ease-out)_both]",
   "data-[state=closed]:animate-[search-panel-out_140ms_ease-in_both]",
-  "motion-reduce:data-[state=open]:animate-[search-backdrop-in_220ms_var(--ease-out)_both]",
-  "motion-reduce:data-[state=closed]:animate-[search-backdrop-out_140ms_ease-in_both]"
+  "motion-reduce:data-[state=open]:animate-[fade-in_220ms_var(--ease-out)_both]",
+  "motion-reduce:data-[state=closed]:animate-[fade-out_140ms_ease-in_both]"
 ].join(" ");
 
 // ⌘K anywhere on the site. Mounted once in the shell, outside its <Slot>.
@@ -75,12 +72,15 @@ function DocsSearch() {
   const { drillIntoDocs } = useSiteNavigate();
   const { step, pushStep, popStep } = useStep<{ search: boolean }>();
   const open = step?.search === true;
-  // Still on screen after a close, for the close animation. The dialog renders
-  // in the same commit that opens it, so the input has the focus before the
-  // next keystroke lands.
-  const [present, setPresent] = useState(false);
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
+  // On screen through the close animation, and rendered in the same commit
+  // that opens it, so the input has the focus before the next keystroke lands.
+  // The next open starts fresh.
+  const { present, onAnimationEnd } = useExitPresence(open, () => {
+    setQuery("");
+    setCursor(0);
+  });
   const inputRef = useRef<HTMLInputElement>(null);
 
   const entries = useMemo<Entry[]>(
@@ -126,6 +126,8 @@ function DocsSearch() {
     const onKey = (event: KeyboardEvent) => {
       // Escape closes from anywhere: the input may not have the focus.
       if (event.key === "Escape" && openRef.current) {
+        // Claimed, so the mobile menu under the dialog does not close too.
+        event.preventDefault();
         void stepRef.current.popStep();
         return;
       }
@@ -136,32 +138,23 @@ function DocsSearch() {
       }
     };
     window.addEventListener(OPEN_EVENT, show);
-    window.addEventListener("keydown", onKey);
+    // Capture, so the dialog sees a key before anything under it.
+    window.addEventListener("keydown", onKey, true);
     return () => {
       window.removeEventListener(OPEN_EVENT, show);
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
     };
   }, []);
-
-  // The dialog leaves once its close has played, and the next open starts fresh.
-  const finishClose = () => {
-    setPresent(false);
-    setQuery("");
-    setCursor(0);
-  };
 
   // An open takes the focus; a close gives it back to whatever had it before.
   const returnFocusRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (open) {
       returnFocusRef.current = document.activeElement as HTMLElement | null;
-      setPresent(true);
       return;
     }
     returnFocusRef.current?.focus?.();
     returnFocusRef.current = null;
-    const backstop = window.setTimeout(finishClose, CLOSE_BACKSTOP_MS);
-    return () => window.clearTimeout(backstop);
   }, [open]);
 
   useEffect(() => {
@@ -184,14 +177,14 @@ function DocsSearch() {
     }
   };
 
-  if (!open && !present) return null;
+  if (!present) return null;
 
   const state = open ? "open" : "closed";
 
   return (
     <div
       data-state={state}
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-[12vh] backdrop-blur-[2px] data-[state=closed]:animate-[search-backdrop-out_140ms_ease-in_both] data-[state=open]:animate-[search-backdrop-in_180ms_var(--ease-out)_both]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-[12vh] backdrop-blur-[2px] data-[state=closed]:animate-[fade-out_140ms_ease-in_both] data-[state=open]:animate-[fade-in_180ms_var(--ease-out)_both]"
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) close();
       }}
@@ -201,9 +194,7 @@ function DocsSearch() {
         aria-label={t.app.nav.search}
         data-state={state}
         inert={!open}
-        onAnimationEnd={(event) => {
-          if (event.target === event.currentTarget && !openRef.current) finishClose();
-        }}
+        onAnimationEnd={onAnimationEnd}
         className={`flex w-full max-w-[560px] origin-top flex-col overflow-hidden rounded-xl border border-line-strong bg-surface shadow-overlay ${PANEL_MOTION}`}
       >
         <div className="flex h-12 items-center gap-3 border-b border-line px-4">
