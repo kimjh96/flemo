@@ -311,6 +311,34 @@
   }
 }
 
+/* The search dialog's open and close. DocsSearch applies them by its own
+   data-state; keyframes are the one part a class cannot carry. */
+@keyframes search-backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes search-backdrop-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes search-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+}
+
+@keyframes search-panel-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
