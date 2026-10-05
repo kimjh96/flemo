@@ -25,6 +25,8 @@ import overlay from "@transition/decorator/overlay";
 import { resolveDecoratorTiming } from "@transition/decorator/resolveDecoratorTiming";
 import createPartTransition from "@transition/partTransition/createPartTransition";
 
+import { HEAD_ANIMATION_SUFFIXES as PUBLIC_HEAD_ANIMATION_SUFFIXES } from "../../index";
+
 import type { Decorator, DecoratorName } from "@transition/decorator/typing";
 
 declare module "@transition/typing" {
@@ -2147,6 +2149,12 @@ describe("compileTransitionStyles: every emitted head is matchable", () => {
       });
 
     expect(unmatched).toEqual([]);
+  });
+
+  it("publishes the head suffixes, so an observer of the page can strip them", () => {
+    // @flemo/devtools pins its own copy against this export: the recorder tells
+    // the engine's head swaps apart from a lost animation by these names.
+    expect(PUBLIC_HEAD_ANIMATION_SUFFIXES).toBe(HEAD_ANIMATION_SUFFIXES);
   });
 
   it("names the park heads, which is where the list had drifted", () => {
