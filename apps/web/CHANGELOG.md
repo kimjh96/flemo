@@ -1,5 +1,17 @@
 # @flemo/web
 
+## 0.12.1
+
+### Patch Changes
+
+- [`4563f0d`](https://github.com/kimjh96/flemo/commit/4563f0d2ef0e440ea9e6288a1bcc39ec5af34215) Rebuild the Putting it together demo as the Places app, in the same device and style as the other live demos, and rewrite the page's steps and full code around it.
+
+- [`1fb6404`](https://github.com/kimjh96/flemo/commit/1fb6404d2b9e9c81d3dfd6c3d809011bbb2337f3) Add a Web link for shiflo on the showcase, restore the rule that holds the Tonight list row's venue and price back on a pop, and tighten the How it works introduction.
+- Updated dependencies ([`db39715`](https://github.com/kimjh96/flemo/commit/db397157a33314b4c452bcd7518ff0446ae8f991), [`c794bee`](https://github.com/kimjh96/flemo/commit/c794beea79892f21570ac34515e27361d477e319)):
+  - @flemo/react@2.6.0
+  - @flemo/core@2.8.1
+  - @flemo/devtools@0.10.0
+
 ## 0.12.0
 
 ### Minor Changes
