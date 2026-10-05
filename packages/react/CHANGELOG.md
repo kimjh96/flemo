@@ -1,5 +1,15 @@
 # @flemo/react
 
+## 2.6.2
+
+### Patch Changes
+
+- [`6d5dcdb`](https://github.com/kimjh96/flemo/commit/6d5dcdbd15e1721473710d16eebe7f24023e4fa7) Stop a nested Router that mounts after another Router from reporting its own default transition as unregistered in development. `resolveTransition` takes a `quiet` option for lookups made before a Router has registered.
+
+- [`843225c`](https://github.com/kimjh96/flemo/commit/843225ca8084fa086204f1a50b0caa4b458fd19c) Make a nested Router's region its own stacking context, so a moving Morph or Part inside it no longer paints over a menu or sheet the app lays on top of the region.
+- Updated dependencies ([`a416707`](https://github.com/kimjh96/flemo/commit/a4167076e34191126067b2e742bc243826090d0e), [`6d5dcdb`](https://github.com/kimjh96/flemo/commit/6d5dcdbd15e1721473710d16eebe7f24023e4fa7)):
+  - @flemo/core@2.8.3
+
 ## 2.6.1
 
 ### Patch Changes

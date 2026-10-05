@@ -1,5 +1,13 @@
 # @flemo/core
 
+## 2.8.3
+
+### Patch Changes
+
+- [`a416707`](https://github.com/kimjh96/flemo/commit/a4167076e34191126067b2e742bc243826090d0e) Stop reporting the engine's own head swaps and perceptual landing cuts as `animation-cancel` tripwires; a transition resolved early still trips. Core exports `HEAD_ANIMATION_SUFFIXES` so the recorder's copy stays pinned to it.
+
+- [`6d5dcdb`](https://github.com/kimjh96/flemo/commit/6d5dcdbd15e1721473710d16eebe7f24023e4fa7) Stop a nested Router that mounts after another Router from reporting its own default transition as unregistered in development. `resolveTransition` takes a `quiet` option for lookups made before a Router has registered.
+
 ## 2.8.2
 
 ### Patch Changes
